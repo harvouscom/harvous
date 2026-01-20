@@ -20,6 +20,8 @@ import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
+// iOS haptics polyfill - enables navigator.vibrate() on iOS 18+
+import "ios-vibrator-pro-max";
 
 interface Props {
   classNames?: string;

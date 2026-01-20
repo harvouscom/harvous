@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 
 interface UseBottomSheetDragOptions {
   onDismiss: () => void;
@@ -13,25 +13,56 @@ const MIN_DRAG_DISTANCE = 5; // px - minimum distance to start drag
  * Attaches drag-to-dismiss functionality to a bottom sheet.
  * Uses direct DOM manipulation to avoid React state updates that could cause re-renders.
  * 
+ * Listeners are attached directly in the ref callback to avoid timing issues
+ * where useEffect runs before the ref is set.
+ * 
  * @param onDismiss - Function to call when the sheet should be dismissed
  * @param enabled - Whether the drag functionality is enabled (default: true)
  * @returns A ref callback to attach to the sheet element
  */
 export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheetDragOptions) {
-  const sheetRef = useRef<HTMLElement | null>(null);
-  const stateRef = useRef({
-    isDragging: false,
-    startY: 0,
-    currentY: 0,
-    startTime: 0,
-    startX: 0,
-  });
-
+  const cleanupRef = useRef<(() => void) | null>(null);
+  const onDismissRef = useRef(onDismiss);
+  const enabledRef = useRef(enabled);
+  
+  // Keep refs in sync with props
   useEffect(() => {
-    const sheet = sheetRef.current;
-    if (!sheet || !enabled) return;
+    onDismissRef.current = onDismiss;
+    enabledRef.current = enabled;
+  }, [onDismiss, enabled]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+    };
+  }, []);
+
+  // Ref callback that attaches listeners immediately when element is available
+  const setRef = useCallback((el: HTMLElement | null) => {
+    // Cleanup previous listeners
+    if (cleanupRef.current) {
+      cleanupRef.current();
+      cleanupRef.current = null;
+    }
+
+    if (!el) return;
+
+    // Drag state (stored in closure, not React state)
+    const state = {
+      isDragging: false,
+      startY: 0,
+      currentY: 0,
+      startTime: 0,
+      startX: 0,
+    };
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (!enabledRef.current) return;
+
       // Don't interfere with interactive elements
       const target = e.target as HTMLElement;
       if (target?.closest('button, a, input, textarea, select, [role="button"]')) {
@@ -39,23 +70,21 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       }
 
       // Check if there's scrollable content that's not at the top
-      const scrollableContent = sheet.querySelector('.mobile-nav__sheet-inner, .bottom-sheet__inner');
+      const scrollableContent = el.querySelector('.mobile-nav__sheet-inner, .bottom-sheet__inner');
       if (scrollableContent && scrollableContent.scrollTop > 0) {
         // Content is scrolled down, don't allow drag - let scroll happen
         return;
       }
 
-      stateRef.current = {
-        isDragging: false,
-        startY: e.touches[0].clientY,
-        currentY: e.touches[0].clientY,
-        startTime: Date.now(),
-        startX: e.touches[0].clientX,
-      };
+      state.isDragging = false;
+      state.startY = e.touches[0].clientY;
+      state.currentY = e.touches[0].clientY;
+      state.startTime = Date.now();
+      state.startX = e.touches[0].clientX;
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      const state = stateRef.current;
+      if (!enabledRef.current) return;
       if (state.startY === 0) return; // Touch didn't start in valid area
 
       const currentY = e.touches[0].clientY;
@@ -77,22 +106,23 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       // Start dragging - directly manipulate DOM
       if (!state.isDragging) {
         state.isDragging = true;
-        sheet.style.transition = 'none';
+        el.style.transition = 'none';
       }
 
       e.preventDefault();
       state.currentY = currentY;
-      
+
       // Apply transform directly to DOM
-      sheet.style.transform = `translateY(${deltaY}px)`;
+      el.style.transform = `translateY(${deltaY}px)`;
     };
 
     const handleTouchEnd = () => {
-      const state = stateRef.current;
-      
       if (!state.isDragging) {
         // Reset state
-        stateRef.current = { isDragging: false, startY: 0, currentY: 0, startTime: 0, startX: 0 };
+        state.startY = 0;
+        state.currentY = 0;
+        state.startTime = 0;
+        state.startX = 0;
         return;
       }
 
@@ -105,45 +135,46 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
 
       if (shouldDismiss) {
         // Animate out and dismiss
-        sheet.style.transition = 'transform 0.2s ease-out';
-        sheet.style.transform = 'translateY(100%)';
-        
+        el.style.transition = 'transform 0.2s ease-out';
+        el.style.transform = 'translateY(100%)';
+
         setTimeout(() => {
-          sheet.style.transform = '';
-          sheet.style.transition = '';
-          onDismiss();
+          el.style.transform = '';
+          el.style.transition = '';
+          onDismissRef.current();
         }, 200);
       } else {
         // Snap back
-        sheet.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-        sheet.style.transform = '';
-        
+        el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.transform = '';
+
         setTimeout(() => {
-          sheet.style.transition = '';
+          el.style.transition = '';
         }, 300);
       }
 
       // Reset state
-      stateRef.current = { isDragging: false, startY: 0, currentY: 0, startTime: 0, startX: 0 };
+      state.isDragging = false;
+      state.startY = 0;
+      state.currentY = 0;
+      state.startTime = 0;
+      state.startX = 0;
     };
 
-    sheet.addEventListener('touchstart', handleTouchStart, { passive: true });
-    sheet.addEventListener('touchmove', handleTouchMove, { passive: false });
-    sheet.addEventListener('touchend', handleTouchEnd, { passive: true });
-    sheet.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    // Attach listeners
+    el.addEventListener('touchstart', handleTouchStart, { passive: true });
+    el.addEventListener('touchmove', handleTouchMove, { passive: false });
+    el.addEventListener('touchend', handleTouchEnd, { passive: true });
+    el.addEventListener('touchcancel', handleTouchEnd, { passive: true });
 
-    return () => {
-      sheet.removeEventListener('touchstart', handleTouchStart);
-      sheet.removeEventListener('touchmove', handleTouchMove);
-      sheet.removeEventListener('touchend', handleTouchEnd);
-      sheet.removeEventListener('touchcancel', handleTouchEnd);
+    // Store cleanup function
+    cleanupRef.current = () => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [onDismiss, enabled]);
-
-  // Return a ref callback that can be used with the sheet element
-  const setRef = (el: HTMLElement | null) => {
-    sheetRef.current = el;
-  };
+  }, []); // No dependencies - we use refs for latest values
 
   return setRef;
 }
