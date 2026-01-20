@@ -17,16 +17,29 @@ const SheetPortal = DialogPrimitive.Portal
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    className={cn(
-      "sheet-overlay",
-      className
-    )}
-    {...props}
-    ref={ref}
-  />
-))
+>(({ className, ...props }, ref) => {
+  React.useEffect(() => {
+    const htmlEl = document.documentElement;
+    // Add class when overlay mounts (sheet is opening)
+    htmlEl.classList.add('sheet-overlay-active');
+    
+    return () => {
+      // Remove class when overlay unmounts (sheet is closing)
+      htmlEl.classList.remove('sheet-overlay-active');
+    };
+  }, []);
+
+  return (
+    <DialogPrimitive.Overlay
+      className={cn(
+        "sheet-overlay",
+        className
+      )}
+      {...props}
+      ref={ref}
+    />
+  );
+})
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const sheetVariants = cva("fixed z-50 bg-background shadow-lg", {

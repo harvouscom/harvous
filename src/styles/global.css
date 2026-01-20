@@ -1281,16 +1281,11 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Ensures overlay covers entire screen including iOS/Android PWA status bar */
+/* Sheet overlay - covers viewport */
 .sheet-overlay {
   position: fixed !important;
-  /* Extend beyond viewport to cover PWA status bar and any browser chrome */
-  top: -100px !important;
-  left: -100px !important;
-  right: -100px !important;
-  bottom: -100px !important;
+  inset: 0 !important;
   z-index: 49 !important;
-  /* Subtle overlay color */
   background-color: rgba(0, 0, 0, 0.12) !important;
   opacity: 0;
   transition: opacity 0.3s ease-out;
@@ -1303,6 +1298,11 @@ button .menu-item__label {
 .sheet-overlay[data-state="closed"] {
   opacity: 0;
   transition: opacity 0.2s ease-in;
+}
+
+/* When sheet is open, apply overlay color to html for full PWA coverage */
+html.sheet-overlay-active {
+  background-color: rgba(0, 0, 0, 0.12) !important;
 }
 
 /* ==========================================================================
