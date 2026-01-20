@@ -3,6 +3,7 @@ import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
 import SquareButton from '../SquareButton';
+import ButtonSmall from '../ButtonSmall';
 import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 
@@ -74,6 +75,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   search = ''
 }) => {
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
+  const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
   const routeSelectedSpaceId = useMemo(() => {
@@ -143,13 +145,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const isThreadPage = currentItemId.startsWith('thread_');
   const selectedSpaceForMismatch = selectedSpaceId;
   const threadSpaceId = currentThreadForMismatch?.spaceId ?? null;
-  const showSpaceMismatchPrompt =
+  const mismatchKey = currentThreadForMismatch?.id && selectedSpaceForMismatch
+    ? `${currentThreadForMismatch.id}|${selectedSpaceForMismatch}`
+    : null;
+  const baseSpaceMismatchPrompt =
     !!selectedSpaceForMismatch && isThreadPage && currentThreadForMismatch?.id && threadSpaceId !== selectedSpaceForMismatch;
+  const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch = selectedSpace?.title ?? 'this space';
   const threadSpaceTitleForMismatch = threadSpaceId
     ? localSpaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
+
+  useEffect(() => {
+    // If mismatch resolved (or we're not in mismatch context), clear any dismissal.
+    if (!baseSpaceMismatchPrompt) setDismissedMismatchKey(null);
+  }, [baseSpaceMismatchPrompt]);
 
   const moveThreadToSelectedSpace = async () => {
     if (!selectedSpaceForMismatch) return;
@@ -167,7 +178,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.error || 'Failed to move thread. Please try again.';
+        const message = data?.error || 'Failed to add thread to space. Please try again.';
         if (typeof window !== 'undefined' && (window as any).toast?.error) {
           (window as any).toast.error(message);
         }
@@ -179,11 +190,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       window.dispatchEvent(new CustomEvent('threadUpdated', { detail: { threadId: currentThreadForMismatch.id } }));
 
       if (typeof window !== 'undefined' && (window as any).toast?.success) {
-        (window as any).toast.success(`Moved to ${selectedSpaceTitleForMismatch}`);
+        (window as any).toast.success(`Added to ${selectedSpaceTitleForMismatch}`);
       }
     } catch (error) {
       if (typeof window !== 'undefined' && (window as any).toast?.error) {
-        (window as any).toast.error('Failed to move thread. Please try again.');
+        (window as any).toast.error('Failed to add thread to space. Please try again.');
       }
     } finally {
       setIsMovingThreadToSpace(false);
@@ -193,6 +204,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const switchSelectedSpaceToThreadSpace = () => {
     if (!currentThreadForMismatch) return;
     setSelectedSpaceId(threadSpaceId);
+  };
+
+  const dismissSpaceMismatchPrompt = () => {
+    if (!mismatchKey) return;
+    setDismissedMismatchKey(mismatchKey);
   };
 
   // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
@@ -586,9 +602,43 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
   }, [activeThread]);
+
+  const closeSpaceFromSwitcher = async (spaceId: string, spaceTitle: string) => {
+    if (typeof window === 'undefined') return;
+    if (!spaceId.startsWith('space_')) return;
+
+    // Mark as closed (used by navigation history + other UIs)
+    try {
+      (window as any).removeFromNavigationHistory?.(spaceId);
+    } catch {
+      // ignore
+    }
+
+    // Remove immediately from this dropdown list for instant feedback
+    setLocalSpaces((prev) => prev.filter((s) => s.id !== spaceId));
+
+    // If the user just closed the selected space, switch to Home.
+    const isSelected = effectiveSelectedSpaceId === spaceId;
+    if (isSelected) {
+      setSelectedSpaceId(null);
+
+      // If we're not currently on that space route, explicitly navigate Home.
+      // (If we are, removeFromNavigationHistory will already redirect to '/'.)
+      if (window.location.pathname !== `/${spaceId}`) {
+        try {
+          const mod = await import('astro:transitions/client');
+          mod.navigate('/', { history: 'replace' });
+        } catch {
+          window.location.href = '/';
+        }
+      }
+    }
+  };
+
   return (
-    <div className="nav-column-wrapper">
-      <div className="nav-column-layout">
+    <>
+      <div className="nav-column-wrapper">
+        <div className="nav-column-layout">
         {/* Top Section - Navigation */}
         <div className="nav-column-top">
           {/* Navigation Buttons */}
@@ -619,11 +669,13 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                     onClick={() => setSelectedSpaceId(null)}
                   >
                     <span className="space-switcher-dropdown__label">My Home</span>
-                    {!effectiveSelectedSpaceId ? (
-                      <span className="space-switcher-dropdown__check" aria-hidden="true">
-                        <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                      </span>
-                    ) : null}
+                    <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
+                      {!effectiveSelectedSpaceId ? (
+                        <span className="space-switcher-dropdown__check">
+                          <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        </span>
+                      ) : null}
+                    </span>
                   </a>
                   {localSpaces.map((s) => {
                     const isActive = effectiveSelectedSpaceId ? s.id === effectiveSelectedSpaceId : false;
@@ -635,11 +687,29 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                         onClick={() => setSelectedSpaceId(s.id)}
                       >
                         <span className="space-switcher-dropdown__label">{s.title}</span>
-                        {isActive ? (
-                          <span className="space-switcher-dropdown__check" aria-hidden="true">
-                            <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                          </span>
-                        ) : null}
+                        <span className="space-switcher-dropdown__icon-slot" aria-hidden={isActive ? 'true' : undefined}>
+                          {isActive ? (
+                            <span className="space-switcher-dropdown__check" aria-hidden="true">
+                              <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="space-switcher-dropdown__close-btn"
+                            aria-label={`Close ${s.title}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void closeSpaceFromSwitcher(s.id, s.title);
+                            }}
+                          >
+                            <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          </button>
+                        </span>
                       </a>
                     );
                   })}
@@ -657,29 +727,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             {showSpaceMismatchPrompt ? (
               <div className="space-mismatch-banner" role="alert" aria-label="Thread space mismatch">
                 <div className="space-mismatch-banner__text">
-                  <span className="space-mismatch-banner__title">
-                    This thread isn’t in {selectedSpaceTitleForMismatch}
-                  </span>
-                  <span className="space-mismatch-banner__subtitle">
-                    It’s currently in {threadSpaceTitleForMismatch}
-                  </span>
+                  <p className="space-mismatch-banner__copy">
+                    Would you like to add this thread to {selectedSpaceTitleForMismatch}?
+                  </p>
                 </div>
                 <div className="space-mismatch-banner__actions">
-                  <button
-                    type="button"
-                    className="space-mismatch-banner__btn space-mismatch-banner__btn--primary"
-                    onClick={moveThreadToSelectedSpace}
-                    disabled={isMovingThreadToSpace}
-                  >
-                    {isMovingThreadToSpace ? 'Moving…' : `Move to ${selectedSpaceTitleForMismatch}`}
-                  </button>
-                  <button
-                    type="button"
-                    className="space-mismatch-banner__btn"
-                    onClick={switchSelectedSpaceToThreadSpace}
-                  >
-                    Switch space
-                  </button>
+                  <ButtonSmall state="Default" onClick={moveThreadToSelectedSpace} disabled={isMovingThreadToSpace}>
+                    {isMovingThreadToSpace ? 'Adding…' : `Add to ${selectedSpaceTitleForMismatch}`}
+                  </ButtonSmall>
+                  <ButtonSmall state="Secondary" onClick={dismissSpaceMismatchPrompt}>
+                    Not Now
+                  </ButtonSmall>
                 </div>
               </div>
             ) : null}
@@ -723,9 +781,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             </a>
           )}
         </div>
+        </div>
       </div>
 
-    </div>
+    </>
   );
 };
 

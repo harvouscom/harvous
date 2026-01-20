@@ -41,6 +41,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
+
   const handleCloseClick = (event: React.MouseEvent) => {
     event.stopPropagation();
     event.preventDefault();
@@ -61,19 +62,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
       return;
     }
     
-    // Check if this is a space (spaces can't be recovered once closed)
-    if (itemId.startsWith('space_')) {
-      // Get the space title from the button
-      const button = (event.target as HTMLElement).closest('.space-button');
-      const spaceTitle = button?.querySelector('span')?.textContent || 'this space';
-      
-      // Show confirmation dialog
-      const confirmed = confirm(`Are you sure you want to close "${spaceTitle}"?\n\nThis will remove it from your navigation and you won't be able to bring it back.`);
-      
-      if (!confirmed) {
-        return; // User cancelled
-      }
-    }
+    // Spaces: close immediately (no confirmation)
     
     // Check if this is a recent search item (on search page)
     const isRecentSearch = window.location.pathname === '/find' && 
@@ -332,46 +321,46 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   if (state === "Close") {
     return (
       <div className={`nav-item-container ${isActive ? 'active' : ''}`}>
-        <button
-          className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
-          style={buttonStyle}
-          onClick={disabled ? undefined : onClick}
-          disabled={disabled}
-          {...props}
-        >
-          <div className="space-btn__content space-btn__content--justify-between">
-            <div className="space-btn__text-wrapper">
-              <span className={`space-btn__text ${textStyle}`}>
-                {text}
-              </span>
-            </div>
-            <div className="space-btn__badge-wrapper">
-              <div className="badge-count">
-                <span className="badge-number">
-                  {formatBadgeCount(count)}
+          <button
+            className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
+            style={buttonStyle}
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            {...props}
+          >
+            <div className="space-btn__content space-btn__content--justify-between">
+              <div className="space-btn__text-wrapper">
+                <span className={`space-btn__text ${textStyle}`}>
+                  {text}
                 </span>
               </div>
+              <div className="space-btn__badge-wrapper">
+                <div className="badge-count">
+                  <span className="badge-number">
+                    {formatBadgeCount(count)}
+                  </span>
+                </div>
+              </div>
             </div>
-          </div>
-        </button>
-        {/* Close icon - only show for inactive items */}
-        {!isActive && (
-          <button
-            type="button"
-            onClick={handleCloseClick}
-            onMouseDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
-            className="close-icon"
-            data-item-id={itemId}
-            aria-label={`Close ${text || 'item'}`}
-          >
-            <svg viewBox="0 0 384 512" aria-hidden="true">
-              <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-            </svg>
           </button>
-        )}
+          {/* Close icon - only show for inactive items */}
+          {!isActive && (
+            <button
+              type="button"
+              onClick={handleCloseClick}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+              }}
+              className="close-icon"
+              data-item-id={itemId}
+              aria-label={`Close ${text || 'item'}`}
+            >
+              <svg viewBox="0 0 384 512" aria-hidden="true">
+                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+              </svg>
+            </button>
+          )}
       </div>
     );
   }

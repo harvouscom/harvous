@@ -99,21 +99,21 @@
   position: relative;
   width: 100%;
 
-  /* When container has a close icon, handle hover states */
+  /* Has close icon = show close on container hover
+     (close icon is a sibling of the link, not a child of .badge-count) */
   &:not(.nav-item-container--space):has(.close-icon) {
-    & .badge-count {
-      position: relative;
-    }
-
     & .badge-number {
       opacity: 1;
       transition: opacity 0.2s ease-out;
     }
-    
+
+    /* Keep the button in the DOM for consistent pointer events */
     & .close-icon {
-      display: none;
+      display: flex;
       opacity: 0;
-      transition: opacity 0.2s ease-out;
+      pointer-events: none;
+      transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+      z-index: 2;
     }
 
     &:hover {
@@ -122,36 +122,9 @@
       }
 
       & .close-icon {
-        display: flex;
         opacity: 1;
+        pointer-events: auto;
       }
-    }
-  }
-
-  /* Not active + has close icon = show close on hover */
-  &:not(.active):not(.nav-item-container--space):has(.close-icon) {
-    & .badge-count {
-      position: relative;
-    }
-
-    & .badge-number {
-      opacity: 1;
-      transition: opacity 0.2s ease-out;
-    }
-    
-    & .close-icon {
-      display: none;
-      opacity: 0;
-      transition: opacity 0.2s ease-out;
-    }
-
-    & .badge-count:hover .badge-number {
-      opacity: 0;
-    }
-    
-    & .badge-count:hover .close-icon {
-      display: flex !important;
-      opacity: 1;
     }
   }
 }
@@ -190,7 +163,7 @@
   position: absolute;
   top: 50%;
   right: 20px;
-  transform: translateY(-50%);
+  transform: translateY(calc(-50% - 1px));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -203,7 +176,8 @@
   transition: opacity 0.2s ease-out, transform 0.2s ease-out;
 
   &:hover {
-    transform: translateY(-50%) scale(1.1);
+    /* Avoid perceived “jump” when entering the hit area */
+    transform: translateY(calc(-50% - 1px));
   }
 
   & svg {
@@ -254,6 +228,12 @@
   display: block;
   width: 100%;
   position: relative;
+}
+
+/* Ensure the link sits below the close icon */
+.nav-link {
+  position: relative;
+  z-index: 1;
 }
 
 /* ==========================================================================
@@ -381,23 +361,94 @@
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   z-index: 9999;
   max-height: 352px;
-  /* No overflow clipping - shadows need to be visible */
+  background: white;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mobile-nav__dropdown-header {
+  flex-shrink: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-nav__dropdown-header-row {
+  width: 100%;
+}
+
+.mobile-nav__space-panel {
+  margin: 0 4px;
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
+  overflow: hidden;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.mobile-nav__space-panel-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  color: var(--color-deep-grey);
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 700;
+  background: white;
+}
+
+.mobile-nav__space-panel-item.is-active {
+  background: oklch(var(--lch-snow-white) / 0.9);
+}
+
+.mobile-nav__space-panel-item.mobile-nav__space-panel-new-space {
+  background-image: linear-gradient(
+    126.64deg,
+    rgba(255, 255, 255, 0.8) 11.71%,
+    rgba(248, 248, 248, 0.8) 71.33%
+  );
+}
+
+.mobile-nav__space-panel-divider {
+  height: 1px;
+  background-color: var(--color-soft-gray);
+}
+
+.mobile-nav__space-panel-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-nav__space-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.mobile-nav__space-panel-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .mobile-nav__dropdown-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  max-height: 352px;
-  padding-bottom: 64px;
-}
-
-.mobile-nav__new-space {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  border-bottom-left-radius: 24px;
-  border-bottom-right-radius: 24px;
+  padding: 0 8px 10px;
 }
 
 .mobile-nav__overlay {
@@ -860,6 +911,43 @@ button.space-btn .space-btn__text {
   font-family: var(--font-sans);
   font-size: 18px;
   font-weight: 700;
+  position: relative;
+}
+
+.space-switcher-dropdown__icon-slot {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.space-switcher-dropdown__close-btn {
+  position: absolute;
+  inset: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+.space-switcher-dropdown__item:has(.space-switcher-dropdown__close-btn):hover .space-switcher-dropdown__close-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.space-switcher-dropdown__item:has(.space-switcher-dropdown__close-btn):hover .space-switcher-dropdown__check {
+  opacity: 0;
 }
 
 .space-switcher-dropdown__item:hover {
@@ -877,6 +965,11 @@ button.space-btn .space-btn__text {
     rgba(255, 255, 255, 0.8) 11.71%,
     rgba(248, 248, 248, 0.8) 71.33%
   );
+}
+
+.space-switcher-dropdown__item.space-switcher-dropdown__new-space:hover {
+  /* Keep the plus icon; add subtle hover feedback over the gradient */
+  filter: brightness(0.98);
 }
 
 .space-switcher-dropdown__divider {
@@ -916,26 +1009,21 @@ button.space-btn .space-btn__text {
   background: oklch(var(--lch-snow-white) / 0.65);
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
   margin-top: 8px;
+  margin-bottom: 12px;
 }
 
 .space-mismatch-banner__text {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: block;
 }
 
-.space-mismatch-banner__title {
+.space-mismatch-banner__copy {
   font-family: var(--font-sans);
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 500;
+  font-size: 16px;
+  line-height: 150%;
+  text-wrap: pretty;
   color: var(--color-deep-grey);
-}
-
-.space-mismatch-banner__subtitle {
-  font-family: var(--font-sans);
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--color-pebble-grey);
+  margin: 0;
 }
 
 .space-mismatch-banner__actions {

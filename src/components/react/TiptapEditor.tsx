@@ -2385,6 +2385,80 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return html; // Return original HTML on error
         }
       },
+      handlePaste: (view, event, slice) => {
+        const editor = editorRef.current;
+        if (!editor) {
+          return false;
+        }
+
+        // Check if editor is still valid (not destroyed)
+        if (!isEditorValid(editor)) {
+          return false;
+        }
+
+        // If selection starts inside a pill, don't add extra paste behavior
+        // (let ProseMirror handle paste normally to avoid pill edge cases)
+        try {
+          const $from = view.state.selection.$from;
+          const hasPillAtCursor = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+          if (hasPillAtCursor) {
+            return false;
+          }
+        } catch (e) {
+          // Ignore selection resolution issues and continue
+        }
+
+        // Prefer clipboard plain text, fall back to Slice text
+        let pastedText = '';
+        try {
+          pastedText = (event as any)?.clipboardData?.getData?.('text/plain') || '';
+        } catch (e) {
+          // ignore
+        }
+
+        if (!pastedText) {
+          try {
+            pastedText = slice?.content?.textBetween?.(0, slice.content.size, '\n\n') || '';
+          } catch (e) {
+            // ignore
+          }
+        }
+
+        pastedText = (pastedText || '').trim();
+        if (!pastedText) {
+          return false;
+        }
+
+        // Detect references in pasted text
+        const references = detectScriptureReferences(pastedText);
+        if (!references || references.length === 0) {
+          return false;
+        }
+
+        // We have references: handle paste ourselves, then create pills immediately
+        try {
+          (event as any)?.preventDefault?.();
+        } catch (e) {
+          // ignore
+        }
+
+        try {
+          const tr = view.state.tr.replaceSelection(slice);
+          tr.setStoredMarks([]);
+          view.dispatch(tr);
+        } catch (e) {
+          // If our manual paste fails, fall back to default paste behavior
+          return false;
+        }
+
+        try {
+          createPendingPillsForReferences(editor, references);
+        } catch (e) {
+          console.error('[TiptapEditor] Error creating pills after paste:', e);
+        }
+
+        return true;
+      },
       handleKeyDown: (view, event) => {
         const editor = editorRef.current;
         if (!editor) {

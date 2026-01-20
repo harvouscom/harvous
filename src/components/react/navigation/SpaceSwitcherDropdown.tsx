@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
+import { safeGetItem } from '@/utils/safe-storage';
+import { setSelectedSpaceId } from './selectedSpace';
 
 interface SpaceLike {
   id: string;
@@ -24,10 +26,24 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
 }) => {
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
+  const closedSpaceIds = useMemo(() => {
+    if (typeof window === 'undefined' || !isOpen) return new Set<string>();
+    try {
+      const stored = safeGetItem('harvous-closed-navigation-items');
+      const parsed = stored ? (JSON.parse(stored) as unknown) : [];
+      const ids = Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+      return new Set<string>(ids);
+    } catch {
+      return new Set<string>();
+    }
+  }, [isOpen]);
+
   const items = useMemo(() => {
-    const spaceItems = spaces.map((s) => ({ id: s.id, title: s.title, href: `/${s.id}` }));
+    const spaceItems = spaces
+      .filter((s) => !closedSpaceIds.has(s.id))
+      .map((s) => ({ id: s.id, title: s.title, href: `/${s.id}` }));
     return [{ id: 'home', title: 'My Home', href: '/' }, ...spaceItems];
-  }, [spaces]);
+  }, [spaces, closedSpaceIds]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -68,53 +84,100 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
   // Align dropdown with the button's left edge, but keep it within viewport.
   const left = Math.max(16, Math.min(anchorRect.left, window.innerWidth - width - 16));
 
-  return createPortal(
-    <div
-      ref={dropdownRef}
-      className="space-switcher-dropdown"
-      style={{
-        position: 'fixed',
-        top,
-        left,
-        width,
-        // Ensure it renders above all app chrome (toasts use 999999)
-        zIndex: 1000000,
-      }}
-      role="dialog"
-      aria-label="Switch space"
-    >
-      <div className="space-switcher-dropdown__panel">
-        {items.map((item) => {
-          const isHome = item.id === 'home';
-          const isActive = isHome ? !currentSpaceId : item.id === currentSpaceId;
+  return (
+    <>
+      {createPortal(
+        <div
+          ref={dropdownRef}
+          className="space-switcher-dropdown"
+          style={{
+            position: 'fixed',
+            top,
+            left,
+            width,
+            // Ensure it renders above all app chrome (toasts use 999999)
+            zIndex: 1000000,
+          }}
+          role="dialog"
+          aria-label="Switch space"
+        >
+          <div className="space-switcher-dropdown__panel">
+            {items.map((item) => {
+              const isHome = item.id === 'home';
+              const isActive = isHome ? !currentSpaceId : item.id === currentSpaceId;
 
-          return (
+              return (
+                <a
+                  key={item.id}
+                  href={item.href}
+                  className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
+                  onClick={() => onClose()}
+                >
+                  <span className="space-switcher-dropdown__label">{item.title}</span>
+                  <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
+                    {isActive ? (
+                      <span className="space-switcher-dropdown__check" aria-hidden="true">
+                        <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                      </span>
+                    ) : null}
+                    {!isHome ? (
+                      <button
+                        type="button"
+                        className="space-switcher-dropdown__close-btn"
+                        aria-label={`Close ${item.title}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          // Switch to Home if they closed the selected space
+                          if (currentSpaceId === item.id) {
+                            setSelectedSpaceId(null);
+                            try {
+                              import('astro:transitions/client')
+                                .then(({ navigate }) => navigate('/', { history: 'replace' }))
+                                .catch(() => (window.location.href = '/'));
+                            } catch {
+                              window.location.href = '/';
+                            }
+                          }
+
+                          try {
+                            (window as any).removeFromNavigationHistory?.(item.id);
+                          } catch {
+                            // ignore
+                          }
+
+                          onClose();
+                        }}
+                      >
+                        <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                      </button>
+                    ) : null}
+                  </span>
+                </a>
+              );
+            })}
+
+            <div className="space-switcher-dropdown__divider" />
             <a
-              key={item.id}
-              href={item.href}
-              className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
+              href="/new-space"
+              className="space-switcher-dropdown__item space-switcher-dropdown__new-space"
               onClick={() => onClose()}
             >
-              <span className="space-switcher-dropdown__label">{item.title}</span>
-              {isActive && (
-                <span className="space-switcher-dropdown__check" aria-hidden="true">
-                  <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                </span>
-              )}
+              <span className="space-switcher-dropdown__label">New Space</span>
+              <span className="space-switcher-dropdown__check" aria-hidden="true">
+                <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+              </span>
             </a>
-          );
-        })}
+          </div>
+        </div>,
+        document.body,
+      )}
 
-        <div className="space-switcher-dropdown__divider" />
-        <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space" onClick={() => onClose()}>
-          <span className="space-switcher-dropdown__label">New Space</span>
-          <span className="space-switcher-dropdown__check" aria-hidden="true">
-            <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-          </span>
-        </a>
-      </div>
-    </div>,
-    document.body,
+    </>
   );
 };
 

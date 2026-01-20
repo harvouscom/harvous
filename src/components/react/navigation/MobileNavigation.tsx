@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Avatar from './Avatar';
-import { getThreadGradientCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import { getThreadGradientCSS } from '@/utils/colors';
 import Icon from '../Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
+import ButtonSmall from '../ButtonSmall';
 
 /**
  * Check if Clerk authentication is ready
@@ -63,9 +64,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   userColor = 'paper'
 }) => {
   const selectedSpaceId = useSelectedSpaceId();
+  const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
+  const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
   const [currentItemId, setCurrentItemId] = useState(() => {
     // Initialize from window.location if available (client-side only)
     if (typeof window !== 'undefined') {
@@ -151,20 +153,44 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
   }, []);
 
-  // Helper to determine if background is colored (not paper or gray gradient)
-  const isColoredBackground = (gradient: string | undefined): boolean => {
-    if (!gradient || gradient === 'var(--color-gradient-gray)' || gradient === 'var(--color-paper)') {
-      return false;
-    }
-    const threadColors = THREAD_COLORS.filter(c => c !== 'paper');
-    return threadColors.some(color => gradient.includes(`--color-${color}`));
-  };
-
   // Determine text color - pastel colors use dark text for visibility
   const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
     // All thread colors use dark text (pastel colors)
     return 'var(--color-deep-grey)';
   };
+
+  const isDashboard = currentItemId === '' || currentItemId === 'dashboard';
+
+  const routeActiveItemId = useMemo(() => {
+    // Match NavigationContext.getCurrentActiveItemId() behavior.
+    // - Thread/space routes: the URL id is the source of truth
+    // - Note routes: resolve to parent thread id from DOM datasets
+    if (typeof window === 'undefined') return '';
+
+    const current = currentItemId || '';
+    if (!current.startsWith('note_')) return current;
+
+    // First priority: SSR-provided currentThread when available (most stable)
+    if (currentThread?.id && currentThread.id.startsWith('thread_')) return currentThread.id;
+
+    // Second priority: best-effort DOM-derived thread (View Transition timing cases)
+    if (activeThreadFromDom?.id && activeThreadFromDom.id.startsWith('thread_')) return activeThreadFromDom.id;
+
+    // First priority: note element dataset
+    const noteElement = document.querySelector('[data-note-id]') as HTMLElement | null;
+    const fromNote = noteElement?.dataset?.parentThreadId ?? null;
+    if (fromNote && fromNote.startsWith('thread_')) return fromNote;
+
+    // Second priority: stable navigation wrapper dataset
+    const navElement =
+      (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+      (document.querySelector('[slot="navigation"]') as HTMLElement | null);
+    const fromNav = navElement?.dataset?.parentThreadId ?? null;
+    if (fromNav && fromNav.startsWith('thread_')) return fromNav;
+
+    // Final fallback
+    return 'thread_unorganized';
+  }, [currentItemId, currentThread?.id, activeThreadFromDom?.id]);
 
   // Initialize current item ID on mount (component is client-only, so window is always available)
   useEffect(() => {
@@ -328,16 +354,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       await refreshCurrentThreadCount();
     };
 
-    const handleNoteRemovedFromThread = async (event: CustomEvent) => {
-      const { threadId } = event.detail;
+    const handleNoteRemovedFromThread = async (event: Event) => {
+      const { threadId } = (event as CustomEvent).detail || {};
       if (threadId === currentThread.id) {
         // Refresh immediately with verification (no delay)
         await refreshCurrentThreadCount();
       }
     };
 
-    const handleNoteAddedToThread = (event: CustomEvent) => {
-      const { threadId } = event.detail;
+    const handleNoteAddedToThread = (event: Event) => {
+      const { threadId } = (event as CustomEvent).detail || {};
       if (threadId === currentThread.id) {
         // Refresh count immediately (retry logic handles transient failures)
         refreshCurrentThreadCount();
@@ -347,15 +373,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     // Register event listeners
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
-    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
 
     // Cleanup
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('noteDeleted', handleNoteDeleted);
-      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
     };
   }, [currentThread]);
 
@@ -379,39 +405,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
   }, []);
   
-  // Determine what the current active thread/space is
-  const getCurrentActiveItemId = () => {
-    let currentActiveItemId = currentItemId;
-    
-    // If we're on a note page, we need to determine the parent thread
-    if (currentItemId.startsWith('note_')) {
-      // First priority: use the currentThread prop passed from server-side
-      if (currentThread && currentThread.id) {
-        currentActiveItemId = currentThread.id;
-      } else {
-        // Fallback: try to get parent thread from page data
-        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-        
-        if (noteElement && noteElement.dataset.parentThreadId) {
-          currentActiveItemId = noteElement.dataset.parentThreadId;
-        } else {
-          // Try to get from navigation element
-          const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-          
-          if (navigationElement && navigationElement.dataset.parentThreadId) {
-            currentActiveItemId = navigationElement.dataset.parentThreadId;
-          } else {
-            // Final fallback: assume unorganized thread
-            currentActiveItemId = 'thread_unorganized';
-          }
-        }
-      }
-    }
-    
-    return currentActiveItemId;
-  };
-
-  const currentActiveItemId = getCurrentActiveItemId();
+  // Keep for other logic that expects "active item id" semantics; routeActiveItemId is the single source of truth.
+  const currentActiveItemId = routeActiveItemId;
   const activeThreadCandidate = updatedCurrentThread || currentThread || activeThreadFromDom;
   
   // Filter out items that shouldn't be shown in persistent navigation
@@ -466,13 +461,32 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       return scopes.some((s) => s === selectedSpaceId);
     });
 
-    const spaces = scoped.filter(item => item.id.startsWith('space_'));
-    const threads = scoped.filter(item => item.id.startsWith('thread_'));
+    const rawSpaces = scoped.filter((item: any) => item.id?.startsWith('space_'));
+    const rawThreads = scoped.filter((item: any) => item.id?.startsWith('thread_'));
+
+    const spaces = rawSpaces.map((item: any) => {
+      return {
+        id: item.id,
+        title: item.title || 'Space',
+        totalItemCount: typeof item.count === 'number' ? item.count : 0,
+        backgroundGradient: item.backgroundGradient || getThreadGradientCSS('paper'),
+      } satisfies Space;
+    });
+
+    const threads = rawThreads.map((item: any) => {
+      return {
+        id: item.id,
+        title: item.title || 'Thread',
+        noteCount: typeof item.count === 'number' ? item.count : 0,
+        backgroundGradient: item.backgroundGradient || getThreadGradientCSS('paper'),
+        spaceId: item.spaceId ?? undefined,
+      } satisfies Thread;
+    });
 
     return { spaces, threads };
   };
 
-  const { spaces: persistentSpaces, threads: persistentThreads } = organizePersistentItems();
+  const { threads: persistentThreads } = organizePersistentItems();
 
   const handleDropdownToggle = () => {
     if (isDropdownOpen) {
@@ -481,6 +495,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     } else {
       // If closed, open it
       setIsDropdownOpen(true);
+      // If there are no threads to show, auto-open the space picker panel.
+      // This helps first-run / “only spaces exist” states.
+      setIsSpacePanelOpen(persistentThreads.length === 0);
       // Small delay to ensure DOM is ready for animation
       setTimeout(() => setIsMounted(true), 10);
     }
@@ -489,8 +506,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const handleDropdownClose = () => {
     // Close immediately without animation
     setIsDropdownOpen(false);
-    setIsExiting(false);
     setIsMounted(false);
+    setIsSpacePanelOpen(false);
     // Exit close mode for all items when dropdown closes
     setItemsInCloseMode(new Set());
   };
@@ -512,9 +529,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     const isOnNotePage = currentItemId.startsWith('note_');
     
     // Check if the clicked item is the currently active item
-    const isActiveItem = itemId === undefined || itemId === '' 
-      ? !currentSpace && !currentThread && !currentItemId // "My Home" is active
-      : itemId === currentActiveItemId; // Other items match currentActiveItemId
+    const isActiveItem = itemId === undefined || itemId === ''
+      ? isDashboard // "My Home" is active
+      : itemId === currentActiveItemId; // Other items match active id
     
     // If it's the active item AND we're not on a note page, prevent navigation and just close the dropdown
     // (If we're on a note page, allow navigation to the parent thread/space)
@@ -552,16 +569,24 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     });
   };
 
+
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
-  const showSpaceMismatchPrompt =
+  const mismatchThreadId = (updatedCurrentThread || currentThread)?.id ?? null;
+  const mismatchKey = mismatchThreadId && selectedSpaceId ? `${mismatchThreadId}|${selectedSpaceId}` : null;
+  const baseSpaceMismatchPrompt =
     !!selectedSpaceId && isThreadPage && !!(updatedCurrentThread || currentThread)?.id && threadSpaceId !== selectedSpaceId;
+  const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch =
     selectedSpaceId ? spaces.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
   const threadSpaceTitleForMismatch = threadSpaceId
     ? spaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
+
+  useEffect(() => {
+    if (!baseSpaceMismatchPrompt) setDismissedMismatchKey(null);
+  }, [baseSpaceMismatchPrompt]);
 
   const moveThreadToSelectedSpace = async () => {
     const thread = updatedCurrentThread || currentThread;
@@ -576,16 +601,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data?.error || 'Failed to move thread. Please try again.';
+        const message = data?.error || 'Failed to add thread to space. Please try again.';
         if ((window as any).toast?.error) (window as any).toast.error(message);
         return;
       }
       setUpdatedCurrentThread((prev) => (prev ? { ...prev, spaceId: selectedSpaceId } : prev));
       window.dispatchEvent(new CustomEvent('threadUpdated', { detail: { threadId: thread.id } }));
-      if ((window as any).toast?.success) (window as any).toast.success(`Moved to ${selectedSpaceTitleForMismatch}`);
+      if ((window as any).toast?.success) (window as any).toast.success(`Added to ${selectedSpaceTitleForMismatch}`);
       handleDropdownClose();
     } catch {
-      if ((window as any).toast?.error) (window as any).toast.error('Failed to move thread. Please try again.');
+      if ((window as any).toast?.error) (window as any).toast.error('Failed to add thread to space. Please try again.');
     }
   };
 
@@ -593,6 +618,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setSelectedSpaceId(threadSpaceId);
     handleDropdownClose();
   };
+
+  const dismissSpaceMismatchPrompt = () => {
+    if (!mismatchKey) return;
+    setDismissedMismatchKey(mismatchKey);
+  };
+
+  const selectedSpace = useMemo(() => {
+    if (!selectedSpaceId) return null;
+    return spaces.find((s) => s.id === selectedSpaceId) ?? null;
+  }, [selectedSpaceId, spaces]);
+
+  const selectedSpaceLabel = selectedSpace ? selectedSpace.title : selectedSpaceId ? 'Space' : 'My Home';
+  const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
+  const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
+  const topSpaceIsActive = selectedSpaceId ? currentItemId === selectedSpaceId : isDashboard;
 
   return (
     <div className="mobile-nav">
@@ -631,359 +671,168 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             style={!isMounted ? { maxHeight: '64px', overflow: 'hidden' } : undefined}
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Pinned Header: Selected Space */}
+            <div className="mobile-nav__dropdown-header">
+              <div className="mobile-nav__dropdown-header-row">
+                <SpaceButton
+                  text={selectedSpaceLabel}
+                  count={selectedSpaceCount}
+                  state="WithCount"
+                  rightAccessory="spaceSwitcher"
+                  onRightAccessoryClick={() => setIsSpacePanelOpen((v) => !v)}
+                  onClick={() => {
+                    // When there are no threads to show, the dropdown is effectively a space picker.
+                    // In that case, tapping the top button should dismiss the whole dropdown.
+                    if (isSpacePanelOpen && persistentThreads.length === 0) {
+                      handleDropdownClose();
+                      return;
+                    }
+                    setIsSpacePanelOpen((v) => !v);
+                  }}
+                  backgroundGradient={selectedSpaceBackground}
+                  isActive={topSpaceIsActive}
+                />
+              </div>
+
+              {isSpacePanelOpen && (
+                <div className="mobile-nav__space-panel" role="dialog" aria-label="Switch space">
+                  <a
+                    href="/"
+                    className={`mobile-nav__space-panel-item ${!selectedSpaceId ? 'is-active' : ''}`}
+                    onClick={() => {
+                      setSelectedSpaceId(null);
+                      handleDropdownClose();
+                    }}
+                  >
+                    <span className="mobile-nav__space-panel-label">My Home</span>
+                    <span className="mobile-nav__space-panel-actions">
+                      {!selectedSpaceId ? (
+                        <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                          <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        </span>
+                      ) : null}
+                    </span>
+                  </a>
+                  {spaces.map((s) => {
+                    const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
+                    return (
+                      <a
+                        key={s.id}
+                        href={`/${s.id}`}
+                        className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
+                        onClick={() => {
+                          setSelectedSpaceId(s.id);
+                          handleDropdownClose();
+                        }}
+                      >
+                        <span className="mobile-nav__space-panel-label">{s.title}</span>
+                        <span className="mobile-nav__space-panel-actions">
+                          {isActive ? (
+                            <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                              <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="mobile-nav__space-panel-check"
+                            aria-label={`Close ${s.title}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              try {
+                                (window as any).removeFromNavigationHistory?.(s.id);
+                              } catch {
+                                // ignore
+                              }
+
+                              if (selectedSpaceId === s.id) {
+                                setSelectedSpaceId(null);
+                              }
+
+                              handleDropdownClose();
+                            }}
+                          >
+                            <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          </button>
+                        </span>
+                      </a>
+                    );
+                  })}
+                  <div className="mobile-nav__space-panel-divider" />
+                  <a
+                    href="/new-space"
+                    className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
+                    onClick={() => handleDropdownClose()}
+                  >
+                    <span className="mobile-nav__space-panel-label">New Space</span>
+                    <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                      <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                    </span>
+                  </a>
+                </div>
+              )}
+            </div>
+
             {/* Scrollable Nav Items */}
             <div className="mobile-nav__dropdown-scroll">
               {showSpaceMismatchPrompt ? (
-                <div className="space-mismatch-banner" style={{ margin: '8px 12px' }}>
+                <div className="space-mismatch-banner" style={{ margin: '8px 12px 12px' }}>
                   <div className="space-mismatch-banner__text">
-                    <span className="space-mismatch-banner__title">
-                      This thread isn’t in {selectedSpaceTitleForMismatch}
-                    </span>
-                    <span className="space-mismatch-banner__subtitle">
-                      It’s currently in {threadSpaceTitleForMismatch}
-                    </span>
+                    <p className="space-mismatch-banner__copy">
+                      Would you like to add this thread to {selectedSpaceTitleForMismatch}?
+                    </p>
                   </div>
                   <div className="space-mismatch-banner__actions">
-                    <button
-                      type="button"
-                      className="space-mismatch-banner__btn space-mismatch-banner__btn--primary"
-                      onClick={moveThreadToSelectedSpace}
-                    >
-                      Move to {selectedSpaceTitleForMismatch}
-                    </button>
-                    <button type="button" className="space-mismatch-banner__btn" onClick={switchSelectedSpaceToThreadSpace}>
-                      Switch space
-                    </button>
+                    <ButtonSmall state="Default" onClick={moveThreadToSelectedSpace}>
+                      Add to {selectedSpaceTitleForMismatch}
+                    </ButtonSmall>
+                    <ButtonSmall state="Secondary" onClick={dismissSpaceMismatchPrompt}>
+                      Not Now
+                    </ButtonSmall>
                   </div>
                 </div>
               ) : null}
-              {/* Active Item - Always First */}
-              {(() => {
-                const isForYouActive = !currentSpace && !currentThread && !currentItemId;
-                const activeSpace = currentSpace && currentSpace.id === currentActiveItemId ? currentSpace : null;
-                const activeThread = activeThreadCandidate && activeThreadCandidate.id === currentActiveItemId ? activeThreadCandidate : null;
-                const activePersistentSpace = persistentSpaces.find(space => space.id === currentActiveItemId);
-                const activePersistentThread = persistentThreads.find(thread => thread.id === currentActiveItemId);
-                
-                // Render active item first
-                if (isForYouActive) {
-                  return (
-                    <a 
-                      key="for-you-active"
-                      href="/" 
-                      className="block w-full"
-                     
-                      onClick={(e) => handleItemClickWrapper(e, undefined)}
-                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                    >
-                      <div className="space-btn pl-4" style={{ backgroundImage: getThreadGradientCSS('paper') }}>
-                        <div className="space-btn__content">
-                          <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text">My Home</span>
-                          </div>
-                          <div className="space-btn__badge-wrapper">
-                            <span className="space-btn__toggle-icon" aria-hidden="true">
-                              <Icon name="sort" size={18} style={{ color: 'var(--color-deep-grey)' }} />
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-btn__shadow" />
-                      </div>
-                    </a>
-                  );
-                } else if (activeSpace) {
-                  return (
-                    <a 
-                      key={`active-space-${activeSpace.id}`}
-                      href={`/${activeSpace.id}`} 
-                      className="block w-full"
-                     
-                      onClick={(e) => handleItemClickWrapper(e, activeSpace.id)}
-                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                    >
-                      <div 
-                        className="space-btn pl-4"
-                        style={{
-                          backgroundImage: activeSpace.backgroundGradient?.includes('gradient') ? activeSpace.backgroundGradient : undefined,
-                          backgroundColor: activeSpace.backgroundGradient?.includes('gradient') ? undefined : (activeSpace.backgroundGradient || undefined)
-                        }}
-                      >
-                        <div className="space-btn__content">
-                          <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text" style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}>
-                              {activeSpace.title}
-                            </span>
-                          </div>
-                          <div className="space-btn__badge-wrapper">
-                            <span className="space-btn__toggle-icon" aria-hidden="true">
-                              <Icon
-                                name="sort"
-                                size={18}
-                                style={{ color: getTextColor(activeSpace.backgroundGradient, true) }}
-                              />
-                            </span>
-                          </div>
-                        </div>
-                        <div className="space-btn__shadow" />
-                      </div>
-                    </a>
-                  );
-                } else if (activeThread) {
-                  const threadHref =
-                    typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
-                      ? `/${activeThread.id}?space=${encodeURIComponent(selectedSpaceId)}`
-                      : `/${activeThread.id}`;
-                  return (
-                    <a 
-                      key={`active-thread-${activeThread.id}`}
-                      href={threadHref} 
-                      className="block w-full"
-                     
-                      onClick={(e) => handleItemClickWrapper(e, activeThread.id)}
-                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                    >
-                      <div 
-                        className="space-btn pl-4"
-                        style={{
-                          backgroundImage: activeThread.backgroundGradient?.includes('gradient') ? activeThread.backgroundGradient : undefined,
-                          backgroundColor: activeThread.backgroundGradient?.includes('gradient') ? undefined : (activeThread.backgroundGradient || undefined)
-                        }}
-                      >
-                        <div className="space-btn__content">
-                          <div className="space-btn__text-wrapper">
-                            <span className="space-btn__text" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
-                              {activeThread.title}
-                            </span>
-                          </div>
-                          <div className="space-btn__badge-wrapper">
-                            <div className="badge-count">
-                              <span className="badge-number" style={{ color: getTextColor(activeThread.backgroundGradient, true) }}>
-                                {formatBadgeCount(activeThread.noteCount)}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="space-btn__shadow" />
-                      </div>
-                    </a>
-                  );
-                } else if (activePersistentSpace) {
-                  const isActive = activePersistentSpace.id === currentActiveItemId;
-                  return (
-                    <div key={`active-persistent-space-${activePersistentSpace.id}`} className="nav-item-container group w-full">
-                      <a 
-                        href={`/${activePersistentSpace.id}`} 
-                        className="block w-full" 
-                       
-                        onClick={(e) => handleItemClickWrapper(e, activePersistentSpace.id)}
-                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                      >
-                        <div 
-                          className="space-btn pl-4"
-                          style={isActive ? {
-                            backgroundImage: activePersistentSpace.backgroundGradient?.includes('gradient') ? activePersistentSpace.backgroundGradient : undefined,
-                            backgroundColor: activePersistentSpace.backgroundGradient?.includes('gradient') ? undefined : (activePersistentSpace.backgroundGradient || undefined)
-                          } : {}}
-                        >
-                          <div className="space-btn__content">
-                            <div className="space-btn__text-wrapper">
-                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}>
-                                {activePersistentSpace.title}
-                              </span>
-                            </div>
-                            <div className="space-btn__badge-wrapper">
-                              <div 
-                                className="badge-count cursor-pointer"
-                                data-close-item={activePersistentSpace.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  if (itemsInCloseMode.has(activePersistentSpace.id)) {
-                                    handleCloseClick(activePersistentSpace.id, e);
-                                  } else {
-                                    toggleCloseMode(activePersistentSpace.id);
-                                  }
-                                }}
-                              >
-                                {itemsInCloseMode.has(activePersistentSpace.id) ? (
-                                  <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }} />
-                                ) : (
-                                  <Icon
-                                    name="sort"
-                                    size={18}
-                                    style={{ color: getTextColor(activePersistentSpace.backgroundGradient, isActive) }}
-                                  />
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          {isActive && <div className="space-btn__shadow" />}
-                        </div>
-                      </a>
-                    </div>
-                  );
-                } else if (activePersistentThread) {
-                  const isActive = activePersistentThread.id === currentActiveItemId;
-                  const threadHref =
-                    typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
-                      ? `/${activePersistentThread.id}?space=${encodeURIComponent(selectedSpaceId)}`
-                      : `/${activePersistentThread.id}`;
-                  return (
-                    <div key={`active-persistent-thread-${activePersistentThread.id}`} className="nav-item-container group w-full">
-                      <a 
-                        href={threadHref} 
-                        className="block w-full" 
-                       
-                        onClick={(e) => handleItemClickWrapper(e, activePersistentThread.id)}
-                        style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                      >
-                        <div 
-                          className="space-btn pl-4"
-                          style={isActive ? {
-                            backgroundImage: activePersistentThread.backgroundGradient?.includes('gradient') ? activePersistentThread.backgroundGradient : undefined,
-                            backgroundColor: activePersistentThread.backgroundGradient?.includes('gradient') ? undefined : (activePersistentThread.backgroundGradient || undefined)
-                          } : {}}
-                        >
-                          <div className="space-btn__content">
-                            <div className="space-btn__text-wrapper">
-                              <span className="space-btn__text" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
-                                {activePersistentThread.title}
-                              </span>
-                            </div>
-                            <div className="space-btn__badge-wrapper">
-                              <div 
-                                className="badge-count cursor-pointer"
-                                data-close-item={activePersistentThread.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  if (itemsInCloseMode.has(activePersistentThread.id)) {
-                                    handleCloseClick(activePersistentThread.id, e);
-                                  } else {
-                                    toggleCloseMode(activePersistentThread.id);
-                                  }
-                                }}
-                              >
-                                {itemsInCloseMode.has(activePersistentThread.id) ? (
-                                  <Icon name="xmark" size={14} style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }} />
-                                ) : (
-                                  <span className="badge-number" style={{ color: getTextColor(activePersistentThread.backgroundGradient, isActive) }}>
-                                    {formatBadgeCount(activePersistentThread.count)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          {isActive && <div className="space-btn__shadow" />}
-                        </div>
-                      </a>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              {/* My Home - Only if not active */}
-              {currentSpace || currentThread || currentItemId ? (
-                <a 
-                  href="/" 
-                  className="block w-full"
-                 
-                  onClick={(e) => handleItemClickWrapper(e)}
-                  style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                >
-                  <div className="space-btn pl-4">
-                    <div className="space-btn__content">
-                      <div className="space-btn__text-wrapper">
-                        <span className="space-btn__text">My Home</span>
-                      </div>
-                      <div className="space-btn__badge-wrapper">
-                        <span className="space-btn__toggle-icon" aria-hidden="true">
-                          <Icon name="sort" size={18} style={{ color: 'var(--color-deep-grey)' }} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </a>
-              ) : null}
-              
-              {/* Persistent Navigation Items - Excluding Active */}
-              {persistentItems.length > 0 && (
+              {persistentItems.length > 0 ? (
                 <>
-                  {/* Persistent Spaces - Excluding Active */}
-                  {persistentSpaces.filter(space => space.id !== currentActiveItemId).map((space) => {
-                    return (
-                      <div key={space.id} className="nav-item-container group w-full">
-                        <a 
-                          href={`/${space.id}`} 
-                          className="block w-full" 
-                         
-                          onClick={() => handleItemClick(space.id)}
-                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                        >
-                          <div className="space-btn pl-4">
-                            <div className="space-btn__content">
-                              <div className="space-btn__text-wrapper">
-                                <span className="space-btn__text" style={{ color: getTextColor(space.backgroundGradient, false) }}>
-                                  {space.title}
-                                </span>
-                              </div>
-                              <div className="space-btn__badge-wrapper">
-                                <div 
-                                  className="badge-count cursor-pointer"
-                                  data-close-item={space.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    if (itemsInCloseMode.has(space.id)) {
-                                      handleCloseClick(space.id, e);
-                                    } else {
-                                      toggleCloseMode(space.id);
-                                    }
-                                  }}
-                                >
-                                  {itemsInCloseMode.has(space.id) ? (
-                                    <Icon name="xmark" size={14} style={{ color: getTextColor(space.backgroundGradient, false) }} />
-                                  ) : (
-                                    <Icon
-                                      name="sort"
-                                      size={18}
-                                      style={{ color: getTextColor(space.backgroundGradient, false) }}
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </a>
-                      </div>
-                    );
-                  })}
-                  
-                  {/* Persistent Threads - Excluding Active */}
-                  {persistentThreads.filter(thread => thread.id !== currentActiveItemId).map((thread) => {
+                  {persistentThreads.map((thread) => {
+                    const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
                     const threadHref =
                       typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
                         ? `/${thread.id}?space=${encodeURIComponent(selectedSpaceId)}`
                         : `/${thread.id}`;
                     return (
                       <div key={thread.id} className="nav-item-container group w-full">
-                        <a 
-                          href={threadHref} 
-                          className="block w-full" 
-                         
-                          onClick={() => handleItemClick(thread.id)}
+                        <a
+                          href={threadHref}
+                          className="block w-full"
+                          onClick={(e) => handleItemClickWrapper(e, thread.id)}
                           style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                         >
-                          <div className="space-btn pl-4">
+                          <div
+                            className="space-btn pl-4"
+                            style={
+                              isActive
+                                ? {
+                                    backgroundImage: thread.backgroundGradient?.includes('gradient') ? thread.backgroundGradient : undefined,
+                                    backgroundColor: thread.backgroundGradient?.includes('gradient')
+                                      ? undefined
+                                      : (thread.backgroundGradient || undefined),
+                                  }
+                                : {}
+                            }
+                          >
                             <div className="space-btn__content">
                               <div className="space-btn__text-wrapper">
-                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
+                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
                                   {thread.title}
                                 </span>
                               </div>
                               <div className="space-btn__badge-wrapper">
-                                <div 
+                                <div
                                   className="badge-count cursor-pointer"
                                   data-close-item={thread.id}
                                   onClick={(e) => {
@@ -997,35 +846,23 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   }}
                                 >
                                   {itemsInCloseMode.has(thread.id) ? (
-                                    <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, false) }} />
+                                    <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, isActive) }} />
                                   ) : (
-                                    <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, false) }}>
-                                      {formatBadgeCount(thread.count)}
+                                    <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                      {formatBadgeCount(thread.noteCount)}
                                     </span>
                                   )}
                                 </div>
                               </div>
                             </div>
+                            {isActive && <div className="space-btn__shadow" />}
                           </div>
                         </a>
                       </div>
                     );
                   })}
                 </>
-              )}
-            </div>
-            
-            {/* New Space Button - Absolutely Positioned */}
-            <div className="mobile-nav__new-space">
-              <a href="/new-space" className="nav-link">
-                <div className="new-space-button">
-                  <SpaceButton 
-                    text="New Space"
-                    state="Default"
-                    backgroundGradient="linear-gradient(126.64deg, rgba(255, 255, 255, 0.8) 11.71%, rgba(248, 248, 248, 0.8) 71.33%)"
-                  />
-                </div>
-              </a>
+              ) : null}
             </div>
           </div>
         )}
@@ -1039,9 +876,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       </div>
 
       {/* Click outside handler */}
-      {isDropdownOpen && (
-        <div className="mobile-nav__overlay" onClick={handleDropdownClose} />
-      )}
+      {isDropdownOpen && <div className="mobile-nav__overlay" onClick={handleDropdownClose} />}
+
     </div>
   );
 };
