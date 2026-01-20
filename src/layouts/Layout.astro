@@ -11,6 +11,7 @@ import DesktopPanelManager from "@/components/react/DesktopPanelManager.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import KeyboardShortcutsInit from "@/components/react/KeyboardShortcutsInit.tsx";
 import PanelManagerWithContext from "@/components/react/PanelManagerWithContext.tsx";
+import MobileBottomSheetWithContext from "@/components/react/MobileBottomSheetWithContext.tsx";
 import PostHog from "@/components/posthog.astro";
 import PostHogUserInit from "@/components/react/PostHogUserInit.tsx";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler.tsx";
@@ -437,10 +438,18 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         <div class="mobile-additional">
           <slot name="mobile-additional" />
         </div>
+
+        <!-- Mobile Bottom Sheet (mounted here because .desktop-layout is display:none on mobile) -->
+        <MobileBottomSheetWithContext
+          currentThread={currentThread}
+          currentSpace={currentSpace}
+          currentNote={currentNote}
+          contentType={contentType}
+          publishableKey={publishableKey}
+          client:only="react"
+        />
       </div>
     </div>
-    
-    <!-- Note: Mobile bottom sheet is now rendered by PanelManagerWithContext -->
   </body>
 </html>
 
