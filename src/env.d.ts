@@ -9,8 +9,10 @@ declare namespace JSX {
 }
 
 // Allow Astro directives on React components
+import 'react';
+
 declare module 'react' {
-  interface ComponentProps<T> {
+  interface Attributes {
     'client:load'?: boolean;
     'client:visible'?: boolean;
     'client:idle'?: boolean;

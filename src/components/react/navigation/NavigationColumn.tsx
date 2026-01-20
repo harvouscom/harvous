@@ -3,7 +3,8 @@ import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
 import SquareButton from '../SquareButton';
-import { useNavigation } from './NavigationContext';
+import Icon from '../Icon';
+import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 
 /**
  * Check if Clerk authentication is ready
@@ -38,6 +39,7 @@ interface ActiveThread {
   title: string;
   noteCount: number;
   backgroundGradient: string;
+  spaceId?: string | null;
 }
 
 interface CurrentSpace {
@@ -55,6 +57,7 @@ interface NavigationColumnProps {
   initials?: string;
   userColor?: string;
   pathname?: string;
+  search?: string;
 }
 
 const NavigationColumn: React.FC<NavigationColumnProps> = ({
@@ -67,21 +70,37 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   showProfile = false,
   initials = "DJ",
   userColor = "paper",
-  pathname = '/'
+  pathname = '/',
+  search = ''
 }) => {
-  const { removeFromNavigationHistory, navigationHistory, isItemClosed } = useNavigation();
+  const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
+  // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
+  // Prefer explicit ?space=..., then /space_... route.
+  const routeSelectedSpaceId = useMemo(() => {
+    try {
+      const params = new URLSearchParams(search || '');
+      const fromQuery = params.get('space');
+      if (fromQuery && fromQuery.startsWith('space_')) return fromQuery.replace(/\/$/, '');
+    } catch {
+      // ignore
+    }
+    if (pathname.startsWith('/space_')) return pathname.substring(1).replace(/\/$/, '');
+    return null;
+  }, [pathname, search]);
+
+  // Selected space from storage (hydrated after mount). Seed with route value for SSR consistency.
+  const selectedSpaceId = useSelectedSpaceId(routeSelectedSpaceId);
+  const effectiveSelectedSpaceId = selectedSpaceId ?? routeSelectedSpaceId;
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
   });
-  // Never show the active thread button - rely entirely on trackNavigationAccess()
-  // to add threads to persistent navigation. This prevents duplicate buttons.
-  const [showActiveThread, setShowActiveThread] = useState(false);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return pathname.substring(1) || '';
   });
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
+  const [isMovingThreadToSpace, setIsMovingThreadToSpace] = useState(false);
   
   // Determine if we're on the dashboard page
   // Use pathname prop which is available on both server and client (from Astro.url.pathname)
@@ -89,6 +108,125 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const isDashboard = useMemo(() => {
     return pathname === '/' || pathname === '/dashboard';
   }, [pathname]);
+
+  // The switcher is driven by the user's selected space, not by the current route.
+  const selectedSpace = useMemo(() => {
+    if (!effectiveSelectedSpaceId) return null;
+    const fromList = localSpaces.find((s) => s.id === effectiveSelectedSpaceId) ?? null;
+    if (fromList) return fromList;
+
+    // Fallback (mainly for View Transition edge cases):
+    // if we're literally on the selected space page, use SSR-provided dataset for label/gradient.
+    if (typeof window !== 'undefined' && currentItemId === effectiveSelectedSpaceId) {
+      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement | null;
+      if (navigationElement?.dataset?.spaceTitle) {
+        return {
+          id: effectiveSelectedSpaceId,
+          title: navigationElement.dataset.spaceTitle,
+          totalItemCount: parseInt(navigationElement.dataset.spaceItemCount || '0'),
+          backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'var(--color-paper)',
+        } satisfies Space;
+      }
+    }
+
+    return null;
+  }, [effectiveSelectedSpaceId, localSpaces, currentItemId]);
+
+  const topSpaceLabel = selectedSpace ? selectedSpace.title : effectiveSelectedSpaceId ? 'Space' : 'My Home';
+  const topSpaceHref = effectiveSelectedSpaceId ? `/${effectiveSelectedSpaceId}` : '/';
+  // The switcher button shouldn't look "active" while viewing a thread/note.
+  // It should only be active when you're actually on the selected space page (or dashboard for Home).
+  const topSpaceIsActive = effectiveSelectedSpaceId ? currentItemId === effectiveSelectedSpaceId : isDashboard;
+  const topSpaceBackground = selectedSpace?.backgroundGradient || 'var(--color-paper)';
+
+  const currentThreadForMismatch = updatedActiveThread || activeThread;
+  const isThreadPage = currentItemId.startsWith('thread_');
+  const selectedSpaceForMismatch = selectedSpaceId;
+  const threadSpaceId = currentThreadForMismatch?.spaceId ?? null;
+  const showSpaceMismatchPrompt =
+    !!selectedSpaceForMismatch && isThreadPage && currentThreadForMismatch?.id && threadSpaceId !== selectedSpaceForMismatch;
+
+  const selectedSpaceTitleForMismatch = selectedSpace?.title ?? 'this space';
+  const threadSpaceTitleForMismatch = threadSpaceId
+    ? localSpaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
+    : 'My Home';
+
+  const moveThreadToSelectedSpace = async () => {
+    if (!selectedSpaceForMismatch) return;
+    if (!currentThreadForMismatch?.id) return;
+    if (currentThreadForMismatch.id === 'thread_unorganized') return;
+    if (isMovingThreadToSpace) return;
+
+    setIsMovingThreadToSpace(true);
+    try {
+      const response = await fetch(`/api/spaces/${selectedSpaceForMismatch}/add-thread`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threadId: currentThreadForMismatch.id }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = data?.error || 'Failed to move thread. Please try again.';
+        if (typeof window !== 'undefined' && (window as any).toast?.error) {
+          (window as any).toast.error(message);
+        }
+        return;
+      }
+
+      // Optimistically update the active thread spaceId so the prompt disappears immediately.
+      setUpdatedActiveThread((prev) => (prev ? { ...prev, spaceId: selectedSpaceForMismatch } : prev));
+      window.dispatchEvent(new CustomEvent('threadUpdated', { detail: { threadId: currentThreadForMismatch.id } }));
+
+      if (typeof window !== 'undefined' && (window as any).toast?.success) {
+        (window as any).toast.success(`Moved to ${selectedSpaceTitleForMismatch}`);
+      }
+    } catch (error) {
+      if (typeof window !== 'undefined' && (window as any).toast?.error) {
+        (window as any).toast.error('Failed to move thread. Please try again.');
+      }
+    } finally {
+      setIsMovingThreadToSpace(false);
+    }
+  };
+
+  const switchSelectedSpaceToThreadSpace = () => {
+    if (!currentThreadForMismatch) return;
+    setSelectedSpaceId(threadSpaceId);
+  };
+
+  // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
+  useEffect(() => {
+    setLocalSpaces(prev => {
+      const byId = new Map<string, Space>();
+      for (const s of [...spaces, ...prev]) {
+        byId.set(s.id, s);
+      }
+      return Array.from(byId.values());
+    });
+  }, [spaces]);
+
+  // Update dropdown immediately when a new space is created
+  useEffect(() => {
+    const handleSpaceCreated = (event: CustomEvent) => {
+      const space = event.detail?.space as Partial<Space> | undefined;
+      if (!space?.id || !space.title) return;
+      setLocalSpaces(prev => {
+        const byId = new Map<string, Space>();
+        for (const s of prev) byId.set(s.id, s);
+        const next: Space = {
+          id: space.id!,
+          title: space.title!,
+          totalItemCount: typeof space.totalItemCount === 'number' ? space.totalItemCount : 0,
+          backgroundGradient: space.backgroundGradient || 'var(--color-paper)',
+        };
+        byId.set(next.id, next);
+        return Array.from(byId.values());
+      });
+    };
+    window.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
+    return () => window.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
+  }, []);
 
   useEffect(() => {
     const handleProfileUpdate = (event: CustomEvent) => {
@@ -158,6 +296,23 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         if (typeof window !== 'undefined') {
           const newPath = window.location.pathname.substring(1) || '';
           setCurrentItemId(newPath);
+
+          // If we navigated to a space route, make that the selected space.
+          if (newPath.startsWith('space_')) {
+            setSelectedSpaceId(newPath);
+          }
+
+          // If we navigated from a space context (e.g., opening a note from a space page),
+          // preserve that selected space via query param.
+          try {
+            const params = new URLSearchParams(window.location.search);
+            const fromSpace = params.get('space');
+            if (fromSpace && fromSpace.startsWith('space_')) {
+              setSelectedSpaceId(fromSpace);
+            }
+          } catch {
+            // ignore
+          }
           
           // Force a re-render to ensure component updates after View Transition
           // This helps ensure the navigation column is properly displayed
@@ -177,6 +332,36 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       document.removeEventListener('astro:after-swap', handlePageLoad);
     };
   }, [pathname, activeThread]);
+
+  // If user navigates to a space route, sync the selected space.
+  // IMPORTANT: Use window.location, not props, because View Transitions can reuse islands with stale props.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncFromLocation = () => {
+      const path = window.location.pathname || '/';
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const fromSpace = params.get('space');
+        if (fromSpace && fromSpace.startsWith('space_')) {
+          setSelectedSpaceId(fromSpace);
+          return;
+        }
+      } catch {
+        // ignore
+      }
+      if (path.startsWith('/space_')) {
+        setSelectedSpaceId(path.substring(1));
+      }
+    };
+
+    syncFromLocation();
+    document.addEventListener('astro:page-load', syncFromLocation);
+    document.addEventListener('astro:after-swap', syncFromLocation);
+    return () => {
+      document.removeEventListener('astro:page-load', syncFromLocation);
+      document.removeEventListener('astro:after-swap', syncFromLocation);
+    };
+  }, []);
 
   // Force re-render when navigation history updates (critical for View Transitions)
   const [, forceUpdate] = useState(0);
@@ -408,49 +593,126 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         <div className="nav-column-top">
           {/* Navigation Buttons */}
           <div className="nav-column-buttons">
-            <a href="/" className="nav-link">
-              <SpaceButton 
-                text="My Home" 
-                count={inboxCount} 
-                state="WithCount" 
-                isActive={isDashboard}
-                backgroundGradient={isDashboard ? "var(--color-paper)" : undefined}
-              />
-            </a>
+            <div className="space-switcher-anchor">
+              <a href={topSpaceHref} className="nav-link">
+                <SpaceButton
+                  as="div"
+                  text={topSpaceLabel}
+                  count={inboxCount}
+                  state="WithCount"
+                  rightAccessory="none"
+                  isActive={topSpaceIsActive}
+                  backgroundGradient={topSpaceBackground}
+                />
+              </a>
+              {/* Native dropdown so it works even without React hydration */}
+              <details className="space-switcher-details">
+                <summary className="space-btn__badge-wrapper space-switcher-anchor__toggle" aria-label="Switch space">
+                  <span className="space-btn__toggle-icon" aria-hidden="true">
+                    <Icon name="sort" size={18} />
+                  </span>
+                </summary>
+                <div className="space-switcher-details__panel space-switcher-dropdown__panel" role="dialog" aria-label="Switch space">
+                  <a
+                    href="/"
+                    className={`space-switcher-dropdown__item ${!effectiveSelectedSpaceId ? 'is-active' : ''}`}
+                    onClick={() => setSelectedSpaceId(null)}
+                  >
+                    <span className="space-switcher-dropdown__label">My Home</span>
+                    {!effectiveSelectedSpaceId ? (
+                      <span className="space-switcher-dropdown__check" aria-hidden="true">
+                        <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                      </span>
+                    ) : null}
+                  </a>
+                  {localSpaces.map((s) => {
+                    const isActive = effectiveSelectedSpaceId ? s.id === effectiveSelectedSpaceId : false;
+                    return (
+                      <a
+                        key={s.id}
+                        href={`/${s.id}`}
+                        className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
+                        onClick={() => setSelectedSpaceId(s.id)}
+                      >
+                        <span className="space-switcher-dropdown__label">{s.title}</span>
+                        {isActive ? (
+                          <span className="space-switcher-dropdown__check" aria-hidden="true">
+                            <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          </span>
+                        ) : null}
+                      </a>
+                    );
+                  })}
+                  <div className="space-switcher-dropdown__divider" />
+                  <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
+                    <span className="space-switcher-dropdown__label">New Space</span>
+                    <span className="space-switcher-dropdown__check" aria-hidden="true">
+                      <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                    </span>
+                  </a>
+                </div>
+              </details>
+            </div>
+
+            {showSpaceMismatchPrompt ? (
+              <div className="space-mismatch-banner" role="alert" aria-label="Thread space mismatch">
+                <div className="space-mismatch-banner__text">
+                  <span className="space-mismatch-banner__title">
+                    This thread isn’t in {selectedSpaceTitleForMismatch}
+                  </span>
+                  <span className="space-mismatch-banner__subtitle">
+                    It’s currently in {threadSpaceTitleForMismatch}
+                  </span>
+                </div>
+                <div className="space-mismatch-banner__actions">
+                  <button
+                    type="button"
+                    className="space-mismatch-banner__btn space-mismatch-banner__btn--primary"
+                    onClick={moveThreadToSelectedSpace}
+                    disabled={isMovingThreadToSpace}
+                  >
+                    {isMovingThreadToSpace ? 'Moving…' : `Move to ${selectedSpaceTitleForMismatch}`}
+                  </button>
+                  <button
+                    type="button"
+                    className="space-mismatch-banner__btn"
+                    onClick={switchSelectedSpaceToThreadSpace}
+                  >
+                    Switch space
+                  </button>
+                </div>
+              </div>
+            ) : null}
             
             {/* Persistent Navigation - shows recently accessed items */}
             <PersistentNavigation />
-            
-            {/* Show active thread if any - but only if it's not already in persistent navigation */}
-            {(updatedActiveThread || activeThread) && showActiveThread ? (
-              <a 
-                href={`/${(updatedActiveThread || activeThread)!.id}`} 
-                className="nav-link"
-               
-              >
-                <SpaceButton 
-                  text={(updatedActiveThread || activeThread)!.title} 
-                  count={(updatedActiveThread || activeThread)!.noteCount} 
-                  state="Close" 
-                  backgroundGradient={(updatedActiveThread || activeThread)!.backgroundGradient}
-                  isActive={isNote || (updatedActiveThread || activeThread)!.id === currentItemId}
-                  itemId={(updatedActiveThread || activeThread)!.id}
-                />
-              </a>
-            ) : null}
           </div>
         </div>
         
         {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
         <div className="nav-column-bottom">
           <div className="nav-flex-grow">
-            <a href="/new-space" className="nav-link">
-              <SpaceButton text="New Space" />
+            <a href="/find" aria-label="Search" className="nav-link">
+              <div
+                className="space-button nav-search-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pr-0 w-full"
+                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+              >
+                <div className="flex items-center justify-start gap-3 relative w-full h-full transition-transform duration-125 min-w-0">
+                  <div className="flex items-center justify-center relative shrink-0">
+                    <Icon name="magnifying-glass" size={20} style={{ color: 'var(--color-pebble-grey)' }} />
+                  </div>
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <span
+                      className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block"
+                      style={{ color: 'var(--color-pebble-grey)' }}
+                    >
+                      Search
+                    </span>
+                  </div>
+                </div>
+              </div>
             </a>
           </div>
-          <a href="/find" aria-label="Search" className="nav-link--shrink">
-            <SquareButton variant="Find" />
-          </a>
           {showProfile ? (
             <a href="/" aria-label="Go to dashboard" className="nav-link--shrink">
               <SquareButton variant="Back" />
@@ -462,6 +724,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           )}
         </div>
       </div>
+
     </div>
   );
 };

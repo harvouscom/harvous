@@ -7,6 +7,7 @@ interface CondensedNoteItemProps {
   noteType?: 'default' | 'scripture' | 'resource';
   href: string;
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLAnchorElement>;
   // Thread colors for mesh gradient background
   threadColors?: Array<{ color: string; frequency: number }>;
   // Note ID for deterministic gradient variation
@@ -22,6 +23,7 @@ export default function CondensedNoteItem({
   noteType = 'default',
   href,
   className = '',
+  onClick,
   threadColors,
   noteId
 }: CondensedNoteItemProps) {
@@ -77,6 +79,7 @@ export default function CondensedNoteItem({
   return (
     <a
       href={href}
+      onClick={onClick}
       className={`block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99] ${className}`}
       style={{ touchAction: 'manipulation' }}
     >

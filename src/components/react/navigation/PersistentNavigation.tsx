@@ -3,11 +3,26 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
 import { debug } from '@/utils/logger';
+import { useSelectedSpaceId } from './selectedSpace';
 
-const PersistentNavigation: React.FC = () => {
+interface PersistentNavigationProps {
+  onSpaceSwitcherClick?: (event: React.MouseEvent) => void;
+}
+
+const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwitcherClick }) => {
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
+  const selectedSpaceId = useSelectedSpaceId();
+  // Avoid React hydration mismatches:
+  // - Server render can't compute persistent items (no window/localStorage)
+  // - Client initial render may inject active thread from DOM and differ from SSR HTML
+  // So we only render after mount.
+  const [isHydrated, setIsHydrated] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   // Force re-render when navigationHistory changes
   useEffect(() => {
@@ -33,11 +48,13 @@ const PersistentNavigation: React.FC = () => {
     };
 
     document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('astro:after-swap', handlePageLoad);
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
 
     return () => {
       if (timeoutRef) clearTimeout(timeoutRef);
       document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('astro:after-swap', handlePageLoad);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
     };
   }, []);
@@ -46,6 +63,40 @@ const PersistentNavigation: React.FC = () => {
 
   const getPersistentItems = () => {
     if (typeof window === 'undefined') return [];
+
+    // When viewing a note page, always ensure its parent thread is visible in the nav.
+    // View Transitions and timing can cause navigationHistory to miss/lose the parent thread briefly;
+    // this keeps the UI consistent and avoids "missing thread" cases.
+    const getActiveParentThreadFromDom = (): any | null => {
+      try {
+        // Prefer elements that are known to have the parent thread attributes.
+        const noteEl = document.querySelector('[data-note-id][data-parent-thread-id]') as HTMLElement | null;
+        // Don't rely on the `slot` attribute at runtime; use the stable wrapper marker.
+        const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+
+        const rawParentThreadId = noteEl?.dataset?.parentThreadId ?? navEl?.dataset?.parentThreadId ?? null;
+        const parentThreadId = rawParentThreadId ? String(rawParentThreadId).replace(/^\/+/, '').replace(/\/+$/, '') : null;
+        if (!parentThreadId || !parentThreadId.startsWith('thread_')) return null;
+
+        const title = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
+        const countStr = noteEl?.dataset?.parentThreadCount ?? navEl?.dataset?.parentThreadCount ?? '0';
+        const backgroundGradient =
+          noteEl?.dataset?.parentThreadBackgroundGradient ??
+          navEl?.dataset?.parentThreadBackgroundGradient ??
+          'var(--color-gradient-gray)';
+        const spaceId = noteEl?.dataset?.parentThreadSpaceId ?? navEl?.dataset?.parentThreadSpaceId ?? null;
+
+        return {
+          id: parentThreadId,
+          title,
+          count: parseInt(countStr || '0'),
+          backgroundGradient,
+          spaceId: spaceId || null,
+        };
+      } catch {
+        return null;
+      }
+    };
 
     // CRITICAL: Filter out items with invalid IDs (undefined, null, empty string)
     // This prevents navigation to invalid URLs like /undefined
@@ -57,6 +108,8 @@ const PersistentNavigation: React.FC = () => {
       }
 
       if (item.id === 'dashboard') return false;
+      // Spaces should not render as persistent nav buttons on desktop
+      if (item.id.startsWith('space_')) return false;
       return true;
     });
 
@@ -72,10 +125,81 @@ const PersistentNavigation: React.FC = () => {
       return true;
     });
 
+    // Compute the active parent thread *before* scoping so we can always include it.
+    const activeParentThread = window.location.pathname.includes('/note_') ? getActiveParentThreadFromDom() : null;
+    const activeThreadIdFromPath = (() => {
+      try {
+        const path = window.location.pathname || '/';
+        const id = path.startsWith('/') ? path.slice(1) : path;
+        return id.startsWith('thread_') ? id : null;
+      } catch {
+        return null;
+      }
+    })();
+
+    const getActiveThreadFromDom = (): any | null => {
+      try {
+        const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+        const threadId = navEl?.dataset?.threadId ?? null;
+        if (!threadId || !threadId.startsWith('thread_')) return null;
+        return {
+          id: threadId,
+          title: navEl?.dataset?.threadTitle || 'Thread',
+          count: parseInt(navEl?.dataset?.threadNoteCount || '0'),
+          backgroundGradient: navEl?.dataset?.threadBackgroundGradient || 'var(--color-gradient-gray)',
+          spaceId: navEl?.dataset?.threadSpaceId || null,
+        };
+      } catch {
+        return null;
+      }
+    };
+
+    const getOpenedInSpaceIds = (item: any): Array<string | null> => {
+      if (Array.isArray(item?.openedInSpaceIds)) return item.openedInSpaceIds as Array<string | null>;
+      // Back-compat: single scope or fallback to thread's spaceId
+      return [item?.openedInSpaceId ?? item?.spaceId ?? null];
+    };
+
+    // Scope threads to the selected space.
+    // - If a space is selected: show items opened in that space.
+    // - If "My Home" selected: show items opened while Home was selected (null scope).
+    persistentItems = persistentItems.filter((item: any) => {
+      if (item.id === 'thread_unorganized') return true;
+      const scopes = getOpenedInSpaceIds(item);
+      if (!selectedSpaceId) return scopes.some((s) => s == null);
+      return scopes.some((s) => s === selectedSpaceId);
+    });
+
+    // Ensure the active thread is visible on thread pages, even if it doesn't match scoping.
+    // Prefer the navigationHistory entry (better title/gradient/count); fall back to DOM dataset.
+    if (activeThreadIdFromPath && !persistentItems.some((i) => i.id === activeThreadIdFromPath)) {
+      const fromHistory = navigationHistory.find((i) => i.id === activeThreadIdFromPath);
+      const fromDom = getActiveThreadFromDom();
+      const activeThreadItem = fromHistory
+        ? {
+            id: fromHistory.id,
+            title: fromHistory.title,
+            count: fromHistory.count || 0,
+            backgroundGradient: fromHistory.backgroundGradient || 'var(--color-gradient-gray)',
+            spaceId: (fromHistory as any).spaceId ?? null,
+          }
+        : fromDom;
+      if (activeThreadItem) {
+        persistentItems = [activeThreadItem, ...persistentItems];
+      }
+    }
+
+    // Ensure the active parent thread is visible even if it doesn't match scoping yet.
+    if (activeParentThread && !persistentItems.some((i) => i.id === activeParentThread.id)) {
+      persistentItems = [activeParentThread, ...persistentItems];
+    }
+
     return persistentItems;
   };
 
-  const persistentItems = getPersistentItems();
+  // Keep SSR + initial client render consistent to prevent hydration mismatch.
+  // IMPORTANT: do not early-return before hooks (Rules of Hooks).
+  const persistentItems = isHydrated ? getPersistentItems() : [];
 
   // Debug logging for navigation state (development only)
   useEffect(() => {
@@ -105,63 +229,7 @@ const PersistentNavigation: React.FC = () => {
     <div id="persistent-navigation" key={renderKey} className="persistent-nav">
       {persistentItems.map((item) => {
         const isActive = item.id === currentActiveItemId;
-
-        const handleClick = (e: React.MouseEvent) => {
-          // CRITICAL: Validate item.id before ANY navigation
-          if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
-            console.error('[PersistentNavigation] CRITICAL: Invalid item.id - blocking navigation:', {
-              item: item,
-              itemId: item.id,
-              itemTitle: item.title,
-              itemIdType: typeof item.id
-            });
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-
-          // CRITICAL: Validate item.id format - must be thread_, space_, or note_
-          if (!item.id.startsWith('thread_') && !item.id.startsWith('space_') && !item.id.startsWith('note_')) {
-            console.error('[PersistentNavigation] CRITICAL: Invalid item.id format - blocking navigation:', {
-              itemId: item.id,
-              itemTitle: item.title,
-              startsWithThread: item.id.startsWith('thread_'),
-              startsWithSpace: item.id.startsWith('space_'),
-              startsWithNote: item.id.startsWith('note_')
-            });
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-          }
-
-          const currentPath = window.location.pathname;
-          const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-
-          // If we're already on the thread/space page, do nothing
-          if (currentItemId === item.id) {
-            e.preventDefault();
-            return;
-          }
-
-          // Always navigate directly to the thread/space
-          e.preventDefault();
-          e.stopPropagation();
-
-          const navigationUrl = `/${item.id}`;
-
-          // CRITICAL: Double-check the URL is valid before allowing navigation
-          if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
-            console.error('[PersistentNavigation] CRITICAL: Invalid navigation URL - blocking navigation:', {
-              navigationUrl: navigationUrl,
-              itemId: item.id,
-              itemTitle: item.title
-            });
-            return;
-          }
-
-          // Navigate directly to the thread/space
-          window.location.href = navigationUrl;
-        };
+        const isSpaceItem = item.id.startsWith('space_');
 
         // Skip rendering if item.id is invalid (shouldn't happen due to filter, but double-check)
         // CRITICAL: This prevents href from being set to /undefined which causes navigation failures
@@ -195,21 +263,31 @@ const PersistentNavigation: React.FC = () => {
           return null;
         }
 
+        const getThreadHrefWithSpace = () => {
+          // Keep the space switcher pinned to the *current* selected space.
+          // (Visibility is controlled by opened-in scopes.)
+          const hasSpace = typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_');
+          return hasSpace ? `/${item.id}?space=${encodeURIComponent(selectedSpaceId)}` : `/${item.id}`;
+        };
+
         // CRITICAL: Ensure href is always valid - never set to /undefined
-        const validHref = `/${item.id}`;
+        const validHref = item.id.startsWith('thread_') ? getThreadHrefWithSpace() : `/${item.id}`;
 
         return (
-          <div key={item.id} data-navigation-item={item.id} className="nav-item-container">
+          <div
+            key={item.id}
+            data-navigation-item={item.id}
+            className={`nav-item-container ${isSpaceItem ? 'nav-item-container--space' : ''}`}
+          >
             <div className="nav-item-wrapper">
-              <a
-                href={validHref}
-                className="nav-link"
-                onClick={handleClick}
-              >
+              <a href={validHref} className="nav-link">
                 <SpaceButton
+                  as="div"
                   text={item.title}
                   count={item.count || 0}
                   state="WithCount"
+                  rightAccessory={isSpaceItem ? 'spaceSwitcher' : 'count'}
+                  onRightAccessoryClick={isSpaceItem ? onSpaceSwitcherClick : undefined}
                   backgroundGradient={item.backgroundGradient || "var(--color-paper)"}
                   isActive={isActive}
                   itemId={item.id}

@@ -2,6 +2,7 @@ import React from 'react';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { useNavigation } from './NavigationContext';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import Icon, { type IconName } from '../Icon';
 
 interface SpaceButtonProps {
   className?: string;
@@ -15,6 +16,10 @@ interface SpaceButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   hideDropdownIcon?: boolean;
+  leftIcon?: IconName;
+  rightAccessory?: 'count' | 'spaceSwitcher' | 'none';
+  onRightAccessoryClick?: (event: React.MouseEvent) => void;
+  as?: 'button' | 'div';
 }
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
@@ -29,6 +34,10 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   onClick,
   disabled = false,
   hideDropdownIcon = false,
+  leftIcon,
+  rightAccessory,
+  onRightAccessoryClick,
+  as = 'button',
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
@@ -117,37 +126,65 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   
   // Determine close icon color - pastel colors use dark text
   const closeIconColor = 'var(--color-deep-grey)';
+  
+  const handleAccessoryClick = (event: React.MouseEvent) => {
+    // Prevent parent button click and outer <a> navigation
+    event.preventDefault();
+    event.stopPropagation();
+    onRightAccessoryClick?.(event);
+  };
+
+  const handleAccessoryKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    event.stopPropagation();
+    onRightAccessoryClick?.(event as unknown as React.MouseEvent);
+  };
 
   if (state === "Default") {
+    const Root = as as any;
+    const rootProps =
+      as === 'button'
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
-      <button 
+      <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} ${className}`}
         style={buttonStyle}
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
         {...props}
+        {...rootProps}
       >
         <div className="space-btn__content space-btn__content--with-padding space-btn__content--justify-start">
+          {leftIcon ? (
+            <span className="space-btn__left-icon" aria-hidden="true">
+              <Icon name={leftIcon} size={18} style={{ color: 'var(--color-pebble-grey)' }} />
+            </span>
+          ) : null}
           <div className="space-btn__text-wrapper">
             <span className={`space-btn__text ${textStyle}`}>
               {text}
             </span>
           </div>
         </div>
-      </button>
+      </Root>
     );
   }
 
   if (state === "WithCount") {
     // Add active class for CSS-based styling to avoid hydration issues
     const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
+    const resolvedRightAccessory: NonNullable<SpaceButtonProps['rightAccessory']> = rightAccessory ?? 'count';
+    const Root = as as any;
+    const rootProps =
+      as === 'button'
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
-      <button 
+      <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${activeClass} ${className}`}
         style={buttonStyle}
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
         {...props}
+        {...rootProps}
       >
         <div className="space-btn__content">
           <div className="space-btn__text-wrapper">
@@ -155,29 +192,60 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               {text}
             </span>
           </div>
-          <div className="space-btn__badge-wrapper">
-            <div className="badge-count">
-              <span className="badge-number">
-                {formatBadgeCount(count)}
-              </span>
+          {resolvedRightAccessory !== 'none' && (
+            <div
+              className="space-btn__badge-wrapper"
+              data-space-switcher-trigger={resolvedRightAccessory === 'spaceSwitcher' ? 'true' : undefined}
+              onClick={resolvedRightAccessory === 'spaceSwitcher' ? handleAccessoryClick : undefined}
+              onKeyDown={resolvedRightAccessory === 'spaceSwitcher' ? handleAccessoryKeyDown : undefined}
+              onMouseDown={
+                resolvedRightAccessory === 'spaceSwitcher'
+                  ? (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }
+                  : undefined
+              }
+              role={resolvedRightAccessory === 'spaceSwitcher' ? 'button' : undefined}
+              tabIndex={resolvedRightAccessory === 'spaceSwitcher' ? 0 : undefined}
+              aria-label={resolvedRightAccessory === 'spaceSwitcher' ? 'Switch space' : undefined}
+            >
+              {resolvedRightAccessory === 'spaceSwitcher' ? (
+                <span
+                  className="space-btn__toggle-icon"
+                  aria-hidden="true"
+                >
+                  <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
+                </span>
+              ) : (
+                <div className="badge-count">
+                  <span className="badge-number">
+                    {formatBadgeCount(count)}
+                  </span>
+                </div>
+              )}
             </div>
-          </div>
+          )}
         </div>
         
         {/* Show shadow when active */}
         {isActive && <div className="space-btn__shadow" />}
-      </button>
+      </Root>
     );
   }
 
   if (state === "DropdownTrigger") {
+    const Root = as as any;
+    const rootProps =
+      as === 'button'
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
-      <button 
+      <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
         {...props}
+        {...rootProps}
       >
         <div className="space-btn__content">
           <div className="space-btn__text-wrapper">
@@ -185,13 +253,32 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               {text}
             </span>
           </div>
-          {count !== undefined && count !== null && (
+          {rightAccessory !== 'none' && count !== undefined && count !== null && rightAccessory !== 'spaceSwitcher' && (
             <div className="space-btn__badge-wrapper">
               <div className="badge-count">
                 <span className="badge-number">
                   {formatBadgeCount(count)}
                 </span>
               </div>
+            </div>
+          )}
+          {rightAccessory === 'spaceSwitcher' && (
+            <div
+              className="space-btn__badge-wrapper"
+              data-space-switcher-trigger="true"
+              onClick={handleAccessoryClick}
+              onKeyDown={handleAccessoryKeyDown}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label="Switch space"
+            >
+              <span className="space-btn__toggle-icon" aria-hidden="true">
+                <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
+              </span>
             </div>
           )}
           {!hideDropdownIcon && (
@@ -204,7 +291,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             </div>
           )}
         </div>
-      </button>
+      </Root>
     );
   }
 

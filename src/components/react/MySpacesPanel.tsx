@@ -517,6 +517,15 @@ export default function MySpacesPanel({
           onClick={handleClose}
           inBottomSheet={inBottomSheet}
         />
+        <button
+          type="button"
+          data-outer-shadow
+          className="btn-cta flex-1 group"
+          onClick={() => safeNavigate('/new-space', { history: 'push' })}
+        >
+          <span className="btn-cta__content">New Space</span>
+          <div className="btn-cta__shadow" />
+        </button>
       </div>
 
       <style>{`

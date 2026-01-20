@@ -475,7 +475,7 @@ if (query.trim()) {
 // Note: Tab filtering is now handled by the TabNav component with data-tab-content attributes
 ---
 
-<Layout title="Find - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
+<Layout title="Search - Harvous" contentType="dashboard" currentThread={null} currentSpace={null}>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
@@ -493,7 +493,7 @@ if (query.trim()) {
   <!-- Main Column -->
   <div slot="main" class="h-full">
     <div class="flex flex-col h-full">
-      <CardStack title="Find" headerBgColor="var(--color-paper)">
+      <CardStack title="Search" headerBgColor="var(--color-paper)">
         <div class="flex flex-col gap-6">
           <!-- Search Input -->
           <FindSearchInput client:load initialQuery={query} />

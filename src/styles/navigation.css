@@ -100,7 +100,7 @@
   width: 100%;
 
   /* When container has a close icon, handle hover states */
-  &:has(.close-icon) {
+  &:not(.nav-item-container--space):has(.close-icon) {
     & .badge-count {
       position: relative;
     }
@@ -109,7 +109,7 @@
       opacity: 1;
       transition: opacity 0.2s ease-out;
     }
-
+    
     & .close-icon {
       display: none;
       opacity: 0;
@@ -129,7 +129,7 @@
   }
 
   /* Not active + has close icon = show close on hover */
-  &:not(.active):has(.close-icon) {
+  &:not(.active):not(.nav-item-container--space):has(.close-icon) {
     & .badge-count {
       position: relative;
     }
@@ -138,7 +138,7 @@
       opacity: 1;
       transition: opacity 0.2s ease-out;
     }
-
+    
     & .close-icon {
       display: none;
       opacity: 0;
@@ -148,7 +148,7 @@
     & .badge-count:hover .badge-number {
       opacity: 0;
     }
-
+    
     & .badge-count:hover .close-icon {
       display: flex !important;
       opacity: 1;
@@ -291,6 +291,11 @@
   width: 100%;
 }
 
+/* When the desktop space switcher is open, hide persistent items underneath */
+.nav-column-buttons:has(.space-switcher-details[open]) #persistent-navigation {
+  display: none;
+}
+
 .nav-column-bottom {
   display: flex;
   gap: 12px;
@@ -315,6 +320,12 @@
 .nav-flex-grow {
   flex: 1;
   min-width: 0;
+}
+
+/* Desktop nav Search button content (not rendered via SpaceButton component) */
+.nav-search-button > div {
+  padding-bottom: 2px;
+  box-sizing: border-box;
 }
 
 /* ==========================================================================
@@ -666,14 +677,32 @@ button.tab-nav__button .tab-nav__label,
   height: 100%;
   padding-left: 8px;
   padding-right: 0;
+  /* Optical vertical centering (accounts for inset shadow weight) */
+  padding-bottom: 2px;
+  box-sizing: border-box;
   transition: transform 0.125s ease-in-out;
   min-width: 0;
+}
+
+.space-btn__content:has(.space-btn__left-icon) {
+  column-gap: 12px;
+}
+
+.space-btn__left-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 }
 
 .space-btn__content--with-padding {
   padding-left: 16px;
   padding-right: 8px;
 }
+
+/* Desktop nav Search button now uses ProfileOptionsList-style markup */
 
 .space-btn__content--justify-between {
   justify-content: space-between;
@@ -717,6 +746,231 @@ button.space-btn .space-btn__text {
 .space-btn__badge-wrapper {
   padding: 20px;
   flex-shrink: 0;
+}
+
+.space-switcher-anchor {
+  position: relative;
+  width: 100%;
+  /* Ensure the dropdown stacks above persistent nav items below */
+  z-index: 1000000;
+}
+
+/* Reserve space so text doesn't sit under the overlay toggle */
+.space-switcher-anchor .space-btn__content {
+  padding-right: 64px;
+}
+
+/* Overlay toggle for desktop space switcher (sibling of the <a>) */
+.space-switcher-anchor__toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 64px;
+  width: 64px;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.space-switcher-details {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 64px;
+  height: 64px;
+  z-index: 1000001;
+}
+
+.space-switcher-details > summary.space-switcher-anchor__toggle {
+  list-style: none;
+}
+
+.space-switcher-details > summary.space-switcher-anchor__toggle::-webkit-details-marker {
+  display: none;
+}
+
+.space-switcher-details__panel {
+  position: absolute;
+  top: calc(64px + 8px);
+  right: 0;
+  width: max(260px, 310px);
+  z-index: 1000002;
+}
+
+.space-switcher-details:not([open]) .space-switcher-details__panel {
+  display: none;
+}
+
+.space-switcher-anchor__toggle:focus-visible {
+  outline: 2px solid rgba(120, 118, 111, 0.35);
+  outline-offset: 2px;
+  border-radius: 24px;
+}
+
+.space-btn__badge-wrapper[role="button"] {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Right-side toggle icon (space switcher) */
+.space-btn__toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  transition: transform 0.125s ease-in-out, opacity 0.2s ease-out;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.space-switcher-anchor .space-btn__toggle-icon {
+  color: var(--color-deep-grey);
+  opacity: 0.65;
+}
+
+.space-btn__toggle-icon:active {
+  transform: scale(0.95);
+}
+
+/* Space switcher dropdown (desktop) */
+.space-switcher-dropdown__panel {
+  background-color: white;
+  border-radius: 24px;
+  box-shadow: 0px 3px 20px 0px rgba(120, 118, 111, 0.1);
+  max-height: min(352px, calc(100vh - 32px));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.space-switcher-dropdown__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  /* Match SpaceButton text inset: 16 (pl-4) + 8 (content padding) */
+  padding: 0 24px;
+  color: var(--color-deep-grey);
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.space-switcher-dropdown__item:hover {
+  background-color: oklch(var(--lch-snow-white) / 0.5);
+}
+
+.space-switcher-dropdown__item.is-active {
+  background-color: oklch(var(--lch-snow-white) / 0.7);
+}
+
+/* Match mobile “New Space” button gradient */
+.space-switcher-dropdown__item.space-switcher-dropdown__new-space {
+  background-image: linear-gradient(
+    126.64deg,
+    rgba(255, 255, 255, 0.8) 11.71%,
+    rgba(248, 248, 248, 0.8) 71.33%
+  );
+}
+
+.space-switcher-dropdown__divider {
+  height: 1px;
+  background-color: var(--color-soft-gray);
+}
+
+.space-switcher-dropdown__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  line-height: 1.2;
+}
+
+.space-switcher-dropdown__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Thread ↔ Selected Space Mismatch Banner (Desktop)
+   ========================================================================== */
+.space-mismatch-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: oklch(var(--lch-snow-white) / 0.65);
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
+  margin-top: 8px;
+}
+
+.space-mismatch-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.space-mismatch-banner__title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-deep-grey);
+}
+
+.space-mismatch-banner__subtitle {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--color-pebble-grey);
+}
+
+.space-mismatch-banner__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.space-mismatch-banner__btn {
+  appearance: none;
+  border: none;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--color-deep-grey);
+  background: rgba(120, 118, 111, 0.12);
+  cursor: pointer;
+  transition: transform 0.2s, filter 0.2s;
+}
+
+.space-mismatch-banner__btn:active {
+  transform: scale(0.98);
+  filter: brightness(0.98);
+}
+
+.space-mismatch-banner__btn[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.space-mismatch-banner__btn--primary {
+  background: var(--color-bold-blue);
+  color: white;
 }
 
 /* SpaceButton inset shadow overlay */

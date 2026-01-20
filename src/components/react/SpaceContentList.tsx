@@ -7,6 +7,7 @@ import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
+import { setSelectedSpaceId } from './navigation/selectedSpace';
 
 interface SpaceItem {
   id: string;
@@ -56,6 +57,9 @@ export default function SpaceContentList({
   spaceId,
   filter = 'all'
 }: SpaceContentListProps) {
+  const noteHref = (noteId: string) => `/${noteId}?space=${encodeURIComponent(spaceId)}`;
+  const threadHref = (threadId: string) => `/${threadId}?space=${encodeURIComponent(spaceId)}`;
+  const handleSelectSpace = () => setSelectedSpaceId(spaceId);
   // Sort initial items by lastVisited on mount
   // Use inline sorting logic in initializers (can't use useCallback here)
   const [items, setItems] = useState<SpaceItem[]>(() => {
@@ -1001,8 +1005,9 @@ export default function SpaceContentList({
         >
           {item.itemType === 'thread' ? (
             <a 
-              href={`/${item.id}`}
+              href={threadHref(item.id)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+              onClick={handleSelectSpace}
             >
               <CardThread 
                 thread={{
@@ -1020,14 +1025,16 @@ export default function SpaceContentList({
             <CondensedNoteItem 
               title={item.title || "Untitled Note"}
               noteType={item.noteType || 'default'}
-              href={`/${item.id}`}
+              href={noteHref(item.id)}
+              onClick={handleSelectSpace}
               threadColors={item.threadColors}
               noteId={item.id}
             />
           ) : (
             <a 
-              href={`/${item.id}`}
+              href={noteHref(item.id)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+              onClick={handleSelectSpace}
             >
               <CardNote 
                 title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}

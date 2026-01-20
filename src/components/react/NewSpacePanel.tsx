@@ -380,35 +380,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         localStorage.removeItem('newSpaceColor');
         localStorage.removeItem('newSpaceType');
         
-        // Dispatch event to notify other components
-        // Immediately update localStorage synchronously
-        try {
-          const spaceColor = result.space.color || 'blue';
-          const backgroundGradient = getThreadGradientCSS(spaceColor);
-          
-          const spaceItem = {
-            id: result.space.id,
-            title: result.space.title,
-            count: result.space.totalItemCount || 0,
-            backgroundGradient: backgroundGradient,
-            firstAccessed: Date.now(),
-            lastAccessed: Date.now()
-          };
-          
-          const navHistory = localStorage.getItem('harvous-navigation-history-v2');
-          const history = navHistory ? JSON.parse(navHistory) : [];
-          
-          // Check if item already exists
-          const existingIndex = history.findIndex((h: any) => h.id === spaceItem.id);
-          if (existingIndex === -1) {
-            history.push(spaceItem);
-            history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
-            localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
-          }
-        } catch (error) {
-          console.error('Error updating navigation history:', error);
-        }
-
+        // Notify other components (desktop space dropdown listens for this)
         window.dispatchEvent(new CustomEvent('spaceCreated', {
           detail: { space: result.space }
         }));

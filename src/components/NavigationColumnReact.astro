@@ -1,6 +1,6 @@
 ---
 import NavigationColumn from "./react/navigation/NavigationColumn.tsx";
-import { NavigationProvider } from "./react/navigation/NavigationContext.tsx";
+import NavigationIsland from "./react/navigation/NavigationIsland.tsx";
 
 interface Props {
   slot?: string;
@@ -16,6 +16,7 @@ interface Props {
     title: string;
     noteCount: number;
     backgroundGradient: string;
+    spaceId?: string | null;
   } | null;
   currentSpace?: {
     id: string;
@@ -26,6 +27,7 @@ interface Props {
   initials?: string;
   userColor?: string;
   pathname?: string;
+  search?: string;
   [key: `data-${string}`]: string | number | undefined;
 }
 
@@ -40,6 +42,7 @@ const {
   initials = "DJ",
   userColor = "paper",
   pathname = Astro.url.pathname,
+  search = Astro.url.search,
   ...rest
 } = Astro.props;
 
@@ -56,18 +59,18 @@ Object.keys(rest).forEach(key => {
 ---
 
 <div {...dataAttributes} slot="navigation" class="h-full" data-navigation-path={pathname} data-navigation-active="true">
-  <NavigationProvider client:load>
-    <NavigationColumn 
-      inboxCount={inboxCount}
-      spaces={spaces}
-      activeThread={activeThread}
-      currentSpace={currentSpace}
-      isNote={isNote}
-      currentId={currentId || undefined}
-      showProfile={showProfile}
-      initials={initials}
-      userColor={userColor}
-      pathname={pathname}
-    />
-  </NavigationProvider>
+  <NavigationIsland
+    client:load
+    inboxCount={inboxCount}
+    spaces={spaces}
+    activeThread={activeThread}
+    currentSpace={currentSpace}
+    isNote={isNote}
+    currentId={currentId || undefined}
+    showProfile={showProfile}
+    initials={initials}
+    userColor={userColor}
+    pathname={pathname}
+    search={search}
+  />
 </div>

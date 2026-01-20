@@ -24,6 +24,7 @@ export const GET: APIRoute = async ({ locals }) => {
       id: thread.id,
       title: thread.title,
       color: thread.color,
+      spaceId: (thread as any).spaceId || null,
       noteCount: thread.noteCount,
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
     }));
@@ -41,6 +42,7 @@ export const GET: APIRoute = async ({ locals }) => {
         id: 'thread_unorganized',
         title: 'Unorganized',
         color: null,
+        spaceId: null,
         noteCount: unorganizedThreadData.noteCount || 0,
         backgroundGradient: getThreadGradientCSS('paper')
       });
@@ -51,6 +53,7 @@ export const GET: APIRoute = async ({ locals }) => {
       );
       if (unorganizedIndex !== -1) {
         threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
+        (threadOptions[unorganizedIndex] as any).spaceId = null;
       }
     }
 

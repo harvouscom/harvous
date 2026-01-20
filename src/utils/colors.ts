@@ -11,6 +11,14 @@ export const THREAD_COLORS = [
 
 export type ThreadColor = typeof THREAD_COLORS[number];
 
+// When SSR + client both compute gradients, tiny floating point differences can
+// cause hydration mismatches. We format all computed numbers to a fixed
+// precision so the resulting CSS strings are identical across runtimes.
+function formatCssNumber(value: number, decimals: number): string {
+  if (!Number.isFinite(value)) return '0';
+  return value.toFixed(decimals);
+}
+
 // Convert thread color name to CSS variable
 export function getThreadColorCSS(color: ThreadColor | string | null | undefined): string {
   if (!color) return "var(--color-paper)"; // Paper color for null
@@ -279,9 +287,15 @@ export function generateThreadMeshGradient(
     const baseRadius = 40;
     const logMultiplier = 15;
     const fadeDistance = baseRadius + (Math.log2(frequency) * logMultiplier);
-    
+
+    // Normalize all computed numbers to fixed precision to avoid SSR/client
+    // floating-point drift causing hydration mismatches.
+    const x = formatCssNumber(position.x, 3);
+    const y = formatCssNumber(position.y, 3);
+    const fade = formatCssNumber(fadeDistance, 2);
+
     gradientCircles.push(
-      `radial-gradient(circle at ${position.x}% ${position.y}%, ${cssColor} 0%, transparent ${fadeDistance}%)`
+      `radial-gradient(circle at ${x}% ${y}%, ${cssColor} 0%, transparent ${fade}%)`
     );
   }
 

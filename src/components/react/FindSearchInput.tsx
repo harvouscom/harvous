@@ -9,7 +9,7 @@ interface FindSearchInputProps {
 
 export default function FindSearchInput({
   className = "",
-  placeholder = "Find notes and threads...",
+  placeholder = "Search my Harvous...",
   initialQuery = ""
 }: FindSearchInputProps) {
   const [searchQuery, setSearchQuery] = useState(initialQuery);

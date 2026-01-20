@@ -206,6 +206,7 @@ try {
           id: 'thread_unorganized',
           title: 'Unorganized',
           color: null,
+          spaceId: null,
           noteCount: unorganizedThreadData.noteCount,
           backgroundGradient: getThreadGradientCSS('paper')
         };
@@ -271,6 +272,7 @@ try {
             id: threadData.id,
             title: threadData.title,
             color: threadData.color,
+            spaceId: threadData.spaceId || null,
             noteCount: threadData.noteCount,
             backgroundGradient: getThreadGradientCSS(threadData.color)
           };
@@ -347,6 +349,7 @@ try {
               id: thread.id,
               title: thread.title,
               color: thread.color,
+              spaceId: thread.spaceId || null,
               noteCount: noteCount,
               backgroundGradient: getThreadGradientCSS(thread.color)
             };
@@ -379,6 +382,7 @@ try {
                 id: id!,
                 title: 'Loading...',
                 color: null,
+                spaceId: null,
                 noteCount: 0,
                 backgroundGradient: getThreadGradientCSS('paper')
               };
@@ -618,6 +622,7 @@ try {
             id: 'thread_unorganized',
             title: 'Unorganized',
             color: null,
+            spaceId: null,
             noteCount: unorganizedThreadData.noteCount,
             backgroundGradient: getThreadGradientCSS('paper')
           };
@@ -639,6 +644,7 @@ try {
               id: thread.id,
               title: thread.title,
               color: thread.color,
+              spaceId: thread.spaceId || null,
               noteCount: noteCountResult?.count || 0,
               backgroundGradient: getThreadGradientCSS(thread.color)
             };
@@ -675,6 +681,7 @@ try {
                     id: fallbackThread.id,
                     title: fallbackThread.title,
                     color: fallbackThread.color,
+                    spaceId: fallbackThread.spaceId || null,
                     noteCount: noteCountResult?.count || 0,
                     backgroundGradient: getThreadGradientCSS(fallbackThread.color)
                   };
@@ -690,6 +697,7 @@ try {
                 id: 'thread_unorganized',
                 title: 'Unorganized',
                 color: null,
+                spaceId: null,
                 noteCount: unorganizedThreadData.noteCount,
                 backgroundGradient: getThreadGradientCSS('paper')
               };
@@ -702,6 +710,7 @@ try {
             id: 'thread_unorganized',
             title: 'Unorganized',
             color: null,
+            spaceId: null,
             noteCount: unorganizedThreadData.noteCount,
             backgroundGradient: getThreadGradientCSS('paper')
           };
@@ -801,10 +810,20 @@ if (!content) {
     showProfile={false}
     initials={initials}
     userColor={userColor}
+    data-thread-id={currentThread?.id}
+    data-thread-title={currentThread?.title}
+    data-thread-note-count={currentThread?.noteCount ?? undefined}
+    data-thread-background-gradient={currentThread?.backgroundGradient}
+    data-thread-space-id={currentThread?.spaceId ?? undefined}
+    data-space-id={currentSpace?.id}
+    data-space-title={currentSpace?.title}
+    data-space-item-count={currentSpace?.totalItemCount ?? undefined}
+    data-space-background-gradient={currentSpace?.backgroundGradient}
     data-parent-thread-id={isNote ? (currentThread?.id || 'thread_unorganized') : undefined}
     data-parent-thread-title={isNote ? (currentThread?.title || 'Unorganized') : undefined}
     data-parent-thread-count={isNote ? (currentThread?.noteCount || 0) : undefined}
     data-parent-thread-background-gradient={isNote ? (currentThread?.backgroundGradient || getThreadGradientCSS('blue')) : undefined}
+    data-parent-thread-space-id={isNote ? (currentThread?.spaceId || undefined) : undefined}
   />
 
   <!-- Main Column -->
@@ -821,6 +840,7 @@ if (!content) {
               data-parent-thread-count={currentThread?.noteCount || 0}
               data-parent-thread-background-gradient={currentThread?.backgroundGradient || getThreadGradientCSS('blue')}
               data-parent-thread-color={currentThread?.color || 'blue'}
+              data-parent-thread-space-id={currentThread?.spaceId || undefined}
               data-selected-thread-id={currentThread?.id || 'thread_unorganized'}
               class="h-full min-h-0 overflow-hidden flex flex-col"
               style="max-height: 100%"
@@ -1665,4 +1685,4 @@ if (!content) {
 </style>
 
 <!-- Persistent Navigation Renderer -->
-<script is:inline src="/scripts/navigation/persistent-navigation.js?v=4"></script>
+<!-- Disabled: legacy DOM-based persistent navigation overrides React PersistentNavigation -->

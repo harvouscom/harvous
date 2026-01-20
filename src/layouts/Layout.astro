@@ -366,6 +366,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             data-thread-color={currentThread?.color}
             data-thread-note-count={currentThread?.noteCount}
             data-thread-background-gradient={currentThread?.backgroundGradient}
+            data-thread-space-id={currentThread?.spaceId}
             data-space-id={currentSpace?.id}
             data-space-title={currentSpace?.title}
             data-space-color={currentSpace?.color}
@@ -547,6 +548,67 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 <!-- Navigation History Script -->
 <script is:inline src="/scripts/navigation/history-tracker.js" data-astro-rerun></script>
 
+<!-- Selected Space Sync (ensures space selection persists across navigations) -->
+<script is:inline data-astro-rerun>
+  (function () {
+    if (typeof window === 'undefined') return;
+
+    var STORAGE_KEY = 'harvous-selected-space-id';
+    var EVENT_NAME = 'harvousSelectedSpaceUpdated';
+
+    function normalizeSpaceId(value) {
+      if (!value) return null;
+      var trimmed = String(value).trim();
+      if (!trimmed || trimmed === 'home') return null;
+      if (trimmed.charAt(0) === '/') trimmed = trimmed.slice(1);
+      if (trimmed.charAt(trimmed.length - 1) === '/') trimmed = trimmed.slice(0, -1);
+      return trimmed || null;
+    }
+
+    function persistSelectedSpace(spaceId) {
+      if (!spaceId || spaceId.indexOf('space_') !== 0) return;
+      try {
+        window.localStorage.setItem(STORAGE_KEY, spaceId);
+      } catch (e) {
+        try {
+          window.sessionStorage.setItem(STORAGE_KEY, spaceId);
+        } catch (e2) {}
+      }
+      try {
+        window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: { spaceId: spaceId } }));
+      } catch (e3) {}
+    }
+
+    function syncSelectedSpace() {
+      try {
+        // Highest priority: explicit space context in the URL (e.g. opening a note from a space page)
+        try {
+          var params = new URLSearchParams(window.location.search || '');
+          var fromQuery = normalizeSpaceId(params.get('space'));
+          if (fromQuery && fromQuery.indexOf('space_') === 0) {
+            persistSelectedSpace(fromQuery);
+            return;
+          }
+        } catch (e0) {}
+
+        // Fallback: if we're on a space page, use the stable navigation wrapper's data-space-id.
+        // NOTE: `slot="navigation"` is not reliable at runtime with Astro View Transitions.
+        var navEl = document.querySelector('[data-navigation-active=\"true\"][data-space-id]');
+        if (!navEl) return;
+        var spaceId = normalizeSpaceId(navEl.getAttribute('data-space-id'));
+        if (!spaceId || spaceId.indexOf('space_') !== 0) return;
+        persistSelectedSpace(spaceId);
+      } catch (e) {
+        // Non-critical: ignore storage/DOM failures
+      }
+    }
+
+    syncSelectedSpace();
+    document.addEventListener('astro:page-load', syncSelectedSpace);
+    document.addEventListener('astro:after-swap', syncSelectedSpace);
+  })();
+</script>
+
 
 <!-- Hide unorganized thread if it's been closed -->
 <script is:inline src="/scripts/navigation/unorganized-handler.js"></script>
@@ -704,4 +766,4 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 </style>
 
 <!-- Persistent Navigation Renderer -->
-<script is:inline src="/scripts/navigation/persistent-navigation.js?v=4"></script>
+<!-- Disabled: legacy DOM-based persistent navigation overrides React PersistentNavigation -->

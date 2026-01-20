@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useCall
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
+import { getSelectedSpaceId } from './selectedSpace';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -9,6 +10,15 @@ export interface NavigationItem {
   title: string;
   count?: number;
   backgroundGradient?: string;
+  spaceId?: string | null;
+  // The selected space context when this item was opened.
+  // This enables per-space persistence independent of the thread's actual space.
+  //
+  // Multi-scope: a thread can be opened from multiple spaces; it should persist in each
+  // until explicitly closed. `null` represents “My Home”.
+  openedInSpaceIds?: Array<string | null>;
+  // Legacy single-scope field (back-compat)
+  openedInSpaceId?: string | null;
   firstAccessed: number;
   lastAccessed: number;
 }
@@ -38,6 +48,60 @@ const defaultContextValue: NavigationContextType = {
 
 // Provider component
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const normalizeOpenedInSpaceId = (value: unknown): string | null => {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    if (!trimmed || trimmed === 'home') return null;
+    const withoutLeading = trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+    const withoutTrailing = withoutLeading.endsWith('/') ? withoutLeading.slice(0, -1) : withoutLeading;
+    const normalized = withoutTrailing || null;
+    if (!normalized) return null;
+    // Only accept real space ids; everything else is treated as Home.
+    if (normalized.startsWith('space_')) return normalized;
+    return null;
+  };
+
+  const getItemOpenedInSpaceIds = (item: Partial<NavigationItem>): Array<string | null> => {
+    const fromArray = Array.isArray((item as any).openedInSpaceIds) ? ((item as any).openedInSpaceIds as Array<unknown>) : null;
+    if (fromArray) {
+      const normalized = fromArray.map(normalizeOpenedInSpaceId);
+      // Keep nulls (Home) and dedupe while preserving order
+      const seen = new Set<string>();
+      const out: Array<string | null> = [];
+      for (const s of normalized) {
+        const key = s ?? 'home';
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+      }
+      return out.length > 0 ? out : [null];
+    }
+
+    const legacy = normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null);
+    if (legacy !== null) return [legacy];
+
+    // Back-compat fallback: if openedInSpaceId missing, use thread's actual spaceId (or Home).
+    const fromSpaceId = normalizeOpenedInSpaceId((item as any).spaceId ?? null);
+    return [fromSpaceId];
+  };
+
+  const mergeOpenedInSpaceIds = (
+    existing: Array<string | null>,
+    additions: Array<string | null>
+  ): Array<string | null> => {
+    const seen = new Set<string>();
+    const out: Array<string | null> = [];
+    const push = (s: string | null) => {
+      const key = s ?? 'home';
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(s);
+    };
+    for (const s of existing) push(normalizeOpenedInSpaceId(s));
+    for (const s of additions) push(normalizeOpenedInSpaceId(s));
+    return out.length > 0 ? out : [null];
+  };
+
   // Helper functions for closed items tracking
   const getClosedItems = (): string[] => {
     if (typeof window === 'undefined') {
@@ -97,81 +161,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return getClosedItems().includes(itemId);
   };
 
-  // Initialize state directly from the same storage that addToNavigationHistory uses
-  // This ensures we read from the same place we write to
-  const getInitialHistory = (): NavigationItem[] => {
-    if (typeof window === 'undefined') {
-      return [];
-    }
-    try {
-      let stored = safeGetItem('harvous-navigation-history-v2');
-      let parsed = stored ? JSON.parse(stored) : [];
-      let needsMigration = false;
-      
-      // Defensive: ensure parsed is an array
-      // Handle both array format and object with items property (backward compatibility)
-      if (!Array.isArray(parsed)) {
-        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.items)) {
-          // Old format: {items: [...]} - extract the array and migrate
-          console.warn('[NavigationContext] Navigation history is in old format, migrating to new format');
-          parsed = parsed.items;
-          needsMigration = true;
-        } else {
-          console.warn('[NavigationContext] Navigation history is not an array, defaulting to empty array:', parsed);
-          parsed = [];
-          needsMigration = true;
-        }
-      }
-      
-      // Migrate to new format if needed (save back as direct array)
-      if (needsMigration) {
-        safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
-          cleanupOldest: true,
-          fallbackToSession: true,
-        });
-      }
-      
-      // Check for pending thread in sessionStorage (set by NewNotePanel before navigation)
-      // This ensures the thread appears immediately on page load even if localStorage wasn't updated in time
-      try {
-        const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
-        if (pendingThreadStr) {
-          const pendingThread = JSON.parse(pendingThreadStr);
-          
-          // Check if thread is already in history
-          const exists = parsed.some((item: NavigationItem) => item.id === pendingThread.id);
-          if (!exists) {
-            parsed.push(pendingThread);
-            // Update storage immediately using safe storage
-            safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
-              cleanupOldest: true,
-              fallbackToSession: true,
-            });
-          }
-          // Clear sessionStorage after use
-          sessionStorage.removeItem('harvous-pending-thread');
-        }
-      } catch (error) {
-        console.error('NavigationContext: Error processing pending thread:', error);
-      }
-      
-      // Filter out test items and closed items
-      const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filtered = parsed.filter((item: NavigationItem) => {
-        // Filter out test items
-        if (testItemTitles.includes(item.title)) return false;
-        // Filter out closed items
-        if (isItemClosed(item.id)) return false;
-        return true;
-      });
-      return filtered;
-    } catch (error) {
-      console.error('Error getting initial navigation history:', error);
-      return [];
-    }
-  };
-  
-  const [navigationHistory, setNavigationHistory] = useState<NavigationItem[]>(getInitialHistory);
+  // IMPORTANT: start empty for SSR + first client render to avoid hydration mismatches.
+  // We load from storage after mount in the initialization effect below.
+  const [navigationHistory, setNavigationHistory] = useState<NavigationItem[]>([]);
 
   // Get navigation history from storage
   const getNavigationHistory = (): NavigationItem[] => {
@@ -213,12 +205,66 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (parsed.length === 0 && (window as any).navigationHistoryBackup && Array.isArray((window as any).navigationHistoryBackup) && (window as any).navigationHistoryBackup.length > 0) {
         parsed = (window as any).navigationHistoryBackup;
       }
+
+      // Check for pending thread in sessionStorage (set by NewNotePanel before navigation)
+      // This ensures the thread appears immediately on page load even if storage wasn't updated in time.
+      try {
+        const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
+        if (pendingThreadStr) {
+          const pendingThread = JSON.parse(pendingThreadStr);
+          const exists = parsed.some((item: NavigationItem) => item.id === pendingThread.id);
+          if (!exists) {
+            parsed.push(pendingThread);
+            safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
+              cleanupOldest: true,
+              fallbackToSession: true,
+            });
+          }
+          sessionStorage.removeItem('harvous-pending-thread');
+        }
+      } catch (error) {
+        console.error('NavigationContext: Error processing pending thread:', error);
+      }
       
+      // Normalize opened-in scopes (multi-scope migration + back-compat).
+      // If we had to normalize anything, persist back to storage.
+      const normalizedItems = (parsed as any[]).map((raw) => {
+        const item = raw as NavigationItem;
+        const openedInSpaceIds = getItemOpenedInSpaceIds(item);
+        const hasArray = Array.isArray((item as any).openedInSpaceIds);
+        const arrayMatches =
+          hasArray &&
+          JSON.stringify((item as any).openedInSpaceIds) === JSON.stringify(openedInSpaceIds);
+
+        if (!hasArray || !arrayMatches) {
+          needsMigration = true;
+        }
+
+        // Keep legacy single value around for older consumers (use the most recent added scope if present)
+        const legacyOpenedIn = normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null);
+
+        return {
+          ...item,
+          openedInSpaceIds,
+          openedInSpaceId: legacyOpenedIn,
+        } as NavigationItem;
+      });
+
+      if (needsMigration) {
+        safeSetItem('harvous-navigation-history-v2', JSON.stringify(normalizedItems), {
+          cleanupOldest: true,
+          fallbackToSession: true,
+        });
+      }
+
       // Filter out specific test items (exact title matches only)
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filteredItems = parsed.filter((item: NavigationItem) => 
-        !testItemTitles.includes(item.title)
-      );
+      const filteredItems = normalizedItems.filter((item: NavigationItem) => {
+        if (testItemTitles.includes(item.title)) return false;
+        if (typeof item.id === 'string' && item.id.startsWith('space_')) return false;
+        if (isItemClosed(item.id)) return false;
+        return true;
+      });
       
       return filteredItems;
     } catch (error) {
@@ -230,9 +276,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Filter out specific test items from backup too (exact title matches only)
       const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
-      const filteredBackup = safeBackup.filter((item: NavigationItem) => 
-        !testItemTitles.includes(item.title)
-      );
+      const filteredBackup = safeBackup.filter((item: NavigationItem) => {
+        if (testItemTitles.includes(item.title)) return false;
+        if (typeof item.id === 'string' && item.id.startsWith('space_')) return false;
+        if (isItemClosed(item.id)) return false;
+        return true;
+      });
       
       return filteredBackup;
     }
@@ -271,6 +320,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Add item to navigation history
   const addToNavigationHistory = (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => {
+    // Spaces should not appear as persistent nav buttons; they live only in the space switcher dropdown.
+    if (item.id.startsWith('space_')) {
+      return;
+    }
+
     // Skip specific test items (exact title matches only)
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];
     if (testItemTitles.includes(item.title)) {
@@ -286,6 +340,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Check if item already exists - use strict equality check
     const existingIndex = history.findIndex(h => h.id === item.id);
 
+    const itemOpenedInSpaceIds = mergeOpenedInSpaceIds(
+      getItemOpenedInSpaceIds(item),
+      [getSelectedSpaceId()]
+    );
+
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position
       const existingItem = history[existingIndex];
@@ -295,6 +354,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       history[existingIndex] = {
         ...existingItem,
         ...item,
+        // Multi-scope: preserve and merge opened-in contexts
+        openedInSpaceIds: mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), getItemOpenedInSpaceIds(item)),
+        // Legacy: keep last opened-in for older consumers
+        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
       };
@@ -304,6 +367,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // TODO: In the future, we could track closed items to detect true reopening
       const newItem: NavigationItem = {
         ...item,
+        openedInSpaceIds: itemOpenedInSpaceIds,
+        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: Date.now(),
         lastAccessed: Date.now()
       };
@@ -385,7 +450,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Second priority: try to get from navigation element (set by server-side)
-      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+      const navigationElement =
+        (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+        (document.querySelector('[slot="navigation"]') as HTMLElement | null);
 
       if (navigationElement && navigationElement.dataset.parentThreadId) {
         return navigationElement.dataset.parentThreadId;
@@ -517,8 +584,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return null;
     }
 
-    // Get data from navigation slot element (set by Layout.astro)
-    const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+    // Get data from the stable navigation wrapper (set by NavigationColumnReact.astro).
+    // NOTE: The `slot="navigation"` attribute is not reliable at runtime with view transitions.
+    const navigationElement =
+      (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+      (document.querySelector('[slot="navigation"]') as HTMLElement | null);
 
     // For notes, try fallback to data-note-id element if navigation element not found
     if (currentItemId.startsWith('note_') && !navigationElement) {
@@ -528,7 +598,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           id: noteElement.dataset.parentThreadId,
           title: noteElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
-          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
+          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
+          spaceId: noteElement.dataset.parentThreadSpaceId || null,
         };
       }
     }
@@ -536,6 +607,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (!navigationElement) {
       return null;
     }
+
+    // Page-level metadata is more reliable than the navigation wrapper during View Transitions
+    // because the React island can be preserved while the main content swaps.
+    const pageMetaElement =
+      (document.querySelector(`[data-navigation-item="${currentItemId}"]`) as HTMLElement | null) ??
+      (document.querySelector('[data-navigation-item]') as HTMLElement | null);
 
     // For notes, use parent thread data
     if (currentItemId.startsWith('note_')) {
@@ -545,7 +622,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           id: parentThreadId,
           title: navigationElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
-          backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
+          backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
+          spaceId: navigationElement.dataset.parentThreadSpaceId || null,
         };
       }
       
@@ -556,38 +634,59 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           id: noteElement.dataset.parentThreadId,
           title: noteElement.dataset.parentThreadTitle || 'Thread',
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
-          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)'
+          backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
+          spaceId: noteElement.dataset.parentThreadSpaceId || null,
         };
       }
     }
     
     // For threads
-    if (currentItemId.startsWith('thread_') || navigationElement.dataset.threadId) {
-      const threadId = navigationElement.dataset.threadId;
+    if (currentItemId.startsWith('thread_') || navigationElement.dataset.threadId || navigationElement.dataset.threadTitle) {
+      // CRITICAL: if we're on a thread route, the URL is the source of truth for the ID.
+      // The navigation wrapper dataset can be stale under View Transitions.
+      const threadId = currentItemId.startsWith('thread_') ? currentItemId : (navigationElement.dataset.threadId || null);
       if (threadId) {
+        const titleFromPage = pageMetaElement?.dataset?.title;
+        const countFromPage = pageMetaElement?.dataset?.count;
+        const gradientFromPage = pageMetaElement?.dataset?.backgroundGradient;
         return {
           id: threadId,
-          title: navigationElement.dataset.threadTitle || 'Thread',
-          count: parseInt(navigationElement.dataset.threadNoteCount || '0'),
-          backgroundGradient: navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)'
+          title: titleFromPage || navigationElement.dataset.threadTitle || 'Thread',
+          count: parseInt(countFromPage || navigationElement.dataset.threadNoteCount || '0'),
+          backgroundGradient: gradientFromPage || navigationElement.dataset.threadBackgroundGradient || 'var(--color-gradient-gray)',
+          spaceId: navigationElement.dataset.threadSpaceId || null,
         };
       }
     }
     
     // For spaces
-    if (currentItemId.startsWith('space_') || navigationElement.dataset.spaceId) {
-      const spaceId = navigationElement.dataset.spaceId;
+    if (currentItemId.startsWith('space_') || navigationElement.dataset.spaceId || navigationElement.dataset.spaceTitle) {
+      // Same issue as threads: prefer the URL ID when on a space route.
+      const spaceId = currentItemId.startsWith('space_') ? currentItemId : (navigationElement.dataset.spaceId || null);
       if (spaceId) {
+        const titleFromPage = pageMetaElement?.dataset?.title;
+        const countFromPage = pageMetaElement?.dataset?.count;
+        const gradientFromPage = pageMetaElement?.dataset?.backgroundGradient;
         return {
           id: spaceId,
-          title: navigationElement.dataset.spaceTitle || 'Space',
-          count: parseInt(navigationElement.dataset.spaceItemCount || '0'),
-          backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'var(--color-gradient-gray)'
+          title: titleFromPage || navigationElement.dataset.spaceTitle || 'Space',
+          count: parseInt(countFromPage || navigationElement.dataset.spaceItemCount || '0'),
+          backgroundGradient: gradientFromPage || navigationElement.dataset.spaceBackgroundGradient || 'var(--color-gradient-gray)'
         };
       }
     }
     
     return null;
+  };
+
+  const getOpenedInSpaceIdForCurrentLocation = (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const fromQuery = normalizeOpenedInSpaceId(new URLSearchParams(window.location.search).get('space'));
+      return fromQuery ?? getSelectedSpaceId();
+    } catch {
+      return getSelectedSpaceId();
+    }
   };
 
   // Track navigation access with retry logic
@@ -622,6 +721,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Extract item data from page
     const itemData = extractItemDataFromPage(currentItemId);
+    const openedInSpaceId = getOpenedInSpaceIdForCurrentLocation();
 
     // Retry logic: if element not found and we haven't retried too many times, retry after a delay
     if (!itemData && retryCount < 3) {
@@ -633,6 +733,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     if (itemData) {
+      const itemDataWithOpenedIn = {
+        ...itemData,
+        openedInSpaceIds: [openedInSpaceId],
+        openedInSpaceId: openedInSpaceId,
+      };
+
       // Special handling for unorganized thread
       if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
         safeRemoveItem('unorganized-thread-closed');
@@ -658,7 +764,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (isCurrentlyActive) {
             // User is viewing content in this thread - restore it
             removeFromClosedItems(itemData.id);
-            addToNavigationHistory(itemData);
+            addToNavigationHistory(itemDataWithOpenedIn);
 
             // Refresh counts from API after adding new item to ensure accuracy
             // Use debounced version to prevent multiple rapid refreshes
@@ -669,7 +775,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         } else {
           // Item is not closed - add it to history (first time opening)
-          addToNavigationHistory(itemData);
+          addToNavigationHistory(itemDataWithOpenedIn);
 
           // Refresh counts from API after adding new item to ensure accuracy (retry logic handles transient failures)
           refreshNavigationCounts();
@@ -686,9 +792,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const existingIndex = history.findIndex(h => h.id === itemData.id);
         const updatedHistory = history.map((item, index) => {
           if (index === existingIndex) {
+            const mergedScopes = mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [openedInSpaceId]);
             return {
               ...item,
               ...itemData,
+              openedInSpaceIds: mergedScopes,
+              openedInSpaceId: openedInSpaceId,
               lastAccessed: Date.now()
             };
           }
@@ -772,9 +881,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             // This prevents overwriting correct client-side counts with stale lower API counts
             // The API count being higher indicates it's more recent/accurate
             if (currentCount !== newCount && newCount >= currentCount) {
-              return { ...item, count: newCount };
+              return { ...item, count: newCount, spaceId: threadData.spaceId ?? item.spaceId ?? null };
             }
             // If API count is lower, it might be stale - keep current count
+            // But still fill spaceId if missing.
+            if (item.spaceId == null && threadData.spaceId != null) {
+              return { ...item, spaceId: threadData.spaceId };
+            }
             return item;
           } else if (item.id === 'thread_unorganized') {
             // Unorganized thread should always be in API response now
@@ -792,7 +905,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               
               // Only update if API count is higher or equal
               if (currentCount !== newCount && newCount >= currentCount) {
-                return { ...item, count: newCount };
+                return { ...item, count: newCount, spaceId: null };
               }
             } else {
               // Unorganized not in API response - if current count is 0, remove it
@@ -1021,6 +1134,42 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Track current page access
     trackNavigationAccess();
+
+    // Backfill thread spaceIds for existing navigation history entries (once per session as needed).
+    const backfillThreadSpaceIds = async () => {
+      try {
+        if (typeof window === 'undefined') return;
+        const history = getNavigationHistory();
+        const needsBackfill = history.some((item) => {
+          return item?.id?.startsWith('thread_') && item.id !== 'thread_unorganized' && item.spaceId === undefined;
+        });
+        if (!needsBackfill) return;
+
+        if (!isAuthReady() || !navigator.onLine) return;
+        const response = await safeFetch('/api/navigation/data');
+        if (!response || !response.ok) return;
+        const data = await response.json();
+        const threadsFromApi = data.threads || [];
+        const spaceIdByThreadId = new Map<string, string | null>();
+        for (const t of threadsFromApi) {
+          if (t?.id) spaceIdByThreadId.set(t.id, t.spaceId ?? null);
+        }
+
+        const updatedHistory = history.map((item) => {
+          if (!item?.id?.startsWith('thread_') || item.id === 'thread_unorganized') return item;
+          if (item.spaceId !== undefined) return item;
+          return { ...item, spaceId: spaceIdByThreadId.get(item.id) ?? null };
+        });
+
+        saveNavigationHistory(updatedHistory);
+        setNavigationHistory(updatedHistory);
+        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+      } catch {
+        // non-critical
+      }
+    };
+
+    backfillThreadSpaceIds();
     
     // Delay validation to avoid blocking initial render
     // Use requestIdleCallback if available, otherwise setTimeout
