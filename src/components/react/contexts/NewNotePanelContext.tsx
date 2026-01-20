@@ -1,0 +1,311 @@
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+
+export type NoteType = 'default' | 'scripture' | 'resource';
+
+export interface ResourceMetadata {
+  title: string;
+  description: string;
+  image: string;
+  articleContent?: string;
+  siteName?: string | null;
+}
+
+interface NewNotePanelContextType {
+  // State
+  title: string;
+  setTitle: (title: string) => void;
+  content: string;
+  setContent: (content: string) => void;
+  noteType: NoteType;
+  setNoteType: (type: NoteType) => void;
+  scriptureReference: string;
+  setScriptureReference: (ref: string) => void;
+  scriptureVersion: string;
+  setScriptureVersion: (version: string) => void;
+  resourceUrl: string;
+  setResourceUrl: (url: string) => void;
+  resourceMetadata: ResourceMetadata | null;
+  setResourceMetadata: (metadata: ResourceMetadata | null) => void;
+  sourceNoteId: string | null;
+  sourceSelectionFrom: number | null;
+  sourceSelectionTo: number | null;
+  addToSpace: boolean;
+  setAddToSpace: (add: boolean) => void;
+  
+  // Refs
+  isLoadingFromLocalStorage: React.MutableRefObject<boolean>;
+  
+  // Functions
+  hasUnsavedChanges: () => boolean;
+  resetForm: () => void;
+  clearLocalStorage: () => void;
+  
+  // Internal function to handle initialNoteType prop
+  setInitialNoteType: (type: NoteType) => void;
+}
+
+const NewNotePanelContext = createContext<NewNotePanelContextType | undefined>(undefined);
+
+export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Form state
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [noteType, setNoteType] = useState<NoteType>('default');
+  const [scriptureReference, setScriptureReference] = useState('');
+  const [scriptureVersion, setScriptureVersion] = useState('NET');
+  const [resourceUrl, setResourceUrl] = useState('');
+  const [resourceMetadata, setResourceMetadata] = useState<ResourceMetadata | null>(null);
+  const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
+  const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
+  const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
+  const [addToSpace, setAddToSpace] = useState(false);
+  
+  // Track if we're loading from localStorage to prevent auto-detection toast on mount
+  const isLoadingFromLocalStorage = useRef(false);
+  
+  // Track if we've initialized from localStorage
+  const hasInitializedRef = useRef(false);
+  
+  // Load data from localStorage on mount (only once)
+  useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+    
+    if (typeof window === 'undefined') return;
+    
+    const savedTitle = localStorage.getItem('newNoteTitle') || '';
+    const savedContent = localStorage.getItem('newNoteContent') || '';
+    const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
+    const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
+    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
+    const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
+    
+    // Mark that we're loading from localStorage to prevent auto-detection toast
+    isLoadingFromLocalStorage.current = true;
+    
+    // Load source note context for hyperlink creation
+    const savedSourceNoteId = localStorage.getItem('newNoteSourceNoteId');
+    const savedSourceSelectionFrom = localStorage.getItem('newNoteSourceSelectionFrom');
+    const savedSourceSelectionTo = localStorage.getItem('newNoteSourceSelectionTo');
+    
+    if (savedSourceNoteId) {
+      setSourceNoteId(savedSourceNoteId);
+    }
+    if (savedSourceSelectionFrom) {
+      setSourceSelectionFrom(parseInt(savedSourceSelectionFrom, 10));
+    }
+    if (savedSourceSelectionTo) {
+      setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
+    }
+    
+    // Set note type if detected from selection
+    // IMPORTANT: Set noteType FIRST to prevent auto-detection from running
+    if (savedNoteType === 'scripture') {
+      setNoteType('scripture');
+      if (savedScriptureRef) {
+        // Keep original format (no divider in title)
+        setScriptureReference(savedScriptureRef);
+        // Set title after a brief delay to ensure noteType is set first
+        setTimeout(() => {
+          setTitle(savedScriptureRef); // Reference becomes title
+          // Clear the flag after state updates complete
+          setTimeout(() => {
+            isLoadingFromLocalStorage.current = false;
+          }, 100);
+        }, 0);
+      } else {
+        // No scripture ref, clear flag immediately
+        setTimeout(() => {
+          isLoadingFromLocalStorage.current = false;
+        }, 100);
+      }
+      if (savedScriptureVersion) {
+        setScriptureVersion(savedScriptureVersion);
+      }
+      if (savedScriptureText) {
+        setContent(savedScriptureText); // Verse text becomes content
+      }
+      // Clear after loading
+      localStorage.removeItem('newNoteType');
+      localStorage.removeItem('newNoteScriptureReference');
+      localStorage.removeItem('newNoteScriptureVersion');
+      localStorage.removeItem('newNoteScriptureText');
+    } else if (savedNoteType === 'resource') {
+      setNoteType('resource');
+      const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
+      if (savedResourceUrl) {
+        setResourceUrl(savedResourceUrl);
+      }
+      // Clear the flag after state updates complete
+      setTimeout(() => {
+        isLoadingFromLocalStorage.current = false;
+      }, 100);
+      // Clear after loading
+      localStorage.removeItem('newNoteType');
+      localStorage.removeItem('newNoteResourceUrl');
+    } else {
+      // Use saved title if not scripture or resource
+      if (savedTitle) {
+        setTitle(savedTitle);
+      }
+      // Clear the flag after state updates complete
+      setTimeout(() => {
+        isLoadingFromLocalStorage.current = false;
+      }, 100);
+    }
+    
+    // Handle content setting for non-scripture notes
+    if (savedNoteType !== 'scripture') {
+      if (savedContent) {
+        setContent(savedContent);
+        // Don't clear localStorage here - draft is preserved until successful submit
+      } else {
+        setContent('');
+      }
+    }
+    
+    // Handle thread selection separately (store pending thread ID)
+    const savedThreadId = localStorage.getItem('newNoteThread') || '';
+    if (savedThreadId) {
+      localStorage.setItem('newNoteThreadPending', savedThreadId);
+      localStorage.removeItem('newNoteThread');
+    }
+  }, []);
+  
+  // Handle initialNoteType prop - this is called when a panel opens with a specific type
+  const setInitialNoteType = useCallback((type: NoteType) => {
+    setNoteType(type);
+    if (type === 'resource') {
+      const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
+      if (savedResourceUrl) {
+        setResourceUrl(savedResourceUrl);
+      }
+      // Clear localStorage after reading
+      localStorage.removeItem('newNoteType');
+      localStorage.removeItem('newNoteResourceUrl');
+    }
+    
+    // Still load title/content if available (for draft persistence)
+    if (typeof window !== 'undefined') {
+      const savedTitle = localStorage.getItem('newNoteTitle') || '';
+      const savedContent = localStorage.getItem('newNoteContent') || '';
+      if (savedTitle) {
+        setTitle(savedTitle);
+      }
+      if (savedContent && type !== 'scripture') {
+        setContent(savedContent);
+      }
+    }
+    
+    isLoadingFromLocalStorage.current = true;
+    setTimeout(() => {
+      isLoadingFromLocalStorage.current = false;
+    }, 100);
+  }, []);
+  
+  // Save title to localStorage when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('newNoteTitle', title);
+  }, [title]);
+  
+  // Save content to localStorage when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem('newNoteContent', content);
+  }, [content]);
+  
+  // Save resourceUrl to localStorage when it changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (noteType === 'resource') {
+      localStorage.setItem('newNoteResourceUrl', resourceUrl);
+    }
+  }, [resourceUrl, noteType]);
+  
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = useCallback((): boolean => {
+    const trimmedTitle = title.trim();
+    const trimmedContent = content.trim();
+    const trimmedResourceUrl = resourceUrl.trim();
+    
+    // Check if there's meaningful content (not just whitespace or empty HTML)
+    const hasContent = trimmedContent && 
+      trimmedContent !== '<p></p>' && 
+      trimmedContent !== '<p><br></p>' &&
+      trimmedContent !== '<br>';
+    
+    // For resource notes, check URL as well
+    if (noteType === 'resource') {
+      return Boolean(trimmedResourceUrl || hasContent);
+    }
+    
+    return Boolean(trimmedTitle || hasContent);
+  }, [title, content, resourceUrl, noteType]);
+  
+  // Reset form to initial state
+  const resetForm = useCallback(() => {
+    setTitle('');
+    setContent('');
+    setNoteType('default');
+    setScriptureReference('');
+    setScriptureVersion('NET');
+    setResourceUrl('');
+    setResourceMetadata(null);
+  }, []);
+  
+  // Clear localStorage entries
+  const clearLocalStorage = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('newNoteTitle');
+    localStorage.removeItem('newNoteContent');
+    localStorage.removeItem('newNoteResourceUrl');
+    // Don't clear newNoteThread - preserve thread selection for next time
+  }, []);
+  
+  const value: NewNotePanelContextType = {
+    // State
+    title,
+    setTitle,
+    content,
+    setContent,
+    noteType,
+    setNoteType,
+    scriptureReference,
+    setScriptureReference,
+    scriptureVersion,
+    setScriptureVersion,
+    resourceUrl,
+    setResourceUrl,
+    resourceMetadata,
+    setResourceMetadata,
+    sourceNoteId,
+    sourceSelectionFrom,
+    sourceSelectionTo,
+    addToSpace,
+    setAddToSpace,
+    
+    // Refs
+    isLoadingFromLocalStorage,
+    
+    // Functions
+    hasUnsavedChanges,
+    resetForm,
+    clearLocalStorage,
+    setInitialNoteType,
+  };
+  
+  return (
+    <NewNotePanelContext.Provider value={value}>
+      {children}
+    </NewNotePanelContext.Provider>
+  );
+};
+
+export const useNewNotePanelContext = () => {
+  const context = useContext(NewNotePanelContext);
+  if (context === undefined) {
+    throw new Error('useNewNotePanelContext must be used within a NewNotePanelProvider');
+  }
+  return context;
+};

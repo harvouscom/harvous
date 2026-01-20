@@ -1291,9 +1291,17 @@ button .menu-item__label {
   width: 100vw !important;
   height: 100vh !important;
   z-index: 49 !important;
-  background-color: rgba(0, 0, 0, 0.35) !important;
+  /* Subtle overlay across all sheets */
+  background-color: rgba(0, 0, 0, 0.12) !important;
   opacity: 0;
   transition: opacity 0.3s ease-out;
+}
+
+/* Use modern viewport units when available (PWA browser chrome / utility bars) */
+@supports (height: 100svh) {
+  .sheet-overlay {
+    height: 100svh !important;
+  }
 }
 
 /* iOS PWA: Use dvh for dynamic viewport height */
@@ -1311,6 +1319,12 @@ button .menu-item__label {
     height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;
   }
   
+  @supports (height: 100svh) {
+    .sheet-overlay {
+      height: calc(100svh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;
+    }
+  }
+
   @supports (height: 100dvh) {
     .sheet-overlay {
       height: calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;

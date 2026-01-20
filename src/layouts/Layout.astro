@@ -10,6 +10,7 @@ import EditThreadPanel from "@/components/react/EditThreadPanel.tsx";
 import DesktopPanelManager from "@/components/react/DesktopPanelManager.tsx";
 import BottomSheetReact from "@/components/BottomSheetReact.astro";
 import KeyboardShortcutsInit from "@/components/react/KeyboardShortcutsInit.tsx";
+import PanelManagerWithContext from "@/components/react/PanelManagerWithContext.tsx";
 import PostHog from "@/components/posthog.astro";
 import PostHogUserInit from "@/components/react/PostHogUserInit.tsx";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler.tsx";
@@ -405,12 +406,14 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
                   <SquareButton variant="Add" withMenu={true} />
                 )}
               </div>
-              <!-- React Panel Manager -->
-              <DesktopPanelManager
+              <!-- React Panel Manager (wrapped with context provider) -->
+              <!-- This renders both desktop and mobile panels in a single React tree -->
+              <PanelManagerWithContext
                 currentThread={currentThread}
                 currentSpace={currentSpace}
                 currentNote={currentNote}
                 contentType={contentType}
+                publishableKey={publishableKey}
                 client:only="react"
               />
             </div>
@@ -436,17 +439,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         </div>
       </div>
     </div>
-
-    <!-- Mobile Bottom Sheet System -->
-    <div class="mobile-bottom-sheet">
-      <BottomSheetReact 
-        currentThread={currentThread}
-        currentSpace={currentSpace}
-        currentNote={currentNote}
-        contentType={contentType}
-        publishableKey={publishableKey}
-      />
-    </div>
+    
+    <!-- Note: Mobile bottom sheet is now rendered by PanelManagerWithContext -->
   </body>
 </html>
 

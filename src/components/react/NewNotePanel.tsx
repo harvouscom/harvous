@@ -40,9 +40,18 @@ interface NewNotePanelProps {
   currentSpace?: any;
   onClose?: () => void;
   initialNoteType?: 'default' | 'scripture' | 'resource';
+  inBottomSheet?: boolean;
+  registerSheetCloseHandler?: ((handler: (reason: 'dismiss' | 'escape' | 'button') => boolean | Promise<boolean>) => void) | null;
 }
 
-export default function NewNotePanel({ currentThread, currentSpace, onClose, initialNoteType }: NewNotePanelProps) {
+export default function NewNotePanel({
+  currentThread,
+  currentSpace,
+  onClose,
+  initialNoteType,
+  inBottomSheet = false,
+  registerSheetCloseHandler = null,
+}: NewNotePanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -602,6 +611,22 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
     }
   };
 
+  // Allow the bottom sheet to ask the panel whether it can dismiss.
+  // Treat dismiss/escape the same as Close button - prompt if unsaved changes.
+  useEffect(() => {
+    if (!registerSheetCloseHandler) return;
+
+    registerSheetCloseHandler((_reason) => {
+      // All close attempts (dismiss, escape, button) behave the same:
+      // prompt if there are unsaved changes.
+      if (form.hasUnsavedChanges()) {
+        setShowUnsavedDialog(true);
+        return false;
+      }
+      return true;
+    });
+  }, [registerSheetCloseHandler, form]);
+
   // Actually close the panel - resilient to errors so close always works
   const closePanel = () => {
     // Wrap each operation in try-catch to ensure close always completes
@@ -1053,80 +1078,82 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
       >
         {/* Thread Selection */}
         <div className="mb-3.5 shrink-0">
-          <ThreadCombobox
-            selectedThread={threadSelection.selectedThread}
-            onThreadSelect={(thread: string) => {
-              threadSelection.handleThreadSelect(thread);
-              setSuggestedThreadName(null); // Clear suggestion when user manually selects
-              
-              // Clear pending thread name if user manually selects a different thread
-              // Check if the selected thread is not the pending one
-              if (pendingThreadName && thread.trim().toLowerCase() !== pendingThreadName.trim().toLowerCase()) {
-                setPendingThreadName(null);
-                // Remove pending thread from options
-                threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
-              }
-            }}
-            threads={threadSelection.threadOptions}
-            placeholder="Select thread..."
-            suggestedThreadName={suggestedThreadName}
-            onSuggestedThreadNameChange={(editedName: string) => {
-              // Sync edited thread name back to suggestedThreadName state
-              // This ensures the SuggestedThreadDialog shows the edited name
-              if (editedName && editedName.trim()) {
-                setSuggestedThreadName(editedName.trim());
-              }
-            }}
-            onCreateThread={async (threadName: string) => {
-              const trimmedName = threadName.trim();
-              if (!trimmedName) return;
-
-              // Check if a thread with this name already exists
-              const existingThread = threadSelection.threadOptions.find(
-                (t) => t.title.trim().toLowerCase() === trimmedName.toLowerCase()
-              );
-
-              if (existingThread) {
-                // If thread exists, just select it
-                threadSelection.handleThreadSelect(existingThread.title);
-                setPendingThreadName(null);
-                setSuggestedThreadName(null);
-                return;
-              }
-
-              // Store the thread name as pending - it will be created when the note is submitted
-              setPendingThreadName(trimmedName);
-              
-              // Create a temporary thread object for display purposes
-              const pendingThread: Thread = {
-                id: `pending_${Date.now()}`, // Temporary ID for pending thread
-                title: trimmedName,
-                noteCount: 0,
-                backgroundGradient: getThreadGradientCSS('paper'),
-                color: 'paper',
-              };
-
-              // Add pending thread to options and select it
-              threadSelection.setThreadOptions((prev) => {
-                // Remove any existing pending thread with the same name
-                const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
-                const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
-                const updated = unorganizedIdx === -1 
-                  ? [...filtered, pendingThread]
-                  : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];
+          <div className="new-note-panel__thread-combobox">
+            <ThreadCombobox
+              selectedThread={threadSelection.selectedThread}
+              onThreadSelect={(thread: string) => {
+                threadSelection.handleThreadSelect(thread);
+                setSuggestedThreadName(null); // Clear suggestion when user manually selects
                 
-                return updated;
-              });
+                // Clear pending thread name if user manually selects a different thread
+                // Check if the selected thread is not the pending one
+                if (pendingThreadName && thread.trim().toLowerCase() !== pendingThreadName.trim().toLowerCase()) {
+                  setPendingThreadName(null);
+                  // Remove pending thread from options
+                  threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
+                }
+              }}
+              threads={threadSelection.threadOptions}
+              placeholder="Select thread..."
+              suggestedThreadName={suggestedThreadName}
+              onSuggestedThreadNameChange={(editedName: string) => {
+                // Sync edited thread name back to suggestedThreadName state
+                // This ensures the SuggestedThreadDialog shows the edited name
+                if (editedName && editedName.trim()) {
+                  setSuggestedThreadName(editedName.trim());
+                }
+              }}
+              onCreateThread={async (threadName: string) => {
+                const trimmedName = threadName.trim();
+                if (!trimmedName) return;
 
-              // Select the pending thread
-              threadSelection.handleThreadSelect(trimmedName);
-              
-              // Clear suggested thread name
-              setSuggestedThreadName(null);
-              
-              debug('[NewNotePanel] Stored pending thread name', { threadName: trimmedName });
-            }}
-          />
+                // Check if a thread with this name already exists
+                const existingThread = threadSelection.threadOptions.find(
+                  (t) => t.title.trim().toLowerCase() === trimmedName.toLowerCase()
+                );
+
+                if (existingThread) {
+                  // If thread exists, just select it
+                  threadSelection.handleThreadSelect(existingThread.title);
+                  setPendingThreadName(null);
+                  setSuggestedThreadName(null);
+                  return;
+                }
+
+                // Store the thread name as pending - it will be created when the note is submitted
+                setPendingThreadName(trimmedName);
+                
+                // Create a temporary thread object for display purposes
+                const pendingThread: Thread = {
+                  id: `pending_${Date.now()}`, // Temporary ID for pending thread
+                  title: trimmedName,
+                  noteCount: 0,
+                  backgroundGradient: getThreadGradientCSS('paper'),
+                  color: 'paper',
+                };
+
+                // Add pending thread to options and select it
+                threadSelection.setThreadOptions((prev) => {
+                  // Remove any existing pending thread with the same name
+                  const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
+                  const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+                  const updated = unorganizedIdx === -1 
+                    ? [...filtered, pendingThread]
+                    : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];
+                  
+                  return updated;
+                });
+
+                // Select the pending thread
+                threadSelection.handleThreadSelect(trimmedName);
+                
+                // Clear suggested thread name
+                setSuggestedThreadName(null);
+                
+                debug('[NewNotePanel] Stored pending thread name', { threadName: trimmedName });
+              }}
+            />
+          </div>
         </div>
 
         {/* Space Selector - Only show when currentSpace is provided */}
@@ -1190,6 +1217,7 @@ export default function NewNotePanel({ currentThread, currentSpace, onClose, ini
           isLimitReached={isLimitReached}
           currentCount={currentCount}
           limit={limit}
+          showCloseButton={!inBottomSheet}
         />
       </form>
 

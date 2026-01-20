@@ -352,6 +352,36 @@
   width: 100%;
 }
 
+/* Mobile navigation bottom sheet (replaces dropdown) */
+.mobile-nav__sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 9999;
+  background: white;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  padding: 0;
+  overflow: hidden;
+  max-height: min(80vh, calc(100vh - 16px));
+}
+
+/* iOS PWA: prefer dynamic viewport units */
+@supports (height: 100dvh) {
+  .mobile-nav__sheet {
+    max-height: min(80dvh, calc(100dvh - 16px));
+  }
+}
+
+.mobile-nav__sheet-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .mobile-nav__dropdown {
   position: absolute;
   top: 0;
@@ -369,10 +399,10 @@
 
 .mobile-nav__dropdown-header {
   flex-shrink: 0;
-  padding: 8px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .mobile-nav__dropdown-header-row {
@@ -422,6 +452,8 @@
 }
 
 .mobile-nav__space-panel-label {
+  flex: 1 1 auto;
+  flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -448,7 +480,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 8px 10px;
+  padding: 0 6px 8px;
 }
 
 .mobile-nav__overlay {
@@ -978,6 +1010,8 @@ button.space-btn .space-btn__text {
 }
 
 .space-switcher-dropdown__label {
+  flex: 1 1 auto;
+  flex-shrink: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

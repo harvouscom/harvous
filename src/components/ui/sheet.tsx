@@ -3,7 +3,6 @@
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
-import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -30,22 +29,21 @@ const SheetOverlay = React.forwardRef<
 ))
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
-const sheetVariants = cva(
-  "fixed z-50 gap-4 bg-background p-6 shadow-lg",
-  {
-    variants: {
-      side: {
-        top: "inset-x-0 top-0 border-b",
-        bottom: "inset-x-0 bottom-0 border-t",
-        left: "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
-        right: "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
-      },
+const sheetVariants = cva("fixed z-50 bg-background shadow-lg", {
+  variants: {
+    side: {
+      top: "inset-x-0 top-0 border-b gap-4 p-6",
+      // Bottom sheets should not show a top border line or have default padding.
+      // Individual sheets/panels control their own internal spacing.
+      bottom: "inset-x-0 bottom-0 p-0",
+      left: "inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm gap-4 p-6",
+      right: "inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm gap-4 p-6",
     },
-    defaultVariants: {
-      side: "right",
-    },
-  }
-)
+  },
+  defaultVariants: {
+    side: "right",
+  },
+})
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
@@ -56,10 +54,10 @@ const SheetContent = React.forwardRef<
   SheetContentProps
 >(({ side = "right", className, children, ...props }, ref) => (
   <SheetPortal>
-    {/* Overlay disabled for bottom sheets - not extending over status bar properly */}
-    {/* <SheetOverlay /> */}
+    <SheetOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      data-side={side}
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >

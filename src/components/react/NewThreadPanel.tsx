@@ -14,6 +14,7 @@ import { safeURL } from '@/utils/safe-url';
 import { createThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
 
 interface Note {
   id: string;
@@ -43,9 +44,24 @@ interface NewThreadPanelProps {
   initialNotes?: Note[];
   // Optional: show Back button instead of Close button
   useBackButton?: boolean;
+  // Bottom sheet integration
+  inBottomSheet?: boolean;
+  registerSheetCloseHandler?: ((handler: (reason: 'dismiss' | 'escape' | 'button') => boolean | Promise<boolean>) => void) | null;
 }
 
-export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated, threadId, initialTitle, initialColor, noteIdToAdd, initialNotes, useBackButton = false }: NewThreadPanelProps) {
+export default function NewThreadPanel({
+  currentSpace,
+  onClose,
+  onThreadCreated,
+  threadId,
+  initialTitle,
+  initialColor,
+  noteIdToAdd,
+  initialNotes,
+  useBackButton = false,
+  inBottomSheet = false,
+  registerSheetCloseHandler = null,
+}: NewThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -53,19 +69,41 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   }, []);
 
   const userId = usePersistedUserId();
-  const [title, setTitle] = useState('');
-  const [selectedColor, setSelectedColor] = useState<ThreadColor>('paper');
-  const [selectedType, setSelectedType] = useState('Private');
+  
+  // Detect edit mode
+  const isEditMode = !!threadId;
+  
+  // Consume shared state from context (for persistence across desktop/mobile)
+  // Only use context in create mode - edit mode uses local state
+  const context = useNewThreadPanelContext();
+  
+  // Local state for edit mode (shouldn't affect shared context)
+  const [editTitle, setEditTitle] = useState('');
+  const [editSelectedColor, setEditSelectedColor] = useState<ThreadColor>('paper');
+  const [editSelectedType, setEditSelectedType] = useState('Private');
+  const [editAddToSpace, setEditAddToSpace] = useState(false);
+  
+  // Use context state for create mode, local state for edit mode
+  const title = isEditMode ? editTitle : context.title;
+  const setTitle = isEditMode ? setEditTitle : context.setTitle;
+  const selectedColor = isEditMode ? editSelectedColor : context.selectedColor;
+  const setSelectedColor = isEditMode ? setEditSelectedColor : context.setSelectedColor;
+  const selectedType = isEditMode ? editSelectedType : context.selectedType;
+  const setSelectedType = isEditMode ? setEditSelectedType : context.setSelectedType;
+  const addToSpace = isEditMode ? editAddToSpace : context.addToSpace;
+  const setAddToSpace = isEditMode ? setEditAddToSpace : context.setAddToSpace;
+  const selectedItems = isEditMode ? [] : context.selectedItems; // Edit mode doesn't use selectedItems
+  const setSelectedItems = isEditMode ? () => {} : context.setSelectedItems;
+  const allNotes = isEditMode ? [] : context.allNotes; // Edit mode doesn't use allNotes
+  const setAllNotes = isEditMode ? () => {} : context.setAllNotes;
+  
+  // Local state for UI-only concerns
   // Tab navigation disabled for v1
   // const [activeTab, setActiveTab] = useState('recent');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   // const [recentNotes, setRecentNotes] = useState<any[]>([]);
   // const [isLoadingNotes, setIsLoadingNotes] = useState(false);
-  const [addToSpace, setAddToSpace] = useState(false);
-  // Use initialNotes if provided, otherwise start empty (will fetch)
-  const [allNotes, setAllNotes] = useState<Note[]>(initialNotes || []);
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(!initialNotes); // No loading if we have initial data
   // Shared functionality disabled for now
   // const [isShared, setIsShared] = useState(false);
@@ -78,30 +116,17 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   // Ref for auto-focusing the thread name input
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  // Detect edit mode
-  const isEditMode = !!threadId;
-
-  // Load data from localStorage on mount (create mode) or use initial data (edit mode)
+  // Handle edit mode - set local state from initial data (edit mode only)
   useEffect(() => {
     if (isEditMode) {
-      // Edit mode: use initial data
-      setTitle(initialTitle || '');
-      setSelectedColor(initialColor || 'paper');
-      setSelectedType('Private'); // Always private for now
+      // Edit mode: use initial data in local state
+      setEditTitle(initialTitle || '');
+      setEditSelectedColor(initialColor || 'paper');
+      setEditSelectedType('Private'); // Always private for now
       // Tab navigation disabled for v1
       // setActiveTab('recent');
-    } else {
-      // Create mode: load from localStorage (except color, which always starts as 'paper')
-      const savedTitle = localStorage.getItem('newThreadTitle') || '';
-      // Always start with 'paper' color in create mode, don't load from localStorage
-      const savedType = localStorage.getItem('newThreadType') || 'Private';
-      // Tab navigation disabled for v1
-      // const savedTab = localStorage.getItem('newThreadActiveTab') || 'recent';
-      setTitle(savedTitle);
-      setSelectedColor('paper'); // Always start with 'paper' in create mode
-      setSelectedType(savedType);
-      // setActiveTab(savedTab);
     }
+    // Create mode: context already loaded from localStorage on mount
   }, [isEditMode, initialTitle, initialColor]);
 
   // Initialize space checkbox when currentSpace is provided (create mode only)
@@ -109,26 +134,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     if (!isEditMode && currentSpace && currentSpace.id) {
       setAddToSpace(true);
     }
-  }, [currentSpace, isEditMode]);
-
-  // Save data to localStorage on change (create mode only)
-  useEffect(() => {
-    if (!isEditMode) {
-      localStorage.setItem('newThreadTitle', title);
-    }
-  }, [title, isEditMode]);
-
-  useEffect(() => {
-    if (!isEditMode) {
-      localStorage.setItem('newThreadColor', selectedColor);
-    }
-  }, [selectedColor, isEditMode]);
-
-  useEffect(() => {
-    if (!isEditMode) {
-      localStorage.setItem('newThreadType', selectedType);
-    }
-  }, [selectedType, isEditMode]);
+  }, [currentSpace, isEditMode, setAddToSpace]);
 
   // Tab navigation disabled for v1
   // useEffect(() => {
@@ -147,6 +153,12 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
   // Fetch all notes on mount (create mode only) if no initialNotes provided
   useEffect(() => {
     if (!isEditMode && !initialNotes) {
+      // Check if context already has notes (from previous panel mount)
+      if (allNotes.length > 0) {
+        setIsLoadingItems(false);
+        return;
+      }
+      
       // No initial data provided, fetch from API (backward compatibility)
       const fetchItems = async () => {
         setIsLoadingItems(true);
@@ -179,7 +191,7 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
       setAllNotes(initialNotes);
       setIsLoadingItems(false);
     }
-  }, [isEditMode, initialNotes]);
+  }, [isEditMode, initialNotes, allNotes.length, setAllNotes]);
 
   // Auto-focus the thread name input when component mounts
   useEffect(() => {
@@ -338,14 +350,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             });
             window.dispatchEvent(offlineThreadEvent);
             
-            // Clear form data
-            setTitle('');
-            setSelectedColor('paper');
-            setSelectedType('Private');
-            setSelectedItems([]);
-            localStorage.removeItem('newThreadTitle');
-            localStorage.removeItem('newThreadColor');
-            localStorage.removeItem('newThreadType');
+            // Clear form data using context
+            context.resetForm();
+            context.clearLocalStorage();
             
             // Close panel - only dispatch event if not using back button
             if (!useBackButton) {
@@ -374,17 +381,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         if (response && response.ok) {
           const result = await response.json();
           
-          // Clear form data
-          setTitle('');
-          setSelectedColor('paper');
-          setSelectedType('Private');
-          setSelectedItems([]);
+          // Clear form data using context
+          context.resetForm();
+          context.clearLocalStorage();
           // Tab navigation disabled for v1
           // setActiveTab('recent');
-          localStorage.removeItem('newThreadTitle');
-          localStorage.removeItem('newThreadColor');
-          localStorage.removeItem('newThreadType');
-          // localStorage.removeItem('newThreadActiveTab');
           
           // Dispatch event to notify other components
           // Immediately update localStorage synchronously (don't wait for React)
@@ -530,13 +531,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
             });
             window.dispatchEvent(offlineThreadEvent);
             
-            setTitle('');
-            setSelectedColor('paper');
-            setSelectedType('Private');
-            setSelectedItems([]);
-            localStorage.removeItem('newThreadTitle');
-            localStorage.removeItem('newThreadColor');
-            localStorage.removeItem('newThreadType');
+            // Clear form data using context
+            context.resetForm();
+            context.clearLocalStorage();
             
             // Only dispatch event if not using back button
             if (!useBackButton) {
@@ -583,13 +580,9 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         });
         window.dispatchEvent(offlineThreadEvent);
         
-        setTitle('');
-        setSelectedColor('paper');
-        setSelectedType('Private');
-        setSelectedItems([]);
-        localStorage.removeItem('newThreadTitle');
-        localStorage.removeItem('newThreadColor');
-        localStorage.removeItem('newThreadType');
+        // Clear form data using context
+        context.resetForm();
+        context.clearLocalStorage();
         
         // Only dispatch event if not using back button
         if (!useBackButton) {
@@ -644,17 +637,33 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
     }
   };
 
+  // Allow the bottom sheet to ask whether this panel can dismiss.
+  // Threads should keep the existing unsaved-changes prompt behavior.
+  useEffect(() => {
+    if (!registerSheetCloseHandler) return;
+
+    registerSheetCloseHandler((reason) => {
+      // Treat dismiss/escape the same as pressing Close.
+      if (title.trim() || selectedItems.length > 0) {
+        setShowUnsavedDialog(true);
+        return false;
+      }
+      return true;
+    });
+  }, [registerSheetCloseHandler, title, selectedItems.length]);
+
   const handleDiscardChanges = () => {
-    setTitle('');
-    setSelectedColor('paper');
-    setSelectedType('Private');
-    setSelectedItems([]);
+    if (isEditMode) {
+      // Edit mode: reset local state
+      setEditTitle('');
+      setEditSelectedColor('paper');
+      setEditSelectedType('Private');
+    } else {
+      // Create mode: Use context's resetForm which handles both state and localStorage
+      context.resetForm();
+    }
     // Tab navigation disabled for v1
     // setActiveTab('recent');
-    localStorage.removeItem('newThreadTitle');
-    localStorage.removeItem('newThreadColor');
-    localStorage.removeItem('newThreadType');
-    // localStorage.removeItem('newThreadActiveTab');
     setShowUnsavedDialog(false);
     
     // Only dispatch close event if not using back button (i.e., not inside another panel)
@@ -1045,10 +1054,11 @@ export default function NewThreadPanel({ currentSpace, onClose, onThreadCreated,
         {/* Bottom buttons */}
         <div className="panel__footer--buttons">
           {/* Back or Close button - conditionally render based on useBackButton prop */}
-          <SquareButton 
-            variant={useBackButton ? "Back" : "Close"} 
-            onClick={handleClose}
-          />
+          {useBackButton ? (
+            <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
+          ) : inBottomSheet ? null : (
+            <SquareButton variant="Close" onClick={handleClose} />
+          )}
           
           {/* Create Thread button - Button Default variant */}
           <button 

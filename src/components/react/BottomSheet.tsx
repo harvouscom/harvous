@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Sheet,
   SheetContent,
@@ -42,6 +42,9 @@ export interface BottomSheetProps {
 }
 
 type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview';
+
+type SheetCloseReason = 'dismiss' | 'escape' | 'button';
+type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
 
 interface InboxItem {
   id: string;
@@ -97,6 +100,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [isMobile, setIsMobile] = useState(false);
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
+  const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
+  const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
+  const isHandlingDismissRef = useRef(false);
 
   // Check if we're on mobile
   const checkMobile = useCallback(() => {
@@ -108,13 +114,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, []);
 
-  // Check mobile on mount and resize
-  useEffect(() => {
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, [checkMobile]);
-
+  // Track previous mobile state for detecting transitions
+  const prevIsMobileRef = useRef(isMobile);
+  
   // Handle opening the bottom sheet
   const openBottomSheet = useCallback((type: DrawerType = 'note') => {
     // Only open on mobile
@@ -142,25 +144,66 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }, 100);
     }
   }, [isMobile]);
+  
+  // Check mobile on mount and resize
+  useEffect(() => {
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [checkMobile]);
+  
+  // Sync panel state when transitioning from desktop to mobile
+  useEffect(() => {
+    const wasMobile = prevIsMobileRef.current;
+    prevIsMobileRef.current = isMobile;
+    
+    // Just switched from desktop to mobile - check if a panel was open on desktop
+    if (isMobile && !wasMobile) {
+      const showNewNote = localStorage.getItem('showNewNotePanel') === 'true';
+      const showNewThread = localStorage.getItem('showNewThreadPanel') === 'true';
+      const showNewResource = localStorage.getItem('showNewResourcePanel') === 'true';
+      
+      if (showNewResource) {
+        openBottomSheet('resource');
+      } else if (showNewNote) {
+        openBottomSheet('note');
+      } else if (showNewThread) {
+        openBottomSheet('thread');
+      }
+    }
+  }, [isMobile, openBottomSheet]);
 
   // Handle closing the bottom sheet
   const closeBottomSheet = useCallback(() => {
-    // Trigger slide-down animation
-    const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
-    
-    if (sheetContent) {
-      sheetContent.classList.remove('bottom-sheet-slide-up');
-      sheetContent.classList.add('bottom-sheet-slide-down');
+    setIsVisible(false);
+    if (onClose && typeof onClose === 'function') {
+      onClose();
     }
-    
-    // Close after animation completes
-    setTimeout(() => {
-      setIsVisible(false);
-      if (onClose && typeof onClose === 'function') {
-        onClose();
-      }
-    }, 250);
   }, [onClose]);
+
+  const registerActiveCloseHandler = useCallback((handler: SheetCloseHandler | null) => {
+    activeCloseHandlerRef.current = handler;
+  }, []);
+
+  // Clear any stale close handler when switching panels
+  useEffect(() => {
+    registerActiveCloseHandler(null);
+  }, [drawerType, registerActiveCloseHandler]);
+
+  const requestClose = useCallback(
+    async (reason: SheetCloseReason): Promise<boolean> => {
+      const handler = activeCloseHandlerRef.current;
+      if (!handler) return true;
+      try {
+        const result = await handler(reason);
+        return result !== false;
+      } catch {
+        // If the handler throws, fail open so the user isn't trapped.
+        return true;
+      }
+    },
+    []
+  );
 
   // Set up event listeners
   useEffect(() => {
@@ -324,66 +367,55 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Handle animation when sheet opens/closes and prevent focus outline
-  useEffect(() => {
-    if (isVisible) {
-      // Small delay to ensure the element is rendered
-      const timer = setTimeout(() => {
-        const sheetContent = document.querySelector('.bottom-sheet-content') as HTMLElement;
-        
-        if (sheetContent) {
-          sheetContent.classList.remove('bottom-sheet-slide-down');
-          sheetContent.classList.add('bottom-sheet-slide-up');
-          
-          // Aggressively remove focus from the sheet content and all children
-          sheetContent.blur();
-          const focusedElement = sheetContent.querySelector(':focus');
-          if (focusedElement) {
-            (focusedElement as HTMLElement).blur();
-          }
-          
-          // Remove focus-visible attribute that Radix might add
-          sheetContent.removeAttribute('data-focus-visible-added');
-          sheetContent.querySelectorAll('[data-focus-visible-added]').forEach(el => {
-            el.removeAttribute('data-focus-visible-added');
-          });
-        }
-      }, 10);
-      return () => clearTimeout(timer);
-    }
-  }, [isVisible]);
-
-
   // Don't render on desktop
   if (!isMobile) {
     return null;
   }
 
   return (
-    <Sheet open={isVisible} onOpenChange={(open) => {
-      if (!open) {
-        closeBottomSheet();
-      }
-    }}>
+    <Sheet
+      open={isVisible}
+      onOpenChange={async (open) => {
+        // Fallback: if Radix requests a close without going through our interceptors,
+        // treat it as a dismiss and ask the active panel.
+        if (!open && !isHandlingDismissRef.current) {
+          const ok = await requestClose('dismiss');
+          if (ok) closeBottomSheet();
+          return;
+        }
+        isHandlingDismissRef.current = false;
+      }}
+    >
       <SheetContent 
         side="bottom" 
         className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{ 
           padding: '0',
-          transform: 'translateY(100%)',
           outline: 'none',
           boxShadow: 'none',
           border: 'none',
           borderWidth: '0'
         }}
         onOpenAutoFocus={(e) => {
+          // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
           e.preventDefault();
-          // Also blur any element that might have received focus
-          if (e.target) {
-            (e.target as HTMLElement).blur();
-          }
+          requestAnimationFrame(() => sheetFocusRef.current?.focus());
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={async (e) => {
+          // Intercept overlay click / outside interactions and run panel close logic first.
+          e.preventDefault();
+          isHandlingDismissRef.current = true;
+          const ok = await requestClose('dismiss');
+          if (ok) closeBottomSheet();
+        }}
+        onEscapeKeyDown={async (e) => {
+          // Intercept Escape key and run panel close logic first.
+          e.preventDefault();
+          isHandlingDismissRef.current = true;
+          const ok = await requestClose('escape');
+          if (ok) closeBottomSheet();
+        }}
         tabIndex={-1}
       >
         {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
@@ -395,9 +427,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             {`${getDrawerTitle(drawerType)} panel`}
           </SheetDescription>
         </SheetHeader>
+
+        {/* Focus anchor: keeps focus out of aria-hidden background */}
+        <button ref={sheetFocusRef} type="button" className="sr-only">
+          {getDrawerTitle(drawerType)}
+        </button>
         
         {/* Content */}
-        <div className="h-full flex flex-col min-h-0">
+        <div className="bottom-sheet__inner h-full flex flex-col min-h-0">
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
@@ -405,6 +442,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 key={`mobile-note-${panelKey}`}
                 currentThread={currentThread}
                 currentSpace={currentSpace}
+                inBottomSheet={true}
+                registerSheetCloseHandler={registerActiveCloseHandler}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
                 }}
@@ -418,6 +457,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
               <NewThreadPanel
                 key={`mobile-thread-${panelKey}`}
                 currentSpace={currentSpace}
+                inBottomSheet={true}
+                registerSheetCloseHandler={registerActiveCloseHandler}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
                 }}
@@ -433,6 +474,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 currentThread={currentThread}
                 currentSpace={currentSpace}
                 initialNoteType="resource"
+                inBottomSheet={true}
+                registerSheetCloseHandler={registerActiveCloseHandler}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
                 }}

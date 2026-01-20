@@ -9,6 +9,7 @@ export interface NoteFormFooterProps {
   isLimitReached?: boolean;
   currentCount?: number;
   limit?: number;
+  showCloseButton?: boolean;
 }
 
 /**
@@ -22,6 +23,7 @@ export default function NoteFormFooter({
   isLimitReached = false,
   currentCount = 0,
   limit = 1000,
+  showCloseButton = true,
 }: NoteFormFooterProps) {
   const isResource = noteType === 'resource';
   const isDuplicate = duplicateInfo?.exists === true;
@@ -46,11 +48,9 @@ export default function NoteFormFooter({
 
   return (
     <div className="panel__footer--buttons">
-      {/* Close button using SquareButton Close variant */}
-      <SquareButton 
-        variant="Close" 
-        onClick={onClose}
-      />
+      {showCloseButton ? (
+        <SquareButton variant="Close" onClick={onClose} />
+      ) : null}
       
       {/* Conditionally render limit reached UI or Create Note button */}
       {isLimitReached ? (

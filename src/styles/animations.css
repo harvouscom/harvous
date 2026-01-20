@@ -244,6 +244,42 @@
   animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
+/* ==========================================================================
+   Radix Sheet (Bottom) - data-state driven animation
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-side="bottom"][data-state] {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/*
+  Radix Dialog sheets:
+  - Content mounts with data-state="open" (so transitions may not run)
+  - Radix keeps it mounted briefly on close with data-state="closed"
+  Use keyframes for reliable subtle movement.
+*/
+[data-side="bottom"][data-state="open"] {
+  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: transform;
+}
+
+[data-side="bottom"][data-state="closed"] {
+  animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
+  will-change: transform;
+}
+
+/* Mobile navigation: snappier open/close than other sheets */
+.mobile-nav__sheet[data-side="bottom"][data-state="open"] {
+  animation-duration: 0.24s;
+}
+
+.mobile-nav__sheet[data-side="bottom"][data-state="closed"] {
+  animation-duration: 0.18s;
+}
+
 /* Card Animations */
 @keyframes cardFadeIn {
   from {

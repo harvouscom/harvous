@@ -1,18 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { useNewNotePanelContext } from '@/components/react/contexts/NewNotePanelContext';
+import type { NoteType, ResourceMetadata } from '@/components/react/contexts/NewNotePanelContext';
 
-export type NoteType = 'default' | 'scripture' | 'resource';
+export type { NoteType, ResourceMetadata };
 
 export interface UseNewNoteFormOptions {
   currentSpace?: { id: string; title: string; color?: string; backgroundGradient?: string } | null;
   initialNoteType?: NoteType;
-}
-
-export interface ResourceMetadata {
-  title: string;
-  description: string;
-  image: string;
-  articleContent?: string;
-  siteName?: string | null;
 }
 
 export interface UseNewNoteFormReturn {
@@ -48,248 +42,57 @@ export interface UseNewNoteFormReturn {
 
 /**
  * Hook for managing new note form state and localStorage persistence
+ * Now consumes state from NewNotePanelContext for persistence across desktop/mobile panels
  */
 export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteFormReturn {
   const { currentSpace, initialNoteType } = options;
   
-  // Form state
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  // Initialize noteType from prop if provided, otherwise default
-  const [noteType, setNoteType] = useState<NoteType>(initialNoteType || 'default');
-  const [scriptureReference, setScriptureReference] = useState('');
-  const [scriptureVersion, setScriptureVersion] = useState('NET');
-  const [resourceUrl, setResourceUrl] = useState('');
-  const [resourceMetadata, setResourceMetadata] = useState<ResourceMetadata | null>(null);
-  const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
-  const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
-  const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
-  const [addToSpace, setAddToSpace] = useState(false);
+  // Consume state from context
+  const context = useNewNotePanelContext();
   
-  // Track if we're loading from localStorage to prevent auto-detection toast on mount
-  const isLoadingFromLocalStorage = useRef(false);
-
-  // Load data from localStorage on mount
+  // Handle initialNoteType prop - set it in context when provided
   useEffect(() => {
-    const savedTitle = localStorage.getItem('newNoteTitle') || '';
-    const savedContent = localStorage.getItem('newNoteContent') || '';
-    const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
-    const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
-    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
-    const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
-    
-    // Mark that we're loading from localStorage to prevent auto-detection toast
-    isLoadingFromLocalStorage.current = true;
-    
-    // Load source note context for hyperlink creation
-    const savedSourceNoteId = localStorage.getItem('newNoteSourceNoteId');
-    const savedSourceSelectionFrom = localStorage.getItem('newNoteSourceSelectionFrom');
-    const savedSourceSelectionTo = localStorage.getItem('newNoteSourceSelectionTo');
-    
-    if (savedSourceNoteId) {
-      setSourceNoteId(savedSourceNoteId);
-    }
-    if (savedSourceSelectionFrom) {
-      setSourceSelectionFrom(parseInt(savedSourceSelectionFrom, 10));
-    }
-    if (savedSourceSelectionTo) {
-      setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
-    }
-    
-    // Priority: initialNoteType prop > localStorage > default
-    // If initialNoteType is provided, use it immediately
     if (initialNoteType) {
-      setNoteType(initialNoteType);
-      if (initialNoteType === 'resource') {
-        const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
-        if (savedResourceUrl) {
-          setResourceUrl(savedResourceUrl);
-        }
-        // Clear localStorage after reading
-        localStorage.removeItem('newNoteType');
-        localStorage.removeItem('newNoteResourceUrl');
-      }
-      setTimeout(() => {
-        isLoadingFromLocalStorage.current = false;
-      }, 100);
-      // Still load title/content if available
-      if (savedTitle) {
-        setTitle(savedTitle);
-      }
-      if (savedContent && initialNoteType !== 'scripture') {
-        setContent(savedContent);
-        localStorage.removeItem('newNoteContent');
-      }
-      return;
+      context.setInitialNoteType(initialNoteType);
     }
-    
-    // Set note type if detected from selection
-    // IMPORTANT: Set noteType FIRST to prevent auto-detection from running
-    if (savedNoteType === 'scripture') {
-      setNoteType('scripture');
-      if (savedScriptureRef) {
-        // Keep original format (no divider in title)
-        setScriptureReference(savedScriptureRef);
-        // Set title after a brief delay to ensure noteType is set first
-        setTimeout(() => {
-          setTitle(savedScriptureRef); // Reference becomes title
-          // Clear the flag after state updates complete
-          setTimeout(() => {
-            isLoadingFromLocalStorage.current = false;
-          }, 100);
-        }, 0);
-      } else {
-        // No scripture ref, clear flag immediately
-        setTimeout(() => {
-          isLoadingFromLocalStorage.current = false;
-        }, 100);
-      }
-      if (savedScriptureVersion) {
-        setScriptureVersion(savedScriptureVersion);
-      }
-      if (savedScriptureText) {
-        setContent(savedScriptureText); // Verse text becomes content
-      }
-      // Clear after loading
-      localStorage.removeItem('newNoteType');
-      localStorage.removeItem('newNoteScriptureReference');
-      localStorage.removeItem('newNoteScriptureVersion');
-      localStorage.removeItem('newNoteScriptureText');
-    } else if (savedNoteType === 'resource') {
-      setNoteType('resource');
-      const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
-      if (savedResourceUrl) {
-        setResourceUrl(savedResourceUrl);
-      }
-      // Clear the flag after state updates complete
-      setTimeout(() => {
-        isLoadingFromLocalStorage.current = false;
-      }, 100);
-      // Clear after loading
-      localStorage.removeItem('newNoteType');
-      localStorage.removeItem('newNoteResourceUrl');
-    } else {
-      // Use saved title if not scripture or resource
-      if (savedTitle) {
-        setTitle(savedTitle);
-      }
-      // Clear the flag after state updates complete
-      setTimeout(() => {
-        isLoadingFromLocalStorage.current = false;
-      }, 100);
-    }
-    
-    // Handle content setting for non-scripture notes
-    if (savedNoteType !== 'scripture') {
-      if (savedContent) {
-        setContent(savedContent);
-        // Clear after loading to prevent re-loading on next open
-        localStorage.removeItem('newNoteContent');
-      } else {
-        setContent('');
-      }
-    }
-    
-    // Handle thread selection separately (store pending thread ID)
-    const savedThreadId = localStorage.getItem('newNoteThread') || '';
-    if (savedThreadId) {
-      localStorage.setItem('newNoteThreadPending', savedThreadId);
-      localStorage.removeItem('newNoteThread');
-    }
-  }, []);
+  }, [initialNoteType, context]);
 
   // Initialize space checkbox when currentSpace is provided
   useEffect(() => {
     if (currentSpace && currentSpace.id) {
-      setAddToSpace(true);
+      context.setAddToSpace(true);
     }
-  }, [currentSpace]);
-
-  // Save title to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('newNoteTitle', title);
-  }, [title]);
-
-  // Save content to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('newNoteContent', content);
-  }, [content]);
-
-  // Save resourceUrl to localStorage when it changes
-  useEffect(() => {
-    if (noteType === 'resource') {
-      localStorage.setItem('newNoteResourceUrl', resourceUrl);
-    }
-  }, [resourceUrl, noteType]);
-
-  // Check if there are unsaved changes
-  const hasUnsavedChanges = (): boolean => {
-    const trimmedTitle = title.trim();
-    const trimmedContent = content.trim();
-    const trimmedResourceUrl = resourceUrl.trim();
-    
-    // Check if there's meaningful content (not just whitespace or empty HTML)
-    const hasContent = trimmedContent && 
-      trimmedContent !== '<p></p>' && 
-      trimmedContent !== '<p><br></p>' &&
-      trimmedContent !== '<br>';
-    
-    // For resource notes, check URL as well
-    if (noteType === 'resource') {
-      return Boolean(trimmedResourceUrl || hasContent);
-    }
-    
-    return Boolean(trimmedTitle || hasContent);
-  };
-
-  // Reset form to initial state
-  const resetForm = () => {
-    setTitle('');
-    setContent('');
-    setNoteType('default');
-    setScriptureReference('');
-    setScriptureVersion('NET');
-    setResourceUrl('');
-    setResourceMetadata(null);
-  };
-
-  // Clear localStorage entries
-  const clearLocalStorage = () => {
-    localStorage.removeItem('newNoteTitle');
-    localStorage.removeItem('newNoteContent');
-    localStorage.removeItem('newNoteResourceUrl');
-    // Don't clear newNoteThread - preserve thread selection for next time
-  };
+  }, [currentSpace, context]);
 
   return {
     // State
-    title,
-    setTitle,
-    content,
-    setContent,
-    noteType,
-    setNoteType,
-    scriptureReference,
-    setScriptureReference,
-    scriptureVersion,
-    setScriptureVersion,
-    resourceUrl,
-    setResourceUrl,
-    resourceMetadata,
-    setResourceMetadata,
-    sourceNoteId,
-    sourceSelectionFrom,
-    sourceSelectionTo,
-    addToSpace,
-    setAddToSpace,
+    title: context.title,
+    setTitle: context.setTitle,
+    content: context.content,
+    setContent: context.setContent,
+    noteType: context.noteType,
+    setNoteType: context.setNoteType,
+    scriptureReference: context.scriptureReference,
+    setScriptureReference: context.setScriptureReference,
+    scriptureVersion: context.scriptureVersion,
+    setScriptureVersion: context.setScriptureVersion,
+    resourceUrl: context.resourceUrl,
+    setResourceUrl: context.setResourceUrl,
+    resourceMetadata: context.resourceMetadata,
+    setResourceMetadata: context.setResourceMetadata,
+    sourceNoteId: context.sourceNoteId,
+    sourceSelectionFrom: context.sourceSelectionFrom,
+    sourceSelectionTo: context.sourceSelectionTo,
+    addToSpace: context.addToSpace,
+    setAddToSpace: context.setAddToSpace,
     
     // Refs
-    isLoadingFromLocalStorage,
+    isLoadingFromLocalStorage: context.isLoadingFromLocalStorage,
     
     // Functions
-    hasUnsavedChanges,
-    resetForm,
-    clearLocalStorage,
+    hasUnsavedChanges: context.hasUnsavedChanges,
+    resetForm: context.resetForm,
+    clearLocalStorage: context.clearLocalStorage,
   };
 }
 

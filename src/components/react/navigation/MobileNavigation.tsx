@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Avatar from './Avatar';
@@ -7,6 +7,7 @@ import Icon from '../Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 /**
  * Check if Clerk authentication is ready
@@ -65,9 +66,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 }) => {
   const selectedSpaceId = useSelectedSpaceId();
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
+  const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const [currentItemId, setCurrentItemId] = useState(() => {
     // Initialize from window.location if available (client-side only)
     if (typeof window !== 'undefined') {
@@ -488,32 +489,22 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { threads: persistentThreads } = organizePersistentItems();
 
-  const handleDropdownToggle = () => {
-    if (isDropdownOpen) {
-      // If open, close it with animation
-      handleDropdownClose();
-    } else {
-      // If closed, open it
-      setIsDropdownOpen(true);
-      // If there are no threads to show, auto-open the space picker panel.
-      // This helps first-run / “only spaces exist” states.
-      setIsSpacePanelOpen(persistentThreads.length === 0);
-      // Small delay to ensure DOM is ready for animation
-      setTimeout(() => setIsMounted(true), 10);
-    }
+  const openSheet = () => {
+    setIsSheetOpen(true);
+    // If there are no threads to show, auto-open the space picker panel.
+    // This helps first-run / “only spaces exist” states.
+    setIsSpacePanelOpen(persistentThreads.length === 0);
   };
 
-  const handleDropdownClose = () => {
-    // Close immediately without animation
-    setIsDropdownOpen(false);
-    setIsMounted(false);
+  const closeSheet = () => {
+    setIsSheetOpen(false);
     setIsSpacePanelOpen(false);
     // Exit close mode for all items when dropdown closes
     setItemsInCloseMode(new Set());
   };
 
   const handleItemClick = (itemId?: string) => {
-    handleDropdownClose();
+    closeSheet();
     // If clicking on a specific item, exit its close mode
     if (itemId) {
       setItemsInCloseMode(prev => {
@@ -608,7 +599,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       setUpdatedCurrentThread((prev) => (prev ? { ...prev, spaceId: selectedSpaceId } : prev));
       window.dispatchEvent(new CustomEvent('threadUpdated', { detail: { threadId: thread.id } }));
       if ((window as any).toast?.success) (window as any).toast.success(`Added to ${selectedSpaceTitleForMismatch}`);
-      handleDropdownClose();
+      closeSheet();
     } catch {
       if ((window as any).toast?.error) (window as any).toast.error('Failed to add thread to space. Please try again.');
     }
@@ -616,7 +607,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const switchSelectedSpaceToThreadSpace = () => {
     setSelectedSpaceId(threadSpaceId);
-    handleDropdownClose();
+    closeSheet();
   };
 
   const dismissSpaceMismatchPrompt = () => {
@@ -633,6 +624,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   const topSpaceIsActive = selectedSpaceId ? currentItemId === selectedSpaceId : isDashboard;
+
+  // Prevent background scroll while the sheet is open (same pattern as other sheets)
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isSheetOpen) document.body.classList.add('bottom-sheet-open');
+    else document.body.classList.remove('bottom-sheet-open');
+    return () => {
+      document.body.classList.remove('bottom-sheet-open');
+    };
+  }, [isSheetOpen]);
 
   return (
     <div className="mobile-nav">
@@ -651,221 +652,250 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
-        {!isDropdownOpen && (
-          <SpaceButton 
-            text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
-            count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
-            state="DropdownTrigger"
-            rightAccessory="spaceSwitcher"
-            onRightAccessoryClick={handleDropdownToggle}
-            backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
-            onClick={handleDropdownToggle}
-            hideDropdownIcon={true}
-          />
-        )}
+        <SpaceButton 
+          text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
+          count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
+          state="DropdownTrigger"
+          rightAccessory="spaceSwitcher"
+          onRightAccessoryClick={openSheet}
+          backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
+          onClick={openSheet}
+          hideDropdownIcon={true}
+        />
         
-        {/* Dropdown Menu */}
-        {isDropdownOpen && (
-          <div 
-            className={`mobile-nav__dropdown ${isMounted ? 'dropdown-enter' : 'dropdown-initial'}`}
-            style={!isMounted ? { maxHeight: '64px', overflow: 'hidden' } : undefined}
-            onClick={(e) => e.stopPropagation()}
+        <Sheet
+          open={isSheetOpen}
+          onOpenChange={(open) => {
+            if (!open) closeSheet();
+          }}
+        >
+          <SheetContent
+            side="bottom"
+            className="mobile-nav__sheet"
+            style={{
+              background: 'white',
+              padding: 0,
+              border: 'none',
+              borderTop: 'none',
+              boxShadow: 'none',
+            }}
+            onOpenAutoFocus={(e) => {
+              // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
+              e.preventDefault();
+              requestAnimationFrame(() => sheetFocusRef.current?.focus());
+            }}
+            onCloseAutoFocus={(e) => e.preventDefault()}
           >
-            {/* Pinned Header: Selected Space */}
-            <div className="mobile-nav__dropdown-header">
-              <div className="mobile-nav__dropdown-header-row">
-                <SpaceButton
-                  text={selectedSpaceLabel}
-                  count={selectedSpaceCount}
-                  state="WithCount"
-                  rightAccessory="spaceSwitcher"
-                  onRightAccessoryClick={() => setIsSpacePanelOpen((v) => !v)}
-                  onClick={() => {
-                    // When there are no threads to show, the dropdown is effectively a space picker.
-                    // In that case, tapping the top button should dismiss the whole dropdown.
-                    if (isSpacePanelOpen && persistentThreads.length === 0) {
-                      handleDropdownClose();
-                      return;
-                    }
-                    setIsSpacePanelOpen((v) => !v);
-                  }}
-                  backgroundGradient={selectedSpaceBackground}
-                  isActive={topSpaceIsActive}
-                />
+            {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
+            <SheetHeader>
+              <SheetTitle className="sr-only">Navigation</SheetTitle>
+              <SheetDescription className="sr-only">Switch spaces and threads</SheetDescription>
+            </SheetHeader>
+
+            {/* Focus anchor: keeps focus out of aria-hidden background */}
+            <button ref={sheetFocusRef} type="button" className="sr-only">
+              Navigation
+            </button>
+
+            <div className="mobile-nav__sheet-inner" onClick={(e) => e.stopPropagation()}>
+              {/* Pinned Header: Selected Space */}
+              <div className="mobile-nav__dropdown-header">
+                <div className="mobile-nav__dropdown-header-row">
+                  <SpaceButton
+                    text={selectedSpaceLabel}
+                    count={selectedSpaceCount}
+                    state="WithCount"
+                    rightAccessory="spaceSwitcher"
+                    onRightAccessoryClick={() => setIsSpacePanelOpen((v) => !v)}
+                    onClick={() => {
+                      // When there are no threads to show, the sheet is effectively a space picker.
+                      // In that case, tapping the top button should dismiss the whole sheet.
+                      if (isSpacePanelOpen && persistentThreads.length === 0) {
+                        closeSheet();
+                        return;
+                      }
+                      setIsSpacePanelOpen((v) => !v);
+                    }}
+                    backgroundGradient={selectedSpaceBackground}
+                    isActive={topSpaceIsActive}
+                  />
+                </div>
+
+                {isSpacePanelOpen && (
+                  <div className="mobile-nav__space-panel" role="dialog" aria-label="Switch space">
+                    <a
+                      href="/"
+                      className={`mobile-nav__space-panel-item ${!selectedSpaceId ? 'is-active' : ''}`}
+                      onClick={() => {
+                        setSelectedSpaceId(null);
+                        closeSheet();
+                      }}
+                    >
+                      <span className="mobile-nav__space-panel-label">My Home</span>
+                      <span className="mobile-nav__space-panel-actions">
+                        {!selectedSpaceId ? (
+                          <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                            <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          </span>
+                        ) : null}
+                      </span>
+                    </a>
+                    {spaces.map((s) => {
+                      const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
+                      return (
+                        <a
+                          key={s.id}
+                          href={`/${s.id}`}
+                          className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
+                          onClick={() => {
+                            setSelectedSpaceId(s.id);
+                            closeSheet();
+                          }}
+                        >
+                          <span className="mobile-nav__space-panel-label">{s.title}</span>
+                          <span className="mobile-nav__space-panel-actions">
+                            {isActive ? (
+                              <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                                <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                              </span>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="mobile-nav__space-panel-check"
+                              aria-label={`Close ${s.title}`}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                try {
+                                  (window as any).removeFromNavigationHistory?.(s.id);
+                                } catch {
+                                  // ignore
+                                }
+
+                                if (selectedSpaceId === s.id) {
+                                  setSelectedSpaceId(null);
+                                }
+
+                                closeSheet();
+                              }}
+                            >
+                              <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            </button>
+                          </span>
+                        </a>
+                      );
+                    })}
+                    <div className="mobile-nav__space-panel-divider" />
+                    <a
+                      href="/new-space"
+                      className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
+                      onClick={() => closeSheet()}
+                    >
+                      <span className="mobile-nav__space-panel-label">New Space</span>
+                      <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                        <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                      </span>
+                    </a>
+                  </div>
+                )}
               </div>
 
-              {isSpacePanelOpen && (
-                <div className="mobile-nav__space-panel" role="dialog" aria-label="Switch space">
-                  <a
-                    href="/"
-                    className={`mobile-nav__space-panel-item ${!selectedSpaceId ? 'is-active' : ''}`}
-                    onClick={() => {
-                      setSelectedSpaceId(null);
-                      handleDropdownClose();
-                    }}
-                  >
-                    <span className="mobile-nav__space-panel-label">My Home</span>
-                    <span className="mobile-nav__space-panel-actions">
-                      {!selectedSpaceId ? (
-                        <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                          <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                        </span>
-                      ) : null}
-                    </span>
-                  </a>
-                  {spaces.map((s) => {
-                    const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
-                    return (
-                      <a
-                        key={s.id}
-                        href={`/${s.id}`}
-                        className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
-                        onClick={() => {
-                          setSelectedSpaceId(s.id);
-                          handleDropdownClose();
-                        }}
-                      >
-                        <span className="mobile-nav__space-panel-label">{s.title}</span>
-                        <span className="mobile-nav__space-panel-actions">
-                          {isActive ? (
-                            <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                              <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                            </span>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="mobile-nav__space-panel-check"
-                            aria-label={`Close ${s.title}`}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              try {
-                                (window as any).removeFromNavigationHistory?.(s.id);
-                              } catch {
-                                // ignore
-                              }
-
-                              if (selectedSpaceId === s.id) {
-                                setSelectedSpaceId(null);
-                              }
-
-                              handleDropdownClose();
-                            }}
-                          >
-                            <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                          </button>
-                        </span>
-                      </a>
-                    );
-                  })}
-                  <div className="mobile-nav__space-panel-divider" />
-                  <a
-                    href="/new-space"
-                    className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
-                    onClick={() => handleDropdownClose()}
-                  >
-                    <span className="mobile-nav__space-panel-label">New Space</span>
-                    <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                      <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                    </span>
-                  </a>
-                </div>
-              )}
-            </div>
-
-            {/* Scrollable Nav Items */}
-            <div className="mobile-nav__dropdown-scroll">
-              {showSpaceMismatchPrompt ? (
-                <div className="space-mismatch-banner" style={{ margin: '8px 12px 12px' }}>
-                  <div className="space-mismatch-banner__text">
-                    <p className="space-mismatch-banner__copy">
-                      Would you like to add this thread to {selectedSpaceTitleForMismatch}?
-                    </p>
+              {/* Scrollable Nav Items */}
+              <div className="mobile-nav__dropdown-scroll">
+                {showSpaceMismatchPrompt ? (
+                  <div className="space-mismatch-banner" style={{ margin: '8px 12px 12px' }}>
+                    <div className="space-mismatch-banner__text">
+                      <p className="space-mismatch-banner__copy">
+                        Would you like to add this thread to {selectedSpaceTitleForMismatch}?
+                      </p>
+                    </div>
+                    <div className="space-mismatch-banner__actions">
+                      <ButtonSmall state="Default" onClick={moveThreadToSelectedSpace}>
+                        Add to {selectedSpaceTitleForMismatch}
+                      </ButtonSmall>
+                      <ButtonSmall state="Secondary" onClick={dismissSpaceMismatchPrompt}>
+                        Not Now
+                      </ButtonSmall>
+                    </div>
                   </div>
-                  <div className="space-mismatch-banner__actions">
-                    <ButtonSmall state="Default" onClick={moveThreadToSelectedSpace}>
-                      Add to {selectedSpaceTitleForMismatch}
-                    </ButtonSmall>
-                    <ButtonSmall state="Secondary" onClick={dismissSpaceMismatchPrompt}>
-                      Not Now
-                    </ButtonSmall>
-                  </div>
-                </div>
-              ) : null}
-              {persistentItems.length > 0 ? (
-                <>
-                  {persistentThreads.map((thread) => {
-                    const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
-                    const threadHref =
-                      typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
-                        ? `/${thread.id}?space=${encodeURIComponent(selectedSpaceId)}`
-                        : `/${thread.id}`;
-                    return (
-                      <div key={thread.id} className="nav-item-container group w-full">
-                        <a
-                          href={threadHref}
-                          className="block w-full"
-                          onClick={(e) => handleItemClickWrapper(e, thread.id)}
-                          style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                        >
-                          <div
-                            className="space-btn pl-4"
-                            style={
-                              isActive
-                                ? {
-                                    backgroundImage: thread.backgroundGradient?.includes('gradient') ? thread.backgroundGradient : undefined,
-                                    backgroundColor: thread.backgroundGradient?.includes('gradient')
-                                      ? undefined
-                                      : (thread.backgroundGradient || undefined),
-                                  }
-                                : {}
-                            }
+                ) : null}
+                {persistentItems.length > 0 ? (
+                  <>
+                    {persistentThreads.map((thread) => {
+                      const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
+                      const threadHref =
+                        typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
+                          ? `/${thread.id}?space=${encodeURIComponent(selectedSpaceId)}`
+                          : `/${thread.id}`;
+                      return (
+                        <div key={thread.id} className="nav-item-container group w-full">
+                          <a
+                            href={threadHref}
+                            className="block w-full"
+                            onClick={(e) => handleItemClickWrapper(e, thread.id)}
+                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
                           >
-                            <div className="space-btn__content">
-                              <div className="space-btn__text-wrapper">
-                                <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
-                                  {thread.title}
-                                </span>
-                              </div>
-                              <div className="space-btn__badge-wrapper">
-                                <div
-                                  className="badge-count cursor-pointer"
-                                  data-close-item={thread.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    if (itemsInCloseMode.has(thread.id)) {
-                                      handleCloseClick(thread.id, e);
-                                    } else {
-                                      toggleCloseMode(thread.id);
+                            <div
+                              className="space-btn pl-4"
+                              style={
+                                isActive
+                                  ? {
+                                      backgroundImage: thread.backgroundGradient?.includes('gradient')
+                                        ? thread.backgroundGradient
+                                        : undefined,
+                                      backgroundColor: thread.backgroundGradient?.includes('gradient')
+                                        ? undefined
+                                        : (thread.backgroundGradient || undefined),
                                     }
-                                  }}
-                                >
-                                  {itemsInCloseMode.has(thread.id) ? (
-                                    <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, isActive) }} />
-                                  ) : (
-                                    <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
-                                      {formatBadgeCount(thread.noteCount)}
-                                    </span>
-                                  )}
+                                  : {}
+                              }
+                            >
+                              <div className="space-btn__content">
+                                <div className="space-btn__text-wrapper">
+                                  <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                    {thread.title}
+                                  </span>
+                                </div>
+                                <div className="space-btn__badge-wrapper">
+                                  <div
+                                    className="badge-count cursor-pointer"
+                                    data-close-item={thread.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      if (itemsInCloseMode.has(thread.id)) {
+                                        handleCloseClick(thread.id, e);
+                                      } else {
+                                        toggleCloseMode(thread.id);
+                                      }
+                                    }}
+                                  >
+                                    {itemsInCloseMode.has(thread.id) ? (
+                                      <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, isActive) }} />
+                                    ) : (
+                                      <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
+                                        {formatBadgeCount(thread.noteCount)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
+                              {isActive && <div className="space-btn__shadow" />}
                             </div>
-                            {isActive && <div className="space-btn__shadow" />}
-                          </div>
-                        </a>
-                      </div>
-                    );
-                  })}
-                </>
-              ) : null}
+                          </a>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : null}
+              </div>
             </div>
-          </div>
-        )}
+          </SheetContent>
+        </Sheet>
       </div>
 
       {/* Avatar (Column 3: auto) */}
@@ -874,9 +904,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           <Avatar initials={profileData.initials} color={profileData.userColor} />
         </a>
       </div>
-
-      {/* Click outside handler */}
-      {isDropdownOpen && <div className="mobile-nav__overlay" onClick={handleDropdownClose} />}
 
     </div>
   );

@@ -61,6 +61,35 @@
 }
 
 /* ==========================================================================
+   Bottom Sheet (Radix SheetContent side="bottom") spacing
+   ========================================================================== */
+
+/* Compact, uniform gutters for all bottom sheets (matches mobile nav tightness) */
+.bottom-sheet-content .bottom-sheet__inner {
+  box-sizing: border-box;
+  padding: 4px 6px 16px;
+}
+
+/* Bottom-sheet panels should use tighter header gutters */
+.bottom-sheet-content .panel__header {
+  padding-left: 12px;
+  padding-right: 12px;
+  gap: 6px;
+}
+
+/* Footer action row should align with bottom sheet gutters */
+.bottom-sheet-content .panel__footer--buttons {
+  padding-left: 6px;
+  padding-right: 6px;
+  padding-bottom: 0;
+}
+
+/* Bottom sheets use tap-outside / swipe-down to dismiss; hide explicit Close buttons. */
+.bottom-sheet-content .panel__footer--buttons [aria-label="Close"] {
+  display: none !important;
+}
+
+/* ==========================================================================
    Panel Header
    ========================================================================== */
 
