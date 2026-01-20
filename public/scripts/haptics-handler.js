@@ -1,8 +1,11 @@
 /**
- * Global Haptics Handler for Astro-rendered Buttons
+ * Global Haptics Handler for All Interactive Elements
  * 
- * Provides haptic feedback for server-rendered buttons based on shadow depth.
- * This script runs on the client and adds haptics to all button clicks.
+ * Provides haptic feedback for all tappable elements based on shadow depth.
+ * Intensity levels correspond to visual depth:
+ * - Light (10ms): Shallow elements with -2px to -3px inset shadow
+ * - Medium (20ms): Medium depth elements with -4px to -6px inset shadow
+ * - Strong (30ms): Deep elements with -8px inset shadow + outer shadow
  */
 
 (function() {
@@ -27,33 +30,41 @@
     }
   };
 
-  // Add haptics to all button clicks based on shadow depth
+  // Unified click handler with priority-based matching
   document.addEventListener('click', (e) => {
-    const button = e.target.closest('button');
-    if (!button || button.disabled) return;
-
-    // Deep buttons (-8px shadow + outer shadow) = Strong haptic
-    if (button.classList.contains('btn--lg') || 
-        button.classList.contains('btn-cta') ||
-        button.hasAttribute('data-outer-shadow')) {
+    // Strong haptic: Deep elements with -8px shadow + outer shadow
+    const deepElement = e.target.closest(
+      'button.btn--lg, button.btn-cta, button[data-outer-shadow], .btn-chonk'
+    );
+    if (deepElement && !deepElement.disabled) {
       haptics.strong();
+      return;
     }
-    // Medium buttons (-4px shadow) = Medium haptic
-    else if (button.classList.contains('btn--sm')) {
-      haptics.medium();
-    }
-    // Shallow buttons (-3px shadow) = Light haptic
-    else if (button.classList.contains('btn-action') ||
-             button.classList.contains('space-button') ||
-             button.classList.contains('btn-animate-squish')) {
-      haptics.light();
-    }
-  }, { passive: true });
 
-  // Add haptics to menu items (light feedback)
-  document.addEventListener('click', (e) => {
-    const menuItem = e.target.closest('.menu-item');
-    if (menuItem && !menuItem.closest('button')) {
+    // Medium haptic: Medium depth elements with -4px to -6px shadow
+    const mediumElement = e.target.closest(
+      'button.btn--sm, .card-thread, .card-note-container, .card-feat-container'
+    );
+    if (mediumElement && !mediumElement.disabled && !mediumElement.hasAttribute('disabled')) {
+      haptics.medium();
+      return;
+    }
+
+    // Light haptic: Shallow elements with -3px shadow
+    const lightElement = e.target.closest(
+      'button.btn-action, button.space-button, button.btn-animate-squish, ' +
+      '.nav-link, .nav-item, .mobile-nav-item, .menu-item, ' +
+      '.space-switcher-dropdown__item, .tab-nav__button, ' +
+      'a[href^="/"]:not([href^="//"])'
+    );
+    if (lightElement && !lightElement.disabled && !lightElement.hasAttribute('disabled')) {
+      haptics.light();
+      return;
+    }
+
+    // Fallback: Any button not matched above gets light haptic
+    const anyButton = e.target.closest('button');
+    if (anyButton && !anyButton.disabled) {
       haptics.light();
     }
   }, { passive: true });
