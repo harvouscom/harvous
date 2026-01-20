@@ -14,6 +14,8 @@ interface SafeFetchOptions extends RequestInit {
   deduplicate?: boolean;
   /** Whether to check auth before making request (default: true) */
   checkAuth?: boolean;
+  /** Whether this is a background prefetch request (default: false) */
+  isPrefetch?: boolean;
 }
 
 interface SafeFetchResult<T = unknown> {
@@ -109,6 +111,7 @@ export async function safeFetch(
     timeout = 10000,
     deduplicate = true,
     checkAuth = true,
+    isPrefetch = false,
     ...fetchOptions
   } = options;
 
@@ -118,9 +121,16 @@ export async function safeFetch(
   }
 
   // Ensure credentials are included for auth
+  // Add prefetch header if this is a background request
+  const headers = new Headers(fetchOptions.headers);
+  if (isPrefetch) {
+    headers.set('X-Prefetch-Request', '1');
+  }
+
   const mergedOptions: RequestInit = {
     ...fetchOptions,
-    credentials: 'include'
+    credentials: 'include',
+    headers
   };
 
   const cacheKey = createCacheKey(url, mergedOptions);

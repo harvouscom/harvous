@@ -25,11 +25,13 @@ async function cacheUrl(url: string, cacheName: string = 'harvous-cache-v6'): Pr
     const cache = await caches.open(cacheName);
     
     // Use safeFetch with retry logic
+    // IMPORTANT: Set isPrefetch: true to prevent lastVisited updates
     const response = await safeFetch(url, {
       retries: 2,
       retryDelay: 500,
       timeout: 8000,
-      checkAuth: true
+      checkAuth: true,
+      isPrefetch: true  // Signal this is a background prefetch request
     });
     
     if (response && response.ok) {

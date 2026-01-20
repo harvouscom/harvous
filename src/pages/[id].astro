@@ -27,6 +27,22 @@ import { stripHtml } from "@/utils/html-stripper";
 // Returns true if this is a new visit (not a refresh of the same page)
 function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string): boolean {
   try {
+    // FIRST CHECK: Explicit prefetch requests should NEVER update lastVisited
+    // This catches background precaching from precacheRecentContent and similar utilities
+    const isPrefetch = request.headers.get('x-prefetch-request');
+    if (isPrefetch) {
+      debug('[shouldUpdateLastVisitedTimestamp] Prefetch request detected, skipping update');
+      return false;
+    }
+
+    // SECOND CHECK: Browser prefetch (Astro prefetch, <link rel="prefetch">, etc.)
+    // Check for standard prefetch purpose headers
+    const purpose = request.headers.get('purpose') || request.headers.get('x-moz-prefetch');
+    if (purpose === 'prefetch') {
+      debug('[shouldUpdateLastVisitedTimestamp] Browser prefetch detected, skipping update');
+      return false;
+    }
+
     const referrer = request.headers.get('referer');
 
     // IMPORTANT: Check Cache-Control header for browser refresh indicators
