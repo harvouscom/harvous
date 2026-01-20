@@ -1281,55 +1281,19 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Ensures overlay covers entire screen including iOS status bar */
+/* Ensures overlay covers entire screen including iOS/Android PWA status bar */
 .sheet-overlay {
   position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
+  /* Extend beyond viewport to cover PWA status bar and any browser chrome */
+  top: -100px !important;
+  left: -100px !important;
+  right: -100px !important;
+  bottom: -100px !important;
   z-index: 49 !important;
-  /* Subtle overlay across all sheets */
+  /* Subtle overlay color */
   background-color: rgba(0, 0, 0, 0.12) !important;
   opacity: 0;
   transition: opacity 0.3s ease-out;
-}
-
-/* Use modern viewport units when available (PWA browser chrome / utility bars) */
-@supports (height: 100svh) {
-  .sheet-overlay {
-    height: 100svh !important;
-  }
-}
-
-/* iOS PWA: Use dvh for dynamic viewport height */
-@supports (height: 100dvh) {
-  .sheet-overlay {
-    height: 100dvh !important;
-  }
-}
-
-/* iOS Safari: Extend overlay to cover safe areas */
-@supports (-webkit-touch-callout: none) {
-  .sheet-overlay {
-    /* Pull overlay up to cover status bar */
-    top: calc(-1 * env(safe-area-inset-top, 0px)) !important;
-    height: calc(100vh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;
-  }
-  
-  @supports (height: 100svh) {
-    .sheet-overlay {
-      height: calc(100svh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;
-    }
-  }
-
-  @supports (height: 100dvh) {
-    .sheet-overlay {
-      height: calc(100dvh + env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px)) !important;
-    }
-  }
 }
 
 .sheet-overlay[data-state="open"] {
