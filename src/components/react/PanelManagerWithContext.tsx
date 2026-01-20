@@ -35,6 +35,7 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
             currentSpace={currentSpace}
             currentNote={currentNote}
             contentType={contentType}
+          publishableKey={publishableKey}
           />
           
           {/* Mobile Bottom Sheet - BottomSheet handles its own positioning */}

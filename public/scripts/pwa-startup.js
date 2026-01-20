@@ -61,9 +61,44 @@ function warmUpAPI() {
 }
 
 /**
+ * Track PWA session start time
+ * This helps distinguish between app resumption and new navigation
+ * Sets both localStorage (for client-side checks) and cookie (for server-side checks)
+ */
+function trackPWASessionStart() {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  
+  try {
+    const sessionKey = 'harvous-pwa-session-start';
+    const lastSessionStart = localStorage.getItem(sessionKey);
+    const now = Date.now();
+    
+    // If no session start exists, or it's been more than 30 minutes since last session,
+    // treat this as a new session
+    const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
+    const isNewSession = !lastSessionStart || (now - parseInt(lastSessionStart, 10)) > SESSION_TIMEOUT;
+    
+    if (isNewSession || isStandalone) {
+      localStorage.setItem(sessionKey, now.toString());
+      // Also set a flag to indicate this is a PWA launch (not a refresh)
+      if (isStandalone) {
+        localStorage.setItem('harvous-pwa-launch-time', now.toString());
+        // Set cookie for server-side access (expires in 1 minute - enough for initial page load)
+        document.cookie = `harvous-pwa-launch-time=${now}; path=/; max-age=60; SameSite=Lax`;
+      }
+    }
+  } catch (e) {
+    // Silently fail if localStorage is unavailable
+  }
+}
+
+/**
  * Initialize the PWA
  */
 function initPWA() {
+  // Track session start for PWA launch detection
+  trackPWASessionStart();
+  
   // Touch event optimization
   document.addEventListener('touchstart', () => {}, { passive: true });
   

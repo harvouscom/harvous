@@ -35,15 +35,40 @@ const NoteDetailsPanel = createLazyComponent(() => import('./NoteDetailsPanel'),
 const EditThreadPanel = createLazyComponent(() => import('./EditThreadPanel'), 'EditThreadPanel');
 const EditSpacePanel = createLazyComponent(() => import('./EditSpacePanel'), 'EditSpacePanel');
 const InboxItemPreviewPanel = createLazyComponent(() => import('./InboxItemPreviewPanel'), 'InboxItemPreviewPanel');
+const MySpacesPanel = createLazyComponent(() => import('./MySpacesPanel'), 'MySpacesPanel');
+const MyAchievementsPanel = createLazyComponent(() => import('./MyAchievementsPanel'), 'MyAchievementsPanel');
+const MyChurchPanel = createLazyComponent(() => import('./MyChurchPanel'), 'MyChurchPanel');
+const EditNameColorPanel = createLazyComponent(() => import('./EditNameColorPanel'), 'EditNameColorPanel');
+const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPanel'), 'EmailPasswordPanel');
+const ManageBillingPanel = createLazyComponent(() => import('./ManageBillingPanel'), 'ManageBillingPanel');
+const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
+const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
 
 interface DesktopPanelManagerProps {
   currentThread?: any;
   currentSpace?: any;
   currentNote?: any;
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
+  publishableKey?: string | null;
 }
 
-type PanelType = 'newNote' | 'newThread' | 'newResource' | 'noteDetails' | 'editThread' | 'editSpace' | 'inboxPreview' | null;
+type PanelType =
+  | 'newNote'
+  | 'newThread'
+  | 'newResource'
+  | 'noteDetails'
+  | 'editThread'
+  | 'editSpace'
+  | 'inboxPreview'
+  | 'mySpaces'
+  | 'myAchievements'
+  | 'myChurch'
+  | 'editNameColor'
+  | 'emailPassword'
+  | 'manageBilling'
+  | 'myData'
+  | 'getSupport'
+  | null;
 
 interface InboxItem {
   id: string;
@@ -81,6 +106,22 @@ type PanelAction =
   | { type: 'CLOSE_EDIT_SPACE' }
   | { type: 'OPEN_INBOX_PREVIEW' }
   | { type: 'CLOSE_INBOX_PREVIEW' }
+  | { type: 'OPEN_MY_SPACES' }
+  | { type: 'CLOSE_MY_SPACES' }
+  | { type: 'OPEN_MY_ACHIEVEMENTS' }
+  | { type: 'CLOSE_MY_ACHIEVEMENTS' }
+  | { type: 'OPEN_MY_CHURCH' }
+  | { type: 'CLOSE_MY_CHURCH' }
+  | { type: 'OPEN_EDIT_NAME_COLOR' }
+  | { type: 'CLOSE_EDIT_NAME_COLOR' }
+  | { type: 'OPEN_EMAIL_PASSWORD' }
+  | { type: 'CLOSE_EMAIL_PASSWORD' }
+  | { type: 'OPEN_MANAGE_BILLING' }
+  | { type: 'CLOSE_MANAGE_BILLING' }
+  | { type: 'OPEN_MY_DATA' }
+  | { type: 'CLOSE_MY_DATA' }
+  | { type: 'OPEN_GET_SUPPORT' }
+  | { type: 'CLOSE_GET_SUPPORT' }
   | { type: 'LOAD_FROM_STORAGE' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
@@ -148,12 +189,116 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     
     case 'CLOSE_INBOX_PREVIEW':
       return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_MY_SPACES':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'mySpaces');
+      return { activePanel: 'mySpaces', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_SPACES':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_MY_ACHIEVEMENTS':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'myAchievements');
+      return { activePanel: 'myAchievements', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_ACHIEVEMENTS':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_MY_CHURCH':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'myChurch');
+      return { activePanel: 'myChurch', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_CHURCH':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_EDIT_NAME_COLOR':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'editNameColor');
+      return { activePanel: 'editNameColor', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_EDIT_NAME_COLOR':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_EMAIL_PASSWORD':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'emailPassword');
+      return { activePanel: 'emailPassword', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_EMAIL_PASSWORD':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_MANAGE_BILLING':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'manageBilling');
+      return { activePanel: 'manageBilling', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MANAGE_BILLING':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_MY_DATA':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'myData');
+      return { activePanel: 'myData', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_DATA':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_GET_SUPPORT':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'getSupport');
+      return { activePanel: 'getSupport', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_GET_SUPPORT':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
     
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
       const savedThreadPanel = localStorage.getItem('showNewThreadPanel');
       const savedResourcePanel = localStorage.getItem('showNewResourcePanel');
+      const savedProfilePanel = localStorage.getItem('showProfilePanel');
+
+      if (savedProfilePanel) {
+        if (
+          savedProfilePanel === 'mySpaces' ||
+          savedProfilePanel === 'myAchievements' ||
+          savedProfilePanel === 'myChurch' ||
+          savedProfilePanel === 'editNameColor' ||
+          savedProfilePanel === 'emailPassword' ||
+          savedProfilePanel === 'manageBilling' ||
+          savedProfilePanel === 'myData' ||
+          savedProfilePanel === 'getSupport'
+        ) {
+          return { activePanel: savedProfilePanel as PanelType, panelKey: 0 };
+        }
+      }
 
       if (savedResourcePanel === 'true') {
         // Check if there's new content from text selection - if so, increment panelKey to force remount
@@ -206,7 +351,8 @@ export default function DesktopPanelManager({
   currentThread,
   currentSpace,
   currentNote,
-  contentType = 'dashboard'
+  contentType = 'dashboard',
+  publishableKey = null
 }: DesktopPanelManagerProps) {
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
@@ -330,6 +476,20 @@ export default function DesktopPanelManager({
       setInboxPreviewData(null);
     };
 
+    const handleOpenProfilePanel = (event: CustomEvent) => {
+      const panelName = event.detail?.panelName;
+      if (panelName === 'mySpaces') dispatch({ type: 'OPEN_MY_SPACES' });
+      else if (panelName === 'myAchievements') dispatch({ type: 'OPEN_MY_ACHIEVEMENTS' });
+      else if (panelName === 'myChurch') dispatch({ type: 'OPEN_MY_CHURCH' });
+      else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
+      else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
+      else if (panelName === 'manageBilling') dispatch({ type: 'OPEN_MANAGE_BILLING' });
+      else if (panelName === 'myData') dispatch({ type: 'OPEN_MY_DATA' });
+      else if (panelName === 'getSupport') dispatch({ type: 'OPEN_GET_SUPPORT' });
+
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+    };
+
     // Register all event listeners
     window.addEventListener('openNewNotePanel', handleOpenNewNote);
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
@@ -346,6 +506,7 @@ export default function DesktopPanelManager({
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
     window.addEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
     window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
+    window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
 
     // Cleanup
     return () => {
@@ -364,6 +525,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
       window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
+      window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
     };
   }, []);
 
@@ -400,6 +562,46 @@ export default function DesktopPanelManager({
   // Handler for closing InboxItemPreviewPanel
   const handleCloseInboxPreview = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeInboxPreview'));
+  }, []);
+
+  const handleCloseMySpaces = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_SPACES' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseMyAchievements = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_ACHIEVEMENTS' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseMyChurch = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_CHURCH' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseEditNameColor = useCallback(() => {
+    dispatch({ type: 'CLOSE_EDIT_NAME_COLOR' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseEmailPassword = useCallback(() => {
+    dispatch({ type: 'CLOSE_EMAIL_PASSWORD' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseManageBilling = useCallback(() => {
+    dispatch({ type: 'CLOSE_MANAGE_BILLING' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseMyData = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_DATA' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseGetSupport = useCallback(() => {
+    dispatch({ type: 'CLOSE_GET_SUPPORT' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
   // Expose panel state to hide/show SquareButtons in Layout.astro
@@ -543,6 +745,104 @@ export default function DesktopPanelManager({
                 }}
                 inBottomSheet={false}
               />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* Profile Panels - Desktop Only */}
+      {contentType === 'profile' && state.activePanel === 'mySpaces' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MySpacesPanel key={`my-spaces-${state.panelKey}`} onClose={handleCloseMySpaces} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'myAchievements' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MyAchievementsPanel
+                key={`my-achievements-${state.panelKey}`}
+                onClose={handleCloseMyAchievements}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'myChurch' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MyChurchPanel key={`my-church-${state.panelKey}`} onClose={handleCloseMyChurch} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'editNameColor' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <EditNameColorPanel
+                key={`edit-name-color-${state.panelKey}`}
+                onClose={handleCloseEditNameColor}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'emailPassword' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <EmailPasswordPanel
+                key={`email-password-${state.panelKey}`}
+                onClose={handleCloseEmailPassword}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'manageBilling' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <ManageBillingPanel
+                key={`manage-billing-${state.panelKey}`}
+                onClose={handleCloseManageBilling}
+                inBottomSheet={false}
+                publishableKey={publishableKey}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'myData' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MyDataPanel key={`my-data-${state.panelKey}`} onClose={handleCloseMyData} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'getSupport' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

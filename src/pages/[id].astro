@@ -37,9 +37,11 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     // If cache-control indicates a refresh (max-age=0 or no-cache), don't update
     // This catches hard refreshes where referrer might be missing
     if (cacheControl && (cacheControl.includes('max-age=0') || cacheControl.includes('no-cache'))) {
+      debug('[shouldUpdateLastVisitedTimestamp] Refresh detected via cache-control, skipping update');
       return false;
     }
     if (pragma && pragma.includes('no-cache')) {
+      debug('[shouldUpdateLastVisitedTimestamp] Refresh detected via pragma, skipping update');
       return false;
     }
 
@@ -66,6 +68,7 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     if (referrerUrl && referrerPath) {
       // If referrer is from a different origin, it's a new visit - update
       if (referrerUrl.origin !== currentUrl.origin) {
+        debug('[shouldUpdateLastVisitedTimestamp] Cross-origin navigation detected, updating lastVisited');
         return true;
       }
 
@@ -73,32 +76,80 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
 
       // If referrer is the same page (normalized), it's a refresh - don't update
       if (normalizedReferrerPath === normalizedCurrentPath) {
+        debug('[shouldUpdateLastVisitedTimestamp] Same page refresh detected, skipping update');
         return false;
       }
 
       // Different page on same origin - this is a new visit - update
+      debug('[shouldUpdateLastVisitedTimestamp] Same-origin navigation to different page, updating lastVisited');
       return true;
     }
 
     // No referrer - this could be:
     // 1. Direct navigation (URL bar, bookmark) - should update
     // 2. Page refresh in PWA - should NOT update
-    // 3. Opening link in new tab - should update
+    // 3. PWA app resumption (launching app to last viewed page) - should NOT update
+    // 4. Opening link in new tab - should update
     //
-    // Since we can't reliably distinguish these cases without referrer,
-    // we check if the Sec-Fetch-Site header indicates this is a same-origin navigation
+    // Check Sec-Fetch headers for more context
     const secFetchSite = request.headers.get('sec-fetch-site');
+    const secFetchMode = request.headers.get('sec-fetch-mode');
+    const secFetchDest = request.headers.get('sec-fetch-dest');
+
+    // Check for PWA launch scenario using cookie-based session tracking
+    // The client-side script sets a cookie when PWA launches, which we can read here
+    const cookies = request.headers.get('cookie') || '';
+    const pwaLaunchMatch = cookies.match(/harvous-pwa-launch-time=(\d+)/);
+    if (pwaLaunchMatch) {
+      const launchTime = parseInt(pwaLaunchMatch[1], 10);
+      const now = Date.now();
+      const timeSinceLaunch = now - launchTime;
+      // If request is within 5 seconds of PWA launch, treat as app resumption
+      if (timeSinceLaunch < 5000) {
+        debug('[shouldUpdateLastVisitedTimestamp] PWA app resumption detected (launched ' + timeSinceLaunch + 'ms ago), skipping update');
+        return false;
+      }
+    }
 
     // If Sec-Fetch-Site is 'same-origin', this is likely a refresh or internal navigation
     // without a proper referrer (can happen in PWAs or after service worker interactions)
     if (secFetchSite === 'same-origin') {
-      // Likely a refresh - don't update
+      // Additional check: if Sec-Fetch-Mode is 'navigate' but no referrer, it might be a PWA restoration
+      // In this case, err on the side of NOT updating to preserve order
+      if (secFetchMode === 'navigate' && secFetchDest === 'document') {
+        debug('[shouldUpdateLastVisitedTimestamp] Same-origin navigate without referrer (likely PWA restoration), skipping update');
+        return false;
+      }
+      debug('[shouldUpdateLastVisitedTimestamp] Same-origin request without referrer, skipping update');
       return false;
     }
 
-    // If Sec-Fetch-Site is 'none', this is a direct navigation (URL bar, bookmark)
+    // If Sec-Fetch-Site is 'none', check additional context
     if (secFetchSite === 'none') {
-      // Direct navigation - update
+      // If Sec-Fetch-Mode is 'navigate' and Sec-Fetch-Dest is 'document', this could be:
+      // 1. Direct URL bar navigation (should update)
+      // 2. PWA launch/restoration (should NOT update)
+      // 
+      // For PWA launches, we check if this happens very early in the session
+      // If Sec-Fetch-Mode is not 'navigate', it's likely not a user-initiated navigation
+      if (secFetchMode !== 'navigate') {
+        debug('[shouldUpdateLastVisitedTimestamp] Sec-Fetch-Site=none but mode is not navigate, skipping update');
+        return false;
+      }
+      
+      // If it's a navigate with 'none' site, it could be a bookmark or direct URL entry
+      // But to be safe for PWAs, we'll only update if we're confident it's user-initiated
+      // Check if there's a user-agent hint that suggests this is a real navigation
+      const userAgent = request.headers.get('user-agent') || '';
+      const isMobilePWA = userAgent.includes('Mobile') && (userAgent.includes('Safari') || userAgent.includes('Chrome'));
+      
+      // For mobile PWAs, be more conservative - only update if we have strong evidence
+      if (isMobilePWA) {
+        debug('[shouldUpdateLastVisitedTimestamp] Mobile PWA with sec-fetch-site=none, being conservative and skipping update');
+        return false;
+      }
+      
+      debug('[shouldUpdateLastVisitedTimestamp] Direct navigation detected (sec-fetch-site=none, mode=navigate), updating lastVisited');
       return true;
     }
 
@@ -106,6 +157,7 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     // within the app by looking at other request characteristics
     // For safety in ambiguous cases, we'll now default to NOT updating to prevent
     // random order changes on refresh
+    debug('[shouldUpdateLastVisitedTimestamp] Ambiguous case, defaulting to NOT updating to preserve order');
     return false;
   } catch (error) {
     // If we can't determine due to error, don't update to prevent random reordering
