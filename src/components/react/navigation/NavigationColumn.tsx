@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
 import Avatar from './Avatar';
@@ -6,6 +6,7 @@ import SquareButton from '../SquareButton';
 import ButtonSmall from '../ButtonSmall';
 import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
+import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 
 /**
  * Check if Clerk authentication is ready
@@ -434,7 +435,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       const expectedCount = updatedActiveThread?.noteCount || activeThread?.noteCount || 0;
       
       // Use verification-based refresh if we have recent changes
-      const { shouldForceRefresh, refreshBadgeCountsWithVerification } = await import('@/utils/badge-count-refresh');
       const forceRefresh = shouldForceRefresh(activeThread.id);
       
       try {

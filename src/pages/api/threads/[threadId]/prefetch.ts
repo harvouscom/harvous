@@ -56,9 +56,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        // Cache for 2 minutes in browser
-        'Cache-Control': 'private, max-age=120',
-        // Allow stale responses while revalidating
+        // Cache for 2 minutes in browser, allow stale responses while revalidating
         'Cache-Control': 'private, max-age=120, stale-while-revalidate=300'
       }
     });

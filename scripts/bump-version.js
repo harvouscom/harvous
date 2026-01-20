@@ -19,6 +19,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { generateChangelog } from './generate-changelog.js';
+import { generateReleaseNotes } from './generate-release-notes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -257,6 +258,24 @@ try {
         execSync(`git add ${relativePath}`, { stdio: 'ignore' });
       } catch (error) {
         console.warn(`⚠️  Could not stage changelog file. You may need to stage it manually.`);
+      }
+      
+      // Generate user-friendly release notes
+      try {
+        const releaseNotesPath = generateReleaseNotes(newVersion);
+        if (releaseNotesPath) {
+          // Stage the release notes file
+          try {
+            const repoRoot = execSync('git rev-parse --show-toplevel', { encoding: 'utf-8' }).trim();
+            const relativePath = releaseNotesPath.replace(repoRoot + '/', '');
+            execSync(`git add ${relativePath}`, { stdio: 'ignore' });
+          } catch (error) {
+            console.warn(`⚠️  Could not stage release notes file. You may need to stage it manually.`);
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️  Could not generate release notes: ${error.message}`);
+        // Don't fail if release notes generation fails
       }
     }
   } catch (error) {

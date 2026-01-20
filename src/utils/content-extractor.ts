@@ -5,9 +5,9 @@
  */
 
 import { extract } from '@extractus/article-extractor';
-// @ts-ignore - linkedom types conflict with native DOM types
+// @ts-expect-error - linkedom provides its own DOM types that conflict with TypeScript's built-in DOM types
 import { Readability } from '@mozilla/readability';
-// @ts-ignore - linkedom types conflict with native DOM types
+// @ts-expect-error - linkedom provides its own DOM types that conflict with TypeScript's built-in DOM types
 import { parseHTML } from 'linkedom';
 
 /**
@@ -951,7 +951,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
       }
     } catch (error) {
       // Fall through to Readability fallback
-      console.warn('@extractus/article-extractor failed, trying Readability:', error);
+      // Silently try next extraction method
     }
     
     // Fallback to Readability if extractus didn't work or didn't return enough content
@@ -960,7 +960,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
       const { document } = parseHTML(html);
       
       // Create Readability instance
-      // @ts-ignore - document type from linkedom
+      // @ts-expect-error - linkedom's document type differs from TypeScript's built-in Document type
       const reader = new Readability(document, {
         debug: false,
         maxElemsToParseToMainContent: 0, // No limit
@@ -993,7 +993,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
     }
     
     if (!cleanedContent) {
-      console.warn('All extraction methods failed');
+      // All extraction methods failed - return null
       return null;
     }
     
@@ -1037,7 +1037,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
     
     return cleanedContent || null;
   } catch (error) {
-    console.error('Error extracting article content:', error);
+    // Error extracting article content - return null
     return null;
   }
 }
@@ -1055,7 +1055,7 @@ export function extractArticleWithMetadata(html: string, url: string): {
 } | null {
   try {
     const { document } = parseHTML(html);
-    // @ts-ignore - document type from linkedom
+    // @ts-expect-error - linkedom's document type differs from TypeScript's built-in Document type
     const reader = new Readability(document, {
       debug: false,
       maxElemsToParseToMainContent: 0,
@@ -1078,7 +1078,7 @@ export function extractArticleWithMetadata(html: string, url: string): {
       excerpt: article.excerpt || '',
     };
   } catch (error) {
-    console.error('Error extracting article with metadata:', error);
+    // Error extracting article with metadata - return null
     return null;
   }
 }

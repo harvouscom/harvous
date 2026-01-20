@@ -161,6 +161,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   const isDashboard = currentItemId === '' || currentItemId === 'dashboard';
+  const isNote = currentItemId.startsWith('note_');
 
   const routeActiveItemId = useMemo(() => {
     // Match NavigationContext.getCurrentActiveItemId() behavior.
@@ -652,16 +653,50 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
-        <SpaceButton 
-          text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
-          count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
-          state="DropdownTrigger"
-          rightAccessory="spaceSwitcher"
-          onRightAccessoryClick={openSheet}
-          backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
-          onClick={openSheet}
-          hideDropdownIcon={true}
-        />
+        <div className="space-switcher-anchor space-switcher-anchor--mobile">
+          {/* Main button - navigates to thread when on note page, opens sheet otherwise */}
+          {isNote && currentThread ? (
+            <a 
+              href={`/${currentThread.id}`}
+              className="nav-link"
+              style={{ display: 'block', width: '100%' }}
+            >
+              <SpaceButton 
+                as="div"
+                text={currentThread.title}
+                count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread.noteCount}
+                state="DropdownTrigger"
+                rightAccessory="none"
+                backgroundGradient={currentThread.backgroundGradient || getThreadGradientCSS('paper')}
+                hideDropdownIcon={true}
+              />
+            </a>
+          ) : (
+            <SpaceButton 
+              text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
+              count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
+              state="DropdownTrigger"
+              rightAccessory="none"
+              backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
+              onClick={openSheet}
+              hideDropdownIcon={true}
+            />
+          )}
+          {/* Toggle button - always opens bottom sheet */}
+          <button
+            type="button"
+            className="space-btn__badge-wrapper space-switcher-anchor__toggle"
+            aria-label="Switch space"
+            onClick={(e) => {
+              e.stopPropagation();
+              openSheet();
+            }}
+          >
+            <span className="space-btn__toggle-icon" aria-hidden="true">
+              <Icon name="sort" size={18} />
+            </span>
+          </button>
+        </div>
         
         <Sheet
           open={isSheetOpen}

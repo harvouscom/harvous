@@ -151,7 +151,7 @@ export async function prefetchThreadContent(
     });
   } catch (error) {
     // Silently fail - prefetch is not critical
-    console.debug('[prefetchThreadContent] Prefetch failed:', error);
+    // Debug logging only - not shown in production
   }
 }
 

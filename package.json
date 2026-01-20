@@ -22,6 +22,8 @@
     "precommit": "npm run db:check",
     "version:bump": "node scripts/bump-version.js",
     "version:check": "node -e \"console.log(require('./package.json').version)\"",
+    "changelog:generate": "node scripts/generate-changelog.js",
+    "release-notes:generate": "node scripts/generate-release-notes.js",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage"

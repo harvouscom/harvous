@@ -592,6 +592,32 @@
   }
 }
 
+/* Mobile space switcher anchor */
+.space-switcher-anchor--mobile {
+  position: relative;
+  width: 100%;
+}
+
+.space-switcher-anchor--mobile .space-btn__content {
+  padding-right: 64px;
+}
+
+.space-switcher-anchor--mobile .space-switcher-anchor__toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 64px;
+  height: 64px;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ==========================================================================
    Tab Navigation
    ========================================================================== */

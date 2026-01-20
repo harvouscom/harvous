@@ -16,6 +16,7 @@ import {
 } from './offline-db';
 import { cacheHighestSimpleNoteId } from './offline-mutations';
 import { THREAD_COLORS } from './colors';
+import { safeFetch } from './safe-fetch';
 
 export interface SyncResult {
   success: boolean;
@@ -580,7 +581,6 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
     }
 
     // Use safeFetch for automatic retry logic on 503/5xx errors
-    const { safeFetch } = await import('./safe-fetch');
     const response = await safeFetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
       method: 'GET',
       retries: 3,
