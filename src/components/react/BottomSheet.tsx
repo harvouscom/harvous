@@ -6,6 +6,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
+import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
@@ -101,6 +102,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
+  const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
@@ -180,6 +182,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       onClose();
     }
   }, [onClose]);
+
+  // Handle drag-to-dismiss
+  const handleDragDismiss = useCallback(async () => {
+    const ok = await requestClose('dismiss');
+    if (ok) {
+      closeBottomSheet();
+    }
+  }, [requestClose, closeBottomSheet]);
+
+  // Use drag hook - TEMPORARILY DISABLED FOR DEBUGGING
+  // const { dragY, isSnappingBack } = useBottomSheetDrag({
+  //   sheetRef: sheetContentRef,
+  //   onDismiss: handleDragDismiss,
+  //   isOpen: isVisible,
+  // });
+  const dragY = 0;
+  const isSnappingBack = false;
 
   const registerActiveCloseHandler = useCallback((handler: SheetCloseHandler | null) => {
     activeCloseHandlerRef.current = handler;
@@ -387,13 +406,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
     >
       <SheetContent 
+        ref={sheetContentRef}
         side="bottom" 
-        className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
+        className={`h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 ${isSnappingBack ? 'sheet-snapping-back' : ''}`}
         style={{ 
           padding: '0',
           outline: 'none',
           border: 'none',
-          borderWidth: '0'
+          borderWidth: '0',
+          ...(dragY > 0 ? { transform: `translateY(${dragY}px)` } : {}),
         }}
         onOpenAutoFocus={(e) => {
           // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
@@ -431,6 +452,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         <button ref={sheetFocusRef} type="button" className="sr-only">
           {getDrawerTitle(drawerType)}
         </button>
+
+        {/* Drag handle indicator */}
+        <div className="sheet-drag-handle" />
         
         {/* Content */}
         <div className="bottom-sheet__inner h-full flex flex-col min-h-0">

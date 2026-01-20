@@ -1,4 +1,5 @@
 import React from 'react';
+import { haptics } from '@/utils/haptics';
 
 interface ButtonSmallProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   state?: 'Default' | 'Secondary' | 'Delete';
@@ -27,6 +28,10 @@ export default function ButtonSmall({
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled || clickHandledRef.current) return;
     clickHandledRef.current = true;
+    
+    // Trigger medium haptic feedback (maps to -4px shadow depth)
+    haptics.medium();
+    
     // Only prevent default for non-submit buttons to avoid breaking form submissions
     if (type !== 'submit') {
       e.preventDefault();

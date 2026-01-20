@@ -8,6 +8,7 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 
 /**
  * Check if Clerk authentication is ready
@@ -69,6 +70,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
+  const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const [currentItemId, setCurrentItemId] = useState(() => {
     // Initialize from window.location if available (client-side only)
     if (typeof window !== 'undefined') {
@@ -504,6 +506,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setItemsInCloseMode(new Set());
   };
 
+  // Use drag hook for mobile nav sheet - TEMPORARILY DISABLED FOR DEBUGGING
+  // const { dragY, isSnappingBack } = useBottomSheetDrag({
+  //   sheetRef: sheetContentRef,
+  //   onDismiss: closeSheet,
+  //   isOpen: isSheetOpen,
+  // });
+  const dragY = 0;
+  const isSnappingBack = false;
+
   const handleItemClick = (itemId?: string) => {
     closeSheet();
     // If clicking on a specific item, exit its close mode
@@ -705,13 +716,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           }}
         >
           <SheetContent
+            ref={sheetContentRef}
             side="bottom"
-            className="mobile-nav__sheet"
+            className={`mobile-nav__sheet ${isSnappingBack ? 'sheet-snapping-back' : ''}`}
             style={{
               background: 'white',
               padding: 0,
               border: 'none',
               borderTop: 'none',
+              ...(dragY > 0 ? { transform: `translateY(${dragY}px)` } : {}),
             }}
             onOpenAutoFocus={(e) => {
               // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
@@ -730,6 +743,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             <button ref={sheetFocusRef} type="button" className="sr-only">
               Navigation
             </button>
+
+            {/* Drag handle indicator */}
+            <div className="sheet-drag-handle" />
 
             <div className="mobile-nav__sheet-inner" onClick={(e) => e.stopPropagation()}>
               {/* Pinned Header: Selected Space */}
