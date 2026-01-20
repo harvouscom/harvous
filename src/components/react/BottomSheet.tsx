@@ -6,6 +6,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
+import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import NewNotePanel from './NewNotePanel';
 import NewThreadPanel from './NewThreadPanel';
 import NoteDetailsPanel from './NoteDetailsPanel';
@@ -206,6 +207,20 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     []
   );
 
+  // Handle drag-to-dismiss
+  const handleDragDismiss = useCallback(async () => {
+    const ok = await requestClose('dismiss');
+    if (ok) {
+      closeBottomSheet();
+    }
+  }, [requestClose, closeBottomSheet]);
+
+  // Use drag hook
+  const setDragRef = useBottomSheetDrag({
+    onDismiss: handleDragDismiss,
+    enabled: isVisible,
+  });
+
   // Set up event listeners
   useEffect(() => {
     const handleOpenBottomSheet = (event: CustomEvent) => {
@@ -388,6 +403,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
     >
       <SheetContent 
+        ref={setDragRef}
         side="bottom" 
         className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{ 
