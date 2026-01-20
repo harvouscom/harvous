@@ -20,8 +20,6 @@ import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
-// iOS haptics polyfill - enables navigator.vibrate() on iOS 18+
-import "ios-vibrator-pro-max";
 
 interface Props {
   classNames?: string;
@@ -345,6 +343,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     
     <!-- Tab functionality script -->
     <script is:inline src="/scripts/tabs/tab-manager.js"></script>
+    
+    <!-- iOS Haptics Polyfill - enables navigator.vibrate() on iOS 18+ -->
+    <script>
+      import('ios-vibrator-pro-max').catch(() => {
+        // Polyfill failed to load, haptics will only work on Android
+      });
+    </script>
     
     <!-- Haptics Handler - Provides tactile feedback for button interactions -->
     <script is:inline src="/scripts/haptics-handler.js"></script>
