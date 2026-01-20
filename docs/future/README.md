@@ -8,6 +8,16 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 
 ## 📁 Documentation Structure
 
+### Mobile Apps
+
+- **`CAPACITOR_STRATEGIC_ANALYSIS.md`** - Strategic analysis for iOS/Android native apps
+  - Architectural challenges (SSR → hybrid, auth migration, database strategy)
+  - Effort estimates (20-32 days MVP, 6-9 weeks full offline)
+  - Implementation recommendations (hybrid API approach vs offline-first)
+  - App store approval considerations
+  - Decision tree and ROI analysis
+  - References detailed implementation guide in main docs folder
+
 ### Monetization & Business Model
 
 - **`CLERK_MONETIZATION_ARCHITECTURE.md`** - Complete technical architecture for monetization
@@ -76,16 +86,25 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 - Automatic user discovery
 - Content distribution system
 
-### Phase 3: Collaborative Shared Threads (Better Collaboration)
+### Phase 3: Native Mobile Apps (Market Expansion)
+- iOS and Android native apps via Capacitor
+- 4-6 weeks for MVP (hybrid API approach)
+- Increased engagement (users check apps 3-5x more than websites)
+- Home screen presence
+- See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategic analysis
+- See `../CAPACITOR_IMPLEMENTATION_GUIDE.md` for implementation steps
+
+### Phase 4: Collaborative Shared Threads (Better Collaboration)
 - Real-time group study
 - Enhanced shared spaces
 - Better collaboration features
 
-### Phase 4: Full Offline Mode (User Experience)
+### Phase 5: Full Offline Mode (User Experience)
 - Offline read/write support
 - Data synchronization
 - Conflict resolution
 - Enhanced user experience for mobile users
+- Can be combined with native mobile apps (Phase 3 + Phase 5)
 
 ## 🗄️ Database Schema
 
