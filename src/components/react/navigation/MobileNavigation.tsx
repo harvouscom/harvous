@@ -735,24 +735,53 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               {/* Pinned Header: Selected Space */}
               <div className="mobile-nav__dropdown-header">
                 <div className="mobile-nav__dropdown-header-row">
-                  <SpaceButton
-                    text={selectedSpaceLabel}
-                    count={selectedSpaceCount}
-                    state="WithCount"
-                    rightAccessory="spaceSwitcher"
-                    onRightAccessoryClick={() => setIsSpacePanelOpen((v) => !v)}
-                    onClick={() => {
-                      // When there are no threads to show, the sheet is effectively a space picker.
-                      // In that case, tapping the top button should dismiss the whole sheet.
-                      if (isSpacePanelOpen && persistentThreads.length === 0) {
-                        closeSheet();
-                        return;
-                      }
-                      setIsSpacePanelOpen((v) => !v);
-                    }}
-                    backgroundGradient={selectedSpaceBackground}
-                    isActive={topSpaceIsActive}
-                  />
+                  <div className="space-switcher-anchor space-switcher-anchor--mobile">
+                    {/* Main button - navigates to space/home when not active, toggles panel when active */}
+                    {topSpaceIsActive ? (
+                      <SpaceButton 
+                        text={selectedSpaceLabel}
+                        count={selectedSpaceCount}
+                        state="WithCount"
+                        rightAccessory="none"
+                        backgroundGradient={selectedSpaceBackground}
+                        isActive={topSpaceIsActive}
+                        hideDropdownIcon={true}
+                        onClick={() => setIsSpacePanelOpen((v) => !v)}
+                      />
+                    ) : (
+                      <a 
+                        href={selectedSpaceId ? `/${selectedSpaceId}` : '/'}
+                        className="nav-link"
+                        style={{ display: 'block', width: '100%' }}
+                        onClick={() => closeSheet()}
+                      >
+                        <SpaceButton 
+                          as="div"
+                          text={selectedSpaceLabel}
+                          count={selectedSpaceCount}
+                          state="WithCount"
+                          rightAccessory="none"
+                          backgroundGradient={selectedSpaceBackground}
+                          isActive={topSpaceIsActive}
+                          hideDropdownIcon={true}
+                        />
+                      </a>
+                    )}
+                    {/* Toggle button - opens/closes space picker panel */}
+                    <button
+                      type="button"
+                      className="space-btn__badge-wrapper space-switcher-anchor__toggle"
+                      aria-label="Switch space"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsSpacePanelOpen((v) => !v);
+                      }}
+                    >
+                      <span className="space-btn__toggle-icon" aria-hidden="true">
+                        <Icon name="sort" size={18} />
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
                 {isSpacePanelOpen && (
