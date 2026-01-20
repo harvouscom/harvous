@@ -677,7 +677,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               padding: 0,
               border: 'none',
               borderTop: 'none',
-              boxShadow: 'none',
             }}
             onOpenAutoFocus={(e) => {
               // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
