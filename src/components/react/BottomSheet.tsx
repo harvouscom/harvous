@@ -392,7 +392,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         style={{ 
           padding: '0',
           outline: 'none',
-          boxShadow: 'none',
           border: 'none',
           borderWidth: '0'
         }}

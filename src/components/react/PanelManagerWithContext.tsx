@@ -2,7 +2,6 @@ import React from 'react';
 import { NewNotePanelProvider } from './contexts/NewNotePanelContext';
 import { NewThreadPanelProvider } from './contexts/NewThreadPanelContext';
 import DesktopPanelManager from './DesktopPanelManager';
-import BottomSheet from './BottomSheet';
 
 interface PanelManagerWithContextProps {
   currentThread?: any;
@@ -13,9 +12,8 @@ interface PanelManagerWithContextProps {
 }
 
 /**
- * Wrapper component that provides panel state context to both desktop and mobile panels.
- * This ensures form state persists when switching between desktop and mobile views.
- * Renders both panels in a single React tree so context works across both.
+ * Desktop-only wrapper that provides panel state context to the desktop panel manager.
+ * Mobile bottom sheet is handled separately in MobileBottomSheetWithContext.
  */
 const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
   currentThread,
@@ -27,26 +25,14 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
   return (
     <NewNotePanelProvider>
       <NewThreadPanelProvider>
-        {/* Wrapper for both panels */}
-        <>
-          {/* Desktop Panel Manager - positioned in desktop additional column via parent */}
-          <DesktopPanelManager
-            currentThread={currentThread}
-            currentSpace={currentSpace}
-            currentNote={currentNote}
-            contentType={contentType}
+        {/* Desktop Panel Manager - positioned in desktop additional column via parent */}
+        <DesktopPanelManager
+          currentThread={currentThread}
+          currentSpace={currentSpace}
+          currentNote={currentNote}
+          contentType={contentType}
           publishableKey={publishableKey}
-          />
-          
-          {/* Mobile Bottom Sheet - BottomSheet handles its own positioning */}
-          <BottomSheet
-            currentThread={currentThread}
-            currentSpace={currentSpace}
-            currentNote={currentNote}
-            contentType={contentType}
-            publishableKey={publishableKey}
-          />
-        </>
+        />
       </NewThreadPanelProvider>
     </NewNotePanelProvider>
   );

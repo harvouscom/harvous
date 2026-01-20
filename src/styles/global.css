@@ -1281,14 +1281,12 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Sheet overlay - covers viewport */
+/* Sheet overlay - invisible but captures clicks for dismiss */
 .sheet-overlay {
   position: fixed !important;
   inset: 0 !important;
   z-index: 49 !important;
-  background-color: rgba(0, 0, 0, 0.12) !important;
-  opacity: 0;
-  transition: opacity 0.3s ease-out;
+  background-color: transparent !important;
 }
 
 .sheet-overlay[data-state="open"] {
@@ -1300,9 +1298,9 @@ button .menu-item__label {
   transition: opacity 0.2s ease-in;
 }
 
-/* When sheet is open, apply overlay color to html for full PWA coverage */
-html.sheet-overlay-active {
-  background-color: rgba(0, 0, 0, 0.12) !important;
+/* Bottom sheet drop shadow for visual separation */
+[data-side="bottom"] {
+  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08);
 }
 
 /* ==========================================================================
