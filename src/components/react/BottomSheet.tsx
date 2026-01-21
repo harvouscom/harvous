@@ -105,6 +105,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [isMobile, setIsMobile] = useState(false);
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
+  const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
@@ -233,6 +234,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       // Handle inbox preview with data
       if (type === 'inboxPreview' && event.detail?.item) {
         setInboxPreviewData(event.detail.item);
+      }
+      
+      // Handle note details with tab
+      if (type === 'noteDetails' && event.detail?.tab) {
+        setNoteDetailsTab(event.detail.tab);
       }
       
       openBottomSheet(type as DrawerType);
@@ -518,6 +524,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                     window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
                   }}
                   inBottomSheet={true}
+                  initialTab={noteDetailsTab}
                 />
               )}
             </div>

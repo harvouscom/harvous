@@ -55,6 +55,7 @@ interface NoteDetailsPanelProps {
   tags?: Tag[];
   onClose?: () => void;
   inBottomSheet?: boolean;
+  initialTab?: string;
 }
 
 export default function NoteDetailsPanel({
@@ -65,9 +66,10 @@ export default function NoteDetailsPanel({
   comments = [],
   tags = [],
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  initialTab
 }: NoteDetailsPanelProps) {
-  const [activeTab, setActiveTab] = useState('threads');
+  const [activeTab, setActiveTab] = useState(initialTab || 'threads');
   const [localThreads, setLocalThreads] = useState<Thread[]>(threads);
   const [localAllUserThreads, setLocalAllUserThreads] = useState<Thread[]>(allUserThreads);
   const [localComments, setLocalComments] = useState<Comment[]>(comments);
@@ -117,7 +119,8 @@ export default function NoteDetailsPanel({
           
           // Set default tab to 'notes' for scripture notes only on initial load
           // Preserve current tab during refreshes (e.g., after tag operations)
-          if (!preserveTab && isInitialLoad && data.note.noteType === 'scripture') {
+          // But don't override if initialTab was explicitly provided
+          if (!preserveTab && isInitialLoad && data.note.noteType === 'scripture' && !initialTab) {
             setActiveTab('notes');
           }
         }

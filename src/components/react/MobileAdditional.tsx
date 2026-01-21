@@ -35,9 +35,10 @@ export default function MobileAdditional({
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
 
-    const handleOpenNoteDetailsPanel = () => {
+    const handleOpenNoteDetailsPanel = (event: CustomEvent) => {
+      const tab = event?.detail?.tab;
       window.dispatchEvent(new CustomEvent('openMobileDrawer', {
-        detail: { type: 'noteDetails' }
+        detail: { type: 'noteDetails', tab }
       }));
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };

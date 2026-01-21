@@ -356,6 +356,7 @@ export default function DesktopPanelManager({
 }: DesktopPanelManagerProps) {
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
+  const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
 
   // Load panel state from localStorage on mount
   useEffect(() => {
@@ -427,7 +428,10 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_NEW_RESOURCE' });
     };
     
-    const handleOpenNoteDetails = () => {
+    const handleOpenNoteDetails = (event?: Event) => {
+      const customEvent = event as CustomEvent;
+      const tab = customEvent?.detail?.tab;
+      setNoteDetailsTab(tab);
       dispatch({ type: 'OPEN_NOTE_DETAILS' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
@@ -684,6 +688,7 @@ export default function DesktopPanelManager({
                 tags={[]}
                 onClose={handleCloseNoteDetails}
                 inBottomSheet={false}
+                initialTab={noteDetailsTab}
               />
             </div>
           </Suspense>

@@ -10,6 +10,7 @@ const NoteStickyIcon = { src: 'note-sticky' };
 const EditIcon = { src: 'pen-to-square' };
 const EraseIcon = { src: 'eraser' };
 const CircleInfoIcon = { src: 'circle-info' };
+const TagIcon = { src: 'tag' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";
@@ -58,8 +59,11 @@ export default function SquareButton({
           case "eraseSpace":
             icon = EraseIcon;
             break;
-          case "seeDetails":
-            icon = CircleInfoIcon;
+          case "openNoteDetailsThreads":
+            icon = ThreadIcon;
+            break;
+          case "openNoteDetailsTags":
+            icon = TagIcon;
             break;
           default:
             icon = EditIcon;

@@ -44,7 +44,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       ];
     case "note":
       return [
-        { action: "seeDetails", label: "See Details" },
+        { action: "openNoteDetailsThreads", label: "Threads" },
+        { action: "openNoteDetailsTags", label: "Tags" },
         { action: "eraseNote", label: "Erase Note" }
       ];
     case "space":

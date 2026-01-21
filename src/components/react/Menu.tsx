@@ -39,6 +39,10 @@ const renderIcon = (icon: any, action: string) => {
     'newspaper': {
       viewBox: '0 0 512 512',
       path: 'M96 96c0-35.3 28.7-64 64-64l288 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L80 480c-44.2 0-80-35.8-80-80L0 128c0-17.7 14.3-32 32-32s32 14.3 32 32l0 272c0 8.8 7.2 16 16 16s16-7.2 16-16L96 96zm64 24l0 80c0 13.3 10.7 24 24 24l112 0c13.3 0 24-10.7 24-24l0-80c0-13.3-10.7-24-24-24L184 96c-13.3 0-24 10.7-24 24zm208-8c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zM160 304c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16z'
+    },
+    'tag': {
+      viewBox: '0 0 448 512',
+      path: 'M0 80V229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7H48C21.5 32 0 53.5 0 80zm112 96c-17.7 0-32-14.3-32-32s14.3-32 32-32s32 14.3 32 32s-14.3 32-32 32z'
     }
   };
 
@@ -48,12 +52,14 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'pen-to-square';
   } else if (action.includes('erase')) {
     iconKey = 'eraser';
+  } else if (action.includes('Tag') || action.includes('tag')) {
+    iconKey = 'tag';
+  } else if (action.includes('Thread')) {
+    iconKey = 'layer-group';
   } else if (action.includes('seeDetails') || action.includes('Details')) {
     iconKey = 'circle-info';
   } else if (action.includes('Resource')) {
     iconKey = 'newspaper';
-  } else if (action.includes('Thread')) {
-    iconKey = 'layer-group';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
   }
@@ -64,6 +70,7 @@ const renderIcon = (icon: any, action: string) => {
     if (src.includes('pen-to-square')) iconKey = 'pen-to-square';
     else if (src.includes('eraser')) iconKey = 'eraser';
     else if (src.includes('circle-info')) iconKey = 'circle-info';
+    else if (src.includes('tag')) iconKey = 'tag';
     else if (src.includes('newspaper')) iconKey = 'newspaper';
     else if (src.includes('layer-group')) iconKey = 'layer-group';
     else if (src.includes('note-sticky')) iconKey = 'note-sticky';
@@ -173,14 +180,23 @@ export default function Menu({
   const executeAction = async (action: string) => {
     if (action.includes('erase')) {
       await performErase();
-    } else if (action === 'seeDetails') {
-      // Handle See Details action for notes
+    } else if (action === 'openNoteDetailsThreads') {
+      // Handle Threads shortcut action for notes
       try {
         window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
-          detail: { contentId, contentType }
+          detail: { contentId, contentType, tab: 'threads' }
         }));
       } catch (error) {
-        console.error('Error opening note details panel:', error);
+        console.error('Error opening note details panel (threads):', error);
+      }
+    } else if (action === 'openNoteDetailsTags') {
+      // Handle Tags shortcut action for notes
+      try {
+        window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
+          detail: { contentId, contentType, tab: 'tags' }
+        }));
+      } catch (error) {
+        console.error('Error opening note details panel (tags):', error);
       }
     } else if (action === 'editThread') {
       // Handle Edit Thread action
