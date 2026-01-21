@@ -12,7 +12,7 @@ interface GetSupportPanelProps {
 
 export default function GetSupportPanel({ 
   onClose,
-  version = '0.10.0',
+  version = '1.21.0',
   helpCenterUrl = 'https://help.harvous.com',
   supportUrl = 'https://support.harvous.com',
   feedbackUrl = 'https://feedback.harvous.com',

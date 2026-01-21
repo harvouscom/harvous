@@ -96,7 +96,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   currentSpace,
   currentNote,
   contentType = "dashboard",
-  version = '0.10.0',
+  version = '1.21.0',
   publishableKey = null,
   founderLetterHtml = ''
 }) => {
