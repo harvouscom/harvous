@@ -54,6 +54,8 @@ interface MobileNavigationProps {
   currentThread?: Thread | null;
   initials?: string;
   userColor?: string;
+  /** Server-provided path (e.g. 'note_xxx') to ensure SSR/client match */
+  initialPath?: string;
 }
 
 const MobileNavigation: React.FC<MobileNavigationProps> = ({
@@ -63,20 +65,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   currentSpace = null,
   currentThread = null,
   initials = 'U',
-  userColor = 'paper'
+  userColor = 'paper',
+  initialPath = ''
 }) => {
   const selectedSpaceId = useSelectedSpaceId();
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
-  const [currentItemId, setCurrentItemId] = useState(() => {
-    // Initialize from window.location if available (client-side only)
-    if (typeof window !== 'undefined') {
-      return window.location.pathname.substring(1);
-    }
-    return '';
-  });
+  // Use initialPath from server to ensure SSR and client initial render match
+  const [currentItemId, setCurrentItemId] = useState(initialPath);
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
   const [updatedCurrentThread, setUpdatedCurrentThread] = useState(currentThread);
   const [activeThreadFromDom, setActiveThreadFromDom] = useState<Thread | null>(null);
@@ -661,34 +659,23 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
         <div className="space-switcher-anchor space-switcher-anchor--mobile">
-          {/* Main button - navigates to thread when on note page, opens sheet otherwise */}
-          {isNote && currentThread ? (
-            <a 
-              href={`/${currentThread.id}`}
-              className="nav-link"
-              style={{ display: 'block', width: '100%' }}
-            >
-              <SpaceButton 
-                as="div"
-                text={currentThread.title}
-                count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread.noteCount}
-                state="DropdownTrigger"
-                rightAccessory="none"
-                backgroundGradient={currentThread.backgroundGradient || getThreadGradientCSS('paper')}
-                hideDropdownIcon={true}
-              />
-            </a>
-          ) : (
-            <SpaceButton 
+          {/* Main button - always wrapped in <a> to avoid hydration mismatch, conditionally navigable */}
+          <a
+            href={isNote && currentThread ? `/${currentThread.id}` : undefined}
+            className="nav-link"
+            style={{ display: 'block', width: '100%' }}
+            onClick={isNote && currentThread ? undefined : (e) => { e.preventDefault(); openSheet(); }}
+          >
+            <SpaceButton
+              as="div"
               text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
               count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
               state="DropdownTrigger"
               rightAccessory="none"
               backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
-              onClick={openSheet}
               hideDropdownIcon={true}
             />
-          )}
+          </a>
           {/* Toggle button - always opens bottom sheet */}
           <button
             type="button"

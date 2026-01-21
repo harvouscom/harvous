@@ -442,20 +442,39 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
-      // First priority: try to get parent thread from note element (most reliable)
-      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-
-      if (noteElement && noteElement.dataset.parentThreadId) {
-        return noteElement.dataset.parentThreadId;
+      // Priority 0: Check if this note was recently created - use sessionStorage thread ID
+      // This handles the race condition where DOM data attributes haven't updated yet
+      try {
+        const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
+        if (recentNotesStr) {
+          const recentNotes = JSON.parse(recentNotesStr);
+          const fiveSecondsAgo = Date.now() - 5000;
+          // Find if current note was recently created
+          const recentNote = recentNotes.find((n: any) =>
+            n.noteId === currentItemId && n.timestamp > fiveSecondsAgo
+          );
+          if (recentNote && recentNote.threadId) {
+            return recentNote.threadId;
+          }
+        }
+      } catch {
+        // Ignore sessionStorage errors, fall through to DOM-based detection
       }
 
-      // Second priority: try to get from navigation element (set by server-side)
+      // Priority 1: try to get from navigation element (set by Layout - more reliable for unorganized notes)
       const navigationElement =
         (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
         (document.querySelector('[slot="navigation"]') as HTMLElement | null);
 
       if (navigationElement && navigationElement.dataset.parentThreadId) {
         return navigationElement.dataset.parentThreadId;
+      }
+
+      // Priority 2: try to get parent thread from note element (fallback)
+      const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+
+      if (noteElement && noteElement.dataset.parentThreadId) {
+        return noteElement.dataset.parentThreadId;
       }
 
       // Final fallback: assume unorganized thread

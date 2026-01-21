@@ -9,20 +9,22 @@ export interface Props {
   currentThread?: any;
   initials?: string;
   userColor?: string;
+  initialPath?: string;
 }
 
-const { 
-  spaces = [], 
-  threads = [], 
+const {
+  spaces = [],
+  threads = [],
   inboxCount = 0,
   currentSpace,
   currentThread,
   initials = 'U',
-  userColor = 'paper'
+  userColor = 'paper',
+  initialPath = ''
 } = Astro.props;
 ---
 
-<MobileNavigationWrapper 
+<MobileNavigationWrapper
   client:load
   spaces={spaces}
   threads={threads}
@@ -31,6 +33,7 @@ const {
   currentThread={currentThread}
   initials={initials}
   userColor={userColor}
+  initialPath={initialPath}
 />
 
 

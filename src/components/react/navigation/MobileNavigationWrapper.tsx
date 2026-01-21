@@ -25,6 +25,7 @@ interface MobileNavigationWrapperProps {
   currentThread?: Thread | null;
   initials?: string;
   userColor?: string;
+  initialPath?: string;
 }
 
 const MobileNavigationWrapper: React.FC<MobileNavigationWrapperProps> = (props) => {
