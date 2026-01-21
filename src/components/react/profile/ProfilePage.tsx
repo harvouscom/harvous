@@ -11,6 +11,7 @@ import MySpacesPanel from '@/components/react/MySpacesPanel';
 import MyAchievementsPanel from '@/components/react/MyAchievementsPanel';
 import GetSupportPanel from '@/components/react/GetSupportPanel';
 import ManageBillingPanel from '@/components/react/ManageBillingPanel';
+import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -38,10 +39,11 @@ export interface ProfilePageProps {
     churchCity: string | null;
     churchState: string | null;
   };
+  founderLetterHtml?: string;
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'aboutHarvous' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -54,6 +56,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   spaces = [],
   churchData,
   publishableKey = null,
+  founderLetterHtml = '',
 }) => {
   const [activePanel, setActivePanel] = useState<PanelName>(null);
   const [panelOpenTime, setPanelOpenTime] = useState<number>(0);
@@ -345,6 +348,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <GetSupportPanel version={version} />;
       case 'manageBilling':
         return <ManageBillingPanel publishableKey={publishableKey} />;
+      case 'aboutHarvous':
+        return <AboutHarvousPanel letterHtml={founderLetterHtml} />;
       default:
         return (
             <div id="default-panel" className="flex flex-col items-left h-full justify-end">

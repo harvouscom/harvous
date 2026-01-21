@@ -724,6 +724,99 @@ packages/
 - **✅ Technical Debt Reduced**: 85% code reduction in complex components
 - **✅ Development Velocity**: Established patterns for rapid conversion
 
+## Panel Layout Patterns
+
+### Full-Height Panels (form-layout pattern)
+
+When creating React panels that need to fill the available height in the layout column (and properly constrain their content with scrolling), use the `form-layout` CSS pattern. This ensures the panel respects the parent container's height rather than overflowing.
+
+**When to use this pattern:**
+- Panels displayed in the desktop "additional column" that should fill the column height
+- Panels with scrollable content areas
+- Panels used in both desktop and mobile bottom sheet contexts
+
+**Structure:**
+
+```tsx
+return (
+  <div className="panel-wrapper panel-wrapper--bottom-sheet w-full">
+    {/* Layout wrapper for proper height handling */}
+    <div className="form-layout">
+      {/* Content area that expands to fill available space */}
+      <div className="form-layout--expand">
+        {/* Panel container */}
+        <div className="panel panel--bottom-sheet">
+          {/* Header section */}
+          <div className="panel__header">
+            <div className="panel__title">
+              <p>Panel Title</p>
+            </div>
+          </div>
+          
+          {/* Content area - scrollable */}
+          <div className="panel__body panel__body--bottom-sheet">
+            <div className="panel__content panel__content--bottom-sheet">
+              {/* Your content here */}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Bottom buttons - OUTSIDE form-layout--expand so they stay fixed */}
+    <div className="panel__footer--buttons">
+      <SquareButton variant="Back" onClick={handleClose} />
+    </div>
+  </div>
+);
+```
+
+**Key CSS classes:**
+- `panel-wrapper panel-wrapper--bottom-sheet w-full` - Outer wrapper with proper flex layout
+- `form-layout` - Creates a flex column that fills available height
+- `form-layout--expand` - Child that expands to fill remaining space (where scrollable content lives)
+- `panel panel--bottom-sheet` - Panel container with proper spacing
+- `panel__body--bottom-sheet` and `panel__content--bottom-sheet` - Enable proper flex behavior for content
+
+**Examples:**
+- `NewThreadPanel.tsx` - Uses this pattern with a form wrapper
+- `AboutHarvousPanel.tsx` - Uses this pattern without a form
+
+**Common mistake:** Not using `form-layout` wrapper causes the panel content to overflow the layout column instead of scrolling within it.
+
+### Bottom Spacing in Scrollable Flex Containers
+
+When you need consistent bottom spacing (e.g., 12px) in a scrollable flex container, CSS-only approaches like `padding-bottom` or `::after` pseudo-elements often fail due to how flexbox and overflow interact.
+
+**The Problem:**
+- `padding-bottom` on a scrollable container gets included in the scroll area but may not be visible
+- `::after` pseudo-elements may not participate correctly in flex gap calculations
+- Margins on last-child elements can be clipped by overflow
+
+**The Solution:**
+Add the bottom padding directly to the **content wrapper** inside the scrollable container, not the scrollable container itself.
+
+**Example:**
+```astro
+<!-- Instead of relying on CSS on the scrollable parent -->
+<div class="scrollable-container">
+  <!-- Add bottom padding to the content wrapper -->
+  <div class="mt-auto pt-3 pb-3 flex flex-col gap-3">
+    <!-- Content items -->
+    <Button>Item 1</Button>
+    <Button>Item 2</Button>
+  </div>
+</div>
+```
+
+**Why this works:**
+- The content wrapper is a flex child that participates in the layout
+- Its `pb-3` (padding-bottom: 12px) is part of its own box model
+- The scrollable parent will include this padding in the scrollable area
+- When scrolled to bottom, the 12px is always visible
+
+**Real example:** `ProfileContent.astro` uses `pb-3` on the bottom section wrapper to ensure 12px spacing below "About Harvous".
+
 ## Next Steps
 
 1. **Convert NoteDetailsPanel** - Essential for viewing existing content

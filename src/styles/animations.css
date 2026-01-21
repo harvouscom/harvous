@@ -367,3 +367,27 @@
   background: white;
   /* Removed clip-path animation - was clipping rounded corners and shadows */
 }
+
+/* Letter Slide Animation - paper being gently placed on desk */
+@keyframes letterSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotate(-0.73deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(-0.73deg);
+  }
+}
+
+/* Letter Slide Animation - Mobile variant (now same rotation as desktop) */
+@keyframes letterSlideInMobile {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px) rotate(-0.73deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(-0.73deg);
+  }
+}

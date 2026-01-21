@@ -21,6 +21,7 @@ import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
 import ManageBillingPanel from './ManageBillingPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
+import AboutHarvousPanel from './AboutHarvousPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -40,9 +41,10 @@ export interface BottomSheetProps {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   version?: string;
   publishableKey?: string | null;
+  founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview' | 'aboutHarvous';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -81,6 +83,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'myAchievements': 'My Achievements',
     'manageBilling': 'Manage Billing',
     'inboxPreview': 'Inbox Preview',
+    'aboutHarvous': 'Letter from the Founder',
   };
   return titleMap[drawerType] || 'Panel';
 };
@@ -94,7 +97,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   currentNote,
   contentType = "dashboard",
   version = '0.10.0',
-  publishableKey = null
+  publishableKey = null,
+  founderLetterHtml = ''
 }) => {
   const [drawerType, setDrawerType] = useState<DrawerType>('note');
   const [isVisible, setIsVisible] = useState(false);
@@ -285,6 +289,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
       else if (panelName === 'getSupport') openBottomSheet('getSupport');
       else if (panelName === 'manageBilling') openBottomSheet('manageBilling');
+      else if (panelName === 'aboutHarvous') openBottomSheet('aboutHarvous');
     };
     
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
@@ -572,6 +577,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
                 version={version}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+          
+          {/* About Harvous Panel */}
+          {drawerType === 'aboutHarvous' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <AboutHarvousPanel 
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                letterHtml={founderLetterHtml}
                 inBottomSheet={true}
               />
             </div>

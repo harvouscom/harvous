@@ -13,6 +13,10 @@ import { db, UserMetadata, eq } from 'astro:db';
 import ProfilePageReact from "@/components/ProfilePageReact.astro";
 import ProfileContent from "@/components/profile/ProfileContent.astro";
 import ProfileCardStackHeader from "@/components/react/ProfileCardStackHeader.tsx";
+import { markdownToHtml } from '@/utils/markdown-to-html';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Get user data from Clerk authentication
 const auth = Astro.locals.auth();
@@ -111,6 +115,19 @@ const contentId = "profile";
 
 // Extract publishable key in frontmatter (where import.meta works)
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
+
+// Load and parse the founder letter markdown
+let founderLetterHtml = '';
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const letterPath = join(__dirname, '..', 'data', 'about', 'founder-letter.md');
+  const letterMarkdown = readFileSync(letterPath, 'utf-8');
+  founderLetterHtml = markdownToHtml(letterMarkdown);
+} catch (error) {
+  console.error('Error loading founder letter:', error);
+  founderLetterHtml = '<p>Thank you for being part of Harvous.</p>';
+}
 ---
 
 <Layout 
@@ -124,6 +141,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     displayName: userData.displayName,
     userColor: userData.userColor,
   }}
+  founderLetterHtml={founderLetterHtml}
 >
   <!-- Navigation Column -->
   <NavigationColumnReact 
@@ -189,6 +207,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     spaces={spaces}
     churchData={churchData}
     publishableKey={publishableKey}
+    founderLetterHtml={founderLetterHtml}
   />
 
   <!-- Mobile Navigation -->

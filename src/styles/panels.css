@@ -823,3 +823,160 @@
   }
 }
 
+/* ==========================================================================
+   About Harvous - Founder Letter (Paper Stack)
+   ========================================================================== */
+
+/* Make the background around the paper feel like a desk with fade to transparent */
+.about-harvous-panel__content {
+  background: linear-gradient(180deg, #f8f7f4 0%, #f3f2ec 70%, transparent 100%);
+  padding: 0;
+  box-shadow: none;
+  min-height: 0;
+  flex: 1;
+  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  
+  /* Remove the default ::after bottom padding */
+  &::after {
+    display: none;
+  }
+}
+
+.about-harvous-paper-stack {
+  position: relative;
+  width: 100%;
+  margin-top: 0;
+  overflow-y: auto;
+  overflow-x: clip;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+}
+
+.about-harvous-paper-stack__paper {
+  position: relative;
+  z-index: 2;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 118, 111, 0.1);
+  box-shadow: 
+    0px 1px 2px rgba(120, 118, 111, 0.06),
+    0px 4px 12px rgba(120, 118, 111, 0.08);
+  padding: 40px 36px 32px;
+  transform: rotate(-0.73deg);
+  width: 90%;
+  max-width: 540px;
+  margin: 12px auto;
+}
+
+/* Initial state - hidden until animation triggers */
+.about-harvous-paper-stack__paper {
+  opacity: 0;
+}
+
+/* Animation class - animates in after bottom sheet completes */
+.about-harvous-paper--drop-in {
+  animation: letterSlideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
+}
+
+.about-harvous-letter {
+  max-width: 46ch;
+  margin: 0 auto;
+  color: var(--color-deep-grey);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.about-harvous-letter * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.about-harvous-letter a,
+.about-harvous-letter a:visited {
+  color: var(--color-bold-blue);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.about-harvous-letter h1,
+.about-harvous-letter h2 {
+  font-family: var(--font-roundo);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0 0 24px;
+}
+
+.about-harvous-letter h1 {
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.about-harvous-letter p {
+  margin: 0 0 16px;
+  font-weight: 400;
+}
+
+.about-harvous-letter p:last-child {
+  margin-bottom: 0;
+}
+
+.about-harvous-signature {
+  max-width: 46ch;
+  margin: 22px auto 0;
+}
+
+.about-harvous-signature__img {
+  display: block;
+  width: 140px;
+  max-width: 55%;
+  height: auto;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .about-harvous-paper-stack__paper {
+    opacity: 1; /* Show immediately without animation */
+  }
+  
+  .about-harvous-paper--drop-in {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 1159px) {
+  .about-harvous-panel__content {
+    padding: 0;
+  }
+
+  .about-harvous-paper-stack {
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .about-harvous-paper-stack__paper {
+    padding: 28px 32px 22px;
+    transform: rotate(-0.73deg);
+  }
+
+  .about-harvous-paper--drop-in {
+    animation: letterSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+  }
+
+  .about-harvous-letter {
+    font-size: 16px;
+  }
+
+  .about-harvous-letter h1 {
+    font-size: 24px;
+  }
+}
+

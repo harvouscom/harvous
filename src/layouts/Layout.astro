@@ -36,6 +36,7 @@ interface Props {
     displayName?: string;
     userColor?: string;
   };
+  founderLetterHtml?: string;
 }
 
 const { 
@@ -47,7 +48,8 @@ const {
   currentSpace, 
   currentNote,
   userId,
-  userData
+  userData,
+  founderLetterHtml = ''
 }: Props = Astro.props;
 
 // Determine if More button should be shown (pass contentId to hide for unorganized thread)
@@ -455,6 +457,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           currentNote={currentNote}
           contentType={contentType}
           publishableKey={publishableKey}
+          founderLetterHtml={founderLetterHtml}
           client:only="react"
         />
       </div>

@@ -793,12 +793,12 @@
   overflow-x: clip;
   overflow-y: auto;
   padding: 12px;
-  padding-bottom: 12px;
   position: relative;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   flex-shrink: 0;
   width: 100%;
+  
 }
 
 .card-stack__inner-content {

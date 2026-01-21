@@ -51,6 +51,7 @@ export default function MobileAdditional({
         const panelMap: Record<string, string> = {
           'editNameColor': 'editNameColor',
           'getSupport': 'getSupport',
+          'aboutHarvous': 'aboutHarvous',
           'emailPassword': 'emailPassword',
           'myChurch': 'myChurch',
           'mySpaces': 'mySpaces',
