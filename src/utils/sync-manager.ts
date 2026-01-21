@@ -1063,19 +1063,8 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
             localStorage.setItem('newNoteThread', newId);
           }
           
-          // Update pending thread in sessionStorage
-          const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
-          if (pendingThreadStr) {
-            try {
-              const pendingThread = JSON.parse(pendingThreadStr);
-              if (pendingThread.id === oldId) {
-                pendingThread.id = newId;
-                sessionStorage.setItem('harvous-pending-thread', JSON.stringify(pendingThread));
-              }
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }
+          // REMOVED: harvous-pending-thread is no longer used
+          // Navigation history is now managed solely by NavigationContext.handleNoteCreated
         } catch (e) {
           console.warn('[updateEntityId] Failed to update thread context references:', e);
         }

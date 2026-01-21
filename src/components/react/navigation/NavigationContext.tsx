@@ -206,24 +206,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         parsed = (window as any).navigationHistoryBackup;
       }
 
-      // Check for pending thread in sessionStorage (set by NewNotePanel before navigation)
-      // This ensures the thread appears immediately on page load even if storage wasn't updated in time.
+      // REMOVED: sessionStorage fallback mechanism
+      // The sessionStorage 'harvous-pending-thread' fallback has been removed because:
+      // 1. NavigationContext.handleNoteCreated now handles all thread additions after note creation
+      // 2. The fallback was causing duplication during page transitions
+      // 3. No code writes to 'harvous-pending-thread' anymore, so this is dead code
+      // Clean up any stale sessionStorage data
       try {
-        const pendingThreadStr = sessionStorage.getItem('harvous-pending-thread');
-        if (pendingThreadStr) {
-          const pendingThread = JSON.parse(pendingThreadStr);
-          const exists = parsed.some((item: NavigationItem) => item.id === pendingThread.id);
-          if (!exists) {
-            parsed.push(pendingThread);
-            safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
-              cleanupOldest: true,
-              fallbackToSession: true,
-            });
-          }
-          sessionStorage.removeItem('harvous-pending-thread');
-        }
+        sessionStorage.removeItem('harvous-pending-thread');
       } catch (error) {
-        console.error('NavigationContext: Error processing pending thread:', error);
+        // Silently fail if sessionStorage is not available
       }
       
       // Normalize opened-in scopes (multi-scope migration + back-compat).

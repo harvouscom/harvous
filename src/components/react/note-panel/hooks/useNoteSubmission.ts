@@ -150,107 +150,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     }
   }, []);
 
-  // Helper to update navigation history in localStorage
-  const updateNavigationHistory = useCallback((threadData: Thread, isUnorganized: boolean) => {
-    try {
-      // CRITICAL: Validate threadData before accessing its properties
-      if (!isUnorganized && (!threadData || !threadData.id)) {
-        console.error('[updateNavigationHistory] Invalid threadData:', {
-          isUnorganized,
-          threadDataExists: !!threadData,
-          threadDataId: threadData?.id,
-          threadDataTitle: threadData?.title
-        });
-        return;
-      }
-      
-      const stored = localStorage.getItem('harvous-navigation-history-v2');
-      let history = stored ? JSON.parse(stored) : [];
-      
-      const threadId = isUnorganized ? 'thread_unorganized' : threadData.id;
-      const threadTitle = isUnorganized ? 'Unorganized' : threadData.title;
-      
-      // Validate threadId is not undefined
-      if (!threadId) {
-        console.error('[updateNavigationHistory] threadId is undefined:', {
-          isUnorganized,
-          threadDataId: threadData?.id
-        });
-        return;
-      }
-      
-      debug('[updateNavigationHistory] Storing thread in navigation history', {
-        threadId: threadId,
-        threadTitle: threadTitle,
-        isUnorganized: isUnorganized
-      });
-      
-      const existingIndex = history.findIndex((item: any) => item.id === threadId);
-      
-      let threadItem: any;
-      if (existingIndex !== -1) {
-        // Thread already exists in history - update it
-        const existingItem = history[existingIndex];
-        
-        threadItem = {
-          ...existingItem,
-          id: threadId, // CRITICAL: Ensure we use the correct threadId
-          title: threadTitle,
-          count: isUnorganized ? (existingItem.count || 0) + 1 : (threadData.noteCount || 0) + 1,
-          backgroundGradient: isUnorganized 
-            ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-            : threadData.backgroundGradient,
-          lastAccessed: Date.now()
-        };
-        history[existingIndex] = threadItem;
-      } else {
-        // Thread doesn't exist - add it as new
-        threadItem = {
-          id: threadId,
-          title: threadTitle,
-          count: isUnorganized ? 1 : (threadData.noteCount || 0) + 1,
-          backgroundGradient: isUnorganized 
-            ? 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-            : threadData.backgroundGradient,
-          firstAccessed: Date.now(),
-          lastAccessed: Date.now()
-        };
-        history.push(threadItem);
-      }
-      
-      // Sort by firstAccessed to maintain chronological order
-      history.sort((a: any, b: any) => a.firstAccessed - b.firstAccessed);
-      
-      // Limit to 10 items
-      if (history.length > 10) {
-        history = history.slice(0, 10);
-      }
-      
-      localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
-      sessionStorage.setItem('harvous-pending-thread', JSON.stringify(threadItem));
-      
-      // Update React state via callback
-      if (addToNavigationHistory) {
-        addToNavigationHistory({
-          id: threadId,
-          title: threadTitle,
-          count: threadItem.count,
-          backgroundGradient: threadItem.backgroundGradient
-        });
-      }
-    } catch {
-      // Fallback to just calling addToNavigationHistory
-      if (addToNavigationHistory) {
-        addToNavigationHistory({
-          id: threadData.id,
-          title: threadData.title,
-          count: (threadData.noteCount || 0) + 1,
-          backgroundGradient: threadData.backgroundGradient
-        });
-      }
-    }
-  }, [addToNavigationHistory]);
-
   // Handle form submission
   const handleSubmit = useCallback(async (e: React.FormEvent, overrideThreadId?: string) => {
     e.preventDefault();
@@ -751,79 +650,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // CRITICAL: Navigation history updates are now handled by NavigationContext.handleNoteCreated
           // The noteCreated event will be dispatched below, and NavigationContext will handle adding
           // the thread to navigation history. This prevents duplication and race conditions.
-          // IMPORTANT: Use finalThreadId (overrideThreadId if provided) for all checks
-          if (finalThreadId && finalThreadId !== 'thread_unorganized') {
-            // CRITICAL: Validate finalThreadId is a valid string before creating minimal entry
-            if (!finalThreadId || typeof finalThreadId !== 'string' || finalThreadId.trim() === '') {
-              console.error('[useNoteSubmission] Cannot create minimal entry - finalThreadId is invalid:', {
-                finalThreadId: finalThreadId,
-                type: typeof finalThreadId
-              });
-              // Skip creating entry - let noteCreated handler handle it
-              return;
-            }
-            
-            // CRITICAL: If overrideThreadId was provided, we MUST use it for navigation history
-            // Even if threadData is not found, we should create a minimal entry with the overrideThreadId
-            // This ensures the newly created thread is added, not the last selected thread
-            if (overrideThreadId && overrideThreadId !== finalThreadId) {
-              console.error('[useNoteSubmission] CRITICAL: overrideThreadId mismatch!', {
-                overrideThreadId: overrideThreadId,
-                finalThreadId: finalThreadId,
-                reason: 'This should never happen - finalThreadId should equal overrideThreadId when overrideThreadId is provided'
-              });
-            }
-            
-            // Thread data not found, but we have a valid threadId (from overrideThreadId or getSelectedThread)
-            // Create a minimal entry with just the threadId to ensure navigation works
-            // The noteCreated event handler will update it with full data asynchronously
-            console.warn('[useNoteSubmission] Thread data not found, creating minimal entry with threadId only:', {
-              finalThreadId: finalThreadId,
-              overrideThreadId: overrideThreadId,
-              threadDataExists: !!threadData,
-              threadDataId: threadData?.id,
-              getSelectedThreadId: getSelectedThread().id
-            });
-            
-            // CRITICAL: Use finalThreadId (which should be overrideThreadId if provided)
-            // This ensures we add the correct thread to navigation history
-            const minimalThreadData: Thread = {
-              id: finalThreadId, // Use finalThreadId (overrideThreadId if provided, otherwise getSelectedThread().id)
-              title: finalThreadId, // Temporary title, will be updated by noteCreated handler
-              noteCount: 1, // At least 1 (the new note)
-              backgroundGradient: 'var(--color-paper)', // Default, will be updated
-              color: null
-            };
-            
-            // CRITICAL: Log the minimal entry before storing it
-            debug('[useNoteSubmission] Creating minimal navigation entry', {
-              minimalThreadData: minimalThreadData,
-              finalThreadId: finalThreadId,
-              finalThreadIdType: typeof finalThreadId,
-              finalThreadIdValid: finalThreadId && typeof finalThreadId === 'string' && finalThreadId.trim() !== '',
-              overrideThreadId: overrideThreadId,
-              getSelectedThreadId: getSelectedThread().id
-            });
-            
-            // Add to navigation history synchronously with minimal data
-            // This ensures the thread appears in navigation immediately
-            updateNavigationHistory(minimalThreadData, false);
-            
-            // CRITICAL: Verify the entry was stored correctly by reading from localStorage
-            try {
-              const stored = localStorage.getItem('harvous-navigation-history-v2');
-              const history = stored ? JSON.parse(stored) : [];
-              const storedEntry = history.find((item: any) => item.id === finalThreadId);
-              debug('[useNoteSubmission] Verified stored entry', {
-                finalThreadId: finalThreadId,
-                storedEntryId: storedEntry?.id
-              });
-            } catch (error) {
-              console.error('[useNoteSubmission] Error verifying stored entry:', error);
-            }
-            
-            debug('[useNoteSubmission] Created minimal navigation entry', { threadId: finalThreadId });
-          }
         }
         
         // PHASE 1: Write sessionStorage BEFORE dispatching event to avoid race conditions
@@ -1211,7 +1037,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     isSubmitting, content, title, scriptureReference, resourceUrl, noteType,
     scriptureVersion, addToSpace, currentSpace, getSelectedThread, threadOptions,
     addToNavigationHistory, sourceNoteId, resetForm, setSelectedThread, clearLocalStorage,
-    loadNextNoteId, onClose, onSuccess, showToast, updateNavigationHistory,
+    loadNextNoteId, onClose, onSuccess, showToast,
     setNoteType, setScriptureReference, setScriptureVersion, setContent
   ]);
 
