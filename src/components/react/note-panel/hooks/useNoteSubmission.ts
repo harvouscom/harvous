@@ -748,27 +748,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             }
           }
           
-          // CRITICAL: Validate threadData exists and has a valid id before calling updateNavigationHistory
-          // If threadData is undefined or missing id, create a minimal entry with just the threadId
-          // The noteCreated event handler in NavigationContext will update it with full data later
+          // CRITICAL: Navigation history updates are now handled by NavigationContext.handleNoteCreated
+          // The noteCreated event will be dispatched below, and NavigationContext will handle adding
+          // the thread to navigation history. This prevents duplication and race conditions.
           // IMPORTANT: Use finalThreadId (overrideThreadId if provided) for all checks
-          if (finalThreadId === 'thread_unorganized') {
-            // For unorganized, threadData might be undefined - use getSelectedThread() as fallback
-            const unorganizedThreadData = threadData || getSelectedThread();
-            if (unorganizedThreadData && unorganizedThreadData.id) {
-              debug('[useNoteSubmission] Adding unorganized thread to navigation history', { threadId: unorganizedThreadData.id });
-              updateNavigationHistory(unorganizedThreadData, true);
-            } else {
-              console.warn('[useNoteSubmission] Skipping navigation history update - unorganized thread data invalid');
-            }
-          } else if (threadData && threadData.id && threadData.id === finalThreadId) {
-            // Validate that threadData has a valid id that matches finalThreadId
-            debug('[useNoteSubmission] Adding thread to navigation history', {
-              threadId: threadData.id,
-              finalThreadId: finalThreadId
-            });
-            updateNavigationHistory(threadData, false);
-          } else if (finalThreadId && finalThreadId !== 'thread_unorganized') {
+          if (finalThreadId && finalThreadId !== 'thread_unorganized') {
             // CRITICAL: Validate finalThreadId is a valid string before creating minimal entry
             if (!finalThreadId || typeof finalThreadId !== 'string' || finalThreadId.trim() === '') {
               console.error('[useNoteSubmission] Cannot create minimal entry - finalThreadId is invalid:', {
