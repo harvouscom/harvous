@@ -34,9 +34,16 @@
     }
 
     // Medium haptic: Elements with medium shadows (-4px)
-    // ButtonSmall, card-feat, space switcher trigger (has shadow)
-    // SpaceButton in space-switcher-anchor context has shadow
-    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor .space-button, .space-switcher-anchor .space-btn, .space-switcher-anchor__toggle')) {
+    // ButtonSmall, card-feat, space switcher toggle button
+    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor__toggle')) {
+      vibrate(20);
+      return;
+    }
+
+    // SpaceButton in space-switcher-anchor context has shadow (medium haptic)
+    // Check if target is a space-button/space-btn AND inside space-switcher-anchor
+    var spaceButton = target.closest('.space-button, .space-btn');
+    if (spaceButton && spaceButton.closest('.space-switcher-anchor')) {
       vibrate(20);
       return;
     }
@@ -61,6 +68,7 @@
     }
     
     // Navigation elements (desktop and mobile)
+    // Note: This runs AFTER space-switcher-anchor space-button check to avoid catching it
     if (target.closest('.nav-link, .nav-link--shrink, .nav-item-container, .mobile-nav__search-btn, .mobile-nav__space-panel-item')) {
       vibrate(10);
       return;
