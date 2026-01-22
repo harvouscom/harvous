@@ -41,13 +41,19 @@
     }
 
     // Light haptic: Elements with no/minimal shadows
-    // CardNote, navigation items, space buttons, menu items, links
-    if (target.closest('.card-note-container, .card-note, button.btn-action, button.space-button, button.btn-animate-squish, .nav-link, .nav-item, .mobile-nav-item, .menu-item, .space-switcher-dropdown__item, .tab-nav__button')) {
+    // CardNote, navigation items, space buttons, menu items
+    if (target.closest('.card-note-container, .card-note, button.btn-action, button.space-button, button.btn-animate-squish, .menu-item, .space-switcher-dropdown__item, .tab-nav__button')) {
       vibrate(10);
       return;
     }
     
-    // Internal links
+    // Navigation elements (desktop and mobile)
+    if (target.closest('.nav-link, .nav-link--shrink, .nav-item-container, .mobile-nav__search-btn, .mobile-nav__space-panel-item')) {
+      vibrate(10);
+      return;
+    }
+    
+    // Internal links (fallback for any navigation)
     if (target.closest('a[href^="/"]') && !target.closest('a[href^="//"]')) {
       vibrate(10);
       return;
