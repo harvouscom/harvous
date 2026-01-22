@@ -8,14 +8,23 @@
  * - Strong (30ms): Deep buttons with -8px inset shadow + outer shadow
  */
 
+// Detect if haptics are available (mobile device with Vibration API)
+let hapticsAvailable = typeof navigator !== 'undefined' && 
+                       !!navigator.vibrate &&
+                       (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+
 export const haptics = {
   /**
    * Light haptic for shallow buttons (-3px shadow)
    * Used for: action buttons, space buttons, navigation items
    */
   light: () => {
-    if (navigator.vibrate) {
+    if (!hapticsAvailable) return;
+    try {
       navigator.vibrate(10);
+    } catch (e) {
+      // Silently fail - disable haptics on error
+      hapticsAvailable = false;
     }
   },
   
@@ -24,8 +33,12 @@ export const haptics = {
    * Used for: ButtonSmall components
    */
   medium: () => {
-    if (navigator.vibrate) {
+    if (!hapticsAvailable) return;
+    try {
       navigator.vibrate(20);
+    } catch (e) {
+      // Silently fail - disable haptics on error
+      hapticsAvailable = false;
     }
   },
   
@@ -34,8 +47,12 @@ export const haptics = {
    * Used for: Large CTA buttons, primary action buttons with outer shadow
    */
   strong: () => {
-    if (navigator.vibrate) {
+    if (!hapticsAvailable) return;
+    try {
       navigator.vibrate(30);
+    } catch (e) {
+      // Silently fail - disable haptics on error
+      hapticsAvailable = false;
     }
   },
   
@@ -44,8 +61,12 @@ export const haptics = {
    * Used for: successful form submissions, note creation
    */
   success: () => {
-    if (navigator.vibrate) {
+    if (!hapticsAvailable) return;
+    try {
       navigator.vibrate([10, 20, 30]);
+    } catch (e) {
+      // Silently fail - disable haptics on error
+      hapticsAvailable = false;
     }
   },
   
@@ -54,8 +75,12 @@ export const haptics = {
    * Used for: delete actions, error states
    */
   error: () => {
-    if (navigator.vibrate) {
+    if (!hapticsAvailable) return;
+    try {
       navigator.vibrate([50, 50, 50]);
+    } catch (e) {
+      // Silently fail - disable haptics on error
+      hapticsAvailable = false;
     }
   }
 };

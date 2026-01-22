@@ -11,21 +11,74 @@
 (function() {
   'use strict';
   
-  // Haptic utility functions
+  // Detect if haptics are actually supported and usable
+  function isHapticsSupported() {
+    // Desktop browsers - skip haptics entirely to avoid console errors
+    const isDesktop = !('ontouchstart' in window) && 
+                      !navigator.maxTouchPoints;
+    if (isDesktop) return false;
+    
+    // Check Vibration API availability
+    if (!navigator.vibrate) return false;
+    
+    // Mobile device with Vibration API
+    return true;
+  }
+  
+  // State tracking
+  let hapticsEnabled = isHapticsSupported();
+  let userActivated = false;
+  
+  // Warm up the Vibration API on first user interaction
+  function warmUpHaptics() {
+    if (userActivated || !hapticsEnabled) return;
+    
+    try {
+      // Trigger a silent 0ms vibration to activate the API
+      navigator.vibrate(0);
+      userActivated = true;
+    } catch (e) {
+      // Failed to warm up - disable haptics silently
+      hapticsEnabled = false;
+    }
+  }
+  
+  // Listen for first interaction to warm up haptics
+  if (hapticsEnabled) {
+    document.addEventListener('touchstart', warmUpHaptics, { once: true, passive: true });
+    document.addEventListener('click', warmUpHaptics, { once: true, passive: true });
+  }
+  
+  // Haptic utility functions with error handling
   const haptics = {
     light: () => {
-      if (navigator.vibrate) {
+      if (!hapticsEnabled) return;
+      try {
         navigator.vibrate(10);
+        userActivated = true; // Mark as successfully activated
+      } catch (e) {
+        // Silently fail - don't spam console
+        hapticsEnabled = false;
       }
     },
     medium: () => {
-      if (navigator.vibrate) {
+      if (!hapticsEnabled) return;
+      try {
         navigator.vibrate(20);
+        userActivated = true;
+      } catch (e) {
+        // Silently fail - don't spam console
+        hapticsEnabled = false;
       }
     },
     strong: () => {
-      if (navigator.vibrate) {
+      if (!hapticsEnabled) return;
+      try {
         navigator.vibrate(30);
+        userActivated = true;
+      } catch (e) {
+        // Silently fail - don't spam console
+        hapticsEnabled = false;
       }
     }
   };
