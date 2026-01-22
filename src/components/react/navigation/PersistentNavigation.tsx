@@ -184,15 +184,49 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             spaceId: (fromHistory as any).spaceId ?? null,
           }
         : fromDom;
-      if (activeThreadItem) {
+      
+      // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
+      // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
+      const isUnorganizedTitleWithWrongId = 
+        activeThreadItem && 
+        activeThreadItem.title === 'Unorganized' && 
+        activeThreadItem.id !== 'thread_unorganized';
+      
+      // Also check if "Unorganized" already exists by title (not just ID)
+      const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
+      
+      if (activeThreadItem && !isUnorganizedTitleWithWrongId && !unorganizedAlreadyExists) {
         persistentItems = [activeThreadItem, ...persistentItems];
       }
     }
 
     // Ensure the active parent thread is visible even if it doesn't match scoping yet.
     if (activeParentThread && !persistentItems.some((i) => i.id === activeParentThread.id)) {
-      persistentItems = [activeParentThread, ...persistentItems];
+      // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
+      // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
+      const isUnorganizedTitleWithWrongId = 
+        activeParentThread.title === 'Unorganized' && 
+        activeParentThread.id !== 'thread_unorganized';
+      
+      // Also check if "Unorganized" already exists by title (not just ID)
+      const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
+      
+      if (!isUnorganizedTitleWithWrongId && !unorganizedAlreadyExists) {
+        persistentItems = [activeParentThread, ...persistentItems];
+      }
     }
+
+    // CRITICAL: Final deduplication to prevent duplicate items from being rendered
+    // This handles race conditions where an item might be added from multiple sources
+    // (e.g., from navigationHistory and from DOM fallback logic)
+    const seen = new Set<string>();
+    persistentItems = persistentItems.filter((item) => {
+      if (seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
 
     return persistentItems;
   };

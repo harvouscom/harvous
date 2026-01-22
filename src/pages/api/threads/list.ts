@@ -32,8 +32,10 @@ export const GET: APIRoute = async ({ locals }) => {
     // Ensure "Unorganized" thread exists with actual count
     // Call ensureUnorganizedThread once regardless of whether it exists in threadOptions
     const unorganizedThreadData = await ensureUnorganizedThread(userId);
+    // CRITICAL: Only check by ID, not title - a thread with title "Unorganized" but different ID
+    // (like a renamed onboarding thread) should NOT be treated as THE unorganized thread
     const hasUnorganizedThread = threadOptions.some(thread => 
-      thread.title === "Unorganized" || thread.id === 'thread_unorganized'
+      thread.id === 'thread_unorganized'
     );
     
     if (!hasUnorganizedThread) {
@@ -48,8 +50,9 @@ export const GET: APIRoute = async ({ locals }) => {
       });
     } else {
       // Update existing unorganized thread with actual count
+      // CRITICAL: Only match by ID to avoid confusion with other threads titled "Unorganized"
       const unorganizedIndex = threadOptions.findIndex(thread => 
-        thread.title === "Unorganized" || thread.id === 'thread_unorganized'
+        thread.id === 'thread_unorganized'
       );
       if (unorganizedIndex !== -1) {
         threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;

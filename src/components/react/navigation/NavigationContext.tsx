@@ -408,8 +408,31 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     saveNavigationHistory(limitedHistory);
-    // CRITICAL: Always create new array reference to trigger React re-render
-    setNavigationHistory([...limitedHistory]);
+    // CRITICAL: Use functional update to ensure we always work with latest state
+    // This prevents race conditions where multiple addToNavigationHistory calls could
+    // cause duplicates due to stale React state
+    setNavigationHistory(prevHistory => {
+      // Merge the new history with current React state to prevent duplicates
+      const mergedIds = new Set(limitedHistory.map(item => item.id));
+      // Add any items from prevHistory that aren't in limitedHistory (shouldn't happen, but defensive)
+      const merged = [...limitedHistory];
+      for (const item of prevHistory) {
+        if (!mergedIds.has(item.id)) {
+          merged.push(item);
+        }
+      }
+      // Final deduplication (defensive)
+      const seen = new Set<string>();
+      const deduplicated = merged.filter(item => {
+        if (seen.has(item.id)) {
+          console.warn('[NavigationContext] addToNavigationHistory: Removing duplicate from state:', item.id);
+          return false;
+        }
+        seen.add(item.id);
+        return true;
+      });
+      return deduplicated;
+    });
 
     // CRITICAL: Dispatch custom event to notify PersistentNavigation to refresh
     // This is needed because React Context updates don't reliably propagate during View Transitions

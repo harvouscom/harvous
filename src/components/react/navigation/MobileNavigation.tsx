@@ -441,6 +441,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       return true;
     });
 
+    // CRITICAL: Final deduplication to prevent duplicate items from being rendered
+    // This handles race conditions where an item might be added from multiple sources
+    const seen = new Set<string>();
+    persistentItems = persistentItems.filter((item) => {
+      if (seen.has(item.id)) {
+        return false;
+      }
+      seen.add(item.id);
+      return true;
+    });
+
     return persistentItems;
   };
 

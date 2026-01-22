@@ -141,8 +141,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         const formattedThreads = formatThreads(localThreads);
         
         // Ensure 'Unorganized' thread exists
+        // CRITICAL: Only check by ID, not title - a thread with title "Unorganized" but different ID
+        // (like a renamed onboarding thread) should NOT be treated as THE unorganized thread
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
-          thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
+          thread.id === 'thread_unorganized'
         );
         
         if (!hasUnorganizedThread) {
@@ -169,8 +171,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         const formattedThreads = formatThreads(threads);
         
         // Ensure 'Unorganized' thread exists
+        // CRITICAL: Only check by ID, not title - a thread with title "Unorganized" but different ID
+        // (like a renamed onboarding thread) should NOT be treated as THE unorganized thread
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
-          thread.title === 'Unorganized' || thread.id === 'thread_unorganized'
+          thread.id === 'thread_unorganized'
         );
         
         if (!hasUnorganizedThread) {
@@ -368,7 +372,20 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   }, []);
 
   // Get selected thread object
+  // CRITICAL: When "Unorganized" is selected, always prioritize `thread_unorganized`
+  // This prevents confusion when there are multiple threads with title "Unorganized"
+  // (e.g., a renamed onboarding thread) - we should always use the virtual unorganized thread
   const getSelectedThread = useCallback((): Thread => {
+    // Special case: when selecting "Unorganized", always use thread_unorganized
+    if (selectedThread === 'Unorganized') {
+      const unorganizedThread = threadOptions.find(thread => thread.id === 'thread_unorganized');
+      if (unorganizedThread) {
+        return unorganizedThread;
+      }
+      // Fallback to DEFAULT_UNORGANIZED_THREAD if not in options
+      return DEFAULT_UNORGANIZED_THREAD;
+    }
+    // For other threads, find by title
     return threadOptions.find(thread => thread.title === selectedThread) || threadOptions[0] || DEFAULT_UNORGANIZED_THREAD;
   }, [threadOptions, selectedThread]);
 
