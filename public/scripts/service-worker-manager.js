@@ -20,12 +20,62 @@
       return 'unknown';
     }
 
+    // Extract version from cache name (e.g., 'harvous-cache-v1-27-2' -> '1.27.2')
+    function extractVersionFromCacheName(cacheName) {
+      const match = cacheName.match(/v(\d+)-(\d+)-(\d+)/);
+      if (match) {
+        return {
+          full: `${match[1]}.${match[2]}.${match[3]}`,
+          major: parseInt(match[1], 10),
+          minor: parseInt(match[2], 10),
+          patch: parseInt(match[3], 10)
+        };
+      }
+      return null;
+    }
+
+    // Check if this is a major version update
+    async function isMajorVersionUpdate() {
+      try {
+        const cacheNames = await caches.keys();
+        const harvousCaches = cacheNames.filter(name => name.startsWith('harvous-cache-v'));
+        
+        if (harvousCaches.length < 2) {
+          return false; // Can't determine, allow update
+        }
+        
+        // Sort to get old and new versions
+        const versions = harvousCaches
+          .map(name => ({ name, version: extractVersionFromCacheName(name) }))
+          .filter(item => item.version !== null)
+          .sort((a, b) => {
+            // Sort by major, minor, patch
+            if (a.version.major !== b.version.major) return a.version.major - b.version.major;
+            if (a.version.minor !== b.version.minor) return a.version.minor - b.version.minor;
+            return a.version.patch - b.version.patch;
+          });
+        
+        if (versions.length < 2) {
+          return false; // Can't determine, allow update
+        }
+        
+        const oldVersion = versions[0].version;
+        const newVersion = versions[versions.length - 1].version;
+        
+        // Check if major version changed
+        return newVersion.major > oldVersion.major;
+      } catch (error) {
+        console.log('Error checking version update type:', error);
+        return false; // On error, allow update
+      }
+    }
+
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
 
     // Set up controller change listener once
     // Only reload if this isn't a fresh page load (performance.navigation.type check)
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+    navigator.serviceWorker.addEventListener('controllerchange', async () => {
       if (reloadingForUpdate) {
         return; // Already reloading
       }
@@ -36,8 +86,35 @@
         return;
       }
 
+      // Check if this is a major version update
+      const isMajorUpdate = await isMajorVersionUpdate();
+      
+      if (isMajorUpdate) {
+        // Major version update detected - don't force reload
+        console.log('Major version update detected. Skipping automatic reload.');
+        // TODO: In the future, could show a different notification here for major updates
+        return;
+      }
+
       reloadingForUpdate = true;
-      window.location.reload();
+      
+      // Minor/patch update - show toast and auto-reload
+      if (window.toast && typeof window.toast.info === 'function') {
+        try {
+          window.toast.info('New update available, refreshing app');
+          // Wait 2 seconds before reloading to let user see the toast
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } catch (error) {
+          // If toast fails, reload immediately
+          console.log('Toast notification failed, reloading immediately:', error);
+          window.location.reload();
+        }
+      } else {
+        // Toast system not available, reload immediately (fallback to current behavior)
+        window.location.reload();
+      }
     });
 
     // Function to check for service worker updates and handle them
