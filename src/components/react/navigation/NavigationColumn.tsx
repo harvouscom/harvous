@@ -7,6 +7,7 @@ import ButtonSmall from '../ButtonSmall';
 import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
+import { useNavigation } from './NavigationContext';
 
 /**
  * Check if Clerk authentication is ready
@@ -77,6 +78,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 }) => {
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
+  const { navigationHistory } = useNavigation();
+  
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
   const routeSelectedSpaceId = useMemo(() => {
@@ -211,6 +214,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (!mismatchKey) return;
     setDismissedMismatchKey(mismatchKey);
   };
+
+  // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
+  const filteredSpaces = useMemo(() => {
+    // Get space IDs from navigation history
+    const navigationSpaceIds = new Set(
+      navigationHistory
+        .filter(item => item.id.startsWith('space_'))
+        .map(item => item.id)
+    );
+    
+    // Only show spaces that are in navigation history
+    return localSpaces.filter(space => navigationSpaceIds.has(space.id));
+  }, [localSpaces, navigationHistory]);
 
   // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
   useEffect(() => {
@@ -677,7 +693,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       ) : null}
                     </span>
                   </a>
-                  {localSpaces.map((s) => {
+                  {filteredSpaces.map((s) => {
                     const isActive = effectiveSelectedSpaceId ? s.id === effectiveSelectedSpaceId : false;
                     return (
                       <a

@@ -578,6 +578,19 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
 
+  // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
+  const filteredSpaces = useMemo(() => {
+    // Get space IDs from navigation history
+    const navigationSpaceIds = new Set(
+      navigationHistory
+        .filter(item => item.id.startsWith('space_'))
+        .map(item => item.id)
+    );
+    
+    // Only show spaces that are in navigation history
+    return spaces.filter(space => navigationSpaceIds.has(space.id));
+  }, [spaces, navigationHistory]);
+
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
   const mismatchThreadId = (updatedCurrentThread || currentThread)?.id ?? null;
@@ -587,9 +600,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch =
-    selectedSpaceId ? spaces.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
+    selectedSpaceId ? filteredSpaces.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
   const threadSpaceTitleForMismatch = threadSpaceId
-    ? spaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
+    ? filteredSpaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
 
   useEffect(() => {
@@ -634,8 +647,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const selectedSpace = useMemo(() => {
     if (!selectedSpaceId) return null;
-    return spaces.find((s) => s.id === selectedSpaceId) ?? null;
-  }, [selectedSpaceId, spaces]);
+    return filteredSpaces.find((s) => s.id === selectedSpaceId) ?? null;
+  }, [selectedSpaceId, filteredSpaces]);
 
   const selectedSpaceLabel = selectedSpace ? selectedSpace.title : selectedSpaceId ? 'Space' : 'My Home';
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
@@ -809,7 +822,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         ) : null}
                       </span>
                     </a>
-                    {spaces.map((s) => {
+                    {filteredSpaces.map((s) => {
                       const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
                       return (
                         <a
@@ -836,15 +849,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 e.preventDefault();
                                 e.stopPropagation();
                               }}
+                              onTouchStart={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                try {
-                                  (window as any).removeFromNavigationHistory?.(s.id);
-                                } catch {
-                                  // ignore
-                                }
+                                
+                                // Remove from navigation history using context function
+                                removeFromNavigationHistory(s.id);
 
+                                // If the user just closed the selected space, switch to Home
                                 if (selectedSpaceId === s.id) {
                                   setSelectedSpaceId(null);
                                 }
