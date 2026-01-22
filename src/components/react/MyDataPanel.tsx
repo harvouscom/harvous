@@ -391,7 +391,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} panel__content--no-bottom-padding`}>
                 {/* Informational text */}
-                <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px' }}>
+                <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px', textWrap: 'balance' }}>
                   Your data is automatically backed up by Harvous. Export your data anytime to keep for yourself.
                 </div>
 
