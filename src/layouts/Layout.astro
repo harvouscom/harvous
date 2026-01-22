@@ -76,6 +76,11 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     
+    <!-- Preconnect to external services - eliminates DNS/TCP/TLS latency -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://clerk.harvous.com" crossorigin />
+    <link rel="dns-prefetch" href="https://us.posthog.com" />
+    
     <!-- Preload critical font files to eliminate FOUT (Flash of Unstyled Text) -->
     <!-- These load in parallel with stylesheets, so fonts are ready when CSS is parsed -->
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@fontsource/reddit-sans@5.1.1/files/reddit-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin="anonymous" />

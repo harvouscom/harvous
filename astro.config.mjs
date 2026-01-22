@@ -107,7 +107,7 @@ export default defineConfig({
   // Clerk works fine in dev mode without the adapter
   ...(import.meta.env.PROD && {
     adapter: netlify({
-      edgeMiddleware: false
+      edgeMiddleware: true
     })
   }),
 });
