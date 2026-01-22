@@ -34,15 +34,21 @@
     }
 
     // Medium haptic: Elements with medium shadows (-4px)
-    // ButtonSmall, card-feat
-    if (target.closest('button.btn--sm, .card-feat-container')) {
+    // ButtonSmall, card-feat, space switcher main trigger
+    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor')) {
       vibrate(20);
       return;
     }
 
     // Light haptic: Elements with no/minimal shadows
-    // CardNote, navigation items, space buttons, menu items
-    if (target.closest('.card-note-container, .card-note, button.btn-action, button.space-button, button.btn-animate-squish, .menu-item, .space-switcher-dropdown__item, .tab-nav__button')) {
+    // CardNote, space buttons, menu items
+    if (target.closest('.card-note-container, .card-note, button.btn-action, .space-button, .space-btn, button.btn-animate-squish, .menu-item, .tab-nav__button')) {
+      vibrate(10);
+      return;
+    }
+    
+    // Space switcher dropdown items (light - no shadow)
+    if (target.closest('.space-switcher-dropdown__item, .space-switcher-dropdown__close-btn')) {
       vibrate(10);
       return;
     }
