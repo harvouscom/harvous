@@ -2,6 +2,19 @@
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import { ClientRouter } from "astro:transitions";
+
+// Server-side auth check: redirect authenticated users away from sign-up page
+// This prevents the race condition where Clerk components don't load in time
+const auth = Astro.locals.auth();
+const { userId } = auth;
+
+// Get redirect URL from query params, fallback to home
+const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
+
+if (userId) {
+  // User is already authenticated - redirect them
+  return Astro.redirect(redirectUrl);
+}
 ---
 
 <EmptyLayout title="Sign Up">
