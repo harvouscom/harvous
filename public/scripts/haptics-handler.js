@@ -70,28 +70,40 @@
     }
   };
 
-  // Unified click handler with priority-based matching
+  // Use capture phase to catch events BEFORE React's stopPropagation
+  // This ensures haptics work for all interactive elements
+  // 
+  // Haptic intensity is mapped to visual shadow depth:
+  // - Strong (30ms): Elements with heavy shadows (-6px to -8px inset + outer)
+  // - Medium (20ms): Elements with medium shadows (-4px inset)
+  // - Light (10ms): Elements with no/minimal shadows (-3px or less)
+  
   document.addEventListener('click', (e) => {
-    // Strong haptic: Deep elements with -8px shadow + outer shadow
+    // Strong haptic: Deep elements with heavy shadows
+    // CardThread has -6px shadow, CTA buttons have -8px + outer shadow
     const deepElement = e.target.closest(
-      'button.btn--lg, button.btn-cta, button[data-outer-shadow], .btn-chonk'
+      'button.btn--lg, button.btn-cta, button[data-outer-shadow], .btn-chonk, ' +
+      '.card-thread, .card-thread-container'
     );
     if (deepElement && !deepElement.disabled) {
       haptics.strong();
       return;
     }
 
-    // Medium haptic: Medium depth elements with -4px to -6px shadow
+    // Medium haptic: Elements with medium shadows (-4px)
+    // Small buttons like ButtonSmall
     const mediumElement = e.target.closest(
-      'button.btn--sm, .card-thread, .card-note-container, .card-feat-container'
+      'button.btn--sm, .card-feat-container'
     );
     if (mediumElement && !mediumElement.disabled && !mediumElement.hasAttribute('disabled')) {
       haptics.medium();
       return;
     }
 
-    // Light haptic: Shallow elements with -3px shadow
+    // Light haptic: Elements with no/minimal shadows
+    // CardNote has no shadow, navigation items have -3px shadow
     const lightElement = e.target.closest(
+      '.card-note-container, .card-note, ' +
       'button.btn-action, button.space-button, button.btn-animate-squish, ' +
       '.nav-link, .nav-item, .mobile-nav-item, .menu-item, ' +
       '.space-switcher-dropdown__item, .tab-nav__button, ' +
@@ -107,6 +119,6 @@
     if (anyButton && !anyButton.disabled) {
       haptics.light();
     }
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
 })();

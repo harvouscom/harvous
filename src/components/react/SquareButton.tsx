@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Menu from './Menu';
 import { getMenuOptions } from "@/utils/menu-options";
-import { haptics } from '@/utils/haptics';
 
 // Icon references for Menu component (Menu.tsx handles rendering internally)
 const ThreadIcon = { src: 'layer-group' };
@@ -125,14 +124,7 @@ export default function SquareButton({
   };
 
   const handleButtonClick = () => {
-    // Trigger haptic feedback based on button shadow depth
-    // Close/Add with menu have data-outer-shadow (-8px + outer) = strong haptic
-    // Other variants (More/Back/Find) have shallow shadow (-3px) = light haptic
-    if (variant === "Close" || (variant === "Add" && withMenu)) {
-      haptics.strong();
-    } else {
-      haptics.light();
-    }
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     
     if (withMenu) {
       toggleMenu();

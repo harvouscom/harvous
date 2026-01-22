@@ -3,7 +3,6 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { useNavigation } from './NavigationContext';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import Icon, { type IconName } from '../Icon';
-import { haptics } from '@/utils/haptics';
 
 interface SpaceButtonProps {
   className?: string;
@@ -47,8 +46,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     event.stopPropagation();
     event.preventDefault();
     
-    // Light haptic for close action
-    haptics.light();
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     
     if (!itemId) {
       return;
@@ -136,16 +134,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "Default") {
     const Root = as as any;
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     const rootProps =
       as === 'button'
-        ? { onClick: handleClick, disabled }
-        : { onClick: handleClick };
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
       <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} ${className}`}
@@ -174,16 +167,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
     const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
     const resolvedRightAccessory: NonNullable<SpaceButtonProps['rightAccessory']> = rightAccessory ?? 'count';
     const Root = as as any;
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     const rootProps =
       as === 'button'
-        ? { onClick: handleClick, disabled }
-        : { onClick: handleClick };
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
       <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${activeClass} ${className}`}
@@ -241,16 +229,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
 
   if (state === "DropdownTrigger") {
     const Root = as as any;
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     const rootProps =
       as === 'button'
-        ? { onClick: handleClick, disabled }
-        : { onClick: handleClick };
+        ? { onClick: disabled ? undefined : onClick, disabled }
+        : { onClick: disabled ? undefined : onClick };
     return (
       <Root 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
@@ -307,17 +290,12 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   }
 
   if (state === "Dropdown") {
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     return (
       <button 
         className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
-        onClick={handleClick}
+        onClick={disabled ? undefined : onClick}
         disabled={disabled}
         {...props}
       >
@@ -347,18 +325,13 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   }
 
   if (state === "Close") {
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     return (
       <div className={`nav-item-container ${isActive ? 'active' : ''}`}>
           <button
             className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
             style={buttonStyle}
-            onClick={handleClick}
+            onClick={disabled ? undefined : onClick}
             disabled={disabled}
             {...props}
           >
@@ -400,18 +373,13 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   }
 
   if (state === "TagClose") {
-    const handleClick = (e: React.MouseEvent) => {
-      if (!disabled) {
-        haptics.light(); // Light haptic for shallow -3px shadow
-        onClick?.(e);
-      }
-    };
+    // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     return (
       <div className={`nav-item-container ${isActive ? 'active' : ''}`}>
         <button
           className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 group ${className}`}
           style={buttonStyle}
-          onClick={handleClick}
+          onClick={disabled ? undefined : onClick}
           disabled={disabled}
           {...props}
         >
