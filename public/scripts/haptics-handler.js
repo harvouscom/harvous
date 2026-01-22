@@ -11,22 +11,9 @@
 (function() {
   'use strict';
   
-  // Detect if haptics are actually supported and usable
-  function isHapticsSupported() {
-    // Desktop browsers - skip haptics entirely to avoid console errors
-    const isDesktop = !('ontouchstart' in window) && 
-                      !navigator.maxTouchPoints;
-    if (isDesktop) return false;
-    
-    // Check Vibration API availability
-    if (!navigator.vibrate) return false;
-    
-    // Mobile device with Vibration API
-    return true;
-  }
-  
-  // State tracking
-  let hapticsEnabled = isHapticsSupported();
+  // Check if Vibration API is available
+  // We rely on try-catch for error suppression rather than strict device detection
+  let hapticsEnabled = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
   let userActivated = false;
   
   // Warm up the Vibration API on first user interaction

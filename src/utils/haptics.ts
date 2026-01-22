@@ -8,10 +8,14 @@
  * - Strong (30ms): Deep buttons with -8px inset shadow + outer shadow
  */
 
-// Detect if haptics are available (mobile device with Vibration API)
-let hapticsAvailable = typeof navigator !== 'undefined' && 
-                       !!navigator.vibrate &&
-                       (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+// Track if haptics failed permanently
+let hapticsFailed = false;
+
+// Lazy check - only evaluate when actually called (avoids SSR issues)
+const canVibrate = () => {
+  if (hapticsFailed) return false;
+  return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+};
 
 export const haptics = {
   /**
@@ -19,12 +23,12 @@ export const haptics = {
    * Used for: action buttons, space buttons, navigation items
    */
   light: () => {
-    if (!hapticsAvailable) return;
+    if (!canVibrate()) return;
     try {
       navigator.vibrate(10);
     } catch (e) {
       // Silently fail - disable haptics on error
-      hapticsAvailable = false;
+      hapticsFailed = true;
     }
   },
   
@@ -33,12 +37,12 @@ export const haptics = {
    * Used for: ButtonSmall components
    */
   medium: () => {
-    if (!hapticsAvailable) return;
+    if (!canVibrate()) return;
     try {
       navigator.vibrate(20);
     } catch (e) {
       // Silently fail - disable haptics on error
-      hapticsAvailable = false;
+      hapticsFailed = true;
     }
   },
   
@@ -47,12 +51,12 @@ export const haptics = {
    * Used for: Large CTA buttons, primary action buttons with outer shadow
    */
   strong: () => {
-    if (!hapticsAvailable) return;
+    if (!canVibrate()) return;
     try {
       navigator.vibrate(30);
     } catch (e) {
       // Silently fail - disable haptics on error
-      hapticsAvailable = false;
+      hapticsFailed = true;
     }
   },
   
@@ -61,12 +65,12 @@ export const haptics = {
    * Used for: successful form submissions, note creation
    */
   success: () => {
-    if (!hapticsAvailable) return;
+    if (!canVibrate()) return;
     try {
       navigator.vibrate([10, 20, 30]);
     } catch (e) {
       // Silently fail - disable haptics on error
-      hapticsAvailable = false;
+      hapticsFailed = true;
     }
   },
   
@@ -75,12 +79,12 @@ export const haptics = {
    * Used for: delete actions, error states
    */
   error: () => {
-    if (!hapticsAvailable) return;
+    if (!canVibrate()) return;
     try {
       navigator.vibrate([50, 50, 50]);
     } catch (e) {
       // Silently fail - disable haptics on error
-      hapticsAvailable = false;
+      hapticsFailed = true;
     }
   }
 };
