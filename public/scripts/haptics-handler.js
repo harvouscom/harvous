@@ -34,15 +34,22 @@
     }
 
     // Medium haptic: Elements with medium shadows (-4px)
-    // ButtonSmall, card-feat, space switcher main trigger
-    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor')) {
+    // ButtonSmall, card-feat, space switcher trigger (has shadow)
+    // SpaceButton in space-switcher-anchor context has shadow
+    if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor .space-button, .space-switcher-anchor .space-btn, .space-switcher-anchor__toggle')) {
       vibrate(20);
       return;
     }
 
     // Light haptic: Elements with no/minimal shadows
-    // CardNote, space buttons, menu items
-    if (target.closest('.card-note-container, .card-note, button.btn-action, .space-button, .space-btn, button.btn-animate-squish, .menu-item, .tab-nav__button')) {
+    // CardNote, general space buttons (outside switcher), menu items
+    if (target.closest('.card-note-container, .card-note, button.btn-action, button.btn-animate-squish, .menu-item, .tab-nav__button')) {
+      vibrate(10);
+      return;
+    }
+    
+    // Space buttons outside of space-switcher get light haptic
+    if (target.closest('.space-button, .space-btn') && !target.closest('.space-switcher-anchor')) {
       vibrate(10);
       return;
     }
