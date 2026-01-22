@@ -630,32 +630,16 @@ export default function NoteDetailsPanel({
 
                     {/* Add to Thread Section - fills remaining space */}
                     <div className="tab-content__section--expand" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                        <AddToSection
-                          allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
-                          currentItems={localThreads}
-                          onItemSelect={handleAddToThread}
-                          isLoading={isMovingThread}
-                          loadingText="Adding to thread..."
-                          title="Add to Thread"
-                          placeholder="Find threads to add to..."
-                          emptyMessage="No threads found"
-                        />
-                      </div>
-                      
-                      {/* New Thread button - at bottom of expandable section */}
-                      <button 
-                        type="button"
-                        onClick={addNewThread}
-                        data-outer-shadow
-                        className="btn-cta w-full group"
-                        style={{ marginTop: 'auto', flexShrink: 0 }}
-                      >
-                        <span className="btn-cta__content">
-                          New Thread
-                        </span>
-                        <div className="btn-cta__shadow" />
-                      </button>
+                      <AddToSection
+                        allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
+                        currentItems={localThreads}
+                        onItemSelect={handleAddToThread}
+                        isLoading={isMovingThread}
+                        loadingText="Adding to thread..."
+                        title="Add to Thread"
+                        placeholder="Find threads to add to..."
+                        emptyMessage="No threads found"
+                      />
                     </div>
                   </div>
                 )}
@@ -811,6 +795,21 @@ export default function NoteDetailsPanel({
           onClick={closePanel}
           inBottomSheet={inBottomSheet}
         />
+        
+        {/* Show New Thread button only on Threads tab */}
+        {activeTab === 'threads' && (
+          <button 
+            type="button"
+            onClick={addNewThread}
+            data-outer-shadow
+            className="btn-cta flex-1 group"
+          >
+            <span className="btn-cta__content">
+              New Thread
+            </span>
+            <div className="btn-cta__shadow" />
+          </button>
+        )}
       </div>
       </div>
     </>
