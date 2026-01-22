@@ -73,6 +73,7 @@
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
 
+
     // Set up controller change listener once
     // Only reload if this isn't a fresh page load (performance.navigation.type check)
     navigator.serviceWorker.addEventListener('controllerchange', async () => {
@@ -98,75 +99,14 @@
 
       reloadingForUpdate = true;
       
-      // Minor/patch update - show toast with animated dots and auto-reload
+      // Minor/patch update - show toast and auto-reload
       if (window.toast && typeof window.toast.info === 'function') {
         try {
-          const baseMessage = 'New update available, refreshing app';
-          let dotCount = 0;
-          let cycleCount = 0;
-          const maxCycles = 3;
-          const dotsPerCycle = 3;
-          const dotInterval = 333; // ms per dot state
-          let intervalId = null;
-          let fallbackTimeout = null;
-          
-          // Show initial toast
-          window.toast.info(baseMessage);
-          
-          // Find and update toast message in DOM
-          const updateToastDots = () => {
-            // Find the toast element by searching for the base message
-            const toaster = document.querySelector('[data-sonner-toaster]');
-            if (!toaster) {
-              // Toast element not found, use fallback timeout
-              if (!fallbackTimeout) {
-                fallbackTimeout = setTimeout(() => {
-                  if (intervalId) clearInterval(intervalId);
-                  window.location.reload();
-                }, 3000); // 3 seconds fallback
-              }
-              return;
-            }
-            
-            const toastElement = Array.from(toaster.querySelectorAll('[data-sonner-toast]'))
-              .find(el => el.textContent?.includes(baseMessage));
-            
-            if (toastElement) {
-              const dots = '.'.repeat((dotCount % dotsPerCycle) + 1);
-              const titleElement = toastElement.querySelector('[data-sonner-toast-title]');
-              if (titleElement) {
-                titleElement.textContent = `${baseMessage}${dots}`;
-              }
-            }
-            
-            dotCount++;
-            
-            // Check if we've completed a cycle
-            if (dotCount % dotsPerCycle === 0) {
-              cycleCount++;
-              if (cycleCount >= maxCycles) {
-                if (intervalId) clearInterval(intervalId);
-                if (fallbackTimeout) clearTimeout(fallbackTimeout);
-                window.location.reload();
-                return;
-              }
-            }
-          };
-          
-          // Start the animation
-          intervalId = setInterval(updateToastDots, dotInterval);
-          
-          // Fallback: if toast element isn't found after a short delay, use timeout
+          window.toast.info('New update available, refreshing app...');
+          // Wait 2 seconds before reloading to let user see the toast
           setTimeout(() => {
-            const toaster = document.querySelector('[data-sonner-toaster]');
-            if (!toaster && !fallbackTimeout) {
-              fallbackTimeout = setTimeout(() => {
-                if (intervalId) clearInterval(intervalId);
-                window.location.reload();
-              }, 3000);
-            }
-          }, 100);
-          
+            window.location.reload();
+          }, 2000);
         } catch (error) {
           // If toast fails, reload immediately
           console.log('Toast notification failed, reloading immediately:', error);
