@@ -5,10 +5,8 @@ import { usePersistedUserId } from '@/utils/user-id';
 import DeleteAccountConfirmDialog from './DeleteAccountConfirmDialog';
 import ClearDataConfirmDialog from './ClearDataConfirmDialog';
 import SquareButton from './SquareButton';
-import ButtonSmall from './ButtonSmall';
-import Icon from './Icon';
 import { offlineDB } from '@/utils/offline-db';
-import { syncNow, getSyncState } from '@/utils/sync-manager';
+import { getSyncState } from '@/utils/sync-manager';
 import type { SyncState } from '@/utils/offline-db';
 import { clearNavigationCache } from '@/utils/navigation-cache';
 
@@ -46,9 +44,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isClearingData, setIsClearingData] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncState, setSyncState] = useState<SyncState | null>(null);
 
   // Check sync status
@@ -67,27 +62,10 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       // Get sync state
       const state = await getSyncState(userId);
       setSyncState(state);
-      if (state) {
-        setIsSyncing(state.isSyncing || false);
-      }
     } catch (error) {
       console.error('[MyDataPanel] Error checking sync status:', error);
     }
   };
-
-  // Monitor online/offline status
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   // Check sync status on mount and periodically
   useEffect(() => {
@@ -108,37 +86,24 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     };
   }, [isMounted, userId]);
 
-  // Handle manual sync
-  const handleSyncNow = async () => {
-    if (!userId || !isOnline || isSyncing) return;
-
-    setIsSyncing(true);
-    setIsAnimating(true);
-    
-    const syncStartTime = Date.now();
-    
-    try {
-      await syncNow(userId);
-      await checkSyncStatus();
-      toast.success('Sync complete', { icon: null });
-    } catch (error) {
-      console.error('[MyDataPanel] Sync error:', error);
-      toast.error('Sync failed. Please try again.', { icon: null });
-    } finally {
-      setIsSyncing(false);
-      
-      // Ensure animation runs for at least one cycle (1 second)
-      const elapsed = Date.now() - syncStartTime;
-      const remainingTime = Math.max(0, 1000 - elapsed);
-      
-      if (remainingTime > 0) {
-        setTimeout(() => {
-          setIsAnimating(false);
-        }, remainingTime);
-      } else {
-        setIsAnimating(false);
-      }
+  // Format sync timestamp
+  const formatSyncTimestamp = (): string => {
+    if (syncState?.lastSyncTimestamp) {
+      const date = new Date(syncState.lastSyncTimestamp);
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      const day = date.getDate();
+      const year = date.getFullYear();
+      const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return `${month} ${day}, ${year} ${time}`;
+    } else if (syncState?.lastBootstrapTimestamp) {
+      const date = new Date(syncState.lastBootstrapTimestamp);
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      const day = date.getDate();
+      const year = date.getFullYear();
+      const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return `${month} ${day}, ${year} ${time}`;
     }
+    return '';
   };
 
   // Prevent body scroll when dialog is open
@@ -424,108 +389,10 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                {/* Sync Status Section - Always visible */}
-                <div className="panel__section">
-                  <div 
-                    className="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3 w-full relative"
-                    style={{ 
-                      backgroundColor: syncState?.syncError 
-                        ? '#FFE6E6' 
-                        : isOnline 
-                          ? 'white' 
-                          : '#FFF4E6',
-                      borderColor: syncState?.syncError 
-                        ? '#FF6B6B' 
-                        : isOnline 
-                          ? 'var(--color-fog-white)' 
-                          : '#FFA500'
-                    }}
-                  >
-                    {/* Progress bar when syncing */}
-                    {isAnimating && (
-                      <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
-                        <div className="panel__progress-fill"></div>
-                      </div>
-                    )}
-                    
-                    {/* Icon on the left */}
-                    <div 
-                      className="flex-shrink-0"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '20px',
-                        height: '20px'
-                      }}
-                    >
-                      <Icon 
-                        name="arrows-rotate" 
-                        size={20}
-                        style={{ 
-                          color: 'var(--color-deep-grey)',
-                          ...(isAnimating ? {
-                            animation: 'spin 1s linear infinite',
-                            transformOrigin: '50% 50%',
-                            willChange: 'transform'
-                          } : {})
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Text content in the middle */}
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <div className="text-lg font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                        {syncState?.syncError ? (
-                          'Sync Error'
-                        ) : !isOnline ? (
-                          'Offline'
-                        ) : syncState?.lastSyncTimestamp ? (
-                          (() => {
-                            const date = new Date(syncState.lastSyncTimestamp);
-                            const month = date.toLocaleString('en-US', { month: 'short' });
-                            const day = date.getDate();
-                            const year = date.getFullYear();
-                            const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                            return `${month} ${day}, ${year} ${time}`;
-                          })()
-                        ) : syncState?.lastBootstrapTimestamp ? (
-                          (() => {
-                            const date = new Date(syncState.lastBootstrapTimestamp);
-                            const month = date.toLocaleString('en-US', { month: 'short' });
-                            const day = date.getDate();
-                            const year = date.getFullYear();
-                            const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                            return `${month} ${day}, ${year} ${time}`;
-                          })()
-                        ) : (
-                          'Not synced'
-                        )}
-                        {pendingSyncCount > 0 && !isSyncing && (
-                          <span className="ml-2" style={{ color: 'var(--color-pebble-grey)' }}>
-                            ({pendingSyncCount} pending)
-                          </span>
-                        )}
-                      </div>
-                      {syncState?.syncError && (
-                        <div className="text-sm" style={{ color: '#D32F2F', marginTop: '4px' }}>
-                          {syncState.syncError}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Button on the right */}
-                    {isOnline && !isSyncing && (
-                      <ButtonSmall
-                        state="Secondary"
-                        onClick={handleSyncNow}
-                        disabled={isSyncing}
-                      >
-                        Sync
-                      </ButtonSmall>
-                    )}
-                  </div>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} panel__content--no-bottom-padding`}>
+                {/* Informational text */}
+                <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px' }}>
+                  Your data is automatically backed up by Harvous. Export your data anytime to keep for yourself.
                 </div>
 
                 {/* Export Buttons */}
@@ -643,6 +510,13 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     </div>
                   </>
                 )}
+
+                {/* Sync status text */}
+                <div className="panel__footer">
+                  <p>
+                    {formatSyncTimestamp() ? `All synced as of ${formatSyncTimestamp()}` : 'Not yet synced'}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
