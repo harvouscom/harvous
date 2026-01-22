@@ -47,6 +47,7 @@ const renderIcon = (icon: any, action: string) => {
   };
 
   // Try to identify icon from action type
+  // Order matters: check more specific patterns first
   let iconKey: string | null = null;
   if (action.includes('edit')) {
     iconKey = 'pen-to-square';
@@ -56,12 +57,12 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'tag';
   } else if (action.includes('Thread')) {
     iconKey = 'layer-group';
+  } else if (action.includes('Note')) {
+    iconKey = 'note-sticky';
   } else if (action.includes('seeDetails') || action.includes('Details')) {
     iconKey = 'circle-info';
   } else if (action.includes('Resource')) {
     iconKey = 'newspaper';
-  } else if (action.includes('Note')) {
-    iconKey = 'note-sticky';
   }
 
   // Fallback: try to identify from icon src path
@@ -197,6 +198,15 @@ export default function Menu({
         }));
       } catch (error) {
         console.error('Error opening note details panel (tags):', error);
+      }
+    } else if (action === 'openNoteDetailsNotes') {
+      // Handle Notes shortcut action for scripture notes
+      try {
+        window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', {
+          detail: { contentId, contentType, tab: 'notes' }
+        }));
+      } catch (error) {
+        console.error('Error opening note details panel (notes):', error);
       }
     } else if (action === 'editThread') {
       // Handle Edit Thread action

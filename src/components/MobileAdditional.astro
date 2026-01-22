@@ -6,9 +6,10 @@ export interface Props {
   contentId?: string;
   currentThread?: any;
   currentSpace?: any;
+  noteType?: string;
 }
 
-const { contentType = "dashboard", contentId, currentThread, currentSpace } = Astro.props;
+const { contentType = "dashboard", contentId, currentThread, currentSpace, noteType } = Astro.props;
 ---
 
 <MobileAdditionalReact
@@ -17,5 +18,6 @@ const { contentType = "dashboard", contentId, currentThread, currentSpace } = As
   currentThread={currentThread}
   currentSpace={currentSpace}
   currentThreadId={currentThread?.id}
+  noteType={noteType}
   client:load
 />

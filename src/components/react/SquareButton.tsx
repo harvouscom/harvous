@@ -21,6 +21,7 @@ interface SquareButtonProps {
   contentId?: string;
   currentThreadId?: string; // Add this prop
   inBottomSheet?: boolean;
+  noteType?: string;
 }
 
 export default function SquareButton({
@@ -32,7 +33,8 @@ export default function SquareButton({
   contentType = "dashboard",
   contentId,
   currentThreadId, // Add this prop
-  inBottomSheet = false
+  inBottomSheet = false,
+  noteType
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,7 +47,7 @@ export default function SquareButton({
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId);
+      const options = getMenuOptions(contentType, contentId, noteType);
       return options.map(option => {
         let icon;
         switch (option.action) {
@@ -57,6 +59,9 @@ export default function SquareButton({
           case "eraseNote":
           case "eraseSpace":
             icon = EraseIcon;
+            break;
+          case "openNoteDetailsNotes":
+            icon = NoteStickyIcon;
             break;
           case "openNoteDetailsThreads":
             icon = ThreadIcon;

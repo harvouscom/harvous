@@ -863,6 +863,9 @@ try {
 if (!content) {
   // return Astro.redirect('/'); // Temporarily disabled for static mode
 }
+
+// Extract noteType for menu options
+const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefined;
 ---
 
 <Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null}>
@@ -1086,7 +1089,7 @@ if (!content) {
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} />
   </div>
 
 </Layout>

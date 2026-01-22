@@ -26,9 +26,10 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * Gets the menu options for a given content type
  * @param contentType The type of content being displayed
  * @param contentId Optional content ID to check for special cases (e.g., unorganized thread)
+ * @param noteType Optional note type to determine if scripture-specific options should be shown
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -43,11 +44,21 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: isOnboardingThread ? "eraseThreadAndNotes" : "eraseThread", label: isOnboardingThread ? "Erase Thread & Notes" : "Erase Thread" }
       ];
     case "note":
-      return [
+      const options = [];
+      
+      // Add "Notes" option FIRST for scripture notes only
+      if (noteType === 'scripture') {
+        options.push({ action: "openNoteDetailsNotes", label: "Notes" });
+      }
+      
+      // Then add existing options
+      options.push(
         { action: "openNoteDetailsThreads", label: "Threads" },
         { action: "openNoteDetailsTags", label: "Tags" },
         { action: "eraseNote", label: "Erase Note" }
-      ];
+      );
+      
+      return options;
     case "space":
       return [
         { action: "editSpace", label: "Edit Space" },
