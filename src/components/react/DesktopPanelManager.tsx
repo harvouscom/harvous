@@ -50,6 +50,7 @@ interface DesktopPanelManagerProps {
   currentNote?: any;
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
   publishableKey?: string | null;
+  version?: string;
 }
 
 type PanelType =
@@ -352,7 +353,8 @@ export default function DesktopPanelManager({
   currentSpace,
   currentNote,
   contentType = 'dashboard',
-  publishableKey = null
+  publishableKey = null,
+  version
 }: DesktopPanelManagerProps) {
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
@@ -847,7 +849,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} />
+              <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

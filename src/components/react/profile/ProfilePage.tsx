@@ -52,7 +52,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   userXP,
   firstName,
   lastName,
-  version = '1.21.0',
+  version,
   spaces = [],
   churchData,
   publishableKey = null,

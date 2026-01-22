@@ -9,6 +9,7 @@ interface PanelManagerWithContextProps {
   currentNote?: any;
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
   publishableKey?: string | null;
+  version?: string;
 }
 
 /**
@@ -21,6 +22,7 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
   currentNote,
   contentType = 'dashboard',
   publishableKey = null,
+  version,
 }) => {
   return (
     <NewNotePanelProvider>
@@ -32,6 +34,7 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
           currentNote={currentNote}
           contentType={contentType}
           publishableKey={publishableKey}
+          version={version}
         />
       </NewThreadPanelProvider>
     </NewNotePanelProvider>

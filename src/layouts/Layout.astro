@@ -20,6 +20,7 @@ import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
+import packageJson from '../../package.json';
 
 interface Props {
   classNames?: string;
@@ -431,6 +432,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
                 currentNote={currentNote}
                 contentType={contentType}
                 publishableKey={publishableKey}
+                version={packageJson.version}
                 client:only="react"
               />
             </div>
@@ -463,6 +465,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           contentType={contentType}
           publishableKey={publishableKey}
           founderLetterHtml={founderLetterHtml}
+          version={packageJson.version}
           client:only="react"
         />
       </div>

@@ -10,6 +10,7 @@ interface MobileBottomSheetWithContextProps {
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
   publishableKey?: string | null;
   founderLetterHtml?: string;
+  version?: string;
 }
 
 /**
@@ -25,6 +26,7 @@ export default function MobileBottomSheetWithContext({
   contentType = 'dashboard',
   publishableKey = null,
   founderLetterHtml = '',
+  version,
 }: MobileBottomSheetWithContextProps) {
   return (
     <NewNotePanelProvider>
@@ -39,6 +41,7 @@ export default function MobileBottomSheetWithContext({
               contentType={contentType}
               publishableKey={publishableKey}
               founderLetterHtml={founderLetterHtml}
+              version={version}
             />
           </div>
         </div>

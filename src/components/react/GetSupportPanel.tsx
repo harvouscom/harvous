@@ -12,12 +12,14 @@ interface GetSupportPanelProps {
 
 export default function GetSupportPanel({ 
   onClose,
-  version = '1.21.0',
+  version,
   helpCenterUrl = 'https://help.harvous.com',
   supportUrl = 'https://support.harvous.com',
   feedbackUrl = 'https://feedback.harvous.com',
   inBottomSheet = false
 }: GetSupportPanelProps) {
+  // Use window.__APP_VERSION__ as fallback (set by service-worker-manager.js)
+  const displayVersion = version || (typeof window !== 'undefined' && (window as any).__APP_VERSION__) || 'Unknown';
   // Handle close
   const handleClose = () => {
     if (onClose) {
@@ -135,7 +137,7 @@ export default function GetSupportPanel({
 
                 {/* Version text */}
                 <div className="panel__footer">
-                  <p>Version {version}</p>
+                  <p>Version {displayVersion}</p>
                 </div>
               </div>
             </div>
