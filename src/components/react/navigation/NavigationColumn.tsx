@@ -228,6 +228,39 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     return localSpaces.filter(space => navigationSpaceIds.has(space.id));
   }, [localSpaces, navigationHistory]);
 
+  // Calculate spaces to show in dropdown - include current space even if not in history yet
+  const spacesForDropdown = useMemo(() => {
+    // Start with filtered spaces (from navigation history)
+    const spacesById = new Map<string, Space>();
+    
+    // Add all filtered spaces
+    for (const space of filteredSpaces) {
+      spacesById.set(space.id, space);
+    }
+    
+    // Ensure current space is included if we're viewing it (from selectedSpace fallback)
+    // This handles timing issues where trackNavigationAccess() hasn't run yet
+    if (selectedSpace && selectedSpace.id && selectedSpace.id.startsWith('space_')) {
+      if (!spacesById.has(selectedSpace.id)) {
+        spacesById.set(selectedSpace.id, selectedSpace);
+      }
+    }
+    
+    // Also ensure current space from props is included (if we're on a space page)
+    if (currentSpace && currentSpace.id && currentSpace.id.startsWith('space_')) {
+      if (!spacesById.has(currentSpace.id)) {
+        // Build a full Space object from the CurrentSpace
+        const currentSpaceData = localSpaces.find(s => s.id === currentSpace.id);
+        if (currentSpaceData) {
+          spacesById.set(currentSpace.id, currentSpaceData);
+        }
+      }
+    }
+    
+    // Convert back to array
+    return Array.from(spacesById.values());
+  }, [filteredSpaces, selectedSpace, currentSpace, localSpaces]);
+
   // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
   useEffect(() => {
     setLocalSpaces(prev => {
@@ -693,7 +726,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       ) : null}
                     </span>
                   </a>
-                  {filteredSpaces.map((s) => {
+                  {spacesForDropdown.map((s) => {
                     const isActive = effectiveSelectedSpaceId ? s.id === effectiveSelectedSpaceId : false;
                     return (
                       <a

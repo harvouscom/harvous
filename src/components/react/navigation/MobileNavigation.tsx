@@ -591,6 +591,28 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return spaces.filter(space => navigationSpaceIds.has(space.id));
   }, [spaces, navigationHistory]);
 
+  // Calculate spaces to show in dropdown - include current space even if not in history yet
+  const spacesForDropdown = useMemo(() => {
+    // Start with filtered spaces (from navigation history)
+    const spacesById = new Map<string, Space>();
+    
+    // Add all filtered spaces
+    for (const space of filteredSpaces) {
+      spacesById.set(space.id, space);
+    }
+    
+    // Ensure current space is included (if we're on a space page)
+    // This handles timing issues where trackNavigationAccess() hasn't run yet
+    if (currentSpace && currentSpace.id.startsWith('space_')) {
+      if (!spacesById.has(currentSpace.id)) {
+        spacesById.set(currentSpace.id, currentSpace);
+      }
+    }
+    
+    // Convert back to array
+    return Array.from(spacesById.values());
+  }, [filteredSpaces, currentSpace]);
+
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
   const mismatchThreadId = (updatedCurrentThread || currentThread)?.id ?? null;
@@ -600,9 +622,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch =
-    selectedSpaceId ? filteredSpaces.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
+    selectedSpaceId ? spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
   const threadSpaceTitleForMismatch = threadSpaceId
-    ? filteredSpaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
+    ? spacesForDropdown.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
 
   useEffect(() => {
@@ -647,8 +669,20 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const selectedSpace = useMemo(() => {
     if (!selectedSpaceId) return null;
-    return filteredSpaces.find((s) => s.id === selectedSpaceId) ?? null;
-  }, [selectedSpaceId, filteredSpaces]);
+    
+    // First try to find in filtered spaces (navigation history)
+    const fromFiltered = filteredSpaces.find((s) => s.id === selectedSpaceId);
+    if (fromFiltered) return fromFiltered;
+    
+    // Fallback: use currentSpace if we're on a space page
+    // This ensures the label shows correctly even if not in navigation history
+    if (currentSpace && currentSpace.id === selectedSpaceId) {
+      return currentSpace;
+    }
+    
+    // Final fallback: look in the full spaces array
+    return spaces.find((s) => s.id === selectedSpaceId) ?? null;
+  }, [selectedSpaceId, filteredSpaces, currentSpace, spaces]);
 
   const selectedSpaceLabel = selectedSpace ? selectedSpace.title : selectedSpaceId ? 'Space' : 'My Home';
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
@@ -822,7 +856,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         ) : null}
                       </span>
                     </a>
-                    {filteredSpaces.map((s) => {
+                    {spacesForDropdown.map((s) => {
                       const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
                       return (
                         <a
