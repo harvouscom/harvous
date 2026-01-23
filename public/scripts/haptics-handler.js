@@ -11,8 +11,18 @@
 (function() {
   'use strict';
   
+  // Check if device is mobile (iOS/Android) to prevent console errors on desktop
+  function isMobileDevice() {
+    if (typeof navigator === 'undefined') return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }
+  
   // Simple vibrate wrapper with error suppression
+  // Only calls navigator.vibrate() on mobile devices to prevent desktop console errors
   function vibrate(duration) {
+    // Only attempt vibration on mobile devices
+    if (!isMobileDevice()) return;
+    
     try {
       if (navigator.vibrate) {
         navigator.vibrate(duration);
@@ -51,6 +61,15 @@
     // nav-link wraps SpaceButton, so clicks on nav-link or its children should trigger medium haptic
     var navLink = target.closest('.nav-link');
     if (navLink && navLink.closest('.space-switcher-anchor')) {
+      vibrate(20);
+      return;
+    }
+    // Mobile nav specific: Check if inside mobile dropdown wrapper AND space-switcher-anchor
+    // This catches the main button that opens the bottom sheet in mobile nav
+    // Exclude toggle button which is already handled above
+    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
+    var spaceSwitcherAnchor = target.closest('.space-switcher-anchor');
+    if (mobileDropdownWrapper && spaceSwitcherAnchor && !target.closest('.space-switcher-anchor__toggle')) {
       vibrate(20);
       return;
     }

@@ -6,7 +6,16 @@
  * This utility exists for any components that need to trigger haptics programmatically.
  */
 
+// Check if device is mobile (iOS/Android) to prevent console errors on desktop
+function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
 function vibrate(duration: number | number[]) {
+  // Only attempt vibration on mobile devices to prevent desktop console errors
+  if (!isMobileDevice()) return;
+  
   try {
     if (navigator.vibrate) {
       navigator.vibrate(duration);

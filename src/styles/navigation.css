@@ -461,6 +461,14 @@
   );
 }
 
+/* Ensure last item covers bottom edge to prevent shadow artifact */
+.mobile-nav__space-panel-item:last-child {
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  position: relative;
+  z-index: 1;
+}
+
 .mobile-nav__space-panel-divider {
   height: 1px;
   background-color: var(--color-soft-gray);
