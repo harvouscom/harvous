@@ -1,5 +1,6 @@
 import { db, UserMetadata, eq } from 'astro:db';
 import type { Auth } from '@clerk/astro/server';
+import { clerkClient } from '@clerk/astro/server';
 
 const FREE_TIER_LIMIT = 1000;
 // Clerk Billing plan ID for unlimited notes
@@ -26,11 +27,26 @@ export async function getUserNoteCount(userId: string): Promise<number> {
 }
 
 /**
- * Check if user has active "unlimited_notes" feature via Clerk Billing Features
- * Uses Clerk's recommended has() method - auth object already contains user context
+ * Check if user has active "unlimited_notes" feature via Clerk Billing
+ * For static builds with JWT auth, check via Clerk client API
+ * For SSR builds, check via auth.has() if available
  */
-export function hasUnlimitedNotes(auth: Auth): boolean {
-  return auth.has({ feature: 'unlimited_notes' });
+export async function hasUnlimitedNotes(userId: string, auth?: Auth): Promise<boolean> {
+  // Try server-side auth.has() first (SSR/middleware builds)
+  if (auth && typeof auth.has === 'function') {
+    return auth.has({ feature: 'unlimited_notes' });
+  }
+
+  // Fallback: check via Clerk client API (static builds with JWT)
+  try {
+    const user = await clerkClient.users.getUser(userId);
+    // Check if user has unlimited_notes feature in their subscription
+    // This checks the organization features or user metadata
+    return user.publicMetadata?.unlimited_notes === true || false;
+  } catch (error) {
+    console.error('Error checking unlimited notes:', error);
+    return false; // Fail safe - assume no unlimited access
+  }
 }
 
 /**
@@ -39,25 +55,25 @@ export function hasUnlimitedNotes(auth: Auth): boolean {
  */
 export async function canCreateNote(
   userId: string,
-  auth: Auth
-): Promise<{ 
-  allowed: boolean; 
-  reason?: string; 
-  currentCount?: number; 
+  auth?: Auth
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+  currentCount?: number;
   limit?: number;
   upgradeUrl?: string;
 }> {
   try {
     // Check if user has unlimited plan
-    const hasUnlimited = hasUnlimitedNotes(auth);
-    
+    const hasUnlimited = await hasUnlimitedNotes(userId, auth);
+
     if (hasUnlimited) {
       return { allowed: true };
     }
 
     // Free tier - check note count
     const noteCount = await getUserNoteCount(userId);
-    
+
     if (noteCount >= FREE_TIER_LIMIT) {
       return {
         allowed: false,
@@ -68,7 +84,7 @@ export async function canCreateNote(
       };
     }
 
-    return { 
+    return {
       allowed: true,
       currentCount: noteCount,
       limit: FREE_TIER_LIMIT
@@ -83,14 +99,14 @@ export async function canCreateNote(
 /**
  * Get subscription status and note limit info for display
  */
-export async function getSubscriptionInfo(userId: string, auth: Auth): Promise<{
+export async function getSubscriptionInfo(userId: string, auth?: Auth): Promise<{
   hasUnlimited: boolean;
   currentCount: number;
   limit: number | null; // null means unlimited
 }> {
-  const hasUnlimited = hasUnlimitedNotes(auth);
+  const hasUnlimited = await hasUnlimitedNotes(userId, auth);
   const currentCount = await getUserNoteCount(userId);
-  
+
   return {
     hasUnlimited,
     currentCount,

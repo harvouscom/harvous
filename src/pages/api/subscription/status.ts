@@ -17,7 +17,7 @@ export const GET: APIRoute = async ({ request, locals  }) => {
       });
     }
 
-    const subscriptionInfo = await getSubscriptionInfo(userId, auth);
+    const subscriptionInfo = await getSubscriptionInfo(userId);
 
     return new Response(JSON.stringify({
       hasUnlimited: subscriptionInfo.hasUnlimited,
