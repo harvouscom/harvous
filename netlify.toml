@@ -15,8 +15,8 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    # Content Security Policy
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
+    # Content Security Policy (allows localhost for development)
+    Content-Security-Policy = "default-src 'self' http://localhost:* http://127.0.0.1:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: http: https: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
     # Prevent clickjacking
     X-Frame-Options = "DENY"
     # Prevent MIME type sniffing
@@ -27,7 +27,7 @@
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
     # XSS Protection (legacy, but still useful)
     X-XSS-Protection = "1; mode=block"
-    # Strict Transport Security (HSTS)
+    # Strict Transport Security (HSTS) - only for HTTPS, won't affect localhost
     Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
 
 # Note: For scheduled functions, configure in Netlify dashboard:
