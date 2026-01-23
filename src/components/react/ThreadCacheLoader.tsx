@@ -1,4 +1,5 @@
 /**
+import { authenticatedFetch } from '@/utils/fetch-helpers';
  * Thread Cache Loader
  * Displays cached thread content instantly while fresh data loads in background
  * Implements stale-while-revalidate pattern for optimal perceived performance
@@ -48,7 +49,7 @@ export default function ThreadCacheLoader({
         }
 
         // 2. Fetch fresh data in background (stale-while-revalidate)
-        const response = await fetch(`/api/threads/${threadId}/prefetch`, {
+        const response = await authenticatedFetch(`/api/threads/${threadId}/prefetch`, {
           credentials: 'include'
         });
 

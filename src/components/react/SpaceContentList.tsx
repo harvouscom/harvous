@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
@@ -280,7 +281,7 @@ export default function SpaceContentList({
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          const response = await fetch(`/api/spaces/${spaceId}/items`, {
+          const response = await authenticatedFetch(`/api/spaces/${spaceId}/items`, {
             credentials: 'include',
             cache: 'no-store'
           });

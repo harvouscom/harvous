@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
@@ -445,7 +446,7 @@ export default function ThreadNotesList({
 
         try {
           // Fetch note details
-          const response = await fetch(`/api/notes/${noteId}/details`, {
+          const response = await authenticatedFetch(`/api/notes/${noteId}/details`, {
             credentials: 'include'
           });
 
@@ -1051,7 +1052,7 @@ export default function ThreadNotesList({
       }
       
       // Then try to push deletion to server
-      const response = await fetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
+      const response = await authenticatedFetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import AddToSection from './AddToSection';
@@ -101,7 +102,7 @@ export default function NoteDetailsPanel({
   const fetchNoteDetails = async (preserveTab: boolean = false) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/details`);
+      const response = await authenticatedFetch(`/api/notes/${noteId}/details`);
       if (response.ok) {
         const data = await response.json();
         // Use the new threads array from the API response
@@ -151,7 +152,7 @@ export default function NoteDetailsPanel({
   const handleAddToThread = async (threadId: string) => {
     setIsMovingThread(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/add-thread`, {
+      const response = await authenticatedFetch(`/api/notes/${noteId}/add-thread`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -201,7 +202,7 @@ export default function NoteDetailsPanel({
     
     setIsMovingThread(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
+      const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -222,7 +223,7 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        const fetchResponse = await fetch(`/api/notes/${noteId}/details`);
+        const fetchResponse = await authenticatedFetch(`/api/notes/${noteId}/details`);
         let remainingThreadIds: string[] = [];
         
         if (fetchResponse.ok) {
@@ -275,7 +276,7 @@ export default function NoteDetailsPanel({
     setIsMovingThread(true);
     
     try {
-      const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
+      const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -296,7 +297,7 @@ export default function NoteDetailsPanel({
         }));
 
         // Refresh the note details to show updated threads
-        const fetchResponse = await fetch(`/api/notes/${noteId}/details`);
+        const fetchResponse = await authenticatedFetch(`/api/notes/${noteId}/details`);
         let remainingThreadIds: string[] = [];
         
         if (fetchResponse.ok) {
@@ -390,7 +391,7 @@ export default function NoteDetailsPanel({
 
   const removeTagFromNote = async (tagId: string) => {
     try {
-      const response = await fetch(`/api/note-tags/remove?noteId=${noteId}&tagId=${tagId}`, {
+      const response = await authenticatedFetch(`/api/note-tags/remove?noteId=${noteId}&tagId=${tagId}`, {
         method: 'DELETE',
         credentials: 'include'
       });

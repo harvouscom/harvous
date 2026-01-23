@@ -1,4 +1,5 @@
 /**
+import { authenticatedFetch } from '@/utils/fetch-helpers';
  * Thread content caching layer using IndexedDB
  * Caches full thread content (notes + metadata) for instant load times on revisits
  */
@@ -132,7 +133,7 @@ export async function prefetchThreadContent(
     if (cached) return;
 
     // Fetch thread data from API
-    const response = await fetch(`/api/threads/${threadId}/prefetch`, {
+    const response = await authenticatedFetch(`/api/threads/${threadId}/prefetch`, {
       credentials: 'include',
       // Use low priority for prefetch to not block user navigation
       // @ts-ignore - priority is not yet in TypeScript types

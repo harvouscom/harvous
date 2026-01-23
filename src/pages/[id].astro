@@ -1388,8 +1388,13 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       } else {
         // Fetch remaining threads for the note
         try {
+          const token = await getAuthToken();
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
           const response = await fetch(`/api/notes/${noteId}/details`, {
-            credentials: 'include'
+            credentials: 'include',
+            headers
           });
           
           if (response.ok) {
@@ -1436,8 +1441,13 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
         let targetUrl = '/thread_unorganized';
         
         try {
+          const token = await getAuthToken();
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
           const response = await fetch(`/api/notes/${noteId}/details`, {
-            credentials: 'include'
+            credentials: 'include',
+            headers
           });
           
           if (response.ok) {

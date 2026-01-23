@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
@@ -92,7 +93,7 @@ export default function MySpacesPanel({
       
       // Add cache-busting query parameter to ensure fresh data
       const cacheBuster = Date.now();
-      const response = await fetch(`/api/navigation/data?t=${cacheBuster}`, {
+      const response = await authenticatedFetch(`/api/navigation/data?t=${cacheBuster}`, {
         credentials: 'include',
         cache: 'no-store'
       });

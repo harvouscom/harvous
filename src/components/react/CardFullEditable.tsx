@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -259,7 +260,7 @@ export default function CardFullEditable({
             
             if (updatedContent) {
               // Save via API directly
-              const response = await fetch(`/api/notes/${noteId}/update-content`, {
+              const response = await authenticatedFetch(`/api/notes/${noteId}/update-content`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -815,7 +816,7 @@ export default function CardFullEditable({
                     if (noteId) {
                       try {
                         // Use the notes update endpoint which supports resourceImage updates
-                        const response = await fetch(`/api/notes/update`, {
+                        const response = await authenticatedFetch(`/api/notes/update`, {
                           method: 'PUT',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({

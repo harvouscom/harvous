@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 export interface TabNavProps {
   tabs: Array<{
@@ -60,7 +61,7 @@ export default function TabNav({
       
       if (currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized') {
         try {
-          const response = await fetch(`/api/threads/${currentThreadId}/note-type-counts`, {
+          const response = await authenticatedFetch(`/api/threads/${currentThreadId}/note-type-counts`, {
             credentials: 'include',
             cache: 'no-store'
           });
@@ -79,7 +80,7 @@ export default function TabNav({
       }
     } else if (threadId) {
       try {
-        const response = await fetch(`/api/threads/${threadId}/note-type-counts`, {
+        const response = await authenticatedFetch(`/api/threads/${threadId}/note-type-counts`, {
           credentials: 'include',
           cache: 'no-store'
         });
