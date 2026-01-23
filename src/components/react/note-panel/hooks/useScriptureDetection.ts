@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import type { NoteType } from './useNewNoteForm';
 
@@ -61,7 +62,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
       if (isLoadingFromLocalStorage.current) return;
       
       try {
-        const response = await fetch('/api/scripture/detect', {
+        const response = await authenticatedFetch('/api/scripture/detect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: titleToCheck }),
@@ -75,7 +76,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
             // Fetch verse text
             isFetchingRef.current = true;
             try {
-              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+              const verseResponse = await authenticatedFetch('/api/scripture/fetch-verse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: detection.primaryReference }),
@@ -135,7 +136,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
       isFetchingRef.current = true;
       try {
         const apiReference = formatReferenceForAPI(scriptureReference);
-        const verseResponse = await fetch('/api/scripture/fetch-verse', {
+        const verseResponse = await authenticatedFetch('/api/scripture/fetch-verse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reference: apiReference }),

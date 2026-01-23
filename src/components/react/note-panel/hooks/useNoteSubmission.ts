@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
@@ -195,7 +196,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     
     if (currentNoteType === 'default' && trimmedTitle.length >= 5) {
       try {
-        const detectionResponse = await fetch('/api/scripture/detect', {
+        const detectionResponse = await authenticatedFetch('/api/scripture/detect', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: trimmedTitle }),
@@ -208,7 +209,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
             // Fetch verse text
             try {
-              const verseResponse = await fetch('/api/scripture/fetch-verse', {
+              const verseResponse = await authenticatedFetch('/api/scripture/fetch-verse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: detection.primaryReference }),
@@ -434,7 +435,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       let networkError = false;
       
       try {
-        response = await fetch('/api/notes/create', {
+        response = await authenticatedFetch('/api/notes/create', {
           method: 'POST',
           body: formData,
           credentials: 'include'
@@ -633,7 +634,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           if (!threadData && finalThreadId && finalThreadId !== 'thread_unorganized') {
             try {
               debug('[useNoteSubmission] Fetching thread from API', { threadId: finalThreadId });
-              const response = await fetch('/api/threads/list', {
+              const response = await authenticatedFetch('/api/threads/list', {
                 credentials: 'include'
               });
               if (response.ok) {
@@ -1091,7 +1092,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
       }
 
-      const response = await fetch('/api/notes/create', {
+      const response = await authenticatedFetch('/api/notes/create', {
         method: 'POST',
         body: formData,
         credentials: 'include'
