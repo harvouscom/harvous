@@ -1137,7 +1137,14 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     if (isThreadPage || isNotePage || isSpacePage) {
       schedulePrefetch(async () => {
         try {
-          const response = await fetch('/api/navigation/data', { credentials: 'include' });
+          const token = await getAuthToken();
+          const headers = { 'Content-Type': 'application/json' };
+          if (token) headers['Authorization'] = `Bearer ${token}`;
+
+          const response = await fetch('/api/navigation/data', {
+            credentials: 'include',
+            headers
+          });
           if (response.ok) {
             const data = await response.json();
             setCachedNavigationData(data);
@@ -1166,7 +1173,14 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
         if (isThread || isNote || isSpace) {
           schedulePrefetch(async () => {
             try {
-              const response = await fetch('/api/navigation/data', { credentials: 'include' });
+              const token = await getAuthToken();
+              const headers = { 'Content-Type': 'application/json' };
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+
+              const response = await fetch('/api/navigation/data', {
+                credentials: 'include',
+                headers
+              });
               if (response.ok) {
                 const data = await response.json();
                 setCachedNavigationData(data);
@@ -1183,6 +1197,20 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
  
 <script>
   // @ts-nocheck
+
+  // Get JWT token from Clerk for API authentication
+  async function getAuthToken() {
+    if (typeof window === 'undefined') return null;
+    try {
+      const clerk = window.Clerk;
+      if (!clerk?.session) return null;
+      return await clerk.session.getToken();
+    } catch (error) {
+      console.error('[getAuthToken] Failed to get auth token:', error);
+      return null;
+    }
+  }
+
   // Helper function to safely import and use astro:transitions/client
   // Falls back to window.location if the module fails to load (e.g., on Mobile Safari)
   // @ts-ignore
@@ -1255,11 +1283,13 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       }
       
       // Try to push to server (will queue if offline)
+      const token = await getAuthToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch('/api/notes/update', {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
         body: JSON.stringify({
           noteId: noteId,

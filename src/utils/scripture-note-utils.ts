@@ -1,4 +1,5 @@
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 /**
  * Gets an existing scripture note or creates a new one if it doesn't exist.
@@ -15,7 +16,7 @@ export async function getOrCreateScriptureNote(
   const normalizedRef = normalizeScriptureReference(reference);
 
   // Check if note exists
-  const checkResponse = await fetch('/api/scripture/check-existing', {
+  const checkResponse = await authenticatedFetch('/api/scripture/check-existing', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reference: normalizedRef }),
@@ -58,7 +59,7 @@ export async function getOrCreateScriptureNote(
   // Fetch verse text first
   let verseText = reference; // Fallback to reference if fetch fails
   try {
-    const verseResponse = await fetch('/api/scripture/fetch-verse', {
+    const verseResponse = await authenticatedFetch('/api/scripture/fetch-verse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reference: normalizedRef }),
@@ -85,7 +86,7 @@ export async function getOrCreateScriptureNote(
   formData.set('scriptureReference', normalizedRef);
   formData.set('scriptureVersion', 'NET');
 
-  const createResponse = await fetch('/api/notes/create', {
+  const createResponse = await authenticatedFetch('/api/notes/create', {
     method: 'POST',
     body: formData,
     credentials: 'include'

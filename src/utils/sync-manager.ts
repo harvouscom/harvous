@@ -1,4 +1,5 @@
 import { 
+import { authenticatedFetch } from '@/utils/fetch-helpers';
   offlineDB, 
   type OfflineSpace, 
   type OfflineThread, 
@@ -648,7 +649,7 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
   try {
     await updateSyncState(userId, { isSyncing: true, syncError: null });
 
-    const response = await fetch('/api/sync/bootstrap', {
+    const response = await authenticatedFetch('/api/sync/bootstrap', {
       method: 'GET',
       credentials: 'include',
     });
@@ -832,7 +833,7 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
     }));
 
     // Send batch to server
-    const response = await fetch('/api/sync/push', {
+    const response = await authenticatedFetch('/api/sync/push', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mutations }),
