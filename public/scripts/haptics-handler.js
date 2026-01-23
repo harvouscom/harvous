@@ -50,6 +50,31 @@
       return;
     }
 
+    // Mobile nav specific: Check if inside mobile dropdown wrapper AND space-switcher-anchor
+    // This MUST run before general nav-link check to catch the main button that opens bottom sheet
+    // The main button is a nav-link inside space-switcher-anchor inside mobile-nav__dropdown-wrapper
+    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
+    if (mobileDropdownWrapper) {
+      // Check if we're inside a space-switcher-anchor (but not the toggle button)
+      var spaceSwitcherAnchor = target.closest('.space-switcher-anchor');
+      if (spaceSwitcherAnchor) {
+        // Make sure we're not clicking the toggle button
+        var toggleButton = target.closest('.space-switcher-anchor__toggle');
+        if (!toggleButton) {
+          // Also check if we're clicking on or inside a nav-link (the main button)
+          var navLink = target.closest('.nav-link');
+          if (navLink && navLink.closest('.space-switcher-anchor') === spaceSwitcherAnchor) {
+            // We're clicking the nav-link that's inside space-switcher-anchor in mobile nav
+            vibrate(20);
+            return;
+          }
+          // Fallback: if we're inside space-switcher-anchor in mobile nav (not toggle), trigger medium
+          vibrate(20);
+          return;
+        }
+      }
+    }
+
     // SpaceButton in space-switcher-anchor context has shadow (medium haptic)
     // Check if target is a space-button/space-btn AND inside space-switcher-anchor
     var spaceButton = target.closest('.space-button, .space-btn');
@@ -57,19 +82,10 @@
       vibrate(20);
       return;
     }
-    // Also check if clicking on nav-link that's inside space-switcher-anchor (mobile nav case)
+    // Also check if clicking on nav-link that's inside space-switcher-anchor (desktop nav case)
     // nav-link wraps SpaceButton, so clicks on nav-link or its children should trigger medium haptic
     var navLink = target.closest('.nav-link');
     if (navLink && navLink.closest('.space-switcher-anchor')) {
-      vibrate(20);
-      return;
-    }
-    // Mobile nav specific: Check if inside mobile dropdown wrapper AND space-switcher-anchor
-    // This catches the main button that opens the bottom sheet in mobile nav
-    // Exclude toggle button which is already handled above
-    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
-    var spaceSwitcherAnchor = target.closest('.space-switcher-anchor');
-    if (mobileDropdownWrapper && spaceSwitcherAnchor && !target.closest('.space-switcher-anchor__toggle')) {
       vibrate(20);
       return;
     }
