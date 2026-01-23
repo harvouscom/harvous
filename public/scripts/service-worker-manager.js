@@ -102,11 +102,11 @@
       // Minor/patch update - show toast and auto-reload
       if (window.toast && typeof window.toast.info === 'function') {
         try {
-          window.toast.info('New update available, refreshing app...');
-          // Wait 2 seconds before reloading to let user see the toast
+          window.toast.info('New update available, refreshing app');
+          // Wait 1600ms (matches toast duration) before reloading
           setTimeout(() => {
             window.location.reload();
-          }, 2000);
+          }, 1600);
         } catch (error) {
           // If toast fails, reload immediately
           console.log('Toast notification failed, reloading immediately:', error);
