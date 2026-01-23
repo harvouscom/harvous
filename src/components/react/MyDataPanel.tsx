@@ -125,7 +125,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     
     setIsExporting(format);
     try {
-      const response = await fetch(`/api/user/export?format=${format}`, {
+      const response = await authenticatedFetch(`/api/user/export?format=${format}`, {
         method: 'GET',
         credentials: 'include',
       });

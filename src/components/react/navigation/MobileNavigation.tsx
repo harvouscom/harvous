@@ -648,7 +648,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (!selectedSpaceId || !thread?.id) return;
     if (thread.id === 'thread_unorganized') return;
     try {
-      const response = await fetch(`/api/spaces/${selectedSpaceId}/add-thread`, {
+      const response = await authenticatedFetch(`/api/spaces/${selectedSpaceId}/add-thread`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

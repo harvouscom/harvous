@@ -232,7 +232,7 @@ export default function EditThreadPanel({
         
         // Refresh current thread notes if we added any
         if (selectedItems.length > 0) {
-          const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
+          const threadNotesResponse = await authenticatedFetch(`/api/threads/${threadId}/notes?limit=1000`, {
             credentials: 'include'
           });
           
@@ -417,7 +417,7 @@ export default function EditThreadPanel({
   const handleRemoveFromThread = async (noteId: string) => {
     setIsRemovingNote(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
+      const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -446,7 +446,7 @@ export default function EditThreadPanel({
         }));
 
         // Refresh current thread notes
-        const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
+        const threadNotesResponse = await authenticatedFetch(`/api/threads/${threadId}/notes?limit=1000`, {
           credentials: 'include'
         });
         

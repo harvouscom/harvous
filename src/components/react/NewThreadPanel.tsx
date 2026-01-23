@@ -447,7 +447,7 @@ export default function NewThreadPanel({
           // If noteIdToAdd is provided, add the note to the newly created thread
           if (noteIdToAdd && result.thread && result.thread.id) {
             try {
-              const addNoteResponse = await fetch(`/api/notes/${noteIdToAdd}/add-thread`, {
+              const addNoteResponse = await authenticatedFetch(`/api/notes/${noteIdToAdd}/add-thread`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

@@ -29,7 +29,7 @@ export async function getOrCreateScriptureNote(
       // If parent thread is provided, add existing note to that thread
       if (parentThreadId && parentThreadId !== 'thread_unorganized') {
         try {
-          const addThreadResponse = await fetch(`/api/notes/${checkResult.noteId}/add-thread`, {
+          const addThreadResponse = await authenticatedFetch(`/api/notes/${checkResult.noteId}/add-thread`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ threadId: parentThreadId }),

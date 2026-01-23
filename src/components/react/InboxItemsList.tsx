@@ -79,7 +79,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
     prefetchedItems.current.add(item.id);
 
     // Prefetch in background (don't await - fire and forget)
-    fetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
+    authenticatedFetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
       credentials: 'include',
     }).catch(() => {
       // On error, remove from prefetched set so we can retry on click
@@ -105,7 +105,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
     try {
       // Fetch full item data with notes via API
       // If prefetched, browser cache should make this instant
-      const response = await fetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
+      const response = await authenticatedFetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
         credentials: 'include',
       });
 

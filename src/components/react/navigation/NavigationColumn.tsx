@@ -175,7 +175,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
     setIsMovingThreadToSpace(true);
     try {
-      const response = await fetch(`/api/spaces/${selectedSpaceForMismatch}/add-thread`, {
+      const response = await authenticatedFetch(`/api/spaces/${selectedSpaceForMismatch}/add-thread`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

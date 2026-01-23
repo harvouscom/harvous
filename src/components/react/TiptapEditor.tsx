@@ -1073,7 +1073,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
       
       // Check if this note is a scripture note
       try {
-        const checkResponse = await fetch(`/api/notes/${noteId}/details`, {
+        const checkResponse = await authenticatedFetch(`/api/notes/${noteId}/details`, {
           method: 'GET',
           credentials: 'include'
         });
@@ -3021,7 +3021,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   const targetThreadId = parentThreadId || localStorage.getItem('newNoteThread') || 'thread_unorganized';
                   
                   try {
-                    const addThreadResponse = await fetch(`/api/notes/${existingCheck.noteId}/add-thread`, {
+                    const addThreadResponse = await authenticatedFetch(`/api/notes/${existingCheck.noteId}/add-thread`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ threadId: targetThreadId }),

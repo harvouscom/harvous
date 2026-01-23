@@ -96,7 +96,7 @@ export default function EditSpacePanel({
   const fetchCurrentSpaceItems = async () => {
     setIsLoadingCurrentItems(true);
     try {
-      const response = await fetch(`/api/spaces/${spaceId}/items`, {
+      const response = await authenticatedFetch(`/api/spaces/${spaceId}/items`, {
         credentials: 'include'
       });
       
@@ -156,7 +156,7 @@ export default function EditSpacePanel({
       formDataToSend.append('title', formData.title.trim());
       formDataToSend.append('color', formData.selectedColor);
 
-      const response = await fetch(`/api/spaces/${spaceId}/update`, {
+      const response = await authenticatedFetch(`/api/spaces/${spaceId}/update`, {
         method: 'POST',
         body: formDataToSend,
         credentials: 'include'
@@ -211,7 +211,7 @@ export default function EditSpacePanel({
       const noteIds = itemType === 'note' ? [itemId] : [];
       const threadIds = itemType === 'thread' ? [itemId] : [];
 
-      const response = await fetch(`/api/spaces/${spaceId}/remove-items`, {
+      const response = await authenticatedFetch(`/api/spaces/${spaceId}/remove-items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -301,7 +301,7 @@ export default function EditSpacePanel({
       const noteIds = itemType === 'note' ? [itemId] : [];
       const threadIds = itemType === 'thread' ? [itemId] : [];
 
-      const response = await fetch(`/api/spaces/${spaceId}/add-items`, {
+      const response = await authenticatedFetch(`/api/spaces/${spaceId}/add-items`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
