@@ -103,5 +103,5 @@ Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](ht
 
 ---
 
-**Version:** 1.32.0
+**Version:** 1.33.0
 **Status:** Official 1.0 Released January 8, 2026
