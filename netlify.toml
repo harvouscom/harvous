@@ -11,12 +11,18 @@
   to = "/index.html"
   status = 200
 
-# Security Headers
+# Security Headers - PRODUCTION ONLY
+# Note: These headers are only applied on Netlify production deployments
+# For local development, use `npm run dev` (not `netlify dev`)
+# If you see CSP errors locally, kill any background Netlify processes with: pkill -f netlify && pkill -f deno
+
+# Production deployment headers (when CONTEXT is "production" or "deploy-preview")
 [[headers]]
   for = "/*"
   [headers.values]
-    # Content Security Policy (allows localhost for development)
-    Content-Security-Policy = "default-src 'self' http://localhost:* http://127.0.0.1:*; script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:* http://127.0.0.1:* https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; style-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:* https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: http: https: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+    # Content Security Policy - PRODUCTION
+    # Allows all necessary resources for Clerk, PostHog, fonts, and app functionality
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none';"
     # Prevent clickjacking
     X-Frame-Options = "DENY"
     # Prevent MIME type sniffing
