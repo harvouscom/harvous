@@ -2,16 +2,16 @@ import type { APIRoute } from 'astro';
 import { getSeasonalXP, getLifetimeXP, checkLifetimeMilestones, getAllSeasonalXP } from '@/utils/xp-system';
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([

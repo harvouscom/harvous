@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
 import { handleAPIError } from '@/utils/error-handling';
 import { UNLIMITED_PLAN_ID } from '@/utils/subscription';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const body = await request.json();

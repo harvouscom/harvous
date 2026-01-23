@@ -3,17 +3,17 @@ import { getAllThreadsWithCounts } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals  }) => {
   try {
     // Get user ID from Clerk authentication
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Fetch threads from database

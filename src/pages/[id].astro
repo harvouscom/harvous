@@ -1,4 +1,6 @@
 ---
+export const prerender = false;
+
 import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
 import CardFull from "@/components/CardFull.astro";
@@ -189,16 +191,9 @@ import MobileAdditional from "@/components/MobileAdditional.astro";
 // Dynamic routing - no static paths needed
 
 // Get user data from Clerk authentication
-const auth = Astro.locals.auth();
-const { userId } = auth;
-
 // Auth redirect is now handled by middleware - no need to check here
 // Pages can still use userId for conditional rendering
 // Type guard: middleware ensures userId exists, but TypeScript doesn't know this
-if (!userId) {
-  throw new Error('User ID is required but not found');
-}
-
 // Now TypeScript knows userId is non-null
 const authenticatedUserId: string = userId;
 

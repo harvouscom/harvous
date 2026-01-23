@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
 import { getThreadNoteTypeCounts } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ params, locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, params, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const threadId = params.threadId;

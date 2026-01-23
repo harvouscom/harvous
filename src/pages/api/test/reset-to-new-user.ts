@@ -1,12 +1,15 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Test endpoint to reset current user to "new user" state
  * This deletes UserMetadata and onboarding thread so the user will be treated as new
  * Only available in development
  */
-export const POST: APIRoute = async ({ locals }) => {
+export const POST: APIRoute = async ({ request, locals  }) => {
   // Only allow in development
   if (import.meta.env.PROD) {
     return new Response(JSON.stringify({ error: 'Test endpoint not available in production' }), {
@@ -16,13 +19,10 @@ export const POST: APIRoute = async ({ locals }) => {
   }
 
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // 1. Delete onboarding thread if it exists

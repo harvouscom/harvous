@@ -3,6 +3,9 @@ import { db, Notes, ScriptureMetadata, eq, and } from 'astro:db';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 import { debug } from '@/utils/logger';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 interface ReprocessResult {
   noteId: string;
@@ -15,13 +18,10 @@ interface ReprocessResult {
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Parse query parameters
@@ -203,13 +203,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Parse query parameters

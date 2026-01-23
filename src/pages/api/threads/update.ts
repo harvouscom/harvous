@@ -4,12 +4,15 @@ import { db, Notes, Threads, NoteThreads, eq, and } from 'astro:db';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
-import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
+import { successResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals, callAction }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse();
@@ -85,7 +88,6 @@ export const POST: APIRoute = async ({ request, locals, callAction }) => {
 
     // Add selected notes to the thread via junction table
     if (selectedNoteIds.length > 0) {
-      const { userId } = locals.auth();
       
       if (userId) {
         for (const noteId of selectedNoteIds) {

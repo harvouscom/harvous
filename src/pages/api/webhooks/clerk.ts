@@ -4,6 +4,8 @@ import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { successResponse, errorResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
 
+export const prerender = false;
+
 /**
  * Clerk Webhook Endpoint
  *

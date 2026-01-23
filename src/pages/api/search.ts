@@ -2,11 +2,14 @@ import type { APIRoute } from 'astro';
 import { db, Notes, Threads, eq, and, or, like, desc } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { successResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
     // Get user ID from Clerk authentication
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse('Unauthorized');

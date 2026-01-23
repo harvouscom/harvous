@@ -16,97 +16,37 @@ import ProfileCardStackHeader from "@/components/react/ProfileCardStackHeader.ts
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import founderLetterMarkdown from '@/data/about/founder-letter.md?raw';
 
-// Get user data from Clerk authentication
-const auth = Astro.locals.auth();
-const { userId } = auth;
+// Static build - all user data and navigation data loaded client-side
+// Components handle their own auth via API calls with JWT tokens
+const userData: CachedUserData = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  initials: 'U',
+  displayName: 'User',
+  userColor: 'paper',
+};
 
-// Auth redirect is now handled by middleware - no need to check here
-// Pages can still use userId for conditional rendering
-
-if (!userId) {
-  return Astro.redirect('/sign-in');
-}
-
-// Get cached user data
-let userData: CachedUserData;
-try {
-  userData = await getCachedUserData(userId);
-} catch (error) {
-  // Fallback data
-  userData = {
-    firstName: '',
-    lastName: '',
-    email: '',
-    initials: 'U',
-    displayName: 'User',
-    userColor: 'paper',
-  };
-}
-
-const { firstName, lastName, email, initials, displayName, userColor, createdAt } = userData;
+const { firstName, lastName, email, initials, displayName, userColor } = userData;
 
 // Format join date
-let joinDate: string;
-if (createdAt) {
-  const joinDateObj = new Date(createdAt);
-  const month = joinDateObj.toLocaleDateString('en-US', { month: 'short' });
-  const year = joinDateObj.getFullYear();
-  joinDate = `${month} ${year}`;
-} else {
-  const currentDate = new Date();
-  const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
-  const currentYear = currentDate.getFullYear();
-  joinDate = `${currentMonth} ${currentYear}`;
-}
+const currentDate = new Date();
+const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
+const currentYear = currentDate.getFullYear();
+const joinDate = `${currentMonth} ${currentYear}`;
 
-// Fetch navigation data and church data
-let spaces: any[] = [];
-let threads: any[] = [];
-let inboxCount: number = 0;
-let seasonalXP: number = 0;
-let lifetimeXP: number = 0;
-let seasonName: string = '';
-let churchData = {
+// Static build - navigation data loaded client-side
+const spaces: any[] = [];
+const threads: any[] = [];
+const inboxCount = 0;
+const seasonalXP = 0;
+const lifetimeXP = 0;
+const seasonName = getSeasonDisplayName();
+const churchData = {
   churchName: null as string | null,
   churchCity: null as string | null,
   churchState: null as string | null
 };
-
-try {
-  const [spacesData, threadsData, inboxCountData, seasonalXPData, lifetimeXPData, userMetadata] = await Promise.all([
-    getSpacesWithCounts(userId),
-    getAllThreadsWithCounts(userId),
-    getInboxCount(userId),
-    getSeasonalXP(userId),
-    getLifetimeXP(userId),
-    db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get()
-  ]);
-  
-  spaces = spacesData.map(space => ({
-    ...space,
-    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
-  }));
-  threads = threadsData.map(thread => ({
-    ...thread,
-    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
-  }));
-  inboxCount = inboxCountData;
-  seasonalXP = seasonalXPData;
-  lifetimeXP = lifetimeXPData;
-  seasonName = getSeasonDisplayName();
-  
-  // Extract church data from UserMetadata
-  if (userMetadata) {
-    churchData = {
-      churchName: userMetadata.churchName ?? null,
-      churchCity: userMetadata.churchCity ?? null,
-      churchState: userMetadata.churchState ?? null
-    };
-  }
-  
-} catch (error) {
-  console.error("Error fetching navigation data:", error);
-}
 
 const contentType = "profile";
 const contentId = "profile";
@@ -119,11 +59,10 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
 ---
 
-<Layout 
-  title="Profile" 
-  contentType={contentType} 
+<Layout
+  title="Profile"
+  contentType={contentType}
   contentId={contentId}
-  userId={userId}
   userData={{
     email: userData.email,
     name: `${userData.firstName} ${userData.lastName}`.trim(),

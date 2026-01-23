@@ -1,7 +1,10 @@
 import type { APIRoute } from 'astro';
 import { db, Spaces, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const POST: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const POST: APIRoute = async ({ request, locals  }) => {
   // Restrict to development only - this is a one-time cleanup script
   if (import.meta.env.PROD) {
     return new Response(JSON.stringify({ error: 'Cleanup endpoints are not available in production' }), {
@@ -12,13 +15,10 @@ export const POST: APIRoute = async ({ locals }) => {
 
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
 

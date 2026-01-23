@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, isNull, eq } from 'astro:db';
 
+export const prerender = false;
+
 /**
  * One-time migration to backfill lastVisited for all existing content
  *

@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '@/utils/analytics-aggregator';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * API endpoint to aggregate monthly analytics
@@ -12,7 +15,7 @@ import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '@/
  */
 export const POST: APIRoute = async ({ request, locals, url }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     // Check authentication: either secret token OR authenticated user
     const authHeader = request.headers.get('authorization');
@@ -22,10 +25,7 @@ export const POST: APIRoute = async ({ request, locals, url }) => {
     
     // Require either valid token (for scheduled jobs) or authenticated user (for manual calls)
     if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const previous = url.searchParams.get('previous') === 'true';

@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { db, InboxItems, UserInboxItems, UserMetadata, eq, and } from 'astro:db';
 import { verifyInboxItemInWebflow } from '@/utils/webflow-verification';
 
+export const prerender = false;
+
 /**
  * Clean reset of inbox items for all users
  * 

@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { detectScripture, getPrimaryReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
 
+export const prerender = false;
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const { text } = await request.json();

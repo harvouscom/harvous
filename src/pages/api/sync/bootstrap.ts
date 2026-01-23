@@ -2,6 +2,9 @@ import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Bootstrap endpoint for offline-first sync
@@ -9,7 +12,7 @@ import { unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses
  */
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse();

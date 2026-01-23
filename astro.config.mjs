@@ -100,14 +100,10 @@ export default defineConfig({
     react(),
   ],
 
-  // Use different output modes for development vs production
-  output: "server",
-  // Only use adapter in production - in dev mode, Astro runs without adapter
-  // This prevents database lock issues from Netlify edge functions process
-  // Clerk works fine in dev mode without the adapter
-  ...(import.meta.env.PROD && {
-    adapter: netlify({
-      edgeMiddleware: false
-    })
+  // Static build for mobile-ready architecture
+  // Netlify adapter converts API routes to serverless functions
+  output: "static",
+  adapter: netlify({
+    edgeMiddleware: false
   }),
 });

@@ -1,5 +1,7 @@
 import type { APIRoute } from 'astro';
 
+export const prerender = false;
+
 /**
  * Lightweight health check endpoint for warming up serverless functions.
  * 

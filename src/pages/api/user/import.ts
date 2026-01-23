@@ -8,6 +8,9 @@ import { parseMarkdownExport, type ParsedMarkdownNote } from '@/utils/markdown-i
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { htmlToPlainText } from '@/utils/html-to-markdown';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Get a deterministic color for a thread based on its title
@@ -186,13 +189,10 @@ function parseExportDate(dateString: string | null): Date {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
 
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Parse form data

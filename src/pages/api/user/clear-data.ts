@@ -1,15 +1,15 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata, UserXP, Comments, ScriptureMetadata, Members, eq } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const DELETE: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const DELETE: APIRoute = async ({ request, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
 

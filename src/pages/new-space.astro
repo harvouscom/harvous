@@ -8,91 +8,15 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/u
 import { calculateTotalXP } from "@/utils/xp-system";
 import { getThreadGradientCSS } from "@/utils/colors";
 
-// Get user data from Clerk authentication
-const auth = Astro.locals.auth();
-const { userId, getToken } = auth;
-
-// Auth redirect is now handled by middleware - no need to check here
-// Pages can still use userId for conditional rendering
-
-// Try to fetch user data from Clerk API using secret key
-let userData: any = null;
-try {
-  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-  
-  if (clerkSecretKey) {
-    const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {
-      headers: {
-        'Authorization': `Bearer ${clerkSecretKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      userData = await response.json();
-    }
-  }
-} catch (error) {
-  // Error fetching user data
-}
-
-// Extract user data from API response or use fallbacks
-const firstName = userData?.first_name || userData?.firstName || '';
-const lastName = userData?.last_name || userData?.lastName || '';
-const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
-
-// Generate initials from first and last name
-const initials = `${firstName.charAt(0) || ''}${lastName.charAt(0) || ''}`.toUpperCase() || 'U';
-const displayName = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
-
-// Get user color from database
-let userColor = 'paper'; // default
-try {
-  const { db, UserMetadata, eq } = await import('astro:db');
-  const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-  userColor = userMetadata?.userColor || 'paper';
-} catch (error) {
-  // Error fetching user color
-}
-
-// Fetch navigation data for mobile components and XP data
-let spaces: any[] = [];
-let threads: any[] = [];
-let inboxCount: number = 0;
-let userXP: number = 0;
-
-try {
-  const [spacesData, threadsData, inboxCountData, xpData] = await Promise.all([
-    getSpacesWithCounts(userId),
-    getAllThreadsWithCounts(userId),
-    getInboxCount(userId),
-    calculateTotalXP(userId)
-  ]);
-  
-  spaces = spacesData;
-  threads = threadsData;
-  inboxCount = inboxCountData;
-  userXP = xpData;
-  
-  // Ensure threads have backgroundGradient property for consistency
-  threads = threads.map(thread => ({
-    ...thread,
-    backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
-  }));
-  
-  // Ensure spaces have backgroundGradient property for consistency
-  spaces = spaces.map(space => ({
-    ...space,
-    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
-  }));
-} catch (error) {
-  console.error("Error fetching navigation data:", error);
-  // Fallback to empty data
-  spaces = [];
-  threads = [];
-  inboxCount = 0;
-  userXP = 0;
-}
+// Static build - all user data and navigation data loaded client-side
+// Components handle their own auth via API calls with JWT tokens
+const initials = 'U';
+const displayName = 'User';
+const userColor = 'paper';
+const spaces: any[] = [];
+const threads: any[] = [];
+const inboxCount = 0;
+const userXP = 0;
 
 const contentType = "profile";
 const contentId = "new-space";

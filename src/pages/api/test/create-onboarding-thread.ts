@@ -4,12 +4,15 @@ import { generateThreadId, generateNoteId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 import { loadOnboardingNotes } from '@/utils/load-onboarding-notes';
 import { processScriptureReferences } from '@/utils/process-scripture-references';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Test endpoint to manually create onboarding thread for current user
  * Only available in development
  */
-export const POST: APIRoute = async ({ locals }) => {
+export const POST: APIRoute = async ({ request, locals  }) => {
   // Only allow in development
   if (import.meta.env.PROD) {
     return new Response(JSON.stringify({ error: 'Test endpoint not available in production' }), {
@@ -19,13 +22,10 @@ export const POST: APIRoute = async ({ locals }) => {
   }
 
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Check if onboarding thread already exists

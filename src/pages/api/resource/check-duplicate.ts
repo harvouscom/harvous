@@ -1,6 +1,9 @@
 import type { APIRoute } from 'astro';
 import { db, ResourceMetadata, Notes, eq, and } from 'astro:db';
 import { validateResourceUrl } from '@/utils/validation';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Check if a resource URL already exists for the current user
@@ -8,13 +11,10 @@ import { validateResourceUrl } from '@/utils/validation';
  */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const body = await request.json();

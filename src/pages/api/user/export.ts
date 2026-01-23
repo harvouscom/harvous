@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc } from 'astro:db';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const GET: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Get format from query parameter

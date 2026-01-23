@@ -1,15 +1,15 @@
 import type { APIRoute } from 'astro';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals, url }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals, url  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const noteId = url.searchParams.get('noteId');

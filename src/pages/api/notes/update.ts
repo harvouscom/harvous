@@ -3,12 +3,15 @@ import { db, Notes, Threads, NoteThreads, ResourceMetadata, eq, and } from 'astr
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
-import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, notFoundResponse, serverErrorResponse } from '@/utils/api-responses';
+import { successResponse, errorResponse, rateLimitedResponse, notFoundResponse, serverErrorResponse } from '@/utils/api-responses';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const PUT: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse();

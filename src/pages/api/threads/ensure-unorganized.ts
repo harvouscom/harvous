@@ -1,18 +1,16 @@
 import type { APIRoute } from 'astro';
 import { db, Threads, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get authenticated user
-    const auth = await locals.auth();
-    if (!auth?.userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const userId = await getAuthFromRequest(request);
+    if (!userId) {
+      return unauthorizedResponse();
     }
-
-    const userId = auth.userId;
 
     // Check if unorganized thread already exists
     const existingThread = await db.select()

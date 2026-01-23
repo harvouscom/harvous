@@ -29,23 +29,40 @@ interface SafeFetchResult<T = unknown> {
 const inFlightRequests = new Map<string, Promise<Response | null>>();
 
 /**
+ * Get JWT token from Clerk for API authentication
+ * Used in static builds to authenticate API requests
+ */
+async function getAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const clerk = (window as any).Clerk;
+    if (!clerk?.session) return null;
+    return await clerk.session.getToken();
+  } catch (error) {
+    console.error('Failed to get auth token:', error);
+    return null;
+  }
+}
+
+/**
  * Check if Clerk authentication is ready
  * Returns true if auth cookies/tokens are present
  */
 export function isAuthReady(): boolean {
   if (typeof window === 'undefined') return false;
-  
+
   // Check for Clerk session cookie or token
   const cookies = document.cookie.split(';');
-  const hasClerkCookie = cookies.some(cookie => 
-    cookie.trim().startsWith('__clerk') || 
+  const hasClerkCookie = cookies.some(cookie =>
+    cookie.trim().startsWith('__clerk') ||
     cookie.trim().startsWith('__session')
   );
-  
+
   // Also check if we're on a protected route (not sign-in/sign-up)
-  const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
+  const isProtectedRoute = !window.location.pathname.includes('/sign-in') &&
                           !window.location.pathname.includes('/sign-up');
-  
+
   return hasClerkCookie || isProtectedRoute;
 }
 
@@ -120,16 +137,23 @@ export async function safeFetch(
     return null;
   }
 
+  // Get JWT token for API authentication (static builds)
+  const token = checkAuth ? await getAuthToken() : null;
+
   // Ensure credentials are included for auth
+  // Add JWT token if available (for static builds with JWT auth)
   // Add prefetch header if this is a background request
   const headers = new Headers(fetchOptions.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
   if (isPrefetch) {
     headers.set('X-Prefetch-Request', '1');
   }
 
   const mergedOptions: RequestInit = {
     ...fetchOptions,
-    credentials: 'include',
+    credentials: 'include', // Still include cookies for backward compatibility
     headers
   };
 

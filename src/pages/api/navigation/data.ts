@@ -3,17 +3,16 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount } fr
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals  }) => {
   try {
-    const auth = locals.auth();
-    const { userId } = auth;
-    
+    const userId = await getAuthFromRequest(request);
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
     
     // Fetch navigation data in parallel

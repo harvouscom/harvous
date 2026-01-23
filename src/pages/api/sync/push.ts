@@ -3,6 +3,9 @@ import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, 
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse, errorResponse } from '@/utils/api-responses';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Batch push endpoint for offline mutations
@@ -10,7 +13,7 @@ import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
  */
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse();

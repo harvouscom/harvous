@@ -5,17 +5,17 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { awardCreationBonusXP } from '@/utils/xp-system';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations

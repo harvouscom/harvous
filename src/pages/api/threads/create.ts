@@ -6,14 +6,17 @@ import { awardCreationBonusXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
-import { successResponse, unauthorizedResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
+import { successResponse, errorResponse, rateLimitedResponse, serverErrorResponse } from '@/utils/api-responses';
 import { getNextUntitledThreadName } from '@/utils/untitled-naming';
 import { moveScriptureNotesToThread } from '@/utils/move-scripture-notes-to-thread';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return unauthorizedResponse();

@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Test endpoint to set note count for testing freemium limits
@@ -19,7 +22,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    const { userId: authUserId } = locals.auth();
+    const authUserId = await getAuthFromRequest(request);
     const body = await request.json();
     const { count, userId: targetUserId } = body;
 

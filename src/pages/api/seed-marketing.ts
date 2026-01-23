@@ -8,6 +8,8 @@
 import type { APIRoute } from 'astro';
 import seedMarketing from '../../../scripts/seed-marketing.ts';
 
+export const prerender = false;
+
 export const POST: APIRoute = async () => {
   try {
     console.log('🌱 Starting marketing seed via API...');

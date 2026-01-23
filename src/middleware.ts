@@ -28,21 +28,11 @@ const isPublicRoute = createRouteMatcher([
   '/api/stats/user-count' // Public stats endpoint for Webflow integration
 ])
 
-export const onRequest = clerkMiddleware((auth, context, next) => {
-  // Skip auth check for public routes
-  if (isPublicRoute(context.request)) {
-    return next();
-  }
-
-  // All other routes are protected - check if user is authenticated
-  // This includes: /, /profile, /find, /new-space, and all dynamic routes like /[id].astro
-  if (!auth().userId) {
-    // Redirect to custom sign-in page instead of Clerk's default page
-    const signInUrl = new URL('/sign-in', context.request.url);
-    // Preserve the current path as return URL so user can be redirected back after sign-in
-    signInUrl.searchParams.set('redirect_url', context.request.url);
-    return Response.redirect(signInUrl);
-  }
-
+// Middleware disabled for static build - authentication now handled via:
+// 1. JWT tokens in API routes (via getAuthFromRequest helper)
+// 2. Client-side components handle auth via API calls
+//
+// Export pass-through middleware for static build compatibility
+export const onRequest = async (context: any, next: any) => {
   return next();
-})
+};

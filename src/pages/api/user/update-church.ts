@@ -3,16 +3,16 @@ import { db, UserMetadata, eq } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { awardChurchAddedXP } from '@/utils/xp-system';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations

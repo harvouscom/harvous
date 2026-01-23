@@ -3,6 +3,8 @@ import { parseScriptureReference, parseVerseGroups, type VerseGroup, validateVer
 import { handleAPIError } from '@/utils/error-handling';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
 
+export const prerender = false;
+
 interface BibleOrgVerse {
   bookname: string;
   chapter: string;

@@ -12,6 +12,9 @@ import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { debug } from '@/utils/logger';
 import { canCreateNote } from '@/utils/subscription';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 // Title character limits
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -25,15 +28,14 @@ const truncateAndCapitalizeTitle = (title: string): string => {
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
-    
+    const userId = await getAuthFromRequest(request);
+
     if (!userId) {
       return unauthorizedResponse();
     }
 
-        // Check note limit before allowing creation
-        const auth = locals.auth();
-        const noteLimitCheck = await canCreateNote(userId, auth);
+    // Check note limit before allowing creation
+    const noteLimitCheck = await canCreateNote(userId, { userId });
     if (!noteLimitCheck.allowed) {
       return jsonResponse({
         error: noteLimitCheck.reason || 'Note limit reached',

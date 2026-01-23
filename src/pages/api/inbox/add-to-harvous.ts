@@ -4,6 +4,9 @@ import { generateNoteId, generateThreadId } from '@/utils/ids';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '@/utils/xp-system';
 import { getInboxItemWithNotes } from '@/utils/inbox-data';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 // Reverse color mapping: convert long color names (from Webflow) to short names (for Threads)
 const REVERSE_COLOR_MAP: Record<string, string> = {
@@ -44,13 +47,10 @@ function convertInboxColorToThreadColor(inboxColor: string | null | undefined): 
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const body = await request.json();

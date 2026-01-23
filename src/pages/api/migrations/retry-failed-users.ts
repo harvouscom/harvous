@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { createClerkClient } from '@clerk/backend';
 import { tagAsAppUser } from '@/utils/audienceful';
 
+export const prerender = false;
+
 /**
  * Retry migration for specific users that failed in previous runs
  *

@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { createClerkClient } from '@clerk/backend';
 
+export const prerender = false;
+
 /**
  * Public API endpoint that returns the total user count from Clerk.
  * 

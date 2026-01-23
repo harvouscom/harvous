@@ -1,16 +1,16 @@
 import type { APIRoute } from 'astro';
 import { getInboxItemWithNotes } from '@/utils/inbox-data';
 import { db, UserInboxItems, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ url, locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, url, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const inboxItemId = url.searchParams.get('inboxItemId');

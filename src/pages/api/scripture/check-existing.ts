@@ -2,10 +2,13 @@ import type { APIRoute } from 'astro';
 import { db, ScriptureMetadata, Notes, NoteThreads, eq, and, count, isNull } from 'astro:db';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return new Response(JSON.stringify({ 

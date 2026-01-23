@@ -8,16 +8,8 @@ import ToastProvider from "@/components/react/ToastProvider.tsx";
 import { ClientRouter } from "astro:transitions";
 import "sonner/dist/styles.css";
 
-// Get user data from Clerk authentication
-const auth = Astro.locals.auth();
-const { userId } = auth;
-
-if (!userId) {
-  throw new Error('User ID is required but not found');
-}
-
-// Get subscription info (pass auth object to use has() method)
-const subscriptionInfo = await getSubscriptionInfo(userId, auth);
+// Static build - subscription info loaded client-side
+const subscriptionInfo = { hasUnlimited: false, currentCount: 0, limit: 200 };
 
 // Extract publishable key and plan ID in frontmatter (where import.meta works)
 // Convert to strings to ensure proper serialization

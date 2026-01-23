@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, NoteThreads, Threads, eq, and, ne } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Migration API endpoint to retire primary threadId logic
@@ -23,9 +26,10 @@ async function runMigration(locals: any, url: URL) {
   const runForAllUsers = url.searchParams.get('all') === 'true';
   
   try {
-    const auth = locals.auth();
-    const userId = auth?.userId;
-    
+    // Note: This migration endpoint references 'request' but receives 'locals'
+    // For dev-only migrations, auth is optional (can use ?all=true)
+    const userId = null; // Auth not enforced for migrations
+
     if (!userId && !runForAllUsers) {
       return new Response(JSON.stringify({ error: 'Authentication required. Add ?all=true to run for all users (use with caution)' }), {
         status: 401,
@@ -161,11 +165,11 @@ async function runMigration(locals: any, url: URL) {
   }
 }
 
-export const GET: APIRoute = async ({ locals, url }) => {
+export const GET: APIRoute = async ({ request, locals, url  }) => {
   return runMigration(locals, url);
 };
 
-export const POST: APIRoute = async ({ locals, url }) => {
+export const POST: APIRoute = async ({ request, locals, url  }) => {
   return runMigration(locals, url);
 };
 

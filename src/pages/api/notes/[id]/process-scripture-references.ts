@@ -1,9 +1,12 @@
 import type { APIRoute } from 'astro';
 import { processScriptureReferences } from '@/utils/process-scripture-references';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     const { id: noteId } = params;
     const { threadId } = await request.json();
 

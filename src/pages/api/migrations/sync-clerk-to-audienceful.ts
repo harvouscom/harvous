@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro';
 import { createClerkClient } from '@clerk/backend';
 import { tagAsAppUser } from '@/utils/audienceful';
 
+export const prerender = false;
+
 /**
  * One-time migration to sync all existing Clerk users to Audienceful
  *

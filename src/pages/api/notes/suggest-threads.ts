@@ -1,6 +1,9 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, NoteThreads, Threads, eq, and, desc, inArray } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 // Simple text similarity scoring (word overlap)
 function calculateSimilarity(text1: string, text2: string): number {
@@ -25,13 +28,10 @@ function extractKeywords(text: string): string[] {
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const body = await request.json();

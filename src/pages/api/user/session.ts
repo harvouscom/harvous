@@ -2,16 +2,16 @@ import type { APIRoute } from 'astro';
 import { awardSessionXP } from '@/utils/xp-system';
 import { calculateSessionXP, type SessionData } from '@/utils/session-tracker';
 import { handleAPIError } from '@/utils/error-handling';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Get session data from request body

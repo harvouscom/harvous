@@ -3,6 +3,8 @@ import { handleAPIError } from '@/utils/error-handling';
 import { normalizeUrl, validateResourceUrl, getDomainFriendlyName, extractDomain } from '@/utils/validation';
 import { extractArticleContent } from '@/utils/content-extractor';
 
+export const prerender = false;
+
 // Helper function to decode HTML entities
 function decodeHtmlEntities(text: string): string {
   const entities: Record<string, string> = {

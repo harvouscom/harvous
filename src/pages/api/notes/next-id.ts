@@ -1,10 +1,13 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, UserMetadata, eq, and, desc, isNotNull } from 'astro:db';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals  }) => {
   try {
     // Get userId from authenticated context
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
       return new Response(JSON.stringify({ 

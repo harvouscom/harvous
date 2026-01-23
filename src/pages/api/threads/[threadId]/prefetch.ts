@@ -1,19 +1,19 @@
 import type { APIRoute } from 'astro';
 import { getThreadWithCount, getNotesForThread, getThreadNoteTypeCounts } from '@/utils/dashboard-data';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Prefetch endpoint for thread content
  * Returns thread metadata, notes, and note type counts
  * Used by thread cache prefetching system
  */
-export const GET: APIRoute = async ({ params, locals }) => {
+export const GET: APIRoute = async ({ request, params, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const { threadId } = params;

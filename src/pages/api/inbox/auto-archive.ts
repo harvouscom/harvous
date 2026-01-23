@@ -1,5 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, UserInboxItems, InboxItems, eq, and, lt } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Auto-archive endpoint that archives inbox items older than 14 days
@@ -12,16 +15,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Check authentication: either secret token OR authenticated user
     const authHeader = request.headers.get('authorization');
     const expectedToken = import.meta.env.AUTO_ARCHIVE_SECRET_TOKEN;
-    const auth = locals.auth();
+        const userId = await getAuthFromRequest(request);
     const isAuthenticated = auth?.userId;
     const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
     
     // Require either valid token (for scheduled jobs) or authenticated user (for client-side calls)
     if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Calculate date 14 days ago, set to start of day for consistent comparison

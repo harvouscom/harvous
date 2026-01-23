@@ -10,6 +10,8 @@ import {
   ACTIVITY_TYPES
 } from '@/utils/xp-system';
 
+export const prerender = false;
+
 // Test user ID - in production, use actual authenticated user
 const TEST_USER_ID = 'test_xp_comprehensive_user';
 

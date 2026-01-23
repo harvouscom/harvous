@@ -1,19 +1,19 @@
 import type { APIRoute } from 'astro';
 import { db, InboxItems, UserInboxItems, UserMetadata, eq, and } from 'astro:db';
+import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+export const prerender = false;
 
 /**
  * Assign all active inbox items to all existing users
  * This fixes the issue where items were synced but not assigned to users
  */
-export const POST: APIRoute = async ({ locals }) => {
+export const POST: APIRoute = async ({ request, locals  }) => {
   try {
-    const { userId } = locals.auth();
+    const userId = await getAuthFromRequest(request);
     
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     return await assignInboxItems();

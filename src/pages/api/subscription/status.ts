@@ -1,11 +1,13 @@
 import type { APIRoute } from 'astro';
 import { getSubscriptionInfo } from '@/utils/subscription';
+import { getAuthFromRequest } from '@/utils/auth-helpers';
 
-export const GET: APIRoute = async ({ locals }) => {
+export const prerender = false;
+
+export const GET: APIRoute = async ({ request, locals  }) => {
   try {
-    const auth = locals.auth();
-    const { userId } = auth;
-    
+    const userId = await getAuthFromRequest(request);
+
     if (!userId) {
       return new Response(JSON.stringify({ 
         error: 'Authentication required' 

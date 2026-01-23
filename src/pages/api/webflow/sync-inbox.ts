@@ -1,6 +1,8 @@
 import type { APIRoute } from 'astro';
 import { db, InboxItems, InboxItemNotes, UserInboxItems, UserMetadata, eq, and } from 'astro:db';
 
+export const prerender = false;
+
 interface WebflowItem {
   _id: string;
   'content-type'?: string;
