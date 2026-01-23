@@ -744,6 +744,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               state="DropdownTrigger"
               rightAccessory="none"
               backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
+              isActive={topSpaceIsActive}
               hideDropdownIcon={true}
             />
           </a>

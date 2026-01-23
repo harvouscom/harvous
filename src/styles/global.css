@@ -106,8 +106,8 @@ img, svg {
   width: 100%;
   will-change: transform, box-shadow;
   transition: box-shadow 0.125s ease-in-out, transform 0.125s ease-in-out;
-  /* Default shadow for buttons with background-image set via inline style */
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  /* Shadow is now provided by .space-btn__shadow element when active */
+  /* No default shadow - shadow only appears when space is active */
   font-family: var(--font-sans) !important;
   font-weight: 600 !important;
 }
@@ -720,9 +720,11 @@ select:focus-visible {
   transform: scale(0.95);
 }
 
-/* Default shadow for space buttons with background */
-.space-button[style*="background-image"],
-.space-button[style*="background-color"] {
+/* Shadow for space buttons with background - only when active */
+/* Shadow is now provided by .space-btn__shadow element when active */
+/* This rule is kept for backwards compatibility but shadow should come from .space-btn__shadow */
+.space-button-active[style*="background-image"],
+.space-button-active[style*="background-color"] {
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset !important;
 }
 
