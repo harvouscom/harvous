@@ -8,6 +8,7 @@ import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { useNavigation } from './NavigationContext';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 /**
  * Check if Clerk authentication is ready
@@ -494,8 +495,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           const verifiedCount = await refreshBadgeCountsWithVerification(activeThread.id, expectedCount);
           if (verifiedCount !== null) {
             // Fetch full thread data
-            const response = await fetch('/api/threads/list', {
-              credentials: 'include',
+            const response = await authenticatedFetch('/api/threads/list', {
               cache: 'no-store'
             });
             if (response.ok) {
@@ -505,8 +505,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           }
         } else {
           // Regular fetch
-          const response = await fetch('/api/threads/list', {
-            credentials: 'include',
+          const response = await authenticatedFetch('/api/threads/list', {
             cache: 'no-store'
           });
 

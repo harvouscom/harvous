@@ -9,6 +9,7 @@ import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 /**
  * Check if Clerk authentication is ready
@@ -291,8 +292,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           const verifiedCount = await badgeRefreshModule.refreshBadgeCountsWithVerification(currentThread.id, expectedCount);
           if (verifiedCount !== null) {
             // Fetch full thread data
-            const response = await fetch('/api/threads/list', {
-              credentials: 'include',
+            const response = await authenticatedFetch('/api/threads/list', {
               cache: 'no-store'
             });
             if (response.ok) {
@@ -302,8 +302,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           }
         } else {
           // Regular fetch
-          const response = await fetch('/api/threads/list', {
-            credentials: 'include',
+          const response = await authenticatedFetch('/api/threads/list', {
             cache: 'no-store'
           });
 

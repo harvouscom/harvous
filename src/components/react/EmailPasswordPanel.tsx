@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SquareButton from './SquareButton';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface EmailPasswordPanelProps {
   onClose?: () => void;
@@ -38,7 +39,7 @@ export default function EmailPasswordPanel({
   const loadUserData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/user/get-profile');
+      const response = await authenticatedFetch('/api/user/get-profile');
       if (response.ok) {
         const data = await response.json();
         const email = data.email || '';

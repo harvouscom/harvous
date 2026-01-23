@@ -13,6 +13,7 @@ import { safeURL } from '@/utils/safe-url';
 import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Note {
   id: string;
@@ -173,7 +174,7 @@ export default function EditThreadPanel({
       let networkError = false;
       
       try {
-        response = await fetch('/api/threads/update', {
+        response = await authenticatedFetch('/api/threads/update', {
           method: 'POST',
           body: formDataToSend,
         });

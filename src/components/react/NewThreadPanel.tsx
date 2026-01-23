@@ -15,6 +15,7 @@ import { createThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Note {
   id: string;
@@ -240,11 +241,10 @@ export default function NewThreadPanel({
       
       if (isEditMode) {
         formData.append('threadId', threadId!);
-        
-        const response = await fetch('/api/threads/update', {
+
+        const response = await authenticatedFetch('/api/threads/update', {
           method: 'POST',
-          body: formData,
-          credentials: 'include'
+          body: formData
         });
 
         if (response.ok) {
@@ -315,10 +315,9 @@ export default function NewThreadPanel({
         let networkError = false;
 
         try {
-          response = await fetch('/api/threads/create', {
+          response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
-            body: formData,
-            credentials: 'include'
+            body: formData
           });
         } catch (error) {
           // Network error occurred

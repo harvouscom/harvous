@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
@@ -136,8 +137,7 @@ export default function ManageBillingPanel({
   const loadSubscriptionInfo = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/subscription/status', {
-        credentials: 'include',
+      const response = await authenticatedFetch('/api/subscription/status', {
         cache: 'no-store'
       });
 

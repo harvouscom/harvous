@@ -3,6 +3,7 @@ import CardFeat from './CardFeat';
 import { toast } from '@/utils/toast';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { safeURL } from '@/utils/safe-url';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface InboxItem {
   id: string;
@@ -174,12 +175,8 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
   useEffect(() => {
     const handleAddToHarvous = async (inboxItemId: string) => {
       try {
-        const response = await fetch('/api/inbox/add-to-harvous', {
+        const response = await authenticatedFetch('/api/inbox/add-to-harvous', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
           body: JSON.stringify({ inboxItemId }),
         });
 
@@ -217,12 +214,8 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     const handleArchive = async (inboxItemId: string) => {
       try {
-        const response = await fetch('/api/inbox/archive', {
+        const response = await authenticatedFetch('/api/inbox/archive', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
           body: JSON.stringify({ inboxItemId }),
         });
 
@@ -286,12 +279,8 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     const handleUnarchive = async (inboxItemId: string) => {
       try {
-        const response = await fetch('/api/inbox/unarchive', {
+        const response = await authenticatedFetch('/api/inbox/unarchive', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          credentials: 'include',
           body: JSON.stringify({ inboxItemId }),
         });
 

@@ -1,6 +1,7 @@
 // @ts-ignore - React hooks are available, this is a linter cache issue
 import React, { useState, useEffect } from 'react';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface UpgradePageContentProps {
   initialHasUnlimited: boolean;
@@ -28,8 +29,7 @@ export default function UpgradePageContent({
   // Check subscription status via API (simplified)
   const checkStatus = async () => {
     try {
-      const response = await fetch('/api/subscription/status', {
-        credentials: 'include',
+      const response = await authenticatedFetch('/api/subscription/status', {
         cache: 'no-store'
       });
 
