@@ -228,8 +228,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   }
 
   if (state === "DropdownTrigger") {
-    // Add active class for CSS-based styling to avoid hydration issues
-    const activeClass = isActive && !disabled && backgroundGradient ? 'space-button-active' : '';
     const Root = as as any;
     // Haptic feedback handled by global handler (public/scripts/haptics-handler.js)
     const rootProps =
@@ -238,7 +236,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
         : { onClick: disabled ? undefined : onClick };
     return (
       <Root 
-        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${activeClass} ${className}`}
+        className={`space-button space-btn ${disabled ? 'space-btn--disabled' : ''} pl-4 pr-0 ${className}`}
         style={buttonStyle}
         {...props}
         {...rootProps}
@@ -287,9 +285,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
             </div>
           )}
         </div>
-        
-        {/* Show shadow when active */}
-        {isActive && <div className="space-btn__shadow" />}
       </Root>
     );
   }

@@ -428,6 +428,8 @@
   overflow: hidden;
   max-height: 240px;
   overflow-y: auto;
+  /* Add padding to prevent shadow artifact at bottom when scrolling */
+  padding-bottom: 2px;
 }
 
 .mobile-nav__space-panel-item {
