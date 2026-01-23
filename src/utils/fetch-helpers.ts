@@ -78,3 +78,49 @@ export async function fetchWithTimeout(
   throw lastError || new Error('Unknown error occurred');
 }
 
+/**
+ * Get JWT token from Clerk for API authentication
+ * Used in static builds to authenticate API requests
+ */
+export async function getAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const clerk = (window as any).Clerk;
+    if (!clerk?.session) return null;
+    return await clerk.session.getToken();
+  } catch (error) {
+    console.error('[fetch-helpers] Failed to get auth token:', error);
+    return null;
+  }
+}
+
+/**
+ * Authenticated fetch - automatically includes JWT token in Authorization header
+ * Use this for all API calls to /api/* routes in static builds
+ *
+ * @param url - API URL to fetch
+ * @param options - Standard fetch options
+ * @returns Promise<Response>
+ */
+export async function authenticatedFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const token = await getAuthToken();
+
+  const headers = new Headers(options.headers);
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return fetch(url, {
+    ...options,
+    credentials: 'include', // Include cookies for backward compatibility
+    headers
+  });
+}
+

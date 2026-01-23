@@ -10,6 +10,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 // Content cache removed - server is the single source of truth
 // This simplification eliminates cache staleness and duplication issues
@@ -417,8 +418,7 @@ export default function OrganizedContentList({
           throw new Error('Failed to build refresh URL');
         }
 
-        const response = await fetch(url, {
-          credentials: 'include',
+        const response = await authenticatedFetch(url, {
           cache: 'no-store' // Always bypass cache to ensure fresh data
         });
 
@@ -1273,8 +1273,7 @@ export default function OrganizedContentList({
       throw new Error('Failed to build load-more URL');
     }
 
-    const response = await fetch(url, {
-      credentials: 'include',
+    const response = await authenticatedFetch(url, {
       cache: 'no-store' // Always bypass cache to ensure fresh data and consistent ordering
     });
 
