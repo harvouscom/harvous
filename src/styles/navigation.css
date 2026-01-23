@@ -424,12 +424,9 @@
   margin: 0 4px;
   border-radius: 16px;
   background: white;
-  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
   overflow: hidden;
   max-height: 240px;
   overflow-y: auto;
-  /* Add padding to prevent shadow artifact at bottom when scrolling */
-  padding-bottom: 2px;
 }
 
 .mobile-nav__space-panel-item {
@@ -461,6 +458,7 @@
     rgba(255, 255, 255, 0.8) 11.71%,
     rgba(248, 248, 248, 0.8) 71.33%
   );
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
 }
 
 /* Ensure last item covers bottom edge to prevent shadow artifact */
