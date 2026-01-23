@@ -22,7 +22,7 @@
   [headers.values]
     # Content Security Policy - PRODUCTION
     # Allows all necessary resources for Clerk, PostHog, fonts, and app functionality
-    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none';"
+    Content-Security-Policy = "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob: wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: https://*.clerk.com https://*.posthog.com https://*.us.posthog.com; worker-src 'self' blob:; child-src 'self' blob:; style-src 'self' 'unsafe-inline' https: https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: wss: https://*.clerk.com https://*.clerk.accounts.dev https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com; object-src 'none';"
     # Prevent clickjacking
     X-Frame-Options = "DENY"
     # Prevent MIME type sniffing
