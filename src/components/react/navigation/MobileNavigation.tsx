@@ -72,6 +72,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
+  const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   // Use initialPath from server to ensure SSR and client initial render match
   const [currentItemId, setCurrentItemId] = useState(initialPath);
@@ -613,6 +614,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return Array.from(spacesById.values());
   }, [filteredSpaces, currentSpace]);
 
+  // Calculate available spaces that aren't in the dropdown
+  const availableSpaces = useMemo(() => {
+    const dropdownSpaceIds = new Set(spacesForDropdown.map(s => s.id));
+    return spaces
+      .filter(space => !dropdownSpaceIds.has(space.id))
+      .sort((a, b) => {
+        const titleA = (a.title || "").toLowerCase();
+        const titleB = (b.title || "").toLowerCase();
+        return titleA.localeCompare(titleB);
+      });
+  }, [spaces, spacesForDropdown]);
+
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
   const mismatchThreadId = (updatedCurrentThread || currentThread)?.id ?? null;
@@ -908,6 +921,37 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         </a>
                       );
                     })}
+                    {availableSpaces.length > 0 && (
+                      <>
+                        <div className="mobile-nav__space-panel-divider" />
+                        <button
+                          type="button"
+                          className="mobile-nav__space-panel-item"
+                          onClick={() => setIsShowingExistingSpaces(!isShowingExistingSpaces)}
+                        >
+                          <span className="mobile-nav__space-panel-label">Add Existing Space</span>
+                          <span className="mobile-nav__space-panel-check" aria-hidden="true">
+                            <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          </span>
+                        </button>
+                        {isShowingExistingSpaces && availableSpaces.map((s) => {
+                          return (
+                            <a
+                              key={s.id}
+                              href={`/${s.id}`}
+                              className="mobile-nav__space-panel-item"
+                              onClick={() => {
+                                setSelectedSpaceId(s.id);
+                                setIsShowingExistingSpaces(false);
+                                closeSheet();
+                              }}
+                            >
+                              <span className="mobile-nav__space-panel-label">{s.title}</span>
+                            </a>
+                          );
+                        })}
+                      </>
+                    )}
                     <div className="mobile-nav__space-panel-divider" />
                     <a
                       href="/new-space"

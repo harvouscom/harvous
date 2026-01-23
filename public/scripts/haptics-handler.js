@@ -47,6 +47,13 @@
       vibrate(20);
       return;
     }
+    // Also check if clicking on nav-link that's inside space-switcher-anchor (mobile nav case)
+    // nav-link wraps SpaceButton, so clicks on nav-link or its children should trigger medium haptic
+    var navLink = target.closest('.nav-link');
+    if (navLink && navLink.closest('.space-switcher-anchor')) {
+      vibrate(20);
+      return;
+    }
 
     // Light haptic: Elements with no/minimal shadows
     // CardNote, general space buttons (outside switcher), menu items

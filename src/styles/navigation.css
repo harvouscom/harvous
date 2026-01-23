@@ -405,6 +405,15 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-height: min(60vh, calc(100vh - 16px));
+  overflow-y: auto;
+}
+
+/* iOS PWA: prefer dynamic viewport units */
+@supports (height: 100dvh) {
+  .mobile-nav__dropdown-header {
+    max-height: min(60dvh, calc(100dvh - 16px));
+  }
 }
 
 .mobile-nav__dropdown-header-row {
@@ -434,6 +443,10 @@
   font-size: 16px;
   font-weight: 700;
   background: white;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
 }
 
 .mobile-nav__space-panel-item.is-active {
