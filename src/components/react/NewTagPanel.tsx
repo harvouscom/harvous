@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import SquareButton from './SquareButton';
 import { toast } from '@/utils/toast';
 
@@ -56,7 +57,7 @@ export default function NewTagPanel({
       let tagId: string;
       
       // Step 1: Try to create the tag
-      const createResponse = await fetch('/api/tags/create', {
+      const createResponse = await authenticatedFetch('/api/tags/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +74,7 @@ export default function NewTagPanel({
         const error = await createResponse.json();
         if (createResponse.status === 409) {
           // Tag already exists - find it and use its ID
-          const listResponse = await fetch('/api/tags/list', {
+          const listResponse = await authenticatedFetch('/api/tags/list', {
             credentials: 'include'
           });
           
@@ -106,7 +107,7 @@ export default function NewTagPanel({
       }
 
       // Step 2: Assign tag to note
-      const assignResponse = await fetch('/api/note-tags/assign', {
+      const assignResponse = await authenticatedFetch('/api/note-tags/assign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

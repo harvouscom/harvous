@@ -1,4 +1,5 @@
 'use client';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ThreadCombobox from './ThreadCombobox';
@@ -344,7 +345,7 @@ export default function NewNotePanel({
     }
 
     try {
-      const response = await fetch('/api/subscription/status', {
+      const response = await authenticatedFetch('/api/subscription/status', {
         credentials: 'include',
         cache: 'no-store'
       });
@@ -691,7 +692,7 @@ export default function NewNotePanel({
           formData.set('color', 'paper');
           formData.set('spaceId', currentSpace?.id || '');
 
-          const response = await fetch('/api/threads/create', {
+          const response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
             body: formData,
             credentials: 'include',
@@ -816,7 +817,7 @@ export default function NewNotePanel({
           formData.set('color', 'paper'); // New threads from dropdown use paper color
           formData.set('spaceId', currentSpace?.id || '');
 
-          const response = await fetch('/api/threads/create', {
+          const response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
             body: formData,
             credentials: 'include',
@@ -928,7 +929,7 @@ export default function NewNotePanel({
         // Optional; empty string is treated as no space
         formData.set('spaceId', currentSpace?.id || '');
 
-        const response = await fetch('/api/threads/create', {
+        const response = await authenticatedFetch('/api/threads/create', {
           method: 'POST',
           body: formData,
           credentials: 'include',

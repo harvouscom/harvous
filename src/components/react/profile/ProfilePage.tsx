@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { toast } from '@/utils/toast';
 import { clearCachedProfileData, updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
 
@@ -99,7 +100,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     try {
       const { firstName, lastName, color } = detail;
       
-      const response = await fetch('/api/user/update-profile', {
+      const response = await authenticatedFetch('/api/user/update-profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +170,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const handleCredentialsUpdateRequest = async (detail: { newEmail?: string; currentPassword?: string; newPassword?: string; }) => {
     try {
-        const response = await fetch('/api/user/update-credentials', {
+        const response = await authenticatedFetch('/api/user/update-credentials', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

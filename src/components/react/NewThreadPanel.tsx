@@ -211,7 +211,7 @@ export default function NewThreadPanel({
   // const fetchRecentNotes = async () => {
   //   setIsLoadingNotes(true);
   //   try {
-  //     const response = await fetch('/api/notes/recent');
+  //     const response = await authenticatedFetch('/api/notes/recent');
   //     if (response.ok) {
   //       const notes = await response.json();
   //       setRecentNotes(notes);

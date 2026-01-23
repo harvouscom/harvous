@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
@@ -41,7 +42,7 @@ export default function MyAchievementsPanel({
   const loadAchievements = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/user/achievements', {
+      const response = await authenticatedFetch('/api/user/achievements', {
         credentials: 'include'
       });
       

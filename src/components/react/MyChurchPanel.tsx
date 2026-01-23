@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
@@ -127,7 +128,7 @@ export default function MyChurchPanel({
   const loadChurchData = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/user/get-profile', {
+      const response = await authenticatedFetch('/api/user/get-profile', {
         credentials: 'include'
       });
       if (response.ok) {
@@ -221,7 +222,7 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/user/update-church', {
+      const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -369,7 +370,7 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/user/update-church', {
+      const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -452,7 +453,7 @@ export default function MyChurchPanel({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('/api/user/update-church', {
+      const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

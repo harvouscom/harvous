@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -181,7 +182,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     }
     
     try {
-      const response = await fetch('/api/user/delete-account', {
+      const response = await authenticatedFetch('/api/user/delete-account', {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -234,7 +235,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
     setIsClearingData(true);
     try {
-      const response = await fetch('/api/user/clear-data', {
+      const response = await authenticatedFetch('/api/user/clear-data', {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -341,7 +342,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         
         formData.append('format', format);
 
-        const response = await fetch('/api/user/import', {
+        const response = await authenticatedFetch('/api/user/import', {
           method: 'POST',
           credentials: 'include',
           body: formData,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
@@ -88,7 +89,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
     const fetchItems = async () => {
       setIsLoadingItems(true);
       try {
-        const response = await fetch('/api/spaces/items', {
+        const response = await authenticatedFetch('/api/spaces/items', {
           credentials: 'include'
         });
         
@@ -305,7 +306,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       let networkError = false;
       
       try {
-        response = await fetch('/api/spaces/create', {
+        response = await authenticatedFetch('/api/spaces/create', {
           method: 'POST',
           body: formData,
           credentials: 'include'

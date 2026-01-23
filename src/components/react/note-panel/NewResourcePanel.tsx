@@ -192,7 +192,7 @@ export default function NewResourcePanel({
       setIsFetchingMetadata(true);
       setIsPasteEvent(false); // Reset paste flag
       try {
-        const response = await fetch('/api/resource/metadata', {
+        const response = await authenticatedFetch('/api/resource/metadata', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -241,7 +241,7 @@ export default function NewResourcePanel({
 
             // Check for duplicate resource
             try {
-              const duplicateResponse = await fetch('/api/resource/check-duplicate', {
+              const duplicateResponse = await authenticatedFetch('/api/resource/check-duplicate', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -284,7 +284,7 @@ export default function NewResourcePanel({
             if (data.metadata.articleContent) {
               setIsDetectingScriptures(true);
               try {
-                const scriptureResponse = await fetch('/api/scripture/detect', {
+                const scriptureResponse = await authenticatedFetch('/api/scripture/detect', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',
@@ -317,7 +317,7 @@ export default function NewResourcePanel({
             // Fetch thread suggestions and auto-select if available
             if (!hasAutoSelectedThreadRef.current && onSuggestedThread) {
               try {
-                const suggestResponse = await fetch('/api/resource/suggest-threads', {
+                const suggestResponse = await authenticatedFetch('/api/resource/suggest-threads', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   credentials: 'include',

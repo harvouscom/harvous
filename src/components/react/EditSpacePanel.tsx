@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -64,7 +65,7 @@ export default function EditSpacePanel({
   const fetchAllItems = async () => {
     setIsLoadingItems(true);
     try {
-      const response = await fetch('/api/spaces/items', {
+      const response = await authenticatedFetch('/api/spaces/items', {
         credentials: 'include'
       });
       
