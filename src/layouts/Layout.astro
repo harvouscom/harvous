@@ -373,7 +373,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <KeyboardShortcutsInit client:load />
     <PostHogUserInit client:load userId={userId} userData={userData} />
     <UpgradeSuccessHandler client:load />
-    <SyncManagerIsland client:only="react" userId={userId} />
+    <SyncManagerIsland client:load userId={userId} />
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
@@ -436,7 +436,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
                 contentType={contentType}
                 publishableKey={publishableKey}
                 version={packageJson.version}
-                client:only="react"
+                client:load
               />
             </div>
           </slot>
@@ -469,7 +469,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           publishableKey={publishableKey}
           founderLetterHtml={founderLetterHtml}
           version={packageJson.version}
-          client:only="react"
+          client:load
         />
       </div>
     </div>
