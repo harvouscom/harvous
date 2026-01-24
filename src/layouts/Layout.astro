@@ -365,6 +365,15 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <!-- Haptics Handler - Provides tactile feedback for button interactions -->
     <script is:inline src="/scripts/haptics-handler.js"></script>
 
+    <!-- Clerk Frontend SDK - Required for static builds -->
+    <!-- In static mode, @clerk/astro doesn't inject this automatically -->
+    <script
+      src="https://cdn.clerk.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+      crossorigin="anonymous"
+      data-clerk-publishable-key={publishableKey}
+      async
+    ></script>
+
   </head>
   <body
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
