@@ -367,12 +367,16 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
     <!-- Clerk Frontend SDK - Required for static builds -->
     <!-- In static mode, @clerk/astro doesn't inject this automatically -->
-    <script
-      src="https://cdn.clerk.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
-      crossorigin="anonymous"
-      data-clerk-publishable-key={publishableKey}
-      async
-    ></script>
+    <script is:inline>
+      (function() {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.clerk.com/npm/@clerk/clerk-js@latest/dist/clerk.browser.js';
+        script.crossOrigin = 'anonymous';
+        script.async = true;
+        script.setAttribute('data-clerk-publishable-key', window.CLERK_PUBLISHABLE_KEY || '');
+        document.head.appendChild(script);
+      })();
+    </script>
 
   </head>
   <body
