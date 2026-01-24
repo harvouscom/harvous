@@ -583,39 +583,31 @@ export const POST: APIRoute = async ({ request }) => {
 
     return response;
   } catch (error: any) {
-      // This catch block handles errors in the main webhook processing
-      const duration = Date.now() - startTime;
-      console.error('[Webhook] Error in webhook processing:', {
-        error: error.message,
-        errorStack: error.stack,
-        errorName: error.name,
-        durationMs: duration,
-        timestamp: new Date().toISOString(),
-      });
+    // This catch block handles errors in the main webhook processing
+    const duration = Date.now() - startTime;
+    console.error('[Webhook] Error in webhook processing:', {
+      error: error.message,
+      errorStack: error.stack,
+      errorName: error.name,
+      durationMs: duration,
+      timestamp: new Date().toISOString(),
+    });
 
-      // For signature/auth errors, return 401
-      if (error.message?.includes('signature') || error.message?.includes('Unauthorized')) {
-        return unauthorizedResponse(error.message || 'Invalid webhook signature');
-      }
+    // For signature/auth errors, return 401
+    if (error.message?.includes('signature') || error.message?.includes('Unauthorized')) {
+      return unauthorizedResponse(error.message || 'Invalid webhook signature');
+    }
 
-      // For other errors, return 500 but log extensively
+    // For other errors, return 500 but log extensively
+    // If serverErrorResponse fails, return a simple response
+    try {
       return serverErrorResponse(error, {
         endpoint: '/api/webhooks/clerk',
         action: 'process_webhook',
       });
-    }
-  } catch (error: any) {
-    // Outer catch - handles any errors that occur before we can process the request
-    // This ensures we always return a valid response
-    console.error('[Webhook] Critical error in webhook handler:', {
-      error: error?.message || String(error),
-      errorStack: error?.stack,
-      errorName: error?.name,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Return a simple error response
-    try {
+    } catch (responseError: any) {
+      // If even creating a response fails, return minimal response
+      console.error('[Webhook] Failed to create error response:', responseError);
       return new Response(
         JSON.stringify({
           error: 'Internal server error',
@@ -626,10 +618,6 @@ export const POST: APIRoute = async ({ request }) => {
           headers: { 'Content-Type': 'application/json' },
         }
       );
-    } catch (responseError: any) {
-      // If even creating a response fails, return minimal response
-      console.error('[Webhook] Failed to create error response:', responseError);
-      return new Response('Internal Server Error', { status: 500 });
     }
   }
 };
