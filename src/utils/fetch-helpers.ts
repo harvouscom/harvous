@@ -81,14 +81,36 @@ export async function fetchWithTimeout(
 /**
  * Get JWT token from Clerk for API authentication
  * Used in static builds to authenticate API requests
+ * Waits for Clerk to be loaded before attempting to get token
  */
 export async function getAuthToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   try {
-    const clerk = (window as any).Clerk;
-    if (!clerk?.session) return null;
-    return await clerk.session.getToken();
+    // Wait for Clerk to be loaded (max 5 seconds)
+    let attempts = 0;
+    const maxAttempts = 50; // 50 * 100ms = 5 seconds
+
+    while (attempts < maxAttempts) {
+      const clerk = (window as any).Clerk;
+
+      // Clerk is loaded and has a session
+      if (clerk?.loaded && clerk?.session) {
+        return await clerk.session.getToken();
+      }
+
+      // Clerk is loaded but no session (user not signed in)
+      if (clerk?.loaded) {
+        return null;
+      }
+
+      // Wait 100ms before trying again
+      await new Promise(resolve => setTimeout(resolve, 100));
+      attempts++;
+    }
+
+    console.warn('[fetch-helpers] Clerk did not load within timeout');
+    return null;
   } catch (error) {
     console.error('[fetch-helpers] Failed to get auth token:', error);
     return null;

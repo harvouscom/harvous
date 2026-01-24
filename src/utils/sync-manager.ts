@@ -1,16 +1,16 @@
-import { 
 import { authenticatedFetch } from '@/utils/fetch-helpers';
-  offlineDB, 
-  type OfflineSpace, 
-  type OfflineThread, 
-  type OfflineNote, 
-  type OfflineNoteThread, 
-  type OfflineTag, 
-  type OfflineNoteTag, 
-  type OfflineUserMetadata, 
-  type SyncOperation, 
-  type SyncState, 
-  type SyncStatus, 
+import {
+  offlineDB,
+  type OfflineSpace,
+  type OfflineThread,
+  type OfflineNote,
+  type OfflineNoteThread,
+  type OfflineTag,
+  type OfflineNoteTag,
+  type OfflineUserMetadata,
+  type SyncOperation,
+  type SyncState,
+  type SyncStatus,
   ensureUserPartition,
   ensureDatabaseOpen,
   retryIndexedDBOperation
