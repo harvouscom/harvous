@@ -102,7 +102,7 @@
       // Minor/patch update - show toast and auto-reload
       if (window.toast && typeof window.toast.info === 'function') {
         try {
-          window.toast.info('New update available, refreshing app');
+          window.toast.info('Updating Harvous for you');
           // Wait 1600ms (matches toast duration) before reloading
           setTimeout(() => {
             window.location.reload();
