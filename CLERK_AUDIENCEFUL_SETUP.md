@@ -58,9 +58,18 @@ This allows you to segment in Audienceful between email subscribers and actual a
    AUDIENCEFUL_API_KEY=...
    ```
 
-2. Deploy your application with the new webhook endpoint
+2. **Important for Netlify deployments:** Ensure `netlify.toml` has the redirect configured to exclude `/api/*` routes:
+   ```toml
+   [[redirects]]
+     from = "/*"
+     to = "/index.html"
+     status = 200
+     force = false  # This ensures API routes aren't redirected
+   ```
 
-3. The endpoint is now available at: `/api/webhooks/clerk`
+3. Deploy your application with the new webhook endpoint
+
+4. The endpoint is now available at: `/api/webhooks/clerk`
 
 ### 4. Test the Integration
 
@@ -77,8 +86,9 @@ This allows you to segment in Audienceful between email subscribers and actual a
 2. Click the **Testing** tab
 3. Select `user.created` event
 4. Click **Send Example**
-5. Check the response - should see success message
-6. Note: This won't create a real user in Audienceful (example data uses fake email)
+5. Check the response - should see **200 OK** with message "Webhook processed successfully"
+6. **Note:** The test example data doesn't include an email address, so you'll see a warning in the logs about skipping Audienceful sync. This is expected - the webhook still succeeds.
+7. To test the full flow including Audienceful sync, use Option A (real user signup) instead
 
 ### 5. Verify in Audienceful
 
@@ -110,8 +120,9 @@ Now you can create audience segments in Audienceful:
 ### Files Created/Modified
 
 - `src/utils/audienceful.ts` - Audienceful API integration helper
-- `src/pages/api/webhooks/clerk.ts` - Clerk webhook endpoint
+- `src/pages/api/webhooks/clerk.ts` - Clerk webhook endpoint (uses `verifyWebhook` from `@clerk/backend/webhooks`)
 - `src/middleware.ts` - Added webhook endpoint to public routes
+- `netlify.toml` - Configured redirects to exclude `/api/*` routes
 - `.env.example` - Added required environment variables
 
 ### API Endpoints
@@ -127,16 +138,18 @@ Now you can create audience segments in Audienceful:
 **Webhook Endpoint**
 - URL: `/api/webhooks/clerk`
 - Method: POST
-- Authentication: Svix signature verification (HMAC SHA-256)
+- Authentication: Svix signature verification via `verifyWebhook()` from `@clerk/backend/webhooks`
 - Events handled: `emailAddress.created` (primary), `user.created` (fallback), `user.updated`, `user.deleted`
+- Returns: 200 OK on success (even if Audienceful sync fails), 401 on signature verification failure, 500 on unexpected errors
 
 ### Security
 
 The webhook endpoint includes:
-- ✅ Signature verification using Clerk's Webhook class from `@clerk/backend`
-- ✅ Svix header validation (`svix-id`, `svix-timestamp`, `svix-signature`)
+- ✅ Signature verification using Clerk's `verifyWebhook` function from `@clerk/backend/webhooks`
+- ✅ Automatic Svix header validation (`svix-id`, `svix-timestamp`, `svix-signature`)
 - ✅ Server-side only (not exposed to client)
 - ✅ Added to public routes in middleware (uses webhook secret for auth, not Clerk session)
+- ✅ Proper error handling ensures webhook always returns a response (prevents infinite retries)
 
 ### Error Handling
 
@@ -144,6 +157,8 @@ The webhook endpoint includes:
 - Errors are logged to console and PostHog (via `handleAPIError`)
 - This prevents Clerk from retrying the webhook endlessly
 - The user is successfully created in Clerk regardless of Audienceful status
+- Users without email addresses are skipped (logged as warning, webhook still succeeds)
+- All errors are caught and handled gracefully to ensure webhook always returns a valid response
 
 ## Backfilling Existing Users
 
@@ -275,10 +290,12 @@ If Clerk's webhook delivery shows a **404: Not Found** error:
 
 ### User has no email
 
-- Clerk requires email for most configurations, but if a user signs up with just phone/username:
-  - The webhook will log an error
-  - The user won't be added to Audienceful (email is required)
-  - The webhook will still return success (doesn't block user creation)
+- If a user signs up without an email address (e.g., test users, phone-only signups):
+  - The webhook will log a **warning** (not an error): "User has no email address, skipping Audienceful sync"
+  - The user won't be added to Audienceful (email is required for Audienceful)
+  - The webhook will still return **200 OK** (doesn't block user creation in Clerk)
+  - This is expected behavior - only users with email addresses are synced to Audienceful
+  - **Note:** Clerk's test webhook tool sends example data without email, so this warning is normal during testing
 
 ## Future Enhancements
 
@@ -290,8 +307,18 @@ Possible improvements:
 - Add retry logic for Audienceful API failures
 - Queue failed syncs for later retry
 
+## Status
+
+✅ **Integration is live and working!**
+
+- Webhook endpoint is deployed and accessible at `https://app.harvous.com/api/webhooks/clerk`
+- Signature verification is working correctly
+- Users with email addresses are automatically synced to Audienceful
+- Webhook returns 200 OK on successful processing
+
 ## Support
 
 - Clerk Documentation: https://clerk.com/docs/webhooks/overview
+- Clerk Webhook Verification: https://clerk.com/docs/reference/backend/verify-webhook
 - Audienceful API Docs: https://developer.audienceful.com
 - Svix (Clerk's webhook provider): https://docs.svix.com
