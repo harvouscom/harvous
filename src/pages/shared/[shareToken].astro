@@ -9,6 +9,10 @@ import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
+import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
+
+// Extract path from SVG
+const circleQuestionPath = circleQuestionIconRaw.match(/<path d="([^"]+)"/)?.[1] || '';
 
 // Get shareToken from URL params
 const { shareToken } = Astro.params;
@@ -134,25 +138,23 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
           {error === 'invalid' || error === 'not_found' ? (
             <div class="shared-page__error">
               <div class="shared-page__error-icon">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                <svg width="48" height="48" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d={circleQuestionPath} />
                 </svg>
               </div>
-              <h1 class="shared-page__error-title">Thread Not Found</h1>
+              <h1 class="shared-page__error-title">This thread isn't available</h1>
               <p class="shared-page__error-message">
-                This shared thread is no longer available. The link may have expired or the owner made it private.
+                Hmm, we can't find this thread. The link might have expired or the owner made it private.
               </p>
               <a href="https://harvous.com" class="shared-page__error-link">
-                Learn about Harvous
+                Learn more about Harvous
               </a>
             </div>
           ) : thread && (
             <>
               <!-- Creator info (above CardStack) -->
               <div class="shared-page__creator shared-page__fade-in" style="animation-delay: 0ms;">
-                <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
+                <p>Created by {creator?.displayName || 'A Harvous User'}</p>
               </div>
 
               <!-- CardStack with notes and CTA -->
@@ -166,7 +168,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
                   <div class="shared-page__notes-scroll">
                     {notes.length === 0 ? (
                       <div class="shared-page__notes-empty">
-                        <p>This thread doesn't have any notes yet.</p>
+                        <p>No notes yet. Start adding thoughts as you read.</p>
                       </div>
                     ) : (
                       <div class="shared-page__notes">
@@ -213,7 +215,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
                       data-share-token={shareToken}
                       data-authenticated={isAuthenticated ? 'true' : 'false'}
                     >
-                      <span class="shared-page__cta-text">Add to My Harvous</span>
+                      <span class="shared-page__cta-text">Add this to my Harvous</span>
                     </Button>
                   </div>
                 </CardStack>
@@ -221,7 +223,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
 
               <!-- Footer text (below CardStack) -->
               <div class="shared-page__footer shared-page__fade-in" style="animation-delay: 200ms;">
-                <p>Harvous is a notes app designed for Bible study.</p>
+                <p>Harvous helps you remember your Bible study thoughts.</p>
                 <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
               </div>
             </>
@@ -360,7 +362,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
       radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
       radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
     background-size: 100% 100%;
-    animation: mesh-movement 8s ease-in-out infinite;
+    animation: mesh-movement 6s ease-in-out infinite;
     opacity: 0.8;
   }
 
@@ -379,7 +381,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
       radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
       radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
     background-size: 100% 100%;
-    animation: mesh-movement-reverse 10s ease-in-out infinite;
+    animation: mesh-movement-reverse 7.5s ease-in-out infinite;
     opacity: 0.6;
   }
 
@@ -387,14 +389,20 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(5%, 3%) scale(1.05);
+    16.66% {
+      transform: translate(4%, 3%) scale(1.06);
+    }
+    33.33% {
+      transform: translate(-3%, 4%) scale(1.08);
     }
     50% {
-      transform: translate(-3%, 5%) scale(1.1);
+      transform: translate(-4%, -2%) scale(1.07);
     }
-    75% {
-      transform: translate(3%, -2%) scale(1.05);
+    66.66% {
+      transform: translate(3%, -4%) scale(1.09);
+    }
+    83.33% {
+      transform: translate(3%, 2%) scale(1.05);
     }
   }
 
@@ -402,14 +410,20 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(-4%, -3%) scale(1.08);
+    16.66% {
+      transform: translate(-4%, -3%) scale(1.07);
+    }
+    33.33% {
+      transform: translate(4%, -4%) scale(1.09);
     }
     50% {
-      transform: translate(4%, -5%) scale(1.12);
+      transform: translate(3%, 4%) scale(1.08);
     }
-    75% {
-      transform: translate(-2%, 3%) scale(1.06);
+    66.66% {
+      transform: translate(-3%, 3%) scale(1.06);
+    }
+    83.33% {
+      transform: translate(-2%, -3%) scale(1.05);
     }
   }
 

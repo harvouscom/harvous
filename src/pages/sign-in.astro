@@ -89,9 +89,6 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
             colorPrimary: "var(--color-bold-blue)"
           }
         }}
-        localization={{
-          newDeviceVerificationNotice: "We're asking for verification to keep your account secure."
-        }}
         signUpUrl="/sign-up"
         fallbackRedirectUrl={effectiveRedirectUrl}
       />
@@ -379,7 +376,7 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
       radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
       radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
     background-size: 100% 100%;
-    animation: mesh-movement 8s ease-in-out infinite;
+    animation: mesh-movement 6s ease-in-out infinite;
     opacity: 0.8;
   }
 
@@ -398,7 +395,7 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
       radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
       radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
     background-size: 100% 100%;
-    animation: mesh-movement-reverse 10s ease-in-out infinite;
+    animation: mesh-movement-reverse 7.5s ease-in-out infinite;
     opacity: 0.6;
   }
 
@@ -406,14 +403,20 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(5%, 3%) scale(1.05);
+    16.66% {
+      transform: translate(4%, 3%) scale(1.06);
+    }
+    33.33% {
+      transform: translate(-3%, 4%) scale(1.08);
     }
     50% {
-      transform: translate(-3%, 5%) scale(1.1);
+      transform: translate(-4%, -2%) scale(1.07);
     }
-    75% {
-      transform: translate(3%, -2%) scale(1.05);
+    66.66% {
+      transform: translate(3%, -4%) scale(1.09);
+    }
+    83.33% {
+      transform: translate(3%, 2%) scale(1.05);
     }
   }
 
@@ -421,14 +424,20 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(-4%, -3%) scale(1.08);
+    16.66% {
+      transform: translate(-4%, -3%) scale(1.07);
+    }
+    33.33% {
+      transform: translate(4%, -4%) scale(1.09);
     }
     50% {
-      transform: translate(4%, -5%) scale(1.12);
+      transform: translate(3%, 4%) scale(1.08);
     }
-    75% {
-      transform: translate(-2%, 3%) scale(1.06);
+    66.66% {
+      transform: translate(-3%, 3%) scale(1.06);
+    }
+    83.33% {
+      transform: translate(-2%, -3%) scale(1.05);
     }
   }
 
