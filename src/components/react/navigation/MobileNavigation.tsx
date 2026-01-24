@@ -9,6 +9,7 @@ import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
+import { safeGetItem } from '@/utils/safe-storage';
 
 /**
  * Check if Clerk authentication is ready
@@ -578,19 +579,59 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     });
   };
 
+  // Get raw navigation history from storage (including spaces)
+  // NavigationContext filters out spaces, so we need to read directly from storage
+  const getRawNavigationHistory = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('Error getting raw navigation history:', error);
+      return [];
+    }
+  };
+
+  // Force re-render when navigation history updates
+  const [, forceUpdate] = useState(0);
 
   // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
+  // Use raw navigation history from storage since NavigationContext filters out spaces
   const filteredSpaces = useMemo(() => {
-    // Get space IDs from navigation history
+    const rawHistory = getRawNavigationHistory();
+    // Get space IDs from raw navigation history (includes spaces that NavigationContext filters out)
     const navigationSpaceIds = new Set(
-      navigationHistory
-        .filter(item => item.id.startsWith('space_'))
-        .map(item => item.id)
+      rawHistory
+        .filter((item: any) => item.id && item.id.startsWith('space_'))
+        .map((item: any) => item.id)
     );
     
     // Only show spaces that are in navigation history
     return spaces.filter(space => navigationSpaceIds.has(space.id));
-  }, [spaces, navigationHistory]);
+  }, [spaces, forceUpdate]);
+
+  // Listen for navigation history updates to trigger recalculation
+  useEffect(() => {
+    const handleNavigationUpdate = () => {
+      forceUpdate(prev => prev + 1);
+    };
+
+    window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    
+    // Also listen for storage events (if storage is changed elsewhere)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'harvous-navigation-history-v2') {
+        handleNavigationUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
 
   // Calculate spaces to show in dropdown - include current space even if not in history yet
   const spacesForDropdown = useMemo(() => {

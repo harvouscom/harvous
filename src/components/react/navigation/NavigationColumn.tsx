@@ -8,6 +8,7 @@ import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { useNavigation } from './NavigationContext';
+import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 
 /**
  * Check if Clerk authentication is ready
@@ -78,7 +79,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 }) => {
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
-  const { navigationHistory } = useNavigation();
+  const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
+  const { navigationHistory, refreshNavigation, removeFromNavigationHistory } = useNavigation();
   
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
@@ -215,18 +217,37 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     setDismissedMismatchKey(mismatchKey);
   };
 
+  // Get raw navigation history from storage (including spaces)
+  // NavigationContext filters out spaces, so we need to read directly from storage
+  const getRawNavigationHistory = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('Error getting raw navigation history:', error);
+      return [];
+    }
+  };
+
+  // Force re-render when navigation history updates (critical for View Transitions)
+  const [, forceUpdate] = useState(0);
+  
   // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
+  // Use raw navigation history from storage since NavigationContext filters out spaces
   const filteredSpaces = useMemo(() => {
-    // Get space IDs from navigation history
+    const rawHistory = getRawNavigationHistory();
+    // Get space IDs from raw navigation history (includes spaces that NavigationContext filters out)
     const navigationSpaceIds = new Set(
-      navigationHistory
-        .filter(item => item.id.startsWith('space_'))
-        .map(item => item.id)
+      rawHistory
+        .filter((item: any) => item.id && item.id.startsWith('space_'))
+        .map((item: any) => item.id)
     );
     
     // Only show spaces that are in navigation history
-    return localSpaces.filter(space => navigationSpaceIds.has(space.id));
-  }, [localSpaces, navigationHistory]);
+    return spaces.filter(space => navigationSpaceIds.has(space.id));
+  }, [spaces, forceUpdate]);
 
   // Calculate spaces to show in dropdown - include current space even if not in history yet
   const spacesForDropdown = useMemo(() => {
@@ -250,7 +271,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (currentSpace && currentSpace.id && currentSpace.id.startsWith('space_')) {
       if (!spacesById.has(currentSpace.id)) {
         // Build a full Space object from the CurrentSpace
-        const currentSpaceData = localSpaces.find(s => s.id === currentSpace.id);
+        const currentSpaceData = spaces.find(s => s.id === currentSpace.id);
         if (currentSpaceData) {
           spacesById.set(currentSpace.id, currentSpaceData);
         }
@@ -259,7 +280,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, selectedSpace, currentSpace, localSpaces]);
+  }, [filteredSpaces, selectedSpace, currentSpace, spaces]);
+
+  // Calculate available spaces that aren't in the dropdown
+  const availableSpaces = useMemo(() => {
+    const dropdownSpaceIds = new Set(spacesForDropdown.map(s => s.id));
+    return spaces
+      .filter(space => !dropdownSpaceIds.has(space.id))
+      .sort((a, b) => {
+        const titleA = (a.title || "").toLowerCase();
+        const titleB = (b.title || "").toLowerCase();
+        return titleA.localeCompare(titleB);
+      });
+  }, [spaces, spacesForDropdown]);
 
   // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
   useEffect(() => {
@@ -429,16 +462,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, []);
 
-  // Force re-render when navigation history updates (critical for View Transitions)
-  const [, forceUpdate] = useState(0);
   useEffect(() => {
     const handleNavigationUpdate = () => {
       forceUpdate(prev => prev + 1);
     };
 
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    
+    // Also listen for storage events (if storage is changed elsewhere)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'harvous-navigation-history-v2') {
+        handleNavigationUpdate();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
     return () => {
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
@@ -652,36 +693,81 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [activeThread]);
 
+  // Manually add space to navigation history (bypassing addToNavigationHistory's early return for spaces)
+  const addSpaceToNavigationHistory = (space: Space) => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const history = stored ? JSON.parse(stored) : [];
+      
+      // Check if space already exists
+      const existingIndex = history.findIndex((item: any) => item.id === space.id);
+      
+      if (existingIndex !== -1) {
+        // Update existing space
+        history[existingIndex] = {
+          ...history[existingIndex],
+          title: space.title,
+          backgroundGradient: space.backgroundGradient,
+          lastAccessed: Date.now()
+        };
+      } else {
+        // Add new space
+        history.push({
+          id: space.id,
+          title: space.title,
+          backgroundGradient: space.backgroundGradient,
+          firstAccessed: Date.now(),
+          lastAccessed: Date.now()
+        });
+      }
+      
+      // Sort by firstAccessed to maintain chronological order
+      history.sort((a: any, b: any) => {
+        const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+        const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+        return aFirst - bFirst;
+      });
+      
+      // Limit to 10 items
+      const limitedHistory = history.length > 10 ? history.slice(0, 10) : history;
+      
+      // Save to storage
+      safeSetItem('harvous-navigation-history-v2', JSON.stringify(limitedHistory), {
+        cleanupOldest: true,
+        fallbackToSession: true,
+      });
+      
+      // Refresh navigation context to update React state
+      if (refreshNavigation) {
+        refreshNavigation();
+      }
+      
+      // Dispatch event to update UI (for components that listen to this event)
+      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+    } catch (error) {
+      console.error('Error adding space to navigation history:', error);
+    }
+  };
+
   const closeSpaceFromSwitcher = async (spaceId: string, spaceTitle: string) => {
     if (typeof window === 'undefined') return;
     if (!spaceId.startsWith('space_')) return;
 
-    // Mark as closed (used by navigation history + other UIs)
-    try {
-      (window as any).removeFromNavigationHistory?.(spaceId);
-    } catch {
-      // ignore
-    }
-
     // Remove immediately from this dropdown list for instant feedback
     setLocalSpaces((prev) => prev.filter((s) => s.id !== spaceId));
 
-    // If the user just closed the selected space, switch to Home.
+    // If the user just closed the selected space, clear the selection
+    // removeFromNavigationHistory will handle navigation to next available item
     const isSelected = effectiveSelectedSpaceId === spaceId;
     if (isSelected) {
       setSelectedSpaceId(null);
-
-      // If we're not currently on that space route, explicitly navigate Home.
-      // (If we are, removeFromNavigationHistory will already redirect to '/'.)
-      if (window.location.pathname !== `/${spaceId}`) {
-        try {
-          const mod = await import('astro:transitions/client');
-          mod.navigate('/', { history: 'replace' });
-        } catch {
-          window.location.href = '/';
-        }
-      }
     }
+
+    // Mark as closed and navigate to next available item
+    // removeFromNavigationHistory will handle navigation to next available space
+    removeFromNavigationHistory(spaceId);
   };
 
   return (
@@ -762,6 +848,38 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       </a>
                     );
                   })}
+                  {availableSpaces.length > 0 && (
+                    <>
+                      <div className="space-switcher-dropdown__divider" />
+                      <button
+                        type="button"
+                        className="space-switcher-dropdown__item"
+                        style={{ width: '100%' }}
+                        onClick={() => setIsShowingExistingSpaces(!isShowingExistingSpaces)}
+                      >
+                        <span className="space-switcher-dropdown__label">Add Existing Space</span>
+                        <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
+                          <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        </span>
+                      </button>
+                      {isShowingExistingSpaces && availableSpaces.map((s) => {
+                        return (
+                          <a
+                            key={s.id}
+                            href={`/${s.id}`}
+                            className="space-switcher-dropdown__item"
+                            onClick={() => {
+                              setSelectedSpaceId(s.id);
+                              addSpaceToNavigationHistory(s);
+                              setIsShowingExistingSpaces(false);
+                            }}
+                          >
+                            <span className="space-switcher-dropdown__label">{s.title}</span>
+                          </a>
+                        );
+                      })}
+                    </>
+                  )}
                   <div className="space-switcher-dropdown__divider" />
                   <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
                     <span className="space-switcher-dropdown__label">New Space</span>

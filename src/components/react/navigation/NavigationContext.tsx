@@ -499,25 +499,70 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return currentItemId;
   };
 
+  // Get raw navigation history from storage (including spaces)
+  // Used when finding next item after closing, since getNavigationHistory filters out spaces
+  const getRawNavigationHistory = (): any[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.error('Error getting raw navigation history:', error);
+      return [];
+    }
+  };
+
   // Remove item from navigation history
   const removeFromNavigationHistory = (itemId: string) => {
     const history = getNavigationHistory();
     
     // Check if the item being removed is currently active
     const currentActiveItemId = getCurrentActiveItemId();
-    const isActive = itemId === currentActiveItemId;
+    // For spaces, also check if it's the selected space (in case pathname doesn't match)
+    const selectedSpaceId = getSelectedSpaceId();
+    const isActive = itemId === currentActiveItemId || (itemId.startsWith('space_') && itemId === selectedSpaceId);
     
     // If removing an active item, navigate to the next available item first
     if (isActive) {
-      // Find the current index in the history (before filtering)
-      const currentIndex = history.findIndex((item) => item.id === itemId);
+      // Use raw history (including spaces) to find next item
+      // getNavigationHistory filters out spaces, so we need raw history to find next space
+      const rawHistory = getRawNavigationHistory();
+      const currentIndex = rawHistory.findIndex((item: any) => item.id === itemId);
       
-      // Find next item (try index + 1, then index - 1, else null)
-      const nextItem = currentIndex !== -1
-        ? (history[currentIndex + 1] || history[currentIndex - 1] || null)
-        : null;
+      // If closing a space, find the next available space; otherwise find any next item
+      let nextItem = null;
+      if (itemId.startsWith('space_')) {
+        // For spaces, look for the next space in history
+        // Try index + 1, then index - 1, then search all remaining items
+        if (currentIndex !== -1) {
+          // First try adjacent items
+          const nextAdjacent = rawHistory[currentIndex + 1] || rawHistory[currentIndex - 1];
+          if (nextAdjacent && nextAdjacent.id && nextAdjacent.id.startsWith('space_')) {
+            nextItem = nextAdjacent;
+          } else {
+            // If adjacent items aren't spaces, search the rest of history for a space
+            const remainingItems = [
+              ...rawHistory.slice(currentIndex + 1),
+              ...rawHistory.slice(0, currentIndex)
+            ];
+            nextItem = remainingItems.find((item: any) => item.id && item.id.startsWith('space_')) || null;
+          }
+        } else {
+          // Space not in history yet, search all items for another space
+          nextItem = rawHistory.find((item: any) => item.id && item.id.startsWith('space_') && item.id !== itemId) || null;
+        }
+      } else {
+        // For non-spaces, find next item (try index + 1, then index - 1, else null)
+        nextItem = currentIndex !== -1
+          ? (rawHistory[currentIndex + 1] || rawHistory[currentIndex - 1] || null)
+          : null;
+      }
       
-      // Remove the item from history first
+      // Remove the item from raw history (includes spaces)
+      const filteredRawHistory = rawHistory.filter((item: any) => item.id !== itemId);
+      
+      // Also remove from filtered history (for React state)
       const filteredHistory = history.filter(item => item.id !== itemId);
       
       // Add to closed items list
@@ -531,9 +576,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
       }
       
-      // Save the updated history
-      saveNavigationHistory(filteredHistory);
-      // Use spread operator to create new array reference for React
+      // Save the updated raw history (includes spaces) to storage
+      saveNavigationHistory(filteredRawHistory);
+      // Use spread operator to create new array reference for React (filtered, no spaces)
       setNavigationHistory([...filteredHistory]);
       
       // Store closed item in sessionStorage to prevent lastVisited update
@@ -593,6 +638,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     // Proceed with removal (for non-active items)
+    // Use raw history to ensure spaces are also removed from storage
+    const rawHistory = getRawNavigationHistory();
+    const filteredRawHistory = rawHistory.filter((item: any) => item.id !== itemId);
     const filteredHistory = history.filter(item => item.id !== itemId);
     
     // Add to closed items list
@@ -606,8 +654,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
     }
     
-    saveNavigationHistory(filteredHistory);
-    // Use spread operator to create new array reference for React
+    // Save the updated raw history (includes spaces) to storage
+    saveNavigationHistory(filteredRawHistory);
+    // Use spread operator to create new array reference for React (filtered, no spaces)
     setNavigationHistory([...filteredHistory]);
   };
 
