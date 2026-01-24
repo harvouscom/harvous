@@ -381,19 +381,20 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
 export const POST: APIRoute = async ({ request }) => {
   const startTime = Date.now();
   
-  // Log immediately when webhook is received
-  console.log('[Webhook] Webhook request received:', {
-    method: request.method,
-    url: request.url,
-    headers: {
-      'svix-id': request.headers.get('svix-id') || 'MISSING',
-      'svix-timestamp': request.headers.get('svix-timestamp') || 'MISSING',
-      'svix-signature': request.headers.get('svix-signature') ? 'PRESENT' : 'MISSING',
-    },
-    timestamp: new Date().toISOString(),
-  });
-  
+  // Wrap everything in try-catch to ensure we always return a response
   try {
+    // Log immediately when webhook is received
+    console.log('[Webhook] Webhook request received:', {
+      method: request.method,
+      url: request.url,
+      headers: {
+        'svix-id': request.headers.get('svix-id') || 'MISSING',
+        'svix-timestamp': request.headers.get('svix-timestamp') || 'MISSING',
+        'svix-signature': request.headers.get('svix-signature') ? 'PRESENT' : 'MISSING',
+      },
+      timestamp: new Date().toISOString(),
+    });
+    
     const webhookSecret = import.meta.env.CLERK_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
@@ -582,26 +583,54 @@ export const POST: APIRoute = async ({ request }) => {
 
     return response;
 
+    } catch (error: any) {
+      // This catch block handles errors in the main webhook processing
+      const duration = Date.now() - startTime;
+      console.error('[Webhook] Error in webhook processing:', {
+        error: error.message,
+        errorStack: error.stack,
+        errorName: error.name,
+        durationMs: duration,
+        timestamp: new Date().toISOString(),
+      });
+
+      // For signature/auth errors, return 401
+      if (error.message?.includes('signature') || error.message?.includes('Unauthorized')) {
+        return unauthorizedResponse(error.message || 'Invalid webhook signature');
+      }
+
+      // For other errors, return 500 but log extensively
+      return serverErrorResponse(error, {
+        endpoint: '/api/webhooks/clerk',
+        action: 'process_webhook',
+      });
+    }
   } catch (error: any) {
-    // This catch block should only handle truly unexpected errors
-    // (like request parsing failures, signature verification issues, etc.)
-    const duration = Date.now() - startTime;
-    console.error('[Webhook] Unexpected error in webhook handler:', {
-      error: error.message,
-      errorStack: error.stack,
-      durationMs: duration,
+    // Outer catch - handles any errors that occur before we can process the request
+    // This ensures we always return a valid response
+    console.error('[Webhook] Critical error in webhook handler:', {
+      error: error?.message || String(error),
+      errorStack: error?.stack,
+      errorName: error?.name,
       timestamp: new Date().toISOString(),
     });
 
-    // For signature/auth errors, return 401
-    if (error.message?.includes('signature') || error.message?.includes('Unauthorized')) {
-      return unauthorizedResponse(error.message || 'Invalid webhook signature');
+    // Return a simple error response
+    try {
+      return new Response(
+        JSON.stringify({
+          error: 'Internal server error',
+          message: error?.message || 'An unexpected error occurred',
+        }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    } catch (responseError: any) {
+      // If even creating a response fails, return minimal response
+      console.error('[Webhook] Failed to create error response:', responseError);
+      return new Response('Internal Server Error', { status: 500 });
     }
-
-    // For other unexpected errors, return 500 but log extensively
-    return serverErrorResponse(error, {
-      endpoint: '/api/webhooks/clerk',
-      action: 'process_webhook',
-    });
   }
 };
