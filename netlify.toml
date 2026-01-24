@@ -6,10 +6,15 @@
   NODE_VERSION = "20.18.0"
   NPM_FLAGS = "--prefer-offline --no-audit"
 
+# Redirect all non-API routes to index.html for SPA
+# API routes are handled by Astro serverless functions and should not be redirected
+# force = false means only redirect if the resource doesn't exist
+# Since API routes exist as serverless functions, they won't be redirected
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+  force = false
 
 # Security Headers
 [[headers]]

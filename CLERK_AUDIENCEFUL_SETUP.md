@@ -34,7 +34,7 @@ This allows you to segment in Audienceful between email subscribers and actual a
 3. Click **Add Endpoint**
 4. Configure the webhook:
    - **Endpoint URL**: `https://your-domain.com/api/webhooks/clerk`
-     - For production: `https://harvous.com/api/webhooks/clerk`
+     - For production: `https://app.harvous.com/api/webhooks/clerk`
      - For development/testing: Use [ngrok](https://ngrok.com) or similar to expose your local server
    - **Subscribe to events**: Select the following events:
      - ✅ `emailAddress.created` (REQUIRED - most reliable for new signups)
@@ -164,7 +164,7 @@ The webhook only works for NEW signups going forward. To sync all your existing 
 
 2. **Test with dry run first** (recommended):
    ```bash
-   curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful?dryRun=true" \
+   curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful?dryRun=true" \
      -H "Authorization: Bearer your_migration_key_here"
    ```
 
@@ -172,7 +172,7 @@ The webhook only works for NEW signups going forward. To sync all your existing 
 
 3. **Run the actual migration**:
    ```bash
-   curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful" \
+   curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful" \
      -H "Authorization: Bearer your_migration_key_here"
    ```
 
@@ -186,7 +186,7 @@ You can pass query parameters to control the migration:
 
 Example with options:
 ```bash
-curl -X POST "https://harvous.com/api/migrations/sync-clerk-to-audienceful?limit=10&dryRun=true" \
+curl -X POST "https://app.harvous.com/api/migrations/sync-clerk-to-audienceful?limit=10&dryRun=true" \
   -H "Authorization: Bearer your_migration_key_here"
 ```
 
@@ -226,6 +226,34 @@ The migration will return a summary:
 2. Verify the endpoint URL is correct
 3. Make sure the endpoint is publicly accessible (not localhost)
 4. Check that `user.created` event is selected
+
+### 404: Not Found Error
+
+If Clerk's webhook delivery shows a **404: Not Found** error:
+
+1. **Test endpoint accessibility:**
+   ```bash
+   # Should return 200 with status info (not 404)
+   curl https://app.harvous.com/api/webhooks/clerk
+   ```
+
+2. **Check Netlify routing:**
+   - Ensure `netlify.toml` excludes `/api/*` routes from the SPA redirect
+   - The redirect should have conditions excluding API paths
+
+3. **Verify deployment:**
+   - Confirm the endpoint file exists: `src/pages/api/webhooks/clerk.ts`
+   - Check Netlify build logs to ensure the function is created
+   - Verify the endpoint is deployed to production
+
+4. **Check webhook URL in Clerk Dashboard:**
+   - Should be: `https://app.harvous.com/api/webhooks/clerk` (NOT `https://harvous.com`)
+   - Ensure there are no trailing slashes or typos
+
+5. **Review Netlify function logs:**
+   - Go to Netlify Dashboard > Functions
+   - Check if requests are reaching the endpoint
+   - Look for routing or deployment errors
 
 ### Signature verification failing
 
