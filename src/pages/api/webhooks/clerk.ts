@@ -378,31 +378,6 @@ async function handleUserDeleted(event: ClerkUserWebhookEvent): Promise<void> {
   // For now, we just log it
 }
 
-/**
- * GET handler for health check
- * Allows testing if the endpoint is accessible without webhook signature
- */
-export const GET: APIRoute = async () => {
-  const webhookSecret = import.meta.env.CLERK_WEBHOOK_SECRET;
-  const audiencefulKey = import.meta.env.AUDIENCEFUL_API_KEY;
-
-  return new Response(
-    JSON.stringify({
-      status: 'ok',
-      endpoint: '/api/webhooks/clerk',
-      message: 'Use POST method for webhook delivery',
-      configured: {
-        webhookSecret: !!webhookSecret,
-        audiencefulKey: !!audiencefulKey,
-      },
-    }),
-    {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }
-  );
-};
-
 export const POST: APIRoute = async ({ request }) => {
   const startTime = Date.now();
   
