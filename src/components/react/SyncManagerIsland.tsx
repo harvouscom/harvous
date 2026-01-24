@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { ClerkWrapper } from './ClerkWrapper';
 import { initializeSync } from '@/utils/sync-init';
 import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import { executeOnlineRecovery, onOnlineRecovery, offOnlineRecovery } from '@/utils/network';
@@ -149,37 +151,34 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
 }
 
 /**
- * Separate component that safely attempts to use Clerk.
- * If Clerk is unavailable (offline), this component simply doesn't render,
- * but the parent SyncManagerIsland continues to work with localStorage userId.
+ * Component that uses Clerk hooks to get userId.
+ * Must be wrapped in ClerkProvider to work properly in static builds.
  */
-function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
-  // Try to use Clerk - if it fails, component won't render but parent continues
-  let clerkUser: any = null;
-  let isLoaded = false;
-
-  try {
-    // Dynamically import and use Clerk
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { useUser } = require('@clerk/clerk-react');
-    const clerk = useUser();
-    clerkUser = clerk.user;
-    isLoaded = clerk.isLoaded;
-  } catch (e) {
-    // Clerk not available (offline) - return null, parent continues with localStorage
-    return null;
-  }
+function ClerkSyncContent({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+  const { isLoaded, user } = useUser();
 
   useEffect(() => {
-    if (isLoaded && clerkUser?.id) {
+    if (isLoaded && user?.id) {
       // Persist userId immediately for offline access
-      persistUserId(clerkUser.id);
+      persistUserId(user.id);
       // Update parent component's userId
-      onUserIdChange(clerkUser.id);
+      onUserIdChange(user.id);
     }
-  }, [clerkUser?.id, isLoaded, onUserIdChange]);
+  }, [user?.id, isLoaded, onUserIdChange]);
 
   // This component doesn't render anything visible
   return null;
+}
+
+/**
+ * Wrapper that provides ClerkProvider context for ClerkSyncContent.
+ * In static builds, each React Island needs its own ClerkProvider.
+ */
+function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+  return (
+    <ClerkWrapper fallback={null}>
+      <ClerkSyncContent onUserIdChange={onUserIdChange} />
+    </ClerkWrapper>
+  );
 }
 
