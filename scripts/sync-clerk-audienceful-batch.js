@@ -7,7 +7,13 @@
  *   node scripts/sync-clerk-audienceful-batch.js [--batch-size=N] [--start-offset=N]
  */
 
-const MIGRATION_KEY = process.env.MIGRATION_KEY || 'fQgP7eDlvu5+aDSdVGgQevKaOx7vabbod6qG006tLQU=';
+const MIGRATION_KEY = process.env.MIGRATION_KEY;
+
+if (!MIGRATION_KEY) {
+  console.error('❌ Error: MIGRATION_KEY environment variable is required');
+  console.error('   Set it with: export MIGRATION_KEY=your_key_here');
+  process.exit(1);
+}
 const BASE_URL = 'https://app.harvous.com';
 const BATCH_SIZE = parseInt(process.argv.find(arg => arg.startsWith('--batch-size='))?.split('=')[1] || '10');
 const START_OFFSET = parseInt(process.argv.find(arg => arg.startsWith('--start-offset='))?.split('=')[1] || '0');
