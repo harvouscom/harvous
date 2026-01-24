@@ -582,8 +582,7 @@ export const POST: APIRoute = async ({ request }) => {
     });
 
     return response;
-
-    } catch (error: any) {
+  } catch (error: any) {
       // This catch block handles errors in the main webhook processing
       const duration = Date.now() - startTime;
       console.error('[Webhook] Error in webhook processing:', {
