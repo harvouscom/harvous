@@ -32,7 +32,7 @@
     }
   }
 
-  // Handler function that processes touches
+  // Handler function that processes touch end events
   function handleInteraction(e) {
     var target = e.target;
     
@@ -63,7 +63,7 @@
           // Make sure we're not touching the toggle button
           var toggleButton = target.closest('.space-switcher-anchor__toggle');
           if (!toggleButton) {
-            // We're touching the nav-link inside mobile dropdown + space-switcher-anchor
+            // We're ending touch on the nav-link inside mobile dropdown + space-switcher-anchor
             // This is the main button that opens the bottom sheet - trigger medium haptic
             vibrate(20);
             return;
@@ -92,8 +92,8 @@
       vibrate(20);
       return;
     }
-    // Also check if touching on nav-link that's inside space-switcher-anchor (desktop nav case)
-    // nav-link wraps SpaceButton, so touches on nav-link or its children should trigger medium haptic
+    // Also check if ending touch on nav-link that's inside space-switcher-anchor (desktop nav case)
+    // nav-link wraps SpaceButton, so touches ending on nav-link or its children should trigger medium haptic
     var navLink = target.closest('.nav-link');
     if (navLink && navLink.closest('.space-switcher-anchor')) {
       vibrate(20);
@@ -138,7 +138,8 @@
     }
   }
 
-  // Listen to touchstart for mobile devices (haptics are mobile-only)
-  document.addEventListener('touchstart', handleInteraction, { passive: true, capture: true });
+  // Listen to touchend for mobile devices (haptics are mobile-only)
+  // touchend fires when user lifts finger, providing better timing than touchstart
+  document.addEventListener('touchend', handleInteraction, { passive: true, capture: true });
 
 })();
