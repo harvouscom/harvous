@@ -216,14 +216,15 @@ export async function tagAsAppUser(
 
   if (existing && existing.id) {
     // Update existing subscriber
+    // Replace tags with just "User" (removes any existing tags like "pending")
+    // Audienceful API PATCH replaces tags when provided, so this is safe
     const existingTagsString = tagsToString(existing.tags);
-    const mergedTags = mergeTags(existingTagsString, 'User');
 
     console.log('[Audienceful] Updating existing subscriber:', {
       email,
       existingId: existing.id,
       existingTags: existingTagsString,
-      mergedTags,
+      newTags: 'User',
     });
 
     // Merge extra_data
@@ -234,14 +235,14 @@ export async function tagAsAppUser(
 
     try {
       const result = await updateSubscriber(email, {
-        tags: mergedTags,
+        tags: 'User', // Replace with just "User" tag, removing any existing tags
         extra_data: mergedExtraData,
       });
 
       console.log('[Audienceful] Successfully updated subscriber:', {
         email,
         audiencefulId: result.id || result.uid,
-        tags: mergedTags,
+        tags: 'User',
       });
 
       return result;
@@ -255,7 +256,7 @@ export async function tagAsAppUser(
         // Person was not found, create them instead
         const result = await createSubscriber({
           email,
-          tags: mergedTags,
+          tags: 'User', // Just "User" tag for new subscribers
           extra_data: mergedExtraData,
           double_opt_in: 'not_required',
           trigger_automations: false,

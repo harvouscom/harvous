@@ -9,7 +9,7 @@ When someone signs up for Harvous:
 2. The webhook endpoint receives the event data
 3. For `emailAddress.created` events, we fetch full user details from Clerk API
 4. The user is automatically added/updated in Audienceful with:
-   - Tag: `User`
+   - Tag: `User` (replaces any existing tags, removing tags like "pending")
    - Custom field: `clerk_user_id` (their Clerk user ID)
    - First and last name (if provided)
 
@@ -229,7 +229,7 @@ The migration will return a summary:
 
 - The migration processes users in batches of 100
 - Users without email addresses are skipped
-- If a user is already in Audienceful, their tags will be merged (not replaced)
+- If a user is already in Audienceful, their tags will be **replaced** with just "User" (removes any existing tags like "pending")
 - Failed syncs are reported but don't stop the migration
 - You can run this multiple times safely - it's idempotent
 
