@@ -16,6 +16,8 @@ if (import.meta.env.PROD) {
 const isPublicRoute = createRouteMatcher([
   '/sign-in',
   '/sign-up',
+  '/shared/(.*)', // Public shared thread pages
+  '/api/shared/(.*)', // Public shared thread API (note: add-to-harvous still checks auth via locals.auth())
   '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
   '/api/test/xp-comprehensive', // Test endpoint for XP system (dev only)
   '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_INBOX_API_TOKEN for auth)

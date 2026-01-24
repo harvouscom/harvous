@@ -236,7 +236,7 @@ export default function NewThreadPanel({
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', 'false'); // Always private for now
+      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
       
       if (isEditMode) {
         formData.append('threadId', threadId!);
@@ -302,7 +302,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-              isPublic: false,
+              isPublic: selectedType === 'Shared',
             });
             console.log('[NewThreadPanel] Thread created locally in IndexedDB (offline)', { offlineThreadId });
           } catch (err) {
@@ -882,21 +882,54 @@ export default function NewThreadPanel({
                       </div>
                     </button>
                     
-                    {/* Shared button - disabled */}
+                    {/* Shared button - now enabled */}
                     <button
                       type="button"
-                      disabled
-                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
+                      onClick={() => setSelectedType('Shared')}
+                      className={`space-button button-group__button button-group__button--right h-[64px] ${
+                        selectedType === 'Shared'
+                          ? ''
+                          : 'bg-transparent'
+                      }`}
+                      style={selectedType === 'Shared' ? {
+                        backgroundImage: 'var(--color-gradient-gray)'
+                      } : {}}
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
+                          <Icon
+                            name="user-group"
+                            size={16}
+                            style={{
+                              color: selectedType === 'Shared'
+                                ? 'var(--color-deep-grey)'
+                                : 'var(--color-pebble-grey)'
+                            }}
+                          />
                         </div>
-                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                        <span
+                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                            selectedType === 'Shared'
+                              ? 'text-[var(--color-deep-grey)]'
+                              : 'text-[var(--color-pebble-grey)]'
+                          }`}
+                        >
+                          Shared
+                        </span>
                       </div>
                     </button>
                   </div>
                 </div>
+
+                {/* Share info message - shown when Shared is selected in create mode */}
+                {!isEditMode && selectedType === 'Shared' && (
+                  <div className="w-full px-3 py-2 bg-[var(--color-gradient-gray)] rounded-xl">
+                    <p className="text-[13px] text-[var(--color-stone-grey)] m-0 flex items-center gap-2">
+                      <Icon name="circle-info" size={14} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
+                      <span>Share link will be available after creating the thread</span>
+                    </p>
+                  </div>
+                )}
 
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (

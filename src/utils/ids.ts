@@ -62,6 +62,23 @@ export function generateMemberId(): string {
   return generateTimestampId("member");
 }
 
+// Generate a URL-safe share token for public sharing
+// Uses Web Crypto API for secure random generation
+export function generateShareToken(): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const length = 12; // Short enough for URLs, long enough for uniqueness (62^12 possibilities)
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map(b => alphabet[b % alphabet.length])
+    .join('');
+}
+
+// Validate share token format
+export function isValidShareToken(token: string): boolean {
+  return /^[A-Za-z0-9]{12}$/.test(token);
+}
+
 // Helper to extract the prefix from an ID
 export function getPrefixFromId(id: string): string {
   return id.split('_')[0];

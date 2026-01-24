@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Threads, Notes, NoteThreads, eq, and } from 'astro:db';
-import { generateThreadId } from '@/utils/ids';
+import { generateThreadId, generateShareToken } from '@/utils/ids';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardCreationBonusXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
@@ -108,7 +108,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
-    
+
+    // Generate share token if thread is public
+    const shareToken = isPublic ? generateShareToken() : null;
+
     const now = new Date();
     const newThread = await db.insert(Threads)
       .values({
@@ -120,6 +123,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         isPublic,
         color: threadColor,
         isPinned: false,
+        shareToken,
+        shareTokenCreatedAt: isPublic ? now : null,
         createdAt: now,
         updatedAt: now, // Set updatedAt to createdAt so new threads appear at top when sorted
         lastVisited: now // Set lastVisited so newly created threads appear above unvisited items
