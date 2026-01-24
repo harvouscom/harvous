@@ -8,12 +8,106 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
 // Check if coming from logout - prevent auto-redirect in this case
 const fromLogout = Astro.url.searchParams.get('from_logout') === 'true';
 
+// Prevent redirect loops - don't redirect to sign-in or sign-up
+const safeRedirectUrl = (redirectUrl === '/sign-in' || redirectUrl === '/sign-up') 
+  ? '/' 
+  : redirectUrl;
+
 // Static build - auth checking handled client-side by Clerk components
-// If coming from logout, don't auto-redirect authenticated users (stay on sign-in page)
-const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
+// Always use '/' as fallback to prevent redirect loops
+// Clerk will handle redirecting authenticated users automatically
+const effectiveRedirectUrl = fromLogout ? undefined : '/';
 ---
 
 <EmptyLayout title="Sign In">
+  <!-- Critical: Prevent SignIn component from rendering if user is authenticated -->
+  <!-- This script runs immediately and redirects authenticated users before any components load -->
+  <script is:inline>
+    (function() {
+      if (typeof window === 'undefined') return;
+      
+      // Don't redirect if coming from logout
+      var urlParams = new URLSearchParams(window.location.search);
+      var fromLogout = urlParams.get('from_logout') === 'true';
+      if (fromLogout) return;
+      
+      // Check if we're on Clerk's domain - let Clerk handle it
+      if (window.location.hostname.includes('accounts.dev') || 
+          window.location.hostname.includes('clerk.com')) {
+        return;
+      }
+      
+      // Hide page content until we verify user is not authenticated
+      if (document.documentElement) {
+        document.documentElement.style.visibility = 'hidden';
+      }
+      
+      // Function to check auth and redirect if needed
+      function checkAndRedirect() {
+        // Check if Clerk is loaded and user is authenticated
+        if (typeof window.Clerk !== 'undefined' && 
+            window.Clerk.loaded && 
+            window.Clerk.user) {
+          // User is authenticated - redirect immediately
+          var redirectUrl = urlParams.get('redirect_url') || '/';
+          if (redirectUrl === '/sign-in' || redirectUrl === '/sign-up') {
+            redirectUrl = '/';
+          }
+          window.location.replace(redirectUrl);
+          return true;
+        }
+        // User is not authenticated - show page
+        if (document.documentElement) {
+          document.documentElement.style.visibility = '';
+        }
+        return false;
+      }
+      
+      // Try immediately if Clerk is already loaded
+      if (checkAndRedirect()) return;
+      
+      // Wait for Clerk to load, then check
+      var attempts = 0;
+      var maxAttempts = 100; // 10 seconds max
+      var hasRedirected = false;
+      
+      function waitForClerk() {
+        if (hasRedirected) return;
+        attempts++;
+        
+        if (checkAndRedirect()) {
+          hasRedirected = true;
+          return;
+        }
+        
+        if (typeof window.Clerk === 'undefined' || !window.Clerk.loaded) {
+          if (attempts < maxAttempts) {
+            setTimeout(waitForClerk, 100);
+          } else {
+            // Clerk didn't load in time - show page anyway (user probably not authenticated)
+            if (document.documentElement) {
+              document.documentElement.style.visibility = '';
+            }
+          }
+        }
+      }
+      
+      // Start checking when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', waitForClerk);
+      } else {
+        waitForClerk();
+      }
+      
+      // Also listen for Clerk loaded event
+      window.addEventListener('clerk:loaded', function() {
+        if (!hasRedirected) {
+          checkAndRedirect();
+        }
+      }, { once: true });
+    })();
+  </script>
+  
   <div id="sign-in-content" class="auth-page auth-page__hidden">
     <div class="auth-page__container">
       <!-- Top Row (Mobile) / Left Column (Desktop): Animated Gradient Background -->
@@ -39,53 +133,52 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
       <!-- Bottom Row (Mobile) / Right Column (Desktop): Sign In Form -->
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
-
-      <ClerkSignIn
-        appearance={{
-            elements: {
-                rootBox: "clerk-form-root",
-                card: {
-                  className: "clerk-form-card",
+          <!-- Render SignIn component - auth check happens in script above -->
+          <ClerkSignIn
+            appearance={{
+                elements: {
+                    rootBox: "clerk-form-root",
+                    card: {
+                      className: "clerk-form-card",
+                      style: {
+                        border: "none",
+                        borderWidth: "0",
+                        overflowX: "hidden"
+                      }
+                    },
+                headerTitle: "clerk-form-header-title",
+                headerSubtitle: "clerk-form-header-subtitle",
+                formField: "",
+                formButtonPrimary: "clerk-form-button-primary primary-button",
+                formFieldInput: "clerk-form-input",
+                formFieldLabel: "hidden",
+                formFieldError: {
+                  className: "clerk-form-error"
+                },
+                formFieldAlert: {
+                  className: "clerk-form-alert",
                   style: {
-                    border: "none",
-                    borderWidth: "0",
-                    overflowX: "hidden"
+                    maxWidth: "100%",
+                    width: "100%",
+                    boxSizing: "border-box",
+                    overflowWrap: "break-word",
+                    wordWrap: "break-word",
+                    whiteSpace: "normal"
                   }
                 },
-            headerTitle: "clerk-form-header-title",
-            headerSubtitle: "clerk-form-header-subtitle",
-            formField: "",
-            formButtonPrimary: "clerk-form-button-primary primary-button",
-            formFieldInput: "clerk-form-input",
-            formFieldLabel: "hidden",
-            formFieldError: {
-              className: "clerk-form-error"
-            },
-            formFieldAlert: {
-              className: "clerk-form-alert",
-              style: {
-                maxWidth: "100%",
-                width: "100%",
-                boxSizing: "border-box",
-                overflowWrap: "break-word",
-                wordWrap: "break-word",
-                whiteSpace: "normal"
+                footerActionLink: "clerk-form-link",
+                dividerLine: "clerk-form-divider-line",
+                dividerText: "clerk-form-divider-text"
+              },
+              variables: {
+                colorPrimary: "var(--color-bold-blue)"
               }
-            },
-            footerActionLink: "clerk-form-link",
-            dividerLine: "clerk-form-divider-line",
-            dividerText: "clerk-form-divider-text"
-          },
-          variables: {
-            colorPrimary: "var(--color-bold-blue)"
-          }
-        }}
-        localization={{
-          newDeviceVerificationNotice: "We're asking for verification to keep your account secure."
-        }}
-        signUpUrl="/sign-up"
-        fallbackRedirectUrl={effectiveRedirectUrl}
-      />
+            }}
+            signUpUrl="/sign-up"
+            fallbackRedirectUrl="/"
+            routing="path"
+            path="/sign-in"
+          />
         </div>
       </div>
     </div>
@@ -226,7 +319,7 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
         }
-        // Check if we need to force sign-out after Clerk loads
+        // Check if we need to force sign-out after Clerk loads (only if coming from logout)
         forceSignOutIfNeeded();
       });
       clerkLoadedListenerSetup = true;

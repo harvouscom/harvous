@@ -1,10 +1,10 @@
 /**
-import { authenticatedFetch } from '@/utils/fetch-helpers';
  * Thread content caching layer using IndexedDB
  * Caches full thread content (notes + metadata) for instant load times on revisits
  */
 
 import { offlineDB, ensureDatabaseOpen, type ThreadCacheEntry } from './offline-db';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 // Cache duration: 5 minutes for thread content
 const THREAD_CACHE_DURATION = 5 * 60 * 1000;
@@ -134,7 +134,6 @@ export async function prefetchThreadContent(
 
     // Fetch thread data from API
     const response = await authenticatedFetch(`/api/threads/${threadId}/prefetch`, {
-      credentials: 'include',
       // Use low priority for prefetch to not block user navigation
       // @ts-ignore - priority is not yet in TypeScript types
       priority: 'low'

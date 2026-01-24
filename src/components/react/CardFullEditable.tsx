@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -9,6 +8,7 @@ import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -263,10 +263,8 @@ export default function CardFullEditable({
               const response = await authenticatedFetch(`/api/notes/${noteId}/update-content`, {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
-                },
-                credentials: 'include',
-                body: JSON.stringify({
+                  'Content-Type': 'application/json'},
+                                body: JSON.stringify({
                   content: updatedContent
                 })
               });
@@ -470,8 +468,7 @@ export default function CardFullEditable({
             fontFamily: 'var(--font-sans)',
             color: editTitle.length >= TITLE_WARNING_LIMIT 
               ? 'var(--color-red)' 
-              : 'var(--color-deep-grey)',
-          }}
+              : 'var(--color-deep-grey)'}}
         >
           {editTitle.length}/{TITLE_HARD_LIMIT}
         </div>
@@ -825,8 +822,7 @@ export default function CardFullEditable({
                             content: displayContent,
                             resourceImage: ''
                           }),
-                          credentials: 'include'
-                        });
+                                                  });
                         
                         if (response.ok) {
                           const result = await response.json();
@@ -899,8 +895,7 @@ export default function CardFullEditable({
                     margin: 0,
                     padding: '4px 8px',
                     marginLeft: '-8px',
-                    marginRight: '-8px',
-                  }}
+                    marginRight: '-8px'}}
                   onClick={() => startEditing('title')}
                 >
                   {effectiveTitle}
@@ -926,8 +921,7 @@ export default function CardFullEditable({
                       color: 'inherit',
                       boxSizing: 'border-box',
                       width: 'calc(100% + 16px)',
-                      resize: 'none',
-                    }}
+                      resize: 'none'}}
                     placeholder="Resource title"
                     onKeyDown={handleKeyDown}
                     onFocus={() => setIsTitleFocused(true)}
@@ -1068,8 +1062,7 @@ export default function CardFullEditable({
                   fontFamily: 'var(--font-sans)',
                   color: 'var(--color-deep-grey)',
                   boxSizing: 'border-box',
-                  resize: 'none',
-                }}
+                  resize: 'none'}}
                 placeholder="Note title"
                 onKeyDown={handleKeyDown}
                 onFocus={() => setIsTitleFocused(true)}

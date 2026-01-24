@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface MyChurchPanelProps {
   onClose?: () => void;
@@ -129,7 +129,7 @@ export default function MyChurchPanel({
     setIsLoading(true);
     try {
       const response = await authenticatedFetch('/api/user/get-profile', {
-        credentials: 'include'
+        
       });
       if (response.ok) {
         const data = await response.json();
@@ -225,10 +225,8 @@ export default function MyChurchPanel({
       const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
+          'Content-Type': 'application/json'},
+                body: JSON.stringify({
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
           churchState: formData.churchState.trim()
@@ -373,10 +371,8 @@ export default function MyChurchPanel({
       const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
+          'Content-Type': 'application/json'},
+                body: JSON.stringify({
           churchName: formData.churchName.trim(),
           churchCity: formData.churchCity.trim(),
           churchState: formData.churchState.trim()
@@ -456,10 +452,8 @@ export default function MyChurchPanel({
       const response = await authenticatedFetch('/api/user/update-church', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
+          'Content-Type': 'application/json'},
+                body: JSON.stringify({
           churchName: null,
           churchCity: null,
           churchState: null

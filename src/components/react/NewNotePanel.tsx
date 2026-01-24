@@ -1,5 +1,4 @@
 'use client';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ThreadCombobox from './ThreadCombobox';
@@ -17,8 +16,7 @@ import {
   useNewNoteForm,
   useThreadSelection,
   useScriptureDetection,
-  useNoteSubmission,
-} from './note-panel/hooks';
+  useNoteSubmission} from './note-panel/hooks';
 
 // Import Thread type from useThreadSelection
 import type { Thread } from './note-panel/hooks/useThreadSelection';
@@ -30,11 +28,11 @@ import {
   NewResourcePanel,
   SpaceSelector,
   NoteFormFooter,
-  NewNotePanelStyles,
-} from './note-panel';
+  NewNotePanelStyles} from './note-panel';
 
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import SuggestedThreadDialog from './dialogs/SuggestedThreadDialog';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface NewNotePanelProps {
   currentThread?: any;
@@ -51,8 +49,7 @@ export default function NewNotePanel({
   onClose,
   initialNoteType,
   inBottomSheet = false,
-  registerSheetCloseHandler = null,
-}: NewNotePanelProps) {
+  registerSheetCloseHandler = null}: NewNotePanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -98,14 +95,12 @@ export default function NewNotePanel({
   // Use extracted form hook
   const form = useNewNoteForm({
     currentSpace,
-    initialNoteType,
-  });
+    initialNoteType});
 
   // Use extracted thread selection hook
   const threadSelection = useThreadSelection({
     currentThread,
-    navigationHistory,
-  });
+    navigationHistory});
 
   // Use extracted scripture detection hook
   useScriptureDetection({
@@ -119,8 +114,7 @@ export default function NewNotePanel({
     setScriptureReference: form.setScriptureReference,
     setScriptureVersion: form.setScriptureVersion,
     scriptureReference: form.scriptureReference,
-    scriptureVersion: form.scriptureVersion,
-  });
+    scriptureVersion: form.scriptureVersion});
 
   // Load next note ID - with offline fallback
   const loadNextNoteId = useCallback(async () => {
@@ -277,8 +271,7 @@ export default function NewNotePanel({
     setNoteType: form.setNoteType,
     setScriptureReference: form.setScriptureReference,
     setScriptureVersion: form.setScriptureVersion,
-    setContent: form.setContent,
-  });
+    setContent: form.setContent});
 
   // Handle editor ready callback - focus the editor when it's initialized
   const handleEditorReady = (editor: any) => {
@@ -346,7 +339,7 @@ export default function NewNotePanel({
 
     try {
       const response = await authenticatedFetch('/api/subscription/status', {
-        credentials: 'include',
+        
         cache: 'no-store'
       });
       
@@ -694,9 +687,7 @@ export default function NewNotePanel({
 
           const response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
-            body: formData,
-            credentials: 'include',
-          });
+            body: formData});
 
           if (!response.ok) {
             throw new Error('Failed to create thread');
@@ -718,8 +709,7 @@ export default function NewNotePanel({
               title: created.title,
               noteCount: 0,
               backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
-              color: created.color || null,
-            };
+              color: created.color || null};
 
             threadSelection.setThreadOptions((prev) => {
               const filtered = prev.filter(t => !t.id.startsWith('pending_'));
@@ -819,9 +809,7 @@ export default function NewNotePanel({
 
           const response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
-            body: formData,
-            credentials: 'include',
-          });
+            body: formData});
 
           if (!response.ok) {
             const err = await response.json().catch(() => null);
@@ -851,8 +839,7 @@ export default function NewNotePanel({
             title: created.title,
             noteCount: 0,
             backgroundGradient: getThreadGradientCSS(created.color || 'paper'),
-            color: created.color || null,
-          };
+            color: created.color || null};
 
           // Remove pending thread and add the real thread to options
           threadSelection.setThreadOptions((prev) => {
@@ -931,9 +918,7 @@ export default function NewNotePanel({
 
         const response = await authenticatedFetch('/api/threads/create', {
           method: 'POST',
-          body: formData,
-          credentials: 'include',
-        });
+          body: formData});
 
         if (!response.ok) {
           const err = await response.json().catch(() => null);
@@ -1130,8 +1115,7 @@ export default function NewNotePanel({
                   title: trimmedName,
                   noteCount: 0,
                   backgroundGradient: getThreadGradientCSS('paper'),
-                  color: 'paper',
-                };
+                  color: 'paper'};
 
                 // Add pending thread to options and select it
                 threadSelection.setThreadOptions((prev) => {

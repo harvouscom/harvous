@@ -1,4 +1,3 @@
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import {
   offlineDB,
   type OfflineSpace,
@@ -18,6 +17,7 @@ import {
 import { cacheHighestSimpleNoteId } from './offline-mutations';
 import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 export interface SyncResult {
   success: boolean;
@@ -651,7 +651,6 @@ export async function bootstrapSync(userId: string): Promise<SyncResult> {
 
     const response = await authenticatedFetch('/api/sync/bootstrap', {
       method: 'GET',
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -837,7 +836,6 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mutations }),
-      credentials: 'include',
     });
 
 

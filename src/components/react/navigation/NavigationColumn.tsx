@@ -77,6 +77,36 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   pathname = '/',
   search = ''
 }) => {
+  // Debug: Log component mount and props - use multiple methods to ensure visibility
+  useEffect(() => {
+    // Try multiple logging methods to ensure we see it
+    console.warn('[NavigationColumn] Component mounted with props:', {
+      initials,
+      userColor,
+      pathname,
+      showProfile
+    });
+    console.error('[NavigationColumn] MOUNT DEBUG - Component is rendering!', {
+      initials,
+      userColor
+    });
+    // Also try direct DOM manipulation to prove component is mounting
+    if (typeof document !== 'undefined') {
+      const debugEl = document.createElement('div');
+      debugEl.id = 'nav-column-debug';
+      debugEl.style.position = 'fixed';
+      debugEl.style.top = '0';
+      debugEl.style.right = '0';
+      debugEl.style.background = 'red';
+      debugEl.style.color = 'white';
+      debugEl.style.padding = '10px';
+      debugEl.style.zIndex = '99999';
+      debugEl.textContent = `Nav Mounted: ${initials}`;
+      document.body.appendChild(debugEl);
+      setTimeout(() => debugEl.remove(), 5000);
+    }
+  }, []);
+  
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const { navigationHistory } = useNavigation();
@@ -177,7 +207,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     try {
       const response = await authenticatedFetch(`/api/spaces/${selectedSpaceForMismatch}/add-thread`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ threadId: currentThreadForMismatch.id }),
       });
@@ -294,6 +323,132 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     window.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
     return () => window.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
   }, []);
+
+  // Fetch user profile on mount if we have fallback values (static build)
+  useEffect(() => {
+    // Use console.warn to ensure logs appear
+    console.warn('[NavigationColumn] useEffect triggered for profile fetch');
+    
+    const fetchUserProfile = async (retryCount = 0) => {
+      // Only fetch if we have fallback values (indicating static build)
+      // Check if initials are fallback values (U, DJ, or very short) AND userColor is 'paper'
+      // This handles both 'U' from index.astro and 'DJ' default from NavigationColumnReact.astro
+      const isFallbackInitials = initials === 'U' || initials === 'DJ' || (initials.length <= 2 && initials.toUpperCase() === initials);
+      const isFallbackColor = userColor === 'paper';
+      const hasFallbackValues = isFallbackInitials && isFallbackColor;
+      
+      // Use console.warn to ensure logs appear
+      console.warn('[NavigationColumn] Profile fetch check:', {
+        initials,
+        userColor,
+        isFallbackInitials,
+        isFallbackColor,
+        hasFallbackValues,
+        retryCount,
+        initialsLength: initials.length,
+        initialsUppercase: initials.toUpperCase()
+      });
+      
+      if (!hasFallbackValues) {
+        console.warn('[NavigationColumn] Skipping profile fetch - already have real data from SSR');
+        return; // Already have real data from SSR
+      }
+      
+      console.warn('[NavigationColumn] Proceeding with profile fetch - has fallback values');
+      
+      // Wait for Clerk to be ready before fetching
+      const waitForClerk = () => {
+        return new Promise<void>((resolve) => {
+          if (typeof window !== 'undefined' && window.Clerk && window.Clerk.loaded) {
+            resolve();
+            return;
+          }
+          
+          // Wait up to 5 seconds for Clerk
+          let attempts = 0;
+          const maxAttempts = 50;
+          const checkInterval = setInterval(() => {
+            attempts++;
+            if ((typeof window !== 'undefined' && window.Clerk && window.Clerk.loaded) || attempts >= maxAttempts) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
+        });
+      };
+      
+      await waitForClerk();
+      
+        try {
+        console.warn('[NavigationColumn] Fetching user profile from /api/user/get-profile');
+        const response = await authenticatedFetch('/api/user/get-profile');
+        
+        console.warn('[NavigationColumn] Profile API response:', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.warn('[NavigationColumn] Profile data received:', {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            userColor: data.userColor
+          });
+          
+          const newInitials = `${data.firstName?.charAt(0) || ''}${data.lastName?.charAt(0) || ''}`.toUpperCase() || 'U';
+          setProfileData({
+            initials: newInitials || initials,
+            userColor: data.userColor || userColor,
+          });
+          
+          console.warn('[NavigationColumn] Profile data updated:', {
+            newInitials,
+            newUserColor: data.userColor || userColor
+          });
+          
+          // Also update cache for other components
+          if (typeof window !== 'undefined') {
+            // Try to use profile cache utility if available
+            try {
+              const { updateCachedProfileData } = await import('@/utils/profile-cache');
+              updateCachedProfileData({
+                firstName: data.firstName || '',
+                lastName: data.lastName || '',
+                userColor: data.userColor || 'paper'
+              });
+            } catch (e) {
+              // Fallback: use window method if available
+              if ((window as any).updateCachedProfileData) {
+                (window as any).updateCachedProfileData({
+                  firstName: data.firstName || '',
+                  lastName: data.lastName || '',
+                  userColor: data.userColor || 'paper'
+                });
+              }
+            }
+          }
+        } else {
+          console.warn('[NavigationColumn] Profile API returned non-OK status:', response.status);
+          // Retry if we haven't exceeded max retries
+          if (retryCount < 3) {
+            console.warn(`[NavigationColumn] Retrying profile fetch in 1 second (attempt ${retryCount + 1}/3)`);
+            setTimeout(() => fetchUserProfile(retryCount + 1), 1000);
+          }
+        }
+      } catch (error) {
+        console.warn('[NavigationColumn] Error fetching user profile:', error);
+        // Retry if we haven't exceeded max retries
+        if (retryCount < 3) {
+          console.warn(`[NavigationColumn] Retrying profile fetch in 1 second after error (attempt ${retryCount + 1}/3)`);
+          setTimeout(() => fetchUserProfile(retryCount + 1), 1000);
+        }
+      }
+    };
+    
+    fetchUserProfile();
+  }, [initials, userColor]);
 
   useEffect(() => {
     const handleProfileUpdate = (event: CustomEvent) => {
@@ -496,7 +651,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           if (verifiedCount !== null) {
             // Fetch full thread data
             const response = await authenticatedFetch('/api/threads/list', {
-              cache: 'no-store'
+              cache: 'no-store',
             });
             if (response.ok) {
               const threads = await response.json();
@@ -506,7 +661,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         } else {
           // Regular fetch
           const response = await authenticatedFetch('/api/threads/list', {
-            cache: 'no-store'
+            cache: 'no-store',
           });
 
           // Handle 401 errors gracefully - auth may not be fully established yet

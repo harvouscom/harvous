@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useUser } from '@clerk/clerk-react';
-import { ClerkWrapper } from './ClerkWrapper';
+import { useUser, ClerkProvider } from '@clerk/clerk-react';
 import { initializeSync } from '@/utils/sync-init';
 import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import { executeOnlineRecovery, onOnlineRecovery, offOnlineRecovery } from '@/utils/network';
@@ -142,6 +141,11 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
     <>
       <ClerkSyncWrapper onUserIdChange={(id) => {
         if (id) {
+          // Persist userId and set window variable for synchronous access
+          persistUserId(id);
+          if (typeof window !== 'undefined') {
+            (window as any).__harvous_userId = id;
+          }
           setUserId(id);
         }
       }} />
@@ -151,10 +155,80 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
 }
 
 /**
- * Component that uses Clerk hooks to get userId.
- * Must be wrapped in ClerkProvider to work properly in static builds.
+ * Helper function to get Clerk configuration
+ * Similar to pattern used in UpgradeCheckoutButton and SafeSubscriptionDetailsButton
  */
-function ClerkSyncContent({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+function getClerkConfig() {
+  if (typeof window === 'undefined') {
+    return {
+      publishableKey: null,
+      domain: undefined,
+      afterSignInUrl: undefined,
+      afterSignUpUrl: undefined
+    };
+  }
+
+  // Get publishableKey from window global (set in Layout.astro)
+  const publishableKey = (window as any).CLERK_PUBLISHABLE_KEY || null;
+
+  return {
+    publishableKey,
+    domain: window.location.hostname,
+    afterSignInUrl: '/',
+    afterSignUpUrl: '/'
+  };
+}
+
+/**
+ * Component that uses Clerk hooks to get userId.
+ * In static builds, React Islands need their own ClerkProvider.
+ * This wrapper provides the ClerkProvider context.
+ */
+function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+  const [publishableKey, setPublishableKey] = useState<string | null>(null);
+
+  // Get publishableKey from window global (set in Layout.astro)
+  useEffect(() => {
+    const key = typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null;
+    setPublishableKey(key);
+  }, []);
+
+  // Re-check after View Transitions navigation
+  useEffect(() => {
+    const handlePageLoad = () => {
+      const key = typeof window !== 'undefined' ? (window as any).CLERK_PUBLISHABLE_KEY : null;
+      setPublishableKey(key);
+    };
+
+    document.addEventListener('astro:page-load', handlePageLoad);
+    return () => {
+      document.removeEventListener('astro:page-load', handlePageLoad);
+    };
+  }, []);
+
+  // If no publishable key, don't render ClerkProvider (component will work with server userId only)
+  if (!publishableKey) {
+    return null;
+  }
+
+  const clerkConfig = getClerkConfig();
+
+  return (
+    <ClerkProvider
+      publishableKey={clerkConfig.publishableKey!}
+      domain={clerkConfig.domain}
+      afterSignInUrl={clerkConfig.afterSignInUrl}
+      afterSignUpUrl={clerkConfig.afterSignUpUrl}
+    >
+      <ClerkSyncWrapperInner onUserIdChange={onUserIdChange} />
+    </ClerkProvider>
+  );
+}
+
+/**
+ * Inner component that uses Clerk hooks - must be inside ClerkProvider
+ */
+function ClerkSyncWrapperInner({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
   const { isLoaded, user } = useUser();
 
   useEffect(() => {
@@ -168,17 +242,5 @@ function ClerkSyncContent({ onUserIdChange }: { onUserIdChange: (userId: string 
 
   // This component doesn't render anything visible
   return null;
-}
-
-/**
- * Wrapper that provides ClerkProvider context for ClerkSyncContent.
- * In static builds, each React Island needs its own ClerkProvider.
- */
-function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
-  return (
-    <ClerkWrapper fallback={null}>
-      <ClerkSyncContent onUserIdChange={onUserIdChange} />
-    </ClerkWrapper>
-  );
 }
 

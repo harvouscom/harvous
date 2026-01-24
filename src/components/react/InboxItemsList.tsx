@@ -80,7 +80,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     // Prefetch in background (don't await - fire and forget)
     authenticatedFetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
-      credentials: 'include',
+      
     }).catch(() => {
       // On error, remove from prefetched set so we can retry on click
       prefetchedItems.current.delete(item.id);
@@ -106,7 +106,7 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
       // Fetch full item data with notes via API
       // If prefetched, browser cache should make this instant
       const response = await authenticatedFetch(`/api/inbox/preview?inboxItemId=${item.id}`, {
-        credentials: 'include',
+        
       });
 
       if (!response.ok) {
@@ -175,10 +175,9 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
   useEffect(() => {
     const handleAddToHarvous = async (inboxItemId: string) => {
       try {
-        const response = await authenticatedFetch('/api/inbox/add-to-harvous', {
+        const response = await fetch('/api/inbox/add-to-harvous', {
           method: 'POST',
-          body: JSON.stringify({ inboxItemId }),
-        });
+          body: JSON.stringify({ inboxItemId })});
 
         if (!response.ok) {
           const error = await response.json();
@@ -214,10 +213,9 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     const handleArchive = async (inboxItemId: string) => {
       try {
-        const response = await authenticatedFetch('/api/inbox/archive', {
+        const response = await fetch('/api/inbox/archive', {
           method: 'POST',
-          body: JSON.stringify({ inboxItemId }),
-        });
+          body: JSON.stringify({ inboxItemId })});
 
         if (!response.ok) {
           let errorMessage = 'Failed to archive';
@@ -279,10 +277,9 @@ export default function InboxItemsList({ items, onItemAdded, onItemArchived }: I
 
     const handleUnarchive = async (inboxItemId: string) => {
       try {
-        const response = await authenticatedFetch('/api/inbox/unarchive', {
+        const response = await fetch('/api/inbox/unarchive', {
           method: 'POST',
-          body: JSON.stringify({ inboxItemId }),
-        });
+          body: JSON.stringify({ inboxItemId })});
 
         if (!response.ok) {
           const error = await response.json();

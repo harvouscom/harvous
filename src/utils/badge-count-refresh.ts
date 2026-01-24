@@ -1,8 +1,9 @@
 /**
-import { authenticatedFetch } from '@/utils/fetch-helpers';
  * Unified badge count refresh utility
  * Provides verification-based refresh for navigation badge counts
  */
+
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface NavigationData {
   threads: Array<{ id: string; noteCount: number }>;
@@ -24,7 +25,6 @@ export async function verifyBadgeCount(
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const response = await authenticatedFetch('/api/navigation/data', {
-        credentials: 'include',
         cache: 'no-store'
       });
       
@@ -152,8 +152,7 @@ export function trackNoteDeletion(noteId: string, threadId: string): void {
 export async function fetchNavigationData(): Promise<NavigationData | null> {
   try {
     const response = await authenticatedFetch('/api/navigation/data', {
-      credentials: 'include',
-      cache: 'no-store'
+            cache: 'no-store'
     });
     
     if (!response.ok) {

@@ -30,7 +30,7 @@ export default function UpgradePageContent({
   const checkStatus = async () => {
     try {
       const response = await authenticatedFetch('/api/subscription/status', {
-        cache: 'no-store'
+        cache: 'no-store',
       });
 
       if (response.ok) {

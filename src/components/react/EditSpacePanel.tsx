@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -9,6 +8,7 @@ import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { safeURL } from '@/utils/safe-url';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Note {
   id: string;
@@ -66,7 +66,7 @@ export default function EditSpacePanel({
     setIsLoadingItems(true);
     try {
       const response = await authenticatedFetch('/api/spaces/items', {
-        credentials: 'include'
+        
       });
       
       if (response.ok) {
@@ -97,7 +97,7 @@ export default function EditSpacePanel({
     setIsLoadingCurrentItems(true);
     try {
       const response = await authenticatedFetch(`/api/spaces/${spaceId}/items`, {
-        credentials: 'include'
+        
       });
       
       if (response.ok) {
@@ -158,9 +158,7 @@ export default function EditSpacePanel({
 
       const response = await authenticatedFetch(`/api/spaces/${spaceId}/update`, {
         method: 'POST',
-        body: formDataToSend,
-        credentials: 'include'
-      });
+        body: formDataToSend});
 
       const data = await response.json();
 
@@ -220,8 +218,7 @@ export default function EditSpacePanel({
           noteIds,
           threadIds
         }),
-        credentials: 'include'
-      });
+              });
 
       if (response.ok) {
         const result = await response.json();
@@ -310,8 +307,7 @@ export default function EditSpacePanel({
           noteIds,
           threadIds
         }),
-        credentials: 'include'
-      });
+              });
 
       if (response.ok) {
         const result = await response.json();

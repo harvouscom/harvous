@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import type { NoteType } from './useNewNoteForm';
 
 export interface UseScriptureDetectionOptions {
@@ -66,7 +66,6 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: titleToCheck }),
-          credentials: 'include'
         });
 
         if (response.ok) {
@@ -80,7 +79,6 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: detection.primaryReference }),
-                credentials: 'include'
               });
 
               if (verseResponse.ok) {
@@ -140,7 +138,6 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ reference: apiReference }),
-          credentials: 'include'
         });
 
         if (verseResponse.ok) {

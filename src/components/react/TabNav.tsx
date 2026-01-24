@@ -62,7 +62,7 @@ export default function TabNav({
       if (currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized') {
         try {
           const response = await authenticatedFetch(`/api/threads/${currentThreadId}/note-type-counts`, {
-            credentials: 'include',
+            
             cache: 'no-store'
           });
 
@@ -81,7 +81,7 @@ export default function TabNav({
     } else if (threadId) {
       try {
         const response = await authenticatedFetch(`/api/threads/${threadId}/note-type-counts`, {
-          credentials: 'include',
+          
           cache: 'no-store'
         });
 

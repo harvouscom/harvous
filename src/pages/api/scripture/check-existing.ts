@@ -2,17 +2,39 @@ import type { APIRoute } from 'astro';
 import { db, ScriptureMetadata, Notes, NoteThreads, eq, and, count, isNull } from 'astro:db';
 import { normalizeScriptureReference } from '@/utils/scripture-detector';
 import { handleAPIError } from '@/utils/error-handling';
-import { getAuthFromRequest } from '@/utils/auth-helpers';
+
+import { verifyToken } from '@clerk/backend';
 
 export const prerender = false;
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
-    const userId = await getAuthFromRequest(request);
-    
+    let userId: string | null = null;
+
+    // SSR Mode: Use middleware auth
+    if (locals?.auth) {
+      const auth = locals.auth();
+      userId = auth.userId || null;
+    }
+    // Static/Capacitor Mode: Verify JWT from Authorization header
+    else {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const verified = await verifyToken(token, {
+            secretKey: import.meta.env.CLERK_SECRET_KEY
+          });
+          userId = verified.sub;
+        } catch (error) {
+          console.error('[API Auth] Token verification failed:', error);
+        }
+      }
+    }
+
     if (!userId) {
-      return new Response(JSON.stringify({ 
-        error: 'Authentication required' 
+      return new Response(JSON.stringify({
+        error: 'Authentication required'
       }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }

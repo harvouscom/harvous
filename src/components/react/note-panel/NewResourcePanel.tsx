@@ -6,6 +6,7 @@ import ActionButton from '../ActionButton';
 import { normalizeUrl } from '@/utils/validation';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { safeRenderHtml } from '@/utils/content-renderer';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 export interface NewResourcePanelProps {
   resourceUrl: string;
@@ -197,7 +198,6 @@ export default function NewResourcePanel({
           headers: {
             'Content-Type': 'application/json',
           },
-          credentials: 'include',
           body: JSON.stringify({ url: validUrl, extractContent: true }),
         });
 
@@ -246,7 +246,6 @@ export default function NewResourcePanel({
                 headers: {
                   'Content-Type': 'application/json',
                 },
-                credentials: 'include',
                 body: JSON.stringify({ url: validUrl }),
               });
 
@@ -287,7 +286,6 @@ export default function NewResourcePanel({
                 const scriptureResponse = await authenticatedFetch('/api/scripture/detect', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
                   body: JSON.stringify({ text: data.metadata.articleContent }),
                 });
 
@@ -320,7 +318,6 @@ export default function NewResourcePanel({
                 const suggestResponse = await authenticatedFetch('/api/resource/suggest-threads', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  credentials: 'include',
                   body: JSON.stringify({
                     resourceUrl: validUrl,
                     sourceName: data.metadata.siteName || null,

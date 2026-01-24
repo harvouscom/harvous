@@ -293,7 +293,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           if (verifiedCount !== null) {
             // Fetch full thread data
             const response = await authenticatedFetch('/api/threads/list', {
-              cache: 'no-store'
+              cache: 'no-store',
             });
             if (response.ok) {
               const threads = await response.json();
@@ -303,8 +303,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         } else {
           // Regular fetch
           const response = await authenticatedFetch('/api/threads/list', {
-            cache: 'no-store'
-          });
+            cache: 'no-store',
+                      });
 
           // Handle 401 errors gracefully - auth may not be fully established yet
           if (response.status === 401) {
@@ -650,7 +650,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     try {
       const response = await authenticatedFetch(`/api/spaces/${selectedSpaceId}/add-thread`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ threadId: thread.id }),
       });

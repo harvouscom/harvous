@@ -61,8 +61,7 @@ export default function NewThreadPanel({
   initialNotes,
   useBackButton = false,
   inBottomSheet = false,
-  registerSheetCloseHandler = null,
-}: NewThreadPanelProps) {
+  registerSheetCloseHandler = null}: NewThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -244,8 +243,7 @@ export default function NewThreadPanel({
 
         const response = await authenticatedFetch('/api/threads/update', {
           method: 'POST',
-          body: formData
-        });
+          body: formData});
 
         if (response.ok) {
           const result = await response.json();
@@ -302,8 +300,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-              isPublic: false,
-            });
+              isPublic: false});
             console.log('[NewThreadPanel] Thread created locally in IndexedDB (offline)', { offlineThreadId });
           } catch (err) {
             console.error('[NewThreadPanel] Failed to create thread offline:', err);
@@ -317,8 +314,7 @@ export default function NewThreadPanel({
         try {
           response = await authenticatedFetch('/api/threads/create', {
             method: 'POST',
-            body: formData
-          });
+            body: formData});
         } catch (error) {
           // Network error occurred
           networkError = isNetworkError(error);
@@ -340,8 +336,7 @@ export default function NewThreadPanel({
                   title: title.trim(),
                   color: selectedColor,
                   spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                  noteCount: 0,
-                },
+                  noteCount: 0},
                 threadId: offlineThreadId,
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
                 isOffline: true
@@ -450,11 +445,9 @@ export default function NewThreadPanel({
               const addNoteResponse = await authenticatedFetch(`/api/notes/${noteIdToAdd}/add-thread`, {
                 method: 'POST',
                 headers: {
-                  'Content-Type': 'application/json',
-                },
+                  'Content-Type': 'application/json'},
                 body: JSON.stringify({ threadId: result.thread.id }),
-                credentials: 'include'
-              });
+                              });
               
               if (addNoteResponse.ok) {
                 // Dispatch noteAddedToThread event so UI updates
@@ -521,8 +514,7 @@ export default function NewThreadPanel({
                   title: title.trim(),
                   color: selectedColor,
                   spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                  noteCount: 0,
-                },
+                  noteCount: 0},
                 threadId: offlineThreadId,
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
                 isOffline: true
@@ -570,8 +562,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-              noteCount: 0,
-            },
+              noteCount: 0},
             threadId: offlineThreadId,
             spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
             isOffline: true
@@ -599,8 +590,7 @@ export default function NewThreadPanel({
         if (typeof window !== 'undefined' && window.posthog) {
           captureException(error, {
             context: 'thread_creation',
-            endpoint: '/api/threads/create',
-          });
+            endpoint: '/api/threads/create'});
         }
         
         console.error('NewThreadPanel: Error:', error);

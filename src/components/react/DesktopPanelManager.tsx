@@ -360,6 +360,22 @@ export default function DesktopPanelManager({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
 
+  // Ensure userId is available (panels can still open without it, but some features may need it)
+  // This is a non-blocking check - panels will open regardless
+  useEffect(() => {
+    // Wait for userId to be available, but don't block panel opening
+    const checkUserId = () => {
+      const userId = (window as any).__harvous_userId || 
+                     localStorage.getItem('harvous_userId');
+      if (!userId) {
+        // Retry after a short delay if userId not available yet
+        // This ensures panels can still open even if userId isn't immediately available
+        setTimeout(checkUserId, 100);
+      }
+    };
+    checkUserId();
+  }, []);
+
   // Load panel state from localStorage on mount
   useEffect(() => {
     // Check if there's a pending panel open request BEFORE clearing

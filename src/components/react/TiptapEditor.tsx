@@ -17,8 +17,8 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
-import '@/styles/tiptap-editor.css';
 import { authenticatedFetch } from '@/utils/fetch-helpers';
+import '@/styles/tiptap-editor.css';
 
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
@@ -1075,7 +1075,6 @@ export async function convertNoteLinksToScripturePills(editor: any) {
       try {
         const checkResponse = await authenticatedFetch(`/api/notes/${noteId}/details`, {
           method: 'GET',
-          credentials: 'include'
         });
         
         if (checkResponse.ok) {
@@ -1086,7 +1085,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             const linkText = noteLink.textContent || '';
             
             // First, try to detect if the link text is a scripture reference
-            const detectResponse = await authenticatedFetch('/api/scripture/detect', {
+            const detectResponse = await fetch('/api/scripture/detect', {
               method: 'POST',
               body: JSON.stringify({ text: linkText })
             });
@@ -1101,7 +1100,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             
             // If we couldn't detect it, try to get it from the note title (scripture notes often have reference as title)
             if (!reference && noteData.note.title) {
-              const titleDetectResponse = await authenticatedFetch('/api/scripture/detect', {
+              const titleDetectResponse = await fetch('/api/scripture/detect', {
                 method: 'POST',
                 body: JSON.stringify({ text: noteData.note.title })
               });
@@ -1282,7 +1281,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
     }
 
     // Call detection API with optimized text
-    const detectResponse = await authenticatedFetch('/api/scripture/detect', {
+    const detectResponse = await fetch('/api/scripture/detect', {
       method: 'POST',
       body: JSON.stringify({ text: textForDetection })
     });
@@ -2995,7 +2994,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       const plainText = extractedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       
       if (plainText.length >= 5) {
-        const detectResponse = await authenticatedFetch('/api/scripture/detect', {
+        const detectResponse = await fetch('/api/scripture/detect', {
           method: 'POST',
           body: JSON.stringify({ text: plainText })
         });
@@ -3008,7 +3007,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               // Normalize the reference before checking to ensure consistent format matching
               const normalizedReference = normalizeScriptureReference(detection.primaryReference);
               
-              const checkExistingResponse = await authenticatedFetch('/api/scripture/check-existing', {
+              const checkExistingResponse = await fetch('/api/scripture/check-existing', {
                 method: 'POST',
                 body: JSON.stringify({ reference: normalizedReference })
               });
@@ -3025,7 +3024,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ threadId: targetThreadId }),
-                      credentials: 'include'
                     });
 
                     let result;
@@ -3126,7 +3124,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             // No existing note found - proceed with creating new note
             // Fetch verse text
             try {
-              const verseResponse = await authenticatedFetch('/api/scripture/fetch-verse', {
+              const verseResponse = await fetch('/api/scripture/fetch-verse', {
                 method: 'POST',
                 body: JSON.stringify({ reference: detection.primaryReference })
               });

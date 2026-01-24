@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { toast } from '@/utils/toast';
 import { clearCachedProfileData, updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 // Import panel components
 import EditNameColorPanel from '@/components/react/EditNameColorPanel';
@@ -109,7 +109,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           firstName,
           lastName,
           color
-        })
+        }),
       });
 
       const data = await response.json();
@@ -175,7 +175,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(detail)
+            body: JSON.stringify(detail),
         });
 
         const data = await response.json();

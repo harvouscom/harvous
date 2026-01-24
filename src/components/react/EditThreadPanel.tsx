@@ -160,8 +160,7 @@ export default function EditThreadPanel({
         try {
           await updateThreadOffline(userId, threadId, {
             title: formData.title,
-            color: formData.selectedColor,
-          });
+            color: formData.selectedColor});
           offlineUpdateSuccess = true;
           console.log('[EditThreadPanel] Thread updated locally in IndexedDB', { threadId });
         } catch (err) {
@@ -176,8 +175,7 @@ export default function EditThreadPanel({
       try {
         response = await authenticatedFetch('/api/threads/update', {
           method: 'POST',
-          body: formDataToSend,
-        });
+          body: formDataToSend});
       } catch (error) {
         // Network error occurred
         networkError = isNetworkError(error);
@@ -233,7 +231,7 @@ export default function EditThreadPanel({
         // Refresh current thread notes if we added any
         if (selectedItems.length > 0) {
           const threadNotesResponse = await authenticatedFetch(`/api/threads/${threadId}/notes?limit=1000`, {
-            credentials: 'include'
+            
           });
           
           if (threadNotesResponse.ok) {
@@ -420,11 +418,9 @@ export default function EditThreadPanel({
       const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ threadId }),
-        credentials: 'include'
-      });
+              });
       
       if (response.ok) {
         const result = await response.json();
@@ -447,7 +443,7 @@ export default function EditThreadPanel({
 
         // Refresh current thread notes
         const threadNotesResponse = await authenticatedFetch(`/api/threads/${threadId}/notes?limit=1000`, {
-          credentials: 'include'
+          
         });
         
         if (threadNotesResponse.ok) {

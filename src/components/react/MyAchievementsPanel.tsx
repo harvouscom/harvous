@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface MyAchievementsPanelProps {
   onClose?: () => void;
@@ -43,7 +43,7 @@ export default function MyAchievementsPanel({
     setIsLoading(true);
     try {
       const response = await authenticatedFetch('/api/user/achievements', {
-        credentials: 'include'
+        
       });
       
       if (response.ok) {
@@ -120,8 +120,7 @@ export default function MyAchievementsPanel({
                         onClick={() => setShowPastSeasons(!showPastSeasons)}
                         className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
                         style={{
-                          backgroundImage: 'var(--color-gradient-gray)',
-                        }}
+                          backgroundImage: 'var(--color-gradient-gray)'}}
                       >
                         <div className="panel__list-item">
                           <div className="panel__list-item-text" style={{ textAlign: 'left' }}>

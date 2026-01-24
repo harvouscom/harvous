@@ -3,16 +3,41 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount } fr
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
-import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+import { verifyToken } from '@clerk/backend';
 
 export const prerender = false;
 
 export const GET: APIRoute = async ({ request, locals  }) => {
   try {
-    const userId = await getAuthFromRequest(request);
+    let userId: string | null = null;
+
+    // SSR Mode: Use middleware auth
+    if (locals?.auth) {
+      const auth = locals.auth();
+      userId = auth.userId || null;
+    }
+    // Static/Capacitor Mode: Verify JWT from Authorization header
+    else {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const verified = await verifyToken(token, {
+            secretKey: import.meta.env.CLERK_SECRET_KEY
+          });
+          userId = verified.sub;
+        } catch (error) {
+          console.error('[API Auth] Token verification failed:', error);
+        }
+      }
+    }
 
     if (!userId) {
-      return unauthorizedResponse();
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
     // Fetch navigation data in parallel

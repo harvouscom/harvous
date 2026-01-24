@@ -114,8 +114,8 @@ export default function SafeSubscriptionDetailsButton({
     return {
       publishableKey: effectiveKey,
       domain: window.location.hostname,
-      afterSignInUrl: window.location.origin,
-      afterSignUpUrl: window.location.origin
+      afterSignInUrl: '/',
+      afterSignUpUrl: '/'
     };
   };
 

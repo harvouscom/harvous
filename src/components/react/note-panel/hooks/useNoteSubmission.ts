@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
@@ -8,6 +7,7 @@ import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
 import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId, getOfflineErrorMessage, type OfflineOperationResult } from '@/utils/offline-mutations';
 import { usePersistedUserId, getPersistedUserId, getPersistedUserIdWithIndexedDB } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -200,7 +200,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: trimmedTitle }),
-          credentials: 'include'
         });
 
         if (detectionResponse.ok) {
@@ -213,7 +212,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reference: detection.primaryReference }),
-                credentials: 'include'
               });
 
               if (verseResponse.ok) {
@@ -438,7 +436,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         response = await authenticatedFetch('/api/notes/create', {
           method: 'POST',
           body: formData,
-          credentials: 'include'
         });
       } catch (error) {
         // Network error occurred (offline, fetch failed, etc.)
@@ -634,9 +631,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           if (!threadData && finalThreadId && finalThreadId !== 'thread_unorganized') {
             try {
               debug('[useNoteSubmission] Fetching thread from API', { threadId: finalThreadId });
-              const response = await authenticatedFetch('/api/threads/list', {
-                credentials: 'include'
-              });
+              const response = await authenticatedFetch('/api/threads/list');
               if (response.ok) {
                 const threads = await response.json();
                 threadData = threads.find((t: any) => t.id === finalThreadId);
@@ -844,7 +839,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
 
           // Fire-and-forget prefetch (don't wait for it)
-          fetch(absoluteUrl, { method: 'HEAD', credentials: 'include', cache: 'no-cache' }).catch(() => {});
+          authenticatedFetch(absoluteUrl, { method: 'HEAD', cache: 'no-cache' }).catch(() => {});
 
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
@@ -1095,7 +1090,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       const response = await authenticatedFetch('/api/notes/create', {
         method: 'POST',
         body: formData,
-        credentials: 'include'
       });
 
       if (response.ok) {
@@ -1136,10 +1130,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           try {
             // Prefetch the page with a timeout (max 500ms wait)
-            const prefetchPromise = fetch(absoluteUrl, {
+            const prefetchPromise = authenticatedFetch(absoluteUrl, {
               method: 'HEAD',
-              credentials: 'include',
-              cache: 'no-cache'
+                            cache: 'no-cache'
             });
             
             // Wait for prefetch with timeout

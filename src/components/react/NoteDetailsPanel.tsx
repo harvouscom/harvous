@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import AddToSection from './AddToSection';
@@ -10,6 +9,7 @@ import NewTagPanel from './NewTagPanel';
 import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Thread {
   id: string;
@@ -155,11 +155,9 @@ export default function NoteDetailsPanel({
       const response = await authenticatedFetch(`/api/notes/${noteId}/add-thread`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ threadId }),
-        credentials: 'include'
-      });
+              });
       
       if (response.ok) {
         const result = await response.json();
@@ -205,11 +203,9 @@ export default function NoteDetailsPanel({
       const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ threadId }),
-        credentials: 'include'
-      });
+              });
       
       if (response.ok) {
         const result = await response.json();
@@ -279,11 +275,9 @@ export default function NoteDetailsPanel({
       const response = await authenticatedFetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'},
         body: JSON.stringify({ threadId: threadToRemove }),
-        credentials: 'include'
-      });
+              });
       
       if (response.ok) {
         const result = await response.json();
@@ -392,9 +386,7 @@ export default function NoteDetailsPanel({
   const removeTagFromNote = async (tagId: string) => {
     try {
       const response = await authenticatedFetch(`/api/note-tags/remove?noteId=${noteId}&tagId=${tagId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      });
+        method: 'DELETE'});
 
       if (response.ok) {
         const result = await response.json();

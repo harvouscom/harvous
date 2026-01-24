@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
@@ -16,6 +15,7 @@ import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 
 interface Note {
@@ -308,8 +308,7 @@ export default function ThreadNotesList({
             throw new Error('Failed to build verification URL');
           }
 
-          const response = await fetch(url, {
-            credentials: 'include',
+          const response = await authenticatedFetch(url, {
             cache: 'no-store'
           });
 
@@ -446,9 +445,7 @@ export default function ThreadNotesList({
 
         try {
           // Fetch note details
-          const response = await authenticatedFetch(`/api/notes/${noteId}/details`, {
-            credentials: 'include'
-          });
+          const response = await authenticatedFetch(`/api/notes/${noteId}/details`);
 
           if (response.ok) {
             const data = await response.json();
@@ -1052,12 +1049,11 @@ export default function ThreadNotesList({
       }
       
       // Then try to push deletion to server
-      const response = await authenticatedFetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
+      const response = await fetch(`/api/notes/delete?noteId=${encodeURIComponent(noteToDelete.id)}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
         },
-        credentials: 'include'
       });
 
       const data = await response.json();
@@ -1229,9 +1225,7 @@ export default function ThreadNotesList({
       throw new Error('Failed to build load-more URL');
     }
 
-    const response = await fetch(url, {
-      credentials: 'include'
-    });
+    const response = await authenticatedFetch(url);
 
     if (!response.ok) {
       throw new Error('Failed to load more notes');

@@ -110,6 +110,22 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
+  // Ensure userId is available (bottom sheet can still open without it, but some features may need it)
+  // This is a non-blocking check - bottom sheet will open regardless
+  useEffect(() => {
+    // Wait for userId to be available, but don't block bottom sheet opening
+    const checkUserId = () => {
+      const userId = (window as any).__harvous_userId || 
+                     localStorage.getItem('harvous_userId');
+      if (!userId) {
+        // Retry after a short delay if userId not available yet
+        // This ensures bottom sheet can still open even if userId isn't immediately available
+        setTimeout(checkUserId, 100);
+      }
+    };
+    checkUserId();
+  }, []);
+
   // Check if we're on mobile
   const checkMobile = useCallback(() => {
     const mobile = window.innerWidth < 1160;

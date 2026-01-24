@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, UserMetadata, eq } from 'astro:db';
-import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+import { verifyToken } from '@clerk/backend';
 
 export const prerender = false;
 
@@ -22,7 +23,29 @@ export const POST: APIRoute = async ({ request, locals }) => {
   }
 
   try {
-    const authUserId = await getAuthFromRequest(request);
+    let authUserId: string | null = null;
+
+    // SSR Mode: Use middleware auth
+    if (locals?.auth) {
+      const auth = locals.auth();
+      authUserId = auth.userId || null;
+    }
+    // Static/Capacitor Mode: Verify JWT from Authorization header
+    else {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const verified = await verifyToken(token, {
+            secretKey: import.meta.env.CLERK_SECRET_KEY
+          });
+          authUserId = verified.sub;
+        } catch (error) {
+          console.error('[API Auth] Token verification failed:', error);
+        }
+      }
+    }
+
     const body = await request.json();
     const { count, userId: targetUserId } = body;
 

@@ -1,5 +1,4 @@
 /**
-import { authenticatedFetch } from '@/utils/fetch-helpers';
  * Thread Cache Loader
  * Displays cached thread content instantly while fresh data loads in background
  * Implements stale-while-revalidate pattern for optimal perceived performance
@@ -7,6 +6,7 @@ import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 import React, { useState, useEffect } from 'react';
 import { getCachedThreadContent, setCachedThreadContent, clearThreadCache } from '@/utils/thread-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface ThreadCacheLoaderProps {
   threadId: string;
@@ -50,7 +50,7 @@ export default function ThreadCacheLoader({
 
         // 2. Fetch fresh data in background (stale-while-revalidate)
         const response = await authenticatedFetch(`/api/threads/${threadId}/prefetch`, {
-          credentials: 'include'
+          
         });
 
         if (!response.ok) {

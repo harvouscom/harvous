@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { db, UserInboxItems, eq, and, lt, or, isNull } from 'astro:db';
-import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
+
+import { verifyToken } from '@clerk/backend';
 
 export const prerender = false;
 
@@ -15,13 +16,38 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Check authentication: either secret token OR authenticated user
     const authHeader = request.headers.get('authorization');
     const expectedToken = import.meta.env.AUTO_ARCHIVE_SECRET_TOKEN;
-        const userId = await getAuthFromRequest(request);
-    const isAuthenticated = auth?.userId;
+
+    let userId: string | null = null;
+
+    // SSR Mode: Use middleware auth
+    if (locals?.auth) {
+      const auth = locals.auth();
+      userId = auth.userId || null;
+    }
+    // Static/Capacitor Mode: Verify JWT from Authorization header
+    else {
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        try {
+          const verified = await verifyToken(token, {
+            secretKey: import.meta.env.CLERK_SECRET_KEY
+          });
+          userId = verified.sub;
+        } catch (error) {
+          console.error('[API Auth] Token verification failed:', error);
+        }
+      }
+    }
+
+    const isAuthenticated = !!userId;
     const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
-    
+
     // Require either valid token (for scheduled jobs) or authenticated user (for client-side calls)
     if (expectedToken && !hasValidToken && !isAuthenticated) {
-      return unauthorizedResponse();
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     // Calculate date 30 days ago, set to start of day for consistent comparison
@@ -44,7 +70,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // If authenticated user (not using secret token), only backfill their items
     if (isAuthenticated && !hasValidToken) {
-      backfillConditions.push(eq(UserInboxItems.userId, auth.userId));
+      backfillConditions.push(eq(UserInboxItems.userId, userId));
     }
 
     const itemsToBackfill = await db
@@ -86,7 +112,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // If authenticated user (not using secret token), only delete their items
     // Secret token calls delete all users' items (for scheduled jobs)
     if (isAuthenticated && !hasValidToken) {
-      deleteConditions.push(eq(UserInboxItems.userId, auth.userId));
+      deleteConditions.push(eq(UserInboxItems.userId, userId));
     }
 
     // Find all archived items that should be deleted

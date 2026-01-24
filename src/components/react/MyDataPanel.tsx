@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -10,6 +9,7 @@ import { offlineDB } from '@/utils/offline-db';
 import { getSyncState } from '@/utils/sync-manager';
 import type { SyncState } from '@/utils/offline-db';
 import { clearNavigationCache } from '@/utils/navigation-cache';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -126,9 +126,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     setIsExporting(format);
     try {
       const response = await authenticatedFetch(`/api/user/export?format=${format}`, {
-        method: 'GET',
-        credentials: 'include',
-      });
+        method: 'GET'});
 
       if (!response.ok) {
         throw new Error(`Export failed: ${response.statusText}`);
@@ -183,9 +181,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     
     try {
       const response = await authenticatedFetch('/api/user/delete-account', {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+        method: 'DELETE'});
 
       const data = await response.json();
 
@@ -236,9 +232,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     setIsClearingData(true);
     try {
       const response = await authenticatedFetch('/api/user/clear-data', {
-        method: 'DELETE',
-        credentials: 'include',
-      });
+        method: 'DELETE'});
 
       const data = await response.json();
 
@@ -344,9 +338,8 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
         const response = await authenticatedFetch('/api/user/import', {
           method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
+          
+          body: formData});
 
         const data = await response.json();
 

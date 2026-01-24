@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
@@ -9,6 +8,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 import { setSelectedSpaceId } from './navigation/selectedSpace';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface SpaceItem {
   id: string;
@@ -282,7 +282,7 @@ export default function SpaceContentList({
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
           const response = await authenticatedFetch(`/api/spaces/${spaceId}/items`, {
-            credentials: 'include',
+            
             cache: 'no-store'
           });
 

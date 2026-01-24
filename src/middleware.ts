@@ -28,11 +28,25 @@ const isPublicRoute = createRouteMatcher([
   '/api/stats/user-count' // Public stats endpoint for Webflow integration
 ])
 
-// Middleware disabled for static build - authentication now handled via:
-// 1. JWT tokens in API routes (via getAuthFromRequest helper)
-// 2. Client-side components handle auth via API calls
-//
-// Export pass-through middleware for static build compatibility
-export const onRequest = async (context: any, next: any) => {
-  return next();
-};
+// Protected routes that require authentication
+const isProtectedRoute = createRouteMatcher([
+  '/',
+  '/find',
+  '/profile',
+  '/[id]'
+])
+
+// Clerk middleware - handles authentication for protected routes
+export const onRequest = clerkMiddleware((auth, context) => {
+  const { redirectToSignIn, userId } = auth()
+
+  // Allow public routes through
+  if (isPublicRoute(context.request)) {
+    return
+  }
+
+  // Redirect unauthenticated users to sign-in for protected routes
+  if (!userId && isProtectedRoute(context.request)) {
+    return redirectToSignIn()
+  }
+});

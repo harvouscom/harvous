@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { error as logError } from '@/utils/logger';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Space {
   id: string;
@@ -94,7 +94,7 @@ export default function MySpacesPanel({
       // Add cache-busting query parameter to ensure fresh data
       const cacheBuster = Date.now();
       const response = await authenticatedFetch(`/api/navigation/data?t=${cacheBuster}`, {
-        credentials: 'include',
+        
         cache: 'no-store'
       });
 

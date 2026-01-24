@@ -58,6 +58,15 @@ class NavigationErrorBoundary extends React.Component<
 }
 
 export default function NavigationIsland(props: NavigationIslandProps) {
+  // Debug: Log that NavigationIsland is rendering
+  if (typeof window !== 'undefined') {
+    console.warn('[NavigationIsland] Component rendering with props:', {
+      initials: props.initials,
+      userColor: props.userColor,
+      pathname: props.pathname
+    });
+  }
+  
   return (
     <NavigationErrorBoundary>
       <NavigationProvider>

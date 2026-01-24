@@ -10,9 +10,10 @@
     "node": ">=20.6.1"
   },
   "scripts": {
-    "dev": "astro dev",
+    "dev": "node scripts/restore-api-routes.mjs && astro dev",
     "dev:clean": "pkill -f netlify; pkill -f deno; npm run dev",
     "build": "astro build --remote",
+    "build:capacitor": "node scripts/build-capacitor.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "db:sync": "astro db sync",

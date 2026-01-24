@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { authenticatedFetch } from '@/utils/fetch-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
@@ -14,6 +13,7 @@ import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { createSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { authenticatedFetch } from '@/utils/fetch-helpers';
 
 interface Note {
   id: string;
@@ -90,7 +90,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       setIsLoadingItems(true);
       try {
         const response = await authenticatedFetch('/api/spaces/items', {
-          credentials: 'include'
+          
         });
         
         if (response.ok) {
@@ -293,8 +293,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           offlineSpaceId = await createSpaceOffline(userId, {
             title: title.trim(),
             color: selectedColor,
-            isPublic: false,
-          });
+            isPublic: false});
           console.log('[NewSpacePanel] Space created locally in IndexedDB (offline)', { offlineSpaceId });
         } catch (err) {
           console.error('[NewSpacePanel] Failed to create space offline:', err);
@@ -308,9 +307,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       try {
         response = await authenticatedFetch('/api/spaces/create', {
           method: 'POST',
-          body: formData,
-          credentials: 'include'
-        });
+          body: formData});
       } catch (error) {
         // Network error occurred
         networkError = isNetworkError(error);
@@ -331,8 +328,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 id: offlineSpaceId,
                 title: title.trim(),
                 color: selectedColor,
-                totalItemCount: 0,
-              },
+                totalItemCount: 0},
               isOffline: true
             }
           });
@@ -447,8 +443,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 id: offlineSpaceId,
                 title: title.trim(),
                 color: selectedColor,
-                totalItemCount: 0,
-              },
+                totalItemCount: 0},
               isOffline: true
             }
           });
@@ -493,8 +488,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
               id: offlineSpaceId,
               title: title.trim(),
               color: selectedColor,
-              totalItemCount: 0,
-            },
+              totalItemCount: 0},
             isOffline: true
           }
         });
@@ -521,8 +515,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         if (typeof window !== 'undefined' && window.posthog) {
           captureException(error, {
             context: 'space_creation',
-            endpoint: '/api/spaces/create',
-          });
+            endpoint: '/api/spaces/create'});
         }
         
         console.error('NewSpacePanel: Error:', error);

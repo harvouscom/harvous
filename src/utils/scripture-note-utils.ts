@@ -20,7 +20,6 @@ export async function getOrCreateScriptureNote(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reference: normalizedRef }),
-    credentials: 'include'
   });
 
   if (checkResponse.ok) {
@@ -33,7 +32,6 @@ export async function getOrCreateScriptureNote(
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ threadId: parentThreadId }),
-            credentials: 'include'
           });
 
           // Note: We don't show an error if it's already in the thread (400 status)
@@ -63,7 +61,6 @@ export async function getOrCreateScriptureNote(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ reference: normalizedRef }),
-      credentials: 'include'
     });
 
     if (verseResponse.ok) {
@@ -89,7 +86,6 @@ export async function getOrCreateScriptureNote(
   const createResponse = await authenticatedFetch('/api/notes/create', {
     method: 'POST',
     body: formData,
-    credentials: 'include'
   });
 
   if (createResponse.ok) {

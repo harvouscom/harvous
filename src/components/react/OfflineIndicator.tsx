@@ -15,7 +15,11 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   // Use persisted userId directly - works online and offline
   const persistedUserId = usePersistedUserId();
   const userId = propUserId || persistedUserId;
-  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  // Initialize with false (online) during SSR, then check actual state on client
+  const [isOffline, setIsOffline] = useState(() => {
+    if (typeof navigator === 'undefined') return false;
+    return !navigator.onLine;
+  });
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -40,6 +44,11 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   // Unconditional useEffect for online/offline detection
   // This MUST run regardless of userId to detect offline state
   useEffect(() => {
+    // Set initial state on client mount
+    if (typeof navigator !== 'undefined') {
+      setIsOffline(!navigator.onLine);
+    }
+
     const handleOnline = () => {
       setIsOffline(false);
     };
@@ -119,7 +128,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
 
   // Retry sync handler
   const handleRetrySync = useCallback(async () => {
-    if (!userId || isRetrying || !navigator.onLine) return;
+    if (!userId || isRetrying || (typeof navigator !== 'undefined' && !navigator.onLine)) return;
     
     setIsRetrying(true);
     try {
@@ -231,7 +240,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
               </span>
             )}
           </span>
-          {navigator.onLine && (
+          {(typeof navigator !== 'undefined' && navigator.onLine) && (
             <button
               onClick={handleRetrySync}
               disabled={isRetrying}

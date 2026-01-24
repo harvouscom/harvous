@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, NoteThreads, Threads, eq, and, ne } from 'astro:db';
-import { getAuthFromRequest, unauthorizedResponse } from '@/utils/auth-helpers';
 
 export const prerender = false;
 
@@ -165,11 +164,11 @@ async function runMigration(locals: any, url: URL) {
   }
 }
 
-export const GET: APIRoute = async ({ request, locals, url  }) => {
+export const GET: APIRoute = async ({ locals, url  }) => {
   return runMigration(locals, url);
 };
 
-export const POST: APIRoute = async ({ request, locals, url  }) => {
+export const POST: APIRoute = async ({ locals, url  }) => {
   return runMigration(locals, url);
 };
 

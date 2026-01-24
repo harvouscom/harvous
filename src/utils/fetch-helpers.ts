@@ -79,32 +79,33 @@ export async function fetchWithTimeout(
 }
 
 /**
- * Get JWT token from Clerk for API authentication
- * Used in static builds to authenticate API requests
- * Waits for Clerk to be loaded before attempting to get token
+ * Get JWT token from Clerk session
+ * Only used in static/Capacitor builds
+ * In SSR mode, returns null (auth handled via cookies)
  */
 export async function getAuthToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
   try {
-    // Wait for Clerk to be loaded (max 5 seconds)
+    // Check if we're in static build mode
+    const isStatic = import.meta.env.PUBLIC_BUILD_TARGET === 'capacitor';
+    if (!isStatic) return null; // SSR mode uses cookies
+
+    // Wait for Clerk to be loaded
     let attempts = 0;
     const maxAttempts = 50; // 50 * 100ms = 5 seconds
 
     while (attempts < maxAttempts) {
       const clerk = (window as any).Clerk;
 
-      // Clerk is loaded and has a session
       if (clerk?.loaded && clerk?.session) {
         return await clerk.session.getToken();
       }
 
-      // Clerk is loaded but no session (user not signed in)
       if (clerk?.loaded) {
-        return null;
+        return null; // No session
       }
 
-      // Wait 100ms before trying again
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
@@ -118,10 +119,17 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 /**
- * Authenticated fetch - automatically includes JWT token in Authorization header
- * Use this for all API calls to /api/* routes in static builds
+ * Authenticated fetch that works in both SSR and static modes
  *
- * @param url - API URL to fetch
+ * SSR Mode (default):
+ * - Uses cookie-based authentication
+ * - Clerk session automatically included via credentials: 'include'
+ *
+ * Static Mode (BUILD_TARGET=capacitor):
+ * - Uses JWT token from Clerk session
+ * - Adds Authorization header with Bearer token
+ *
+ * @param url - API endpoint to fetch
  * @param options - Standard fetch options
  * @returns Promise<Response>
  */
@@ -129,20 +137,28 @@ export async function authenticatedFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const token = await getAuthToken();
+  const isStatic = import.meta.env.PUBLIC_BUILD_TARGET === 'capacitor';
 
-  const headers = new Headers(options.headers);
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
+  if (isStatic) {
+    // Static mode: Add JWT token
+    const token = await getAuthToken();
+    const headers = new Headers(options.headers);
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
 
-  return fetch(url, {
-    ...options,
-    credentials: 'include', // Include cookies for backward compatibility
-    headers
-  });
+    return fetch(url, {
+      ...options,
+      headers
+    });
+  } else {
+    // SSR mode: Use cookies
+    return fetch(url, {
+      ...options,
+      credentials: 'include'
+    });
+  }
 }
-
