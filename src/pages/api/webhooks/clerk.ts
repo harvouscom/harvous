@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { Webhook } from '@clerk/backend';
+import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
 import { successResponse, errorResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
@@ -411,50 +411,14 @@ export const POST: APIRoute = async ({ request }) => {
       console.warn('[Webhook] AUDIENCEFUL_API_KEY not configured - Audienceful sync will fail');
     }
 
-    // Get the raw body and headers needed for verification
-    let payload: string;
-    try {
-      payload = await request.text();
-      console.log('[Webhook] Payload received:', {
-        payloadLength: payload.length,
-        payloadPreview: payload.substring(0, 200),
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      console.error('[Webhook] Failed to read request body:', {
-        error: error.message,
-        timestamp: new Date().toISOString(),
-      });
-      return serverErrorResponse(
-        new Error('Failed to read webhook payload'),
-        { endpoint: '/api/webhooks/clerk' }
-      );
-    }
-
-    const svixId = request.headers.get('svix-id');
-    const svixTimestamp = request.headers.get('svix-timestamp');
-    const svixSignature = request.headers.get('svix-signature');
-
-    // Verify all required headers are present
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      console.error('Missing Svix headers:', {
-        hasSvixId: !!svixId,
-        hasSvixTimestamp: !!svixTimestamp,
-        hasSvixSignature: !!svixSignature,
-      });
-      return unauthorizedResponse('Missing webhook signature headers');
-    }
-
-    // Verify the webhook signature using Clerk's Webhook class
+    // Verify the webhook signature using Clerk's verifyWebhook function
+    // This function handles reading the request body and verifying the signature
     let event: ClerkWebhookEvent;
 
     try {
-      const wh = new Webhook(webhookSecret);
-      event = wh.verify(payload, {
-        'svix-id': svixId,
-        'svix-timestamp': svixTimestamp,
-        'svix-signature': svixSignature,
-      }) as ClerkWebhookEvent;
+      event = (await verifyWebhook(request, {
+        signingSecret: webhookSecret,
+      })) as ClerkWebhookEvent;
       
       console.log('[Webhook] Signature verification successful:', {
         eventType: event.type,
@@ -465,12 +429,7 @@ export const POST: APIRoute = async ({ request }) => {
       console.error('[Webhook] Signature verification failed:', {
         error: error.message,
         errorStack: error.stack,
-        payloadPreview: payload.substring(0, 500),
-        headers: {
-          svixId: svixId,
-          svixTimestamp: svixTimestamp,
-          svixSignature: svixSignature ? 'PRESENT' : 'MISSING',
-        },
+        errorName: error.name,
         timestamp: new Date().toISOString(),
       });
       return unauthorizedResponse('Invalid webhook signature');
