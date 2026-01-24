@@ -12,18 +12,35 @@ interface ClerkWrapperProps {
  *
  * In static builds (output: "static"), @clerk/astro doesn't provide a global ClerkProvider.
  * React Islands that use Clerk hooks (useAuth, useUser, etc.) must be wrapped with this component.
+ *
+ * CRITICAL: Must wait for global window.Clerk to be loaded before rendering ClerkProvider,
+ * otherwise React will throw error #418 (hooks called outside provider context).
  */
 export function ClerkWrapper({ children, fallback }: ClerkWrapperProps) {
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
+  const [clerkLoaded, setClerkLoaded] = useState(false);
 
   useEffect(() => {
     // Get publishable key from window (set by Layout.astro)
     const key = (window as any).CLERK_PUBLISHABLE_KEY || import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
     setPublishableKey(key);
+
+    // Wait for global Clerk to be loaded before rendering ClerkProvider
+    const checkClerkLoaded = () => {
+      if ((window as any).Clerk) {
+        setClerkLoaded(true);
+      } else {
+        // Check again in 50ms
+        setTimeout(checkClerkLoaded, 50);
+      }
+    };
+
+    checkClerkLoaded();
   }, []);
 
-  if (!publishableKey) {
-    return <>{fallback || <div>Loading...</div>}</>;
+  // Don't render until both publishable key AND global Clerk are ready
+  if (!publishableKey || !clerkLoaded) {
+    return <>{fallback || null}</>;
   }
 
   return (
