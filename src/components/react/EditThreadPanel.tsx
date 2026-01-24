@@ -625,17 +625,17 @@ export default function EditThreadPanel({
                       key={color}
                       type="button"
                       onClick={() => handleColorSelect(color)}
-                      className={`relative rounded-xl size-10 cursor-pointer transition-all duration-200 ${
-                        formData.selectedColor === color ? 'ring-2 ring-[var(--color-deep-grey)] ring-offset-2' : ''
-                      }`}
+                      className={`color-swatch ${formData.selectedColor === color ? 'color-swatch--selected' : ''}`}
                       style={{ backgroundColor: getThreadColorCSS(color) }}
                     >
                       {/* Check icon for selected color */}
                       {formData.selectedColor === color && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="size-5" style={{ color: getThreadTextColorCSS(color) }} fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
+                          <Icon 
+                            name="check" 
+                            size={20} 
+                            style={{ color: getThreadTextColorCSS(color) }} 
+                          />
                         </div>
                       )}
                     </button>
