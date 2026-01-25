@@ -36,6 +36,8 @@ const { classNames = '', title = 'Harvous' }: Props = Astro.props;
     
     <!-- Special tab interaction handler for first-touch optimization -->
     <script is:inline src="/scripts/tab-interaction-handler.js"></script>
+    
+    <slot name="head" />
   </head>
   <body
     class={`font-sans bg-[var(--color-light-paper)] min-h-screen ${classNames}`}

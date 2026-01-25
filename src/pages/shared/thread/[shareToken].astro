@@ -4,6 +4,7 @@ import CardStack from "@/components/CardStack.astro";
 import CardNote from "@/components/react/CardNote";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import Button from "@/components/Button.astro";
+import { Fragment } from "astro/jsx-runtime";
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
@@ -107,9 +108,34 @@ if (!shareToken || !isValidShareToken(shareToken)) {
 
 // Get thread color for styling
 const threadColor = (thread?.color || 'blue') as ThreadColor;
+
+// Construct URLs for Open Graph
+const siteUrl = Astro.url.origin;
+const shareUrl = `${siteUrl}${Astro.url.pathname}`;
+const ogImageUrl = `${siteUrl}/api/og/thread/${shareToken}`;
+
+// Prepare meta data
+const ogTitle = thread?.title ? `${thread.title} | Shared Thread` : 'Shared Thread';
+const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 0 ? ` with ${notes.length} ${notes.length === 1 ? 'note' : 'notes'}` : ''} on Harvous`;
 ---
 
-<EmptyLayout title={thread?.title ? `${thread.title} | Shared Thread` : 'Shared Thread'}>
+<EmptyLayout title={ogTitle}>
+  <Fragment slot="head">
+    {/* Open Graph / Facebook */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={shareUrl} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+  </Fragment>
   <div id="shared-thread-content" class="auth-page">
     <div class="auth-page__container">
       <!-- Left Column: Animated Mesh Gradient Background -->

@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-up',
   '/shared/(.*)', // Public shared pages (threads and notes)
   '/api/shared/(.*)', // Public shared API (note: add-to-harvous still checks auth via locals.auth())
+  '/api/og/(.*)', // Open Graph image generation - must be public for social media crawlers
   '/api/health', // Lightweight warmup endpoint - must be public for cold start optimization
   '/api/test/xp-comprehensive', // Test endpoint for XP system (dev only)
   '/api/webflow/sync-inbox', // Webflow sync endpoint (uses server-side WEBFLOW_INBOX_API_TOKEN for auth)

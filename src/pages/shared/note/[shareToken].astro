@@ -1,6 +1,7 @@
 ---
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardFullEditable from "@/components/react/CardFullEditable";
+import { Fragment } from "astro/jsx-runtime";
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { ClientRouter } from "astro:transitions";
@@ -121,9 +122,45 @@ const formatDate = (date: Date | null) => {
     year: 'numeric'
   }).format(new Date(date));
 };
+
+// Construct URLs for Open Graph
+const siteUrl = Astro.url.origin;
+const shareUrl = `${siteUrl}${Astro.url.pathname}`;
+const ogImageUrl = `${siteUrl}/api/og/note/${shareToken}`;
+
+// Prepare meta data
+const ogTitle = note?.title ? `${note.title} | Shared Note` : 'Shared Note';
+let ogDescription = 'A Bible study note on Harvous';
+if (note) {
+  if (note.noteType === 'scripture' && scriptureMetadata) {
+    ogDescription = scriptureMetadata.reference || `${scriptureMetadata.book} ${scriptureMetadata.chapter}:${scriptureMetadata.verse}`;
+  } else if (note.noteType === 'resource' && resourceMetadata) {
+    ogDescription = resourceMetadata.sourceDescription || resourceMetadata.sourceTitle || 'A resource note on Harvous';
+  } else if (note.content) {
+    // Strip HTML and get first 200 chars
+    const plainContent = note.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    ogDescription = plainContent.length > 200 ? plainContent.substring(0, 197) + '...' : plainContent;
+  }
+}
 ---
 
-<EmptyLayout title={note?.title ? `${note.title} | Shared Note` : 'Shared Note'}>
+<EmptyLayout title={ogTitle}>
+  <Fragment slot="head">
+    {/* Open Graph / Facebook */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={shareUrl} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+  </Fragment>
   <div id="shared-note-content" class="auth-page">
     <div class="auth-page__container">
       <!-- Left Column: Animated Mesh Gradient Background -->
