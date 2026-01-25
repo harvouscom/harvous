@@ -37,15 +37,13 @@ if (!shareToken || !isValidShareToken(shareToken)) {
       content: Notes.content,
       noteType: Notes.noteType,
       isPublic: Notes.isPublic,
-      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
-      shareToken: Notes.shareToken as any,
+      shareToken: Notes.shareToken,
       createdAt: Notes.createdAt,
       userId: Notes.userId
     })
     .from(Notes)
     .where(and(
-      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
-      eq(Notes.shareToken as any, shareToken),
+      eq(Notes.shareToken, shareToken),
       eq(Notes.isPublic, true)
     ))
     .get();
@@ -534,6 +532,29 @@ const formatDate = (date: Date | null) => {
     #shared-note-content .auth-page__form-section.shared-page__content-section {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
+    }
+  }
+
+  .shared-page__content {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  /* Desktop: constrain content to viewport height */
+  @media (min-width: 1160px) {
+    .shared-page__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+      padding-top: 0;
     }
   }
 

@@ -40,15 +40,13 @@ if (!shareToken || !isValidShareToken(shareToken)) {
       subtitle: Threads.subtitle,
       color: Threads.color,
       isPublic: Threads.isPublic,
-      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
-      shareToken: Threads.shareToken as any,
+      shareToken: Threads.shareToken,
       createdAt: Threads.createdAt,
       userId: Threads.userId
     })
     .from(Threads)
     .where(and(
-      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
-      eq(Threads.shareToken as any, shareToken),
+      eq(Threads.shareToken, shareToken),
       eq(Threads.isPublic, true)
     ))
     .get();
