@@ -300,17 +300,22 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
       } else {
         // User is not signed in - store intent and redirect to sign-in
         try {
-          sessionStorage.setItem('pendingSharedThreadAdd', JSON.stringify({
+          const pendingData = {
             shareToken: shareToken,
             timestamp: Date.now()
-          }));
+          };
+          sessionStorage.setItem('pendingSharedThreadAdd', JSON.stringify(pendingData));
+          console.log('[Shared Thread Page] Stored pending action:', pendingData);
+          console.log('[Shared Thread Page] sessionStorage after set:', sessionStorage.getItem('pendingSharedThreadAdd'));
         } catch (e) {
-          console.error('Failed to store pending action:', e);
+          console.error('[Shared Thread Page] Failed to store pending action:', e);
         }
 
         // Redirect to sign-in with return URL
         const currentUrl = window.location.href;
-        window.location.href = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
+        const signInUrl = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
+        console.log('[Shared Thread Page] Redirecting to sign-in:', signInUrl);
+        window.location.href = signInUrl;
       }
     });
 
@@ -324,8 +329,34 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
           if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
             // Clear the pending action first
             sessionStorage.removeItem('pendingSharedThreadAdd');
-            // Trigger the add
-            btn.click();
+            console.log('[Shared Thread Page] Processing pending action for shareToken:', shareToken);
+            
+            // Directly call the API instead of triggering button click
+            // This ensures we can use the global toast system
+            fetch('/api/shared/add-to-harvous', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shareToken })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Redirect with toast query parameters - toast-handler.js will show it automatically
+                window.location.href = '/' + data.createdIds.threadId + '?toast=success&message=' + encodeURIComponent('Thread was added to your Harvous');
+              } else {
+                console.error('[Shared Thread Page] Failed to add thread:', data.error);
+                // Show error toast on current page
+                if (window.toast) {
+                  window.toast.error(data.error || 'Failed to add thread');
+                }
+              }
+            })
+            .catch(error => {
+              console.error('[Shared Thread Page] Error adding thread:', error);
+              if (window.toast) {
+                window.toast.error('An error occurred');
+              }
+            });
           } else {
             // Clear stale pending action
             sessionStorage.removeItem('pendingSharedThreadAdd');
@@ -383,6 +414,18 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     background-size: 100% 100%;
     animation: mesh-movement-reverse 7.5s ease-in-out infinite;
     opacity: 0.6;
+  }
+
+  /* Mobile: Show top section of desktop gradient, filling entire area */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      transform: scaleY(2);
+      transform-origin: top center;
+    }
   }
 
   @keyframes mesh-movement {

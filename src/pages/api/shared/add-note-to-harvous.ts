@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
+import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, isValidShareToken } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
@@ -59,8 +59,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
-    // Prevent adding your own note
-    if (sourceNote.userId === userId) {
+    // Prevent adding your own note (only in production - allow in dev for testing)
+    if (import.meta.env.PROD && sourceNote.userId === userId) {
       return new Response(JSON.stringify({
         error: 'You cannot add your own note to your Harvous'
       }), {
@@ -137,14 +137,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       lastVisited: now,
     });
 
-    // Add note to unorganized thread via junction table
-    const junctionId = `note-thread-${newNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await db.insert(NoteThreads).values({
-      id: junctionId,
-      noteId: newNoteId,
-      threadId: 'thread_unorganized',
-      createdAt: now
-    });
+    // Note: Unorganized notes should NOT have junction table entries
+    // The absence of a junction entry is what makes them appear in unorganized
 
     // Copy scripture metadata if it's a scripture note
     if (sourceNote.noteType === 'scripture') {

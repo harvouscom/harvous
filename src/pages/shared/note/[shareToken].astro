@@ -273,7 +273,7 @@ const formatDate = (date: Date | null) => {
             // Success - show toast then redirect
             showToast('Added to your Harvous!', 'success', 0);
             setTimeout(() => {
-              window.location.href = '/note/' + data.createdIds.noteId;
+              window.location.href = '/' + data.createdIds.noteId;
             }, 800);
           } else {
             // Error - show toast
@@ -288,17 +288,22 @@ const formatDate = (date: Date | null) => {
       } else {
         // User is not signed in - store intent and redirect to sign-in
         try {
-          sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify({
+          const pendingData = {
             shareToken: shareToken,
             timestamp: Date.now()
-          }));
+          };
+          sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify(pendingData));
+          console.log('[Shared Note Page] Stored pending action:', pendingData);
+          console.log('[Shared Note Page] sessionStorage after set:', sessionStorage.getItem('pendingSharedNoteAdd'));
         } catch (e) {
-          console.error('Failed to store pending action:', e);
+          console.error('[Shared Note Page] Failed to store pending action:', e);
         }
 
         // Redirect to sign-in with return URL
         const currentUrl = window.location.href;
-        window.location.href = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
+        const signInUrl = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
+        console.log('[Shared Note Page] Redirecting to sign-in:', signInUrl);
+        window.location.href = signInUrl;
       }
     });
 
@@ -312,8 +317,34 @@ const formatDate = (date: Date | null) => {
           if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
             // Clear the pending action first
             sessionStorage.removeItem('pendingSharedNoteAdd');
-            // Trigger the add
-            btn.click();
+            console.log('[Shared Note Page] Processing pending action for shareToken:', shareToken);
+            
+            // Directly call the API instead of triggering button click
+            // This ensures we can use the global toast system
+            fetch('/api/shared/add-note-to-harvous', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shareToken })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Redirect with toast query parameters - toast-handler.js will show it automatically
+                window.location.href = '/' + data.createdIds.noteId + '?toast=success&message=' + encodeURIComponent('Note was added to your Harvous');
+              } else {
+                console.error('[Shared Note Page] Failed to add note:', data.error);
+                // Show error toast on current page
+                if (window.toast) {
+                  window.toast.error(data.error || 'Failed to add note');
+                }
+              }
+            })
+            .catch(error => {
+              console.error('[Shared Note Page] Error adding note:', error);
+              if (window.toast) {
+                window.toast.error('An error occurred');
+              }
+            });
           } else {
             // Clear stale pending action
             sessionStorage.removeItem('pendingSharedNoteAdd');
@@ -371,6 +402,18 @@ const formatDate = (date: Date | null) => {
     background-size: 100% 100%;
     animation: mesh-movement-reverse 7.5s ease-in-out infinite;
     opacity: 0.6;
+  }
+
+  /* Mobile: Show top section of desktop gradient, filling entire area */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      transform: scaleY(2);
+      transform-origin: top center;
+    }
   }
 
   @keyframes mesh-movement {

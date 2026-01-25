@@ -30,11 +30,11 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
         <div class="auth-page__video-overlay">
           <!-- Harvous logo -->
           <a href="https://harvous.com" class="auth-page__logo-container">
-            <svg 
-              width="45" 
-              height="64" 
-              viewBox="0 0 45 64" 
-              fill="none" 
+            <svg
+              width="28"
+              height="40"
+              viewBox="0 0 45 64"
+              fill="none"
               xmlns="http://www.w3.org/2000/svg"
               class="auth-page__logo sign-in-logo"
               aria-label="Harvous"
@@ -399,6 +399,18 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     opacity: 0.6;
   }
 
+  /* Mobile: Show top section of desktop gradient, filling entire area */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      transform: scaleY(2);
+      transform-origin: top center;
+    }
+  }
+
   @keyframes mesh-movement {
     0%, 100% {
       transform: translate(0, 0) scale(1);
@@ -439,6 +451,11 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     83.33% {
       transform: translate(-2%, -3%) scale(1.05);
     }
+  }
+
+  /* Override video overlay padding for 24px spacing */
+  #sign-in-content .auth-page__video-overlay {
+    padding: 24px;
   }
 
   /* Ensure SquareButton Back variant has proper shadow styling */
