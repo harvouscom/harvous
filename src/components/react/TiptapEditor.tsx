@@ -2536,24 +2536,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Handle regular Enter key - trigger auto-scroll after newline is created
         if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
           // Let ProseMirror handle the Enter key first, then trigger auto-scroll
+          // Timing: toolbar debounce is 30ms, so wait 50ms to ensure position is updated
           setTimeout(() => {
-            // Update toolbar position in case it changed
+            // Update toolbar position first
             if (toolbarPositionUpdater.current) {
               toolbarPositionUpdater.current();
             }
-            // Trigger cursor scroll after newline renders
-            requestAnimationFrame(() => {
-              if (scrollCursorAboveToolbarRef.current) {
-                scrollCursorAboveToolbarRef.current();
-              }
-            });
-            // Additional delayed check to ensure newline is fully rendered
+            // Wait for toolbar position to update (after 30ms debounce), then scroll cursor
             setTimeout(() => {
               if (scrollCursorAboveToolbarRef.current) {
                 scrollCursorAboveToolbarRef.current();
               }
-            }, 100);
-          }, 50);
+            }, 50);
+          }, 10);
         }
         
         // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
@@ -3423,7 +3418,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           lastKeyboardHeight = 0;
           setKeyboardHeight(0);
         }
-      }, 100); // Single 100ms debounce instead of immediate + delayed
+      }, 30); // Reduced debounce for more responsive toolbar
     };
 
     toolbarPositionUpdater.current = updateToolbarPosition;
@@ -3767,9 +3762,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       />
       
       {/* Editor content area */}
-      <div 
+      <div
         className="tiptap-content flex-1 min-h-0 overflow-auto"
-        style={{ height: 0 }}
         onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
           if (editor) {
             // Let ProseMirror handle natural cursor placement at click position
