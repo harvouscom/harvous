@@ -112,8 +112,21 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       e.preventDefault();
       state.currentY = currentY;
 
-      // Apply transform directly to DOM
-      el.style.transform = `translateY(${deltaY}px)`;
+      // Apply transform with !important to override CSS animations
+      el.style.setProperty('transform', `translateY(${deltaY}px)`, 'important');
+      el.style.setProperty('will-change', 'transform', 'important');
+
+      // Find and update overlay opacity for visual feedback
+      const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+      if (overlay) {
+        // Calculate opacity: fade backdrop as sheet is dragged down
+        // Max drag distance of ~300px for full fade, minimum opacity of 0.3
+        const maxDrag = 300;
+        const minOpacity = 0.3;
+        const opacity = Math.max(minOpacity, 1 - (deltaY / maxDrag));
+        overlay.style.opacity = opacity.toString();
+        overlay.style.transition = 'none'; // Disable transition during drag
+      }
     };
 
     const handleTouchEnd = () => {
@@ -133,20 +146,33 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       // Determine if we should dismiss
       const shouldDismiss = deltaY > DISTANCE_THRESHOLD || velocity > VELOCITY_THRESHOLD;
 
+      // Reset transform and will-change
+      el.style.removeProperty('will-change');
+
+      // Reset overlay opacity with smooth transition
+      const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+      if (overlay) {
+        overlay.style.transition = 'opacity 0.3s ease-out';
+        overlay.style.opacity = '1'; // Full opacity when snapped back
+        setTimeout(() => {
+          overlay.style.transition = '';
+        }, 300);
+      }
+
       if (shouldDismiss) {
         // Animate out and dismiss
         el.style.transition = 'transform 0.2s ease-out';
-        el.style.transform = 'translateY(100%)';
+        el.style.setProperty('transform', 'translateY(100%)', 'important');
 
         setTimeout(() => {
-          el.style.transform = '';
+          el.style.removeProperty('transform');
           el.style.transition = '';
           onDismissRef.current();
         }, 200);
       } else {
         // Snap back
         el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-        el.style.transform = '';
+        el.style.removeProperty('transform');
 
         setTimeout(() => {
           el.style.transition = '';
