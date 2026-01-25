@@ -12,7 +12,7 @@ import { safeURL } from '@/utils/safe-url';
 import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
-import ShareSettingsModal from './ShareSettingsModal';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
   id: string;
@@ -63,7 +63,6 @@ export default function EditThreadPanel({
   const [isShared, setIsShared] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
-  const [showShareSettings, setShowShareSettings] = useState(false);
 
 
   // Fetch all notes and current thread notes on mount
@@ -760,106 +759,15 @@ export default function EditThreadPanel({
                   ))}
                 </div>
 
-                {/* Thread type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isShared) {
-                          handleShareToggle(false);
-                        }
-                      }}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        formData.selectedType === 'Private'
-                          ? ''
-                          : 'bg-transparent'
-                      }`}
-                      style={formData.selectedType === 'Private' ? {
-                        backgroundImage: 'var(--color-gradient-gray)'
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon
-                            name="user"
-                            size={16}
-                            style={{
-                              color: formData.selectedType === 'Private'
-                                ? 'var(--color-deep-grey)'
-                                : 'var(--color-pebble-grey)'
-                            }}
-                          />
-                        </div>
-                        <span
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            formData.selectedType === 'Private'
-                              ? 'text-[var(--color-deep-grey)]'
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* Shared button - now enabled */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!isShared) {
-                          handleShareToggle(true);
-                        } else {
-                          setShowShareSettings(!showShareSettings);
-                        }
-                      }}
-                      disabled={shareLoading}
-                      className={`space-button button-group__button button-group__button--right h-[64px] ${
-                        formData.selectedType === 'Shared'
-                          ? ''
-                          : 'bg-transparent'
-                      }`}
-                      style={formData.selectedType === 'Shared' ? {
-                        backgroundImage: 'var(--color-gradient-gray)'
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon
-                            name="user-group"
-                            size={16}
-                            style={{
-                              color: formData.selectedType === 'Shared'
-                                ? 'var(--color-deep-grey)'
-                                : 'var(--color-pebble-grey)'
-                            }}
-                          />
-                        </div>
-                        <span
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            formData.selectedType === 'Shared'
-                              ? 'text-[var(--color-deep-grey)]'
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          {shareLoading ? 'Loading...' : 'Shared'}
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Share Settings Modal - shown when thread is shared */}
-                {isShared && showShareSettings && (
-                  <ShareSettingsModal
-                    isShared={isShared}
-                    shareUrl={shareUrl}
-                    onToggle={handleShareToggle}
-                    onRefresh={handleShareRefresh}
-                    isLoading={shareLoading}
-                  />
-                )}
+                {/* Thread visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={isShared}
+                  shareUrl={shareUrl}
+                  onToggle={handleShareToggle}
+                  onRefresh={handleShareRefresh}
+                  isLoading={shareLoading}
+                  isEditMode={true}
+                />
 
                 {/* Current Notes in Thread - displayed above selected notes */}
                 {!isLoadingItems && (
