@@ -223,7 +223,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
 
               <!-- Footer text (below CardStack) -->
               <div class="shared-page__footer shared-page__fade-in" style="animation-delay: 200ms;">
-                <p>Harvous helps you remember your Bible study thoughts.</p>
+                <p>Harvous is a notes app designed for Bible study.</p>
                 <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
               </div>
             </>
@@ -505,6 +505,14 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
   .shared-page__content-section {
     background-color: var(--color-light-paper) !important;
     padding: 0 !important;
+  }
+
+  /* Remove top and bottom padding on mobile only */
+  @media (max-width: 1159px) {
+    #shared-thread-content .auth-page__form-section.shared-page__content-section {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
   }
 
   .shared-page__content {
