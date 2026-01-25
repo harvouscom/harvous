@@ -78,7 +78,7 @@ export default function UnsavedChangesDialog({
           maxWidth: '28rem',
           width: '100%',
           pointerEvents: 'auto',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
         }}
       >
         <h3 style={{
