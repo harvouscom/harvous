@@ -970,8 +970,8 @@ export default function CardFullEditable({
                 )}
               </div>
             ) : (
-              <div className="flex-1 flex flex-col min-h-0" style={{ overflow: 'hidden', width: '100%' }}>
-                <div className="flex-1 min-h-0 px-3" style={{ overflow: 'hidden', width: '100%' }}>
+              <div className="flex-1 flex flex-col min-h-0" style={{ width: '100%' }}>
+                <div className="flex-1 min-h-0 px-3" style={{ width: '100%', maxHeight: '100%' }}>
                   <Suspense fallback={<div className="min-h-[100px]" />}>
                     <TiptapEditor
                       content={editContent}
@@ -1155,7 +1155,7 @@ export default function CardFullEditable({
             </div>
           ) : (
             <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
                 <Suspense fallback={<div className="min-h-[200px]" />}>
                   <TiptapEditor
                     content={editContent}

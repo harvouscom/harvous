@@ -100,7 +100,7 @@ export default function DefaultNoteForm({
       
       {/* Editor */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
-        <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+        <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
           <TiptapEditor
             content={content}
             id="new-note-content"
