@@ -607,16 +607,14 @@ const formatDate = (date: Date | null) => {
     }
   }
 
-  /* Scrollable content area - same constraint as shared thread page */
+  /* Scrollable content area - no max-height constraint, let inner content div handle it */
   .shared-page__card-container .card-full-editable .overflow-auto {
-    max-height: 380px; /* Mobile: limit content area height */
+    max-height: none;
   }
 
-  /* Desktop: remove max-height constraint, let flex handle it */
-  @media (min-width: 1160px) {
-    .shared-page__card-container .card-full-editable .overflow-auto {
-      max-height: none;
-    }
+  /* Content area inside CardFullEditable - limit height to 75svh */
+  .shared-page__card-container .card-full-editable .flex-1.flex.flex-col.min-h-0.px-3 {
+    max-height: 75svh !important;
   }
 
   /* CTA Button wrapper - relative positioning for toast */
