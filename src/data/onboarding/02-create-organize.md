@@ -3,11 +3,15 @@
 First and foremost this is a notes app. But because it’s designed for Bible study there some some unique things worth mentioning. 
 
 ## Spaces
-Spaces are where threads and notes are placed. “My Home” is a special, unable to be deleted space. This is where you started from before you selected the “Welcome to Harvous” thread. Only way to delete this “My Home” space would be to delete your account (which you can easily do by the way).
+Spaces are where threads and notes are placed. “My Home” is the permanent space for all your threads and notes by default. You'll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the “Welcome to Harvous” thread. Only way to delete the “My Home” space would be to delete your account (which you can easily do by the way).
 
-You create spaces by finding the “New Space” button. On bigger screens it will be in the bottom left. On smaller screens open the top menu and you should then see the same button.
+There two places to find spaces:
+1. At the top by selecting "My Home" and this will expand to see any existing spaces to visit
+2. In Profile (your initials) within "My Spaces."
 
-When you erase a space, your notes and threads stay safe—you're just removing the grouping. Find all your spaces in Profile (your initials)under "My Spaces."
+You create spaces by finding the “New Space” button within where you can find your spaces (mentioned above).
+
+When you erase a space, your notes and threads stay safe—you're just removing the grouping.
 
 ## Threads
 Threads are where notes belong (instead of “folders”) For example this note is inside the “Welcome to Harvous” thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder’s job is to collect.
