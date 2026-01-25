@@ -8,7 +8,6 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import { safeGetItem } from '@/utils/safe-storage';
 
 /**
@@ -516,12 +515,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setItemsInCloseMode(new Set());
   }, []);
 
-  // Drag-to-dismiss for the mobile nav sheet
-  const sheetDragRef = useBottomSheetDrag({
-    onDismiss: closeSheet,
-    enabled: isSheetOpen,
-  });
-
   const handleItemClick = (itemId?: string) => {
     closeSheet();
     // If clicking on a specific item, exit its close mode
@@ -811,7 +804,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           }}
         >
           <SheetContent
-            ref={sheetDragRef}
             side="bottom"
             className="mobile-nav__sheet"
             style={{
