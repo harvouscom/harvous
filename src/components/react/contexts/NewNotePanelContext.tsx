@@ -209,10 +209,17 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     localStorage.setItem('newNoteTitle', title);
   }, [title]);
   
-  // Save content to localStorage when it changes
+  // Save content to localStorage when it changes (debounced to prevent excessive writes)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem('newNoteContent', content);
+
+    // Debounce content saves to every 2 seconds of inactivity
+    const timeoutId = setTimeout(() => {
+      localStorage.setItem('newNoteContent', content);
+      localStorage.setItem('newNoteContentTimestamp', Date.now().toString());
+    }, 2000);
+
+    return () => clearTimeout(timeoutId);
   }, [content]);
   
   // Save resourceUrl to localStorage when it changes

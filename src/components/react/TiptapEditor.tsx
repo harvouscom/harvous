@@ -22,6 +22,10 @@ import '@/styles/tiptap-editor.css';
 // Icon component for inline SVGs (allows CSS styling)
 import Icon from './Icon';
 
+// Track pending pill creation to prevent duplicates from concurrent calls
+// This is a module-level Set to track references currently being processed
+const pendingPillCreations = new Set<string>();
+
 // Toast is declared globally elsewhere - no need to redeclare here
 
 interface TiptapEditorProps {
@@ -592,17 +596,38 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
   if (!editor || !references || references.length === 0) {
     return;
   }
-  
+
+  // Filter out references that are already being processed (prevents duplicates)
+  const newReferences = references.filter(ref => {
+    const normalizedRef = normalizeScriptureReference(ref.reference);
+    if (pendingPillCreations.has(normalizedRef)) {
+      return false; // Skip - already being processed
+    }
+    pendingPillCreations.add(normalizedRef);
+    return true;
+  });
+
+  if (newReferences.length === 0) {
+    return; // All references are already being processed
+  }
+
+  // Schedule cleanup after processing
+  setTimeout(() => {
+    newReferences.forEach(ref => {
+      pendingPillCreations.delete(normalizeScriptureReference(ref.reference));
+    });
+  }, 500); // Clear after 500ms to prevent rapid re-creation
+
   try {
     const view = editor.view;
     let state = view.state;
     let tr = state.tr;
     let modified = false;
-    
+
     // Save the current cursor position
     const originalCursorPos = state.selection.from;
-    
-    for (const ref of references) {
+
+    for (const ref of newReferences) {
       const reference = ref.reference;
       if (!reference) continue;
       
@@ -2298,17 +2323,43 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     },
     onUpdate: ({ editor }) => {
       const htmlContent = editor.getHTML();
-      
+
       // Update hidden input
       if (hiddenInputRef.current) {
         hiddenInputRef.current.value = htmlContent;
       }
-      
+
       // Notify parent component
       if (onContentChange) {
         onContentChange(htmlContent);
       }
-      
+
+      // Auto-capitalize first letter (post-input transformation)
+      // This replaces the keydown-based approach which caused double letters on mobile keyboards
+      try {
+        const doc = editor.state.doc;
+        const firstChild = doc.firstChild;
+        if (firstChild && firstChild.isTextblock && firstChild.textContent.length >= 1) {
+          const firstChar = firstChild.textContent[0];
+          // Only transform if first character is lowercase letter
+          if (/^[a-z]$/.test(firstChar)) {
+            // Get the position of the first character (position 1 in the document)
+            const from = 1;
+            const to = 2;
+            // Replace with uppercase version
+            editor.commands.command(({ tr, dispatch }) => {
+              if (dispatch) {
+                tr.replaceWith(from, to, editor.state.schema.text(firstChar.toUpperCase()));
+                dispatch(tr);
+              }
+              return true;
+            });
+          }
+        }
+      } catch (e) {
+        // Silently ignore errors (e.g., empty document, destroyed editor)
+      }
+
       // NOTE: Real-time scripture detection removed - pills are now created only on save
       // See convertScriptureReferencesToPills() which is called after save
     },
@@ -2531,12 +2582,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               if (references.length > 0) {
                 // On mobile: Don't interfere with native keyboard behavior (e.g., double-space-to-period)
                 // Let the space be handled naturally, then process pills asynchronously
+                // Use 350ms delay to stay outside the double-tap-space-to-period window (~300ms on iOS)
                 if (isMobileDevice()) {
-                  setTimeout(() => {
+                  // Use requestIdleCallback for non-critical pill creation, with setTimeout fallback
+                  const createPills = () => {
                     if (editor && !editor.isDestroyed) {
                       createPendingPillsForReferences(editor, references);
                     }
-                  }, 50);
+                  };
+
+                  if ('requestIdleCallback' in window) {
+                    // Wait 350ms, then schedule during idle time
+                    setTimeout(() => {
+                      (window as any).requestIdleCallback(createPills, { timeout: 500 });
+                    }, 350);
+                  } else {
+                    // Fallback for browsers without requestIdleCallback
+                    setTimeout(createPills, 350);
+                  }
                   return false; // Let native keyboard handle the space
                 }
 
@@ -2673,23 +2736,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
         }
         
-        // Handle Auto-Capitalize First Line
-        // Check if cursor is at the very start of the document
-        const isAtDocumentStart = from === to && (
-          from === 1 || // Empty document or at very start
-          ($from.depth === 1 && $from.parentOffset === 0 && $from.parent.type.name === 'paragraph') // Start of first paragraph
-        );
-        
-        if (isAtDocumentStart) {
-          // Check if a single lowercase letter is being typed (but not during paste or other shortcuts)
-          if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && /^[a-z]$/.test(event.key)) {
-            event.preventDefault();
-            // Insert the uppercase version instead
-            editor.commands.insertContent(event.key.toUpperCase());
-            return true;
-          }
-        }
-        
+        // Auto-capitalize first letter is now handled via onUpdate handler below
+        // (using post-input transformation instead of keydown prevention to avoid
+        // race conditions with mobile keyboards that cause double letters like "Wwhenever")
+
         return false;
       },
     },
@@ -3342,54 +3392,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   useEffect(() => {
     const visualViewport = window.visualViewport;
     if (!visualViewport) return;
-    
-    let rafId: number | null = null;
-    let delayedUpdateTimeout: ReturnType<typeof setTimeout> | null = null;
-    let storedKeyboardHeight = 0; // Store detected keyboard height to keep it fixed
+
+    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+    let lastKeyboardHeight = 0; // Track last height to avoid unnecessary updates
 
     const updateToolbarPosition = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
+      // Debounce updates to prevent jitter from rapid resize events
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
       }
-      
-      rafId = requestAnimationFrame(() => {
+
+      debounceTimeout = setTimeout(() => {
         // Check if editor is focused - keyboard only matters when editor is active
         const editorFocused = editor && isEditorValid(editor) && editor.isFocused;
-        
+
         // Simple calculation: keyboard height = difference between window height and visible viewport height
         // Don't use offsetTop as it changes with scroll and causes incorrect positioning
-        const keyboardHeight = window.innerHeight - visualViewport.height;
+        const newKeyboardHeight = window.innerHeight - visualViewport.height;
 
         // Only update if keyboard is likely open (>150px threshold) AND editor is focused
-        // This prevents toolbar from staying at keyboard height when keyboard is closed
-        if (keyboardHeight > 150 && editorFocused) {
-          // Store the detected keyboard height and keep it fixed
-          storedKeyboardHeight = keyboardHeight;
-          setKeyboardHeight(keyboardHeight);
-
-          // Schedule a delayed update to catch the final keyboard height after animation
-          if (delayedUpdateTimeout) {
-            clearTimeout(delayedUpdateTimeout);
+        // AND the height has changed significantly (>10px) to prevent jitter
+        if (newKeyboardHeight > 150 && editorFocused) {
+          // Only update state if height changed by more than 10px (prevents micro-jitter)
+          if (Math.abs(newKeyboardHeight - lastKeyboardHeight) > 10) {
+            lastKeyboardHeight = newKeyboardHeight;
+            setKeyboardHeight(newKeyboardHeight);
           }
-          delayedUpdateTimeout = setTimeout(() => {
-            // Re-check focus state in case it changed
-            const stillFocused = editor && isEditorValid(editor) && editor.isFocused;
-            const finalKeyboardHeight = window.innerHeight - visualViewport.height;
-            if (finalKeyboardHeight > 150 && stillFocused) {
-              storedKeyboardHeight = finalKeyboardHeight;
-              setKeyboardHeight(finalKeyboardHeight);
-            } else if (!stillFocused || finalKeyboardHeight <= 150) {
-              // Editor lost focus or keyboard closed - reset
-              storedKeyboardHeight = 0;
-              setKeyboardHeight(0);
-            }
-          }, 150);
-        } else {
-          // Keyboard closed or editor not focused - reset stored height
-          storedKeyboardHeight = 0;
+        } else if (lastKeyboardHeight > 0) {
+          // Keyboard closed or editor not focused - reset
+          lastKeyboardHeight = 0;
           setKeyboardHeight(0);
         }
-      });
+      }, 100); // Single 100ms debounce instead of immediate + delayed
     };
 
     toolbarPositionUpdater.current = updateToolbarPosition;
@@ -3433,11 +3467,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (contentContainer) {
         contentContainer.removeEventListener('scroll', handleScroll);
       }
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      if (delayedUpdateTimeout) {
-        clearTimeout(delayedUpdateTimeout);
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
       }
     };
   }, [editor]); // Add editor dependency to check focus state
@@ -3467,25 +3498,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const containerRect = contentContainer.getBoundingClientRect();
         
         // Calculate where toolbar is positioned (keyboardHeight + 12px offset)
-        // Toolbar height is approximately 48px, so we want cursor at least 60px above keyboard
+        // Toolbar height is approximately 48px, so we want cursor at least 80px above keyboard
         const toolbarTop = window.innerHeight - keyboardHeight - 12 - 48;
-        const safeAreaTop = toolbarTop - 20; // 20px padding above toolbar
-        
+        const safeAreaTop = toolbarTop - 40; // 40px padding above toolbar (increased from 20)
+
         // Check if cursor is below the safe area
         const cursorTop = coords.top;
         const cursorBottom = coords.bottom;
-        
+
         // If cursor is below or overlapping with toolbar area, scroll it up
         if (cursorBottom > safeAreaTop || cursorTop < containerRect.top) {
           // Calculate how much we need to scroll
           // We want the cursor to be at the safe area top
           const cursorRelativeTop = cursorTop - containerRect.top + contentContainer.scrollTop;
-          const targetScrollTop = cursorRelativeTop - (safeAreaTop - containerRect.top) - 20;
-          
+          const targetScrollTop = cursorRelativeTop - (safeAreaTop - containerRect.top) - 40;
+
           // Scroll to keep cursor visible above toolbar
+          // Use 'instant' instead of 'smooth' to prevent fighting with user scroll
           contentContainer.scrollTo({
             top: Math.max(0, targetScrollTop),
-            behavior: 'smooth'
+            behavior: 'instant'
           });
         }
       } catch (error) {

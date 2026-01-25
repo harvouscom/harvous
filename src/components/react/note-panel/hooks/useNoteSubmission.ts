@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
@@ -85,6 +85,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   const userId = usePersistedUserId();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Ref-based mutex to prevent duplicate submissions (more reliable than state-based checks)
+  // State checks can have race conditions on double-click; refs are synchronous
+  const submitMutexRef = useRef(false);
+
   // Helper to get effective userId with multiple fallback mechanisms (async version with IndexedDB)
   const getEffectiveUserId = useCallback(async (): Promise<{ userId: string | null; indexedDBIsEmpty: boolean }> => {
     // Try hook value first (most reliable when available)
@@ -153,8 +157,19 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   // Handle form submission
   const handleSubmit = useCallback(async (e: React.FormEvent, overrideThreadId?: string) => {
     e.preventDefault();
-    
-    if (isSubmitting) return;
+
+    // Use ref-based mutex to prevent duplicate submissions on rapid double-click
+    // State-based check (isSubmitting) can have race conditions
+    if (submitMutexRef.current) {
+      debug('[useNoteSubmission] Submission blocked by mutex (double-click prevention)');
+      return;
+    }
+    submitMutexRef.current = true;
+
+    if (isSubmitting) {
+      submitMutexRef.current = false;
+      return;
+    }
 
     // Note: Subscription check removed - backend validates and returns NOTE_LIMIT_EXCEEDED if exceeded
 
@@ -251,21 +266,25 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     if (currentNoteType === 'default') {
       if (!trimmedTitle && !hasContent) {
         showToast('Please add a title or content to your note', 'warning');
+        submitMutexRef.current = false;
         return;
       }
     } else if (currentNoteType === 'scripture') {
       const apiReference = formatReferenceForAPI(currentScriptureReference.trim());
       if (!apiReference.trim()) {
         showToast('Please add a scripture reference (e.g., John 3:16)', 'warning');
+        submitMutexRef.current = false;
         return;
       }
       if (!hasContent) {
         showToast('Please add your thoughts about this scripture', 'warning');
+        submitMutexRef.current = false;
         return;
       }
     } else if (currentNoteType === 'resource') {
       if (!trimmedResourceUrl) {
         showToast('Please add a resource URL', 'warning');
+        submitMutexRef.current = false;
         return;
       }
       // Validate URL with comprehensive security checks
@@ -274,6 +293,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // Show user-friendly error message
         const errorMessage = urlValidation.error || 'Please enter a valid URL';
         showToast(errorMessage, 'warning');
+        submitMutexRef.current = false;
         return;
       }
       // Use normalized URL from validation
@@ -473,6 +493,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           // CRITICAL: Set isSubmitting to false BEFORE closing panel
           // This ensures state updates complete before component unmounts
+          submitMutexRef.current = false;
           setIsSubmitting(false);
           
           // Reset form and close panel
@@ -514,12 +535,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Network error AND offline save failed - show offline error message
           debug('[useNoteSubmission] Network error and offline save failed', { offlineSaveError });
           showToast(offlineSaveError, 'error');
+          submitMutexRef.current = false;
           setIsSubmitting(false);
           return;
         } else if (networkError) {
           // Network error but no offline context - show friendly offline message
           debug('[useNoteSubmission] Network error with no offline context');
           showToast('You\'re offline. Please try again when connected.', 'error');
+          submitMutexRef.current = false;
           setIsSubmitting(false);
           return;
         } else {
@@ -529,8 +552,35 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       }
 
       if (response && response.ok) {
-        const result = await response.json();
-        
+        // Safely parse JSON response - Safari PWA can throw "string did not match expected pattern"
+        // when response.json() is called on non-JSON content (e.g., cached HTML from service worker)
+        let result;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (!contentType?.includes('application/json')) {
+            const text = await response.text();
+            console.error('[useNoteSubmission] Non-JSON response on 200 OK:', {
+              contentType,
+              textPreview: text.slice(0, 200),
+              url: response.url
+            });
+            throw new Error('Server returned non-JSON response');
+          }
+          result = await response.json();
+        } catch (parseError: any) {
+          console.error('[useNoteSubmission] JSON parse error on success response:', parseError);
+          captureException(parseError, {
+            context: 'note_creation_json_parse',
+            endpoint: '/api/notes/create',
+            responseStatus: response.status,
+            responseUrl: response.url,
+          });
+          showToast('Error creating note: Invalid server response. Please try again.', 'error');
+          submitMutexRef.current = false;
+          setIsSubmitting(false);
+          return;
+        }
+
         // Cache the simpleNoteId for offline access
         // This ensures the next note ID is correct when going offline
         if (result.note && result.note.simpleNoteId && userId) {
@@ -874,6 +924,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // Safety timeout: If navigation doesn't complete within 3 seconds (e.g., blocked by service worker),
           // reset isSubmitting to prevent the UI from being stuck forever
           setTimeout(() => {
+            submitMutexRef.current = false;
             setIsSubmitting(false);
           }, 3000);
         } else {
@@ -881,6 +932,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           localStorage.removeItem('showNewNotePanel');
           resetForm();
           setSelectedThread('Unorganized');
+          submitMutexRef.current = false;
           setIsSubmitting(false);
           clearLocalStorage();
           
@@ -981,7 +1033,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             showToast(error.error || 'Error creating note', 'error');
           }
         }
-        
+
+        submitMutexRef.current = false;
         setIsSubmitting(false);
       }
     } catch (error: any) {
@@ -1041,7 +1094,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         
         showToast(`Error creating note: ${error?.message || 'Please try again.'}`, 'error');
       }
-      
+
+      submitMutexRef.current = false;
       setIsSubmitting(false);
     }
   }, [
@@ -1109,8 +1163,34 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       });
 
       if (response.ok) {
-        const result = await response.json();
-        
+        // Safely parse JSON response - Safari PWA can throw "string did not match expected pattern"
+        // when response.json() is called on non-JSON content (e.g., cached HTML from service worker)
+        let result;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (!contentType?.includes('application/json')) {
+            const text = await response.text();
+            console.error('[useNoteSubmission] Non-JSON response on 200 OK (save and close):', {
+              contentType,
+              textPreview: text.slice(0, 200),
+              url: response.url
+            });
+            throw new Error('Server returned non-JSON response');
+          }
+          result = await response.json();
+        } catch (parseError: any) {
+          console.error('[useNoteSubmission] JSON parse error on success response (save and close):', parseError);
+          captureException(parseError, {
+            context: 'note_creation_json_parse_save_close',
+            endpoint: '/api/notes/create',
+            responseStatus: response.status,
+            responseUrl: response.url,
+          });
+          showToast('Error creating note: Invalid server response. Please try again.', 'error');
+          setIsSubmitting(false);
+          return;
+        }
+
         // Cache the simpleNoteId for offline access
         // This ensures the next note ID is correct when going offline
         if (result.note && result.note.simpleNoteId && userId) {
