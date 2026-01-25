@@ -1,7 +1,6 @@
 ---
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardFullEditable from "@/components/react/CardFullEditable";
-import Button from "@/components/Button.astro";
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { ClientRouter } from "astro:transitions";
@@ -187,26 +186,9 @@ const formatDate = (date: Date | null) => {
                   resourceImage={resourceMetadata?.sourceImage || undefined}
                   resourceUrl={resourceMetadata?.sourceUrl || undefined}
                   isEditable={false}
+                  shareToken={shareToken}
+                  isAuthenticated={isAuthenticated}
                 />
-
-                <!-- CTA Button wrapper with toast -->
-                <div class="shared-page__cta-wrapper">
-                  <!-- Toast notification (absolutely positioned above button) -->
-                  <div id="shared-page-toast" class="shared-page__toast" aria-live="polite">
-                    <span id="shared-page-toast-message"></span>
-                  </div>
-
-                  <!-- CTA Button -->
-                  <Button
-                    type="button"
-                    id="add-to-harvous-btn"
-                    class="shared-page__cta-button"
-                    data-share-token={shareToken}
-                    data-authenticated={isAuthenticated ? 'true' : 'false'}
-                  >
-                    <span class="shared-page__cta-text">Add this to my Harvous</span>
-                  </Button>
-                </div>
               </div>
 
               <!-- Footer text (below card) -->
@@ -607,21 +589,28 @@ const formatDate = (date: Date | null) => {
     }
   }
 
-  /* Scrollable content area - no max-height constraint, let inner content div handle it */
+  /* Scrollable content area - mobile: limit height, desktop: let flex handle it */
   .shared-page__card-container .card-full-editable .overflow-auto {
-    max-height: none;
+    max-height: 300px; /* Mobile: limit content area height */
   }
 
-  /* Content area inside CardFullEditable - limit height to 75svh */
+  /* Desktop: remove max-height constraint, let flex handle it */
+  @media (min-width: 1160px) {
+    .shared-page__card-container .card-full-editable .overflow-auto {
+      max-height: none;
+    }
+  }
+
+  /* Content area inside CardFullEditable - remove fixed height constraint */
   .shared-page__card-container .card-full-editable .flex-1.flex.flex-col.min-h-0.px-3 {
-    max-height: 75svh !important;
+    max-height: none;
   }
 
   /* CTA Button wrapper - relative positioning for toast */
   .shared-page__cta-wrapper {
     position: relative;
     flex-shrink: 0;
-    margin-top: 12px;
+    width: 100%;
   }
 
   /* Toast notification - absolutely positioned 12px above button */

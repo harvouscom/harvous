@@ -197,6 +197,20 @@ export const POST: APIRoute = async ({ request, locals }) => {
       })
       .where(eq(UserMetadata.userId, userId));
 
+    // Process scripture references in the note content (async, fire-and-forget)
+    // This will detect references like "John 3:16" in the content and either:
+    // - Create new scripture notes if they don't exist
+    // - Connect to existing scripture notes if they do exist
+    const processScriptureReferencesAsync = async () => {
+      try {
+        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+        await processScriptureReferences(newNoteId, userId, 'thread_unorganized', sourceNote.content);
+      } catch (error: any) {
+        console.error('Error processing scripture references (non-critical):', error);
+      }
+    };
+    processScriptureReferencesAsync().catch(() => {});
+
     // Award XP for note creation (async, fire-and-forget)
     const isScriptureNote = sourceNote.noteType === 'scripture';
     awardNoteCreatedXP(userId, newNoteId, isScriptureNote, sourceNote.content || '').catch(() => {});

@@ -8,6 +8,7 @@ import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
+import SharedNoteCTAFooter from './SharedNoteCTAFooter';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -31,6 +32,10 @@ interface CardFullEditableProps {
   className?: string;
   isEditable?: boolean;
   onSave?: (title: string, content: string) => Promise<any>;
+  footer?: React.ReactNode;
+  // Props for shared note CTA footer
+  shareToken?: string;
+  isAuthenticated?: boolean;
 }
 
 export default function CardFullEditable({ 
@@ -46,7 +51,10 @@ export default function CardFullEditable({
   resourceUrl,
   className = '',
   isEditable = true,
-  onSave 
+  onSave,
+  footer,
+  shareToken,
+  isAuthenticated
 }: CardFullEditableProps) {
   // Override isEditable for scripture notes - they should always be read-only
   const effectiveIsEditable = noteType === 'scripture' ? false : isEditable;
@@ -1222,6 +1230,32 @@ export default function CardFullEditable({
             </p>
           </div>
         )}
+        
+        {/* Footer - rendered at bottom of card */}
+        {footer ? (
+          <div 
+            style={{
+              marginTop: 'auto',
+              flexShrink: 0,
+              paddingTop: '12px'
+            }}
+          >
+            {footer}
+          </div>
+        ) : shareToken ? (
+          <div 
+            style={{
+              marginTop: 'auto',
+              flexShrink: 0,
+              paddingTop: '12px'
+            }}
+          >
+            <SharedNoteCTAFooter
+              shareToken={shareToken}
+              isAuthenticated={isAuthenticated || false}
+            />
+          </div>
+        ) : null}
       </div>
       </div>
     </>
