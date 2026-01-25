@@ -730,57 +730,6 @@ export default function NoteDetailsPanel({
                     )}
                   </div>
                 )}
-
-                {/* NET Bible Attribution - visible on all tabs for scripture notes */}
-                {isScriptureNote && noteVersion === 'NET' && (
-                  <div 
-                    className="panel__attribution"
-                    style={{
-                      padding: '1rem',
-                      paddingTop: '1.5rem',
-                      borderTop: '1px solid oklch(96% 0 0)',
-                      marginTop: 'auto'
-                    }}
-                  >
-                    <p 
-                      style={{
-                        fontSize: '10px',
-                        lineHeight: '1.4',
-                        color: 'var(--color-pebble-grey)',
-                        margin: 0,
-                        textAlign: 'left'
-                      }}
-                    >
-                      Per Gratis use quotations designated{' '}
-                      <a 
-                        href="https://netbible.org" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{
-                          color: 'var(--color-pebble-grey)',
-                          textDecoration: 'underline',
-                          textDecorationColor: 'var(--color-pebble-grey)'
-                        }}
-                      >
-                        NET
-                      </a>{' '}
-                      are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C.{' '}
-                      <a 
-                        href="http://netbible.com" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{
-                          color: 'var(--color-pebble-grey)',
-                          textDecoration: 'underline',
-                          textDecorationColor: 'var(--color-pebble-grey)'
-                        }}
-                      >
-                        http://netbible.com
-                      </a>{' '}
-                      All rights reserved.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
-import { generateNoteId } from '@/utils/ids';
+import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { awardCreationBonusXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
@@ -123,7 +123,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
       isPDF = urlValidation.isPDF || false;
     }
 
-    const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+    // Capitalize content, handling empty/null content safely
+    const capitalizedContent = content && content.length > 0 
+      ? content.charAt(0).toUpperCase() + content.slice(1)
+      : content || '';
     
     // Generate numbered untitled name if title is empty, otherwise truncate and capitalize
     let capitalizedTitle: string;
@@ -207,6 +210,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // If any of these fail, the entire operation should fail
     
     const now = new Date();
+    
+    // Scripture notes are automatically shared
+    const isScriptureNote = finalNoteType === 'scripture';
+    const shouldAutoShare = isScriptureNote;
+    const shareToken = shouldAutoShare ? generateShareToken() : null;
+    
     const newNote = await db.insert(Notes)
       .values({
         id: generateNoteId(),
@@ -217,7 +226,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
         simpleNoteId: nextSimpleNoteId,
         noteType: finalNoteType,
         userId,
-        isPublic: false,
+        isPublic: shouldAutoShare,
+        shareToken: shareToken,
+        shareTokenCreatedAt: shouldAutoShare ? now : null,
         createdAt: now,
         lastVisited: now // Set lastVisited so newly created notes appear above unvisited items
       })
@@ -310,7 +321,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     // Award XP for note creation (pass content and note type)
     // This is non-critical - if it fails, the note is still created
-    const isScriptureNote = finalNoteType === 'scripture';
     try {
       // Award creation bonus XP
       await awardCreationBonusXP(userId, 'note');
@@ -547,6 +557,15 @@ export const POST: APIRoute = async ({ request, locals }) => {
     });
 
   } catch (error: any) {
+    // Log the actual error for debugging
+    console.error('[api/notes/create] Error creating note:', error);
+    console.error('[api/notes/create] Error stack:', error?.stack);
+    console.error('[api/notes/create] Error details:', {
+      message: error?.message,
+      name: error?.name,
+      code: error?.code
+    });
+    
     return serverErrorResponse(error, {
       endpoint: '/api/notes/create',
       action: 'create_note'

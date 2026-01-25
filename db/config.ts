@@ -52,6 +52,8 @@ const Notes = defineTable({
     isPublic: column.boolean({ default: false }),
     isFeatured: column.boolean({ default: false }),
     order: column.number({ default: 0 }),
+    shareToken: column.text({ optional: true }), // Unique token for sharing (null = private)
+    shareTokenCreatedAt: column.date({ optional: true }), // When the share token was created
   }
 })
 

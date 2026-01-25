@@ -36,7 +36,7 @@ export default function ScriptureNoteForm({
             onChange={(e) => onReferenceChange(e.target.value)}
             placeholder="Scripture reference (e.g., John 3:16)"
             tabIndex={1}
-            className="w-full bg-transparent border-none text-[24px] font-semibold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+            className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
           />
         </div>
         <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">

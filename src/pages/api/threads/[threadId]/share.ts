@@ -53,7 +53,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     return new Response(JSON.stringify({
       isPublic: thread.isPublic,
       shareToken: thread.shareToken,
-      shareUrl: thread.shareToken ? `${new URL(params.url || 'https://app.harvous.com').origin}/shared/${thread.shareToken}` : null,
+      shareUrl: thread.shareToken ? `${new URL(params.url || 'https://app.harvous.com').origin}/shared/thread/${thread.shareToken}` : null,
       shareTokenCreatedAt: thread.shareTokenCreatedAt
     }), {
       status: 200,
@@ -189,7 +189,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     // Build the share URL
     const origin = new URL(request.url).origin;
-    const shareUrl = newShareToken ? `${origin}/shared/${newShareToken}` : null;
+    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
 
     return new Response(JSON.stringify({
       success: true,

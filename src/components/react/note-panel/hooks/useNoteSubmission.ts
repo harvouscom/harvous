@@ -891,7 +891,18 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }
       } else {
-        const error = await response.json();
+        // Safely parse error response - may be HTML if server error occurred
+        const errorText = await response.text();
+        let error: { error?: string; code?: string } = { error: `Error creating note: ${response.status}` };
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          error = errorJson;
+        } catch (e) {
+          // If response isn't JSON (e.g., HTML error page), use status text
+          console.error('[useNoteSubmission] Could not parse error response as JSON');
+          error.error = `Error creating note: ${response.statusText || response.status}`;
+        }
         
         // Handle note limit exceeded error
         if (error.code === 'NOTE_LIMIT_EXCEEDED') {
@@ -1172,7 +1183,18 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }
       } else {
-        const error = await response.json();
+        // Safely parse error response - may be HTML if server error occurred
+        const errorText = await response.text();
+        let error: { error?: string; code?: string } = { error: `Error creating note: ${response.status}` };
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          error = errorJson;
+        } catch (e) {
+          // If response isn't JSON (e.g., HTML error page), use status text
+          console.error('[useNoteSubmission] Could not parse error response as JSON (save and close)');
+          error.error = `Error creating note: ${response.statusText || response.status}`;
+        }
         
         // Handle note limit exceeded error
         if (error.code === 'NOTE_LIMIT_EXCEEDED') {

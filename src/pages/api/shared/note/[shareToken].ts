@@ -1,6 +1,5 @@
 import type { APIRoute } from 'astro';
-import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc } from 'astro:db';
-import { sql } from 'astro:db';
+import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
 
@@ -23,57 +22,69 @@ export const GET: APIRoute = async ({ params }) => {
       });
     }
 
-    // Fetch the thread by share token (must be public)
-    const thread = await db
+    // Fetch the note by share token (must be public)
+    const note = await db
       .select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        isPublic: Threads.isPublic,
-        shareToken: Threads.shareToken,
-        createdAt: Threads.createdAt,
-        userId: Threads.userId
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        noteType: Notes.noteType,
+        isPublic: Notes.isPublic,
+        shareToken: Notes.shareToken,
+        createdAt: Notes.createdAt,
+        updatedAt: Notes.updatedAt,
+        userId: Notes.userId
       })
-      .from(Threads)
+      .from(Notes)
       .where(and(
-        eq(Threads.shareToken, shareToken),
-        eq(Threads.isPublic, true)
+        eq(Notes.shareToken, shareToken),
+        eq(Notes.isPublic, true)
       ))
       .get();
 
-    if (!thread) {
+    if (!note) {
       return new Response(JSON.stringify({
-        error: 'Shared thread not found or no longer available'
+        error: 'Shared note not found or no longer available'
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Fetch notes for the thread via junction table
-    const notes = await db.select({
-      id: Notes.id,
-      title: Notes.title,
-      content: Notes.content,
-      noteType: Notes.noteType,
-      createdAt: Notes.createdAt,
-      updatedAt: Notes.updatedAt,
-      lastVisited: Notes.lastVisited,
-    })
-    .from(Notes)
-    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(eq(NoteThreads.threadId, thread.id))
-    // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
-    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
-    .orderBy(
-      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-      desc(Notes.lastVisited),
-      desc(Notes.updatedAt),
-      desc(Notes.createdAt),
-      asc(Notes.id)
-    )
-    .all();
+    // Fetch scripture metadata if it's a scripture note
+    let scriptureMetadata = null;
+    if (note.noteType === 'scripture') {
+      scriptureMetadata = await db
+        .select({
+          reference: ScriptureMetadata.reference,
+          book: ScriptureMetadata.book,
+          chapter: ScriptureMetadata.chapter,
+          verse: ScriptureMetadata.verse,
+          verseEnd: ScriptureMetadata.verseEnd,
+          translation: ScriptureMetadata.translation,
+          originalText: ScriptureMetadata.originalText
+        })
+        .from(ScriptureMetadata)
+        .where(eq(ScriptureMetadata.noteId, note.id))
+        .get();
+    }
+
+    // Fetch resource metadata if it's a resource note
+    let resourceMetadata = null;
+    if (note.noteType === 'resource') {
+      resourceMetadata = await db
+        .select({
+          sourceUrl: ResourceMetadata.sourceUrl,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage
+        })
+        .from(ResourceMetadata)
+        .where(eq(ResourceMetadata.noteId, note.id))
+        .get();
+    }
 
     // Fetch creator info from UserMetadata
     const creator = await db
@@ -84,7 +95,7 @@ export const GET: APIRoute = async ({ params }) => {
         profileImageUrl: UserMetadata.profileImageUrl
       })
       .from(UserMetadata)
-      .where(eq(UserMetadata.userId, thread.userId))
+      .where(eq(UserMetadata.userId, note.userId))
       .get();
 
     // Generate initials and display name
@@ -98,29 +109,22 @@ export const GET: APIRoute = async ({ params }) => {
       : 'A Harvous User';
 
     return new Response(JSON.stringify({
-      thread: {
-        id: thread.id,
-        title: thread.title,
-        subtitle: thread.subtitle,
-        color: thread.color,
-        createdAt: thread.createdAt
-      },
-      notes: notes.map(note => ({
+      note: {
         id: note.id,
         title: note.title,
         content: note.content,
         noteType: note.noteType,
-        createdAt: note.createdAt
-      })),
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt
+      },
+      scriptureMetadata,
+      resourceMetadata,
       creator: {
         firstName,
         displayName,
         initials,
         userColor: creator?.userColor || 'paper',
         profileImageUrl: creator?.profileImageUrl || null
-      },
-      meta: {
-        noteCount: notes.length
       }
     }), {
       status: 200,
@@ -129,8 +133,8 @@ export const GET: APIRoute = async ({ params }) => {
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/shared/[shareToken]',
-      action: 'get_shared_thread',
+      endpoint: '/api/shared/note/[shareToken]',
+      action: 'get_shared_note',
       shareToken: params.shareToken
     });
     return new Response(JSON.stringify({
