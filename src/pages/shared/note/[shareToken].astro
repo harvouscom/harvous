@@ -509,11 +509,25 @@ const formatDate = (date: Date | null) => {
     padding: 0 !important;
   }
 
-  /* Remove top and bottom padding on mobile only */
+  /* Mobile: lock page to viewport height, no scrolling */
   @media (max-width: 1159px) {
+    #shared-note-content {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #shared-note-content .auth-page__container {
+      height: 100%;
+      max-height: 100vh;
+    }
+
     #shared-note-content .auth-page__form-section.shared-page__content-section {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
     }
   }
 
@@ -527,6 +541,16 @@ const formatDate = (date: Date | null) => {
     gap: 12px;
     padding: 0;
     min-height: 100%;
+  }
+
+  /* Mobile: constrain content to viewport height */
+  @media (max-width: 1159px) {
+    .shared-page__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+    }
   }
 
   /* Desktop: constrain content to viewport height */
@@ -566,6 +590,15 @@ const formatDate = (date: Date | null) => {
     min-height: 300px;
   }
 
+  /* Mobile: constrain card container to fit within viewport */
+  @media (max-width: 1159px) {
+    .shared-page__card-container {
+      min-height: 0;
+      overflow: hidden;
+      max-height: calc(100vh - 120px); /* Account for creator info and spacing */
+    }
+  }
+
   /* Desktop: allow card to shrink to fit available space */
   @media (min-width: 1160px) {
     .shared-page__card-container {
@@ -591,7 +624,17 @@ const formatDate = (date: Date | null) => {
 
   /* Scrollable content area - mobile: limit height, desktop: let flex handle it */
   .shared-page__card-container .card-full-editable .overflow-auto {
-    max-height: 300px; /* Mobile: limit content area height */
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+
+  /* Mobile: add padding-bottom to account for fixed button */
+  @media (max-width: 1159px) {
+    .shared-page__card-container .card-full-editable .overflow-auto {
+      padding-bottom: 72px !important; /* Space for fixed button (60px button + 12px spacing) - override inline style */
+    }
   }
 
   /* Desktop: remove max-height constraint, let flex handle it */
@@ -606,11 +649,27 @@ const formatDate = (date: Date | null) => {
     max-height: none;
   }
 
-  /* CTA Button wrapper - relative positioning for toast */
-  .shared-page__cta-wrapper {
-    position: relative;
-    flex-shrink: 0;
-    width: 100%;
+  /* Mobile: fixed button at bottom of viewport */
+  @media (max-width: 1159px) {
+    .shared-page__cta-wrapper {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      padding: 0 12px;
+      z-index: 100;
+    }
+  }
+
+  /* Desktop: keep button inside CardFullEditable */
+  @media (min-width: 1160px) {
+    .shared-page__cta-wrapper {
+      position: relative;
+      flex-shrink: 0;
+      width: 100%;
+    }
   }
 
   /* Toast notification - absolutely positioned 12px above button */

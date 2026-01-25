@@ -550,11 +550,25 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     padding: 0 !important;
   }
 
-  /* Remove top and bottom padding on mobile only */
+  /* Mobile: lock page to viewport height, no scrolling */
   @media (max-width: 1159px) {
+    #shared-thread-content {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #shared-thread-content .auth-page__container {
+      height: 100%;
+      max-height: 100vh;
+    }
+
     #shared-thread-content .auth-page__form-section.shared-page__content-section {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
     }
   }
 
@@ -568,6 +582,16 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     gap: 12px;
     padding: 0;
     min-height: 100%;
+  }
+
+  /* Mobile: constrain content to viewport height */
+  @media (max-width: 1159px) {
+    .shared-page__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+    }
   }
 
   /* Desktop: constrain content to viewport height */
@@ -607,6 +631,15 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     min-height: 300px;
   }
 
+  /* Mobile: constrain card container to fit within viewport */
+  @media (max-width: 1159px) {
+    .shared-page__card-container {
+      min-height: 0;
+      overflow: hidden;
+      max-height: calc(100vh - 120px); /* Account for creator info and spacing */
+    }
+  }
+
   /* Desktop: allow CardStack to shrink to fit available space */
   @media (min-width: 1160px) {
     .shared-page__card-container {
@@ -620,12 +653,14 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
   .shared-page__card-container .card-stack__container {
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
   .shared-page__card-container .card-stack__content {
@@ -633,6 +668,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
   }
 
   .shared-page__card-container .card-stack__inner {
@@ -640,6 +676,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
   }
 
   .shared-page__card-container .card-stack__inner-content {
@@ -647,6 +684,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     display: flex;
     flex-direction: column;
     min-height: 0;
+    overflow: hidden;
   }
 
   /* Scrollable notes container */
@@ -654,7 +692,14 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
     flex: 1;
     overflow-y: auto;
     min-height: 0;
-    max-height: 300px; /* Mobile: limit notes area height */
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+
+  /* Mobile: add padding-bottom to account for fixed button */
+  @media (max-width: 1159px) {
+    .shared-page__notes-scroll {
+      padding-bottom: 72px; /* Space for fixed button (60px button + 12px spacing) */
+    }
   }
 
   /* Desktop: remove max-height constraint, let flex handle it */
@@ -727,10 +772,28 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
   }
 
   /* CTA Button wrapper - relative positioning for toast */
-  .shared-page__cta-wrapper {
-    position: relative;
-    flex-shrink: 0;
-    margin-top: 12px;
+  /* Mobile: fixed button at bottom of viewport */
+  @media (max-width: 1159px) {
+    .shared-page__cta-wrapper {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      padding: 0 12px;
+      z-index: 100;
+      margin-top: 0;
+    }
+  }
+
+  /* Desktop: keep button inside CardStack */
+  @media (min-width: 1160px) {
+    .shared-page__cta-wrapper {
+      position: relative;
+      flex-shrink: 0;
+      margin-top: 12px;
+    }
   }
 
   /* CTA Button inside CardStack - pinned at bottom */
