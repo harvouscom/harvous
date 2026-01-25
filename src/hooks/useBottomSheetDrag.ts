@@ -69,10 +69,26 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
         return;
       }
 
-      // Check if there's scrollable content that's not at the top
+      // Check for scrollable content - including nested TiptapEditor
       const scrollableContent = el.querySelector('.mobile-nav__sheet-inner, .bottom-sheet__inner');
+      const tiptapContent = el.querySelector('.tiptap-content') as HTMLElement;
+
+      // Check if touch target is within a scrollable element
+      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner') as HTMLElement;
+
+      // If we're in a scrollable element, check its scroll position
+      if (scrollableElement) {
+        if (scrollableElement.scrollTop > 0) {
+          // Content is scrolled down, don't allow drag - let scroll happen
+          return;
+        }
+      }
+
+      // Also check parent containers for scroll position
       if (scrollableContent && scrollableContent.scrollTop > 0) {
-        // Content is scrolled down, don't allow drag - let scroll happen
+        return;
+      }
+      if (tiptapContent && tiptapContent.scrollTop > 0) {
         return;
       }
 
@@ -97,6 +113,32 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
 
       // If horizontal movement is greater, don't treat as drag
       if (deltaX > deltaY && !state.isDragging) return;
+
+      // Before starting drag, check if we're in a scrollable element that can still scroll
+      const target = e.target as HTMLElement;
+      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner') as HTMLElement;
+
+      if (scrollableElement && !state.isDragging) {
+        // Check if element can scroll in the direction we're moving
+        const canScrollDown = scrollableElement.scrollTop < (scrollableElement.scrollHeight - scrollableElement.clientHeight);
+        const canScrollUp = scrollableElement.scrollTop > 0;
+        
+        // If moving down and element can scroll down, allow scrolling instead of drag
+        if (deltaY > 0 && canScrollDown) {
+          return; // Let native scroll happen
+        }
+        
+        // If moving up and element can scroll up, allow scrolling
+        if (deltaY < 0 && canScrollUp) {
+          return; // Let native scroll happen
+        }
+        
+        // Only allow drag if scrollable element is at its boundary
+        // For downward drag, element must be at top (scrollTop === 0)
+        if (deltaY > 0 && scrollableElement.scrollTop > 0) {
+          return; // Still can scroll, don't drag
+        }
+      }
 
       // Check if we've moved enough to start dragging
       if (!state.isDragging && deltaY < MIN_DRAG_DISTANCE) {
