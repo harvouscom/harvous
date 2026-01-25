@@ -40,13 +40,15 @@ if (!shareToken || !isValidShareToken(shareToken)) {
       subtitle: Threads.subtitle,
       color: Threads.color,
       isPublic: Threads.isPublic,
-      shareToken: Threads.shareToken,
+      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
+      shareToken: Threads.shareToken as any,
       createdAt: Threads.createdAt,
       userId: Threads.userId
     })
     .from(Threads)
     .where(and(
-      eq(Threads.shareToken, shareToken),
+      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
+      eq(Threads.shareToken as any, shareToken),
       eq(Threads.isPublic, true)
     ))
     .get();
@@ -154,7 +156,7 @@ const threadColor = (thread?.color || 'blue') as ThreadColor;
             <>
               <!-- Creator info (above CardStack) -->
               <div class="shared-page__creator shared-page__fade-in" style="animation-delay: 0ms;">
-                <p>Created by {creator?.displayName || 'A Harvous User'}</p>
+                <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
               </div>
 
               <!-- CardStack with notes and CTA -->

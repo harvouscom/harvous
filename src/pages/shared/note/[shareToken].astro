@@ -37,13 +37,15 @@ if (!shareToken || !isValidShareToken(shareToken)) {
       content: Notes.content,
       noteType: Notes.noteType,
       isPublic: Notes.isPublic,
-      shareToken: Notes.shareToken,
+      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
+      shareToken: Notes.shareToken as any,
       createdAt: Notes.createdAt,
       userId: Notes.userId
     })
     .from(Notes)
     .where(and(
-      eq(Notes.shareToken, shareToken),
+      // @ts-expect-error - shareToken exists in schema but TypeScript types may be out of sync
+      eq(Notes.shareToken as any, shareToken),
       eq(Notes.isPublic, true)
     ))
     .get();
@@ -149,7 +151,7 @@ const formatDate = (date: Date | null) => {
 
       <!-- Right Column: Note Content -->
       <div class="auth-page__form-section shared-page__content-section">
-        <div class="shared-page__content shared-note__content">
+        <div class="shared-page__content">
           {error === 'invalid' || error === 'not_found' ? (
             <div class="shared-page__error">
               <div class="shared-page__error-icon">
@@ -173,14 +175,14 @@ const formatDate = (date: Date | null) => {
               </div>
 
               <!-- Card container -->
-              <div class="shared-note__card-container shared-page__slide-up" style="animation-delay: 50ms;">
+              <div class="shared-page__card-container shared-page__slide-up" style="animation-delay: 50ms;">
                 <CardFullEditable
                   client:load
                   title={note.title || 'Untitled Note'}
                   content={note.content || ''}
                   date={formatDate(note.createdAt)}
                   noteId={note.id}
-                  noteType={note.noteType || 'default'}
+                  noteType={(note.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
                   version={scriptureMetadata?.translation}
                   resourceTitle={resourceMetadata?.sourceTitle || undefined}
                   resourceDescription={resourceMetadata?.sourceDescription || undefined}
@@ -190,7 +192,7 @@ const formatDate = (date: Date | null) => {
                 />
 
                 <!-- CTA Button wrapper with toast -->
-                <div class="shared-note__cta-wrapper">
+                <div class="shared-page__cta-wrapper">
                   <!-- Toast notification (absolutely positioned above button) -->
                   <div id="shared-page-toast" class="shared-page__toast" aria-live="polite">
                     <span id="shared-page-toast-message"></span>
@@ -535,30 +537,6 @@ const formatDate = (date: Date | null) => {
     }
   }
 
-  /* Note-specific content adjustments */
-  .shared-note__content {
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 0;
-    min-height: 100%;
-  }
-
-  /* Desktop: constrain content to viewport height */
-  @media (min-width: 1160px) {
-    .shared-note__content {
-      height: 100%;
-      max-height: 100vh;
-      overflow: hidden;
-      justify-content: flex-start;
-      padding-top: 0;
-    }
-  }
-
   /* Creator info */
   .shared-page__creator {
     padding: 12px 0;
@@ -577,7 +555,7 @@ const formatDate = (date: Date | null) => {
   }
 
   /* Card container for note */
-  .shared-note__card-container {
+  .shared-page__card-container {
     width: 100%;
     flex: 1;
     display: flex;
@@ -587,14 +565,14 @@ const formatDate = (date: Date | null) => {
 
   /* Desktop: allow card to shrink to fit available space */
   @media (min-width: 1160px) {
-    .shared-note__card-container {
+    .shared-page__card-container {
       min-height: 0;
       overflow: hidden;
     }
   }
 
   /* Make CardFullEditable fill container */
-  .shared-note__card-container .card-full-editable {
+  .shared-page__card-container .card-full-editable {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -603,29 +581,28 @@ const formatDate = (date: Date | null) => {
   }
 
   @media (min-width: 1160px) {
-    .shared-note__card-container .card-full-editable {
+    .shared-page__card-container .card-full-editable {
       max-height: calc(100vh - 200px);
     }
   }
 
   /* Scrollable content area - same constraint as shared thread page */
-  .shared-note__card-container .card-full-editable .overflow-auto {
+  .shared-page__card-container .card-full-editable .overflow-auto {
     max-height: 380px; /* Mobile: limit content area height */
   }
 
   /* Desktop: remove max-height constraint, let flex handle it */
   @media (min-width: 1160px) {
-    .shared-note__card-container .card-full-editable .overflow-auto {
+    .shared-page__card-container .card-full-editable .overflow-auto {
       max-height: none;
     }
   }
 
   /* CTA Button wrapper - relative positioning for toast */
-  .shared-note__cta-wrapper {
+  .shared-page__cta-wrapper {
     position: relative;
     flex-shrink: 0;
-    margin-top: 16px;
-    width: 100%;
+    margin-top: 12px;
   }
 
   /* Toast notification - absolutely positioned 12px above button */
