@@ -4,7 +4,6 @@ import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { safeNavigate } from '@/utils/safe-navigate';
-import SimpleTooltip from './SimpleTooltip';
 import { safeFetch } from '@/utils/safe-fetch';
 import { captureException } from '@/utils/posthog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
@@ -13,6 +12,7 @@ import { safeURL } from '@/utils/safe-url';
 import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
   id: string;
@@ -59,6 +59,11 @@ export default function EditThreadPanel({
   const [currentThreadNotes, setCurrentThreadNotes] = useState<Note[]>([]);
   const [isRemovingNote, setIsRemovingNote] = useState(false);
 
+  // Share settings state
+  const [isShared, setIsShared] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+
 
   // Fetch all notes and current thread notes on mount
   useEffect(() => {
@@ -104,6 +109,118 @@ export default function EditThreadPanel({
 
     fetchData();
   }, [threadId]);
+
+  // Fetch share status on mount
+  useEffect(() => {
+    const fetchShareStatus = async () => {
+      try {
+        const response = await safeFetch(`/api/threads/${threadId}/share`, { retries: 1 });
+        if (response && response.ok) {
+          const data = await response.json();
+          setIsShared(data.isPublic || false);
+          setShareUrl(data.shareUrl || null);
+          if (data.isPublic) {
+            setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch share status:', error);
+      }
+    };
+
+    fetchShareStatus();
+  }, [threadId]);
+
+  // Handle share toggle
+  const handleShareToggle = async (enabled: boolean) => {
+    setShareLoading(true);
+    try {
+      const response = await fetch(`/api/threads/${threadId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: enabled ? 'enable' : 'disable' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsShared(data.isPublic);
+        setShareUrl(data.shareUrl);
+        setFormData(prev => ({ ...prev, selectedType: data.isPublic ? 'Shared' : 'Private' }));
+
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: data.isPublic ? 'Thread is now shared' : 'Thread is now private',
+            type: 'success'
+          }
+        }));
+
+        // Dispatch event to refresh dashboard
+        window.dispatchEvent(new CustomEvent('threadUpdated', {
+          detail: { threadId }
+        }));
+      } else {
+        const error = await response.json();
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.error || 'Failed to update sharing settings',
+            type: 'error'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error toggling share:', error);
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to update sharing settings',
+          type: 'error'
+        }
+      }));
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  // Handle share link refresh
+  const handleShareRefresh = async () => {
+    setShareLoading(true);
+    try {
+      const response = await fetch(`/api/threads/${threadId}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setShareUrl(data.shareUrl);
+
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: 'Share link refreshed',
+            type: 'success'
+          }
+        }));
+      } else {
+        const error = await response.json();
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: error.error || 'Failed to refresh share link',
+            type: 'error'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error refreshing share link:', error);
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to refresh share link',
+          type: 'error'
+        }
+      }));
+    } finally {
+      setShareLoading(false);
+    }
+  };
 
   // Validate form data
   const validateForm = () => {
@@ -642,63 +759,15 @@ export default function EditThreadPanel({
                   ))}
                 </div>
 
-                {/* Thread type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Private' }))}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        formData.selectedType === 'Private' 
-                          ? '' 
-                          : 'bg-transparent'
-                      }`}
-                      style={formData.selectedType === 'Private' ? { 
-                        backgroundImage: 'var(--color-gradient-gray)' 
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon 
-                            name="user" 
-                            size={16} 
-                            style={{ 
-                              color: formData.selectedType === 'Private' 
-                                ? 'var(--color-deep-grey)' 
-                                : 'var(--color-pebble-grey)' 
-                            }} 
-                          />
-                        </div>
-                        <span 
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            formData.selectedType === 'Private' 
-                              ? 'text-[var(--color-deep-grey)]' 
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-                    
-                    {/* Shared button - disabled with tooltip */}
-                    <SimpleTooltip content="Coming Soon" enableTooltip={true} className="button-group__button">
-                      <button
-                        type="button"
-                        disabled
-                        className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
-                      >
-                        <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                          <div className="size-4 flex items-center justify-center shrink-0">
-                            <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
-                          </div>
-                          <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                        </div>
-                      </button>
-                    </SimpleTooltip>
-                  </div>
-                </div>
+                {/* Thread visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={isShared}
+                  shareUrl={shareUrl}
+                  onToggle={handleShareToggle}
+                  onRefresh={handleShareRefresh}
+                  isLoading={shareLoading}
+                  isEditMode={true}
+                />
 
                 {/* Current Notes in Thread - displayed above selected notes */}
                 {!isLoadingItems && (

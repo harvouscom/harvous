@@ -30,11 +30,11 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
         <div class="auth-page__video-overlay">
           <!-- Harvous logo -->
           <a href="https://harvous.com" class="auth-page__logo-container">
-            <svg 
-              width="45" 
-              height="64" 
-              viewBox="0 0 45 64" 
-              fill="none" 
+            <svg
+              width="28"
+              height="40"
+              viewBox="0 0 45 64"
+              fill="none"
               xmlns="http://www.w3.org/2000/svg"
               class="auth-page__logo sign-in-logo"
               aria-label="Harvous"
@@ -376,7 +376,7 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
       radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
       radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
     background-size: 100% 100%;
-    animation: mesh-movement 8s ease-in-out infinite;
+    animation: mesh-movement 6s ease-in-out infinite;
     opacity: 0.8;
   }
 
@@ -395,22 +395,40 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
       radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
       radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
     background-size: 100% 100%;
-    animation: mesh-movement-reverse 10s ease-in-out infinite;
+    animation: mesh-movement-reverse 7.5s ease-in-out infinite;
     opacity: 0.6;
+  }
+
+  /* Mobile: Show top section of desktop gradient, filling entire area */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      transform: scaleY(2);
+      transform-origin: top center;
+    }
   }
 
   @keyframes mesh-movement {
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(3%, 2%) scale(1.03);
+    16.66% {
+      transform: translate(4%, 3%) scale(1.06);
+    }
+    33.33% {
+      transform: translate(-3%, 4%) scale(1.08);
     }
     50% {
-      transform: translate(-2%, 3%) scale(1.05);
+      transform: translate(-4%, -2%) scale(1.07);
     }
-    75% {
-      transform: translate(2%, -1%) scale(1.03);
+    66.66% {
+      transform: translate(3%, -4%) scale(1.09);
+    }
+    83.33% {
+      transform: translate(3%, 2%) scale(1.05);
     }
   }
 
@@ -418,15 +436,26 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     0%, 100% {
       transform: translate(0, 0) scale(1);
     }
-    25% {
-      transform: translate(-3%, -2%) scale(1.04);
+    16.66% {
+      transform: translate(-4%, -3%) scale(1.07);
+    }
+    33.33% {
+      transform: translate(4%, -4%) scale(1.09);
     }
     50% {
-      transform: translate(3%, -3%) scale(1.06);
+      transform: translate(3%, 4%) scale(1.08);
     }
-    75% {
-      transform: translate(-1%, 2%) scale(1.04);
+    66.66% {
+      transform: translate(-3%, 3%) scale(1.06);
     }
+    83.33% {
+      transform: translate(-2%, -3%) scale(1.05);
+    }
+  }
+
+  /* Override video overlay padding for 24px spacing */
+  #sign-in-content .auth-page__video-overlay {
+    padding: 24px;
   }
 
   /* Ensure SquareButton Back variant has proper shadow styling */

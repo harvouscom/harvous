@@ -7,7 +7,7 @@ import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureR
 import { detectScriptureReferences, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { parseScriptureReference } from '@/utils/scripture-detector';
-import { generateNoteId } from '@/utils/ids';
+import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
@@ -354,6 +354,10 @@ export async function processScriptureReferences(
           const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
           await ensureUnorganizedThread(userId);
           
+          // Scripture notes are automatically shared
+          const now = new Date();
+          const shareToken = generateShareToken();
+          
           const scriptureNote = await db.insert(Notes)
             .values({
               id: generateNoteId(),
@@ -364,10 +368,12 @@ export async function processScriptureReferences(
               simpleNoteId: nextSimpleNoteId,
               noteType: 'scripture',
               userId,
-              isPublic: false,
+              isPublic: true,
+              shareToken: shareToken,
+              shareTokenCreatedAt: now,
               addedBy: 'harvous',
-              createdAt: new Date(),
-              lastVisited: new Date() // Set lastVisited so newly created notes appear at top
+              createdAt: now,
+              lastVisited: now // Set lastVisited so newly created notes appear at top
             })
             .returning()
             .get();

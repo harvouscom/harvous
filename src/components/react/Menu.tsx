@@ -43,6 +43,10 @@ const renderIcon = (icon: any, action: string) => {
     'tag': {
       viewBox: '0 0 448 512',
       path: 'M0 80V229.5c0 17 6.7 33.3 18.7 45.3l176 176c25 25 65.5 25 90.5 0L418.7 317.3c25-25 25-65.5 0-90.5l-176-176c-12-12-28.3-18.7-45.3-18.7H48C21.5 32 0 53.5 0 80zm112 96c-17.7 0-32-14.3-32-32s14.3-32 32-32s32 14.3 32 32s-14.3 32-32 32z'
+    },
+    'share': {
+      viewBox: '0 0 512 512',
+      path: 'M307 34.8c-11.5 5.1-19 16.6-19 29.2v64H176C78.8 128 0 206.8 0 304C0 417.3 81.5 467.9 100.2 478.1c2.5 1.4 5.3 1.9 8.1 1.9c10.9 0 19.7-8.9 19.7-19.7c0-7.5-4.3-14.4-9.8-19.5C108.8 431.9 96 414.4 96 384c0-53 43-96 96-96h96v64c0 12.6 7.4 24.1 19 29.2s25 3 34.4-5.4l160-144c6.7-6.1 10.6-14.7 10.6-23.8s-3.8-17.7-10.6-23.8l-160-144c-9.4-8.5-22.9-10.6-34.4-5.4z'
     }
   };
 
@@ -57,6 +61,8 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'tag';
   } else if (action.includes('Thread')) {
     iconKey = 'layer-group';
+  } else if (action.includes('share') || action.includes('Share')) {
+    iconKey = 'share';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
   } else if (action.includes('seeDetails') || action.includes('Details')) {
@@ -239,6 +245,15 @@ export default function Menu({
         window.dispatchEvent(new CustomEvent('openNewNotePanel'));
       } catch (error) {
         console.error('Error dispatching openNewNotePanel event:', error);
+      }
+    } else if (action === 'shareNote') {
+      // Handle Share Note action
+      try {
+        window.dispatchEvent(new CustomEvent('openNoteSharePanel', {
+          detail: { contentId, contentType }
+        }));
+      } catch (error) {
+        console.error('Error opening note share panel:', error);
       }
     }
   };

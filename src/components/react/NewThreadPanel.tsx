@@ -15,6 +15,7 @@ import { createThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
   id: string;
@@ -236,7 +237,7 @@ export default function NewThreadPanel({
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', 'false'); // Always private for now
+      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
       
       if (isEditMode) {
         formData.append('threadId', threadId!);
@@ -302,7 +303,7 @@ export default function NewThreadPanel({
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
-              isPublic: false,
+              isPublic: selectedType === 'Shared',
             });
             console.log('[NewThreadPanel] Thread created locally in IndexedDB (offline)', { offlineThreadId });
           } catch (err) {
@@ -842,61 +843,16 @@ export default function NewThreadPanel({
                   </div>
                 )}
                 
-                {/* Thread type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedType('Private')}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        selectedType === 'Private' 
-                          ? '' 
-                          : 'bg-transparent'
-                      }`}
-                      style={selectedType === 'Private' ? { 
-                        backgroundImage: 'var(--color-gradient-gray)' 
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon 
-                            name="user" 
-                            size={16} 
-                            style={{ 
-                              color: selectedType === 'Private' 
-                                ? 'var(--color-deep-grey)' 
-                                : 'var(--color-pebble-grey)' 
-                            }} 
-                          />
-                        </div>
-                        <span 
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            selectedType === 'Private' 
-                              ? 'text-[var(--color-deep-grey)]' 
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-                    
-                    {/* Shared button - disabled */}
-                    <button
-                      type="button"
-                      disabled
-                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
-                        </div>
-                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                {/* Thread visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={selectedType === 'Shared'}
+                  shareUrl={null}
+                  onToggle={async (enabled) => {
+                    setSelectedType(enabled ? 'Shared' : 'Private');
+                  }}
+                  isLoading={isSubmitting}
+                  isEditMode={false}
+                />
 
                 {/* Selected Notes - displayed above AddToSpaceSection (create mode only) */}
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (

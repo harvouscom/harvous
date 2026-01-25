@@ -1,5 +1,6 @@
 import React, { useReducer, useEffect, useCallback, useState, lazy, Suspense } from 'react';
 import PanelErrorBoundary from './PanelErrorBoundary';
+import ButtonSmall from './ButtonSmall';
 
 // Helper function to create lazy-loaded components with error handling
 const createLazyComponent = (importFn: () => Promise<any>, componentName: string) => {
@@ -9,17 +10,20 @@ const createLazyComponent = (importFn: () => Promise<any>, componentName: string
       // Return a fallback component that shows an error message
       return {
         default: () => (
-          <div className="h-full flex items-center justify-center p-6">
-            <div className="text-center">
-              <p className="text-sm text-[var(--color-pebble-grey)] mb-2">
-                Failed to load {componentName}
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-[var(--color-bold-blue)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm"
-              >
-                Reload Page
-              </button>
+          <div className="relative h-full w-full">
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="text-center">
+                <p className="text-sm text-[var(--color-pebble-grey)] mb-2">
+                  Failed to load {componentName}
+                </p>
+                <ButtonSmall
+                  type="button"
+                  onClick={() => window.location.reload()}
+                  state="Secondary"
+                >
+                  Reload Page
+                </ButtonSmall>
+              </div>
             </div>
           </div>
         )
@@ -43,6 +47,7 @@ const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPane
 const ManageBillingPanel = createLazyComponent(() => import('./ManageBillingPanel'), 'ManageBillingPanel');
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
+const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
 
 interface DesktopPanelManagerProps {
   currentThread?: any;
@@ -69,6 +74,7 @@ type PanelType =
   | 'manageBilling'
   | 'myData'
   | 'getSupport'
+  | 'noteShare'
   | null;
 
 interface InboxItem {
@@ -123,6 +129,8 @@ type PanelAction =
   | { type: 'CLOSE_MY_DATA' }
   | { type: 'OPEN_GET_SUPPORT' }
   | { type: 'CLOSE_GET_SUPPORT' }
+  | { type: 'OPEN_NOTE_SHARE' }
+  | { type: 'CLOSE_NOTE_SHARE' }
   | { type: 'LOAD_FROM_STORAGE' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
@@ -278,7 +286,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     case 'CLOSE_GET_SUPPORT':
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
-    
+
+    case 'OPEN_NOTE_SHARE':
+      return { activePanel: 'noteShare', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_NOTE_SHARE':
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
@@ -359,6 +373,7 @@ export default function DesktopPanelManager({
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
+  const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
 
   // Load panel state from localStorage on mount
   useEffect(() => {
@@ -496,6 +511,21 @@ export default function DesktopPanelManager({
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
 
+    const handleOpenNoteSharePanel = (event: CustomEvent) => {
+      const { contentId } = event.detail || {};
+      if (contentId) {
+        // Fetch note title for display
+        setNoteShareData({ noteId: contentId, noteTitle: undefined });
+        dispatch({ type: 'OPEN_NOTE_SHARE' });
+        window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      }
+    };
+
+    const handleCloseNoteSharePanel = () => {
+      dispatch({ type: 'CLOSE_NOTE_SHARE' });
+      setNoteShareData(null);
+    };
+
     // Register all event listeners
     window.addEventListener('openNewNotePanel', handleOpenNewNote);
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
@@ -513,6 +543,8 @@ export default function DesktopPanelManager({
     window.addEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
     window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
+    window.addEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
+    window.addEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
 
     // Cleanup
     return () => {
@@ -532,6 +564,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
       window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
+      window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
+      window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
     };
   }, []);
 
@@ -608,6 +642,10 @@ export default function DesktopPanelManager({
   const handleCloseGetSupport = useCallback(() => {
     dispatch({ type: 'CLOSE_GET_SUPPORT' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseNoteShare = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
   }, []);
 
   // Expose panel state to hide/show SquareButtons in Layout.astro
@@ -718,11 +756,28 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <EditSpacePanel 
+              <EditSpacePanel
                 spaceId={currentSpace.id}
                 initialTitle={currentSpace.title}
                 initialColor={currentSpace.color}
                 onClose={handleCloseEditSpace}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* Note Share Panel - Desktop Only */}
+      {state.activePanel === 'noteShare' && noteShareData && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <NoteSharePanel
+                key={`note-share-${state.panelKey}`}
+                noteId={noteShareData.noteId}
+                noteTitle={currentNote?.title || noteShareData.noteTitle}
+                onClose={handleCloseNoteShare}
+                inBottomSheet={false}
               />
             </div>
           </Suspense>

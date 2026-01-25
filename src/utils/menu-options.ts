@@ -55,9 +55,10 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       options.push(
         { action: "openNoteDetailsThreads", label: "Threads" },
         { action: "openNoteDetailsTags", label: "Tags" },
+        { action: "shareNote", label: "Share" },
         { action: "eraseNote", label: "Erase Note" }
       );
-      
+
       return options;
     case "space":
       return [

@@ -1,0 +1,776 @@
+---
+import EmptyLayout from "@/layouts/EmptyLayout.astro";
+import CardFullEditable from "@/components/react/CardFullEditable";
+import Button from "@/components/Button.astro";
+import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
+import { isValidShareToken } from '@/utils/ids';
+import { ClientRouter } from "astro:transitions";
+import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
+
+// Extract path from SVG
+const circleQuestionPath = circleQuestionIconRaw.match(/<path d="([^"]+)"/)?.[1] || '';
+
+// Get shareToken from URL params
+const { shareToken } = Astro.params;
+
+// Check if user is authenticated
+const auth = Astro.locals.auth();
+const { userId } = auth;
+const isAuthenticated = !!userId;
+
+// Initialize data
+let note = null;
+let scriptureMetadata = null;
+let resourceMetadata = null;
+let creator = null;
+let error = null;
+
+// Validate share token format
+if (!shareToken || !isValidShareToken(shareToken)) {
+  error = 'invalid';
+} else {
+  // Fetch the note by share token (must be public)
+  note = await db
+    .select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      isPublic: Notes.isPublic,
+      shareToken: Notes.shareToken,
+      createdAt: Notes.createdAt,
+      userId: Notes.userId
+    })
+    .from(Notes)
+    .where(and(
+      eq(Notes.shareToken, shareToken),
+      eq(Notes.isPublic, true)
+    ))
+    .get();
+
+  if (!note) {
+    error = 'not_found';
+  } else {
+    // Fetch scripture metadata if it's a scripture note
+    if (note.noteType === 'scripture') {
+      scriptureMetadata = await db
+        .select({
+          reference: ScriptureMetadata.reference,
+          book: ScriptureMetadata.book,
+          chapter: ScriptureMetadata.chapter,
+          verse: ScriptureMetadata.verse,
+          verseEnd: ScriptureMetadata.verseEnd,
+          translation: ScriptureMetadata.translation,
+          originalText: ScriptureMetadata.originalText
+        })
+        .from(ScriptureMetadata)
+        .where(eq(ScriptureMetadata.noteId, note.id))
+        .get();
+    }
+
+    // Fetch resource metadata if it's a resource note
+    if (note.noteType === 'resource') {
+      resourceMetadata = await db
+        .select({
+          sourceUrl: ResourceMetadata.sourceUrl,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage
+        })
+        .from(ResourceMetadata)
+        .where(eq(ResourceMetadata.noteId, note.id))
+        .get();
+    }
+
+    // Fetch creator info from UserMetadata
+    const creatorData = await db
+      .select({
+        firstName: UserMetadata.firstName,
+        lastName: UserMetadata.lastName,
+        userColor: UserMetadata.userColor,
+        profileImageUrl: UserMetadata.profileImageUrl
+      })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, note.userId))
+      .get();
+
+    // Generate initials and display name
+    const firstName = creatorData?.firstName || '';
+    const lastName = creatorData?.lastName || '';
+    const firstInitial = firstName.charAt(0).toUpperCase();
+    const lastInitial = lastName.charAt(0).toUpperCase();
+    const displayName = firstName
+      ? (lastName ? `${firstName} ${lastInitial}.` : firstName)
+      : 'A Harvous User';
+
+    creator = {
+      firstName,
+      displayName,
+      userColor: creatorData?.userColor || 'paper'
+    };
+  }
+}
+
+// Format date for display
+const formatDate = (date: Date | null) => {
+  if (!date) return '';
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(new Date(date));
+};
+---
+
+<EmptyLayout title={note?.title ? `${note.title} | Shared Note` : 'Shared Note'}>
+  <div id="shared-note-content" class="auth-page">
+    <div class="auth-page__container">
+      <!-- Left Column: Animated Mesh Gradient Background -->
+      <div class="auth-page__video-section thread-colors-mesh-gradient">
+        <div class="auth-page__video-overlay">
+          <!-- Harvous logo (white) -->
+          <a href="https://harvous.com" class="auth-page__logo-container">
+            <svg
+              width="28"
+              height="40"
+              viewBox="0 0 45 64"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              class="auth-page__logo"
+              aria-label="Harvous"
+            >
+              <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Column: Note Content -->
+      <div class="auth-page__form-section shared-page__content-section">
+        <div class="shared-page__content shared-note__content">
+          {error === 'invalid' || error === 'not_found' ? (
+            <div class="shared-page__error">
+              <div class="shared-page__error-icon">
+                <svg width="48" height="48" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d={circleQuestionPath} />
+                </svg>
+              </div>
+              <h1 class="shared-page__error-title">This note isn't available</h1>
+              <p class="shared-page__error-message">
+                Hmm, we can't find this note. The link might have expired or the owner made it private.
+              </p>
+              <a href="https://harvous.com" class="shared-page__error-link">
+                Learn more about Harvous
+              </a>
+            </div>
+          ) : note && (
+            <>
+              <!-- Creator info (above card) -->
+              <div class="shared-page__creator shared-page__fade-in" style="animation-delay: 0ms;">
+                <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
+              </div>
+
+              <!-- Card container -->
+              <div class="shared-note__card-container shared-page__slide-up" style="animation-delay: 50ms;">
+                <CardFullEditable
+                  client:load
+                  title={note.title || 'Untitled Note'}
+                  content={note.content || ''}
+                  date={formatDate(note.createdAt)}
+                  noteId={note.id}
+                  noteType={note.noteType || 'default'}
+                  version={scriptureMetadata?.translation}
+                  resourceTitle={resourceMetadata?.sourceTitle || undefined}
+                  resourceDescription={resourceMetadata?.sourceDescription || undefined}
+                  resourceImage={resourceMetadata?.sourceImage || undefined}
+                  resourceUrl={resourceMetadata?.sourceUrl || undefined}
+                  isEditable={false}
+                />
+
+                <!-- CTA Button wrapper with toast -->
+                <div class="shared-note__cta-wrapper">
+                  <!-- Toast notification (absolutely positioned above button) -->
+                  <div id="shared-page-toast" class="shared-page__toast" aria-live="polite">
+                    <span id="shared-page-toast-message"></span>
+                  </div>
+
+                  <!-- CTA Button -->
+                  <Button
+                    type="button"
+                    id="add-to-harvous-btn"
+                    class="shared-page__cta-button"
+                    data-share-token={shareToken}
+                    data-authenticated={isAuthenticated ? 'true' : 'false'}
+                  >
+                    <span class="shared-page__cta-text">Add this to my Harvous</span>
+                  </Button>
+                </div>
+              </div>
+
+              <!-- Footer text (below card) -->
+              <div class="shared-page__footer shared-page__fade-in" style="animation-delay: 200ms;">
+                <p>Harvous is a notes app designed for Bible study.</p>
+                <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</EmptyLayout>
+
+<!-- Enable View Transitions for client-side navigation -->
+<ClientRouter />
+
+<!-- Client-side script for Add to Harvous functionality -->
+<script is:inline>
+  (function() {
+    const btn = document.getElementById('add-to-harvous-btn');
+    const toastEl = document.getElementById('shared-page-toast');
+    const toastMsgEl = document.getElementById('shared-page-toast-message');
+    if (!btn) return;
+
+    const shareToken = btn.dataset.shareToken;
+    const isAuthenticated = btn.dataset.authenticated === 'true';
+
+    // Toast helper function
+    function showToast(message, type = 'info', duration = 2000) {
+      if (!toastEl || !toastMsgEl) return;
+
+      // Set message and type
+      toastMsgEl.textContent = message;
+      toastEl.className = 'shared-page__toast shared-page__toast--' + type + ' shared-page__toast--visible';
+
+      // Auto-hide after duration
+      if (duration > 0) {
+        setTimeout(() => {
+          toastEl.classList.remove('shared-page__toast--visible');
+        }, duration);
+      }
+    }
+
+    btn.addEventListener('click', async function() {
+      if (!shareToken) return;
+
+      // Disable button while processing
+      btn.disabled = true;
+
+      if (isAuthenticated) {
+        // User is signed in - call API directly
+        try {
+          const response = await fetch('/api/shared/add-note-to-harvous', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shareToken })
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            // Success - show toast then redirect
+            showToast('Added to your Harvous!', 'success', 0);
+            setTimeout(() => {
+              window.location.href = '/' + data.createdIds.noteId;
+            }, 800);
+          } else {
+            // Error - show toast
+            showToast(data.error || 'Failed to add note', 'error');
+            btn.disabled = false;
+          }
+        } catch (error) {
+          console.error('Error adding note:', error);
+          showToast('An error occurred', 'error');
+          btn.disabled = false;
+        }
+      } else {
+        // User is not signed in - store intent and redirect to sign-in
+        try {
+          const pendingData = {
+            shareToken: shareToken,
+            timestamp: Date.now()
+          };
+          sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify(pendingData));
+          console.log('[Shared Note Page] Stored pending action:', pendingData);
+          console.log('[Shared Note Page] sessionStorage after set:', sessionStorage.getItem('pendingSharedNoteAdd'));
+        } catch (e) {
+          console.error('[Shared Note Page] Failed to store pending action:', e);
+        }
+
+        // Redirect to sign-in with return URL
+        const currentUrl = window.location.href;
+        const signInUrl = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
+        console.log('[Shared Note Page] Redirecting to sign-in:', signInUrl);
+        window.location.href = signInUrl;
+      }
+    });
+
+    // Check for pending action on page load (after sign-in redirect)
+    if (isAuthenticated) {
+      try {
+        const pendingStr = sessionStorage.getItem('pendingSharedNoteAdd');
+        if (pendingStr) {
+          const pending = JSON.parse(pendingStr);
+          // Only process if it's recent (within 10 minutes) and matches this note
+          if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
+            // Clear the pending action first
+            sessionStorage.removeItem('pendingSharedNoteAdd');
+            console.log('[Shared Note Page] Processing pending action for shareToken:', shareToken);
+            
+            // Directly call the API instead of triggering button click
+            // This ensures we can use the global toast system
+            fetch('/api/shared/add-note-to-harvous', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shareToken })
+            })
+            .then(response => response.json())
+            .then(data => {
+              if (data.success) {
+                // Redirect with toast query parameters - toast-handler.js will show it automatically
+                window.location.href = '/' + data.createdIds.noteId + '?toast=success&message=' + encodeURIComponent('Note was added to your Harvous');
+              } else {
+                console.error('[Shared Note Page] Failed to add note:', data.error);
+                // Show error toast on current page
+                if (window.toast) {
+                  window.toast.error(data.error || 'Failed to add note');
+                }
+              }
+            })
+            .catch(error => {
+              console.error('[Shared Note Page] Error adding note:', error);
+              if (window.toast) {
+                window.toast.error('An error occurred');
+              }
+            });
+          } else {
+            // Clear stale pending action
+            sessionStorage.removeItem('pendingSharedNoteAdd');
+          }
+        }
+      } catch (e) {
+        console.error('Error checking pending action:', e);
+        sessionStorage.removeItem('pendingSharedNoteAdd');
+      }
+    }
+  })();
+</script>
+
+<style is:global>
+  /* Mesh gradient using all thread colors with subtle movement (from sign-in page) */
+  .thread-colors-mesh-gradient {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-paper);
+  }
+
+  .thread-colors-mesh-gradient::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background:
+      radial-gradient(circle at 20% 30%, var(--color-blue) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, var(--color-purple) 0%, transparent 50%),
+      radial-gradient(circle at 40% 70%, var(--color-pink) 0%, transparent 50%),
+      radial-gradient(circle at 60% 80%, var(--color-orange) 0%, transparent 50%),
+      radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
+      radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
+    background-size: 100% 100%;
+    animation: mesh-movement 6s ease-in-out infinite;
+    opacity: 0.8;
+  }
+
+  .thread-colors-mesh-gradient::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+      radial-gradient(circle at 70% 40%, var(--color-pink) 0%, transparent 40%),
+      radial-gradient(circle at 30% 90%, var(--color-yellow) 0%, transparent 40%),
+      radial-gradient(circle at 50% 10%, var(--color-blue) 0%, transparent 40%),
+      radial-gradient(circle at 15% 50%, var(--color-green) 0%, transparent 40%),
+      radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
+      radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
+    background-size: 100% 100%;
+    animation: mesh-movement-reverse 7.5s ease-in-out infinite;
+    opacity: 0.6;
+  }
+
+  /* Mobile: Show top section of desktop gradient, filling entire area */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      transform: scaleY(2);
+      transform-origin: top center;
+    }
+  }
+
+  @keyframes mesh-movement {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+    }
+    16.66% {
+      transform: translate(4%, 3%) scale(1.06);
+    }
+    33.33% {
+      transform: translate(-3%, 4%) scale(1.08);
+    }
+    50% {
+      transform: translate(-4%, -2%) scale(1.07);
+    }
+    66.66% {
+      transform: translate(3%, -4%) scale(1.09);
+    }
+    83.33% {
+      transform: translate(3%, 2%) scale(1.05);
+    }
+  }
+
+  @keyframes mesh-movement-reverse {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+    }
+    16.66% {
+      transform: translate(-4%, -3%) scale(1.07);
+    }
+    33.33% {
+      transform: translate(4%, -4%) scale(1.09);
+    }
+    50% {
+      transform: translate(3%, 4%) scale(1.08);
+    }
+    66.66% {
+      transform: translate(-3%, 3%) scale(1.06);
+    }
+    83.33% {
+      transform: translate(-2%, -3%) scale(1.05);
+    }
+  }
+
+  /* Override video overlay padding for 24px spacing */
+  #shared-note-content .auth-page__video-overlay {
+    padding: 24px;
+  }
+
+  /* ==========================================================================
+     Page Load Animations
+     ========================================================================== */
+
+  /* Fade in animation for text elements */
+  @keyframes sharedPageFadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .shared-page__fade-in {
+    animation: sharedPageFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Slide up animation for card - subtle "placed from bottom" feel */
+  @keyframes sharedPageSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .shared-page__slide-up {
+    animation: sharedPageSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Desktop: lock page to viewport height */
+  @media (min-width: 1160px) {
+    #shared-note-content {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #shared-note-content .auth-page__container {
+      height: 100%;
+      max-height: 100vh;
+    }
+
+    #shared-note-content .auth-page__form-section {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #shared-note-content .shared-page__content-section {
+      padding-top: 12px !important;
+    }
+  }
+
+  /* Shared page content section */
+  .shared-page__content-section {
+    background-color: var(--color-light-paper) !important;
+    padding: 0 !important;
+  }
+
+  /* Remove top and bottom padding on mobile only */
+  @media (max-width: 1159px) {
+    #shared-note-content .auth-page__form-section.shared-page__content-section {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+    }
+  }
+
+  /* Note-specific content adjustments */
+  .shared-note__content {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  /* Desktop: constrain content to viewport height */
+  @media (min-width: 1160px) {
+    .shared-note__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+      padding-top: 0;
+    }
+  }
+
+  /* Creator info */
+  .shared-page__creator {
+    padding: 12px 0;
+    text-align: center;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .shared-page__creator p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* Card container for note */
+  .shared-note__card-container {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+  }
+
+  /* Desktop: allow card to shrink to fit available space */
+  @media (min-width: 1160px) {
+    .shared-note__card-container {
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
+
+  /* Make CardFullEditable fill container */
+  .shared-note__card-container .card-full-editable {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 60vh;
+  }
+
+  @media (min-width: 1160px) {
+    .shared-note__card-container .card-full-editable {
+      max-height: calc(100vh - 200px);
+    }
+  }
+
+  /* Scrollable content area - same constraint as shared thread page */
+  .shared-note__card-container .card-full-editable .overflow-auto {
+    max-height: 380px; /* Mobile: limit content area height */
+  }
+
+  /* Desktop: remove max-height constraint, let flex handle it */
+  @media (min-width: 1160px) {
+    .shared-note__card-container .card-full-editable .overflow-auto {
+      max-height: none;
+    }
+  }
+
+  /* CTA Button wrapper - relative positioning for toast */
+  .shared-note__cta-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    margin-top: 16px;
+    width: 100%;
+  }
+
+  /* Toast notification - absolutely positioned 12px above button */
+  .shared-page__toast {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 20px;
+    background: linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%);
+    border-radius: 12px;
+    box-shadow: 0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-deep-grey);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 10;
+  }
+
+  .shared-page__toast--visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .shared-page__toast--success {
+    color: var(--color-deep-grey);
+  }
+
+  .shared-page__toast--error {
+    color: var(--color-red);
+  }
+
+  /* CTA Button - pinned at bottom */
+  .shared-page__cta-button {
+    margin-top: 0;
+    flex-shrink: 0;
+    width: 100%;
+  }
+
+  /* Footer */
+  .shared-page__footer {
+    padding: 12px 0;
+    text-align: center;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .shared-page__footer p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    margin: 0 0 4px 0;
+    line-height: 1.5;
+  }
+
+  .shared-page__footer a {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    text-decoration: underline;
+    text-decoration-skip-ink: none;
+  }
+
+  .shared-page__footer a:hover {
+    color: var(--color-deep-grey);
+  }
+
+  /* Error state */
+  .shared-page__error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 24px;
+    flex: 1;
+  }
+
+  .shared-page__error-icon {
+    color: var(--color-pebble-grey);
+    margin-bottom: 24px;
+  }
+
+  .shared-page__error-title {
+    font-family: var(--font-roundo);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-deep-grey);
+    margin: 0 0 12px 0;
+  }
+
+  .shared-page__error-message {
+    font-size: 16px;
+    color: var(--color-stone-grey);
+    margin: 0 0 32px 0;
+    max-width: 400px;
+    line-height: 1.5;
+  }
+
+  .shared-page__error-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 32px;
+    background: var(--color-bold-blue);
+    color: white;
+    text-decoration: none;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: background-color 0.15s ease;
+    box-shadow: inset 0px -4px 0px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  .shared-page__error-link:hover {
+    background: var(--color-navy);
+  }
+
+  /* Disable scripture pill interactions on shared note page */
+  #shared-note-content .scripture-pill,
+  #shared-note-content .scripture-pill-clickable {
+    cursor: default !important;
+    pointer-events: none !important;
+  }
+
+  #shared-note-content .scripture-pill-clickable:hover {
+    opacity: 1 !important;
+  }
+
+  /* Ensure title font weight matches regular notes exactly */
+  #shared-note-content .card-full-editable .basis-0.font-bold p,
+  #shared-note-content .card-full-editable .basis-0.font-bold {
+    font-weight: 700 !important;
+  }
+</style>

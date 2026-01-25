@@ -366,8 +366,8 @@ export default function CardFullEditable({
 
 
   const startEditing = (focus: 'title' | 'content' = 'title') => {
-    // Prevent editing scripture notes - they are read-only
-    if (noteType === 'scripture') {
+    // Prevent editing if not editable (e.g., scripture notes or shared notes)
+    if (!effectiveIsEditable) {
       return;
     }
     
@@ -756,8 +756,8 @@ export default function CardFullEditable({
       return;
     }
     
-    // If not a note-link or scripture pill, enter edit mode (unless it's a scripture note)
-    if (noteType !== 'scripture') {
+    // If not a note-link or scripture pill, enter edit mode (if editable)
+    if (effectiveIsEditable) {
       startEditing('content');
     }
   };
@@ -900,7 +900,7 @@ export default function CardFullEditable({
                     marginLeft: '-8px',
                     marginRight: '-8px',
                   }}
-                  onClick={() => startEditing('title')}
+                  onClick={effectiveIsEditable ? () => startEditing('title') : undefined}
                 >
                   {effectiveTitle}
                 </p>
@@ -949,7 +949,7 @@ export default function CardFullEditable({
               <div 
                 ref={contentDisplayRef}
                 className="flex-1 overflow-auto rounded px-3"
-                style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: 'text' }}
+                style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
                 onClick={handleContentClick}
               >
                 {effectiveContent && effectiveContent.trim() ? (
@@ -1020,7 +1020,7 @@ export default function CardFullEditable({
     <>
       <div 
         className={`card-full-editable ${className}`}
-        style={{ maxHeight: '100%', gap: 0 }}
+        style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
       >
       {/* Header with title, version (scripture only), and bookmark icon */}
@@ -1029,7 +1029,7 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isTitleEditing ? (
             <p 
-              className={noteType === 'scripture' ? 'rounded' : 'cursor-pointer rounded'}
+              className="rounded"
               style={{
                 lineHeight: '1.2',
                 margin: '-4px -8px',
@@ -1043,9 +1043,10 @@ export default function CardFullEditable({
                 boxSizing: 'border-box',
                 minHeight: '28.8px',
                 height: 'auto',
-                verticalAlign: 'middle'
+                verticalAlign: 'middle',
+                cursor: effectiveIsEditable ? 'pointer' : 'default'
               }}
-              onClick={noteType === 'scripture' ? undefined : () => startEditing('title')}
+              onClick={effectiveIsEditable ? () => startEditing('title') : undefined}
             >
               {displayTitle}
             </p>
@@ -1118,7 +1119,7 @@ export default function CardFullEditable({
       {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
       
       {/* Content */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px', marginTop: '12px' }}>
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isContentEditing ? (
@@ -1128,7 +1129,7 @@ export default function CardFullEditable({
                   <div 
                     ref={contentDisplayRef}
                     className="flex-1 overflow-auto rounded"
-                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: noteType === 'scripture' ? 'default' : 'text' }}
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
                   />
@@ -1136,7 +1137,7 @@ export default function CardFullEditable({
                   <div 
                     ref={contentDisplayRef}
                     className="flex-1 overflow-auto rounded"
-                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: noteType === 'scripture' ? 'default' : 'text' }}
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >
                     <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
@@ -1170,6 +1171,57 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
+        
+        {/* NET Bible Attribution - visible at bottom for scripture notes */}
+        {noteType === 'scripture' && version === 'NET' && (
+          <div 
+            className="panel__attribution"
+            style={{
+              padding: '1rem',
+              borderTop: '1px solid oklch(0.96 0 0)',
+              marginTop: 'auto',
+              flexShrink: 0
+            }}
+          >
+            <p 
+              style={{
+                fontSize: '10px',
+                lineHeight: '1.4',
+                color: 'var(--color-pebble-grey)',
+                margin: 0,
+                textAlign: 'left'
+              }}
+            >
+              Per Gratis use quotations designated{' '}
+              <a 
+                href="https://netbible.org" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  color: 'var(--color-pebble-grey)',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'var(--color-pebble-grey)'
+                }}
+              >
+                NET
+              </a>{' '}
+              are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C.{' '}
+              <a 
+                href="http://netbible.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style={{
+                  color: 'var(--color-pebble-grey)',
+                  textDecoration: 'underline',
+                  textDecorationColor: 'var(--color-pebble-grey)'
+                }}
+              >
+                http://netbible.com
+              </a>{' '}
+              All rights reserved.
+            </p>
+          </div>
+        )}
       </div>
       </div>
     </>

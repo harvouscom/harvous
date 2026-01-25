@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro';
-import { db, Notes, eq, and } from 'astro:db';
-import { generateShareToken } from '@/utils/ids';
+import { db, Threads, eq, and } from 'astro:db';
+import { generateShareToken, isValidShareToken } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
 
-export const GET: APIRoute = async ({ params, request, locals }) => {
+export const GET: APIRoute = async ({ params, locals }) => {
   try {
     const { userId } = locals.auth();
 
@@ -14,53 +14,47 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    const noteId = params.noteId;
-    if (!noteId) {
-      return new Response(JSON.stringify({ error: 'Note ID is required' }), {
+    const threadId = params.threadId;
+    if (!threadId) {
+      return new Response(JSON.stringify({ error: 'Thread ID is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Fetch note and verify ownership
-    const note = await db
+    // Fetch thread and verify ownership
+    const thread = await db
       .select({
-        id: Notes.id,
-        isPublic: Notes.isPublic,
-        shareToken: Notes.shareToken,
-        shareTokenCreatedAt: Notes.shareTokenCreatedAt,
-        userId: Notes.userId,
-        noteType: Notes.noteType
+        id: Threads.id,
+        isPublic: Threads.isPublic,
+        shareToken: Threads.shareToken,
+        shareTokenCreatedAt: Threads.shareTokenCreatedAt,
+        userId: Threads.userId
       })
-      .from(Notes)
-      .where(eq(Notes.id, noteId))
+      .from(Threads)
+      .where(eq(Threads.id, threadId))
       .get();
 
-    if (!note) {
-      return new Response(JSON.stringify({ error: 'Note not found' }), {
+    if (!thread) {
+      return new Response(JSON.stringify({ error: 'Thread not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    if (note.userId !== userId) {
-      return new Response(JSON.stringify({ error: 'You do not have permission to access this note' }), {
+    if (thread.userId !== userId) {
+      return new Response(JSON.stringify({ error: 'You do not have permission to access this thread' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    // Build the share URL
-    const origin = new URL(request.url).origin;
-    const shareUrl = note.shareToken ? `${origin}/shared/note/${note.shareToken}` : null;
-
     // Return current share status
     return new Response(JSON.stringify({
-      isPublic: note.isPublic,
-      shareToken: note.shareToken,
-      shareUrl,
-      shareTokenCreatedAt: note.shareTokenCreatedAt,
-      noteType: note.noteType || 'default'
+      isPublic: thread.isPublic,
+      shareToken: thread.shareToken,
+      shareUrl: thread.shareToken ? `${new URL(params.url || 'https://app.harvous.com').origin}/shared/thread/${thread.shareToken}` : null,
+      shareTokenCreatedAt: thread.shareTokenCreatedAt
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -68,9 +62,9 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/notes/[noteId]/share',
+      endpoint: '/api/threads/[threadId]/share',
       action: 'get_share_status',
-      noteId: params.noteId
+      threadId: params.threadId
     });
     return new Response(JSON.stringify({
       error: standardError.message,
@@ -93,9 +87,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    const noteId = params.noteId;
-    if (!noteId) {
-      return new Response(JSON.stringify({ error: 'Note ID is required' }), {
+    const threadId = params.threadId;
+    if (!threadId) {
+      return new Response(JSON.stringify({ error: 'Thread ID is required' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -111,27 +105,27 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // Fetch note and verify ownership
-    const note = await db
+    // Fetch thread and verify ownership
+    const thread = await db
       .select({
-        id: Notes.id,
-        isPublic: Notes.isPublic,
-        shareToken: Notes.shareToken,
-        userId: Notes.userId
+        id: Threads.id,
+        isPublic: Threads.isPublic,
+        shareToken: Threads.shareToken,
+        userId: Threads.userId
       })
-      .from(Notes)
-      .where(eq(Notes.id, noteId))
+      .from(Threads)
+      .where(eq(Threads.id, threadId))
       .get();
 
-    if (!note) {
-      return new Response(JSON.stringify({ error: 'Note not found' }), {
+    if (!thread) {
+      return new Response(JSON.stringify({ error: 'Thread not found' }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
     }
 
-    if (note.userId !== userId) {
-      return new Response(JSON.stringify({ error: 'You do not have permission to modify this note' }), {
+    if (thread.userId !== userId) {
+      return new Response(JSON.stringify({ error: 'You do not have permission to modify this thread' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -139,7 +133,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     const now = new Date();
     let newShareToken: string | null = null;
-    let isPublic = note.isPublic;
+    let isPublic = thread.isPublic;
 
     if (action === 'enable') {
       // Generate a new share token and enable sharing
@@ -147,14 +141,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       isPublic = true;
 
       await db
-        .update(Notes)
+        .update(Threads)
         .set({
           isPublic: true,
           shareToken: newShareToken,
           shareTokenCreatedAt: now,
           updatedAt: now
         })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 
     } else if (action === 'disable') {
       // Clear share token and disable sharing
@@ -162,19 +156,19 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       isPublic = false;
 
       await db
-        .update(Notes)
+        .update(Threads)
         .set({
           isPublic: false,
           shareToken: null,
           shareTokenCreatedAt: null,
           updatedAt: now
         })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
 
     } else if (action === 'refresh') {
       // Generate a new share token (invalidates old links)
-      if (!note.isPublic) {
-        return new Response(JSON.stringify({ error: 'Cannot refresh share link for a private note' }), {
+      if (!thread.isPublic) {
+        return new Response(JSON.stringify({ error: 'Cannot refresh share link for a private thread' }), {
           status: 400,
           headers: { 'Content-Type': 'application/json' }
         });
@@ -184,18 +178,18 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       isPublic = true;
 
       await db
-        .update(Notes)
+        .update(Threads)
         .set({
           shareToken: newShareToken,
           shareTokenCreatedAt: now,
           updatedAt: now
         })
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
     }
 
     // Build the share URL
     const origin = new URL(request.url).origin;
-    const shareUrl = newShareToken ? `${origin}/shared/note/${newShareToken}` : null;
+    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
 
     return new Response(JSON.stringify({
       success: true,
@@ -210,9 +204,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
-      endpoint: '/api/notes/[noteId]/share',
+      endpoint: '/api/threads/[threadId]/share',
       action: 'update_share_status',
-      noteId: params.noteId
+      threadId: params.threadId
     });
     return new Response(JSON.stringify({
       error: standardError.message,
