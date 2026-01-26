@@ -74,31 +74,35 @@ const textColor = getThreadTextColorCSS(colorName);
   </div>
 </div>
 
-{threadId && (
-  <script is:inline>
-    (function() {
-      // Only attach listener once globally
-      if (window.__cardStackHeaderListenerAttached) {
-        return;
-      }
-      window.__cardStackHeaderListenerAttached = true;
+<script is:inline>
+  (function() {
+    // Only attach listener once globally
+    if (window.__cardStackHeaderListenerAttached) {
+      return;
+    }
+    window.__cardStackHeaderListenerAttached = true;
+    
+    // Use event delegation to handle clicks on card-stack__header with data-thread-id or data-space-id
+    // This works with View Transitions since we're listening on document
+    function handleCardStackHeaderClick(event) {
+      const header = event.target.closest('.card-stack__header[data-thread-id], .card-stack__header[data-space-id]');
+      if (!header) return;
       
-      // Use event delegation to handle clicks on card-stack__header with data-thread-id
-      // This works with View Transitions since we're listening on document
-      function handleCardStackHeaderClick(event) {
-        const header = event.target.closest('.card-stack__header[data-thread-id]');
-        if (!header) return;
-        
-        const threadId = header.getAttribute('data-thread-id');
-        if (!threadId) return;
-        
+      const threadId = header.getAttribute('data-thread-id');
+      const spaceId = header.getAttribute('data-space-id');
+      
+      if (threadId) {
         // Dispatch event to open EditThreadPanel
         // DesktopPanelManager will handle this event
         window.dispatchEvent(new CustomEvent('openEditThreadPanel'));
+      } else if (spaceId) {
+        // Dispatch event to open EditSpacePanel
+        // DesktopPanelManager will handle this event
+        window.dispatchEvent(new CustomEvent('openEditSpacePanel'));
       }
-      
-      // Attach listener to document for event delegation
-      document.addEventListener('click', handleCardStackHeaderClick);
-    })();
-  </script>
-)}
+    }
+    
+    // Attach listener to document for event delegation
+    document.addEventListener('click', handleCardStackHeaderClick);
+  })();
+</script>

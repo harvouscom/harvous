@@ -81,6 +81,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
   const { navigationHistory, refreshNavigation, removeFromNavigationHistory } = useNavigation();
+  // Track hydration state to prevent SSR/client mismatch in dropdown
+  const [isHydrated, setIsHydrated] = useState(false);
   
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
@@ -234,9 +236,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Force re-render when navigation history updates (critical for View Transitions)
   const [, forceUpdate] = useState(0);
   
+  // Mark as hydrated after mount to prevent SSR/client mismatch
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+  
   // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
   // Use raw navigation history from storage since NavigationContext filters out spaces
+  // IMPORTANT: Only filter by navigation history after hydration to prevent SSR/client mismatch
   const filteredSpaces = useMemo(() => {
+    // During SSR and initial render, return empty array to match server
+    // After hydration, filter by navigation history
+    if (!isHydrated) {
+      return [];
+    }
+    
     const rawHistory = getRawNavigationHistory();
     // Get space IDs from raw navigation history (includes spaces that NavigationContext filters out)
     const navigationSpaceIds = new Set(
@@ -247,19 +261,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     
     // Only show spaces that are in navigation history
     return spaces.filter(space => navigationSpaceIds.has(space.id));
-  }, [spaces, forceUpdate]);
+  }, [spaces, forceUpdate, isHydrated]);
 
   // Calculate spaces to show in dropdown - include current space even if not in history yet
+  // IMPORTANT: During SSR and initial render, only include currentSpace to prevent hydration mismatch
   const spacesForDropdown = useMemo(() => {
-    // Start with filtered spaces (from navigation history)
     const spacesById = new Map<string, Space>();
     
-    // Add all filtered spaces
-    for (const space of filteredSpaces) {
-      spacesById.set(space.id, space);
+    // After hydration, include filtered spaces (from navigation history)
+    if (isHydrated) {
+      // Add all filtered spaces
+      for (const space of filteredSpaces) {
+        spacesById.set(space.id, space);
+      }
     }
     
-    // Ensure current space is included if we're viewing it (from selectedSpace fallback)
+    // Always ensure current space is included if we're viewing it (from selectedSpace fallback)
     // This handles timing issues where trackNavigationAccess() hasn't run yet
     if (selectedSpace && selectedSpace.id && selectedSpace.id.startsWith('space_')) {
       if (!spacesById.has(selectedSpace.id)) {
@@ -268,6 +285,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     }
     
     // Also ensure current space from props is included (if we're on a space page)
+    // This ensures SSR and client render the same initial state
     if (currentSpace && currentSpace.id && currentSpace.id.startsWith('space_')) {
       if (!spacesById.has(currentSpace.id)) {
         // Build a full Space object from the CurrentSpace
@@ -280,7 +298,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, selectedSpace, currentSpace, spaces]);
+  }, [filteredSpaces, selectedSpace, currentSpace, spaces, isHydrated]);
 
   // Calculate available spaces that aren't in the dropdown
   const availableSpaces = useMemo(() => {
@@ -325,6 +343,34 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
     window.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
     return () => window.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
+  }, []);
+
+  // Update dropdown immediately when a space is updated
+  useEffect(() => {
+    const handleSpaceUpdated = (event: CustomEvent) => {
+      const { spaceId, title, backgroundGradient } = event.detail || {};
+      if (!spaceId || !title) return;
+      
+      setLocalSpaces(prev => {
+        const byId = new Map<string, Space>();
+        for (const s of prev) byId.set(s.id, s);
+        
+        // Update existing space if found
+        const existingSpace = byId.get(spaceId);
+        if (existingSpace) {
+          byId.set(spaceId, {
+            ...existingSpace,
+            title: title,
+            backgroundGradient: backgroundGradient || existingSpace.backgroundGradient || 'var(--color-paper)',
+          });
+        }
+        
+        return Array.from(byId.values());
+      });
+    };
+    
+    window.addEventListener('spaceUpdated', handleSpaceUpdated as EventListener);
+    return () => window.removeEventListener('spaceUpdated', handleSpaceUpdated as EventListener);
   }, []);
 
   useEffect(() => {

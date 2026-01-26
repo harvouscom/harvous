@@ -548,6 +548,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {contentType === 'thread' && currentThread && (
                 <EditThreadPanel 
+                  key={`mobile-edit-thread-${panelKey}`}
                   threadId={currentThread.id}
                   initialTitle={currentThread.title}
                   initialColor={currentThread.color}
@@ -565,6 +566,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {contentType === 'space' && currentSpace && (
                 <EditSpacePanel 
+                  key={`mobile-edit-space-${panelKey}`}
                   spaceId={currentSpace.id}
                   initialTitle={currentSpace.title}
                   initialColor={currentSpace.color}

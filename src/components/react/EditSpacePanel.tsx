@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import ActionButton from './ActionButton';
-import { safeNavigate } from '@/utils/safe-navigate';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
-import { safeURL } from '@/utils/safe-url';
+import { updateSpaceOffline } from '@/utils/offline-mutations';
+import { usePersistedUserId } from '@/utils/user-id';
+import { isNetworkError } from '@/utils/network';
 
 interface Note {
   id: string;
@@ -43,12 +44,23 @@ export default function EditSpacePanel({
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
+  const userId = usePersistedUserId();
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
     selectedType: 'Private'
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Track initial values for unsaved changes detection
+  const [initialValues, setInitialValues] = useState({
+    title: initialTitle,
+    color: initialColor
+  });
+  
+  // Auto-save state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
@@ -58,6 +70,24 @@ export default function EditSpacePanel({
   const [isLoadingCurrentItems, setIsLoadingCurrentItems] = useState(true);
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
+  
+  // Refs to track current values for save functions (avoid stale closures)
+  const formDataRef = useRef(formData);
+  
+  // Refs to track pending saves and debounce timers
+  const pendingTitleSaveRef = useRef<string | null>(null);
+  const pendingColorSaveRef = useRef<ThreadColor | null>(null);
+  const titleDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const activeSaveOperationsRef = useRef<Set<string>>(new Set());
+  // Track if we've fetched space data to prevent props from overwriting it
+  const hasFetchedSpaceDataRef = useRef(false);
+  // Track last fetched spaceId to avoid refetching unnecessarily
+  const lastFetchedSpaceIdRef = useRef<string | null>(null);
+  
+  // Update refs when values change
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
 
   // Fetch all notes and threads (for AddToSpaceSection)
@@ -123,85 +153,564 @@ export default function EditSpacePanel({
       fetchCurrentSpaceItems();
     }
   }, [spaceId]);
-
-  // Validate form data
-  const validateForm = () => {
-    const errors: Record<string, string> = {};
-    
-    if (!formData.title.trim()) {
-      errors.title = 'Space title is required';
-    }
-    
-    if (formData.title.trim().length < 1) {
-      errors.title = 'Space title must be at least 1 character';
-    }
-    
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Handle form submission (update space properties)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
+  
+  // Update initial values when props change
+  useEffect(() => {
+    setInitialValues({
+      title: initialTitle,
+      color: initialColor
+    });
+  }, [initialTitle, initialColor]);
+  
+  // Sync formData with props when they change, but only if we haven't fetched data yet
+  useEffect(() => {
+    // Skip if we've already fetched fresh data (prevents overwriting with stale props)
+    if (hasFetchedSpaceDataRef.current) {
       return;
     }
-
-    setIsSubmitting(true);
-
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('title', formData.title.trim());
-      formDataToSend.append('color', formData.selectedColor);
-
-      const response = await fetch(`/api/spaces/${spaceId}/update`, {
-        method: 'POST',
-        body: formDataToSend,
-        credentials: 'include'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Close panel after a short delay
-        setTimeout(() => {
-          if (onClose) {
-            onClose();
-          } else {
-            window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
-          }
-        }, 500);
-
-        // Navigate to show updated space using View Transitions
-        const currentUrl = safeURL(window.location.href);
-        if (currentUrl) {
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
-        }
-      } else {
-        console.error('EditSpacePanel: Space update failed:', data);
-        
-        // Show error toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: data.error || 'Failed to update space. Please try again.',
-            type: 'error'
-          }
-        }));
+    
+    setFormData(prev => {
+      // Only update if props actually changed to avoid unnecessary re-renders
+      if (prev.title !== initialTitle || prev.selectedColor !== initialColor) {
+        return {
+          ...prev,
+          title: initialTitle,
+          selectedColor: initialColor
+        };
       }
+      return prev;
+    });
+  }, [initialTitle, initialColor]);
+  
+  // Fetch latest space data on mount to ensure we have saved values (even if props are stale)
+  // Only fetch once per spaceId change, not on every formData change
+  useEffect(() => {
+    if (!spaceId || !spaceId.startsWith('space_')) {
+      return; // Skip for invalid space IDs
+    }
+    
+    // Only fetch if spaceId changed (new space) or we haven't fetched yet
+    if (lastFetchedSpaceIdRef.current === spaceId) {
+      // Already fetched for this spaceId, don't refetch
+      return;
+    }
+    
+    // Reset fetch flag when spaceId changes
+    hasFetchedSpaceDataRef.current = false;
+    lastFetchedSpaceIdRef.current = spaceId;
+    
+    const fetchSpaceData = async () => {
+      try {
+        // Add cache-busting query param to ensure fresh data
+        const cacheBuster = `?t=${Date.now()}`;
+        const response = await fetch(`/api/spaces/${spaceId}/prefetch${cacheBuster}`, {
+          credentials: 'include',
+          cache: 'no-store' // Bypass browser cache
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const space = data.space;
+          
+          if (space) {
+            // Always update formData with fetched data (don't check initial props)
+            // The API is the source of truth, not the stale props
+            setFormData(prev => ({
+              ...prev,
+              title: space.title || '',
+              selectedColor: space.color || 'paper'
+            }));
+            
+            // Always update initialValues to match fetched data
+            setInitialValues(prev => ({
+              ...prev,
+              title: space.title || '',
+              color: space.color || 'paper'
+            }));
+            
+            // Mark that we've fetched data
+            hasFetchedSpaceDataRef.current = true;
+          }
+        }
+      } catch (error) {
+        console.error('[EditSpacePanel] Error fetching space data:', error);
+        // Silently fail - props will be used as fallback
+      }
+    };
+    
+    fetchSpaceData();
+  }, [spaceId, initialTitle, initialColor]);
 
+  // Validate title
+  const validateTitle = (title: string): boolean => {
+    return title.trim().length >= 1;
+  };
+  
+  // Update navigation DOM elements for live updates
+  // Uses requestAnimationFrame on mobile to ensure updates are visible after animations
+  const updateNavigationDOM = (title?: string, color?: ThreadColor) => {
+    if (typeof document === 'undefined') return;
+    
+    const performUpdate = () => {
+      const gradient = color !== undefined ? getThreadGradientCSS(color) : undefined;
+      
+      // Update navigation wrapper element (desktop)
+      const navElement = document.querySelector(`[data-navigation-active="true"][data-space-id="${spaceId}"]`) || 
+                         document.querySelector(`[data-space-id="${spaceId}"]`) ||
+                         document.querySelector(`[slot="navigation"][data-space-id="${spaceId}"]`);
+      if (navElement) {
+        if (title !== undefined) {
+          navElement.setAttribute('data-space-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          navElement.setAttribute('data-space-background-gradient', gradient);
+        }
+      }
+      
+      // Update main content div (used by page meta - works on both desktop and mobile)
+      const mainDiv = document.querySelector(`[data-navigation-item="${spaceId}"]`);
+      if (mainDiv) {
+        if (title !== undefined) {
+          mainDiv.setAttribute('data-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          mainDiv.setAttribute('data-background-gradient', gradient);
+        }
+        // Also set space-specific attributes for mobile navigation to read
+        if (title !== undefined) {
+          mainDiv.setAttribute('data-space-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          mainDiv.setAttribute('data-space-background-gradient', gradient);
+        }
+      }
+      
+      // Update CardStack header (the visible header on the space page - works on both desktop and mobile)
+      const cardStackHeader = document.querySelector(`.card-stack__header[data-space-id="${spaceId}"]`);
+      if (cardStackHeader) {
+        if (title !== undefined) {
+          // Update the text content in the page-heading element
+          const pageHeading = cardStackHeader.querySelector('.page-heading p');
+          if (pageHeading) {
+            pageHeading.textContent = title.trim();
+          }
+          // Also update data attribute for mobile navigation
+          cardStackHeader.setAttribute('data-space-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          // Update background color - use !important to ensure it persists on mobile
+          const bgColor = getThreadColorCSS(color);
+          (cardStackHeader as HTMLElement).style.setProperty('background-color', bgColor, 'important');
+          // Update text color based on space color
+          const textColor = getThreadTextColorCSS(color);
+          (cardStackHeader as HTMLElement).style.setProperty('color', textColor, 'important');
+          // Also update data attribute for mobile navigation
+          cardStackHeader.setAttribute('data-space-background-gradient', gradient);
+        }
+      }
+      
+      // Update mobile navigation elements (if they exist)
+      const allSpaceElements = document.querySelectorAll(`[data-space-id="${spaceId}"]`);
+      allSpaceElements.forEach((el) => {
+        if (title !== undefined) {
+          el.setAttribute('data-space-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          el.setAttribute('data-space-background-gradient', gradient);
+        }
+      });
+    };
+    
+    // On mobile (or when inBottomSheet), use requestAnimationFrame to ensure updates are visible
+    // after any bottom sheet animations complete
+    if (inBottomSheet || (typeof window !== 'undefined' && window.innerWidth < 1160)) {
+      // Double RAF to ensure it happens after any animations
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          performUpdate();
+        });
+      });
+    } else {
+      // On desktop, update immediately
+      performUpdate();
+    }
+  };
+  
+  // Auto-save title changes (debounced) - using useCallback with refs to avoid stale closures
+  const saveTitleChange = useCallback(async (title: string) => {
+    if (!validateTitle(title)) {
+      return;
+    }
+    
+    if (title.trim() === initialValues.title) {
+      // Clear pending save if it matches initial value
+      pendingTitleSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
+      }
+      return; // No change
+    }
+    
+    // Track this save operation
+    const saveId = `title_${Date.now()}`;
+    activeSaveOperationsRef.current.add(saveId);
+    setIsSaving(true);
+    setSaveError(null);
+    
+    // Clear pending save from sessionStorage since we're saving now
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
+    }
+    pendingTitleSaveRef.current = null;
+    
+    try {
+      // Use refs to get current values (avoid stale closures)
+      const currentColor = formDataRef.current.selectedColor;
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', title.trim());
+      formDataToSend.append('color', currentColor);
+      
+      // OFFLINE-FIRST: Update space in local IndexedDB immediately
+      let offlineUpdateSuccess = false;
+      if (userId) {
+        try {
+          await updateSpaceOffline(userId, spaceId, {
+            title: title.trim(),
+            color: currentColor,
+          });
+          offlineUpdateSuccess = true;
+        } catch (err) {
+          console.error('[EditSpacePanel] Failed to update space offline:', err);
+        }
+      }
+      
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch(`/api/spaces/${spaceId}/update`, {
+          method: 'POST',
+          body: formDataToSend,
+          credentials: 'include'
+        });
+      } catch (error) {
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+          lastFetchedSpaceIdRef.current = spaceId;
+          updateNavigationDOM(title.trim());
+          const eventDetail = { 
+            spaceId,
+            title: title.trim(),
+            color: currentColor,
+            backgroundGradient: getThreadGradientCSS(currentColor)
+          };
+          window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+          console.log('[EditSpacePanel] Dispatched spaceUpdated (offline success)', eventDetail);
+          activeSaveOperationsRef.current.delete(saveId);
+          setIsSaving(false);
+          return;
+        } else {
+          throw error;
+        }
+      }
+      
+      const data = await response.json();
+      
+      if (response && response.ok) {
+        setInitialValues(prev => ({ ...prev, title: title.trim() }));
+        // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+        lastFetchedSpaceIdRef.current = spaceId;
+        updateNavigationDOM(title.trim());
+        const eventDetail = { 
+          spaceId,
+          title: title.trim(),
+          color: currentColor,
+          backgroundGradient: getThreadGradientCSS(currentColor)
+        };
+        window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+        console.log('[EditSpacePanel] Dispatched spaceUpdated (title save success)', eventDetail);
+      } else {
+        if (offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+          lastFetchedSpaceIdRef.current = spaceId;
+          updateNavigationDOM(title.trim());
+          const eventDetail = { 
+            spaceId,
+            title: title.trim(),
+            color: currentColor,
+            backgroundGradient: getThreadGradientCSS(currentColor)
+          };
+          window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+          console.log('[EditSpacePanel] Dispatched spaceUpdated (offline fallback)', eventDetail);
+        } else {
+          throw new Error(data.error || 'Failed to update space');
+        }
+      }
     } catch (error) {
-      console.error('EditSpacePanel: Error updating space:', error);
+      console.error('Error auto-saving title:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save title');
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
-          message: 'Error updating space. Please try again.',
+          message: 'Failed to save title. Please try again.',
           type: 'error'
         }
       }));
     } finally {
-      setIsSubmitting(false);
+      activeSaveOperationsRef.current.delete(saveId);
+      setIsSaving(false);
     }
-  };
+  }, [spaceId, userId, initialValues.title]);
+  
+  // Auto-save color changes (immediate) - using useCallback with refs to avoid stale closures
+  const saveColorChange = useCallback(async (color: ThreadColor) => {
+    if (color === initialValues.color) {
+      // Clear pending save if it matches initial value
+      pendingColorSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingSpaceColor_${spaceId}`);
+      }
+      return; // No change
+    }
+    
+    // Track this save operation
+    const saveId = `color_${Date.now()}`;
+    activeSaveOperationsRef.current.add(saveId);
+    setIsSaving(true);
+    setSaveError(null);
+    
+    // Clear pending save from sessionStorage since we're saving now
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(`pendingSpaceColor_${spaceId}`);
+    }
+    pendingColorSaveRef.current = null;
+    
+    try {
+      // Use refs to get current values (avoid stale closures)
+      const currentTitle = formDataRef.current.title;
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', currentTitle.trim());
+      formDataToSend.append('color', color);
+      
+      // OFFLINE-FIRST: Update space in local IndexedDB immediately
+      let offlineUpdateSuccess = false;
+      if (userId) {
+        try {
+          await updateSpaceOffline(userId, spaceId, {
+            title: currentTitle.trim(),
+            color: color,
+          });
+          offlineUpdateSuccess = true;
+        } catch (err) {
+          console.error('[EditSpacePanel] Failed to update space offline:', err);
+        }
+      }
+      
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch(`/api/spaces/${spaceId}/update`, {
+          method: 'POST',
+          body: formDataToSend,
+          credentials: 'include'
+        });
+      } catch (error) {
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, color: color }));
+          // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+          lastFetchedSpaceIdRef.current = spaceId;
+          updateNavigationDOM(undefined, color);
+          const eventDetail = { 
+            spaceId,
+            title: currentTitle.trim(),
+            color: color,
+            backgroundGradient: getThreadGradientCSS(color)
+          };
+          window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+          console.log('[EditSpacePanel] Dispatched spaceUpdated (color offline success)', eventDetail);
+          activeSaveOperationsRef.current.delete(saveId);
+          setIsSaving(false);
+          return;
+        } else {
+          throw error;
+        }
+      }
+      
+      const data = await response.json();
+      
+      if (response && response.ok) {
+        setInitialValues(prev => ({ ...prev, color: color }));
+        // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+        lastFetchedSpaceIdRef.current = spaceId;
+        updateNavigationDOM(undefined, color);
+        const eventDetail = { 
+          spaceId,
+          title: currentTitle.trim(),
+          color: color,
+          backgroundGradient: getThreadGradientCSS(color)
+        };
+        window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+        console.log('[EditSpacePanel] Dispatched spaceUpdated (color save success)', eventDetail);
+      } else {
+        if (offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, color: color }));
+          // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
+          lastFetchedSpaceIdRef.current = spaceId;
+          updateNavigationDOM(undefined, color);
+          const eventDetail = { 
+            spaceId,
+            title: currentTitle.trim(),
+            color: color,
+            backgroundGradient: getThreadGradientCSS(color)
+          };
+          window.dispatchEvent(new CustomEvent('spaceUpdated', { detail: eventDetail }));
+          console.log('[EditSpacePanel] Dispatched spaceUpdated (color offline fallback)', eventDetail);
+        } else {
+          throw new Error(data.error || 'Failed to update space');
+        }
+      }
+    } catch (error) {
+      console.error('Error auto-saving color:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save color');
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to save color. Please try again.',
+          type: 'error'
+        }
+      }));
+    } finally {
+      activeSaveOperationsRef.current.delete(saveId);
+      setIsSaving(false);
+    }
+  }, [spaceId, userId, initialValues.color]);
+  
+  // Check for pending saves from sessionStorage on mount (for mobile remounts)
+  // Must be after saveTitleChange and saveColorChange are defined
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const pendingTitle = sessionStorage.getItem(`pendingSpaceTitle_${spaceId}`);
+    const pendingColor = sessionStorage.getItem(`pendingSpaceColor_${spaceId}`);
+    
+    if (pendingTitle && pendingTitle !== initialTitle) {
+      // Restore pending title save
+      pendingTitleSaveRef.current = pendingTitle;
+      // Clear from sessionStorage
+      sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
+      // Trigger save after a small delay to ensure component is fully mounted
+      setTimeout(() => {
+        saveTitleChange(pendingTitle).catch(err => {
+          console.error('[EditSpacePanel] Error restoring pending title save:', err);
+        });
+      }, 100);
+    }
+    
+    if (pendingColor && pendingColor !== initialColor) {
+      // Restore pending color save
+      pendingColorSaveRef.current = pendingColor as ThreadColor;
+      // Clear from sessionStorage
+      sessionStorage.removeItem(`pendingSpaceColor_${spaceId}`);
+      // Trigger save after a small delay to ensure component is fully mounted
+      setTimeout(() => {
+        saveColorChange(pendingColor as ThreadColor).catch(err => {
+          console.error('[EditSpacePanel] Error restoring pending color save:', err);
+        });
+      }, 100);
+    }
+  }, [saveTitleChange, saveColorChange, spaceId, initialTitle, initialColor]); // Run when save functions are available
+  
+  // Cleanup effect: ensure all pending saves complete before unmount
+  useEffect(() => {
+    return () => {
+      // Complete any pending debounced saves
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+        
+        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
+          // Complete the save synchronously if possible, but don't block
+          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
+            console.error('[EditSpacePanel] Error completing pending title save on unmount:', err);
+          });
+        }
+      }
+      
+      // Wait for active save operations to complete (with timeout)
+      if (activeSaveOperationsRef.current.size > 0) {
+        const maxWait = 2000; // Max 2 seconds
+        const startTime = Date.now();
+        const checkInterval = setInterval(() => {
+          if (activeSaveOperationsRef.current.size === 0 || Date.now() - startTime > maxWait) {
+            clearInterval(checkInterval);
+          }
+        }, 100);
+      }
+    };
+  }, [saveTitleChange, initialValues.title]);
+  
+  // Debounced auto-save for title changes
+  useEffect(() => {
+    if (formData.title === initialValues.title) {
+      // Clear any pending save
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+      }
+      pendingTitleSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
+      }
+      return; // No change
+    }
+    
+    // Store pending save in sessionStorage (for mobile remounts)
+    pendingTitleSaveRef.current = formData.title;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`pendingSpaceTitle_${spaceId}`, formData.title);
+    }
+    
+    // Clear existing timer
+    if (titleDebounceTimerRef.current) {
+      clearTimeout(titleDebounceTimerRef.current);
+    }
+    
+    const timeoutId = setTimeout(() => {
+      saveTitleChange(formData.title);
+      titleDebounceTimerRef.current = null;
+    }, 1500); // 1.5 second debounce
+    
+    titleDebounceTimerRef.current = timeoutId;
+    
+    return () => {
+      // On unmount, if there's a pending save, complete it immediately
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+        
+        // Complete the pending save before unmounting
+        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
+          // Use a small delay to ensure the save function can access current state
+          // But don't block unmount - the save will complete asynchronously
+          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
+            console.error('[EditSpacePanel] Error completing pending title save on unmount:', err);
+          });
+        }
+      }
+    };
+  }, [formData.title, initialValues.title, saveTitleChange, spaceId]);
+
 
   // Remove items from space
   const handleRemoveFromSpace = async (itemId: string, itemType: 'note' | 'thread') => {
@@ -279,12 +788,13 @@ export default function EditSpacePanel({
     }
   };
 
-  // Handle color selection
-  const handleColorSelect = (color: ThreadColor) => {
+  // Handle color selection (auto-save immediately)
+  const handleColorSelect = async (color: ThreadColor) => {
     setFormData(prev => ({ ...prev, selectedColor: color }));
+    await saveColorChange(color);
   };
 
-  // Handle close
+  // Handle close (no navigation needed - auto-save handles updates)
   const handleClose = () => {
     if (onClose) {
       onClose();
@@ -529,7 +1039,7 @@ export default function EditSpacePanel({
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <form onSubmit={handleSubmit} className="form-layout">
+      <div className="form-layout">
         {/* Content area that expands to fill available space */}
         <div className="form-layout--expand">
           {/* Panel container */}
@@ -734,22 +1244,8 @@ export default function EditSpacePanel({
             onClick={handleClose}
             inBottomSheet={inBottomSheet}
           />
-          
-          {/* Save Changes button */}
-          <button 
-            type="submit"
-            disabled={isSubmitting || !formData.title.trim()}
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-            tabIndex={3}
-          >
-            <span className="btn-cta__content">
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </span>
-            <div className="btn-cta__shadow" />
-          </button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }

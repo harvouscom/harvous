@@ -122,6 +122,10 @@ export default function EditThreadPanel({
   const titleDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const notesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeSaveOperationsRef = useRef<Set<string>>(new Set());
+  // Track if we've fetched thread data to prevent props from overwriting it
+  const hasFetchedThreadDataRef = useRef(false);
+  // Track last fetched threadId to avoid refetching unnecessarily
+  const lastFetchedThreadIdRef = useRef<string | null>(null);
   
   // Update refs when values change
   useEffect(() => {
@@ -244,6 +248,85 @@ export default function EditThreadPanel({
       isShared: isShared
     });
   }, [initialTitle, initialColor, isShared]);
+  
+  // Sync formData with props when they change, but only if we haven't fetched data yet
+  useEffect(() => {
+    // Skip if we've already fetched fresh data (prevents overwriting with stale props)
+    if (hasFetchedThreadDataRef.current) {
+      return;
+    }
+    
+    setFormData(prev => {
+      // Only update if props actually changed to avoid unnecessary re-renders
+      if (prev.title !== initialTitle || prev.selectedColor !== initialColor) {
+        return {
+          ...prev,
+          title: initialTitle,
+          selectedColor: initialColor
+        };
+      }
+      return prev;
+    });
+  }, [initialTitle, initialColor]);
+  
+  // Fetch latest thread data on mount to ensure we have saved values (even if props are stale)
+  // Only fetch once per threadId change, not on every formData change
+  useEffect(() => {
+    if (!threadId || !threadId.startsWith('thread_')) {
+      return; // Skip for invalid thread IDs
+    }
+    
+    // Only fetch if threadId changed (new thread) or we haven't fetched yet
+    if (lastFetchedThreadIdRef.current === threadId) {
+      // Already fetched for this threadId, don't refetch
+      return;
+    }
+    
+    // Reset fetch flag when threadId changes
+    hasFetchedThreadDataRef.current = false;
+    lastFetchedThreadIdRef.current = threadId;
+    
+    const fetchThreadData = async () => {
+      try {
+        // Add cache-busting query param to ensure fresh data
+        const cacheBuster = `?t=${Date.now()}`;
+        const response = await fetch(`/api/threads/${threadId}/prefetch${cacheBuster}`, {
+          credentials: 'include',
+          cache: 'no-store' // Bypass browser cache
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const thread = data.thread;
+          
+          if (thread) {
+            // Always update formData with fetched data (don't check initial props)
+            // The API is the source of truth, not the stale props
+            setFormData(prev => ({
+              ...prev,
+              title: thread.title || '',
+              selectedColor: thread.color || 'paper'
+            }));
+            
+            // Always update initialValues to match fetched data
+            setInitialValues(prev => ({
+              ...prev,
+              title: thread.title || '',
+              color: thread.color || 'paper'
+            }));
+            
+            // Mark that we've fetched data
+            hasFetchedThreadDataRef.current = true;
+          }
+        }
+      } catch (error) {
+        console.error('[EditThreadPanel] Error fetching thread data:', error);
+        // Silently fail - props will be used as fallback
+      }
+    };
+    
+    fetchThreadData();
+  }, [threadId, initialTitle, initialColor]);
   
   // Helper function to refresh referenced scripture notes
   const refreshReferencedScriptureNotes = useCallback(async (notes: Note[]) => {
@@ -682,6 +765,8 @@ export default function EditThreadPanel({
         if (networkError && offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+          lastFetchedThreadIdRef.current = threadId;
           updateNavigationDOM(title.trim());
           window.dispatchEvent(new CustomEvent('threadUpdated', {
             detail: { 
@@ -703,6 +788,8 @@ export default function EditThreadPanel({
       
       if (response && response.ok) {
         setInitialValues(prev => ({ ...prev, title: title.trim() }));
+        // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+        lastFetchedThreadIdRef.current = threadId;
         updateNavigationDOM(title.trim());
         window.dispatchEvent(new CustomEvent('threadUpdated', {
           detail: { 
@@ -716,6 +803,8 @@ export default function EditThreadPanel({
         if (offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+          lastFetchedThreadIdRef.current = threadId;
           updateNavigationDOM(title.trim());
           window.dispatchEvent(new CustomEvent('threadUpdated', {
             detail: { 
@@ -806,6 +895,8 @@ export default function EditThreadPanel({
         if (networkError && offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
           setInitialValues(prev => ({ ...prev, color: color }));
+          // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+          lastFetchedThreadIdRef.current = threadId;
           updateNavigationDOM(undefined, color);
           window.dispatchEvent(new CustomEvent('threadUpdated', {
             detail: { 
@@ -827,6 +918,8 @@ export default function EditThreadPanel({
       
       if (response && response.ok) {
         setInitialValues(prev => ({ ...prev, color: color }));
+        // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+        lastFetchedThreadIdRef.current = threadId;
         updateNavigationDOM(undefined, color);
         window.dispatchEvent(new CustomEvent('threadUpdated', {
           detail: { 
@@ -840,6 +933,8 @@ export default function EditThreadPanel({
         if (offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
           setInitialValues(prev => ({ ...prev, color: color }));
+          // Update lastFetchedThreadIdRef to indicate we have fresh data from save
+          lastFetchedThreadIdRef.current = threadId;
           updateNavigationDOM(undefined, color);
           window.dispatchEvent(new CustomEvent('threadUpdated', {
             detail: { 

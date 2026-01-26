@@ -16,6 +16,7 @@ import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
+import SpaceCardStackHeader from "@/components/react/SpaceCardStackHeader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
@@ -960,6 +961,15 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                   initialTitle={currentThread.title || 'Unorganized'}
                   initialColor={currentThread.color}
                   threadId={currentThread.id}
+                  client:load
+                />
+              ) : null}
+              {isSpace && currentSpace?.id && currentSpace?.color ? (
+                <SpaceCardStackHeader 
+                  slot="header"
+                  initialTitle={currentSpace.title || 'Unorganized'}
+                  initialColor={currentSpace.color}
+                  spaceId={currentSpace.id}
                   client:load
                 />
               ) : null}

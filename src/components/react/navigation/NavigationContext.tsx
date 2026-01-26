@@ -816,6 +816,86 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     if (itemData) {
+      // Special handling for spaces - they need to be tracked separately
+      // because addToNavigationHistory explicitly skips spaces
+      if (itemData.id.startsWith('space_')) {
+        // Get current active item ID to check if user explicitly navigated to this space
+        const currentActiveItemId = getCurrentActiveItemId();
+        const isCurrentlyActive = itemData.id === currentActiveItemId;
+        
+        // Check if space was closed
+        if (isItemClosed(itemData.id)) {
+          if (isCurrentlyActive) {
+            // User is viewing the space - restore it
+            removeFromClosedItems(itemData.id);
+          } else {
+            // Space is closed and user isn't viewing it - don't add it back
+            return;
+          }
+        }
+        
+        // Handle space tracking manually (similar to addSpaceToNavigationHistory in NavigationColumn)
+        const rawHistory = getRawNavigationHistory();
+        const existingIndex = rawHistory.findIndex((item: any) => item.id === itemData.id);
+        
+        let updatedHistory: any[];
+        
+        if (existingIndex !== -1) {
+          // Update existing space
+          updatedHistory = rawHistory.map((item: any, index: number) => {
+            if (index === existingIndex) {
+              return {
+                ...item,
+                title: itemData.title,
+                backgroundGradient: itemData.backgroundGradient || item.backgroundGradient || 'var(--color-paper)',
+                count: itemData.count ?? item.count,
+                lastAccessed: Date.now()
+              };
+            }
+            return item;
+          });
+        } else {
+          // Add new space
+          const newSpace = {
+            id: itemData.id,
+            title: itemData.title,
+            backgroundGradient: itemData.backgroundGradient || 'var(--color-paper)',
+            count: itemData.count ?? 0,
+            firstAccessed: Date.now(),
+            lastAccessed: Date.now()
+          };
+          updatedHistory = [...rawHistory, newSpace];
+        }
+        
+        // Sort by firstAccessed to maintain chronological order
+        updatedHistory.sort((a: any, b: any) => {
+          const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+          const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+          return aFirst - bFirst;
+        });
+        
+        // Limit to 10 items
+        const limitedHistory = updatedHistory.length > 10 ? updatedHistory.slice(0, 10) : updatedHistory;
+        
+        // Save to storage
+        saveNavigationHistory(limitedHistory);
+        
+        // Update React state (filtered, no spaces)
+        const filteredHistory = limitedHistory.filter((item: any) => !item.id.startsWith('space_'));
+        setNavigationHistory(filteredHistory);
+        
+        // Dispatch event to update UI
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+          }, 0);
+        }
+        
+        // Refresh counts from API after updating
+        refreshNavigationCounts();
+        return; // Exit early - space handling is complete
+      }
+
       const itemDataWithOpenedIn = {
         ...itemData,
         openedInSpaceIds: [openedInSpaceId],
@@ -1615,6 +1695,83 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         });
     };
     
+    // Listen for space update events
+    const handleSpaceUpdated = (event: CustomEvent) => {
+      const { spaceId, title, backgroundGradient } = event.detail || {};
+      if (!spaceId) return;
+      
+      // Use event detail if available (immediate update), otherwise fetch from API
+      if (title && backgroundGradient) {
+        setNavigationHistory(currentHistory => {
+          const spaceIndex = currentHistory.findIndex((item: any) => item.id === spaceId);
+          
+          if (spaceIndex !== -1) {
+            // Update existing entry with new title and backgroundGradient
+            const updatedHistory = currentHistory.map((item, index) => 
+              index === spaceIndex 
+                ? { 
+                    ...item, 
+                    title: title,
+                    backgroundGradient: backgroundGradient
+                  }
+                : item
+            );
+            saveNavigationHistory(updatedHistory);
+            // Dispatch event to notify other components
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+            return updatedHistory;
+          }
+          
+          return currentHistory;
+        });
+      } else {
+        // Fallback: fetch from API if event detail is incomplete
+        if (!isAuthReady()) {
+          return; // Auth not ready yet
+        }
+        
+        safeFetch('/api/navigation/data')
+          .then(response => {
+            if (response && response.ok) {
+              return response.json();
+            }
+            return null;
+          })
+          .then(data => {
+            if (data && data.spaces) {
+              const spaceData = data.spaces.find((s: any) => s.id === spaceId);
+              if (spaceData) {
+                setNavigationHistory(currentHistory => {
+                  const spaceIndex = currentHistory.findIndex((item: any) => item.id === spaceId);
+                  
+                  if (spaceIndex !== -1) {
+                    // Update existing entry with new title and backgroundGradient
+                    const updatedHistory = currentHistory.map((item, index) => 
+                      index === spaceIndex 
+                        ? { 
+                            ...item, 
+                            title: spaceData.title,
+                            backgroundGradient: spaceData.backgroundGradient || item.backgroundGradient
+                          }
+                        : item
+                    );
+                    saveNavigationHistory(updatedHistory);
+                    // Dispatch event to notify other components
+                    window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+                    return updatedHistory;
+                  }
+                  
+                  return currentHistory;
+                });
+              }
+            }
+          })
+          .catch(error => {
+            console.error('NavigationContext: Error fetching space data for update:', error);
+          });
+      }
+    };
+    
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
       if (threadId && threadId !== 'thread_unorganized') {
@@ -1763,6 +1920,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
     window.addEventListener('threadUpdated', handleThreadUpdated as unknown as EventListener);
+    window.addEventListener('spaceUpdated', handleSpaceUpdated as unknown as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -1785,6 +1943,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
       window.removeEventListener('threadUpdated', handleThreadUpdated as unknown as EventListener);
+      window.removeEventListener('spaceUpdated', handleSpaceUpdated as unknown as EventListener);
     };
   }, []);
 

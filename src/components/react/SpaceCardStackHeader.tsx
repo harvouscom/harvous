@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 
-interface ThreadCardStackHeaderProps {
+interface SpaceCardStackHeaderProps {
   initialTitle: string;
   initialColor: ThreadColor;
-  threadId: string;
+  spaceId: string;
 }
 
 /**
- * ThreadCardStackHeader - React component that manages the thread CardStack header
+ * SpaceCardStackHeader - React component that manages the space CardStack header
  * 
  * This component uses React state to manage the header title and color,
  * ensuring updates persist across View Transitions and work reliably on both
  * desktop and mobile without timing issues.
  */
-export default function ThreadCardStackHeader({
+export default function SpaceCardStackHeader({
   initialTitle,
   initialColor,
-  threadId
-}: ThreadCardStackHeaderProps) {
+  spaceId
+}: SpaceCardStackHeaderProps) {
   const [title, setTitle] = useState(initialTitle);
   const [color, setColor] = useState(initialColor);
 
@@ -29,11 +29,11 @@ export default function ThreadCardStackHeader({
   }, [initialTitle, initialColor]);
 
   useEffect(() => {
-    const handleThreadUpdated = (event: CustomEvent) => {
-      const { threadId: eventThreadId, title: eventTitle, color: eventColor, backgroundGradient: eventBackgroundGradient } = event.detail || {};
+    const handleSpaceUpdated = (event: CustomEvent) => {
+      const { spaceId: eventSpaceId, title: eventTitle, color: eventColor, backgroundGradient: eventBackgroundGradient } = event.detail || {};
       
-      // Only update if this is the thread we're displaying
-      if (eventThreadId === threadId) {
+      // Only update if this is the space we're displaying
+      if (eventSpaceId === spaceId) {
         if (eventTitle !== undefined) {
           setTitle(eventTitle);
         }
@@ -52,12 +52,12 @@ export default function ThreadCardStackHeader({
       }
     };
 
-    window.addEventListener('threadUpdated', handleThreadUpdated as EventListener);
+    window.addEventListener('spaceUpdated', handleSpaceUpdated as EventListener);
     
     return () => {
-      window.removeEventListener('threadUpdated', handleThreadUpdated as EventListener);
+      window.removeEventListener('spaceUpdated', handleSpaceUpdated as EventListener);
     };
-  }, [threadId]);
+  }, [spaceId]);
 
   // Determine background style - use gradient for background-image
   const backgroundGradient = getThreadGradientCSS(color);
@@ -66,9 +66,9 @@ export default function ThreadCardStackHeader({
   return (
     <div 
       className="card-stack__header"
-      data-thread-id={threadId}
-      data-thread-title={title}
-      data-thread-background-gradient={backgroundGradient}
+      data-space-id={spaceId}
+      data-space-title={title}
+      data-space-background-gradient={backgroundGradient}
       style={{
         backgroundImage: backgroundGradient,
         backgroundColor: 'transparent',
