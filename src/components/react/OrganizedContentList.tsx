@@ -643,8 +643,29 @@ export default function OrganizedContentList({
           return true;
         });
         
-        // Sort the final deduplicated list
-        const sorted = sortItems(finalDeduplicated);
+        // Filter out deleted items before sorting
+        const filteredDeleted = finalDeduplicated.filter(item => {
+          return !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
+                 !deletedItemIdsRef.current.has(normalizeId(item.threadId || '')) &&
+                 !deletedItemIdsRef.current.has(normalizeId(item.noteId || ''));
+        });
+        
+        // Filter out deleted scripture notes from scriptureReferences arrays
+        const filteredScriptureRefs = filteredDeleted.map(item => {
+          if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+            const filteredRefs = item.scriptureReferences.filter(ref => {
+              return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
+            });
+            return {
+              ...item,
+              scriptureReferences: filteredRefs
+            };
+          }
+          return item;
+        });
+        
+        // Sort the final filtered list
+        const sorted = sortItems(filteredScriptureRefs);
 
         // Check if we're looking for a specific item (using filtering logic for check only)
         if (options?.expectedItemId && options?.expectedItemType) {
