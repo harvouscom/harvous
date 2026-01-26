@@ -47,15 +47,21 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       }, 50);
     };
 
+    const handleThreadUpdated = () => {
+      setRenderKey(prev => prev + 1);
+    };
+
     document.addEventListener('astro:page-load', handlePageLoad);
     document.addEventListener('astro:after-swap', handlePageLoad);
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+    window.addEventListener('threadUpdated', handleThreadUpdated);
 
     return () => {
       if (timeoutRef) clearTimeout(timeoutRef);
       document.removeEventListener('astro:page-load', handlePageLoad);
       document.removeEventListener('astro:after-swap', handlePageLoad);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
+      window.removeEventListener('threadUpdated', handleThreadUpdated);
     };
   }, []);
 

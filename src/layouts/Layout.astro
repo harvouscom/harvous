@@ -408,9 +408,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
         <!-- Main Column -->
         <section class="layout-column">
-          <div class="layout-column">
-            <slot name="main" />
-          </div>
+          <slot name="main" />
         </section>
 
         <!-- Additional Column -->
@@ -536,13 +534,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 <!-- Auto-process pending shared content after authentication -->
 <script>
   if (typeof window !== 'undefined') {
-    console.log('[Shared Content Handler] Script loaded');
-    console.log('[Shared Content Handler] Initial sessionStorage check:', {
-      pendingNote: sessionStorage.getItem('pendingSharedNoteAdd'),
-      pendingThread: sessionStorage.getItem('pendingSharedThreadAdd'),
-      pathname: window.location.pathname
-    });
-    
     // Helper to check if auth is ready (reuse existing pattern)
     function isAuthReady() {
       const cookies = document.cookie.split(';');
@@ -553,78 +544,46 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       const isProtectedRoute = !window.location.pathname.includes('/sign-in') && 
                               !window.location.pathname.includes('/sign-up') &&
                               !window.location.pathname.includes('/shared/');
-      const ready = hasClerkCookie || isProtectedRoute;
-      console.log('[Shared Content Handler] Auth check:', { hasClerkCookie, isProtectedRoute, ready, pathname: window.location.pathname });
-      return ready;
+      return hasClerkCookie || isProtectedRoute;
     }
 
     // Helper to show toast - tries multiple methods
     function showToastWithRetry(message: string) {
-      console.log('[Shared Content Handler] showToastWithRetry called with message:', message);
-      
       // Method 1: Dispatch showToast event (handled by Layout.astro listener)
-      console.log('[Shared Content Handler] Dispatching showToast event');
       window.dispatchEvent(new CustomEvent('showToast', {
         detail: { message, type: 'success' }
       }));
       
       // Method 2: Try window.toast directly (toast utility handles portal waiting internally)
       if (window.toast && typeof window.toast.success === 'function') {
-        console.log('[Shared Content Handler] Calling window.toast.success');
         try {
           window.toast.success(message);
-          console.log('[Shared Content Handler] window.toast.success called successfully');
         } catch (error) {
           console.error('[Shared Content Handler] Error calling window.toast:', error);
         }
-      } else {
-        console.warn('[Shared Content Handler] window.toast not available:', { 
-          hasWindowToast: !!window.toast,
-          hasSuccessMethod: window.toast && typeof window.toast.success === 'function'
-        });
       }
     }
 
     // Process pending shared content additions
     async function processPendingSharedContent() {
-      console.log('[Shared Content Handler] processPendingSharedContent called');
-      
       // Only process on authenticated pages (not shared pages themselves)
       const authReady = isAuthReady();
       const isSharedPage = window.location.pathname.includes('/shared/');
-      console.log('[Shared Content Handler] Conditions:', { authReady, isSharedPage, pathname: window.location.pathname });
       
       if (!authReady || isSharedPage) {
-        console.log('[Shared Content Handler] Early return - auth not ready or shared page');
         return;
       }
 
       // Check for pending note addition
       try {
         const pendingNoteStr = sessionStorage.getItem('pendingSharedNoteAdd');
-        console.log('[Shared Content Handler] Checking pending note:', { 
-          hasPendingNote: !!pendingNoteStr,
-          value: pendingNoteStr 
-        });
         if (pendingNoteStr) {
           const pending = JSON.parse(pendingNoteStr);
           const now = Date.now();
           const age = now - pending.timestamp;
           const isRecent = age < 600000; // 10 minutes
-          // Only process if recent (within 10 minutes)
-          console.log('[Shared Content Handler] Pending note details:', { 
-            hasShareToken: !!pending.shareToken, 
-            shareToken: pending.shareToken,
-            timestamp: pending.timestamp,
-            now: now,
-            age: age,
-            ageMinutes: Math.round(age / 60000),
-            isRecent: isRecent,
-            willProcess: !!(pending.shareToken && isRecent)
-          });
           
           if (pending.shareToken && isRecent) {
-            console.log('[Shared Content Handler] Processing pending note addition');
             sessionStorage.removeItem('pendingSharedNoteAdd');
             
             const response = await fetch('/api/shared/add-note-to-harvous', {
@@ -634,10 +593,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             });
 
             const data = await response.json();
-            console.log('[Shared Content Handler] Note addition response:', { ok: response.ok, success: data.success, data });
             if (response.ok && data.success) {
               // Show toast and redirect to added note
-              console.log('[Shared Content Handler] Showing toast for note');
               showToastWithRetry('Note was added to your Harvous');
               setTimeout(() => {
                 window.location.href = '/' + data.createdIds.noteId;
@@ -657,29 +614,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       // Check for pending thread addition
       try {
         const pendingThreadStr = sessionStorage.getItem('pendingSharedThreadAdd');
-        console.log('[Shared Content Handler] Checking pending thread:', { 
-          hasPendingThread: !!pendingThreadStr,
-          value: pendingThreadStr 
-        });
         if (pendingThreadStr) {
           const pending = JSON.parse(pendingThreadStr);
           const now = Date.now();
           const age = now - pending.timestamp;
           const isRecent = age < 600000; // 10 minutes
-          // Only process if recent (within 10 minutes)
-          console.log('[Shared Content Handler] Pending thread details:', { 
-            hasShareToken: !!pending.shareToken, 
-            shareToken: pending.shareToken,
-            timestamp: pending.timestamp,
-            now: now,
-            age: age,
-            ageMinutes: Math.round(age / 60000),
-            isRecent: isRecent,
-            willProcess: !!(pending.shareToken && isRecent)
-          });
           
           if (pending.shareToken && isRecent) {
-            console.log('[Shared Content Handler] Processing pending thread addition');
             sessionStorage.removeItem('pendingSharedThreadAdd');
             
             const response = await fetch('/api/shared/add-to-harvous', {
@@ -689,10 +630,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             });
 
             const data = await response.json();
-            console.log('[Shared Content Handler] Thread addition response:', { ok: response.ok, success: data.success, data });
             if (response.ok && data.success) {
               // Show toast and redirect to added thread
-              console.log('[Shared Content Handler] Showing toast for thread');
               showToastWithRetry('Thread was added to your Harvous');
               setTimeout(() => {
                 window.location.href = '/' + data.createdIds.threadId;
@@ -711,9 +650,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
     // Wait for auth to be ready, then process pending actions
     const checkAuthAndProcess = () => {
-      console.log('[Shared Content Handler] checkAuthAndProcess called');
       if (isAuthReady()) {
-        console.log('[Shared Content Handler] Auth ready, processing');
         // Don't wait for portal - let toast utility handle portal waiting internally
         // Just ensure DOM is ready
         if (document.readyState === 'complete' || document.readyState === 'interactive') {
@@ -728,7 +665,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           });
         }
       } else {
-        console.log('[Shared Content Handler] Auth not ready, retrying in 1s');
         // Retry after delay if auth not ready yet
         setTimeout(checkAuthAndProcess, 1000);
       }
@@ -736,12 +672,10 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
     // Start checking after a delay to let page and ToastProvider load
     // Increased delay to ensure ToastProvider has time to mount
-    console.log('[Shared Content Handler] Setting initial timeout');
     setTimeout(checkAuthAndProcess, 1500);
 
     // Also check on page navigation (for View Transitions)
     document.addEventListener('astro:page-load', () => {
-      console.log('[Shared Content Handler] astro:page-load event, checking again');
       setTimeout(checkAuthAndProcess, 1000);
     });
   }

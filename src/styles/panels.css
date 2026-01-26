@@ -378,21 +378,21 @@
 .panel__grid-card {
   background-color: white;
   border: 1px solid var(--color-fog-white);
-  border-radius: 1rem;  /* 16px */
-  padding: 1rem;  /* 16px */
+  border-radius: 0.75rem;  /* 12px - rounded-xl */
+  padding: 0.75rem;  /* 12px - p-3 */
   display: flex;
   align-items: center;
-  gap: 0.75rem;  /* 12px */
+  gap: 0.75rem;  /* 12px - gap-3 */
 }
 
 .panel__grid-card-value {
-  font-size: 1.125rem;  /* 18px */
+  font-size: 1rem;  /* 16px - text-base */
   font-weight: 600;
   color: var(--color-deep-grey);
 }
 
 .panel__grid-card-label {
-  font-size: 0.875rem;  /* 14px */
+  font-size: 0.75rem;  /* 12px - text-xs */
   color: var(--color-pebble-grey);
 }
 
@@ -431,7 +431,7 @@
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: transparent;
   display: flex;
   align-items: center;
   justify-content: center;

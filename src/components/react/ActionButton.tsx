@@ -8,6 +8,8 @@ interface ActionButtonProps {
   className?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onClick?: (e: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onMouseDown?: (e: any) => void;
   disabled?: boolean;
   'aria-label'?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,6 +21,7 @@ export default function ActionButton({
   children,
   className = "",
   onClick,
+  onMouseDown,
   disabled,
   'aria-label': ariaLabelProp,
   style,
@@ -36,6 +39,7 @@ export default function ActionButton({
       className={`btn-action ${className}`}
       aria-label={getAriaLabel()}
       onClick={onClick}
+      onMouseDown={onMouseDown}
       disabled={disabled}
       style={style}
     >

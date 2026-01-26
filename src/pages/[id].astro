@@ -951,6 +951,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                   : (currentSpace?.color ? `var(--color-${currentSpace.color})` : "var(--color-paper)")
               }
               centerTitle={true}
+              threadId={isThread && currentThread?.id ? currentThread.id : undefined}
             >
               <div class="flex flex-col gap-6">
                 
@@ -1300,7 +1301,12 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
   // @ts-ignore
   window.addEventListener('noteAddedToThread', async (event) => {
     // @ts-ignore
-    const { noteId, threadId } = event.detail;
+    const { noteId, threadId, skipNavigation } = event.detail;
+    
+    // Skip navigation if flag is set (e.g., when adding from EditThreadPanel)
+    if (skipNavigation) {
+      return;
+    }
 
     // Check if we're viewing the note that was added to a thread
     const currentPath = window.location.pathname.substring(1);
@@ -1334,7 +1340,12 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
   // @ts-ignore
   window.addEventListener('noteRemovedFromThread', async (event) => {
     // @ts-ignore
-    const { noteId, threadId, remainingThreadIds } = event.detail;
+    const { noteId, threadId, remainingThreadIds, skipNavigation } = event.detail;
+    
+    // Skip navigation if flag is set (e.g., when removing from EditThreadPanel)
+    if (skipNavigation) {
+      return;
+    }
     
     // Check if we're on the affected thread page
     const currentThreadId = window.location.pathname.substring(1);
@@ -1389,6 +1400,58 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       // Navigate to the target URL
       // @ts-ignore
       await safeNavigate(targetUrl, { history: 'replace' });
+    }
+  });
+  
+  // Listen for thread updates - update page meta and navigation data attributes
+  // @ts-ignore
+  window.addEventListener('threadUpdated', async (event) => {
+    // @ts-ignore
+    const { threadId } = event.detail || {};
+    if (!threadId) return;
+    
+    // Check if we're on the thread page that was updated
+    const currentPath = window.location.pathname.substring(1);
+    if (currentPath === threadId) {
+      // Fetch updated thread data
+      try {
+        const response = await fetch(`/api/threads/${threadId}`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const threadData = await response.json();
+          const thread = threadData.thread;
+          
+          if (thread) {
+            // Update main div data attributes
+            const mainDiv = document.querySelector('[data-navigation-item]');
+            if (mainDiv) {
+              if (thread.title) {
+                mainDiv.setAttribute('data-title', thread.title);
+              }
+              if (thread.color) {
+                const gradient = getThreadGradientCSS(thread.color);
+                mainDiv.setAttribute('data-background-gradient', gradient);
+              }
+            }
+            
+            // Update navigation wrapper data attributes
+            const navWrapper = document.querySelector('[data-thread-id]');
+            if (navWrapper && navWrapper.getAttribute('data-thread-id') === threadId) {
+              if (thread.title) {
+                navWrapper.setAttribute('data-thread-title', thread.title);
+              }
+              if (thread.color) {
+                const gradient = getThreadGradientCSS(thread.color);
+                navWrapper.setAttribute('data-thread-background-gradient', gradient);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching updated thread data:', error);
+      }
     }
   });
   

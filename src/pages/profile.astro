@@ -147,39 +147,37 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full">
-    <div class="flex flex-col h-full">
-      <div class="flex-1 min-h-0">
-        <CardStack 
-          centerTitle={true}
-          class="h-full"
-          id="profile-cardstack"
-        >
-          <ProfileCardStackHeader 
-            slot="header"
-            initialColor={userColor}
-            initialDisplayName={displayName}
-            client:load
-          />
-          <ProfileContent joinDate={joinDate} seasonalXP={seasonalXP} seasonName={seasonName} />
-        </CardStack>
-      </div>
-      
-      <!-- Logout Button at Bottom -->
-      <div class="mt-4 mb-safe">
-        <a
-          id="logout-button"
-          href="#"
-          data-outer-shadow
-          class="btn-cta btn--secondary flex-1 group no-underline"
-          onclick="event.preventDefault(); if (window.Clerk && window.Clerk.signOut) { window.Clerk.signOut({ redirectUrl: '/sign-in' }); } else { window.location.href = '/sign-in'; } return false;"
-        >
-          <span class="btn-cta__content">
-            Logout
-          </span>
-          <div class="btn-cta__shadow" />
-        </a>
-      </div>
+  <div slot="main" class="h-full flex flex-col">
+    <div class="flex-1 min-h-0">
+      <CardStack 
+        centerTitle={true}
+        class="h-full"
+        id="profile-cardstack"
+      >
+        <ProfileCardStackHeader 
+          slot="header"
+          initialColor={userColor}
+          initialDisplayName={displayName}
+          client:load
+        />
+        <ProfileContent joinDate={joinDate} seasonalXP={seasonalXP} seasonName={seasonName} />
+      </CardStack>
+    </div>
+    
+    <!-- Logout Button at Bottom -->
+    <div class="mt-4 mb-safe">
+      <a
+        id="logout-button"
+        href="#"
+        data-outer-shadow
+        class="btn-cta btn--secondary flex-1 group no-underline"
+        onclick="event.preventDefault(); if (window.Clerk && window.Clerk.signOut) { window.Clerk.signOut({ redirectUrl: '/sign-in' }); } else { window.location.href = '/sign-in'; } return false;"
+      >
+        <span class="btn-cta__content">
+          Logout
+        </span>
+        <div class="btn-cta__shadow" />
+      </a>
     </div>
   </div>
 

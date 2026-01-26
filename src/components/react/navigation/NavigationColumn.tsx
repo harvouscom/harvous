@@ -569,8 +569,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           const timeSinceEventUpdate = now - lastEventUpdateTimeRef.current;
           
           setUpdatedActiveThread((prev) => {
-            // Only update if count actually changed
-            if (prev && prev.noteCount === threadData.noteCount) {
+            // Check if anything changed (count, title, or color)
+            const countChanged = prev?.noteCount !== threadData.noteCount;
+            const titleChanged = prev?.title !== threadData.title;
+            const colorChanged = prev?.backgroundGradient !== threadData.backgroundGradient;
+            
+            if (!countChanged && !titleChanged && !colorChanged) {
               return prev;
             }
             
@@ -585,7 +589,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               
               return {
                 ...activeThread,
-                noteCount: finalCount
+                title: threadData.title || activeThread.title,
+                noteCount: finalCount,
+                backgroundGradient: threadData.backgroundGradient || activeThread.backgroundGradient
               };
             }
             
@@ -593,7 +599,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             eventUpdatedCountRef.current = threadData.noteCount;
             return {
               ...activeThread,
-              noteCount: threadData.noteCount
+              title: threadData.title || activeThread.title,
+              noteCount: threadData.noteCount,
+              backgroundGradient: threadData.backgroundGradient || activeThread.backgroundGradient
             };
           });
         }
@@ -673,11 +681,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
 
+    const handleThreadUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const { threadId } = customEvent.detail || {};
+      if (threadId === activeThread.id) {
+        // Force immediate refresh for thread updates (title/color changes should be visible immediately)
+        refreshActiveThreadCount(true);
+      }
+    };
+
     // Register event listeners
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('threadUpdated', handleThreadUpdated as EventListener);
 
     // Cleanup
     return () => {
@@ -685,6 +703,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('threadUpdated', handleThreadUpdated as EventListener);
       // Clear pending timeout on cleanup
       if (pendingTimeoutRef.current) {
         clearTimeout(pendingTimeoutRef.current);

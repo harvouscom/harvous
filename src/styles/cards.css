@@ -685,6 +685,36 @@
   width: 100%;
 }
 
+/* Clickable header (with data-thread-id) - shows pointer cursor and hover effect */
+.card-stack__header[data-thread-id] {
+  cursor: pointer;
+  position: relative;
+  transition: opacity 0.2s ease;
+}
+
+.card-stack__header[data-thread-id]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-stack__header[data-thread-id]:hover::before {
+  opacity: 1;
+}
+
+.card-stack__header[data-thread-id]:active::before {
+  opacity: 0.8;
+}
+
 /* Page heading - uses Roundo font for main page titles */
 .page-heading {
   flex-basis: 0;
@@ -817,6 +847,7 @@
     flex-shrink: 0;
   }
 }
+
 
 /* ==========================================================================
    Organized Content (Space page lists)

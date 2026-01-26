@@ -95,7 +95,7 @@ export default function MyAchievementsPanel({
                   <div className="panel__grid">
                     {/* Seasonal XP Card */}
                     <div className="panel__grid-card">
-                      <Icon name="sun" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                      <Icon name="sun" size={16} style={{ color: 'var(--color-deep-grey)' }} />
                       <div>
                         <div className="panel__grid-card-value">{xpData.seasonalXP.toLocaleString()} XP</div>
                         <div className="panel__grid-card-label">{xpData.seasonName}</div>
@@ -104,7 +104,7 @@ export default function MyAchievementsPanel({
 
                     {/* Lifetime XP Card */}
                     <div className="panel__grid-card">
-                      <Icon name="trophy" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                      <Icon name="trophy" size={16} style={{ color: 'var(--color-deep-grey)' }} />
                       <div>
                         <div className="panel__grid-card-value">{xpData.lifetimeXP.toLocaleString()} XP</div>
                         <div className="panel__grid-card-label">All Time</div>

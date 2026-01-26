@@ -331,8 +331,6 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
             timestamp: Date.now()
           };
           sessionStorage.setItem('pendingSharedThreadAdd', JSON.stringify(pendingData));
-          console.log('[Shared Thread Page] Stored pending action:', pendingData);
-          console.log('[Shared Thread Page] sessionStorage after set:', sessionStorage.getItem('pendingSharedThreadAdd'));
         } catch (e) {
           console.error('[Shared Thread Page] Failed to store pending action:', e);
         }
@@ -340,7 +338,6 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
         // Redirect to sign-in with return URL
         const currentUrl = window.location.href;
         const signInUrl = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
-        console.log('[Shared Thread Page] Redirecting to sign-in:', signInUrl);
         window.location.href = signInUrl;
       }
     });
@@ -355,7 +352,6 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
           if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
             // Clear the pending action first
             sessionStorage.removeItem('pendingSharedThreadAdd');
-            console.log('[Shared Thread Page] Processing pending action for shareToken:', shareToken);
             
             // Directly call the API instead of triggering button click
             // This ensures we can use the global toast system
@@ -370,7 +366,6 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
                 // Redirect with toast query parameters - toast-handler.js will show it automatically
                 window.location.href = '/' + data.createdIds.threadId + '?toast=success&message=' + encodeURIComponent('Thread was added to your Harvous');
               } else {
-                console.error('[Shared Thread Page] Failed to add thread:', data.error);
                 // Show error toast on current page
                 if (window.toast) {
                   window.toast.error(data.error || 'Failed to add thread');

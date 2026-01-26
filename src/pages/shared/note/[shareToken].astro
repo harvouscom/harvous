@@ -312,8 +312,6 @@ if (note) {
             timestamp: Date.now()
           };
           sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify(pendingData));
-          console.log('[Shared Note Page] Stored pending action:', pendingData);
-          console.log('[Shared Note Page] sessionStorage after set:', sessionStorage.getItem('pendingSharedNoteAdd'));
         } catch (e) {
           console.error('[Shared Note Page] Failed to store pending action:', e);
         }
@@ -321,7 +319,6 @@ if (note) {
         // Redirect to sign-in with return URL
         const currentUrl = window.location.href;
         const signInUrl = '/sign-in?redirect_url=' + encodeURIComponent(currentUrl);
-        console.log('[Shared Note Page] Redirecting to sign-in:', signInUrl);
         window.location.href = signInUrl;
       }
     });
@@ -336,7 +333,6 @@ if (note) {
           if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
             // Clear the pending action first
             sessionStorage.removeItem('pendingSharedNoteAdd');
-            console.log('[Shared Note Page] Processing pending action for shareToken:', shareToken);
             
             // Directly call the API instead of triggering button click
             // This ensures we can use the global toast system
@@ -351,7 +347,6 @@ if (note) {
                 // Redirect with toast query parameters - toast-handler.js will show it automatically
                 window.location.href = '/' + data.createdIds.noteId + '?toast=success&message=' + encodeURIComponent('Note was added to your Harvous');
               } else {
-                console.error('[Shared Note Page] Failed to add note:', data.error);
                 // Show error toast on current page
                 if (window.toast) {
                   window.toast.error(data.error || 'Failed to add note');

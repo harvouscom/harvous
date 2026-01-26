@@ -8,6 +8,7 @@ export interface Props {
   headerBgColor?: string;
   centerTitle?: boolean;
   id?: string;
+  threadId?: string;
 }
 
 const { 
@@ -16,7 +17,8 @@ const {
   class: className = "",
   headerBgColor = "var(--color-paper)",
   centerTitle = false,
-  id
+  id,
+  threadId
 } = Astro.props;
 
 // Extract color name from CSS variable format (e.g., "var(--color-blue)" -> "blue")
@@ -39,7 +41,11 @@ const textColor = getThreadTextColorCSS(colorName);
     {Astro.slots.has('header') ? (
       <slot name="header" />
     ) : (
-      <div class="card-stack__header" style={`background-color: ${headerBgColor}; color: ${textColor}`}>
+      <div 
+        class="card-stack__header" 
+        style={`background-color: ${headerBgColor}; color: ${textColor}`}
+        {...(threadId ? { 'data-thread-id': threadId } : {})}
+      >
         {subtitle ? (
           <>
             <div class={`page-heading ${centerTitle ? 'page-heading--center' : ''}`}>
@@ -67,3 +73,32 @@ const textColor = getThreadTextColorCSS(colorName);
     </div>
   </div>
 </div>
+
+{threadId && (
+  <script is:inline>
+    (function() {
+      // Only attach listener once globally
+      if (window.__cardStackHeaderListenerAttached) {
+        return;
+      }
+      window.__cardStackHeaderListenerAttached = true;
+      
+      // Use event delegation to handle clicks on card-stack__header with data-thread-id
+      // This works with View Transitions since we're listening on document
+      function handleCardStackHeaderClick(event) {
+        const header = event.target.closest('.card-stack__header[data-thread-id]');
+        if (!header) return;
+        
+        const threadId = header.getAttribute('data-thread-id');
+        if (!threadId) return;
+        
+        // Dispatch event to open EditThreadPanel
+        // DesktopPanelManager will handle this event
+        window.dispatchEvent(new CustomEvent('openEditThreadPanel'));
+      }
+      
+      // Attach listener to document for event delegation
+      document.addEventListener('click', handleCardStackHeaderClick);
+    })();
+  </script>
+)}

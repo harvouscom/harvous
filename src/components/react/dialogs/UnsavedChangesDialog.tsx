@@ -57,7 +57,7 @@ export default function UnsavedChangesDialog({
         justifyContent: 'center',
         zIndex: 100,
         padding: '1rem',
-        backgroundColor: 'rgba(0, 0, 0, 0.35)',
+        backgroundColor: 'transparent',
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
       }}

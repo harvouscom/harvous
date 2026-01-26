@@ -1565,6 +1565,56 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
 
     // Listen for note addition to thread events
+    const handleThreadUpdated = (event: CustomEvent) => {
+      const { threadId } = event.detail || {};
+      if (!threadId) return;
+      
+      // Fetch updated thread data and update navigation history
+      if (!isAuthReady()) {
+        return; // Auth not ready yet
+      }
+      
+      safeFetch('/api/threads/list')
+        .then(response => {
+          if (response && response.ok) {
+            return response.json();
+          }
+          return null;
+        })
+        .then(threads => {
+          if (threads) {
+            const threadData = threads.find((t: any) => t.id === threadId);
+            if (threadData) {
+              setNavigationHistory(currentHistory => {
+                const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
+                
+                if (threadIndex !== -1) {
+                  // Update existing entry with new title and color
+                  const updatedHistory = currentHistory.map((item, index) => 
+                    index === threadIndex 
+                      ? { 
+                          ...item, 
+                          title: threadData.title,
+                          backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
+                        }
+                      : item
+                  );
+                  saveNavigationHistory(updatedHistory);
+                  // Dispatch event to notify other components
+                  window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+                  return updatedHistory;
+                }
+                
+                return currentHistory;
+              });
+            }
+          }
+        })
+        .catch(error => {
+          console.error('NavigationContext: Error fetching thread data for update:', error);
+        });
+    };
+    
     const handleNoteAddedToThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
       if (threadId && threadId !== 'thread_unorganized') {
@@ -1712,6 +1762,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     window.addEventListener('noteDeleted', handleNoteDeleted as unknown as EventListener);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+    window.addEventListener('threadUpdated', handleThreadUpdated as unknown as EventListener);
     
     // Expose functions to global scope for non-React code
     (window as any).removeFromNavigationHistory = removeFromNavigationHistory;
@@ -1733,6 +1784,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       window.removeEventListener('noteDeleted', handleNoteDeleted as unknown as EventListener);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+      window.removeEventListener('threadUpdated', handleThreadUpdated as unknown as EventListener);
     };
   }, []);
 

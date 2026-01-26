@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
@@ -13,6 +13,7 @@ import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
+import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 
 interface Note {
   id: string;
@@ -39,9 +40,22 @@ export default function EditThreadPanel({
   inBottomSheet = false
 }: EditThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Auto-focus the thread name input when component mounts
+  useEffect(() => {
+    // Small delay to ensure the input is rendered and visible
+    const timer = setTimeout(() => {
+      if (titleInputRef.current) {
+        titleInputRef.current.focus();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const userId = usePersistedUserId();
@@ -50,7 +64,19 @@ export default function EditThreadPanel({
     selectedColor: initialColor,
     selectedType: 'Private'
   });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Track initial values for unsaved changes detection
+  const [initialValues, setInitialValues] = useState({
+    title: initialTitle,
+    color: initialColor,
+    isShared: false
+  });
+  
+  // Auto-save state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -58,15 +84,56 @@ export default function EditThreadPanel({
   const [currentThreadNoteIds, setCurrentThreadNoteIds] = useState<string[]>([]);
   const [currentThreadNotes, setCurrentThreadNotes] = useState<Note[]>([]);
   const [isRemovingNote, setIsRemovingNote] = useState(false);
+  const [referencedScriptureNoteIds, setReferencedScriptureNoteIds] = useState<Set<string>>(new Set());
+  
+  // Track notes being removed optimistically to prevent double-removal
+  const pendingRemovalsRef = useRef<Set<string>>(new Set());
+  // Track scripture notes being removed to prevent them from being re-added during refresh
+  const removingScriptureNotesRef = useRef<Set<string>>(new Set());
+  // Track notes that have been successfully removed and should never be re-added
+  // Use state instead of ref to ensure React re-renders when notes are removed
+  const [removedNoteIds, setRemovedNoteIds] = useState<Set<string>>(new Set());
+  // Keep a ref version for use in callbacks/effects that need current value
+  const removedNoteIdsRef = useRef<Set<string>>(new Set());
+  // Track previous threadId to detect actual changes
+  const previousThreadIdRef = useRef<string | null>(null);
+  
+  // Keep ref in sync with state for use in callbacks
+  useEffect(() => {
+    removedNoteIdsRef.current = removedNoteIds;
+  }, [removedNoteIds]);
+  
+  // Track button clicks to prevent link navigation
+  const buttonClickRef = useRef<string | null>(null);
 
   // Share settings state
   const [isShared, setIsShared] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
+  
+  // Refs to track current values for save functions (avoid stale closures)
+  // Must be declared after isShared state
+  const formDataRef = useRef(formData);
+  const isSharedRef = useRef(isShared);
+  
+  // Update refs when values change
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
+  useEffect(() => {
+    isSharedRef.current = isShared;
+  }, [isShared]);
 
 
   // Fetch all notes and current thread notes on mount
   useEffect(() => {
+    // Only clear removedNoteIds when threadId actually changes (new thread context)
+    if (previousThreadIdRef.current !== threadId) {
+      setRemovedNoteIds(new Set());
+      previousThreadIdRef.current = threadId;
+    }
+    
     const fetchData = async () => {
       setIsLoadingItems(true);
       try {
@@ -89,13 +156,40 @@ export default function EditThreadPanel({
         if (threadNotesResponse && threadNotesResponse.ok) {
           const threadNotesData = await threadNotesResponse.json();
           const notes = threadNotesData.notes || [];
-          const noteIds = notes.map((note: Note) => note.id);
+          // Filter out notes that have been removed
+          const filteredNotes = notes.filter((note: Note) => !removedNoteIds.has(note.id));
+          const noteIds = filteredNotes.map((note: Note) => note.id);
           setCurrentThreadNoteIds(noteIds);
-          setCurrentThreadNotes(notes);
+          setCurrentThreadNotes(filteredNotes);
+          
+          // Fetch scripture notes referenced by default notes in this thread
+          const defaultNoteIds = filteredNotes
+            .filter(note => note.noteType === 'default' || !note.noteType)
+            .map(note => note.id);
+          
+          if (defaultNoteIds.length > 0) {
+            try {
+              const refsResponse = await fetch(`/api/threads/${threadId}/referenced-scripture-notes?noteIds=${defaultNoteIds.join(',')}`, {
+                credentials: 'include'
+              });
+              if (refsResponse.ok) {
+                const refsData = await refsResponse.json();
+                setReferencedScriptureNoteIds(new Set(refsData.scriptureNoteIds || []));
+              } else {
+                setReferencedScriptureNoteIds(new Set());
+              }
+            } catch (error) {
+              console.error('Error fetching referenced scripture notes:', error);
+              setReferencedScriptureNoteIds(new Set());
+            }
+          } else {
+            setReferencedScriptureNoteIds(new Set());
+          }
         } else {
           // Failed to fetch - safeFetch handles logging
           setCurrentThreadNoteIds([]);
           setCurrentThreadNotes([]);
+          setReferencedScriptureNoteIds(new Set());
         }
       } catch (error) {
         // Unexpected error
@@ -117,11 +211,14 @@ export default function EditThreadPanel({
         const response = await safeFetch(`/api/threads/${threadId}/share`, { retries: 1 });
         if (response && response.ok) {
           const data = await response.json();
-          setIsShared(data.isPublic || false);
+          const isPublic = data.isPublic || false;
+          setIsShared(isPublic);
           setShareUrl(data.shareUrl || null);
-          if (data.isPublic) {
+          if (isPublic) {
             setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
           }
+          // Update initial values
+          setInitialValues(prev => ({ ...prev, isShared: isPublic }));
         }
       } catch (error) {
         console.error('Failed to fetch share status:', error);
@@ -130,6 +227,168 @@ export default function EditThreadPanel({
 
     fetchShareStatus();
   }, [threadId]);
+  
+  // Update initial values when data is loaded
+  useEffect(() => {
+    setInitialValues({
+      title: initialTitle,
+      color: initialColor,
+      isShared: isShared
+    });
+  }, [initialTitle, initialColor, isShared]);
+  
+  // Helper function to refresh referenced scripture notes
+  const refreshReferencedScriptureNotes = useCallback(async (notes: Note[]) => {
+    const defaultNoteIds = notes
+      .filter(note => note.noteType === 'default' || !note.noteType)
+      .map(note => note.id);
+    
+    if (defaultNoteIds.length > 0) {
+      try {
+        const refsResponse = await fetch(`/api/threads/${threadId}/referenced-scripture-notes?noteIds=${defaultNoteIds.join(',')}`, {
+          credentials: 'include'
+        });
+        if (refsResponse.ok) {
+          const refsData = await refsResponse.json();
+          const scriptureNoteIds = refsData.scriptureNoteIds || [];
+          // Exclude scripture notes that are currently being removed
+          const filteredScriptureNoteIds = scriptureNoteIds.filter(
+            (id: string) => !removingScriptureNotesRef.current.has(id)
+          );
+          setReferencedScriptureNoteIds(new Set(filteredScriptureNoteIds));
+        } else {
+          setReferencedScriptureNoteIds(new Set());
+        }
+      } catch (error) {
+        console.error('Error fetching referenced scripture notes:', error);
+        setReferencedScriptureNoteIds(new Set());
+      }
+    } else {
+      // No default notes left - all scripture notes should be removable
+      // Clear referencedScriptureNoteIds and also clear any stale removingScriptureNotesRef entries
+      setReferencedScriptureNoteIds(new Set());
+      removingScriptureNotesRef.current.clear();
+      // Note: We don't clear removedNoteIds here - those notes were explicitly removed and should stay removed
+    }
+  }, [threadId]);
+
+  // Refresh referenced scripture notes whenever the notes list changes
+  useEffect(() => {
+    // Filter out removed notes before processing
+    const activeNotes = currentThreadNotes.filter(note => !removedNoteIds.has(note.id));
+    
+    // If we're currently removing a note, delay the refresh to allow database operation to complete
+    // For scripture notes, we need to wait longer to ensure they're fully removed
+    if (isRemovingNote || pendingRemovalsRef.current.size > 0) {
+      // Delay refresh by 1500ms to allow database operations to complete
+      // This is especially important for scripture notes which have additional cleanup
+      const timeoutId = setTimeout(() => {
+        // Only refresh if we're no longer removing notes
+        if (!isRemovingNote && pendingRemovalsRef.current.size === 0) {
+          if (activeNotes.length > 0) {
+            refreshReferencedScriptureNotes(activeNotes);
+          } else {
+            setReferencedScriptureNoteIds(new Set());
+          }
+        }
+      }, 1500);
+      
+      return () => clearTimeout(timeoutId);
+    }
+    
+    // Normal refresh when not removing - use filtered notes
+    if (activeNotes.length > 0) {
+      refreshReferencedScriptureNotes(activeNotes);
+    } else {
+      setReferencedScriptureNoteIds(new Set());
+    }
+  }, [currentThreadNotes, refreshReferencedScriptureNotes, isRemovingNote]);
+
+  // Listen for noteAddedToThread and noteRemovedFromThread events to keep list in sync
+  useEffect(() => {
+    const handleNoteAddedToThread = async (event: CustomEvent) => {
+      const { noteId, threadId: eventThreadId } = event.detail || {};
+      if (eventThreadId !== threadId || !noteId) return;
+      
+      // Check if note is already in the list
+      if (currentThreadNoteIds.includes(noteId)) {
+        return; // Already in list
+      }
+      
+      // Fetch note details and add to list
+      try {
+        const response = await fetch(`/api/notes/${noteId}/details`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const noteData = data.note;
+          const newNote: Note = {
+            id: noteData.id,
+            title: noteData.title,
+            content: noteData.content,
+            spaceId: noteData.spaceId,
+            noteType: noteData.noteType,
+          };
+          
+          setCurrentThreadNotes(prev => {
+            // Check if already exists
+            if (prev.some(n => n.id === noteId)) {
+              return prev;
+            }
+            // Don't add if this note was previously removed (use ref for current value in callback)
+            if (removedNoteIdsRef.current.has(noteId)) {
+              return prev;
+            }
+            return [newNote, ...prev];
+          });
+          setCurrentThreadNoteIds(prev => {
+            if (prev.includes(noteId)) {
+              return prev;
+            }
+            return [noteId, ...prev];
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching note details for add:', error);
+      }
+    };
+    
+    const handleNoteRemovedFromThread = (event: CustomEvent) => {
+      const { noteId, threadId: eventThreadId } = event.detail || {};
+      if (eventThreadId !== threadId || !noteId) return;
+      
+      // Skip if this component already handled it optimistically
+      if (pendingRemovalsRef.current.has(noteId)) {
+        return;
+      }
+      
+      // Skip if this note was already removed (prevent re-adding) - use ref for current value in callback
+      if (removedNoteIdsRef.current.has(noteId)) {
+        return;
+      }
+      
+      // Track that this note has been removed
+      setRemovedNoteIds(prev => {
+        const updated = new Set(prev);
+        updated.add(noteId);
+        return updated;
+      });
+      
+      // Remove note from list immediately (for external removals)
+      setCurrentThreadNotes(prev => prev.filter(note => note.id !== noteId));
+      setCurrentThreadNoteIds(prev => prev.filter(id => id !== noteId));
+    };
+    
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    
+    return () => {
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    };
+  }, [threadId, currentThreadNoteIds, refreshReferencedScriptureNotes]);
 
   // Handle share toggle
   const handleShareToggle = async (enabled: boolean) => {
@@ -222,70 +481,123 @@ export default function EditThreadPanel({
     }
   };
 
-  // Validate form data
-  const validateForm = () => {
+  // Validate title
+  const validateTitle = (title: string) => {
     const errors: Record<string, string> = {};
     
-    if (!formData.title.trim()) {
+    if (!title.trim()) {
       errors.title = 'Thread title is required';
     }
     
-    if (formData.title.trim().length < 1) {
+    if (title.trim().length < 1) {
       errors.title = 'Thread title must be at least 1 character';
     }
     
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  
+  // Helper function to update navigation DOM elements
+  const updateNavigationDOM = (title?: string, color?: ThreadColor) => {
+    if (typeof document === 'undefined') return;
     
-    if (!validateForm()) {
+    // Update navigation wrapper element
+    const navElement = document.querySelector(`[data-navigation-active="true"]`) || 
+                       document.querySelector(`[data-thread-id="${threadId}"]`) ||
+                       document.querySelector(`[slot="navigation"][data-thread-id="${threadId}"]`);
+    if (navElement) {
+      if (title !== undefined) {
+        navElement.setAttribute('data-thread-title', title.trim());
+      }
+      if (color !== undefined) {
+        const gradient = getThreadColorCSS(color);
+        navElement.setAttribute('data-thread-background-gradient', gradient);
+      }
+    }
+    
+    // Update main content div (used by page meta)
+    const mainDiv = document.querySelector(`[data-navigation-item="${threadId}"]`);
+    if (mainDiv) {
+      if (title !== undefined) {
+        mainDiv.setAttribute('data-title', title.trim());
+      }
+      if (color !== undefined) {
+        const gradient = getThreadColorCSS(color);
+        mainDiv.setAttribute('data-background-gradient', gradient);
+      }
+    }
+    
+    // Update CardStack header (the visible header on the thread page)
+    const cardStackHeader = document.querySelector(`.card-stack__header[data-thread-id="${threadId}"]`);
+    if (cardStackHeader) {
+      if (title !== undefined) {
+        // Update the text content in the page-heading element
+        const pageHeading = cardStackHeader.querySelector('.page-heading p');
+        if (pageHeading) {
+          pageHeading.textContent = title.trim();
+        }
+      }
+      if (color !== undefined) {
+        // Update background color
+        const bgColor = getThreadColorCSS(color);
+        (cardStackHeader as HTMLElement).style.backgroundColor = bgColor;
+        // Update text color based on thread color
+        const textColor = getThreadTextColorCSS(color);
+        (cardStackHeader as HTMLElement).style.color = textColor;
+      }
+    }
+    
+    // Update any note elements that reference this thread as parent
+    const noteElements = document.querySelectorAll(`[data-parent-thread-id="${threadId}"]`);
+    noteElements.forEach((noteEl) => {
+      if (title !== undefined) {
+        noteEl.setAttribute('data-parent-thread-title', title.trim());
+      }
+      if (color !== undefined) {
+        const gradient = getThreadColorCSS(color);
+        noteEl.setAttribute('data-parent-thread-background-gradient', gradient);
+      }
+    });
+  };
+  
+  // Auto-save title changes (debounced) - using useCallback with refs to avoid stale closures
+  const saveTitleChange = useCallback(async (title: string) => {
+    if (!validateTitle(title)) {
       return;
     }
-
-    setIsSubmitting(true);
-
+    
+    if (title.trim() === initialValues.title) {
+      return; // No change
+    }
+    
+    setIsSaving(true);
+    setSaveError(null);
+    
     try {
+      // Use refs to get current values (avoid stale closures)
+      const currentColor = formDataRef.current.selectedColor;
+      const currentIsShared = isSharedRef.current;
+      
       const formDataToSend = new FormData();
       formDataToSend.append('id', threadId);
-      formDataToSend.append('title', formData.title.trim());
-      formDataToSend.append('color', formData.selectedColor);
-      formDataToSend.append('isPublic', 'false');
+      formDataToSend.append('title', title.trim());
+      formDataToSend.append('color', currentColor);
+      formDataToSend.append('isPublic', currentIsShared ? 'true' : 'false');
       
-      // Add selected notes
-      const selectedNoteIds: string[] = [];
-      
-      // Filter selected items to only include notes
-      selectedItems.forEach(itemId => {
-        const isNote = allNotes.some(note => note.id === itemId);
-        if (isNote) {
-          selectedNoteIds.push(itemId);
-        }
-      });
-      
-      if (selectedNoteIds.length > 0) {
-        formDataToSend.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
-      }
-
       // OFFLINE-FIRST: Update thread in local IndexedDB immediately
       let offlineUpdateSuccess = false;
       if (userId) {
         try {
           await updateThreadOffline(userId, threadId, {
-            title: formData.title,
-            color: formData.selectedColor,
+            title: title.trim(),
+            color: currentColor,
           });
           offlineUpdateSuccess = true;
-          console.log('[EditThreadPanel] Thread updated locally in IndexedDB', { threadId });
         } catch (err) {
           console.error('[EditThreadPanel] Failed to update thread offline:', err);
-          // Continue with server API call
         }
       }
-
+      
       let response: Response | null = null;
       let networkError = false;
       
@@ -295,197 +607,277 @@ export default function EditThreadPanel({
           body: formDataToSend,
         });
       } catch (error) {
-        // Network error occurred
         networkError = isNetworkError(error);
         
         if (networkError && offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
-          console.log('[EditThreadPanel] Network error but thread updated offline, treating as success', { threadId });
-          
-          // Show "Saved offline" toast
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Thread updated offline. It will sync when you\'re back online.',
-              type: 'success'
-            }
-          }));
-          
-          // Dispatch threadUpdated event
+          setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          updateNavigationDOM(title.trim());
           window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId: threadId }
+            detail: { threadId }
           }));
-          
-          // Close panel after a short delay
-          setTimeout(() => {
-            if (onClose) {
-              onClose();
-            } else {
-              window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-            }
-          }, 500);
-
-          // Stay on current page when offline - thread will update from IndexedDB
-          const currentUrl = safeURL(window.location.href);
-          if (currentUrl) {
-            currentUrl.searchParams.set('toast', 'success');
-            currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline. It will sync when you\'re back online.'));
-            window.history.replaceState({}, '', currentUrl.toString());
-          }
-          
-          setIsSubmitting(false);
+          setIsSaving(false);
           return;
         } else {
-          // Network error but offline update also failed - rethrow
           throw error;
         }
       }
-
+      
       const data = await response.json();
-
+      
       if (response && response.ok) {
+        setInitialValues(prev => ({ ...prev, title: title.trim() }));
+        updateNavigationDOM(title.trim());
+        window.dispatchEvent(new CustomEvent('threadUpdated', {
+          detail: { threadId }
+        }));
+      } else {
+        if (offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, title: title.trim() }));
+          updateNavigationDOM(title.trim());
+          window.dispatchEvent(new CustomEvent('threadUpdated', {
+            detail: { threadId }
+          }));
+        } else {
+          throw new Error(data.error || 'Failed to update thread');
+        }
+      }
+    } catch (error) {
+      console.error('Error auto-saving title:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save title');
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to save title. Please try again.',
+          type: 'error'
+        }
+      }));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [threadId, userId, initialValues.title]);
+  
+  // Auto-save color changes (immediate) - using useCallback with refs to avoid stale closures
+  const saveColorChange = useCallback(async (color: ThreadColor) => {
+    if (color === initialValues.color) {
+      return; // No change
+    }
+    
+    setIsSaving(true);
+    setSaveError(null);
+    
+    try {
+      // Use refs to get current values (avoid stale closures)
+      const currentTitle = formDataRef.current.title;
+      const currentIsShared = isSharedRef.current;
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('id', threadId);
+      formDataToSend.append('title', currentTitle.trim());
+      formDataToSend.append('color', color);
+      formDataToSend.append('isPublic', currentIsShared ? 'true' : 'false');
+      
+      // OFFLINE-FIRST: Update thread in local IndexedDB immediately
+      let offlineUpdateSuccess = false;
+      if (userId) {
+        try {
+          await updateThreadOffline(userId, threadId, {
+            title: currentTitle.trim(),
+            color: color,
+          });
+          offlineUpdateSuccess = true;
+        } catch (err) {
+          console.error('[EditThreadPanel] Failed to update thread offline:', err);
+        }
+      }
+      
+      let response: Response | null = null;
+      let networkError = false;
+      
+      try {
+        response = await fetch('/api/threads/update', {
+          method: 'POST',
+          body: formDataToSend,
+        });
+      } catch (error) {
+        networkError = isNetworkError(error);
+        
+        if (networkError && offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, color: color }));
+          updateNavigationDOM(undefined, color);
+          window.dispatchEvent(new CustomEvent('threadUpdated', {
+            detail: { threadId }
+          }));
+          setIsSaving(false);
+          return;
+        } else {
+          throw error;
+        }
+      }
+      
+      const data = await response.json();
+      
+      if (response && response.ok) {
+        setInitialValues(prev => ({ ...prev, color: color }));
+        updateNavigationDOM(undefined, color);
+        window.dispatchEvent(new CustomEvent('threadUpdated', {
+          detail: { threadId }
+        }));
+      } else {
+        if (offlineUpdateSuccess) {
+          // Offline update succeeded - treat as success
+          setInitialValues(prev => ({ ...prev, color: color }));
+          updateNavigationDOM(undefined, color);
+          window.dispatchEvent(new CustomEvent('threadUpdated', {
+            detail: { threadId }
+          }));
+        } else {
+          throw new Error(data.error || 'Failed to update thread');
+        }
+      }
+    } catch (error) {
+      console.error('Error auto-saving color:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save color');
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to save color. Please try again.',
+          type: 'error'
+        }
+      }));
+    } finally {
+      setIsSaving(false);
+    }
+  }, [threadId, userId, initialValues.color]);
+  
+  // Debounced auto-save for title changes
+  useEffect(() => {
+    if (formData.title === initialValues.title) {
+      return; // No change
+    }
+    
+    const timeoutId = setTimeout(() => {
+      saveTitleChange(formData.title);
+    }, 1500); // 1.5 second debounce
+    
+    return () => clearTimeout(timeoutId);
+  }, [formData.title, initialValues.title, saveTitleChange]);
+
+  // Handle adding selected notes to thread (auto-save)
+  const handleAddNotesToThread = async () => {
+    if (selectedItems.length === 0) {
+      return;
+    }
+    
+    setIsSaving(true);
+    setSaveError(null);
+    
+    // Get notes to add (for optimistic update)
+    const notesToAdd: Note[] = [];
+    const selectedNoteIds: string[] = [];
+    selectedItems.forEach(itemId => {
+      const note = allNotes.find(note => note.id === itemId);
+      if (note) {
+        notesToAdd.push(note);
+        selectedNoteIds.push(itemId);
+      }
+    });
+    
+    // Optimistic update: immediately add notes to UI
+    if (notesToAdd.length > 0) {
+      // Remove notes from removedNoteIds if they're being explicitly added back
+      setRemovedNoteIds(prev => {
+        const updated = new Set(prev);
+        notesToAdd.forEach(note => {
+          updated.delete(note.id);
+        });
+        return updated;
+      });
+      setCurrentThreadNotes(prev => {
+        // Filter out any notes that are already in the list
+        const existingIds = new Set(prev.map(n => n.id));
+        const newNotes = notesToAdd.filter(note => !existingIds.has(note.id));
+        return [...newNotes, ...prev];
+      });
+      setCurrentThreadNoteIds(prev => {
+        const existingIds = new Set(prev);
+        const newIds = selectedNoteIds.filter(id => !existingIds.has(id));
+        return [...newIds, ...prev];
+      });
+    }
+    
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('id', threadId);
+      formDataToSend.append('title', formData.title.trim());
+      formDataToSend.append('color', formData.selectedColor);
+      formDataToSend.append('isPublic', isShared ? 'true' : 'false');
+      
+      if (selectedNoteIds.length > 0) {
+        formDataToSend.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
+      }
+      
+      const response = await fetch('/api/threads/update', {
+        method: 'POST',
+        body: formDataToSend,
+      });
+      
+      const data = await response.json();
+      
+      if (response && response.ok) {
+        // Dispatch noteAddedToThread events for each note
+        selectedNoteIds.forEach(noteId => {
+          window.dispatchEvent(new CustomEvent('noteAddedToThread', {
+            detail: { noteId, threadId, skipNavigation: true }
+          }));
+        });
+        
         // Clear selected items
         setSelectedItems([]);
         
-        // Refresh current thread notes if we added any
-        if (selectedItems.length > 0) {
-          const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
-            credentials: 'include'
-          });
-          
-          if (threadNotesResponse.ok) {
-            const threadNotesData = await threadNotesResponse.json();
-            const notes = threadNotesData.notes || [];
-            const noteIds = notes.map((note: Note) => note.id);
-            setCurrentThreadNoteIds(noteIds);
-            setCurrentThreadNotes(notes);
-          }
-        }
+        // Don't refresh from server - we already did optimistic update and the event will sync other components
+        // The optimistic update is sufficient, and refreshing could cause navigation/panel closing issues
+        // Note: refreshReferencedScriptureNotes is already called in the optimistic update above
         
-        // Store threadId in sessionStorage for refresh on navigation
-        try {
-          const recentlyUpdatedThreads = JSON.parse(sessionStorage.getItem('recentlyUpdatedThreads') || '[]');
-          recentlyUpdatedThreads.push({
-            threadId: threadId,
-            timestamp: Date.now()
-          });
-          // Keep only last 10 updates
-          const trimmed = recentlyUpdatedThreads.slice(-10);
-          sessionStorage.setItem('recentlyUpdatedThreads', JSON.stringify(trimmed));
-        } catch (error) {
-          console.warn('Failed to store thread update in sessionStorage:', error);
-        }
-        
-        // Dispatch threadUpdated event to refresh dashboard
         window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId: threadId }
+          detail: { threadId }
         }));
-        
-        // Close panel after a short delay
-        setTimeout(() => {
-          if (onClose) {
-            onClose();
-          } else {
-            window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-          }
-        }, 500);
-
-        // Navigate to show updated thread using View Transitions
-        const currentUrl = safeURL(window.location.href);
-        if (currentUrl) {
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
-        }
       } else {
-        // Check if offline update succeeded
-        if (offlineUpdateSuccess) {
-          // Offline update succeeded - treat as success
-          console.log('[EditThreadPanel] Server error but thread updated offline, treating as success', { threadId });
-          
-          window.dispatchEvent(new CustomEvent('toast', {
-            detail: {
-              message: 'Thread updated offline. It will sync when you\'re back online.',
-              type: 'success'
-            }
-          }));
-          
-          window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId: threadId }
-          }));
-          
-          setTimeout(() => {
-            if (onClose) {
-              onClose();
-            } else {
-              window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-            }
-          }, 500);
-
-          const currentUrl = safeURL(window.location.href);
-          if (currentUrl) {
-            currentUrl.searchParams.set('toast', 'success');
-            currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline'));
-            safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
-          }
-          
-          setIsSubmitting(false);
-          return;
-        }
-        
-        console.error('EditThreadPanel: Thread update failed:', data);
-        
-        // Show error toast
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: data.error || 'Failed to update thread. Please try again.',
-            type: 'error'
-          }
-        }));
+        // Revert optimistic update on error
+        setCurrentThreadNotes(prev => prev.filter(note => !selectedNoteIds.includes(note.id)));
+        setCurrentThreadNoteIds(prev => prev.filter(id => !selectedNoteIds.includes(id)));
+        throw new Error(data.error || 'Failed to add notes to thread');
       }
-
     } catch (error) {
-      // Check if this is a network error and we have an offline update
-      if (isNetworkError(error) && offlineUpdateSuccess) {
-        // Network error but offline update succeeded - treat as success
-        console.log('[EditThreadPanel] Network error but thread updated offline, treating as success', { threadId });
-        
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Thread updated offline. It will sync when you\'re back online.',
-            type: 'success'
-          }
-        }));
-        
-        window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId: threadId }
-        }));
-        
-        setTimeout(() => {
-          if (onClose) {
-            onClose();
-          } else {
-            window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-          }
-        }, 500);
-
-        const currentUrl = safeURL(window.location.href);
-        if (currentUrl) {
-          currentUrl.searchParams.set('toast', 'success');
-          currentUrl.searchParams.set('message', encodeURIComponent('Thread updated offline'));
-          safeNavigate(currentUrl.pathname + currentUrl.search, { history: 'replace' });
+      console.error('Error adding notes to thread:', error);
+      // Revert optimistic update on error
+      setCurrentThreadNotes(prev => prev.filter(note => !selectedNoteIds.includes(note.id)));
+      setCurrentThreadNoteIds(prev => prev.filter(id => !selectedNoteIds.includes(id)));
+      setSaveError(error instanceof Error ? error.message : 'Failed to add notes');
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to add notes to thread. Please try again.',
+          type: 'error'
         }
-      } else {
-        // Real error - log and show error toast
-        console.error('❌ EditThreadPanel: Error updating thread:', error);
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Error updating thread. Please try again.',
-            type: 'error'
-          }
-        }));
-      }
+      }));
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
+  
+  // Auto-save when notes are selected (debounced to batch multiple selections)
+  useEffect(() => {
+    if (selectedItems.length === 0) {
+      return;
+    }
+    
+    const timeoutId = setTimeout(() => {
+      handleAddNotesToThread();
+    }, 500); // Small delay to batch multiple selections
+    
+    return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItems]);
 
   // Handle input changes
   const handleInputChange = (field: string, value: string) => {
@@ -501,17 +893,82 @@ export default function EditThreadPanel({
     }
   };
 
-  // Handle color selection
-  const handleColorSelect = (color: ThreadColor) => {
+  // Handle color selection (auto-save immediately)
+  const handleColorSelect = async (color: ThreadColor) => {
     setFormData(prev => ({ ...prev, selectedColor: color }));
+    await saveColorChange(color);
   };
 
-  // Handle close
+  // Check if there are unsaved changes or pending saves
+  const hasUnsavedChanges = () => {
+    return (
+      formData.title.trim() !== initialValues.title ||
+      formData.selectedColor !== initialValues.color ||
+      isShared !== initialValues.isShared ||
+      selectedItems.length > 0
+    );
+  };
+  
+  // Handle close with unsaved changes check
   const handleClose = () => {
-    if (formData.title.trim() !== initialTitle || selectedItems.length > 0) {
-      // Show unsaved changes dialog or just close
-      // For now, just close - can add dialog later if needed
+    if (isSaving) {
+      setShowUnsavedDialog(true);
+      return;
     }
+    
+    if (hasUnsavedChanges()) {
+      setShowUnsavedDialog(true);
+      return;
+    }
+    
+    if (onClose) {
+      onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+    }
+  };
+  
+  // Handle unsaved changes dialog actions
+  const handleDiscardChanges = () => {
+    // Reset to initial values
+    setFormData({
+      title: initialValues.title,
+      selectedColor: initialValues.color,
+      selectedType: initialValues.isShared ? 'Shared' : 'Private'
+    });
+    setIsShared(initialValues.isShared);
+    setSelectedItems([]);
+    setShowUnsavedDialog(false);
+    
+    if (onClose) {
+      onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+    }
+  };
+  
+  const handleSaveAndClose = async () => {
+    setShowUnsavedDialog(false);
+    
+    // Wait for any pending saves to complete
+    if (isSaving) {
+      // Wait a bit for save to complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // Save any remaining changes
+    if (formData.title.trim() !== initialValues.title) {
+      await saveTitleChange(formData.title);
+    }
+    if (formData.selectedColor !== initialValues.color) {
+      await saveColorChange(formData.selectedColor);
+    }
+    if (selectedItems.length > 0) {
+      await handleAddNotesToThread();
+    }
+    
+    // Wait a bit more for saves to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
     
     if (onClose) {
       onClose();
@@ -531,7 +988,44 @@ export default function EditThreadPanel({
 
   // Remove note from thread
   const handleRemoveFromThread = async (noteId: string) => {
+    // Mark that this button was clicked (already set in onClick, but ensure it's set)
+    buttonClickRef.current = noteId;
+    // Clear after a short delay
+    setTimeout(() => {
+      buttonClickRef.current = null;
+    }, 100);
+    
     setIsRemovingNote(true);
+    
+    // Mark this note as being removed optimistically
+    pendingRemovalsRef.current.add(noteId);
+    
+    // Optimistic update: immediately remove note from UI
+    const noteToRemove = currentThreadNotes.find(note => note.id === noteId);
+    const isScriptureNote = noteToRemove?.noteType === 'scripture';
+    
+    // Track that this note has been removed IMMEDIATELY (before API call)
+    // This ensures it stays filtered out even if something tries to re-add it
+    setRemovedNoteIds(prev => {
+      const updated = new Set(prev);
+      updated.add(noteId);
+      return updated;
+    });
+    
+    setCurrentThreadNotes(prev => prev.filter(note => note.id !== noteId));
+    setCurrentThreadNoteIds(prev => prev.filter(id => id !== noteId));
+    
+    // If removing a scripture note, immediately remove it from referencedScriptureNoteIds
+    // This prevents it from being filtered out during the removal process
+    if (isScriptureNote) {
+      removingScriptureNotesRef.current.add(noteId);
+      setReferencedScriptureNoteIds(prev => {
+        const updated = new Set(prev);
+        updated.delete(noteId);
+        return updated;
+      });
+    }
+    
     try {
       const response = await fetch(`/api/notes/${noteId}/remove-thread`, {
         method: 'POST',
@@ -554,26 +1048,50 @@ export default function EditThreadPanel({
         }));
 
         // Dispatch noteRemovedFromThread event for real-time UI updates
+        // Our listener will check pendingRemovalsRef synchronously and skip processing
+        // Add skipNavigation flag to prevent page refresh when removing from EditThreadPanel
         window.dispatchEvent(new CustomEvent('noteRemovedFromThread', {
           detail: { 
             noteId: noteId,
-            threadId: threadId
+            threadId: threadId,
+            skipNavigation: true // Prevent page navigation/refresh when removing from EditThreadPanel
           }
         }));
-
-        // Refresh current thread notes
-        const threadNotesResponse = await fetch(`/api/threads/${threadId}/notes?limit=1000`, {
-          credentials: 'include'
-        });
         
-        if (threadNotesResponse.ok) {
-          const threadNotesData = await threadNotesResponse.json();
-          const notes = threadNotesData.notes || [];
-          const noteIds = notes.map((note: Note) => note.id);
-          setCurrentThreadNoteIds(noteIds);
-          setCurrentThreadNotes(notes);
+        // Remove from pending set after dispatching (event dispatch is synchronous, so our listener has already checked)
+        pendingRemovalsRef.current.delete(noteId);
+        // Note: removedNoteIdsRef was already set during optimistic update, so no need to set it again
+        // Remove from scripture notes tracking if it was a scripture note
+        // Delay clearing to ensure refresh doesn't re-add it
+        if (isScriptureNote) {
+          setTimeout(() => {
+            removingScriptureNotesRef.current.delete(noteId);
+          }, 2000); // Wait 2 seconds before clearing
         }
+
+        // Don't refresh from server - we already did optimistic update and the event will sync other components
+        // The optimistic update is sufficient, and refreshing could cause navigation/panel closing issues
       } else {
+        // Revert optimistic update on error
+        pendingRemovalsRef.current.delete(noteId);
+        // Remove from removedNoteIds since removal failed
+        setRemovedNoteIds(prev => {
+          const updated = new Set(prev);
+          updated.delete(noteId);
+          return updated;
+        });
+        if (isScriptureNote) {
+          removingScriptureNotesRef.current.delete(noteId);
+        }
+        if (noteToRemove) {
+          setCurrentThreadNotes(prev => [...prev, noteToRemove]);
+          setCurrentThreadNoteIds(prev => [...prev, noteId]);
+          // If it was a scripture note, we need to refresh to get the correct referenced state
+          if (isScriptureNote) {
+            // Trigger refresh to get correct referenced scripture notes state
+            refreshReferencedScriptureNotes([...currentThreadNotes, noteToRemove]);
+          }
+        }
         const error = await response.json();
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
@@ -583,7 +1101,29 @@ export default function EditThreadPanel({
         }));
       }
     } catch (error) {
+      // Revert optimistic update on error
+      pendingRemovalsRef.current.delete(noteId);
+      // Remove from removedNoteIdsRef since removal failed
+      removedNoteIdsRef.current.delete(noteId);
+      if (isScriptureNote) {
+        removingScriptureNotesRef.current.delete(noteId);
+      }
+      if (noteToRemove) {
+        setCurrentThreadNotes(prev => [...prev, noteToRemove]);
+        setCurrentThreadNoteIds(prev => [...prev, noteId]);
+        // If it was a scripture note, we need to refresh to get the correct referenced state
+        if (isScriptureNote) {
+          // Trigger refresh to get correct referenced scripture notes state
+          refreshReferencedScriptureNotes([...currentThreadNotes, noteToRemove]);
+        }
+      }
       console.error('Error removing note from thread:', error);
+      // Log more details for debugging
+      console.error('Error details:', {
+        noteId,
+        threadId,
+        error: error instanceof Error ? error.message : String(error)
+      });
       window.dispatchEvent(new CustomEvent('toast', {
         detail: {
           message: 'Error removing note from thread. Please try again.',
@@ -697,7 +1237,7 @@ export default function EditThreadPanel({
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <div className="flex-1 flex flex-col min-h-0">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Single unified panel using CardStack structure */}
@@ -722,6 +1262,7 @@ export default function EditThreadPanel({
                 {/* Thread Title Input */}
                 <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
                   <input 
+                    ref={titleInputRef}
                     type="text"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
@@ -778,26 +1319,108 @@ export default function EditThreadPanel({
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {currentThreadNotes.map(note => (
+                        {currentThreadNotes
+                          .filter(note => {
+                            // First, exclude any note that has been removed
+                            if (removedNoteIds.has(note.id)) {
+                              return false;
+                            }
+                            // Exclude notes that are actively being removed right now (prevents flicker during removal)
+                            if (pendingRemovalsRef.current.has(note.id)) {
+                              return false;
+                            }
+                            return true;
+                          })
+                          .map(note => (
                           <div key={note.id} className="relative group">
                             <a 
                               href={`/${note.id}`}
                               className="block"
                               aria-label={`View note: ${note.title || 'Untitled note'}`}
+                              onMouseDown={(e) => {
+                                // Prevent navigation if button was clicked
+                                if (buttonClickRef.current === note.id) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  return false;
+                                }
+                                // Also check for remove button area
+                                const target = e.target as HTMLElement;
+                                const removeButton = target.closest('.btn-action') || 
+                                                    target.closest('[aria-label="Remove"]') ||
+                                                    target.closest('.remove-button-area');
+                                if (removeButton) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  return false;
+                                }
+                              }}
+                              onClick={(e) => {
+                                // Prevent navigation if button was clicked
+                                if (buttonClickRef.current === note.id) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  return false;
+                                }
+                                // Also check for remove button area
+                                const target = e.target as HTMLElement;
+                                const removeButton = target.closest('.btn-action') || 
+                                                    target.closest('[aria-label="Remove"]') ||
+                                                    target.closest('.remove-button-area');
+                                if (removeButton) {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  return false;
+                                }
+                              }}
                             >
                               {renderCompactNoteItem(note)}
                             </a>
-                            {/* Remove from thread button */}
-                            <ActionButton
-                              variant="Remove"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveFromThread(note.id);
-                              }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                              disabled={isRemovingNote}
-                            />
+                            {/* Remove from thread button - absolutely positioned over the link */}
+                            <div 
+                              className="remove-button-area absolute top-0 right-0 w-12 h-full"
+                              style={{ pointerEvents: 'none', zIndex: 10 }}
+                            >
+                              <ActionButton
+                                variant="Remove"
+                                onMouseDown={(e) => {
+                                  // Mark button click immediately on mousedown (before link's onMouseDown)
+                                  buttonClickRef.current = note.id;
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  console.log('Remove button mousedown for note:', note.id);
+                                }}
+                                onClick={(e) => {
+                                  // Mark button click immediately
+                                  buttonClickRef.current = note.id;
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  if (e.stopImmediatePropagation) {
+                                    e.stopImmediatePropagation();
+                                  }
+                                  console.log('Remove button clicked for note:', note.id);
+                                  handleRemoveFromThread(note.id);
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
+                                disabled={isRemovingNote}
+                                style={{ pointerEvents: 'auto', zIndex: 11 }}
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -831,7 +1454,7 @@ export default function EditThreadPanel({
                                   handleItemSelect(note.id, 'note');
                                 }}
                                 className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                                disabled={isSubmitting}
+                                disabled={isSaving}
                               />
                             </div>
                           );
@@ -856,7 +1479,7 @@ export default function EditThreadPanel({
                       currentThreadId={threadId}
                       onItemSelect={handleItemSelect}
                       selectedItems={selectedItems}
-                      isLoading={isSubmitting}
+                      isLoading={isSaving}
                       placeholder="Search notes"
                       emptyMessage="No notes found"
                       itemsToShow="notes"
@@ -876,23 +1499,18 @@ export default function EditThreadPanel({
             variant="Back"
             onClick={handleClose}
             inBottomSheet={inBottomSheet}
+            disabled={isSaving}
           />
-          
-          {/* Save Changes button - Button Default variant */}
-          <button 
-            type="submit"
-            disabled={isSubmitting || !formData.title.trim()}
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-            tabIndex={3}
-          >
-            <span className="btn-cta__content">
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </span>
-            <div className="btn-cta__shadow" />
-          </button>
         </div>
-      </form>
+      </div>
+      
+      {/* Unsaved Changes Dialog */}
+      <UnsavedChangesDialog
+        isOpen={showUnsavedDialog}
+        onCancel={() => setShowUnsavedDialog(false)}
+        onDiscard={handleDiscardChanges}
+        onSaveAndClose={handleSaveAndClose}
+      />
     </div>
   );
 }

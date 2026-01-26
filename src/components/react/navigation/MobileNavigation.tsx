@@ -321,13 +321,20 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         
         if (threadData) {
           setUpdatedCurrentThread((prev) => {
-            // Only update if count actually changed
-            if (prev && prev.noteCount === threadData.noteCount) {
+            // Check if anything changed (count, title, or color)
+            const countChanged = prev?.noteCount !== threadData.noteCount;
+            const titleChanged = prev?.title !== threadData.title;
+            const colorChanged = prev?.backgroundGradient !== threadData.backgroundGradient;
+            
+            if (!countChanged && !titleChanged && !colorChanged) {
               return prev;
             }
+            
             return {
               ...currentThread,
-              noteCount: threadData.noteCount
+              title: threadData.title || currentThread.title,
+              noteCount: threadData.noteCount,
+              backgroundGradient: threadData.backgroundGradient || currentThread.backgroundGradient
             };
           });
         }
@@ -372,11 +379,19 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       }
     };
 
+    const handleThreadUpdated = () => {
+      // First read from DOM (should be updated by EditThreadPanel)
+      readActiveThreadFromDom();
+      // Also refresh from API to ensure we have latest data
+      refreshCurrentThreadCount(true);
+    };
+
     // Register event listeners
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
+    window.addEventListener('threadUpdated', handleThreadUpdated);
 
     // Cleanup
     return () => {
@@ -384,6 +399,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
+      window.removeEventListener('threadUpdated', handleThreadUpdated);
     };
   }, [currentThread]);
 
