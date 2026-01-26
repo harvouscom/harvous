@@ -644,16 +644,31 @@ export async function processScriptureReferences(
   // ADDITIONAL FIX: Extract ALL scripture pills with real noteIds from content
   // and ensure junction entries exist, even if they weren't part of detected references
   // This handles pills that were inserted with real noteIds but never processed (e.g., from copying/pasting)
-  const allPillsPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
+  const allPillsPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  const allPillsPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
   const allExistingPills = new Map<string, string>(); // scriptureNoteId -> reference
 
+  // Pattern 1: data-scripture-reference comes before data-note-id
   let pillMatch;
-  while ((pillMatch = allPillsPattern.exec(noteContent)) !== null) {
+  while ((pillMatch = allPillsPattern1.exec(noteContent)) !== null) {
     const reference = pillMatch[1];
     const pillNoteId = pillMatch[2];
 
     // Only track pills with REAL noteIds (skip pending/null/empty)
     if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      allExistingPills.set(pillNoteId, reference);
+    }
+  }
+
+  // Pattern 2: data-note-id comes before data-scripture-reference
+  while ((pillMatch = allPillsPattern2.exec(noteContent)) !== null) {
+    const pillNoteId = pillMatch[1];
+    const reference = pillMatch[2];
+
+    // Only track pills with REAL noteIds (skip pending/null/empty)
+    // Only add if not already found by pattern 1
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '' && !allExistingPills.has(pillNoteId)) {
       allExistingPills.set(pillNoteId, reference);
     }
   }
