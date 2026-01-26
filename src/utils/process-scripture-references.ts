@@ -641,6 +641,57 @@ export async function processScriptureReferences(
     }
   }
 
+  // ADDITIONAL FIX: Extract ALL scripture pills with real noteIds from content
+  // and ensure junction entries exist, even if they weren't part of detected references
+  // This handles pills that were inserted with real noteIds but never processed (e.g., from copying/pasting)
+  const allPillsPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  const allExistingPills = new Map<string, string>(); // scriptureNoteId -> reference
+
+  let pillMatch;
+  while ((pillMatch = allPillsPattern.exec(noteContent)) !== null) {
+    const reference = pillMatch[1];
+    const pillNoteId = pillMatch[2];
+
+    // Only track pills with REAL noteIds (skip pending/null/empty)
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      allExistingPills.set(pillNoteId, reference);
+    }
+  }
+
+  // After processing all detected references, ensure junction entries exist for ALL pills
+  for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
+    try {
+      // Check if junction entry exists
+      const existingJunction = await db.select()
+        .from(NoteScriptureReferences)
+        .where(
+          and(
+            eq(NoteScriptureReferences.noteId, noteId),
+            eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId)
+          )
+        )
+        .limit(1)
+        .get();
+
+      if (!existingJunction) {
+        // Create missing junction entry
+        await db.insert(NoteScriptureReferences).values({
+          id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          noteId: noteId,
+          scriptureNoteId: scriptureNoteId,
+          createdAt: new Date()
+        });
+
+        console.log(`Created missing junction entry for ${reference} (${scriptureNoteId})`);
+      }
+    } catch (junctionError: any) {
+      // Only ignore duplicate entry errors (from unique constraint)
+      if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
+        console.error(`Failed to create junction entry for pill ${reference}:`, junctionError);
+      }
+    }
+  }
+
   const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
 
   // Always update note in database with properly highlighted content

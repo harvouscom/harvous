@@ -795,12 +795,13 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
         );
 
         // Check which referenced scripture notes are NOT already directly in the thread
-        const alreadyCountedScriptureIds = new Set(
+        const directScriptureNoteIds = new Set(
           allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter((id: string | undefined): id is string => !!id)
         );
 
+        // Only count referenced scripture notes that are NOT already in the thread as direct members
         const additionalScriptureCount = Array.from(uniqueReferencedScriptureIds).filter(
-          (id: string) => !alreadyCountedScriptureIds.has(id)
+          (id: string) => !directScriptureNoteIds.has(id)
         ).length;
 
         scriptureCount += additionalScriptureCount;
