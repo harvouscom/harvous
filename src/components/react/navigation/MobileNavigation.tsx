@@ -121,9 +121,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
         // Thread page: thread data from navigation dataset (best available)
         if (itemId.startsWith('thread_')) {
+          // Try multiple selectors to find thread data (desktop and mobile)
           const navEl =
             (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
-            (document.querySelector('[slot="navigation"]') as HTMLElement | null);
+            (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
+            (document.querySelector(`[data-thread-id="${itemId}"]`) as HTMLElement | null) ??
+            (document.querySelector(`[data-navigation-item="${itemId}"]`) as HTMLElement | null);
           const threadId = navEl?.dataset?.threadId ?? itemId;
           if (!threadId || !threadId.startsWith('thread_')) {
             setActiveThreadFromDom(null);
@@ -131,9 +134,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           }
           setActiveThreadFromDom({
             id: threadId,
-            title: navEl?.dataset?.threadTitle || 'Thread',
+            title: navEl?.dataset?.threadTitle || navEl?.dataset?.title || 'Thread',
             noteCount: parseInt(navEl?.dataset?.threadNoteCount || '0'),
-            backgroundGradient: navEl?.dataset?.threadBackgroundGradient || getThreadGradientCSS('paper'),
+            backgroundGradient: navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient || getThreadGradientCSS('paper'),
             spaceId: (navEl?.dataset?.threadSpaceId as string | undefined) ?? undefined,
           });
           return;
@@ -379,19 +382,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       }
     };
 
-    const handleThreadUpdated = () => {
-      // First read from DOM (should be updated by EditThreadPanel)
-      readActiveThreadFromDom();
-      // Also refresh from API to ensure we have latest data
-      refreshCurrentThreadCount(true);
-    };
-
     // Register event listeners
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('noteDeleted', handleNoteDeleted);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
-    window.addEventListener('threadUpdated', handleThreadUpdated);
 
     // Cleanup
     return () => {
@@ -399,6 +394,124 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
+    };
+  }, [currentThread]);
+  
+  // Separate useEffect for threadUpdated event - works even when currentThread is null
+  useEffect(() => {
+    const handleThreadUpdated = (event?: Event) => {
+      // Get threadId and updated data from event detail if available
+      const customEvent = event as CustomEvent;
+      const eventThreadId = customEvent?.detail?.threadId;
+      const eventTitle = customEvent?.detail?.title;
+      const eventColor = customEvent?.detail?.color;
+      const eventBackgroundGradient = customEvent?.detail?.backgroundGradient;
+      
+      // Determine which thread to update
+      // Use eventThreadId if available, otherwise check currentThread, otherwise check URL
+      const path = window.location.pathname || '/';
+      const itemId = path.startsWith('/') ? path.slice(1) : path;
+      const threadIdToCheck = eventThreadId || currentThread?.id || (itemId.startsWith('thread_') ? itemId : null);
+      
+      // If we have a threadId from event and it doesn't match current thread, skip
+      if (eventThreadId && currentThread && eventThreadId !== currentThread.id) {
+        return;
+      }
+      
+      // If we don't have a thread to check, skip
+      if (!threadIdToCheck) {
+        return;
+      }
+      
+      // PRIORITY 1: Use event detail values if available (immediate update, no DOM read needed)
+      if (eventTitle || eventBackgroundGradient) {
+        setUpdatedCurrentThread((prev) => {
+          const titleChanged = eventTitle && prev?.title !== eventTitle;
+          const colorChanged = eventBackgroundGradient && prev?.backgroundGradient !== eventBackgroundGradient;
+          
+          if (!titleChanged && !colorChanged) {
+            return prev;
+          }
+          
+          return {
+            ...(prev || currentThread),
+            id: threadIdToCheck,
+            title: eventTitle || prev?.title || currentThread?.title || 'Thread',
+            backgroundGradient: eventBackgroundGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper')
+          };
+        });
+        
+        // Also read from DOM as fallback/verification (but don't wait for it)
+        readActiveThreadFromDom();
+        return; // Early return - we got the data from event, no need to read DOM
+      }
+      
+      // PRIORITY 2: Fall back to DOM read if event detail doesn't have data
+      // Use requestAnimationFrame to ensure DOM updates are visible (especially on mobile)
+      requestAnimationFrame(() => {
+        // First read from DOM (should be updated by EditThreadPanel)
+        readActiveThreadFromDom();
+        
+        // Immediately update updatedCurrentThread from DOM if we can find the data
+        // This provides instant UI feedback before the API call completes
+        try {
+          // Try multiple selectors to find updated thread data (desktop and mobile)
+          const navEl =
+            (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+            (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
+            (document.querySelector(`[data-thread-id="${threadIdToCheck}"]`) as HTMLElement | null) ??
+            (document.querySelector(`[data-navigation-item="${threadIdToCheck}"]`) as HTMLElement | null);
+          
+          // Also check CardStack header (the visible header on the page)
+          const cardStackHeader = document.querySelector(`.card-stack__header[data-thread-id="${threadIdToCheck}"]`) as HTMLElement | null;
+          
+          // Get title from CardStack header if available (most reliable source)
+          const pageHeading = cardStackHeader?.querySelector('.page-heading p');
+          const titleFromHeader = pageHeading?.textContent?.trim();
+          
+          // Get gradient from CardStack header style if available
+          const gradientFromHeader = cardStackHeader?.style?.backgroundColor;
+          
+          // Combine data from navigation elements and CardStack header
+          const newTitle = titleFromHeader || navEl?.dataset?.threadTitle || navEl?.dataset?.title;
+          const newGradient = gradientFromHeader || navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient;
+          
+          if (newTitle || newGradient) {
+            setUpdatedCurrentThread((prev) => {
+              const titleChanged = newTitle && prev?.title !== newTitle;
+              const colorChanged = newGradient && prev?.backgroundGradient !== newGradient;
+              
+              if (!titleChanged && !colorChanged) {
+                return prev;
+              }
+              
+              return {
+                ...(prev || currentThread),
+                id: threadIdToCheck,
+                title: newTitle || prev?.title || currentThread?.title || 'Thread',
+                backgroundGradient: newGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper')
+              };
+            });
+          }
+          
+          // If we have currentThread, also refresh from API to ensure we have latest data (including note count)
+          if (currentThread && threadIdToCheck === currentThread.id) {
+            // Import and call refreshCurrentThreadCount if available
+            // We'll trigger this via a separate mechanism to avoid circular dependencies
+            // The API refresh will happen through the navigationHistoryUpdated event
+          }
+        } catch (error) {
+          // Silently fail - will fall back to API refresh
+          console.error('[MobileNavigation] Error reading thread data from DOM:', error);
+        }
+      });
+    };
+
+    // Register event listener
+    window.addEventListener('threadUpdated', handleThreadUpdated);
+
+    // Cleanup
+    return () => {
       window.removeEventListener('threadUpdated', handleThreadUpdated);
     };
   }, [currentThread]);
@@ -789,11 +902,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <SpaceButton
               as="div"
-              text={currentThread ? currentThread.title : currentSpace ? currentSpace.title : "My Home"}
+              text={activeThreadCandidate ? activeThreadCandidate.title : currentSpace ? currentSpace.title : "My Home"}
               count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : currentSpace ? currentSpace.totalItemCount : inboxCount}
               state="DropdownTrigger"
               rightAccessory="none"
-              backgroundGradient={currentThread?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
+              backgroundGradient={activeThreadCandidate?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')}
               hideDropdownIcon={true}
             />
           </a>
@@ -1039,6 +1152,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   <>
                     {persistentThreads.map((thread) => {
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
+                      // Use updated thread data for active thread to show live updates
+                      const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;
                       const threadHref =
                         typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
                           ? `/${thread.id}?space=${encodeURIComponent(selectedSpaceId)}`
@@ -1056,20 +1171,20 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               style={
                                 isActive
                                   ? {
-                                      backgroundImage: thread.backgroundGradient?.includes('gradient')
-                                        ? thread.backgroundGradient
+                                      backgroundImage: displayThread.backgroundGradient?.includes('gradient')
+                                        ? displayThread.backgroundGradient
                                         : undefined,
-                                      backgroundColor: thread.backgroundGradient?.includes('gradient')
+                                      backgroundColor: displayThread.backgroundGradient?.includes('gradient')
                                         ? undefined
-                                        : (thread.backgroundGradient || undefined),
+                                        : (displayThread.backgroundGradient || undefined),
                                     }
                                   : {}
                               }
                             >
                               <div className="space-btn__content">
                                 <div className="space-btn__text-wrapper">
-                                  <span className="space-btn__text" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
-                                    {thread.title}
+                                  <span className="space-btn__text" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
+                                    {displayThread.title}
                                   </span>
                                 </div>
                                 <div className="space-btn__badge-wrapper">
@@ -1087,10 +1202,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     }}
                                   >
                                     {itemsInCloseMode.has(thread.id) ? (
-                                      <Icon name="xmark" size={14} style={{ color: getTextColor(thread.backgroundGradient, isActive) }} />
+                                      <Icon name="xmark" size={14} style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }} />
                                     ) : (
-                                      <span className="badge-number" style={{ color: getTextColor(thread.backgroundGradient, isActive) }}>
-                                        {formatBadgeCount(thread.noteCount)}
+                                      <span className="badge-number" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
+                                        {formatBadgeCount(displayThread.noteCount)}
                                       </span>
                                     )}
                                   </div>

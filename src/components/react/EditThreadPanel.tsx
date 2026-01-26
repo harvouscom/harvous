@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -116,6 +116,13 @@ export default function EditThreadPanel({
   const formDataRef = useRef(formData);
   const isSharedRef = useRef(isShared);
   
+  // Refs to track pending saves and debounce timers
+  const pendingTitleSaveRef = useRef<string | null>(null);
+  const pendingColorSaveRef = useRef<ThreadColor | null>(null);
+  const titleDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const notesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const activeSaveOperationsRef = useRef<Set<string>>(new Set());
+  
   // Update refs when values change
   useEffect(() => {
     formDataRef.current = formData;
@@ -124,6 +131,7 @@ export default function EditThreadPanel({
   useEffect(() => {
     isSharedRef.current = isShared;
   }, [isShared]);
+  
 
 
   // Fetch all notes and current thread notes on mount
@@ -414,8 +422,16 @@ export default function EditThreadPanel({
         }));
 
         // Dispatch event to refresh dashboard
+        // Include current title and color for immediate mobile updates
+        const currentTitle = formDataRef.current.title;
+        const currentColor = formDataRef.current.selectedColor;
         window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId }
+          detail: { 
+            threadId,
+            title: currentTitle,
+            color: currentColor,
+            backgroundGradient: getThreadGradientCSS(currentColor)
+          }
         }));
       } else {
         const error = await response.json();
@@ -498,66 +514,106 @@ export default function EditThreadPanel({
   };
   
   // Helper function to update navigation DOM elements
+  // Uses requestAnimationFrame on mobile to ensure updates are visible after animations
   const updateNavigationDOM = (title?: string, color?: ThreadColor) => {
     if (typeof document === 'undefined') return;
     
-    // Update navigation wrapper element
-    const navElement = document.querySelector(`[data-navigation-active="true"]`) || 
-                       document.querySelector(`[data-thread-id="${threadId}"]`) ||
-                       document.querySelector(`[slot="navigation"][data-thread-id="${threadId}"]`);
-    if (navElement) {
-      if (title !== undefined) {
-        navElement.setAttribute('data-thread-title', title.trim());
-      }
-      if (color !== undefined) {
-        const gradient = getThreadColorCSS(color);
-        navElement.setAttribute('data-thread-background-gradient', gradient);
-      }
-    }
-    
-    // Update main content div (used by page meta)
-    const mainDiv = document.querySelector(`[data-navigation-item="${threadId}"]`);
-    if (mainDiv) {
-      if (title !== undefined) {
-        mainDiv.setAttribute('data-title', title.trim());
-      }
-      if (color !== undefined) {
-        const gradient = getThreadColorCSS(color);
-        mainDiv.setAttribute('data-background-gradient', gradient);
-      }
-    }
-    
-    // Update CardStack header (the visible header on the thread page)
-    const cardStackHeader = document.querySelector(`.card-stack__header[data-thread-id="${threadId}"]`);
-    if (cardStackHeader) {
-      if (title !== undefined) {
-        // Update the text content in the page-heading element
-        const pageHeading = cardStackHeader.querySelector('.page-heading p');
-        if (pageHeading) {
-          pageHeading.textContent = title.trim();
+    const performUpdate = () => {
+      const gradient = color !== undefined ? getThreadColorCSS(color) : undefined;
+      
+      // Update navigation wrapper element (desktop)
+      const navElement = document.querySelector(`[data-navigation-active="true"]`) || 
+                         document.querySelector(`[data-thread-id="${threadId}"]`) ||
+                         document.querySelector(`[slot="navigation"][data-thread-id="${threadId}"]`);
+      if (navElement) {
+        if (title !== undefined) {
+          navElement.setAttribute('data-thread-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          navElement.setAttribute('data-thread-background-gradient', gradient);
         }
       }
-      if (color !== undefined) {
-        // Update background color
-        const bgColor = getThreadColorCSS(color);
-        (cardStackHeader as HTMLElement).style.backgroundColor = bgColor;
-        // Update text color based on thread color
-        const textColor = getThreadTextColorCSS(color);
-        (cardStackHeader as HTMLElement).style.color = textColor;
+      
+      // Update main content div (used by page meta - works on both desktop and mobile)
+      const mainDiv = document.querySelector(`[data-navigation-item="${threadId}"]`);
+      if (mainDiv) {
+        if (title !== undefined) {
+          mainDiv.setAttribute('data-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          mainDiv.setAttribute('data-background-gradient', gradient);
+        }
+        // Also set thread-specific attributes for mobile navigation to read
+        if (title !== undefined) {
+          mainDiv.setAttribute('data-thread-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          mainDiv.setAttribute('data-thread-background-gradient', gradient);
+        }
       }
-    }
+      
+      // Update CardStack header (the visible header on the thread page - works on both desktop and mobile)
+      const cardStackHeader = document.querySelector(`.card-stack__header[data-thread-id="${threadId}"]`);
+      if (cardStackHeader) {
+        if (title !== undefined) {
+          // Update the text content in the page-heading element
+          const pageHeading = cardStackHeader.querySelector('.page-heading p');
+          if (pageHeading) {
+            pageHeading.textContent = title.trim();
+          }
+          // Also update data attribute for mobile navigation
+          cardStackHeader.setAttribute('data-thread-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          // Update background color - use !important to ensure it persists on mobile
+          const bgColor = getThreadColorCSS(color);
+          (cardStackHeader as HTMLElement).style.setProperty('background-color', bgColor, 'important');
+          // Update text color based on thread color
+          const textColor = getThreadTextColorCSS(color);
+          (cardStackHeader as HTMLElement).style.setProperty('color', textColor, 'important');
+          // Also update data attribute for mobile navigation
+          cardStackHeader.setAttribute('data-thread-background-gradient', gradient);
+        }
+      }
+      
+      // Update any note elements that reference this thread as parent
+      const noteElements = document.querySelectorAll(`[data-parent-thread-id="${threadId}"]`);
+      noteElements.forEach((noteEl) => {
+        if (title !== undefined) {
+          noteEl.setAttribute('data-parent-thread-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          noteEl.setAttribute('data-parent-thread-background-gradient', gradient);
+        }
+      });
+      
+      // Update mobile navigation elements (if they exist)
+      // MobileNavigation reads from [data-navigation-active="true"] or [slot="navigation"]
+      // but on mobile these might not exist, so we also update any element with data-thread-id
+      const allThreadElements = document.querySelectorAll(`[data-thread-id="${threadId}"]`);
+      allThreadElements.forEach((el) => {
+        if (title !== undefined) {
+          el.setAttribute('data-thread-title', title.trim());
+        }
+        if (color !== undefined && gradient) {
+          el.setAttribute('data-thread-background-gradient', gradient);
+        }
+      });
+    };
     
-    // Update any note elements that reference this thread as parent
-    const noteElements = document.querySelectorAll(`[data-parent-thread-id="${threadId}"]`);
-    noteElements.forEach((noteEl) => {
-      if (title !== undefined) {
-        noteEl.setAttribute('data-parent-thread-title', title.trim());
-      }
-      if (color !== undefined) {
-        const gradient = getThreadColorCSS(color);
-        noteEl.setAttribute('data-parent-thread-background-gradient', gradient);
-      }
-    });
+    // On mobile (or when inBottomSheet), use requestAnimationFrame to ensure updates are visible
+    // after any bottom sheet animations complete
+    if (inBottomSheet || (typeof window !== 'undefined' && window.innerWidth < 1160)) {
+      // Double RAF to ensure it happens after any animations
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          performUpdate();
+        });
+      });
+    } else {
+      // On desktop, update immediately
+      performUpdate();
+    }
   };
   
   // Auto-save title changes (debounced) - using useCallback with refs to avoid stale closures
@@ -567,11 +623,25 @@ export default function EditThreadPanel({
     }
     
     if (title.trim() === initialValues.title) {
+      // Clear pending save if it matches initial value
+      pendingTitleSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
+      }
       return; // No change
     }
     
+    // Track this save operation
+    const saveId = `title_${Date.now()}`;
+    activeSaveOperationsRef.current.add(saveId);
     setIsSaving(true);
     setSaveError(null);
+    
+    // Clear pending save from sessionStorage since we're saving now
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
+    }
+    pendingTitleSaveRef.current = null;
     
     try {
       // Use refs to get current values (avoid stale closures)
@@ -614,8 +684,14 @@ export default function EditThreadPanel({
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           updateNavigationDOM(title.trim());
           window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId }
+            detail: { 
+              threadId,
+              title: title.trim(),
+              color: currentColor,
+              backgroundGradient: getThreadGradientCSS(currentColor)
+            }
           }));
+          activeSaveOperationsRef.current.delete(saveId);
           setIsSaving(false);
           return;
         } else {
@@ -629,7 +705,12 @@ export default function EditThreadPanel({
         setInitialValues(prev => ({ ...prev, title: title.trim() }));
         updateNavigationDOM(title.trim());
         window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId }
+          detail: { 
+            threadId,
+            title: title.trim(),
+            color: currentColor,
+            backgroundGradient: getThreadGradientCSS(currentColor)
+          }
         }));
       } else {
         if (offlineUpdateSuccess) {
@@ -637,7 +718,12 @@ export default function EditThreadPanel({
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           updateNavigationDOM(title.trim());
           window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId }
+            detail: { 
+              threadId,
+              title: title.trim(),
+              color: currentColor,
+              backgroundGradient: getThreadGradientCSS(currentColor)
+            }
           }));
         } else {
           throw new Error(data.error || 'Failed to update thread');
@@ -653,6 +739,7 @@ export default function EditThreadPanel({
         }
       }));
     } finally {
+      activeSaveOperationsRef.current.delete(saveId);
       setIsSaving(false);
     }
   }, [threadId, userId, initialValues.title]);
@@ -660,11 +747,25 @@ export default function EditThreadPanel({
   // Auto-save color changes (immediate) - using useCallback with refs to avoid stale closures
   const saveColorChange = useCallback(async (color: ThreadColor) => {
     if (color === initialValues.color) {
+      // Clear pending save if it matches initial value
+      pendingColorSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingThreadColor_${threadId}`);
+      }
       return; // No change
     }
     
+    // Track this save operation
+    const saveId = `color_${Date.now()}`;
+    activeSaveOperationsRef.current.add(saveId);
     setIsSaving(true);
     setSaveError(null);
+    
+    // Clear pending save from sessionStorage since we're saving now
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem(`pendingThreadColor_${threadId}`);
+    }
+    pendingColorSaveRef.current = null;
     
     try {
       // Use refs to get current values (avoid stale closures)
@@ -707,8 +808,14 @@ export default function EditThreadPanel({
           setInitialValues(prev => ({ ...prev, color: color }));
           updateNavigationDOM(undefined, color);
           window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId }
+            detail: { 
+              threadId,
+              title: currentTitle.trim(),
+              color: color,
+              backgroundGradient: getThreadGradientCSS(color)
+            }
           }));
+          activeSaveOperationsRef.current.delete(saveId);
           setIsSaving(false);
           return;
         } else {
@@ -722,7 +829,12 @@ export default function EditThreadPanel({
         setInitialValues(prev => ({ ...prev, color: color }));
         updateNavigationDOM(undefined, color);
         window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId }
+          detail: { 
+            threadId,
+            title: currentTitle.trim(),
+            color: color,
+            backgroundGradient: getThreadGradientCSS(color)
+          }
         }));
       } else {
         if (offlineUpdateSuccess) {
@@ -730,7 +842,12 @@ export default function EditThreadPanel({
           setInitialValues(prev => ({ ...prev, color: color }));
           updateNavigationDOM(undefined, color);
           window.dispatchEvent(new CustomEvent('threadUpdated', {
-            detail: { threadId }
+            detail: { 
+              threadId,
+              title: currentTitle.trim(),
+              color: color,
+              backgroundGradient: getThreadGradientCSS(color)
+            }
           }));
         } else {
           throw new Error(data.error || 'Failed to update thread');
@@ -746,22 +863,130 @@ export default function EditThreadPanel({
         }
       }));
     } finally {
+      activeSaveOperationsRef.current.delete(saveId);
       setIsSaving(false);
     }
   }, [threadId, userId, initialValues.color]);
   
+  // Check for pending saves from sessionStorage on mount (for mobile remounts)
+  // Must be after saveTitleChange and saveColorChange are defined
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const pendingTitle = sessionStorage.getItem(`pendingThreadTitle_${threadId}`);
+    const pendingColor = sessionStorage.getItem(`pendingThreadColor_${threadId}`);
+    
+    if (pendingTitle && pendingTitle !== initialTitle) {
+      // Restore pending title save
+      pendingTitleSaveRef.current = pendingTitle;
+      // Clear from sessionStorage
+      sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
+      // Trigger save after a small delay to ensure component is fully mounted
+      setTimeout(() => {
+        saveTitleChange(pendingTitle).catch(err => {
+          console.error('[EditThreadPanel] Error restoring pending title save:', err);
+        });
+      }, 100);
+    }
+    
+    if (pendingColor && pendingColor !== initialColor) {
+      // Restore pending color save
+      pendingColorSaveRef.current = pendingColor as ThreadColor;
+      // Clear from sessionStorage
+      sessionStorage.removeItem(`pendingThreadColor_${threadId}`);
+      // Trigger save after a small delay to ensure component is fully mounted
+      setTimeout(() => {
+        saveColorChange(pendingColor as ThreadColor).catch(err => {
+          console.error('[EditThreadPanel] Error restoring pending color save:', err);
+        });
+      }, 100);
+    }
+  }, [saveTitleChange, saveColorChange, threadId, initialTitle, initialColor]); // Run when save functions are available
+  
+  // Cleanup effect: ensure all pending saves complete before unmount
+  useEffect(() => {
+    return () => {
+      // Complete any pending debounced saves
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+        
+        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
+          // Complete the save synchronously if possible, but don't block
+          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
+            console.error('[EditThreadPanel] Error completing pending title save on unmount:', err);
+          });
+        }
+      }
+      
+      if (notesDebounceTimerRef.current) {
+        clearTimeout(notesDebounceTimerRef.current);
+        notesDebounceTimerRef.current = null;
+      }
+      
+      // Wait for active save operations to complete (with timeout)
+      if (activeSaveOperationsRef.current.size > 0) {
+        const maxWait = 2000; // Max 2 seconds
+        const startTime = Date.now();
+        const checkInterval = setInterval(() => {
+          if (activeSaveOperationsRef.current.size === 0 || Date.now() - startTime > maxWait) {
+            clearInterval(checkInterval);
+          }
+        }, 100);
+      }
+    };
+  }, [saveTitleChange, initialValues.title]);
+  
   // Debounced auto-save for title changes
   useEffect(() => {
     if (formData.title === initialValues.title) {
+      // Clear any pending save
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+      }
+      pendingTitleSaveRef.current = null;
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
+      }
       return; // No change
+    }
+    
+    // Store pending save in sessionStorage (for mobile remounts)
+    pendingTitleSaveRef.current = formData.title;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`pendingThreadTitle_${threadId}`, formData.title);
+    }
+    
+    // Clear existing timer
+    if (titleDebounceTimerRef.current) {
+      clearTimeout(titleDebounceTimerRef.current);
     }
     
     const timeoutId = setTimeout(() => {
       saveTitleChange(formData.title);
+      titleDebounceTimerRef.current = null;
     }, 1500); // 1.5 second debounce
     
-    return () => clearTimeout(timeoutId);
-  }, [formData.title, initialValues.title, saveTitleChange]);
+    titleDebounceTimerRef.current = timeoutId;
+    
+    return () => {
+      // On unmount, if there's a pending save, complete it immediately
+      if (titleDebounceTimerRef.current) {
+        clearTimeout(titleDebounceTimerRef.current);
+        titleDebounceTimerRef.current = null;
+        
+        // Complete the pending save before unmounting
+        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
+          // Use a small delay to ensure the save function can access current state
+          // But don't block unmount - the save will complete asynchronously
+          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
+            console.error('[EditThreadPanel] Error completing pending title save on unmount:', err);
+          });
+        }
+      }
+    };
+  }, [formData.title, initialValues.title, saveTitleChange, threadId]);
 
   // Handle adding selected notes to thread (auto-save)
   const handleAddNotesToThread = async () => {
@@ -827,8 +1052,14 @@ export default function EditThreadPanel({
       if (response && response.ok) {
         // Dispatch noteAddedToThread events for each note
         selectedNoteIds.forEach(noteId => {
+          const note = notesToAdd.find(n => n.id === noteId);
           window.dispatchEvent(new CustomEvent('noteAddedToThread', {
-            detail: { noteId, threadId, skipNavigation: true }
+            detail: { 
+              noteId, 
+              threadId, 
+              noteType: note?.noteType || 'default',
+              skipNavigation: true 
+            }
           }));
         });
         
@@ -840,7 +1071,12 @@ export default function EditThreadPanel({
         // Note: refreshReferencedScriptureNotes is already called in the optimistic update above
         
         window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { threadId }
+          detail: { 
+            threadId,
+            title: formData.title.trim(),
+            color: formData.selectedColor,
+            backgroundGradient: getThreadGradientCSS(formData.selectedColor)
+          }
         }));
       } else {
         // Revert optimistic update on error
@@ -868,14 +1104,42 @@ export default function EditThreadPanel({
   // Auto-save when notes are selected (debounced to batch multiple selections)
   useEffect(() => {
     if (selectedItems.length === 0) {
+      // Clear any pending timer
+      if (notesDebounceTimerRef.current) {
+        clearTimeout(notesDebounceTimerRef.current);
+        notesDebounceTimerRef.current = null;
+      }
       return;
+    }
+    
+    // Clear existing timer
+    if (notesDebounceTimerRef.current) {
+      clearTimeout(notesDebounceTimerRef.current);
     }
     
     const timeoutId = setTimeout(() => {
       handleAddNotesToThread();
+      notesDebounceTimerRef.current = null;
     }, 500); // Small delay to batch multiple selections
     
-    return () => clearTimeout(timeoutId);
+    notesDebounceTimerRef.current = timeoutId;
+    
+    return () => {
+      // On unmount, complete pending note additions if any
+      if (notesDebounceTimerRef.current) {
+        clearTimeout(notesDebounceTimerRef.current);
+        notesDebounceTimerRef.current = null;
+        
+        // Complete the pending save before unmounting
+        if (selectedItems.length > 0) {
+          // Use a small delay to ensure the save function can access current state
+          // But don't block unmount - the save will complete asynchronously
+          handleAddNotesToThread().catch(err => {
+            console.error('[EditThreadPanel] Error completing pending notes save on unmount:', err);
+          });
+        }
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedItems]);
 
@@ -1054,6 +1318,7 @@ export default function EditThreadPanel({
           detail: { 
             noteId: noteId,
             threadId: threadId,
+            noteType: noteToRemove?.noteType || 'default',
             skipNavigation: true // Prevent page navigation/refresh when removing from EditThreadPanel
           }
         }));

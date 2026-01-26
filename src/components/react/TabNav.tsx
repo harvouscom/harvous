@@ -123,9 +123,11 @@ export default function TabNav({
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId, note, actualThreadId } = customEvent.detail;
 
-      // Check if note was created in current thread
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      // Use threadId prop if available, otherwise use pathname
+      const currentThreadId = threadId || (() => {
+        const currentPath = window.location.pathname;
+        return currentPath.substring(1);
+      })();
       const noteThreadId = eventThreadId || actualThreadId || note?.threadId;
 
       if (noteThreadId === currentThreadId || (noteThreadId === 'thread_unorganized' && currentThreadId === 'thread_unorganized')) {
@@ -153,8 +155,11 @@ export default function TabNav({
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId } = customEvent.detail;
 
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      // Use threadId prop if available, otherwise use pathname
+      const currentThreadId = threadId || (() => {
+        const currentPath = window.location.pathname;
+        return currentPath.substring(1);
+      })();
 
       if (eventThreadId === currentThreadId) {
         // Optimistic update
@@ -174,16 +179,24 @@ export default function TabNav({
 
     const handleNoteAddedToThread = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { threadId: eventThreadId } = customEvent.detail;
+      const { threadId: eventThreadId, noteType = 'default' } = customEvent.detail;
 
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      // Use threadId prop if available, otherwise use pathname
+      const currentThreadId = threadId || (() => {
+        const currentPath = window.location.pathname;
+        return currentPath.substring(1);
+      })();
 
       if (eventThreadId === currentThreadId) {
-        // Optimistic update
+        // Optimistic update - update both all and specific note type count
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
           newCounts.all = (newCounts.all || 0) + 1;
+          if (noteType === 'scripture') {
+            newCounts.scripture = (newCounts.scripture || 0) + 1;
+          } else {
+            newCounts.notes = (newCounts.notes || 0) + 1;
+          }
           return newCounts;
         });
 
@@ -196,16 +209,24 @@ export default function TabNav({
 
     const handleNoteRemovedFromThread = async (event: Event) => {
       const customEvent = event as CustomEvent;
-      const { threadId: eventThreadId } = customEvent.detail;
+      const { threadId: eventThreadId, noteType = 'default' } = customEvent.detail;
 
-      const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      // Use threadId prop if available, otherwise use pathname
+      const currentThreadId = threadId || (() => {
+        const currentPath = window.location.pathname;
+        return currentPath.substring(1);
+      })();
 
       if (eventThreadId === currentThreadId) {
-        // Optimistic update
+        // Optimistic update - update both all and specific note type count
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
           newCounts.all = Math.max(0, (newCounts.all || 0) - 1);
+          if (noteType === 'scripture') {
+            newCounts.scripture = Math.max(0, (newCounts.scripture || 0) - 1);
+          } else {
+            newCounts.notes = Math.max(0, (newCounts.notes || 0) - 1);
+          }
           return newCounts;
         });
 
@@ -230,7 +251,7 @@ export default function TabNav({
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
     };
-  }, [updateBadgeCountsFromAPI]);
+  }, [updateBadgeCountsFromAPI, threadId]);
 
   // Handle tab click
   const handleTabClick = (tabId: string) => {

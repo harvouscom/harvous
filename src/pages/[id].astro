@@ -15,9 +15,10 @@ import SpaceContentList from "@/components/react/SpaceContentList";
 import CardThread from "@/components/CardThread.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
+import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
-import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
+import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
 import { debug } from "@/utils/logger";
@@ -953,6 +954,15 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
               centerTitle={true}
               threadId={isThread && currentThread?.id ? currentThread.id : undefined}
             >
+              {isThread && currentThread?.id && currentThread?.color ? (
+                <ThreadCardStackHeader 
+                  slot="header"
+                  initialTitle={currentThread.title || 'Unorganized'}
+                  initialColor={currentThread.color}
+                  threadId={currentThread.id}
+                  client:load
+                />
+              ) : null}
               <div class="flex flex-col gap-6">
                 
                 {isThread && threadNotes ? (
@@ -1403,17 +1413,20 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     }
   });
   
-  // Listen for thread updates - update page meta and navigation data attributes
+  // Listen for thread updates - update page meta, navigation data attributes, and CardStack header
   // @ts-ignore
   window.addEventListener('threadUpdated', async (event) => {
     // @ts-ignore
-    const { threadId } = event.detail || {};
+    const { threadId, title: eventTitle, color: eventColor, backgroundGradient: eventBackgroundGradient } = event.detail || {};
     if (!threadId) return;
     
     // Check if we're on the thread page that was updated
     const currentPath = window.location.pathname.substring(1);
     if (currentPath === threadId) {
-      // Fetch updated thread data
+      // Note: CardStack header updates are now handled by ThreadCardStackHeader React component
+      // which listens for threadUpdated events and manages its own state
+      
+      // PRIORITY: Fetch from API to ensure we have latest data for other updates (navigation, data attributes, etc.)
       try {
         const response = await fetch(`/api/threads/${threadId}`, {
           credentials: 'include'
@@ -1424,14 +1437,19 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
           const thread = threadData.thread;
           
           if (thread) {
+            // Use API data if event detail didn't have it
+            const titleToUse = eventTitle || thread.title;
+            const colorToUse = eventColor || thread.color;
+            const gradientToUse = eventBackgroundGradient || (thread.color ? getThreadGradientCSS(thread.color) : undefined);
+            
             // Update main div data attributes
             const mainDiv = document.querySelector('[data-navigation-item]');
             if (mainDiv) {
-              if (thread.title) {
-                mainDiv.setAttribute('data-title', thread.title);
+              if (titleToUse) {
+                mainDiv.setAttribute('data-title', titleToUse);
               }
-              if (thread.color) {
-                const gradient = getThreadGradientCSS(thread.color);
+              if (colorToUse) {
+                const gradient = gradientToUse || getThreadGradientCSS(colorToUse);
                 mainDiv.setAttribute('data-background-gradient', gradient);
               }
             }
@@ -1439,14 +1457,16 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
             // Update navigation wrapper data attributes
             const navWrapper = document.querySelector('[data-thread-id]');
             if (navWrapper && navWrapper.getAttribute('data-thread-id') === threadId) {
-              if (thread.title) {
-                navWrapper.setAttribute('data-thread-title', thread.title);
+              if (titleToUse) {
+                navWrapper.setAttribute('data-thread-title', titleToUse);
               }
-              if (thread.color) {
-                const gradient = getThreadGradientCSS(thread.color);
+              if (colorToUse) {
+                const gradient = gradientToUse || getThreadGradientCSS(colorToUse);
                 navWrapper.setAttribute('data-thread-background-gradient', gradient);
               }
             }
+            
+            // Note: CardStack header updates are handled by ThreadCardStackHeader React component
           }
         }
       } catch (error) {
