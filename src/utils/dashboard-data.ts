@@ -770,13 +770,17 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
 
+      console.log(`[getThreadNoteTypeCounts] Thread ${threadId}:`);
+      console.log(`  Direct scripture notes in thread: ${scriptureCount}`);
+      console.log(`  Direct scripture note IDs:`, allNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
+
       // Also count scripture notes referenced by notes in this thread
       const threadNoteIds = allNotes.map(n => n.id || '').filter(id => id);
-      
+
       if (threadNoteIds.length > 0) {
         // Find scripture notes referenced by notes in this thread
         const referencedScriptureNoteIds = await db
-          .select({ 
+          .select({
             scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
             scriptureNoteType: Notes.noteType
           })
@@ -789,10 +793,14 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
           ))
           .all();
 
+        console.log(`  Total referenced scripture notes (with duplicates): ${referencedScriptureNoteIds.length}`);
+
         // Get unique scripture note IDs (deduplicate)
         const uniqueReferencedScriptureIds = new Set(
           referencedScriptureNoteIds.map(r => r.scriptureNoteId)
         );
+
+        console.log(`  Unique referenced scripture note IDs: ${uniqueReferencedScriptureIds.size}`, Array.from(uniqueReferencedScriptureIds));
 
         // Check which referenced scripture notes are NOT already directly in the thread
         const directScriptureNoteIds = new Set(
@@ -803,6 +811,9 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
         const additionalScriptureCount = Array.from(uniqueReferencedScriptureIds).filter(
           (id: string) => !directScriptureNoteIds.has(id)
         ).length;
+
+        console.log(`  Additional scripture notes (not in thread): ${additionalScriptureCount}`);
+        console.log(`  Final scripture count: ${scriptureCount} + ${additionalScriptureCount} = ${scriptureCount + additionalScriptureCount}`);
 
         scriptureCount += additionalScriptureCount;
         allCount += additionalScriptureCount;
