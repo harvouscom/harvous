@@ -56,3 +56,8 @@ If you're still getting errors:
 4. **Check if the new tables exist** in your database
 
 The code is designed to gracefully handle cases where the new tables don't exist yet, so the app should still work even before the database changes are applied.
+
+### Deployment Issues
+
+For deployment-related database errors (like UNIQUE constraint failures during Netlify builds), see:
+- **[Database Deployment Errors](../troubleshooting/database-deployment-errors.md)** - Guide for fixing deployment failures
