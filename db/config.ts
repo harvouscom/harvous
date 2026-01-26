@@ -230,15 +230,13 @@ const NoteScriptureReferences = defineTable({
     noteId: column.text(), // Note that contains the reference
     scriptureNoteId: column.text(), // The scripture note being referenced
     createdAt: column.date(),
+  },
+  indexes: {
+    uniqueNoteScripture: {
+      on: ['noteId', 'scriptureNoteId'],
+      unique: true
+    }
   }
-  // NOTE: Unique constraint temporarily removed to allow deployment
-  // Will be re-added after cleanup API removes duplicates
-  // indexes: {
-  //   uniqueNoteScripture: {
-  //     on: ['noteId', 'scriptureNoteId'],
-  //     unique: true
-  //   }
-  // }
 })
 
 // Inbox items from Harvous team (synced from Webflow CMS)
