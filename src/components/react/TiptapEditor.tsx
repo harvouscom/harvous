@@ -2607,6 +2607,49 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             if (referencesNeedingPills.length > 0) {
               createPendingPillsForReferences(editor, referencesNeedingPills);
             }
+
+            // If editing an existing note, immediately process scripture references
+            // This creates scripture notes instantly without requiring a save
+            if (sourceNoteId && (referencesNeedingPills.length > 0 || references.length > 0)) {
+              try {
+                const currentHtml = editor.getHTML();
+                const currentThreadId = parentThreadId || 'thread_unorganized';
+
+                // Call API to process scripture references with current editor content
+                const processResponse = await fetch(`/api/notes/${sourceNoteId}/process-scripture-references`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    threadId: currentThreadId,
+                    contentOverride: currentHtml
+                  }),
+                  credentials: 'include'
+                });
+
+                if (processResponse.ok) {
+                  const processResult = await processResponse.json();
+                  
+                  // Convert results to format expected by convertScriptureReferencesToPills
+                  // Only include results where scripture notes were created or added (not skipped)
+                  const scriptureResults = processResult.results
+                    .filter((r: any) => r.action === 'created' || r.action === 'added')
+                    .map((r: any) => ({
+                      reference: r.reference,
+                      noteId: r.noteId
+                    }));
+
+                  if (scriptureResults.length > 0) {
+                    // Update pills with real noteIds
+                    await convertScriptureReferencesToPills(editor, scriptureResults);
+                  }
+                } else {
+                  console.error('[TiptapEditor] Error processing scripture references after paste:', processResponse.status);
+                }
+              } catch (processError) {
+                // Non-critical error - scripture notes will be created on save
+                console.error('[TiptapEditor] Error processing scripture references after paste:', processError);
+              }
+            }
           } catch (e) {
             console.error('[TiptapEditor] Error checking for existing pills after paste:', e);
             // Fallback: create pending pills for all references if check fails

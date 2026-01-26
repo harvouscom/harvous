@@ -331,6 +331,15 @@ export default function InfiniteScrollList<T>({
               'Load more'
             )}
           </div>
+          {isLoading && (
+            <div 
+              style={{ 
+                minHeight: `${limit * 90}px`, // 90px per item (80px item + 12px margin)
+                width: '100%'
+              }} 
+              aria-hidden="true"
+            />
+          )}
         </>
       )}
     </div>

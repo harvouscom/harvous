@@ -5,7 +5,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
     const { userId } = locals.auth();
     const { id: noteId } = params;
-    const { threadId } = await request.json();
+    const { threadId, contentOverride } = await request.json();
 
     if (!userId) {
       return new Response(JSON.stringify({ 
@@ -25,7 +25,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    const result = await processScriptureReferences(noteId, userId, threadId);
+    // Pass contentOverride if provided (for immediate processing without saving first)
+    // If not provided, processScriptureReferences will read from database as before
+    const result = await processScriptureReferences(noteId, userId, threadId, contentOverride);
 
     return new Response(JSON.stringify(result), {
       status: 200,
