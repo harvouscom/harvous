@@ -852,7 +852,29 @@ export default function OrganizedContentList({
       prevPropsInitialItemsRef.current = itemsKey;
       
       const rawItems = initialItems.map(normalizeItemDates);
-      const sorted = sortItems(rawItems);
+      
+      // Filter out deleted items
+      const filteredDeleted = rawItems.filter(item => {
+        return !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
+               !deletedItemIdsRef.current.has(normalizeId(item.threadId || '')) &&
+               !deletedItemIdsRef.current.has(normalizeId(item.noteId || ''));
+      });
+      
+      // Filter out deleted scripture notes from scriptureReferences arrays
+      const filteredScriptureRefs = filteredDeleted.map(item => {
+        if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+          const filteredRefs = item.scriptureReferences.filter(ref => {
+            return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
+          });
+          return {
+            ...item,
+            scriptureReferences: filteredRefs
+          };
+        }
+        return item;
+      });
+      
+      const sorted = sortItems(filteredScriptureRefs);
       
       setHasMore(sorted.length >= 20);
       hasMoreRef.current = sorted.length >= 20;
@@ -882,6 +904,26 @@ export default function OrganizedContentList({
             console.error('[OrganizedContentList] Failed to persist deleted items:', err);
           }
           return newSet;
+        });
+
+        // Immediately filter deleted scripture note from all items' scriptureReferences arrays
+        // This ensures CardNote components update instantly without waiting for refresh
+        setCurrentItems(prev => {
+          const filtered = prev.map(item => {
+            if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+              const filteredRefs = item.scriptureReferences.filter(ref => {
+                return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
+              });
+              return {
+                ...item,
+                scriptureReferences: filteredRefs
+              };
+            }
+            return item;
+          });
+          // Update ref to keep it in sync
+          currentItemsRef.current = filtered;
+          return filtered;
         });
 
         // If a scripture note is deleted and we're on the 'all' filter, refresh content
@@ -1356,11 +1398,45 @@ export default function OrganizedContentList({
       return !existingIds.has(uniqueId);
     });
 
+    // Filter out deleted items
+    const filteredDeleted = dedupedNewItems.filter(item => {
+      return !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
+             !deletedItemIdsRef.current.has(normalizeId(item.threadId || '')) &&
+             !deletedItemIdsRef.current.has(normalizeId(item.noteId || ''));
+    });
+
+    // Filter out deleted scripture notes from scriptureReferences arrays
+    const filteredScriptureRefs = filteredDeleted.map(item => {
+      if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+        const filteredRefs = item.scriptureReferences.filter(ref => {
+          return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
+        });
+        return {
+          ...item,
+          scriptureReferences: filteredRefs
+        };
+      }
+      return item;
+    });
+
     // Update the master list with only truly new items
     // Re-sort the combined list to ensure correct lastVisited ordering
-    if (dedupedNewItems.length > 0) {
+    if (filteredScriptureRefs.length > 0) {
       setCurrentItems(prev => {
-        const combined = [...prev, ...dedupedNewItems];
+        // Also filter deleted scripture refs from existing items before combining
+        const filteredPrev = prev.map(item => {
+          if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+            const filteredRefs = item.scriptureReferences.filter(ref => {
+              return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
+            });
+            return {
+              ...item,
+              scriptureReferences: filteredRefs
+            };
+          }
+          return item;
+        });
+        const combined = [...filteredPrev, ...filteredScriptureRefs];
         return sortItems(combined);
       });
     }
