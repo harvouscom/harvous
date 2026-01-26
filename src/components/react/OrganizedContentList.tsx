@@ -1391,44 +1391,58 @@ export default function OrganizedContentList({
       )
     );
 
-    const dedupedNewItems = newItems.filter(item => {
-      const uniqueId = item.type === 'thread'
-        ? normalizeId(item.threadId || item.id)
-        : normalizeId(item.noteId || item.id);
-      return !existingIds.has(uniqueId);
-    });
+    // Pre-compute deleted IDs set once for O(1) lookups
+    const deletedIdsSet = deletedItemIdsRef.current;
 
-    // Filter out deleted items
-    const filteredDeleted = dedupedNewItems.filter(item => {
-      return !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
-             !deletedItemIdsRef.current.has(normalizeId(item.threadId || '')) &&
-             !deletedItemIdsRef.current.has(normalizeId(item.noteId || ''));
-    });
-
-    // Filter out deleted scripture notes from scriptureReferences arrays
-    const filteredScriptureRefs = filteredDeleted.map(item => {
-      if (item.scriptureReferences && item.scriptureReferences.length > 0) {
-        const filteredRefs = item.scriptureReferences.filter(ref => {
-          return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
-        });
-        return {
-          ...item,
-          scriptureReferences: filteredRefs
-        };
-      }
-      return item;
-    });
+    // Combine all filtering operations in a single pass for better performance
+    // Process deduplication, deleted items, and scripture references together
+    const processedItems = newItems
+      .map(item => {
+        // Normalize dates first
+        const normalizedItem = normalizeItemDates(item);
+        
+        // Check deduplication
+        const uniqueId = normalizedItem.type === 'thread'
+          ? normalizeId(normalizedItem.threadId || normalizedItem.id)
+          : normalizeId(normalizedItem.noteId || normalizedItem.id);
+        
+        if (existingIds.has(uniqueId)) {
+          return null; // Skip duplicate
+        }
+        
+        // Check if item or any of its IDs are deleted
+        if (deletedIdsSet.has(normalizeId(normalizedItem.id)) ||
+            deletedIdsSet.has(normalizeId(normalizedItem.threadId || '')) ||
+            deletedIdsSet.has(normalizeId(normalizedItem.noteId || ''))) {
+          return null; // Skip deleted item
+        }
+        
+        // Process scripture references inline if present
+        if (normalizedItem.scriptureReferences && normalizedItem.scriptureReferences.length > 0) {
+          const filteredRefs = normalizedItem.scriptureReferences.filter(ref => 
+            !deletedIdsSet.has(normalizeId(ref.noteId))
+          );
+          return {
+            ...normalizedItem,
+            scriptureReferences: filteredRefs
+          };
+        }
+        
+        return normalizedItem;
+      })
+      .filter((item): item is OrganizedContentItem => item !== null);
 
     // Update the master list with only truly new items
     // Re-sort the combined list to ensure correct lastVisited ordering
-    if (filteredScriptureRefs.length > 0) {
+    if (processedItems.length > 0) {
       setCurrentItems(prev => {
         // Also filter deleted scripture refs from existing items before combining
+        const deletedIdsSet = deletedItemIdsRef.current;
         const filteredPrev = prev.map(item => {
           if (item.scriptureReferences && item.scriptureReferences.length > 0) {
-            const filteredRefs = item.scriptureReferences.filter(ref => {
-              return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
-            });
+            const filteredRefs = item.scriptureReferences.filter(ref => 
+              !deletedIdsSet.has(normalizeId(ref.noteId))
+            );
             return {
               ...item,
               scriptureReferences: filteredRefs
@@ -1436,7 +1450,7 @@ export default function OrganizedContentList({
           }
           return item;
         });
-        const combined = [...filteredPrev, ...filteredScriptureRefs];
+        const combined = [...filteredPrev, ...processedItems];
         return sortItems(combined);
       });
     }

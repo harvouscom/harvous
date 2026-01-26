@@ -321,7 +321,15 @@ export default function InfiniteScrollList<T>({
         <>
           <div ref={observerTarget} className="h-4" />
           <div className="text-[12px] text-[var(--color-stone-grey)] font-sans text-center mt-4 mb-3">
-            {isLoading ? 'Loading...' : 'Load more'}
+            {isLoading ? (
+              <span className="load-more-indicator" aria-label="Loading">
+                <span className="load-more-indicator__dot" />
+                <span className="load-more-indicator__dot" />
+                <span className="load-more-indicator__dot" />
+              </span>
+            ) : (
+              'Load more'
+            )}
           </div>
         </>
       )}
