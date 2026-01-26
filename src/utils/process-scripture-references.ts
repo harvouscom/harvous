@@ -35,7 +35,8 @@ export async function processScriptureReferences(
   }
 
   // Use provided content or note content
-  const noteContent = contentOverride || note.content;
+  // Use let instead of const so we can update it when fixing pasted pill noteIds
+  let noteContent = contentOverride || note.content;
 
   // Determine the actual thread ID (use provided threadId or check NoteThreads)
   let actualThreadId = threadId || 'thread_unorganized';
@@ -674,9 +675,249 @@ export async function processScriptureReferences(
   }
 
   // After processing all detected references, ensure junction entries exist for ALL pills
+  // This handles pills that were pasted with noteIds from other notes
   for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
     try {
-      // Check if junction entry exists
+      // First, verify that the scripture note exists and belongs to this user
+      // This handles cases where pills were pasted with noteIds that don't exist or belong to other users
+      const scriptureNote = await db.select()
+        .from(Notes)
+        .where(
+          and(
+            eq(Notes.id, scriptureNoteId),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          )
+        )
+        .limit(1)
+        .get();
+
+      if (!scriptureNote) {
+        // Scripture note doesn't exist or doesn't belong to user
+        // This can happen when pasting pills with noteIds from deleted notes or other users
+        // In this case, we should create a new scripture note for this reference
+        console.log(`Scripture note ${scriptureNoteId} not found for reference ${reference}, creating new one`);
+        
+        // Normalize the reference
+        const normalizedRef = normalizeScriptureReference(reference);
+        
+        // Check if a scripture note already exists for this reference (by reference, not noteId)
+        const existingScriptureByRef = await db.select({
+          noteId: ScriptureMetadata.noteId,
+          reference: ScriptureMetadata.reference
+        })
+          .from(ScriptureMetadata)
+          .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+          .where(
+            and(
+              eq(ScriptureMetadata.reference, normalizedRef),
+              eq(Notes.userId, userId)
+            )
+          )
+          .limit(1)
+          .get();
+
+        if (existingScriptureByRef) {
+          // Use the existing scripture note
+          const actualNoteId = existingScriptureByRef.noteId;
+          
+          // Create junction entry with the correct noteId
+          const existingJunction = await db.select()
+            .from(NoteScriptureReferences)
+            .where(
+              and(
+                eq(NoteScriptureReferences.noteId, noteId),
+                eq(NoteScriptureReferences.scriptureNoteId, actualNoteId)
+              )
+            )
+            .limit(1)
+            .get();
+
+          if (!existingJunction) {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${actualNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              noteId: noteId,
+              scriptureNoteId: actualNoteId,
+              createdAt: new Date()
+            });
+          }
+          
+          // Update the content to use the correct noteId in the pill
+          noteContent = noteContent.replace(
+            new RegExp(`data-note-id=["']${scriptureNoteId}["']`, 'g'),
+            `data-note-id="${actualNoteId}"`
+          );
+        } else {
+          // Create a new scripture note for this reference
+          // This follows the same logic as the main processing loop
+          try {
+            // Fetch verse text
+            let verseText = '';
+            try {
+              const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
+              const verseResponse = await fetchWithTimeout(apiUrl, {
+                timeout: 10000,
+                retries: 2,
+                retryTimeout: 5000,
+              });
+              if (verseResponse.ok) {
+                const verses = await verseResponse.json();
+                if (Array.isArray(verses) && verses.length > 0) {
+                  verseText = verses.map((v: any) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
+                }
+              }
+            } catch (verseError: any) {
+              console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
+            }
+
+            // Get user metadata
+            let userMetadata = await db.select()
+              .from(UserMetadata)
+              .where(eq(UserMetadata.userId, userId))
+              .get();
+            
+            if (!userMetadata) {
+              const existingNotes = await db.select({
+                simpleNoteId: Notes.simpleNoteId
+              })
+              .from(Notes)
+              .where(and(
+                eq(Notes.userId, userId),
+                isNotNull(Notes.simpleNoteId)
+              ))
+              .orderBy(desc(Notes.simpleNoteId))
+              .limit(1);
+              
+              const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
+              
+              await db.insert(UserMetadata).values({
+                id: `user_metadata_${userId}`,
+                userId: userId,
+                highestSimpleNoteId: highestExistingId,
+                userColor: 'paper',
+                createdAt: new Date()
+              });
+              userMetadata = { 
+                id: `user_metadata_${userId}`,
+                userId: userId,
+                highestSimpleNoteId: highestExistingId,
+                userColor: 'paper',
+                email: null,
+                firstName: null,
+                lastName: null,
+                profileImageUrl: null,
+                clerkDataUpdatedAt: null,
+                churchName: null,
+                churchCity: null,
+                churchState: null,
+                churchCountry: null,
+                currentSeason: null,
+                lastMonthlyVisit: null,
+                churchAddedAt: null,
+                createdAt: new Date(),
+                updatedAt: null
+              };
+            }
+            
+            const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+            const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
+            const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
+
+            // Create scripture note
+            const { ensureUnorganizedThread } = await import('@/utils/unorganized-thread');
+            await ensureUnorganizedThread(userId);
+            
+            const now = new Date();
+            const shareToken = generateShareToken();
+            
+            const newScriptureNote = await db.insert(Notes)
+              .values({
+                id: generateNoteId(),
+                content: capitalizedContent,
+                title: capitalizedTitle,
+                threadId: 'thread_unorganized',
+                spaceId: null,
+                simpleNoteId: nextSimpleNoteId,
+                noteType: 'scripture',
+                userId,
+                isPublic: true,
+                shareToken: shareToken,
+                shareTokenCreatedAt: now,
+                addedBy: 'harvous',
+                createdAt: now,
+                lastVisited: now
+              })
+              .returning()
+              .get();
+
+            // Update user metadata
+            await db.update(UserMetadata)
+              .set({ 
+                highestSimpleNoteId: nextSimpleNoteId,
+                updatedAt: new Date()
+              })
+              .where(eq(UserMetadata.userId, userId));
+
+            // Create ScriptureMetadata
+            const parsed = parseScriptureReference(normalizedRef);
+            if (parsed) {
+              const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+
+              await db.insert(ScriptureMetadata).values({
+                id: `scripture_${newScriptureNote.id}_${Date.now()}`,
+                noteId: newScriptureNote.id,
+                reference: normalizedRef,
+                book: parsed.book,
+                chapter: parsed.chapter,
+                verse: verseStart,
+                verseEnd: verseEnd || null,
+                translation: 'NET',
+                originalText: capitalizedContent,
+                createdAt: new Date()
+              });
+            }
+
+            // Award XP
+            await awardNoteCreatedXP(userId, newScriptureNote.id, true, capitalizedContent);
+
+            // Auto-generate and apply tags
+            try {
+              const autoTags = await generateAutoTags(capitalizedContent, userId);
+              if (autoTags.length > 0) {
+                await applyAutoTags(newScriptureNote.id, autoTags, userId);
+              }
+            } catch (tagError: any) {
+              console.error(`Error auto-generating tags for scripture note ${newScriptureNote.id}:`, tagError);
+            }
+
+            // Create junction entry
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${newScriptureNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              noteId: noteId,
+              scriptureNoteId: newScriptureNote.id,
+              createdAt: new Date()
+            });
+
+            // Update content to use the new noteId
+            noteContent = noteContent.replace(
+              new RegExp(`data-note-id=["']${scriptureNoteId}["']`, 'g'),
+              `data-note-id="${newScriptureNote.id}"`
+            );
+
+            results.push({
+              action: 'created',
+              noteId: newScriptureNote.id,
+              reference
+            });
+          } catch (createError: any) {
+            console.error(`Error creating scripture note for pasted pill ${reference}:`, createError);
+          }
+        }
+        continue; // Skip junction entry creation since we handled it above
+      }
+
+      // Scripture note exists - create junction entry if it doesn't exist
       const existingJunction = await db.select()
         .from(NoteScriptureReferences)
         .where(

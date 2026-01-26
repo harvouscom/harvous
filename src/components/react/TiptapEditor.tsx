@@ -639,9 +639,17 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
         
         try {
           const $from = doc.resolve(pos.from);
-          const hasPill = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+          const marks = $from.marks();
+          const pillMark = marks.find((m: any) => m.type.name === 'scripturePill');
           
-          if (hasPill) continue;
+          // Skip if pill exists AND has a real noteId (not "pending" or null)
+          if (pillMark) {
+            const noteId = pillMark.attrs?.noteId;
+            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
+              continue; // Skip - pill already exists with real noteId
+            }
+            // If pill exists but has "pending" or null noteId, we'll overwrite it below
+          }
           
           if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
           const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
@@ -649,6 +657,10 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
           
           const markType = state.schema.marks.scripturePill;
           if (markType) {
+            // Remove existing pill mark if it exists (with pending noteId) before adding new one
+            if (pillMark) {
+              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
+            }
             tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ 
               reference: reference, 
               noteId: 'pending' 
@@ -2459,6 +2471,43 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           // Ignore selection resolution issues and continue
         }
 
+        // Try to get HTML from clipboard to check for existing scripture pills
+        let pastedHTML = '';
+        try {
+          pastedHTML = (event as any)?.clipboardData?.getData?.('text/html') || '';
+        } catch (e) {
+          // ignore
+        }
+
+        // Extract scripture pills with noteIds from pasted HTML
+        const existingPillsWithNoteIds = new Set<string>(); // Set of normalized references
+        if (pastedHTML) {
+          // Pattern 1: data-scripture-reference comes before data-note-id
+          const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+          let match;
+          while ((match = pillPattern1.exec(pastedHTML)) !== null) {
+            const reference = match[1];
+            const noteId = match[2];
+            // Only treat as existing if it has a real note ID (not "pending", not null, not empty)
+            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
+              const normalizedRef = normalizeScriptureReference(reference);
+              existingPillsWithNoteIds.add(normalizedRef);
+            }
+          }
+
+          // Pattern 2: data-note-id comes before data-scripture-reference
+          const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+          while ((match = pillPattern2.exec(pastedHTML)) !== null) {
+            const noteId = match[1];
+            const reference = match[2];
+            // Only treat as existing if it has a real note ID (not "pending", not null, not empty)
+            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
+              const normalizedRef = normalizeScriptureReference(reference);
+              existingPillsWithNoteIds.add(normalizedRef);
+            }
+          }
+        }
+
         // Prefer clipboard plain text, fall back to Slice text
         let pastedText = '';
         try {
@@ -2502,11 +2551,68 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           return false;
         }
 
-        try {
-          createPendingPillsForReferences(editor, references);
-        } catch (e) {
-          console.error('[TiptapEditor] Error creating pills after paste:', e);
-        }
+        // After pasting, check the document for pills with noteIds that were parsed from HTML
+        // This handles cases where HTML wasn't available from clipboard but ProseMirror parsed it
+        setTimeout(() => {
+          try {
+            if (!editor || editor.isDestroyed) return;
+            
+            const doc = editor.state.doc;
+            const htmlContent = editor.getHTML();
+            
+            // Also check the document after paste for pills with noteIds
+            // This catches pills that ProseMirror parsed from the slice HTML
+            const docPillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+            let docMatch;
+            while ((docMatch = docPillPattern1.exec(htmlContent)) !== null) {
+              const reference = docMatch[1];
+              const noteId = docMatch[2];
+              if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
+                const normalizedRef = normalizeScriptureReference(reference);
+                existingPillsWithNoteIds.add(normalizedRef);
+              }
+            }
+
+            const docPillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+            while ((docMatch = docPillPattern2.exec(htmlContent)) !== null) {
+              const noteId = docMatch[1];
+              const reference = docMatch[2];
+              if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
+                const normalizedRef = normalizeScriptureReference(reference);
+                existingPillsWithNoteIds.add(normalizedRef);
+              }
+            }
+
+            // Also check ProseMirror marks directly for pills with noteIds
+            // This is more reliable than HTML parsing
+            doc.descendants((node: any, pos: number) => {
+              if (node.marks) {
+                node.marks.forEach((mark: any) => {
+                  if (mark.type.name === 'scripturePill' && mark.attrs.noteId && 
+                      mark.attrs.noteId !== 'pending' && mark.attrs.noteId !== 'null' && mark.attrs.noteId !== '') {
+                    const normalizedRef = normalizeScriptureReference(mark.attrs.reference);
+                    existingPillsWithNoteIds.add(normalizedRef);
+                  }
+                });
+              }
+            });
+
+            // Filter out references that already have pills with noteIds
+            const referencesNeedingPills = references.filter(ref => {
+              const normalizedRef = normalizeScriptureReference(ref.reference);
+              return !existingPillsWithNoteIds.has(normalizedRef);
+            });
+
+            // Only create pending pills for references that don't already have pills with noteIds
+            if (referencesNeedingPills.length > 0) {
+              createPendingPillsForReferences(editor, referencesNeedingPills);
+            }
+          } catch (e) {
+            console.error('[TiptapEditor] Error checking for existing pills after paste:', e);
+            // Fallback: create pending pills for all references if check fails
+            createPendingPillsForReferences(editor, references);
+          }
+        }, 0);
 
         return true;
       },
