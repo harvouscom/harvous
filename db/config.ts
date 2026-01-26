@@ -230,6 +230,12 @@ const NoteScriptureReferences = defineTable({
     noteId: column.text(), // Note that contains the reference
     scriptureNoteId: column.text(), // The scripture note being referenced
     createdAt: column.date(),
+  },
+  indexes: {
+    uniqueNoteScripture: {
+      on: ['noteId', 'scriptureNoteId'],
+      unique: true
+    }
   }
 })
 

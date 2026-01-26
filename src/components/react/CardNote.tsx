@@ -100,7 +100,21 @@ const CardNote: React.FC<CardNoteProps> = ({
   
   // Determine if scripture refs will be shown
   const hasScriptureRefs = showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0;
-  
+
+  // Deduplicate scripture references based on noteId (defense-in-depth)
+  const uniqueScriptureRefs = React.useMemo(() => {
+    if (!scriptureReferences) return [];
+
+    const seen = new Set<string>();
+    return scriptureReferences.filter(ref => {
+      if (seen.has(ref.noteId)) {
+        return false;
+      }
+      seen.add(ref.noteId);
+      return true;
+    });
+  }, [scriptureReferences]);
+
   return (
     <div className={`card card-note ${className}`} onClick={onClick} style={{ position: 'relative' }}>
       {/* Pending sync indicator */}
@@ -198,7 +212,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 whiteSpace: 'nowrap'
                               }}
                             >
-                              {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note included' : 'scripture notes included'}
                             </span>
                             <Icon 
                               name="chevron-down" 
@@ -245,7 +259,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     }}
                     className="card-note__scripture-refs-list"
                   >
-                    {scriptureReferences.map((ref, index) => {
+                    {uniqueScriptureRefs.map((ref, index) => {
                       // Generate mesh gradient from thread colors for this scripture note
                       const meshGradient = ref.threadColors && ref.threadColors.length > 0
                         ? generateThreadMeshGradient(ref.threadColors, ref.noteId)
@@ -488,7 +502,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 whiteSpace: 'nowrap'
                               }}
                             >
-                              {scriptureReferences.length} {scriptureReferences.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note included' : 'scripture notes included'}
                             </span>
                             <Icon 
                               name="chevron-down" 
@@ -535,7 +549,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     }}
                     className="card-note__scripture-refs-list"
                   >
-                    {scriptureReferences.map((ref, index) => {
+                    {uniqueScriptureRefs.map((ref, index) => {
                       // Generate mesh gradient from thread colors for this scripture note
                       const meshGradient = ref.threadColors && ref.threadColors.length > 0
                         ? generateThreadMeshGradient(ref.threadColors, ref.noteId)

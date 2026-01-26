@@ -202,7 +202,7 @@ export async function processScriptureReferences(
   // This prevents N+1 query problem when processing multiple references
   // Create a normalized lookup map for efficient reference matching
   const normalizedScriptureMap = new Map<string, { noteId: string; reference: string }>();
-  
+
   // Fetch all user scripture notes once (before the loop)
   const allUserScripture = await db.select({
     noteId: ScriptureMetadata.noteId,
@@ -226,11 +226,20 @@ export async function processScriptureReferences(
     }
   }
 
+  // Track references processed in this run to prevent duplicates
+  const processedReferences = new Set<string>();
+
   // Process each detected reference
   for (const detectedRef of detectedReferences) {
     const reference = detectedRef.reference;
     // Normalize the reference for consistent storage and comparison
     const normalizedReference = normalizeScriptureReference(reference);
+
+    // Skip if already processed in this run
+    if (processedReferences.has(normalizedReference)) {
+      continue;
+    }
+    processedReferences.add(normalizedReference);
     
     // Check if this reference was already in the note (skip if it was)
     if (existingReferences.has(normalizedReference)) {
@@ -456,8 +465,11 @@ export async function processScriptureReferences(
               scriptureNoteId: scriptureNote.id, // The scripture note being referenced
               createdAt: new Date()
             });
-          } catch (junctionError) {
-            // Ignore if already exists
+          } catch (junctionError: any) {
+            // Only ignore duplicate entry errors (from unique constraint)
+            if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
+              console.error(`Failed to create junction entry for ${reference}:`, junctionError);
+            }
           }
           
           results.push({
@@ -485,7 +497,7 @@ export async function processScriptureReferences(
             )
             .limit(1)
             .get();
-          
+
           if (!existingJunction) {
             await db.insert(NoteScriptureReferences).values({
               id: `note-scripture-${noteId}-${existingNoteId}-${Date.now()}`,
@@ -494,8 +506,11 @@ export async function processScriptureReferences(
               createdAt: new Date()
             });
           }
-        } catch (junctionError) {
-          // Ignore junction entry errors - non-critical
+        } catch (junctionError: any) {
+          // Only ignore duplicate entry errors (from unique constraint)
+          if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
+            console.error(`Failed to create junction entry for ${reference}:`, junctionError);
+          }
         }
 
         // Check if in thread
@@ -609,7 +624,7 @@ export async function processScriptureReferences(
         )
         .limit(1)
         .get();
-      
+
       if (!existingJunction) {
         await db.insert(NoteScriptureReferences).values({
           id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -618,8 +633,11 @@ export async function processScriptureReferences(
           createdAt: new Date()
         });
       }
-    } catch (junctionError) {
-      // Ignore junction entry errors - non-critical
+    } catch (junctionError: any) {
+      // Only ignore duplicate entry errors (from unique constraint)
+      if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
+        console.error(`Failed to create junction entry for existing reference:`, junctionError);
+      }
     }
   }
 

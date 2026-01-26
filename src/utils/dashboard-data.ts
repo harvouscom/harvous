@@ -1213,18 +1213,27 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         }
         
         // Build map of noteId -> array of scripture references with note IDs and thread colors (needed for collapsible UI)
+        // Apply deduplication based on scriptureNoteId to prevent duplicate entries in dropdown
         for (const entry of junctionEntries) {
           const reference = scriptureMetadataMap[entry.scriptureNoteId];
           if (reference) {
             if (!scriptureReferencesMap[entry.noteId]) {
               scriptureReferencesMap[entry.noteId] = [];
             }
-            // Store as object with reference, noteId, and threadColors for mesh gradient
-            scriptureReferencesMap[entry.noteId].push({
-              reference,
-              noteId: entry.scriptureNoteId,
-              threadColors: scriptureThreadColorsMap[entry.scriptureNoteId] || undefined
-            });
+
+            // Check if this scripture note is already in the array (deduplication)
+            const alreadyExists = scriptureReferencesMap[entry.noteId].some(
+              ref => ref.noteId === entry.scriptureNoteId
+            );
+
+            if (!alreadyExists) {
+              // Store as object with reference, noteId, and threadColors for mesh gradient
+              scriptureReferencesMap[entry.noteId].push({
+                reference,
+                noteId: entry.scriptureNoteId,
+                threadColors: scriptureThreadColorsMap[entry.scriptureNoteId] || undefined
+              });
+            }
           }
         }
         
