@@ -211,7 +211,21 @@ export default function OrganizedContentList({
              !initialDeleted.has(normalizeId(item.noteId));
     });
 
-    return sortItems(filtered);
+    // Filter out deleted scripture notes from scriptureReferences arrays
+    const filteredScriptureRefs = filtered.map(item => {
+      if (item.scriptureReferences && item.scriptureReferences.length > 0) {
+        const filteredRefs = item.scriptureReferences.filter(ref => {
+          return !initialDeleted.has(normalizeId(ref.noteId));
+        });
+        return {
+          ...item,
+          scriptureReferences: filteredRefs
+        };
+      }
+      return item;
+    });
+
+    return sortItems(filteredScriptureRefs);
   });
 
   // Offline-first data loading
