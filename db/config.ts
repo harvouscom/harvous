@@ -64,6 +64,12 @@ const NoteThreads = defineTable({
     noteId: column.text(), // Reference to note
     threadId: column.text(), // Reference to thread
     createdAt: column.date(),
+  },
+  indexes: {
+    uniqueNoteThread: {
+      on: ['noteId', 'threadId'],
+      unique: true
+    }
   }
 })
 
