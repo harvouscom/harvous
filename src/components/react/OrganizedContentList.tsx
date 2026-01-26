@@ -848,6 +848,24 @@ export default function OrganizedContentList({
           }
           return newSet;
         });
+
+        // If a scripture note is deleted and we're on the 'all' filter, refresh content
+        // to update scripture references in CardNote components
+        const currentFilter = filterRef.current;
+        if (currentFilter === 'all' && window.location.pathname === '/') {
+          // Check if the deleted note is a scripture note by looking it up in currentItems
+          const deletedNote = currentItemsRef.current.find(
+            item => item.type === 'note' && normalizeId(item.noteId || item.id) === normId
+          );
+          
+          if (deletedNote && deletedNote.noteType === 'scripture') {
+            // Refresh content to get updated scripture references for all notes
+            // This ensures CardNote components show the correct "scripture notes included" count
+            refreshContent().catch(err => {
+              console.error('[OrganizedContentList] Failed to refresh content after scripture note deletion:', err);
+            });
+          }
+        }
       }
     };
 
@@ -879,7 +897,7 @@ export default function OrganizedContentList({
       window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
       window.removeEventListener('threadDeleted', handleThreadDeleted as EventListener);
     };
-  }, [optimisticUpdates]);
+  }, [optimisticUpdates, refreshContent]);
 
   // sessionStorage tracking for recently created items has been removed
   // Optimistic updates are the single mechanism for showing newly created items
