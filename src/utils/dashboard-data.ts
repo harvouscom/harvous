@@ -715,42 +715,10 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
 
-      // Also count scripture notes referenced by unorganized notes
-      // Get unorganized note IDs
-      const unorganizedNoteIds = allNotes.map(n => n.id).filter(id => id);
-      
-      if (unorganizedNoteIds.length > 0) {
-        // Find scripture notes referenced by unorganized notes
-        const referencedScriptureNoteIds = await db
-          .select({ 
-            scriptureNoteId: NoteScriptureReferences.scriptureNoteId
-          })
-          .from(NoteScriptureReferences)
-          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
-          .where(and(
-            inArray(NoteScriptureReferences.noteId, unorganizedNoteIds),
-            eq(Notes.userId, userId),
-            eq(Notes.noteType, 'scripture')
-          ))
-          .all();
-
-        // Get unique scripture note IDs (deduplicate)
-        const uniqueReferencedScriptureIds = Array.from(
-          new Set(referencedScriptureNoteIds.map(r => r.scriptureNoteId))
-        );
-
-        // Check which referenced scripture notes are NOT already in unorganized
-        const alreadyCountedScriptureIds = new Set(
-          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(id => id)
-        );
-
-        const additionalScriptureCount = uniqueReferencedScriptureIds.filter(
-          id => !alreadyCountedScriptureIds.has(id)
-        ).length;
-
-        scriptureCount += additionalScriptureCount;
-        allCount += additionalScriptureCount;
-      }
+      // NOTE: We intentionally do NOT add referenced scripture notes to the count
+      // The scripture tab badge should only count scripture notes that are DIRECTLY unorganized
+      // Scripture notes that are merely referenced/linked from other notes should not be counted
+      // This prevents double-counting when a scripture note is both unorganized AND referenced
     } else {
       // For regular threads, use junction table
       const allNotes = await db.select({
@@ -770,54 +738,10 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
 
-      console.log(`[getThreadNoteTypeCounts] Thread ${threadId}:`);
-      console.log(`  Direct scripture notes in thread: ${scriptureCount}`);
-      console.log(`  Direct scripture note IDs:`, allNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
-
-      // Also count scripture notes referenced by notes in this thread
-      const threadNoteIds = allNotes.map(n => n.id || '').filter(id => id);
-
-      if (threadNoteIds.length > 0) {
-        // Find scripture notes referenced by notes in this thread
-        const referencedScriptureNoteIds = await db
-          .select({
-            scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
-            scriptureNoteType: Notes.noteType
-          })
-          .from(NoteScriptureReferences)
-          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
-          .where(and(
-            inArray(NoteScriptureReferences.noteId, threadNoteIds),
-            eq(Notes.userId, userId),
-            eq(Notes.noteType, 'scripture')
-          ))
-          .all();
-
-        console.log(`  Total referenced scripture notes (with duplicates): ${referencedScriptureNoteIds.length}`);
-
-        // Get unique scripture note IDs (deduplicate)
-        const uniqueReferencedScriptureIds = new Set(
-          referencedScriptureNoteIds.map(r => r.scriptureNoteId)
-        );
-
-        console.log(`  Unique referenced scripture note IDs: ${uniqueReferencedScriptureIds.size}`, Array.from(uniqueReferencedScriptureIds));
-
-        // Check which referenced scripture notes are NOT already directly in the thread
-        const directScriptureNoteIds = new Set(
-          allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter((id: string | undefined): id is string => !!id)
-        );
-
-        // Only count referenced scripture notes that are NOT already in the thread as direct members
-        const additionalScriptureCount = Array.from(uniqueReferencedScriptureIds).filter(
-          (id: string) => !directScriptureNoteIds.has(id)
-        ).length;
-
-        console.log(`  Additional scripture notes (not in thread): ${additionalScriptureCount}`);
-        console.log(`  Final scripture count: ${scriptureCount} + ${additionalScriptureCount} = ${scriptureCount + additionalScriptureCount}`);
-
-        scriptureCount += additionalScriptureCount;
-        allCount += additionalScriptureCount;
-      }
+      // NOTE: We intentionally do NOT add referenced scripture notes to the count
+      // The scripture tab badge should only count scripture notes that are DIRECTLY in the thread
+      // Scripture notes that are merely referenced/linked from other notes should not be counted
+      // This prevents double-counting when a scripture note is both in the thread AND referenced
     }
 
     return {
