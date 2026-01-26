@@ -2553,7 +2553,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 
         // After pasting, check the document for pills with noteIds that were parsed from HTML
         // This handles cases where HTML wasn't available from clipboard but ProseMirror parsed it
-        setTimeout(() => {
+        setTimeout(async () => {
           try {
             if (!editor || editor.isDestroyed) return;
             
