@@ -91,6 +91,11 @@ const textColor = getThreadTextColorCSS(colorName);
       const threadId = header.getAttribute('data-thread-id');
       const spaceId = header.getAttribute('data-space-id');
       
+      // Skip unorganized thread - it cannot be edited
+      if (threadId === 'thread_unorganized') {
+        return;
+      }
+      
       if (threadId) {
         // Dispatch event to open EditThreadPanel
         // DesktopPanelManager will handle this event

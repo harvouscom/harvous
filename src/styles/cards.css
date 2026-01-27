@@ -693,6 +693,11 @@
   transition: opacity 0.2s ease;
 }
 
+/* Unorganized thread header is not clickable - override clickable styles */
+.card-stack__header[data-thread-id="thread_unorganized"] {
+  cursor: default;
+}
+
 .card-stack__header[data-thread-id]::before,
 .card-stack__header[data-space-id]::before {
   content: '';
@@ -714,9 +719,19 @@
   opacity: 1;
 }
 
+/* Disable hover effect for unorganized thread */
+.card-stack__header[data-thread-id="thread_unorganized"]:hover::before {
+  opacity: 0;
+}
+
 .card-stack__header[data-thread-id]:active::before,
 .card-stack__header[data-space-id]:active::before {
   opacity: 0.8;
+}
+
+/* Disable active effect for unorganized thread */
+.card-stack__header[data-thread-id="thread_unorganized"]:active::before {
+  opacity: 0;
 }
 
 /* Page heading - uses Roundo font for main page titles */

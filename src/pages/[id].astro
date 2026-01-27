@@ -955,11 +955,11 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
               centerTitle={true}
               threadId={isThread && currentThread?.id ? currentThread.id : undefined}
             >
-              {isThread && currentThread?.id && currentThread?.color ? (
+              {isThread && currentThread?.id ? (
                 <ThreadCardStackHeader 
                   slot="header"
                   initialTitle={currentThread.title || 'Unorganized'}
-                  initialColor={currentThread.color}
+                  initialColor={currentThread.color || 'paper'}
                   threadId={currentThread.id}
                   client:load
                 />
