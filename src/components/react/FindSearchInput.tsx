@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
 
 interface FindSearchInputProps {
@@ -13,6 +13,7 @@ export default function FindSearchInput({
   initialQuery = ""
 }: FindSearchInputProps) {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Sync with URL query parameter
   const updateSearchQuery = () => {
@@ -32,6 +33,26 @@ export default function FindSearchInput({
     return () => {
       window.removeEventListener('popstate', updateSearchQuery);
       document.removeEventListener('astro:page-load', updateSearchQuery);
+    };
+  }, []);
+
+  // Auto-focus input on mount and page load
+  useEffect(() => {
+    const focusInput = () => {
+      // Small delay to ensure input is rendered and ready
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 0);
+    };
+
+    // Focus on initial mount
+    focusInput();
+
+    // Focus on View Transitions page load
+    document.addEventListener('astro:page-load', focusInput);
+
+    return () => {
+      document.removeEventListener('astro:page-load', focusInput);
     };
   }, []);
 
@@ -80,6 +101,7 @@ export default function FindSearchInput({
         
         {/* Input */}
         <input 
+          ref={inputRef}
           type="text" 
           name="q"
           value={searchQuery}

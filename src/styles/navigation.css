@@ -613,6 +613,11 @@
   }
 }
 
+.mobile-nav__search-btn > div {
+  padding-bottom: 2px;
+  box-sizing: border-box;
+}
+
 /* Mobile space switcher anchor */
 .space-switcher-anchor--mobile {
   position: relative;
