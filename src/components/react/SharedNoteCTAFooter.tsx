@@ -25,7 +25,7 @@ export default function SharedNoteCTAFooter({
         data-authenticated={isAuthenticated ? 'true' : 'false'}
       >
         <div className="btn__content">
-          <span className="shared-page__cta-text">Add this to my Harvous</span>
+          <span className="shared-page__cta-text">Add to my Harvous</span>
         </div>
         <div className="btn__shadow-overlay" />
       </button>
