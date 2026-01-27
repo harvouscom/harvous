@@ -301,8 +301,8 @@ const handleOCRResult = (extractedText: string) => {
 
 ## Related Documentation
 
-- [Capacitor Implementation Guide](../docs/CAPACITOR_IMPLEMENTATION_GUIDE.md)
-- [Capacitor Strategic Analysis](../docs/future/CAPACITOR_STRATEGIC_ANALYSIS.md)
+- [Capacitor Implementation Guide](../CAPACITOR_IMPLEMENTATION_GUIDE.md)
+- [Capacitor Strategic Analysis](CAPACITOR_STRATEGIC_ANALYSIS.md)
 - [iOS Vision Framework Documentation](https://developer.apple.com/documentation/vision)
 - [Android ML Kit Documentation](https://developers.google.com/ml-kit/vision/text-recognition)
 

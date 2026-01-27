@@ -7,7 +7,7 @@ As of v1.27.2, the app has **automatic update notifications** for minor and patc
 - **Minor/Patch Updates (1.27.2 → 1.27.3, 1.27.x → 1.28.0)**: Toast shows "New update available, refreshing app" then auto-refreshes after 2 seconds
 - **Major Updates (1.x.x → 2.0.0)**: Service worker detects the major version change and **skips automatic reload** to give users control
 
-**Implementation**: [`service-worker-manager.js`](../public/scripts/service-worker-manager.js) compares cache name versions and only auto-reloads for non-major updates.
+**Implementation**: [`service-worker-manager.js`](../../public/scripts/service-worker-manager.js) compares cache name versions and only auto-reloads for non-major updates.
 
 ## Problem to Solve
 
@@ -39,10 +39,10 @@ Show a persistent toast notification when a major update is detected:
   - After reading, user can choose to update or dismiss
   - Dismissed updates show a subtle indicator in the profile menu
 - Toast persists until user interacts (doesn't auto-dismiss)
-- Uses `toast.info()` with action buttons (similar to `toast.errorWithAction()` pattern in [`toast.ts`](../src/utils/toast.ts))
+- Uses `toast.info()` with action buttons (similar to `toast.errorWithAction()` pattern in [`toast.ts`](../../src/utils/toast.ts))
 
 **Implementation:**
-- Modify [`service-worker-manager.js`](../public/scripts/service-worker-manager.js) to show this toast instead of skipping on major updates
+- Modify [`service-worker-manager.js`](../../public/scripts/service-worker-manager.js) to show this toast instead of skipping on major updates
 - Fetch release notes from `/api/releases/latest` or embed in service worker
 - Store dismissed updates in `localStorage` to avoid re-showing
 
@@ -91,11 +91,11 @@ Leverage the **existing Harvous inbox system** (currently disabled) to deliver m
 - Can be expanded for other system notifications (maintenance, new features, etc.)
 
 **Implementation:**
-- Re-enable inbox system in [`Layout.astro`](../src/layouts/Layout.astro)
+- Re-enable inbox system in [`Layout.astro`](../../src/layouts/Layout.astro)
 - Create `/api/inbox/system-notifications` endpoint
-- Modify [`service-worker-manager.js`](../public/scripts/service-worker-manager.js) to post to inbox API on major update detection
+- Modify [`service-worker-manager.js`](../../public/scripts/service-worker-manager.js) to post to inbox API on major update detection
 - Store notification in database with user dismissal tracking
-- Inbox UI already exists in [`NavigationColumn.tsx`](../src/components/react/navigation/NavigationColumn.tsx)
+- Inbox UI already exists in [`NavigationColumn.tsx`](../../src/components/react/navigation/NavigationColumn.tsx)
 
 ### Option 3: Hybrid Approach (Best of Both Worlds)
 
@@ -151,11 +151,11 @@ Combine both methods for maximum reach:
 
 ## Related Files
 
-- [`service-worker-manager.js`](../public/scripts/service-worker-manager.js) - Current implementation
-- [`toast.ts`](../src/utils/toast.ts) - Toast system
-- [`NavigationColumn.tsx`](../src/components/react/navigation/NavigationColumn.tsx) - Inbox UI
-- [`/api/inbox/`](../src/pages/api/inbox/) - Inbox API endpoints (currently disabled)
-- [`/release-notes/`](../release-notes/) - Existing release notes (markdown)
+- [`service-worker-manager.js`](../../public/scripts/service-worker-manager.js) - Current implementation
+- [`toast.ts`](../../src/utils/toast.ts) - Toast system
+- [`NavigationColumn.tsx`](../../src/components/react/navigation/NavigationColumn.tsx) - Inbox UI
+- [`/api/inbox/`](../../src/pages/api/inbox/) - Inbox API endpoints (currently disabled)
+- [`/release-notes/`](../../release-notes/) - Existing release notes (markdown)
 
 ## Notes
 

@@ -571,11 +571,11 @@ async function backfillUserBadges(userId: string) {
 
 ## Related Files
 
-- [`src/components/react/MyAchievementsPanel.tsx`](../src/components/react/MyAchievementsPanel.tsx) - Current achievements panel
-- [`src/pages/api/user/achievements.ts`](../src/pages/api/user/achievements.ts) - Achievements API endpoint
-- [`src/utils/xp-system.ts`](../src/utils/xp-system.ts) - XP system and milestone checking
-- [`db/config.ts`](../db/config.ts) - Database schema
-- [`src/utils/dashboard-data.ts`](../src/utils/dashboard-data.ts) - User data queries
+- [`src/components/react/MyAchievementsPanel.tsx`](../../src/components/react/MyAchievementsPanel.tsx) - Current achievements panel
+- [`src/pages/api/user/achievements.ts`](../../src/pages/api/user/achievements.ts) - Achievements API endpoint
+- [`src/utils/xp-system.ts`](../../src/utils/xp-system.ts) - XP system and milestone checking
+- [`db/config.ts`](../../db/config.ts) - Database schema
+- [`src/utils/dashboard-data.ts`](../../src/utils/dashboard-data.ts) - User data queries
 
 ## Notes
 
