@@ -25,7 +25,7 @@
 #### 1. **Content Sharing System** (Two Types)
 The architecture document describes sharing, but needs implementation:
 
-**Type 1: Public Share Links** (Copy-Based)
+~~**Type 1: Public Share Links** (Copy-Based)~~
 - No `SharedContent` table
 - No `UserSharedContent` table
 - No sharing API endpoints
