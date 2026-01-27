@@ -1106,12 +1106,21 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     if (defaultNoteIds.length > 0) {
       try {
         // Get scripture note IDs for each note via junction table
+        // Use innerJoin to verify scripture notes exist and belong to the user
+        // This prevents deleted notes and orphaned junction entries from appearing
         const junctionEntries = await db.select({
           noteId: NoteScriptureReferences.noteId,
           scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
         })
         .from(NoteScriptureReferences)
-        .where(inArray(NoteScriptureReferences.noteId, defaultNoteIds))
+        .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+        .where(
+          and(
+            inArray(NoteScriptureReferences.noteId, defaultNoteIds),
+            eq(Notes.userId, userId),
+            eq(Notes.noteType, 'scripture')
+          )
+        )
         .all();
         
         // Get unique scripture note IDs
