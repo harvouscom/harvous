@@ -47,7 +47,7 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 ### Sharing & Collaboration
 
 - **`SHARING_SYSTEM_DESIGN.md`** - Complete sharing system design
-  - Type 1: Public share links (anyone can visit)
+  ~~- Type 1: Public share links (anyone can visit)~~
   - Type 2: Collaborative shared threads (real-time)
   - Database schemas for both types
   - API endpoints needed
