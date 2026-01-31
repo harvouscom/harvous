@@ -66,6 +66,10 @@ export default defineConfig({
 - App makes HTTP requests to `https://harvous.com/api/*` endpoints
 - Database stays on Turso (remote access via API)
 
+**Static build requirement:** Capacitor runs only static assets; there is no server. To build for Capacitor, Astro must output a static site. Use conditional config: when `BUILD_TARGET=capacitor` (or equivalent env), set `output: "static"` in `astro.config.mjs`; otherwise keep `output: "server"` for web. See [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md) for the exact config snippet and script.
+
+**Dynamic routes (e.g. `/[id].astro`):** Astro static requires `getStaticPaths()`; with unbounded ids (thread_*, note_*, space_*) use a single app shell—e.g. `getStaticPaths()` returns one path (e.g. id: 'dashboard') and all content for a given id is loaded client-side via API; other paths 404 or redirect to shell and client loads by id.
+
 **Pros:**
 - Minimal architecture changes
 - Leverages existing backend infrastructure
@@ -136,64 +140,27 @@ export const onRequest = clerkMiddleware((auth, context, next) => {
    - Web: Cookies (automatic, secure)
    - Native: Need secure storage plugin
 
-**Solution Architecture:**
+**Solution Architecture: Dual-mode API auth (JWT for native)**
 
-```typescript
-// src/utils/mobile-auth.ts
-import { Capacitor } from '@capacitor/core';
-import { SecureStoragePlugin } from '@capacitor/secure-storage';
-
-export const initAuth = async () => {
-  if (Capacitor.isNativePlatform()) {
-    // Use Clerk's React SDK in client-only mode
-    const token = await SecureStoragePlugin.get({ key: 'clerk_token' });
-    if (token) {
-      // Restore session
-      clerk.setSession(token);
-    }
-  } else {
-    // Web: Use existing server-side flow
-  }
-};
-```
+Protected UI is enforced by redirect on 401 from the API and/or a single session check at app/layout load—not by an AuthGuard wrapper or server middleware (middleware does not run in a static/Capacitor build).
 
 **Required Changes:**
 
-1. **Move to Client-Side Auth Guards**
-   ```tsx
-   // src/components/react/AuthGuard.tsx
-   import { useAuth } from '@clerk/clerk-react';
-   
-   export const AuthGuard = ({ children }) => {
-     const { isSignedIn, isLoaded } = useAuth();
-     
-     if (!isLoaded) return <LoadingScreen />;
-     if (!isSignedIn) return <Navigate to="/sign-in" />;
-     
-     return children;
-   };
-   ```
+1. **Client (Capacitor):** All API requests must use `PUBLIC_API_URL` (full Netlify URL) as base—relative `/api/...` resolves to capacitor://localhost and fails. Use Clerk's `getToken()` and send `Authorization: Bearer <token>` on every request to your API.
 
-2. **Deep Linking for OAuth**
-   ```xml
-   <!-- iOS: ios/App/App/Info.plist -->
-   <key>CFBundleURLTypes</key>
-   <array>
-     <dict>
-       <key>CFBundleURLSchemes</key>
-       <array>
-         <string>harvous</string>
-       </array>
-     </dict>
-   </array>
-   ```
+2. **API routes:** Support two modes: if the request has an `Authorization: Bearer` token, verify the JWT (e.g. via Clerk's verifyToken or your backend validation), extract `userId`, and proceed; if no Bearer token (web), use `locals.auth()` from cookies/session as today.
 
-3. **Secure Token Storage**
-   ```bash
-   npm install @capacitor/preferences
-   # For enhanced security:
-   npm install @aparajita/capacitor-secure-storage
-   ```
+3. **Unauthenticated UI:** Do not use an AuthGuard wrapper. Handle unauthenticated state by: redirecting to sign-in when the app receives 401 from the API, and/or a single check at app/layout load that redirects to sign-in if there is no session.
+
+4. **Deep linking for OAuth:** Use `capacitor://localhost` and `capacitor://localhost/sign-in` as allowed origins and redirect URLs in the Clerk dashboard. Configure OAuth so the app stays in-app after sign-in (see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md) and [CAPACITOR_SETUP_GUIDE.md](CAPACITOR_SETUP_GUIDE.md)).
+
+5. **Optional:** Secure token storage (e.g. `@capacitor/preferences` or `@aparajita/capacitor-secure-storage`) if you need to persist the token across app restarts.
+
+**Checklist:**
+- [ ] API base is PUBLIC_API_URL when in Capacitor (safeFetch/buildAPIUrl or API client is Capacitor-aware)
+- [ ] API routes accept and verify Bearer JWT when request has Authorization header
+- [ ] Client sends Bearer JWT for all API calls when running in Capacitor (e.g. detect via Capacitor.isNativePlatform())
+- [ ] Redirect to sign-in on 401 or when no session at app load
 
 **Effort Estimate:** 3-5 days
 
@@ -375,13 +342,13 @@ export default config;
 
 ### Phase 4: Authentication Implementation (Day 11-15)
 
-- [ ] Migrate auth checks to client-side
-- [ ] Implement `AuthGuard` component
-- [ ] Configure deep linking for OAuth
+- [ ] Implement dual-mode API auth (JWT verification on API side; client sends Bearer token in Capacitor)
+- [ ] Optional: secure storage for token if needed
+- [ ] Configure deep linking for OAuth (capacitor://localhost; see Implementation Guide)
 - [ ] Test Google Sign-In on iOS
 - [ ] Test Google Sign-In on Android
-- [ ] Implement secure token storage
 - [ ] Handle auth state persistence
+- [ ] Redirect to sign-in on 401 or at root when no session
 - [ ] Test sign-out flow
 
 ### Phase 5: Platform-Specific Polish (Day 16-20)
@@ -429,7 +396,7 @@ export default config;
 | Task | Effort | Notes |
 |------|--------|-------|
 | Setup & Configuration | 2-3 days | Capacitor init, build configs |
-| Auth Migration | 3-5 days | Client-side guards, OAuth, storage |
+| Auth Migration | 3-5 days | JWT dual-mode API auth, OAuth, storage |
 | Code Adaptations | 5-7 days | SW handling, API config, asset paths |
 | iOS-Specific Polish | 3-4 days | Icons, safe areas, dark mode |
 | Android-Specific Polish | 2-3 days | Icons, back button, permissions |
@@ -586,22 +553,7 @@ if ('serviceWorker' in navigator && !window.Capacitor) {
 
 **Problem:** OAuth flows redirect to web URLs, not app URLs
 
-**Solution:** Configure custom URL schemes
-```typescript
-// capacitor.config.ts
-{
-  ios: {
-    scheme: 'harvous'
-  },
-  android: {
-    scheme: 'harvous'
-  }
-}
-
-// Clerk dashboard: Add redirect URLs
-// iOS: harvous://oauth/callback
-// Android: harvous://oauth/callback
-```
+**Solution:** Use `capacitor://localhost` as the app origin. In Clerk dashboard, add allowed origins and redirect URLs: `capacitor://localhost`, `capacitor://localhost/sign-in`. Set `hostname: 'capacitor://localhost'` in `capacitor.config.ts` (see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md) and [CAPACITOR_SETUP_GUIDE.md](CAPACITOR_SETUP_GUIDE.md)).
 
 ### Tiptap Editor on Mobile
 
@@ -769,6 +721,8 @@ npm install @ionic/pwa-elements
 
 ### When Ready to Implement:
 
+**Prerequisites (codebase changes):** Static build when `BUILD_TARGET=capacitor` (see Implementation Guide for astro.config); API routes support dual-mode auth (Bearer JWT when in Capacitor). These must be implemented before or as part of following the Implementation Guide.
+
 1. **Planning Phase** (1-2 days)
    - [ ] Review this document thoroughly
    - [ ] Review implementation guide
@@ -779,7 +733,7 @@ npm install @ionic/pwa-elements
 2. **Preparation** (2-3 days)
    - [ ] Install Xcode and Android Studio
    - [ ] Set up certificates/keys
-   - [ ] Create mobile-optimized build config
+   - [ ] Create mobile-optimized build config (static build + JWT dual-mode auth)
    - [ ] Audit current codebase for mobile compatibility
 
 3. **Development** (4-6 weeks)

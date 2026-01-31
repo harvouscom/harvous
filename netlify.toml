@@ -1,6 +1,7 @@
 [build]
   command = "npm ci && npm run build"
   publish = "dist"
+  ignore = "git diff --name-only \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" | grep -qv '^docs/' && exit 1 || exit 0"
 
 [build.environment]
   NODE_VERSION = "20.18.0"

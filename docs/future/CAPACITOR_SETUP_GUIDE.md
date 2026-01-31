@@ -1,5 +1,7 @@
 # Capacitor Setup Guide for Harvous iOS/Android Apps
 
+This is a short setup checklist. For full steps (developer accounts, static build, auth implementation), see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md). For strategy and architecture, see [CAPACITOR_STRATEGIC_ANALYSIS.md](CAPACITOR_STRATEGIC_ANALYSIS.md).
+
 This guide walks you through setting up Capacitor to build native iOS and Android apps from your Harvous web app.
 
 ---
@@ -13,7 +15,7 @@ Before starting, ensure you have:
 - ✅ **Xcode** (for iOS development) - macOS only
 - ✅ **Android Studio** (for Android development)
 - ✅ **Deployed Netlify backend** with working API routes
-- ✅ **Branch `thefluxcapacitor` merged/tested** (contains dual-mode auth)
+- ✅ **Codebase updated for Capacitor:** (1) Static build when `BUILD_TARGET=capacitor` (see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md)). (2) API routes support dual-mode auth (Bearer JWT when in Capacitor). See [CAPACITOR_STRATEGIC_ANALYSIS.md](CAPACITOR_STRATEGIC_ANALYSIS.md) and [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md).
 
 ---
 
@@ -132,7 +134,7 @@ This creates an `ios/` directory with an Xcode project.
 npm run build:capacitor
 ```
 
-This builds your Astro site in static mode with `BUILD_TARGET=capacitor` set.
+You must build a static site for Capacitor. Use `BUILD_TARGET=capacitor npm run build` and ensure `astro.config.mjs` sets `output: 'static'` when `BUILD_TARGET=capacitor`. See [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md) for the exact astro.config change.
 
 ### Step 3: Sync to iOS
 
@@ -312,8 +314,8 @@ allowNavigation: [
 
 **Solution:**
 1. Check `BUILD_TARGET=capacitor` env var is set during build
-2. Verify `authenticatedFetch` is being used in components
-3. Check API routes have dual-mode auth logic
+2. Verify the client sends Bearer JWT in Capacitor (API client uses `PUBLIC_API_URL` as base and adds `Authorization: Bearer <token>` from Clerk `getToken()`)
+3. Check API routes have dual-mode auth (JWT when Bearer present, else cookies for web)
 4. Look for token verification errors in server logs
 
 ### Issue 5: White screen or app crashes on launch
@@ -475,14 +477,9 @@ Common debugging steps:
 
 ## Summary
 
-You now have:
-- ✅ Dual-mode authentication (SSR + Capacitor)
-- ✅ 78 API routes supporting both modes
-- ✅ 32 components using `authenticatedFetch`
-- ✅ AuthGuard for client-side protection
-- ✅ Complete setup guide for iOS/Android
+Capacitor uses **JWT-based API auth**: the client gets a token via Clerk `getToken()`, sends `Authorization: Bearer <token>` on API requests; the API verifies the JWT and uses it for `userId`. Unauthenticated users are handled by redirect on 401 or a single session check at app load (no AuthGuard component).
 
-**Next steps:**
+After implementing static build and JWT dual-mode API auth (see [CAPACITOR_IMPLEMENTATION_GUIDE.md](../CAPACITOR_IMPLEMENTATION_GUIDE.md)):
 1. Install Capacitor dependencies
 2. Configure `capacitor.config.ts`
 3. Deploy your backend to Netlify

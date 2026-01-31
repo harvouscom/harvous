@@ -18,6 +18,8 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
   - Decision tree and ROI analysis
   - References detailed implementation guide in main docs folder
 
+- **`NETLIFY_FUNCTION_OPTIMIZATION_AND_CAPACITOR_PREP.md`** - Reduce Netlify function usage and align web app with Capacitor-ready architecture (hybrid, caching, centralized API)
+
 ### Monetization & Business Model
 
 - **`CLERK_MONETIZATION_ARCHITECTURE.md`** - Complete technical architecture for monetization
@@ -88,10 +90,11 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 
 ### Phase 3: Native Mobile Apps (Market Expansion)
 - iOS and Android native apps via Capacitor
+- Requires static build and JWT-based API auth (no AuthGuard)
 - 4-6 weeks for MVP (hybrid API approach)
 - Increased engagement (users check apps 3-5x more than websites)
 - Home screen presence
-- See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategic analysis
+- See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategy and prerequisites
 - See `../CAPACITOR_IMPLEMENTATION_GUIDE.md` for implementation steps
 
 ### Phase 4: Collaborative Shared Threads (Better Collaboration)

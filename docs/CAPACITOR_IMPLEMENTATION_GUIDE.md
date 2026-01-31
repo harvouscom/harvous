@@ -2,6 +2,8 @@
 
 This guide walks through the complete process of converting Harvous from a PWA to native iOS and Android apps using Capacitor. It assumes you have **not yet set up developer accounts** for Apple or Google.
 
+**Before building for Capacitor,** you must configure a static build and dual-mode API auth (JWT). See [CAPACITOR_STRATEGIC_ANALYSIS.md](future/CAPACITOR_STRATEGIC_ANALYSIS.md) (in `docs/future/`) for architecture and options.
+
 ---
 
 ## Table of Contents
@@ -181,14 +183,17 @@ Add these scripts to `package.json`:
 ```json
 {
   "scripts": {
+    "build:capacitor": "BUILD_TARGET=capacitor npm run build",
     "cap:sync": "npx cap sync",
     "cap:open:ios": "npx cap open ios",
     "cap:open:android": "npx cap open android",
-    "cap:build:ios": "npm run build && npx cap sync ios",
-    "cap:build:android": "npm run build && npx cap sync android"
+    "cap:build:ios": "npm run build:capacitor && npx cap sync ios",
+    "cap:build:android": "npm run build:capacitor && npx cap sync android"
   }
 }
 ```
+
+Use `npm run build:capacitor` (not `npm run build`) when building for Capacitor so that the static build and correct env are used. See [Static build for Capacitor](#static-build-for-capacitor) below.
 
 ---
 
@@ -206,8 +211,14 @@ const config: CapacitorConfig = {
   appName: 'Harvous',
   webDir: 'dist',
   server: {
-    // For development - allows live reload
-    // Remove in production or set to your production URL
+    // CRITICAL for Clerk authentication in mobile WebView
+    allowNavigation: [
+      'accounts.clerk.dev',
+      '*.clerk.accounts.dev',
+      'your-netlify-site.netlify.app'  // Replace with your actual domain
+    ],
+    hostname: 'capacitor://localhost',
+    // For development - allows live reload (remove in production)
     // url: 'http://localhost:4321',
     // cleartext: true
   },
@@ -270,6 +281,28 @@ android/
 ```
 
 **Note:** You may want to commit `ios/` and `android/` if you need to track native code changes, but typically these are generated and can be ignored.
+
+### Static build for Capacitor
+
+Capacitor serves a **static shell**; SSR and middleware do not run in the app. For Capacitor builds you must:
+
+1. **Set `BUILD_TARGET=capacitor`** when building (e.g. `npm run build:capacitor`).
+2. **Use `output: "static"` in Astro when building for Capacitor.** In `astro.config.mjs`, make the output conditional on env: when `BUILD_TARGET=capacitor` (or equivalent), set `output: "static"`; otherwise keep `output: "server"` for web. Example (conceptual):
+
+   ```javascript
+   // astro.config.mjs - conditional output for Capacitor
+   const isCapacitor = process.env.BUILD_TARGET === 'capacitor';
+   export default defineConfig({
+     output: isCapacitor ? 'static' : 'server',
+     // ... rest of config; when static, omit adapter or use static adapter
+   });
+   ```
+
+3. **Build command:** `BUILD_TARGET=capacitor npm run build` (or use the `build:capacitor` script above).
+
+4. **Dynamic routes:** The main app route `[id].astro` must export `getStaticPaths()` returning at least one path (e.g. `{ params: { id: 'dashboard' } }`). All thread/note/space content is then loaded client-side via API by id. Other paths will 404 unless you redirect to the shell and load by id on the client. See [CAPACITOR_STRATEGIC_ANALYSIS.md](future/CAPACITOR_STRATEGIC_ANALYSIS.md) for the single-shell approach.
+
+5. **Service Worker:** Register the service worker only when not in Capacitor (e.g. `if (!window.Capacitor) { navigator.serviceWorker.register('/sw.js'); }`).
 
 ---
 
@@ -740,6 +773,18 @@ ASTRO_DB_REMOTE_URL=libsql://...  # Production database
 ASTRO_DB_APP_TOKEN=...  # Production token
 ```
 
+### Authentication for Capacitor
+
+In Capacitor, the app runs at origin `capacitor://localhost`. Relative URLs like `/api/...` resolve to that origin (no backend there), and cookies are not sent cross-origin to your Netlify API. Use **JWT-based API auth** for native; do not use an AuthGuard component.
+
+1. **API base URL:** All API requests from the native app must go to `PUBLIC_API_URL` (your full Netlify URL), not relative `/api/...`. Implementation will involve making the API client (e.g. `safeFetch` / `buildAPIUrl` in `src/utils/` or a wrapper) Capacitor-aware: when running in the native app (e.g. `Capacitor.isNativePlatform()`), use `PUBLIC_API_URL` as the base for every API request.
+
+2. **Client sends JWT:** The client must send a JWT on each API request: get a token via Clerk's `getToken()` and set the header `Authorization: Bearer <token>`.
+
+3. **API routes: dual-mode auth:** API routes must support two modes: when the request has an `Authorization: Bearer` header, verify the JWT (e.g. via Clerk's backend verification), extract `userId`, and proceed; when there is no Bearer token (web), use `locals.auth()` from cookies/session as today.
+
+4. **Unauthenticated UI:** Do not introduce an AuthGuard wrapper. Handle unauthenticated users by redirecting to sign-in when the app receives 401 from the API, and/or a single check at app/layout load that redirects to sign-in if there is no session.
+
 ---
 
 ## Common Issues & Troubleshooting
@@ -807,7 +852,7 @@ ASTRO_DB_APP_TOKEN=...  # Production token
 #### "Capacitor sync failed"
 - **Solution:** 
   ```bash
-  npm run build
+  npm run build:capacitor
   npx cap sync
   ```
 - Ensure `dist/` directory exists and has content
@@ -874,9 +919,9 @@ cd ../..
    npm run version:bump  # Or manually update package.json
    ```
 
-2. **Build Web App:**
+2. **Build Web App (for Capacitor use static build):**
    ```bash
-   npm run build
+   npm run build:capacitor
    ```
 
 3. **Sync Capacitor:**
@@ -944,8 +989,8 @@ npx cap init
 npx cap add ios
 npx cap add android
 
-# Sync after web build
-npm run build
+# Sync after web build (use build:capacitor for Capacitor)
+npm run build:capacitor
 npx cap sync
 
 # Open in native IDEs
