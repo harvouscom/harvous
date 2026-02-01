@@ -16,6 +16,9 @@ const { userId, getToken } = auth;
 // Auth redirect is now handled by middleware - no need to check here
 // Pages can still use userId for conditional rendering
 
+// Set cache headers to reduce function invocations on repeat visits
+Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+
 // Try to fetch user data from Clerk API using secret key
 let userData: any = null;
 try {

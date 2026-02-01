@@ -28,6 +28,9 @@ if (!userId) {
   return Astro.redirect('/sign-in');
 }
 
+// Set cache headers to reduce function invocations on repeat visits
+Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+
 // Get cached user data
 let userData: CachedUserData;
 try {
