@@ -56,6 +56,10 @@ if (!shareToken || !isValidShareToken(shareToken)) {
   if (!thread) {
     error = 'not_found';
   } else {
+    // Set cache headers for successful thread fetch
+    // Public shared content - longer cache since it rarely changes
+    Astro.response.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+
     // Fetch notes for the thread via junction table
     notes = await db.select({
       id: Notes.id,
