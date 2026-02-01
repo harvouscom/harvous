@@ -1,9 +1,14 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-58-2';
+const CACHE_NAME = 'harvous-cache-v1-58-3';
 const NAV_API_CACHE = 'harvous-nav-api-v10';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
+
+// IndexedDB constants for Clerk cookie backup
+const DB_NAME = 'harvous-device-auth';
+const DB_VERSION = 1;
+const COOKIES_STORE = 'clerkCookies';
 
 const CRITICAL_ASSETS = [
   '/favicon.svg',
@@ -93,6 +98,82 @@ const isNoteOrThreadPage = (pathname) => {
   return false;
 };
 
+// ============================================================================
+// Clerk Cookie Backup Functions (for PWA device detection fix)
+// ============================================================================
+
+/**
+ * Backup Clerk cookies from response headers to IndexedDB
+ * Helps preserve session across PWA app launches
+ */
+const backupClerkCookiesFromResponse = async (response) => {
+  try {
+    const setCookieHeader = response.headers.get('set-cookie');
+    if (!setCookieHeader) return;
+
+    // Check if it's a Clerk cookie
+    if (!setCookieHeader.includes('__clerk') && !setCookieHeader.includes('__session')) {
+      return;
+    }
+
+    // Parse cookie string
+    const cookieParts = setCookieHeader.split(';');
+    const nameValue = cookieParts[0].split('=');
+    if (nameValue.length < 2) return;
+
+    const cookieName = nameValue[0].trim();
+    const cookieValue = nameValue[1].trim();
+
+    // Store in IndexedDB
+    const db = await openDB();
+    if (!db) return;
+
+    const transaction = db.transaction([COOKIES_STORE], 'readwrite');
+    const store = transaction.objectStore(COOKIES_STORE);
+
+    await new Promise((resolve, reject) => {
+      const request = store.put({
+        name: cookieName,
+        value: cookieValue,
+        timestamp: Date.now(),
+      });
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+
+    db.close();
+    console.log('[SW] Backed up Clerk cookie:', cookieName);
+  } catch (error) {
+    console.warn('[SW] Failed to backup cookie:', error);
+  }
+};
+
+/**
+ * Open IndexedDB connection
+ */
+const openDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => {
+      console.warn('[SW] IndexedDB open failed');
+      resolve(null); // Don't reject, just return null
+    };
+
+    request.onsuccess = () => resolve(request.result);
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+
+      // Create stores if they don't exist
+      if (!db.objectStoreNames.contains(COOKIES_STORE)) {
+        const store = db.createObjectStore(COOKIES_STORE, { keyPath: 'name' });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+    };
+  });
+};
+
 const isCacheFresh = (cachedResponse, maxAge = 30000) => {
   if (!cachedResponse) return false;
   try {
@@ -115,9 +196,31 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Auth routes - always network-first
+  // Auth routes - always network-first with cookie preservation
   if (url.pathname.startsWith('/sign-in') || url.pathname.startsWith('/sign-up')) {
-    event.respondWith(fetch(event.request));
+    event.respondWith(
+      fetch(event.request, {
+        credentials: 'include' // Ensure cookies are included
+      }).then(response => {
+        // Backup Clerk cookies from response
+        backupClerkCookiesFromResponse(response);
+        return response;
+      })
+    );
+    return;
+  }
+
+  // API routes - ensure credentials included
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request, {
+        credentials: 'include' // Always include cookies for API requests
+      }).then(response => {
+        // Backup Clerk cookies if present
+        backupClerkCookiesFromResponse(response);
+        return response;
+      })
+    );
     return;
   }
   
