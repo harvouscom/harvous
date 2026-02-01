@@ -117,7 +117,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
                   <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
                     {isActive ? (
                       <span className="space-switcher-dropdown__check" aria-hidden="true">
-                        <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       </span>
                     ) : null}
                     {!isHome ? (
@@ -153,7 +153,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
                           onClose();
                         }}
                       >
-                        <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       </button>
                     ) : null}
                   </span>
@@ -169,7 +169,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
             >
               <span className="space-switcher-dropdown__label">New Space</span>
               <span className="space-switcher-dropdown__check" aria-hidden="true">
-                <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
               </span>
             </a>
           </div>

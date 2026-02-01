@@ -395,6 +395,37 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Track when counts were last updated via events to prevent server data from overwriting
   const lastEventUpdateTimeRef = useRef<number>(0);
   const eventUpdatedCountRef = useRef<number | null>(null);
+  const spaceSwitcherDetailsRef = useRef<HTMLDetailsElement>(null);
+
+  // Close space dropdown on click outside or Escape (desktop)
+  useEffect(() => {
+    const detailsEl = spaceSwitcherDetailsRef.current;
+    if (!detailsEl) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && detailsEl.open) {
+        event.preventDefault();
+        detailsEl.removeAttribute('open');
+      }
+    };
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = (event as MouseEvent).target as Node | null;
+      if (!target) return;
+      if (detailsEl.open && !detailsEl.contains(target)) {
+        detailsEl.removeAttribute('open');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, []);
 
   // Sync updatedActiveThread when activeThread prop changes
   // But don't overwrite if we recently updated via events (within 2 seconds)
@@ -856,10 +887,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                 />
               </a>
               {/* Native dropdown so it works even without React hydration */}
-              <details className="space-switcher-details">
+              <details ref={spaceSwitcherDetailsRef} className="space-switcher-details">
                 <summary className="space-btn__badge-wrapper space-switcher-anchor__toggle" aria-label="Switch space">
                   <span className="space-btn__toggle-icon" aria-hidden="true">
-                    <Icon name="sort" size={18} />
+                    <Icon name="sort" size={20} />
                   </span>
                 </summary>
                 <div className="space-switcher-details__panel space-switcher-dropdown__panel" role="dialog" aria-label="Switch space">
@@ -872,7 +903,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                     <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
                       {!effectiveSelectedSpaceId ? (
                         <span className="space-switcher-dropdown__check">
-                          <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                         </span>
                       ) : null}
                     </span>
@@ -890,7 +921,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                         <span className="space-switcher-dropdown__icon-slot" aria-hidden={isActive ? 'true' : undefined}>
                           {isActive ? (
                             <span className="space-switcher-dropdown__check" aria-hidden="true">
-                              <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                              <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                             </span>
                           ) : null}
                           <button
@@ -907,7 +938,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                               void closeSpaceFromSwitcher(s.id, s.title);
                             }}
                           >
-                            <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                           </button>
                         </span>
                       </a>
@@ -924,7 +955,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       >
                         <span className="space-switcher-dropdown__label">Add Existing Space</span>
                         <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
-                          <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
                         </span>
                       </button>
                       {isShowingExistingSpaces && availableSpaces.map((s) => {
@@ -949,7 +980,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
                     <span className="space-switcher-dropdown__label">New Space</span>
                     <span className="space-switcher-dropdown__check" aria-hidden="true">
-                      <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                      <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                     </span>
                   </a>
                 </div>

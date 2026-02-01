@@ -60,6 +60,17 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Ref for auto-focusing the space name input
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  // When New Space panel is open, close any other create panels (Note, Thread, Resource)
+  // so only this panel is visible (desktop slide-over and mobile bottom sheet both listen for these events)
+  useEffect(() => {
+    localStorage.removeItem('showNewNotePanel');
+    localStorage.removeItem('showNewThreadPanel');
+    localStorage.removeItem('showNewResourcePanel');
+    window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+    window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
+  }, []);
+
   // Load data from localStorage on mount
   useEffect(() => {
     const savedTitle = localStorage.getItem('newSpaceTitle') || '';

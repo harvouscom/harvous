@@ -1215,7 +1215,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             }}
           >
             <span className="space-btn__toggle-icon" aria-hidden="true">
-              <Icon name="sort" size={18} />
+              <Icon name="sort" size={20} />
             </span>
           </button>
         </div>
@@ -1302,7 +1302,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       }}
                     >
                       <span className="space-btn__toggle-icon" aria-hidden="true">
-                        <Icon name="sort" size={18} />
+                        <Icon name="sort" size={20} />
                       </span>
                     </button>
                   </div>
@@ -1322,7 +1322,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <span className="mobile-nav__space-panel-actions">
                         {!selectedSpaceId ? (
                           <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                            <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                           </span>
                         ) : null}
                       </span>
@@ -1343,7 +1343,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           <span className="mobile-nav__space-panel-actions">
                             {isActive ? (
                               <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                                <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                                <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                               </span>
                             ) : null}
                             <button
@@ -1373,7 +1373,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 closeSheet();
                               }}
                             >
-                              <Icon name="xmark" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                              <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                             </button>
                           </span>
                         </a>
@@ -1389,7 +1389,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         >
                           <span className="mobile-nav__space-panel-label">Add Existing Space</span>
                           <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                            <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            <Icon name={isShowingExistingSpaces ? "chevron-up" : "chevron-down"} size={20} style={{ color: 'var(--color-deep-grey)' }} />
                           </span>
                         </button>
                         {isShowingExistingSpaces && availableSpaces.map((s) => {
@@ -1418,7 +1418,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     >
                       <span className="mobile-nav__space-panel-label">New Space</span>
                       <span className="mobile-nav__space-panel-check" aria-hidden="true">
-                        <Icon name="plus" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                        <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       </span>
                     </a>
                   </div>

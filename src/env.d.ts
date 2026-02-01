@@ -1,6 +1,12 @@
 /// <reference types="astro/client" />
 /// <reference path="../.astro/types.d.ts" />
 
+// Vite ?raw imports (e.g. Font Awesome SVGs in Icon.tsx)
+declare module '*.svg?raw' {
+  const content: string;
+  export default content;
+}
+
 // Ensure JSX types are available for Astro templates
 declare namespace JSX {
   interface IntrinsicElements {
