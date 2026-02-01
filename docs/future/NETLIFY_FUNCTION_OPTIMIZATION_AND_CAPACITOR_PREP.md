@@ -1,11 +1,16 @@
 # Netlify Function Optimization and Capacitor Prep
 
-**Status:** Implemented (Phases 1–3)  
-**Last Updated:** January 2026
+**Status:** ✅ Fully Implemented (All Phases Complete)
+**Last Updated:** January 31, 2026
 
 Reducing serverless function usage while aligning the web app with the architecture required for native apps (Capacitor) later.
 
-**Implementation:** `output: "static"` with `prerender = false` on SSR pages and all API routes; sign-in/sign-up/dashboard/space are static with client-side redirect; Cache-Control increased on index and [id]; centralized API client documented in safe-fetch.ts and safe-url.ts.
+**Implementation Summary:**
+- ✅ `output: "static"` with `prerender = false` on SSR pages only
+- ✅ Sign-in/sign-up/dashboard/space are static with client-side redirect
+- ✅ Cache-Control headers on ALL SSR pages (60s private, 300s public)
+- ✅ Centralized API client (safe-fetch.ts, safe-url.ts) ready for Capacitor
+- ✅ Prefetch strategy optimized (tap + prefetchAll with cache support)
 
 ---
 
@@ -19,13 +24,16 @@ Reducing serverless function usage while aligning the web app with the architect
 
 ---
 
-## Current state (brief)
+## Current state (optimized)
 
-- **Astro:** `output: "server"` ([astro.config.mjs](../../astro.config.mjs) line 104); Netlify adapter, `edgeMiddleware: false`.
-- **Pages that invoke the function:** All non-API routes (index, [id], sign-in, sign-up, profile, find, new-space, upgrade, shared/*) are server-rendered; each request = one function invocation.
-- **Caching:** [src/pages/index.astro](../../src/pages/index.astro) sets `Cache-Control: private, max-age=10, must-revalidate` (line 93)—short cache, so repeat visits still hit the function often.
-- **Prefetch:** Astro prefetch (tap strategy, prefetchAll) can cause the same URL to be requested twice (prefetch + navigation), doubling invocations for those navigations.
-- **API:** All `/api/*` calls are serverless functions; total usage = SSR + API.
+- **Astro:** `output: "static"` ([astro.config.mjs](../../astro.config.mjs) line 104); Netlify adapter (prod only), `edgeMiddleware: false`.
+- **Static pages (no function calls):** sign-in, sign-up, dashboard, space - served from CDN.
+- **SSR pages (with cache headers):**
+  - **Private pages** (60s cache): index, [id], profile, find, new-space, upgrade
+  - **Public pages** (300s cache): shared/note/[shareToken], shared/thread/[shareToken]
+- **Caching impact:** Repeat visits within cache window = 0 function calls (served from cache).
+- **Prefetch:** Tap strategy + prefetchAll; second request (navigation) is served from cache thanks to headers.
+- **API routes:** All `/api/*` routes are serverless functions (not cached at page level).
 
 ---
 
@@ -83,11 +91,36 @@ For each remedy: what to do, how it reduces function usage, and how it sets up C
 
 ---
 
-## Suggested order of implementation
+## Implementation timeline (completed)
 
-1. **Quick wins (no architectural change):** Increase caching for index and [id]; optionally tune prefetch. Reduces usage immediately.
-2. **Hybrid (aligns with Capacitor):** Switch to `output: "hybrid"`; make sign-in/sign-up static with client-side redirect; add `prerender = false` only where needed.
-3. **Ongoing:** Keep API calls centralized (safeFetch/buildAPIUrl or single apiClient) so that when you add Capacitor, only that layer needs to branch on `PUBLIC_API_URL` and Bearer token.
+1. ✅ **Phase 1: Static output + auth pages** - Switched to `output: "static"`; made sign-in/sign-up/dashboard/space static with client-side redirects.
+2. ✅ **Phase 2: Initial caching** - Added cache headers to index.astro and [id].astro (60s + 120s stale-while-revalidate).
+3. ✅ **Phase 3: Complete caching** (January 31, 2026) - Added cache headers to all remaining SSR pages:
+   - Private pages: profile, find, new-space, upgrade (60s cache)
+   - Public pages: shared/note/*, shared/thread/* (300s cache)
+4. ✅ **Phase 4: Capacitor prep** - Centralized API client (safe-fetch.ts, safe-url.ts) ready for future dual-mode auth.
+
+## Cache headers by page
+
+| Page | Cache Strategy | Duration | Rationale |
+|------|----------------|----------|-----------|
+| index.astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | Dashboard data changes infrequently |
+| [id].astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | Note/thread/space content |
+| profile.astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | User profile, XP data |
+| find.astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | Search page structure |
+| new-space.astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | Space creation form |
+| upgrade.astro | `private, max-age=60, stale-while-revalidate=120` | 60s fresh, 120s stale | Subscription page |
+| shared/note/* | `public, max-age=300, stale-while-revalidate=600` | 5min fresh, 10min stale | Public shared notes (immutable) |
+| shared/thread/* | `public, max-age=300, stale-while-revalidate=600` | 5min fresh, 10min stale | Public shared threads (immutable) |
+| sign-in, sign-up, dashboard, space | N/A (static) | Infinite (CDN) | No server-side logic needed |
+
+## Expected impact
+
+**Function invocation reduction:**
+- Static pages (sign-in, sign-up, dashboard, space): **100% reduction** (0 invocations)
+- Cached private pages: **40-60% reduction** (repeat visits within 60s)
+- Cached public pages: **60-80% reduction** (longer cache, more shareable)
+- Overall estimated reduction: **50-70%** depending on traffic patterns
 
 ---
 
