@@ -1,10 +1,22 @@
 ---
+export const prerender = false;
+
 // Static page (hybrid): redirect for already-authenticated users is handled client-side after Clerk loads
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import { ClientRouter } from "astro:transitions";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
+
+// Referral attribution: store ref in cookie when user lands with ?ref=referralCode
+const ref = Astro.url.searchParams.get('ref');
+if (ref && ref.trim()) {
+  Astro.cookies.set('harvous_referrer', ref.trim(), {
+    path: '/',
+    maxAge: 60 * 60 * 24 * 7, // 7 days
+    sameSite: 'lax'
+  });
+}
 ---
 
 <EmptyLayout title="Sign Up">

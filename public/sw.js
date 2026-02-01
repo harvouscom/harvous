@@ -205,6 +205,12 @@ self.addEventListener('fetch', (event) => {
         // Backup Clerk cookies from response
         backupClerkCookiesFromResponse(response);
         return response;
+      }).catch(() => {
+        return new Response(JSON.stringify({ error: 'Network error' }), {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'application/json' }
+        });
       })
     );
     return;
@@ -219,6 +225,12 @@ self.addEventListener('fetch', (event) => {
         // Backup Clerk cookies if present
         backupClerkCookiesFromResponse(response);
         return response;
+      }).catch(() => {
+        return new Response(JSON.stringify({ error: 'Network error' }), {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: { 'Content-Type': 'application/json' }
+        });
       })
     );
     return;

@@ -17,6 +17,7 @@ export default function ManageBillingPanel({
     hasUnlimited: boolean;
     currentCount: number;
     limit: number | null;
+    referralBonusNotes?: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -146,7 +147,8 @@ export default function ManageBillingPanel({
         setSubscriptionInfo({
           hasUnlimited: data.hasUnlimited,
           currentCount: data.currentCount || 0,
-          limit: data.limit || null
+          limit: data.limit || null,
+          referralBonusNotes: data.referralBonusNotes ?? 0
         });
       }
     } catch (error) {
@@ -383,7 +385,7 @@ export default function ManageBillingPanel({
                         <div className="text-sm text-[var(--color-pebble-grey)]">
                           {subscriptionInfo.hasUnlimited 
                             ? 'Active' 
-                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the 1,000 note limit`}
+                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the ${(subscriptionInfo.limit ?? 1000).toLocaleString()} note limit${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (including ${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
                         </div>
                       </div>
                     </div>

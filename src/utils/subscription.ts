@@ -26,6 +26,23 @@ export async function getUserNoteCount(userId: string): Promise<number> {
 }
 
 /**
+ * Get referral bonus notes for a user (bonus note allowance from successful referrals).
+ */
+export async function getReferralBonusNotes(userId: string): Promise<number> {
+  try {
+    const row = await db
+      .select({ referralBonusNotes: UserMetadata.referralBonusNotes })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, userId))
+      .get();
+    return row?.referralBonusNotes ?? 0;
+  } catch (error) {
+    console.error('Error getting referral bonus notes:', error);
+    return 0;
+  }
+}
+
+/**
  * Check if user has active "unlimited_notes" feature via Clerk Billing Features
  * Uses Clerk's recommended has() method - auth object already contains user context
  */
@@ -55,23 +72,27 @@ export async function canCreateNote(
       return { allowed: true };
     }
 
-    // Free tier - check note count
-    const noteCount = await getUserNoteCount(userId);
-    
-    if (noteCount >= FREE_TIER_LIMIT) {
+    // Free tier - check note count against effective limit (base + referral bonus)
+    const [noteCount, referralBonusNotes] = await Promise.all([
+      getUserNoteCount(userId),
+      getReferralBonusNotes(userId)
+    ]);
+    const effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes;
+
+    if (noteCount >= effectiveLimit) {
       return {
         allowed: false,
         reason: 'Note limit reached',
         currentCount: noteCount,
-        limit: FREE_TIER_LIMIT,
+        limit: effectiveLimit,
         upgradeUrl: '/upgrade'
       };
     }
 
-    return { 
+    return {
       allowed: true,
       currentCount: noteCount,
-      limit: FREE_TIER_LIMIT
+      limit: effectiveLimit
     };
   } catch (error) {
     console.error('Error checking if user can create note:', error);
@@ -87,14 +108,20 @@ export async function getSubscriptionInfo(userId: string, auth: Auth): Promise<{
   hasUnlimited: boolean;
   currentCount: number;
   limit: number | null; // null means unlimited
+  referralBonusNotes?: number;
 }> {
   const hasUnlimited = hasUnlimitedNotes(auth);
-  const currentCount = await getUserNoteCount(userId);
-  
+  const [currentCount, referralBonusNotes] = await Promise.all([
+    getUserNoteCount(userId),
+    getReferralBonusNotes(userId)
+  ]);
+  const effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes;
+
   return {
     hasUnlimited,
     currentCount,
-    limit: hasUnlimited ? null : FREE_TIER_LIMIT
+    limit: hasUnlimited ? null : effectiveLimit,
+    referralBonusNotes
   };
 }
 

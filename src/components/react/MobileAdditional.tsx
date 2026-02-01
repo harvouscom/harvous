@@ -58,7 +58,8 @@ export default function MobileAdditional({
           'emailPassword': 'emailPassword',
           'myChurch': 'myChurch',
           'mySpaces': 'mySpaces',
-          'myData': 'myData'
+          'myData': 'myData',
+          'referral': 'referral'
         };
 
         const drawerType = panelMap[panelName];

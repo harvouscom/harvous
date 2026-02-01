@@ -22,6 +22,7 @@
  */
 
 import { db, UserMetadata, eq } from 'astro:db';
+import { generateReferralCode } from '@/utils/referral-code';
 
 export interface CachedUserData {
   firstName: string;
@@ -149,20 +150,25 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   let userCreatedAt: Date | undefined;
   if (existingMetadata) {
     userCreatedAt = existingMetadata.createdAt;
-    await db.update(UserMetadata)
-      .set({
-        firstName,
-        lastName,
-        email,
-        profileImageUrl,
-        userColor,  // Cache from Clerk's public_metadata
-        // Preserve church fields - they are stored in database and should never be lost
-        churchName: existingMetadata.churchName ?? null,
-        churchCity: existingMetadata.churchCity ?? null,
-        churchState: existingMetadata.churchState ?? null,
-        clerkDataUpdatedAt: new Date(),
-        updatedAt: new Date()
+    const setPayload = {
+      firstName,
+      lastName,
+      email,
+      profileImageUrl,
+      userColor,  // Cache from Clerk's public_metadata
+      // Preserve church fields - they are stored in database and should never be lost
+      churchName: existingMetadata.churchName ?? null,
+      churchCity: existingMetadata.churchCity ?? null,
+      churchState: existingMetadata.churchState ?? null,
+      clerkDataUpdatedAt: new Date(),
+      updatedAt: new Date(),
+      // Backfill referralCode for existing users who don't have one
+      ...(existingMetadata.referralCode == null && {
+        referralCode: generateReferralCode(firstName || null, userId)
       })
+    };
+    await db.update(UserMetadata)
+      .set(setPayload)
       .where(eq(UserMetadata.userId, userId));
   } else {
     // Create new user record with Clerk data
@@ -181,6 +187,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       churchName: null,
       churchCity: null,
       churchState: null,
+      referralCode: generateReferralCode(firstName || null, userId),
       createdAt: userCreatedAt,
       updatedAt: new Date(),
       clerkDataUpdatedAt: new Date(),

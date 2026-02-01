@@ -19,6 +19,7 @@ import MyDataPanel from './MyDataPanel';
 import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
 import ManageBillingPanel from './ManageBillingPanel';
+import ReferralPanel from './ReferralPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 import AboutHarvousPanel from './AboutHarvousPanel';
 import NoteSharePanel from './NoteSharePanel';
@@ -44,7 +45,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'inboxPreview' | 'aboutHarvous' | 'noteShare';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -82,6 +83,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'myData': 'My Data',
     'myAchievements': 'My Achievements',
     'manageBilling': 'Manage Billing',
+    'referral': 'Refer Friends',
     'inboxPreview': 'Inbox Preview',
     'aboutHarvous': 'Letter from the Founder',
     'noteShare': 'Share Note',
@@ -283,6 +285,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
       else if (panelName === 'getSupport') openBottomSheet('getSupport');
       else if (panelName === 'manageBilling') openBottomSheet('manageBilling');
+      else if (panelName === 'referral') openBottomSheet('referral');
       else if (panelName === 'aboutHarvous') openBottomSheet('aboutHarvous');
     };
     
@@ -676,6 +679,17 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 }}
                 inBottomSheet={true}
                 publishableKey={publishableKey}
+              />
+            </div>
+          )}
+
+          {drawerType === 'referral' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <ReferralPanel
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
               />
             </div>
           )}

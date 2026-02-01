@@ -22,7 +22,8 @@ export const GET: APIRoute = async ({ locals }) => {
     return new Response(JSON.stringify({
       hasUnlimited: subscriptionInfo.hasUnlimited,
       currentCount: subscriptionInfo.currentCount,
-      limit: subscriptionInfo.limit
+      limit: subscriptionInfo.limit,
+      referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }

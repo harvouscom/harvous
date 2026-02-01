@@ -45,6 +45,7 @@ const MyChurchPanel = createLazyComponent(() => import('./MyChurchPanel'), 'MyCh
 const EditNameColorPanel = createLazyComponent(() => import('./EditNameColorPanel'), 'EditNameColorPanel');
 const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPanel'), 'EmailPasswordPanel');
 const ManageBillingPanel = createLazyComponent(() => import('./ManageBillingPanel'), 'ManageBillingPanel');
+const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'ReferralPanel');
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
@@ -72,6 +73,7 @@ type PanelType =
   | 'editNameColor'
   | 'emailPassword'
   | 'manageBilling'
+  | 'referral'
   | 'myData'
   | 'getSupport'
   | 'noteShare'
@@ -125,6 +127,8 @@ type PanelAction =
   | { type: 'CLOSE_EMAIL_PASSWORD' }
   | { type: 'OPEN_MANAGE_BILLING' }
   | { type: 'CLOSE_MANAGE_BILLING' }
+  | { type: 'OPEN_REFERRAL' }
+  | { type: 'CLOSE_REFERRAL' }
   | { type: 'OPEN_MY_DATA' }
   | { type: 'CLOSE_MY_DATA' }
   | { type: 'OPEN_GET_SUPPORT' }
@@ -265,6 +269,17 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_REFERRAL':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'referral');
+      return { activePanel: 'referral', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_REFERRAL':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_MY_DATA':
       localStorage.setItem('showNewNotePanel', 'false');
       localStorage.setItem('showNewThreadPanel', 'false');
@@ -308,6 +323,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'editNameColor' ||
           savedProfilePanel === 'emailPassword' ||
           savedProfilePanel === 'manageBilling' ||
+          savedProfilePanel === 'referral' ||
           savedProfilePanel === 'myData' ||
           savedProfilePanel === 'getSupport'
         ) {
@@ -505,6 +521,7 @@ export default function DesktopPanelManager({
       else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
       else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
       else if (panelName === 'manageBilling') dispatch({ type: 'OPEN_MANAGE_BILLING' });
+      else if (panelName === 'referral') dispatch({ type: 'OPEN_REFERRAL' });
       else if (panelName === 'myData') dispatch({ type: 'OPEN_MY_DATA' });
       else if (panelName === 'getSupport') dispatch({ type: 'OPEN_GET_SUPPORT' });
 
@@ -631,6 +648,11 @@ export default function DesktopPanelManager({
 
   const handleCloseManageBilling = useCallback(() => {
     dispatch({ type: 'CLOSE_MANAGE_BILLING' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseReferral = useCallback(() => {
+    dispatch({ type: 'CLOSE_REFERRAL' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -884,6 +906,20 @@ export default function DesktopPanelManager({
                 onClose={handleCloseManageBilling}
                 inBottomSheet={false}
                 publishableKey={publishableKey}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'referral' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <ReferralPanel
+                key={`referral-${state.panelKey}`}
+                onClose={handleCloseReferral}
+                inBottomSheet={false}
               />
             </div>
           </Suspense>

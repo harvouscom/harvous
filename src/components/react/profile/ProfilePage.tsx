@@ -11,6 +11,7 @@ import MySpacesPanel from '@/components/react/MySpacesPanel';
 import MyAchievementsPanel from '@/components/react/MyAchievementsPanel';
 import GetSupportPanel from '@/components/react/GetSupportPanel';
 import ManageBillingPanel from '@/components/react/ManageBillingPanel';
+import ReferralPanel from '@/components/react/ReferralPanel';
 import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
 
 // Type definitions for props
@@ -43,7 +44,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'aboutHarvous' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -348,6 +349,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <GetSupportPanel version={version} />;
       case 'manageBilling':
         return <ManageBillingPanel publishableKey={publishableKey} />;
+      case 'referral':
+        return <ReferralPanel />;
       case 'aboutHarvous':
         return <AboutHarvousPanel letterHtml={founderLetterHtml} />;
       default:
