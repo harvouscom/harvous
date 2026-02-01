@@ -42,6 +42,13 @@ export default function InfiniteScrollList<T>({
   const loadingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hasMoreRef = useRef(hasMore);
+  const handleLoadMoreRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const initialLoadAttemptedRef = useRef(false);
+  const lastLoadMoreTimeRef = useRef(0);
+  const itemsCountRef = useRef(items.length);
+  const expectedCountRef = useRef(minimumExpectedCount !== undefined ? minimumExpectedCount : limit);
+  const COOLDOWN_MS = 400;
 
   // Helper function to check if element is visible
   const isElementVisible = useCallback((element: HTMLElement | null): boolean => {
@@ -88,6 +95,7 @@ export default function InfiniteScrollList<T>({
       setHasMore(initialHasMore !== undefined ? initialHasMore : initialItems.length >= limit);
       setError(null);
       prevInitialItemsRef.current = itemsKey;
+      initialLoadAttemptedRef.current = false;
     }
   }, [initialItems, limit, isControlled, initialHasMore]);
   
@@ -96,6 +104,7 @@ export default function InfiniteScrollList<T>({
   useEffect(() => {
     if (initialHasMore !== undefined) {
       setHasMore(initialHasMore);
+      initialLoadAttemptedRef.current = false;
     }
   }, [initialHasMore]);
 
@@ -155,57 +164,60 @@ export default function InfiniteScrollList<T>({
     }
   }, [items, limit, loadMore, hasMore, isLoading, isControlled, onItemsChange, minimumExpectedCount]);
 
+  hasMoreRef.current = hasMore;
+  handleLoadMoreRef.current = handleLoadMore;
+  itemsCountRef.current = items.length;
+  expectedCountRef.current = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
+
   // Trigger immediate load if hasMore is true but we have fewer items than expected
-  // This handles cases where filtering reduces visible items below the total count
+  // Coordinate with observer via initialLoadAttemptedRef so only one path runs the first load
   useEffect(() => {
-    // Determine the threshold: use minimumExpectedCount if provided, otherwise use limit
     const expectedCount = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
-    
-    // Check if component is visible before triggering auto-load
     const isVisible = isElementVisible(containerRef.current);
-    
-    // Trigger if:
-    // 1. hasMore is true (API says there are more items) AND component is visible
-    // 2. Only auto-load if hasMore is true - respect API's hasMore value
-    // 3. Also trigger when items are empty but hasMore is true (e.g., scripture tab after refresh)
-    // Don't force loading based on item count alone, as this can cause infinite loops
-    const shouldTriggerLoad = hasMore && 
-      !isLoading && 
-      !loadingRef.current && 
+    const inCooldown = Date.now() - lastLoadMoreTimeRef.current < COOLDOWN_MS;
+
+    const shouldTriggerLoad =
+      hasMore &&
+      !isLoading &&
+      !loadingRef.current &&
       isVisible &&
-      (items.length < expectedCount || items.length === 0);
-    
+      (items.length < expectedCount || items.length === 0) &&
+      !initialLoadAttemptedRef.current &&
+      !inCooldown;
+
     if (shouldTriggerLoad) {
-      // Small delay to avoid race conditions with other effects
+      initialLoadAttemptedRef.current = true;
+      lastLoadMoreTimeRef.current = Date.now();
       const timer = setTimeout(() => {
-        // Re-check visibility and conditions before loading
         const stillVisible = isElementVisible(containerRef.current);
-        if (hasMore && !isLoading && !loadingRef.current && stillVisible) {
-          handleLoadMore();
+        if (hasMoreRef.current && !loadingRef.current && stillVisible) {
+          handleLoadMoreRef.current();
         }
       }, 100);
       return () => clearTimeout(timer);
     }
   }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore, isElementVisible]);
 
-  // Intersection Observer for auto-loading
+  // Intersection Observer for auto-loading - stable: do not depend on hasMore/isLoading/handleLoadMore
+  // so the observer is not recreated after each load (which would re-fire when sentinel is still in view)
   useEffect(() => {
-    // Only set up observer if component is visible
     if (!isElementVisible(containerRef.current)) {
       return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // Trust IntersectionObserver - if intersecting, component is visible
-        if (entries[0].isIntersecting && hasMore && !isLoading && !loadingRef.current) {
-          handleLoadMore();
+        if (!entries[0].isIntersecting) return;
+        if (!hasMoreRef.current || loadingRef.current) return;
+        const expectedCount = expectedCountRef.current;
+        const count = itemsCountRef.current;
+        if (initialLoadAttemptedRef.current && count < expectedCount) {
+          return;
         }
+        initialLoadAttemptedRef.current = true;
+        handleLoadMoreRef.current();
       },
-      { 
-        // Use full margin string for better compatibility across browsers (especially Safari)
-        rootMargin: `${threshold}px 0px ${threshold}px 0px` 
-      }
+      { rootMargin: `${threshold}px 0px ${threshold}px 0px` }
     );
 
     const currentTarget = observerTarget.current;
@@ -218,7 +230,7 @@ export default function InfiniteScrollList<T>({
         observer.unobserve(currentTarget);
       }
     };
-  }, [hasMore, isLoading, handleLoadMore, threshold, isElementVisible]);
+  }, [threshold, isElementVisible]);
 
   // Listen for tab visibility changes to trigger auto-load when tab becomes visible
   useEffect(() => {
