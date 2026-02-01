@@ -416,16 +416,26 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     opacity: 0.6;
   }
 
-  /* Mobile: Show top section of desktop gradient, filling entire area */
+  /* Mobile: Blue to pink gradient with blend zone sliding side to side */
   @media (max-width: 1159px) {
     .thread-colors-mesh-gradient::before {
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      transform: scaleY(2);
-      transform-origin: top center;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, var(--color-blue), var(--color-pink));
+      background-size: 200% 100%;
+      animation: mesh-gradient-slide 6s ease-in-out infinite;
+      opacity: 0.9;
     }
+    .thread-colors-mesh-gradient::after {
+      opacity: 0;
+    }
+  }
+
+  @keyframes mesh-gradient-slide {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
   }
 
   @keyframes mesh-movement {
