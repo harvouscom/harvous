@@ -216,6 +216,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     if (hasManualSelection.current) {
       return;
     }
+    // Never use onboarding thread as default; stay on Unorganized
+    if (currentThread?.id?.startsWith('thread_onboarding_')) {
+      return;
+    }
     
     if (currentThread && currentThread.id) {
       if (!hasInitializedFromCurrentThread.current || 
@@ -243,9 +247,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     if (hasManualSelection.current) {
       return;
     }
-    
-    // Priority 1: Use currentThread prop if available
-    if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
+    // Never use onboarding thread as default; fall through to Unorganized or other priorities
+    if (currentThread?.id?.startsWith('thread_onboarding_')) {
+      // Skip Priority 1; continue to Priority 2/3/4 below
+    } else if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
       const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
       
       if (matchingThread) {
@@ -268,7 +273,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     // Priority 2: Client-side detection
     if (!hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
       const detectedThread = detectThreadFromContext();
-      if (detectedThread) {
+      if (detectedThread && !detectedThread.id.startsWith('thread_onboarding_')) {
         const matchingThread = threadOptions.find(thread => thread.id === detectedThread.id);
         if (matchingThread) {
           if (matchingThread.title !== selectedThread) {
