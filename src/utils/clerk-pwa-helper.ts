@@ -8,7 +8,7 @@
 import { getOrCreateDeviceId } from './device-fingerprint';
 import { backupClerkSession, type ClerkSessionBackup } from './clerk-session-backup';
 
-const DB_NAME = 'harvous-device-auth';
+const DB_NAME = 'harvous-clerk-cookies';
 const DB_VERSION = 1;
 const COOKIES_STORE = 'clerkCookies';
 

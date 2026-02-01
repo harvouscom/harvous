@@ -19,7 +19,7 @@ export interface ClerkSessionBackup {
   lastRefreshed: number;
 }
 
-const DB_NAME = 'harvous-device-auth';
+const DB_NAME = 'harvous-session-backup';
 const DB_VERSION = 1;
 const SESSION_STORE = 'sessionBackup';
 
