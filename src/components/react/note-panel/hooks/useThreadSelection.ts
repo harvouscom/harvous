@@ -151,7 +151,8 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
           formattedThreads.unshift(DEFAULT_UNORGANIZED_THREAD);
         }
         
-        setThreadOptions(formattedThreads);
+        const filteredThreads = formattedThreads.filter((t: Thread) => !t.id.startsWith('thread_onboarding_'));
+        setThreadOptions(filteredThreads);
       } catch (offlineError) {
         console.error('[useThreadSelection] Error loading threads from IndexedDB:', offlineError);
       } finally {
@@ -181,7 +182,8 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
           formattedThreads.unshift(DEFAULT_UNORGANIZED_THREAD);
         }
         
-        setThreadOptions(formattedThreads);
+        const filteredThreads = formattedThreads.filter((t: Thread) => !t.id.startsWith('thread_onboarding_'));
+        setThreadOptions(filteredThreads);
         
         // After threads are loaded, check if we have a saved thread ID to match
         const savedThreadId = localStorage.getItem('newNoteThread');
@@ -191,7 +193,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
           if (savedThreadId === 'thread_unorganized') {
             matchedThread = 'Unorganized';
           } else {
-            const matchingThread = formattedThreads.find((thread: Thread) => thread.id === savedThreadId);
+            const matchingThread = filteredThreads.find((thread: Thread) => thread.id === savedThreadId);
             if (matchingThread) {
               matchedThread = matchingThread.title;
             }

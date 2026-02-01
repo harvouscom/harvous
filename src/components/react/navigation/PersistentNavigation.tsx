@@ -19,6 +19,9 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
   // So we only render after mount.
   const [isHydrated, setIsHydrated] = useState(false);
   const [renderKey, setRenderKey] = useState(0);
+  const [pathname, setPathname] = useState(() =>
+    typeof window !== 'undefined' ? window.location.pathname : ''
+  );
 
   useEffect(() => {
     setIsHydrated(true);
@@ -35,6 +38,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
     const handlePageLoad = () => {
       if (timeoutRef) clearTimeout(timeoutRef);
+      if (typeof window !== 'undefined') setPathname(window.location.pathname);
       requestAnimationFrame(() => {
         setRenderKey(prev => prev + 1);
       });
@@ -70,6 +74,40 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       window.removeEventListener('spaceUpdated', handleSpaceUpdated);
     };
   }, []);
+
+  // Remove dropped (same-title, different-id) thread ids from history so closing never navigates to a stale id
+  useEffect(() => {
+    if (typeof window === 'undefined' || !pathname) return;
+    let currentId: string | null = null;
+    let currentTitle: string | null = null;
+    if (pathname.includes('/note_')) {
+      const noteEl = document.querySelector('[data-note-id][data-parent-thread-id]') as HTMLElement | null;
+      const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+      const rawId = noteEl?.dataset?.parentThreadId ?? navEl?.dataset?.parentThreadId ?? null;
+      currentId = rawId ? String(rawId).replace(/^\/+/, '').replace(/\/+$/, '') : null;
+      if (currentId?.startsWith('thread_')) {
+        currentTitle = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
+      } else {
+        currentId = null;
+      }
+    } else if (pathname.startsWith('/thread_')) {
+      const pathId = pathname.replace(/^\//, '').replace(/\/+$/, '');
+      if (pathId.startsWith('thread_')) {
+        currentId = pathId;
+        const fromHistory = navigationHistory.find((i) => i.id === pathId);
+        currentTitle = fromHistory?.title ?? null;
+        if (currentTitle == null) {
+          const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+          currentTitle = navEl?.dataset?.threadTitle ?? 'Thread';
+        }
+      }
+    }
+    if (!currentId || !currentTitle) return;
+    const dropped = navigationHistory.filter(
+      (item) => item.id?.startsWith('thread_') && item.title === currentTitle && item.id !== currentId
+    );
+    dropped.forEach((item) => removeFromNavigationHistory(item.id, { navigateIfActive: false }));
+  }, [navigationHistory, pathname, removeFromNavigationHistory]);
 
   const currentActiveItemId = typeof window !== 'undefined' ? getCurrentActiveItemId() : '';
 
@@ -208,10 +246,20 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
       
       if (activeThreadItem && !isUnorganizedTitleWithWrongId && !unorganizedAlreadyExists) {
+        // Collapse same-title duplicates in favor of current page's thread
+        persistentItems = persistentItems.filter(
+          (i) => !(i.title === activeThreadItem.title && i.id !== activeThreadItem.id)
+        );
         persistentItems = [activeThreadItem, ...persistentItems];
       }
     }
 
+    // On note page: collapse same-title duplicates in favor of current page's parent thread
+    if (activeParentThread) {
+      persistentItems = persistentItems.filter(
+        (i) => !(i.title === activeParentThread.title && i.id !== activeParentThread.id)
+      );
+    }
     // Ensure the active parent thread is visible even if it doesn't match scoping yet.
     if (activeParentThread && !persistentItems.some((i) => i.id === activeParentThread.id)) {
       // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
@@ -271,10 +319,27 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     });
   }
 
+  // On note page, use same DOM source as display (note element then nav) so active state matches the displayed thread
+  let effectiveActiveItemId = currentActiveItemId;
+  if (typeof window !== 'undefined' && pathname.includes('/note_')) {
+    try {
+      const noteEl = document.querySelector('[data-note-id][data-parent-thread-id]') as HTMLElement | null;
+      const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+      const raw =
+        noteEl?.dataset?.parentThreadId ?? navEl?.dataset?.parentThreadId ?? null;
+      const id = raw ? String(raw).replace(/^\/+/, '').replace(/\/+$/, '') : null;
+      if (id && id.startsWith('thread_')) {
+        effectiveActiveItemId = id;
+      }
+    } catch {
+      // keep currentActiveItemId
+    }
+  }
+
   return (
     <div id="persistent-navigation" key={renderKey} className="persistent-nav">
       {persistentItems.map((item) => {
-        const isActive = item.id === currentActiveItemId;
+        const isActive = item.id === effectiveActiveItemId;
         const isSpaceItem = item.id.startsWith('space_');
 
         // Skip rendering if item.id is invalid (shouldn't happen due to filter, but double-check)
@@ -344,7 +409,10 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  removeFromNavigationHistory(item.id);
+                  removeFromNavigationHistory(
+                    item.id,
+                    item.id.startsWith('thread_') ? { sameTitleAs: item.title } : undefined
+                  );
                 }}
                 onMouseDown={(e) => {
                   e.stopPropagation();

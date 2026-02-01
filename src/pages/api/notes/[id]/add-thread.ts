@@ -57,6 +57,16 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
+    if (threadId.startsWith('thread_onboarding_')) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Cannot add notes to the onboarding thread.' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Verify the note exists and belongs to the user
     const note = await db.select()
       .from(Notes)

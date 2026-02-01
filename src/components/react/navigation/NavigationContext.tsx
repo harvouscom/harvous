@@ -23,11 +23,18 @@ export interface NavigationItem {
   lastAccessed: number;
 }
 
+// Options for removeFromNavigationHistory (e.g. erase: update history only, caller navigates)
+export interface RemoveFromNavigationHistoryOptions {
+  navigateIfActive?: boolean;
+  /** When closing a thread, remove all threads with this title from history so the thread disappears from nav */
+  sameTitleAs?: string;
+}
+
 // Navigation context interface
 interface NavigationContextType {
   navigationHistory: NavigationItem[];
   addToNavigationHistory: (item: Omit<NavigationItem, 'firstAccessed' | 'lastAccessed'>) => void;
-  removeFromNavigationHistory: (itemId: string) => void;
+  removeFromNavigationHistory: (itemId: string, options?: RemoveFromNavigationHistoryOptions) => void;
   trackNavigationAccess: () => void;
   refreshNavigation: () => void;
   getCurrentActiveItemId: () => string;
@@ -257,8 +264,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (isItemClosed(item.id)) return false;
         return true;
       });
-      
-      return filteredItems;
+
+      // Dedupe by id so we never expose duplicate entries (e.g. from races on note create)
+      const deduped = filteredItems.reduce((acc: NavigationItem[], current: NavigationItem) => {
+        const existingItem = acc.find((item) => item.id === current.id);
+        if (!existingItem) {
+          acc.push(current);
+        } else if ((current.lastAccessed ?? 0) > (existingItem.lastAccessed ?? 0)) {
+          const index = acc.findIndex((item) => item.id === current.id);
+          acc[index] = current;
+        }
+        return acc;
+      }, []);
+
+      return deduped;
     } catch (error) {
       console.error('Error getting navigation history:', error);
       const backup = (window as any).navigationHistoryBackup || [];
@@ -274,8 +293,19 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (isItemClosed(item.id)) return false;
         return true;
       });
-      
-      return filteredBackup;
+
+      const dedupedBackup = filteredBackup.reduce((acc: NavigationItem[], current: NavigationItem) => {
+        const existingItem = acc.find((item) => item.id === current.id);
+        if (!existingItem) {
+          acc.push(current);
+        } else if ((current.lastAccessed ?? 0) > (existingItem.lastAccessed ?? 0)) {
+          const index = acc.findIndex((item) => item.id === current.id);
+          acc[index] = current;
+        }
+        return acc;
+      }, []);
+
+      return dedupedBackup;
     }
   };
 
@@ -285,17 +315,29 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') {
       return;
     }
-    
+
+    // Dedupe by id so we never persist duplicate entries (e.g. from races on note create)
+    const deduped = history.reduce((acc: NavigationItem[], current: NavigationItem) => {
+      const existingItem = acc.find((item) => item.id === current.id);
+      if (!existingItem) {
+        acc.push(current);
+      } else if ((current.lastAccessed ?? 0) > (existingItem.lastAccessed ?? 0)) {
+        const index = acc.findIndex((item) => item.id === current.id);
+        acc[index] = current;
+      }
+      return acc;
+    }, []);
+
     try {
-      const jsonString = JSON.stringify(history);
+      const jsonString = JSON.stringify(deduped);
       const success = safeSetItem('harvous-navigation-history-v2', jsonString, {
         cleanupOldest: true,
         fallbackToSession: true,
       });
       
       // Also update the backup
-      (window as any).navigationHistoryBackup = [...history];
-      
+      (window as any).navigationHistoryBackup = [...deduped];
+
       if (!success) {
         console.error('💾 saveNavigationHistory - SAVE FAILED! Could not save to storage');
       } else {
@@ -514,7 +556,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   // Remove item from navigation history
-  const removeFromNavigationHistory = (itemId: string) => {
+  const removeFromNavigationHistory = (itemId: string, options?: RemoveFromNavigationHistoryOptions) => {
+    const navigateIfActive = options?.navigateIfActive !== false;
     const history = getNavigationHistory();
     
     // Check if the item being removed is currently active
@@ -526,47 +569,38 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // If removing an active item, navigate to the next available item first
     if (isActive) {
       // Use raw history (including spaces) to find next item
-      // getNavigationHistory filters out spaces, so we need raw history to find next space
       const rawHistory = getRawNavigationHistory();
-      const currentIndex = rawHistory.findIndex((item: any) => item.id === itemId);
-      
-      // If closing a space, find the next available space; otherwise find any next item
+      // When closing a thread with sameTitleAs, remove itemId and all same-title threads so the thread disappears from nav
+      const sameTitleIds =
+        itemId.startsWith('thread_') && options?.sameTitleAs
+          ? rawHistory
+              .filter(
+                (item: any) =>
+                  item?.id?.startsWith('thread_') &&
+                  item.title === options.sameTitleAs &&
+                  item.id !== itemId
+              )
+              .map((item: any) => item.id)
+          : [];
+      const idsToRemove = [itemId, ...sameTitleIds];
+      const filteredRawHistory = rawHistory.filter((item: any) => !idsToRemove.includes(item.id));
+      const filteredHistory = history.filter((item) => !idsToRemove.includes(item.id));
+
+      const closedIds = getClosedItems();
+      const isSpaceOpened = (item: any) =>
+        item?.id && item.id.startsWith('space_') && item.id !== itemId && !closedIds.includes(item.id);
       let nextItem = null;
       if (itemId.startsWith('space_')) {
-        // For spaces, look for the next space in history
-        // Try index + 1, then index - 1, then search all remaining items
-        if (currentIndex !== -1) {
-          // First try adjacent items
-          const nextAdjacent = rawHistory[currentIndex + 1] || rawHistory[currentIndex - 1];
-          if (nextAdjacent && nextAdjacent.id && nextAdjacent.id.startsWith('space_')) {
-            nextItem = nextAdjacent;
-          } else {
-            // If adjacent items aren't spaces, search the rest of history for a space
-            const remainingItems = [
-              ...rawHistory.slice(currentIndex + 1),
-              ...rawHistory.slice(0, currentIndex)
-            ];
-            nextItem = remainingItems.find((item: any) => item.id && item.id.startsWith('space_')) || null;
-          }
-        } else {
-          // Space not in history yet, search all items for another space
-          nextItem = rawHistory.find((item: any) => item.id && item.id.startsWith('space_') && item.id !== itemId) || null;
-        }
+        nextItem = filteredRawHistory.find((item: any) => isSpaceOpened(item)) || null;
       } else {
-        // For non-spaces, find next item (try index + 1, then index - 1, else null)
-        nextItem = currentIndex !== -1
-          ? (rawHistory[currentIndex + 1] || rawHistory[currentIndex - 1] || null)
-          : null;
+        const currentIndex = filteredRawHistory.findIndex((item: any) => item.id === itemId);
+        nextItem =
+          currentIndex !== -1
+            ? (filteredRawHistory[currentIndex + 1] || filteredRawHistory[currentIndex - 1] || null)
+            : null;
       }
-      
-      // Remove the item from raw history (includes spaces)
-      const filteredRawHistory = rawHistory.filter((item: any) => item.id !== itemId);
-      
-      // Also remove from filtered history (for React state)
-      const filteredHistory = history.filter(item => item.id !== itemId);
-      
-      // Add to closed items list
-      addToClosedItems(itemId);
+
+      idsToRemove.forEach((id) => addToClosedItems(id));
       
       // Special handling for unorganized thread
       if (itemId === 'thread_unorganized') {
@@ -598,54 +632,57 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.error('Error storing closed item:', error);
       }
       
-      // Navigate to next item or dashboard using View Transitions
-      // Add query parameter to indicate this navigation is due to closing an item
-      const targetUrl = nextItem ? `/${nextItem.id}?closed=${encodeURIComponent(itemId)}` : '/';
-      
-      // Use View Transitions for smooth navigation
-      // Check document visibility before starting transition (prevents error when page is hidden)
-      if (document.hidden) {
-        // Fallback to standard navigation if page is hidden
-        window.location.href = targetUrl;
-        return;
-      }
-      
-      // Wrap dynamic import in try-catch to handle import failures
-      import('astro:transitions/client')
-        .then(({ navigate }) => {
-          navigate(targetUrl, { history: 'replace' });
-        })
-        .catch(async (error) => {
-          // Fallback to standard navigation if dynamic import fails
-          const errorObj = error instanceof Error ? error : new Error(String(error));
-          console.warn('View Transitions import failed, using standard navigation:', errorObj);
-          
-          // Track error in PostHog if available
-          try {
-            const { captureException } = await import('@/utils/posthog');
-            captureException(errorObj, {
-              context: 'navigation-context',
-              action: 'remove-item-navigate',
-              targetUrl: targetUrl
-            });
-          } catch {
-            // Ignore PostHog import errors
-          }
-          
+      // Navigate to next item or dashboard (unless caller will navigate, e.g. Erase Space → Menu goes to /)
+      if (navigateIfActive) {
+        const targetUrl = nextItem ? `/${nextItem.id}?closed=${encodeURIComponent(itemId)}` : '/';
+        if (document.hidden) {
           window.location.href = targetUrl;
-        });
-      return; // Exit early since we're navigating
+          return;
+        }
+        import('astro:transitions/client')
+          .then(({ navigate }) => {
+            navigate(targetUrl, { history: 'replace' });
+          })
+          .catch(async (error) => {
+            const errorObj = error instanceof Error ? error : new Error(String(error));
+            console.warn('View Transitions import failed, using standard navigation:', errorObj);
+            try {
+              const { captureException } = await import('@/utils/posthog');
+              captureException(errorObj, {
+                context: 'navigation-context',
+                action: 'remove-item-navigate',
+                targetUrl: targetUrl
+              });
+            } catch {
+              // Ignore PostHog import errors
+            }
+            window.location.href = targetUrl;
+          });
+      }
+      return; // Exit early since we're navigating or caller will navigate
     }
     
     // Proceed with removal (for non-active items)
     // Use raw history to ensure spaces are also removed from storage
     const rawHistory = getRawNavigationHistory();
-    const filteredRawHistory = rawHistory.filter((item: any) => item.id !== itemId);
-    const filteredHistory = history.filter(item => item.id !== itemId);
-    
-    // Add to closed items list
-    addToClosedItems(itemId);
-    
+    // When closing a thread with sameTitleAs, remove itemId and all same-title threads
+    const sameTitleIdsNonActive =
+      itemId.startsWith('thread_') && options?.sameTitleAs
+        ? rawHistory
+            .filter(
+              (item: any) =>
+                item?.id?.startsWith('thread_') &&
+                item.title === options.sameTitleAs &&
+                item.id !== itemId
+            )
+            .map((item: any) => item.id)
+        : [];
+    const idsToRemoveNonActive = [itemId, ...sameTitleIdsNonActive];
+    const filteredRawHistory = rawHistory.filter((item: any) => !idsToRemoveNonActive.includes(item.id));
+    const filteredHistory = history.filter((item) => !idsToRemoveNonActive.includes(item.id));
+
+    idsToRemoveNonActive.forEach((id) => addToClosedItems(id));
+
     // Special handling for unorganized thread
     if (itemId === 'thread_unorganized') {
       safeSetItem('unorganized-thread-closed', 'true', {
@@ -1504,15 +1541,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return updatedHistory;
           }
           
-          // Thread not in history - we need to fetch it and add it
-          // Return current state for now, then fetch and add asynchronously
-          // Fetch thread data asynchronously and add it
-          // Check auth before making API call
-          if (!isAuthReady()) {
-            // Auth not ready yet, skip silently
+          // Thread not in history - we need to fetch it and add it (unless caller will navigate to note)
+          // If the caller is about to navigate to the note page, trackNavigationAccess will add the thread on load
+          if (event.detail?.willNavigateToNote) {
             return currentHistory;
           }
-          
+          if (!isAuthReady()) {
+            return currentHistory;
+          }
           safeFetch('/api/threads/list')
             .then(response => {
               if (response && response.ok) {
@@ -1861,8 +1897,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleSpaceDeleted = (event: CustomEvent) => {
       const spaceId = event.detail?.spaceId;
       if (spaceId) {
-        // Remove the space from navigation history
-        removeFromNavigationHistory(spaceId);
+        // Remove the space from navigation history only; Menu already navigates to /
+        removeFromNavigationHistory(spaceId, { navigateIfActive: false });
       }
     };
 

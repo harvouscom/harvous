@@ -867,7 +867,7 @@ try {
 
 // If content not found, redirect to dashboard
 if (!content) {
-  // return Astro.redirect('/'); // Temporarily disabled for static mode
+  return Astro.redirect('/');
 }
 
 // Extract noteType for menu options

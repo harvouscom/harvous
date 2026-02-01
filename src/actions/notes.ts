@@ -26,9 +26,9 @@ export const notes = {
         
         const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
         
-        // Ensure we have a valid threadId - if it's unorganized, use the default
+        // Ensure we have a valid threadId - if it's unorganized or onboarding, use the default
         let finalThreadId = threadId;
-        if (!finalThreadId || finalThreadId === 'thread_unorganized') {
+        if (!finalThreadId || finalThreadId === 'thread_unorganized' || finalThreadId.startsWith('thread_onboarding_')) {
           // Create the unorganized thread if it doesn't exist
           try {
             await db.insert(Threads).values({

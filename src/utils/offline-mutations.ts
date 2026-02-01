@@ -453,11 +453,15 @@ export async function createNoteOffline(userId: string, data: {
     simpleNoteId = currentHighest + 1;
   }
 
+  const effectiveThreadId = data.threadId?.startsWith('thread_onboarding_')
+    ? 'thread_unorganized'
+    : (data.threadId || 'thread_unorganized');
+
   const note: OfflineNote = ensureUserPartition<OfflineNote>({
     id: localId,
     title: data.title || null,
     content: data.content,
-    threadId: data.threadId || 'thread_unorganized',
+    threadId: effectiveThreadId,
     spaceId: data.spaceId || null,
     simpleNoteId,
     noteType: data.noteType || 'default',
@@ -487,13 +491,13 @@ export async function createNoteOffline(userId: string, data: {
     }
   }
 
-  // Create NoteThread relationship if threadId is provided
-  if (data.threadId && data.threadId !== 'thread_unorganized') {
+  // Create NoteThread relationship if threadId is provided (never for onboarding thread)
+  if (effectiveThreadId && effectiveThreadId !== 'thread_unorganized') {
     const noteThreadId = `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const noteThread: OfflineNoteThread = ensureUserPartition<OfflineNoteThread>({
       id: noteThreadId,
       noteId: localId,
-      threadId: data.threadId,
+      threadId: effectiveThreadId,
       syncStatus: 'pending',
       lastModified: now,
       createdAt: new Date(),
@@ -509,7 +513,7 @@ export async function createNoteOffline(userId: string, data: {
       entityId: noteThreadId,
       data: {
         noteId: localId,
-        threadId: data.threadId,
+        threadId: effectiveThreadId,
       },
     });
   }
@@ -522,7 +526,7 @@ export async function createNoteOffline(userId: string, data: {
     data: {
       title: data.title,
       content: data.content,
-      threadId: data.threadId || 'thread_unorganized',
+      threadId: effectiveThreadId,
       spaceId: data.spaceId,
       simpleNoteId,
       noteType: data.noteType || 'default',

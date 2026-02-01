@@ -751,16 +751,16 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // For resource notes, it may also include resourceTitle, resourceDescription, resourceImage
         // ThreadNotesList handles incomplete note data by creating a minimal placeholder if needed
         const noteCreatedEvent = new CustomEvent('noteCreated', {
-          detail: { 
-            note: result.note, // Complete note object from API response
-            actualThreadId: threadIdForEvent, // Use the correct thread ID (overrideThreadId if provided)
-            noteId: result.note?.id, // Include noteId for easy access
-            threadId: threadIdForEvent, // Include threadId for easy access (duplicate for compatibility)
-            spaceId: result.note?.spaceId || (addToSpace && currentSpace?.id ? currentSpace.id : null) // Include spaceId if note was created in a space
+          detail: {
+            note: result.note,
+            actualThreadId: threadIdForEvent,
+            noteId: result.note?.id,
+            threadId: threadIdForEvent,
+            spaceId: result.note?.spaceId || (addToSpace && currentSpace?.id ? currentSpace.id : null),
+            // Caller will navigate to the note page; NavigationContext skips async add so trackNavigationAccess adds the thread on load
+            willNavigateToNote: true
           }
         });
-        
-        // Dispatch event for listeners (navigation will happen immediately after)
         window.dispatchEvent(noteCreatedEvent);
 
         // NOTE: We do NOT dispatch noteAddedToThread event here because we're about to navigate

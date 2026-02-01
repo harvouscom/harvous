@@ -250,7 +250,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Note automatically removed from unorganized when junction entry is created
     let noteStaysInUnorganized = true; // Track if note will stay in unorganized
     
-    if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized') {
+    if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized' && !threadId.startsWith('thread_onboarding_')) {
       debug('[api/notes/create] Adding note to thread', { threadId });
       try {
         // Verify the target thread exists and belongs to the user
