@@ -95,6 +95,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   })();
 </script>
 
+<!-- PWA auth + session backup (bundled; no /src/ requests in production) -->
+<script>
+  import { initializePWAAuth, setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
+  initializePWAAuth();
+  setupClerkSessionBackupListener();
+</script>
+
 <!-- Clerk Client-Side Initialization Script -->
 <script is:inline>
   (function() {
@@ -106,92 +113,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       if (content) content.classList.remove('auth-page__hidden');
     }
     setTimeout(showSignInContent, 0);
-
-    // ========================================================================
-    // PWA/Mobile Device Detection & Session Restoration
-    // ========================================================================
-    // Load device fingerprinting and session backup utilities
-    // This prevents "Detect new device" warnings in PWA/mobile contexts
-
-    async function initializePWAAuth() {
-      try {
-        // Import utilities (dynamic import for inline script)
-        const { getOrCreateDeviceId, getDeviceId } = await import('/src/utils/device-fingerprint.ts');
-        const { restoreClerkSession, isSessionValid, backupClerkSession } = await import('/src/utils/clerk-session-backup.ts');
-        const { initClerkForPWA } = await import('/src/utils/clerk-pwa-helper.ts');
-
-        console.log('[Auth] Initializing PWA auth...');
-
-        // PHASE 1: Generate/retrieve device fingerprint
-        const deviceId = await getOrCreateDeviceId();
-        console.log('[Auth] Device ID:', deviceId.substring(0, 8) + '...');
-
-        // PHASE 2: Check for session backup
-        const sessionBackup = await restoreClerkSession();
-
-        if (sessionBackup && isSessionValid(sessionBackup)) {
-          console.log('[Auth] Valid session backup found');
-
-          // PHASE 3: Verify device ID matches
-          if (sessionBackup.deviceId === deviceId) {
-            console.log('[Auth] Device ID matches, attempting silent restore');
-
-            // PHASE 4: Wait for Clerk to load
-            const waitForClerk = () => new Promise((resolve) => {
-              if (window.Clerk) {
-                resolve(window.Clerk);
-              } else {
-                const checkInterval = setInterval(() => {
-                  if (window.Clerk) {
-                    clearInterval(checkInterval);
-                    resolve(window.Clerk);
-                  }
-                }, 100);
-
-                // Timeout after 10 seconds
-                setTimeout(() => {
-                  clearInterval(checkInterval);
-                  resolve(null);
-                }, 10000);
-              }
-            });
-
-            const Clerk = await waitForClerk();
-
-            if (Clerk && sessionBackup.sessionId) {
-              try {
-                // Try to restore session silently
-                await Clerk.setSession(sessionBackup.sessionId);
-                console.log('[Auth] Session restored successfully, redirecting...');
-
-                // Success! Redirect to app
-                const urlParams = new URLSearchParams(window.location.search);
-                const redirectUrl = urlParams.get('redirect_url') || '/';
-                window.location.href = redirectUrl;
-                return; // Exit early - session restored
-              } catch (error) {
-                console.log('[Auth] Silent restore failed, continuing to sign-in:', error);
-                // Fall through to normal sign-in flow
-              }
-            }
-          } else {
-            console.log('[Auth] Device ID mismatch - session from different device');
-          }
-        } else {
-          console.log('[Auth] No valid session backup found');
-        }
-
-        // PHASE 5: Initialize PWA helper (cookie monitoring, session backup)
-        await initClerkForPWA();
-
-      } catch (error) {
-        console.error('[Auth] PWA auth initialization failed:', error);
-        // Continue with normal sign-in flow
-      }
-    }
-
-    // Initialize PWA auth (non-blocking)
-    initializePWAAuth();
 
     // ========================================================================
     // Standard Clerk Sign-In Flow (existing logic)
@@ -323,36 +244,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           if (isProduction) {
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
-        }
-
-        // Set up session backup listener for successful sign-ins
-        if (window.Clerk) {
-          window.Clerk.addListener(async function(session) {
-            if (session && session.id && session.userId) {
-              console.log('[Auth] User signed in, backing up session...');
-
-              try {
-                const { getOrCreateDeviceId } = await import('/src/utils/device-fingerprint.ts');
-                const { backupClerkSession } = await import('/src/utils/clerk-session-backup.ts');
-
-                const deviceId = await getOrCreateDeviceId();
-
-                await backupClerkSession({
-                  sessionId: session.id,
-                  sessionToken: session.lastActiveToken?.getRawString() || null,
-                  userId: session.userId,
-                  deviceId: deviceId,
-                  expiresAt: session.expireAt || null,
-                  createdAt: Date.now(),
-                  lastRefreshed: Date.now(),
-                });
-
-                console.log('[Auth] Session backup complete');
-              } catch (error) {
-                console.error('[Auth] Failed to backup session:', error);
-              }
-            }
-          });
         }
 
         // Check if we need to force sign-out after Clerk loads

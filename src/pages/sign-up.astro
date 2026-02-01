@@ -95,6 +95,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   })();
 </script>
 
+<!-- PWA auth + session backup (bundled; no /src/ requests in production) -->
+<script>
+  import { initializePWAForSignUp, setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
+  initializePWAForSignUp();
+  setupClerkSessionBackupListener();
+</script>
+
 <!-- Clerk Client-Side Initialization Script -->
 <script is:inline>
   (function() {
@@ -106,35 +113,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       if (content) content.classList.remove('auth-page__hidden');
     }
     setTimeout(showSignUpContent, 0);
-
-    // ========================================================================
-    // PWA/Mobile Device Detection & Fingerprinting
-    // ========================================================================
-    // Initialize device fingerprinting for new users
-    // This prevents "Detect new device" warnings on subsequent logins
-
-    async function initializePWAForSignUp() {
-      try {
-        const { getOrCreateDeviceId } = await import('/src/utils/device-fingerprint.ts');
-        const { initClerkForPWA } = await import('/src/utils/clerk-pwa-helper.ts');
-
-        console.log('[Auth] Initializing device fingerprinting for sign-up...');
-
-        // Generate device fingerprint
-        const deviceId = await getOrCreateDeviceId();
-        console.log('[Auth] Device ID created:', deviceId.substring(0, 8) + '...');
-
-        // Initialize PWA helper (cookie monitoring, session backup)
-        await initClerkForPWA();
-
-        console.log('[Auth] PWA initialization complete');
-      } catch (error) {
-        console.error('[Auth] PWA initialization failed:', error);
-      }
-    }
-
-    // Initialize PWA auth (non-blocking)
-    initializePWAForSignUp();
 
     // ========================================================================
     // Standard Clerk Sign-Up Flow (existing logic)
@@ -214,36 +192,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           if (isProduction) {
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
-        }
-
-        // Set up session backup listener for new user sign-ups
-        if (window.Clerk) {
-          window.Clerk.addListener(async function(session) {
-            if (session && session.id && session.userId) {
-              console.log('[Auth] New user signed up, backing up session...');
-
-              try {
-                const { getOrCreateDeviceId } = await import('/src/utils/device-fingerprint.ts');
-                const { backupClerkSession } = await import('/src/utils/clerk-session-backup.ts');
-
-                const deviceId = await getOrCreateDeviceId();
-
-                await backupClerkSession({
-                  sessionId: session.id,
-                  sessionToken: session.lastActiveToken?.getRawString() || null,
-                  userId: session.userId,
-                  deviceId: deviceId,
-                  expiresAt: session.expireAt || null,
-                  createdAt: Date.now(),
-                  lastRefreshed: Date.now(),
-                });
-
-                console.log('[Auth] New user session backup complete');
-              } catch (error) {
-                console.error('[Auth] Failed to backup new user session:', error);
-              }
-            }
-          });
         }
 
         redirectIfAlreadySignedIn();
