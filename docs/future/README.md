@@ -66,6 +66,12 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 
 ### User Experience
 
+- **`NOTE_TEMPLATES.md`** - Note templates (future feature)
+  - Pre-defined study methods (SOAP, Inductive, Bible Nerd, Topical, Chapter Summary, Comparative)
+  - User-created templates and "Save as template"
+  - Shared-space templates for groups
+  - Implementation outline and design considerations
+
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Complete offline mode architecture
   - Full offline read/write support with IndexedDB
   - Data synchronization strategies
