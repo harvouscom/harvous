@@ -1,3 +1,5 @@
+export const prerender = false;
+
 /**
  * Debug endpoint to understand thread count discrepancies
  * GET /api/admin/debug-thread-counts?threadId=<threadId>

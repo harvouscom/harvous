@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import { ImageResponse } from '@vercel/og';
 import { type APIRoute } from 'astro';
 import { db, Notes, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';

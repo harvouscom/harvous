@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, ResourceMetadata, Notes, NoteThreads, Threads, eq, and, inArray, count } from 'astro:db';
 import { extractDomain, getDomainFriendlyName, validateResourceUrl } from '@/utils/validation';

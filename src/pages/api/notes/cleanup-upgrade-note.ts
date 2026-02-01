@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Notes, UserMetadata, NoteThreads, NoteTags, Comments, ScriptureMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { revokeXPOnDeletion, revokeAllXPForItem } from '@/utils/xp-system';

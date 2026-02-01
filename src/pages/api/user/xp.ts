@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { calculateTotalXP, getXPBreakdown, backfillUserXP, getSeasonalXP, getLifetimeXP } from '@/utils/xp-system';
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';

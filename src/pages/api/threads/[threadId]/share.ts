@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Threads, eq, and } from 'astro:db';
 import { generateShareToken, isValidShareToken } from '@/utils/ids';

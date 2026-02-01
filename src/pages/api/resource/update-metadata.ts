@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, ResourceMetadata, Notes, eq, and } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';

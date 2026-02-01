@@ -1,6 +1,10 @@
 /**
- * Safe fetch utility with retry logic, timeout, and request deduplication
- * Provides resilient API calls with graceful error handling
+ * Safe fetch utility with retry logic, timeout, and request deduplication.
+ * Provides resilient API calls with graceful error handling.
+ *
+ * Centralized API client: use this (and safe-url.ts for URL construction) for all
+ * API calls. For future Capacitor/native support, only this layer needs to branch
+ * on PUBLIC_API_URL and Authorization: Bearer <token>.
  */
 
 interface SafeFetchOptions extends RequestInit {

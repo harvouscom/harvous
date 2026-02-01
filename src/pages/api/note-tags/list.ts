@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Tags, NoteTags, eq, and } from 'astro:db';
 

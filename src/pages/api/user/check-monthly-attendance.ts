@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { awardMonthlyAttendanceXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';

@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, isValidShareToken } from '@/utils/ids';

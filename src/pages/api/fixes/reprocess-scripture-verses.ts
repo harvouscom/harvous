@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Notes, ScriptureMetadata, eq, and } from 'astro:db';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';

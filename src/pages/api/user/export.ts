@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc } from 'astro:db';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';

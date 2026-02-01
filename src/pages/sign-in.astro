@@ -1,25 +1,8 @@
 ---
+// Static page (hybrid): redirect for already-authenticated users is handled client-side after Clerk loads
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 import { ClientRouter } from "astro:transitions";
-
-// Get redirect URL from query params, fallback to home
-const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
-// Check if coming from logout - prevent auto-redirect in this case
-const fromLogout = Astro.url.searchParams.get('from_logout') === 'true';
-
-// Server-side auth check: redirect authenticated users away from sign-in page
-// This prevents the race condition where Clerk components don't load in time
-const auth = Astro.locals.auth();
-const { userId } = auth;
-
-if (userId && !fromLogout) {
-  // User is already authenticated and not coming from logout - redirect them
-  return Astro.redirect(redirectUrl);
-}
-
-// If coming from logout, don't auto-redirect authenticated users (stay on sign-in page)
-const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
 ---
 
 <EmptyLayout title="Sign In">
@@ -90,7 +73,7 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
           }
         }}
         signUpUrl="/sign-up"
-        fallbackRedirectUrl={effectiveRedirectUrl}
+        fallbackRedirectUrl="/"
       />
         </div>
       </div>
@@ -112,10 +95,19 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
     // Check if coming from logout
     var urlParams = new URLSearchParams(window.location.search);
     var fromLogout = urlParams.get('from_logout') === 'true';
-    
+
+    // Client-side redirect when already signed in (static page; no server redirect)
+    function redirectIfAlreadySignedIn() {
+      if (fromLogout) return;
+      if (window.Clerk && window.Clerk.user) {
+        var redirectUrl = urlParams.get('redirect_url') || '/';
+        window.location.replace(redirectUrl);
+      }
+    }
+
     // Track if clerk:loaded listener has been set up (only set up once)
     var clerkLoadedListenerSetup = false;
-    
+
     // Force sign-out if user is still authenticated after logout
     function forceSignOutIfNeeded() {
       if (!fromLogout) return;
@@ -234,24 +226,27 @@ const effectiveRedirectUrl = fromLogout ? undefined : redirectUrl;
         }
         // Check if we need to force sign-out after Clerk loads
         forceSignOutIfNeeded();
+        // Redirect already-signed-in users (static page)
+        redirectIfAlreadySignedIn();
       });
       clerkLoadedListenerSetup = true;
     }
-    
+
     // Check for Clerk scripts after a short delay (only on initial load)
     setTimeout(checkClerkScripts, 500);
-    
+
     // Initial load
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', function() {
         initializeSignIn();
-        // Also check for force sign-out on initial load
         setTimeout(forceSignOutIfNeeded, 500);
+        setTimeout(redirectIfAlreadySignedIn, 500);
       });
     } else {
       // DOM already ready, initialize immediately
       setTimeout(initializeSignIn, 100);
       setTimeout(forceSignOutIfNeeded, 500);
+      setTimeout(redirectIfAlreadySignedIn, 500);
     }
     
     // View Transitions: Re-initialize on page navigation

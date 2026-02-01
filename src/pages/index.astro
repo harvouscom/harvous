@@ -1,4 +1,5 @@
 ---
+export const prerender = false;
 import Layout from "@/layouts/Layout.astro";
 import CardStack from "@/components/CardStack.astro";
 import TabNav from "@/components/TabNav.astro";
@@ -87,10 +88,9 @@ try {
   contentItems = [];
 }
 
-// Add HTTP caching headers for better performance
-// Reduced cache time and added must-revalidate to prevent serving stale pages
-// This works with the service worker's network-first strategy when online
-Astro.response.headers.set('Cache-Control', 'private, max-age=10, must-revalidate');
+// Add HTTP caching headers for better performance (Netlify function optimization)
+// Longer cache + stale-while-revalidate reduces function invocations on repeat visits
+Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
 const { initials, userColor } = userData;
 

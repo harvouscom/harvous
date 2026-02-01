@@ -1,3 +1,5 @@
+export const prerender = false;
+
 /**
  * Admin API endpoint to cleanup duplicate scripture reference entries
  * GET /api/admin/cleanup-duplicate-scripture-refs

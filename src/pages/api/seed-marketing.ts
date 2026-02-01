@@ -1,3 +1,5 @@
+export const prerender = false;
+
 /**
  * API endpoint to run the marketing seed script
  * 

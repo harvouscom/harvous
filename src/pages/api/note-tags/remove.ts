@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, NoteTags, eq, and } from 'astro:db';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';

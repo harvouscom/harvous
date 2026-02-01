@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Spaces, Notes, Threads, eq, and } from 'astro:db';
 import { generateSpaceId } from '@/utils/ids';

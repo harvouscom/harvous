@@ -1,20 +1,8 @@
 ---
+// Static page (hybrid): redirect for already-authenticated users is handled client-side after Clerk loads
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import { ClientRouter } from "astro:transitions";
-
-// Server-side auth check: redirect authenticated users away from sign-up page
-// This prevents the race condition where Clerk components don't load in time
-const auth = Astro.locals.auth();
-const { userId } = auth;
-
-// Get redirect URL from query params, fallback to home
-const redirectUrl = Astro.url.searchParams.get('redirect_url') || '/';
-
-if (userId) {
-  // User is already authenticated - redirect them
-  return Astro.redirect(redirectUrl);
-}
 ---
 
 <EmptyLayout title="Sign Up">
@@ -106,7 +94,16 @@ if (userId) {
     
     // Track if clerk:loaded listener has been set up (only set up once)
     var clerkLoadedListenerSetup = false;
-    
+
+    // Client-side redirect when already signed in (static page; no server redirect)
+    function redirectIfAlreadySignedIn() {
+      if (window.Clerk && window.Clerk.user) {
+        var urlParams = new URLSearchParams(window.location.search);
+        var redirectUrl = urlParams.get('redirect_url') || '/';
+        window.location.replace(redirectUrl);
+      }
+    }
+
     // Debug: Check if @clerk/astro scripts are in the DOM
     function checkClerkScripts() {
       var clerkScripts = document.querySelectorAll('script[src*="clerk"], script[src*="clerkjs"]');
@@ -175,19 +172,23 @@ if (userId) {
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
         }
+        redirectIfAlreadySignedIn();
       });
       clerkLoadedListenerSetup = true;
     }
-    
+
     // Check for Clerk scripts after a short delay (only on initial load)
     setTimeout(checkClerkScripts, 500);
-    
+
     // Initial load
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeSignUp);
+      document.addEventListener('DOMContentLoaded', function() {
+        initializeSignUp();
+        setTimeout(redirectIfAlreadySignedIn, 500);
+      });
     } else {
-      // DOM already ready, initialize immediately
       setTimeout(initializeSignUp, 100);
+      setTimeout(redirectIfAlreadySignedIn, 500);
     }
     
     // View Transitions: Re-initialize on page navigation

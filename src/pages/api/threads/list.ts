@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { getAllThreadsWithCounts } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';

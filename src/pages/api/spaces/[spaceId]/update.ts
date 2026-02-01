@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Spaces, eq, and } from 'astro:db';
 import { getThreadGradientCSS } from '@/utils/colors';

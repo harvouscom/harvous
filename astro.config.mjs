@@ -16,7 +16,7 @@ export default defineConfig({
   },
   prefetch: {
     defaultStrategy: 'tap',  // Prefetch on tap/click start, not hover
-    prefetchAll: true        // Apply to all internal links automatically
+    prefetchAll: true        // Apply to all internal links; SSR cache (Phase 1) reduces duplicate hits
   },
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
@@ -100,8 +100,8 @@ export default defineConfig({
     react(),
   ],
 
-  // Use different output modes for development vs production
-  output: "server",
+  // Static by default; pages/API with prerender = false use adapter (Netlify). Reduces function invocations.
+  output: "static",
   // Only use adapter in production - in dev mode, Astro runs without adapter
   // This prevents database lock issues from Netlify edge functions process
   // Clerk works fine in dev mode without the adapter

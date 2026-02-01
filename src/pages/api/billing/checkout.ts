@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { handleAPIError } from '@/utils/error-handling';
 import { UNLIMITED_PLAN_ID } from '@/utils/subscription';

@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc, isNotNull } from 'astro:db';
 import { sql } from 'astro:db';

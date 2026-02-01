@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { getCachedUserData } from '@/utils/user-cache';
 import { db, UserMetadata, eq } from 'astro:db';

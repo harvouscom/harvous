@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, InboxItems, InboxItemNotes, UserInboxItems, Notes, Threads, UserMetadata, NoteThreads, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, generateThreadId } from '@/utils/ids';

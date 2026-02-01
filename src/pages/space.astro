@@ -1,4 +1,18 @@
 ---
-// Redirect to the new space structure
-return Astro.redirect('/s/2');
+// Static page: client-side redirect to /s/2 (no Netlify function invocation)
 ---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url=/s/2" />
+    <title>Redirecting...</title>
+    <script is:inline>
+      window.location.replace('/s/2');
+    </script>
+  </head>
+  <body>
+    <p>Redirecting to <a href="/s/2">space</a>...</p>
+  </body>
+</html>

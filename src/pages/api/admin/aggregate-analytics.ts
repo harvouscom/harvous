@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '@/utils/analytics-aggregator';
 

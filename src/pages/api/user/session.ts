@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { awardSessionXP } from '@/utils/xp-system';
 import { calculateSessionXP, type SessionData } from '@/utils/session-tracker';

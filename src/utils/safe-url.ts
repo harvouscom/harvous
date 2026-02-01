@@ -1,8 +1,9 @@
 /**
- * Safe URL utilities for Safari PWA compatibility
- * Handles edge cases where window.location.origin returns "null" or document.referrer is relative
- * 
- * Following the pattern of safe-fetch.ts and safe-navigate.ts
+ * Safe URL utilities for Safari PWA compatibility.
+ * Handles edge cases where window.location.origin returns "null" or document.referrer is relative.
+ *
+ * Centralized API base: use with safe-fetch.ts for all API calls. For Capacitor/native,
+ * base URL can be switched to PUBLIC_API_URL here so the rest of the app stays unchanged.
  */
 
 /**

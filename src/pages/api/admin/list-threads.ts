@@ -1,3 +1,5 @@
+export const prerender = false;
+
 /**
  * Debug endpoint to list all threads for the current user
  * GET /api/admin/list-threads

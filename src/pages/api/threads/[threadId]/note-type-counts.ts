@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { getThreadNoteTypeCounts } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';

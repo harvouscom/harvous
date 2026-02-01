@@ -1,9 +1,11 @@
 # Netlify Function Optimization and Capacitor Prep
 
-**Status:** Planning / Optional (can implement in phases)  
+**Status:** Implemented (Phases 1–3)  
 **Last Updated:** January 2026
 
 Reducing serverless function usage while aligning the web app with the architecture required for native apps (Capacitor) later.
+
+**Implementation:** `output: "static"` with `prerender = false` on SSR pages and all API routes; sign-in/sign-up/dashboard/space are static with client-side redirect; Cache-Control increased on index and [id]; centralized API client documented in safe-fetch.ts and safe-url.ts.
 
 ---
 

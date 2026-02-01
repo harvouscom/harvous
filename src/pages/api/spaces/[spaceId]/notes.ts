@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { getNotesForSpace } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';

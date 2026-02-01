@@ -1,3 +1,5 @@
+export const prerender = false;
+
 import type { APIRoute } from 'astro';
 import { db, UserInboxItems, InboxItems, eq, and, lt } from 'astro:db';
 
