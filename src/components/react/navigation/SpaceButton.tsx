@@ -40,17 +40,6 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   as = 'button',
   ...props
 }) => {
-  // Debug logging to track prop changes
-  React.useEffect(() => {
-    console.log('[SpaceButton] Rendered with props', {
-      text,
-      backgroundGradient,
-      isActive,
-      state,
-      itemId
-    });
-  }, [text, backgroundGradient, isActive, state, itemId]);
-  
   const { removeFromNavigationHistory } = useNavigation();
 
   const handleCloseClick = (event: React.MouseEvent) => {

@@ -134,6 +134,7 @@ export default function OrganizedContentList({
   const MAX_SSR_AGE = 60000; // 60 seconds
   const isDataFromStaleCache = dataGeneratedAt && typeof window !== 'undefined' && (Date.now() - dataGeneratedAt > MAX_SSR_AGE);
   const [isWaitingForFreshData, setIsWaitingForFreshData] = useState<boolean>(() => !!isDataFromStaleCache);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(() => {
     // Restore deleted items. We store in BOTH sessionStorage and localStorage because
@@ -431,10 +432,20 @@ export default function OrganizedContentList({
           throw new Error('Failed to build refresh URL');
         }
 
-        const response = await fetch(url, {
-          credentials: 'include',
-          cache: 'no-store' // Always bypass cache to ensure fresh data
-        });
+        const REFRESH_TIMEOUT_MS = 18000; // 18s so hanging requests don't leave UI stuck on Loading
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            credentials: 'include',
+            cache: 'no-store', // Always bypass cache to ensure fresh data
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
         if (!response.ok) {
           throw new Error(`Failed to refresh: ${response.status}`);
@@ -822,9 +833,13 @@ export default function OrganizedContentList({
       setHasMore(false);
       hasMoreRef.current = false;
       // Trigger refresh which will update hasMore based on actual data
-      refreshContent().then(() => {
-        // Refresh completed - InfiniteScrollList will handle loading more if needed
-      });
+      refreshContent()
+        .then((ok) => {
+          setRefreshError(ok ? null : 'Couldn\'t load content');
+        })
+        .catch(() => {
+          setRefreshError('Couldn\'t load content');
+        });
     }
   }, [filter, refreshContent]);
 
@@ -1214,9 +1229,16 @@ export default function OrganizedContentList({
         // Removed delays for instant refresh
         if (isMountedRef.current && window.location.pathname === '/' &&
             !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
-          refreshContent().finally(() => {
-            setIsWaitingForFreshData(false);
-          });
+          refreshContent()
+            .then((ok) => {
+              setRefreshError(ok ? null : 'Couldn\'t load content');
+            })
+            .catch(() => {
+              setRefreshError('Couldn\'t load content');
+            })
+            .finally(() => {
+              setIsWaitingForFreshData(false);
+            });
         }
       }
     };
@@ -1269,11 +1291,15 @@ export default function OrganizedContentList({
           // Removed PWA delay for instant refresh
           if (isMountedRef.current && window.location.pathname === '/' &&
               !refreshStateRef.current.isNavigating && refreshStateRef.current.isRefreshing) {
-            refreshContent().then(() => {
-              refreshStateRef.current.isRefreshing = false;
-            }).catch(() => {
-              refreshStateRef.current.isRefreshing = false;
-            });
+            refreshContent()
+              .then((ok) => {
+                setRefreshError(ok ? null : 'Couldn\'t load content');
+                refreshStateRef.current.isRefreshing = false;
+              })
+              .catch(() => {
+                setRefreshError('Couldn\'t load content');
+                refreshStateRef.current.isRefreshing = false;
+              });
           } else {
             refreshStateRef.current.isRefreshing = false;
           }
@@ -1557,6 +1583,24 @@ export default function OrganizedContentList({
           className="flex flex-col"
           initialHasMore={hasMore}
         />
+      ) : refreshError ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', textAlign: 'center', paddingTop: '48px', paddingBottom: '48px' }}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px', marginBottom: '12px' }}>
+            {refreshError}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setRefreshError(null);
+              refreshContent()
+                .then((ok) => setRefreshError(ok ? null : 'Couldn\'t load content'))
+                .catch(() => setRefreshError('Couldn\'t load content'));
+            }}
+            style={{ fontFamily: 'var(--font-sans)', fontSize: '14px', padding: '8px 16px', cursor: 'pointer' }}
+          >
+            Retry
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', width: '100%', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
           <div className="empty-state-message">

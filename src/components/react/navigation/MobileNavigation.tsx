@@ -104,10 +104,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (lastEventUpdateRef.current && 
         lastEventUpdateRef.current.spaceId === currentSpace?.id &&
         Date.now() - lastEventUpdateRef.current.timestamp < 2000) {
-      console.log('[MobileNavigation] Skipping sync - recent event update exists', {
-        spaceId: currentSpace.id,
-        timeSinceUpdate: Date.now() - lastEventUpdateRef.current.timestamp
-      });
       return;
     }
     
@@ -117,19 +113,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     // 3. The currentSpace ID matches but we want to ensure it's in sync
     // However, if we just updated updatedCurrentSpace from an event, don't overwrite it
     if (!updatedCurrentSpace || (currentSpace && updatedCurrentSpace.id !== currentSpace.id)) {
-      console.log('[MobileNavigation] Syncing updatedCurrentSpace from currentSpace prop', {
-        currentSpaceId: currentSpace?.id,
-        updatedCurrentSpaceId: updatedCurrentSpace?.id,
-        willSync: !updatedCurrentSpace || (currentSpace && updatedCurrentSpace.id !== currentSpace.id)
-      });
       setUpdatedCurrentSpace(currentSpace);
     } else if (currentSpace && updatedCurrentSpace.id === currentSpace.id) {
       // Same space - merge to preserve any updates we have while syncing other fields
-      console.log('[MobileNavigation] Merging currentSpace prop with updatedCurrentSpace', {
-        currentSpaceId: currentSpace.id,
-        updatedCurrentSpaceBackground: updatedCurrentSpace.backgroundGradient,
-        currentSpaceBackground: currentSpace.backgroundGradient
-      });
       // Preserve our updated backgroundGradient if we have one, otherwise use currentSpace
       setUpdatedCurrentSpace(prev => {
         if (prev && prev.backgroundGradient && prev.backgroundGradient !== currentSpace.backgroundGradient) {
@@ -577,37 +563,23 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     const handleSpaceUpdated = (event: CustomEvent) => {
       const { spaceId, title, backgroundGradient } = event.detail || {};
-      console.log('[MobileNavigation] localSpaces handler received spaceUpdated', {
-        spaceId,
-        title,
-        backgroundGradient,
-        hasSpaceId: !!spaceId,
-        hasTitle: !!title
-      });
       if (!spaceId || !title) {
-        console.log('[MobileNavigation] localSpaces handler: skipping (missing spaceId or title)');
         return;
       }
-      
+
       setLocalSpaces(prev => {
         const byId = new Map<string, Space>();
         for (const s of prev) byId.set(s.id, s);
-        
+
         // Update existing space if found, or create new entry if not found
         const existingSpace = byId.get(spaceId);
         if (existingSpace) {
-          console.log('[MobileNavigation] localSpaces handler: updating existing space', {
-            spaceId,
-            oldTitle: existingSpace.title,
-            newTitle: title
-          });
           byId.set(spaceId, {
             ...existingSpace,
             title: title,
             backgroundGradient: backgroundGradient || existingSpace.backgroundGradient || 'var(--color-paper)',
           });
         } else {
-          console.log('[MobileNavigation] localSpaces handler: adding new space', { spaceId, title });
           // Add new space if it doesn't exist (shouldn't happen normally, but handle edge cases)
           byId.set(spaceId, {
             id: spaceId,
@@ -633,16 +605,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       const eventSpaceId = customEvent?.detail?.spaceId;
       const eventTitle = customEvent?.detail?.title;
       const eventBackgroundGradient = customEvent?.detail?.backgroundGradient;
-      
-      console.log('[MobileNavigation] updatedCurrentSpace handler received spaceUpdated', {
-        eventSpaceId,
-        eventTitle,
-        eventBackgroundGradient,
-        selectedSpaceId,
-        currentSpaceId: currentSpace?.id,
-        currentSpaceTitle: currentSpace?.title
-      });
-      
+
       // Determine which space to update
       // Use eventSpaceId if available, otherwise check currentSpace, selectedSpaceId, or URL
       const path = window.location.pathname || '/';
@@ -655,22 +618,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         (currentSpace && eventSpaceId === currentSpace.id) ||
         (selectedSpaceId && eventSpaceId === selectedSpaceId)
       );
-      
-      console.log('[MobileNavigation] updatedCurrentSpace handler: checking conditions', {
-        eventSpaceId,
-        shouldUpdateCurrentSpace,
-        spaceIdToCheck
-      });
-      
+
       // If we have a spaceId from event but it doesn't match current space or selected space, skip
       if (eventSpaceId && !shouldUpdateCurrentSpace) {
-        console.log('[MobileNavigation] updatedCurrentSpace handler: skipping (spaceId does not match currentSpace or selectedSpaceId)');
         return;
       }
-      
+
       // If we don't have a space to check, skip
       if (!spaceIdToCheck) {
-        console.log('[MobileNavigation] updatedCurrentSpace handler: skipping (no spaceIdToCheck)');
         return;
       }
       
@@ -685,13 +640,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         // Check selectedSpaceId first since that's what's displayed in the button
         const isSelectedSpace = eventSpaceId && selectedSpaceId && eventSpaceId === selectedSpaceId;
         const isCurrentSpace = eventSpaceId && currentSpace && eventSpaceId === currentSpace.id;
-        
-        console.log('[MobileNavigation] updatedCurrentSpace handler: checking update conditions', {
-          isSelectedSpace,
-          isCurrentSpace,
-          spaceIdForUpdate
-        });
-        
+
         // Always update if this space matches selectedSpaceId (the space shown in the button)
         // This is critical for the button to update live
         if (isSelectedSpace) {
@@ -701,31 +650,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             totalItemCount: currentSpace?.totalItemCount || 0,
             backgroundGradient: eventBackgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')
           };
-          console.log('[MobileNavigation] updatedCurrentSpace handler: updating (isSelectedSpace)', newSpace);
           lastEventUpdateRef.current = { spaceId: spaceIdForUpdate, timestamp: Date.now() };
           setUpdatedCurrentSpace(newSpace);
         } else if (isCurrentSpace) {
           // For current space, only update if something changed
-          console.log('[MobileNavigation] updatedCurrentSpace handler: updating (isCurrentSpace)');
           setUpdatedCurrentSpace((prev) => {
             if (prev && prev.id === spaceIdForUpdate) {
               const titleChanged = eventTitle && prev.title !== eventTitle;
               const colorChanged = eventBackgroundGradient && prev.backgroundGradient !== eventBackgroundGradient;
-              
-              console.log('[MobileNavigation] updatedCurrentSpace handler: checking changes', {
-                titleChanged,
-                colorChanged,
-                prevTitle: prev.title,
-                newTitle: eventTitle
-              });
-              
+
               // Only skip update if nothing changed
               if (!titleChanged && !colorChanged) {
-                console.log('[MobileNavigation] updatedCurrentSpace handler: skipping (no changes)');
                 return prev;
               }
             }
-            
+
             // Create or update the space object
             const newSpace = {
               id: spaceIdForUpdate,
@@ -733,12 +672,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               totalItemCount: prev?.totalItemCount || currentSpace?.totalItemCount || 0,
               backgroundGradient: eventBackgroundGradient || prev?.backgroundGradient || currentSpace?.backgroundGradient || getThreadGradientCSS('paper')
             };
-            console.log('[MobileNavigation] updatedCurrentSpace handler: setting new space', newSpace);
             lastEventUpdateRef.current = { spaceId: spaceIdForUpdate, timestamp: Date.now() };
             return newSpace;
           });
-        } else {
-          console.log('[MobileNavigation] updatedCurrentSpace handler: not updating (neither isSelectedSpace nor isCurrentSpace)');
         }
         
         // Also read from DOM as fallback/verification (but don't wait for it)
@@ -781,10 +717,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             if (lastEventUpdateRef.current && 
                 lastEventUpdateRef.current.spaceId === spaceIdToCheck &&
                 Date.now() - lastEventUpdateRef.current.timestamp < 2000) {
-              console.log('[MobileNavigation] Skipping DOM read update - recent event update exists', {
-                spaceId: spaceIdToCheck,
-                timeSinceUpdate: Date.now() - lastEventUpdateRef.current.timestamp
-              });
               return;
             }
             
@@ -824,10 +756,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           if (lastEventUpdateRef.current && 
               lastEventUpdateRef.current.spaceId === itemId &&
               Date.now() - lastEventUpdateRef.current.timestamp < 2000) {
-            console.log('[MobileNavigation] readActiveSpaceFromDom: skipping - recent event update exists', {
-              spaceId: itemId,
-              timeSinceUpdate: Date.now() - lastEventUpdateRef.current.timestamp
-            });
             return;
           }
           
@@ -1197,45 +1125,30 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   const selectedSpace = useMemo(() => {
-    console.log('[MobileNavigation] selectedSpace useMemo: recalculating', {
-      selectedSpaceId,
-      updatedCurrentSpaceId: updatedCurrentSpace?.id,
-      updatedCurrentSpaceTitle: updatedCurrentSpace?.title,
-      filteredSpacesCount: filteredSpaces.length,
-      currentSpaceId: currentSpace?.id,
-      localSpacesCount: localSpaces.length
-    });
-    
     if (!selectedSpaceId) {
-      console.log('[MobileNavigation] selectedSpace useMemo: returning null (no selectedSpaceId)');
       return null;
     }
-    
+
     // PRIORITY 1: Use updatedCurrentSpace if it matches selectedSpaceId (most up-to-date)
     // This ensures we get the latest updates even if filteredSpaces hasn't updated yet
     if (updatedCurrentSpace && updatedCurrentSpace.id === selectedSpaceId) {
-      console.log('[MobileNavigation] selectedSpace useMemo: using updatedCurrentSpace (PRIORITY 1)', updatedCurrentSpace);
       return updatedCurrentSpace;
     }
-    
+
     // PRIORITY 2: Try to find in filtered spaces (navigation history)
     const fromFiltered = filteredSpaces.find((s) => s.id === selectedSpaceId);
     if (fromFiltered) {
-      console.log('[MobileNavigation] selectedSpace useMemo: using filteredSpaces (PRIORITY 2)', fromFiltered);
       return fromFiltered;
     }
-    
+
     // PRIORITY 3: Fallback to currentSpace if we're on a space page
     // This ensures the label shows correctly even if not in navigation history
     if (currentSpace && currentSpace.id === selectedSpaceId) {
-      console.log('[MobileNavigation] selectedSpace useMemo: using currentSpace (PRIORITY 3)', currentSpace);
       return currentSpace;
     }
-    
+
     // PRIORITY 4: Final fallback: look in the full spaces array
-    const fromLocalSpaces = localSpaces.find((s) => s.id === selectedSpaceId) ?? null;
-    console.log('[MobileNavigation] selectedSpace useMemo: using localSpaces (PRIORITY 4)', fromLocalSpaces);
-    return fromLocalSpaces;
+    return localSpaces.find((s) => s.id === selectedSpaceId) ?? null;
   }, [selectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
 
   const selectedSpaceLabel = selectedSpace ? selectedSpace.title : selectedSpaceId ? 'Space' : 'My Home';
@@ -1243,15 +1156,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   
   const spaceButtonKey = `space-button-${selectedSpaceId}-${selectedSpaceLabel}-${selectedSpaceBackground}`;
-  
-  console.log('[MobileNavigation] Computed values for SpaceButton', {
-    selectedSpaceLabel,
-    selectedSpaceCount,
-    selectedSpaceBackground,
-    selectedSpaceId,
-    hasSelectedSpace: !!selectedSpace,
-    spaceButtonKey
-  });
+
   const topSpaceIsActive = selectedSpaceId ? currentItemId === selectedSpaceId : isDashboard;
 
   // Prevent background scroll while the sheet is open (same pattern as other sheets)
