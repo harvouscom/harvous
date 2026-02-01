@@ -3,6 +3,8 @@
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 import { ClientRouter } from "astro:transitions";
+
+const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 ---
 
 <EmptyLayout title="Sign In">
@@ -84,10 +86,26 @@ import { ClientRouter } from "astro:transitions";
 <!-- Enable View Transitions for client-side navigation -->
 <ClientRouter />
 
+<!-- Clerk publishable key (EmptyLayout does not set it; required for Clerk to initialize) -->
+<script is:inline define:vars={{ publishableKey }}>
+  (function() {
+    if (typeof window !== 'undefined') {
+      window.CLERK_PUBLISHABLE_KEY = publishableKey || null;
+    }
+  })();
+</script>
+
 <!-- Clerk Client-Side Initialization Script -->
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
+
+    // Show the sign-in content as early as possible so Clerk can mount (visibility: hidden can prevent mounting)
+    function showSignInContent() {
+      var content = document.getElementById('sign-in-content');
+      if (content) content.classList.remove('auth-page__hidden');
+    }
+    setTimeout(showSignInContent, 0);
 
     // ========================================================================
     // PWA/Mobile Device Detection & Session Restoration
@@ -290,15 +308,7 @@ import { ClientRouter } from "astro:transitions";
         }, 100);
       }
     }
-    
-    // Show the sign-in content
-    function showSignInContent() {
-      var content = document.getElementById('sign-in-content');
-      if (content) {
-        content.classList.remove('auth-page__hidden');
-      }
-    }
-    
+
     // Initialize Clerk and show content
     function initializeSignIn() {
       ensureClerkComponentsMount();
