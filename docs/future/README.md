@@ -66,6 +66,12 @@ All features documented here are **deferred to v1.1+** (post-V1 launch). The arc
 
 ### User Experience
 
+- **`APP_LAYOUT_APPEARANCE_CUSTOMIZATION.md`** - App layout appearance customization
+  - Customizable background (presets + optional custom color)
+  - Appearance mode: default paper vs glass (transparent paper, tinted colors, backdrop blur)
+  - Storage, CSS variables, settings UI, and implementation outline
+  - Key files to touch and technical notes
+
 - **`NOTE_TEMPLATES.md`** - Note templates (future feature)
   - Pre-defined study methods (SOAP, Inductive, Bible Nerd, Topical, Chapter Summary, Comparative)
   - User-created templates and "Save as template"
