@@ -1,7 +1,8 @@
 [build]
   command = "npm ci && npm run build"
   publish = "dist"
-  ignore = "git diff --name-only \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" | grep -qv '^docs/' && exit 1 || exit 0"
+  # Skip build when only doc paths change (exit 0 = skip). See scripts/netlify-skip-build.sh.
+  ignore = "bash scripts/netlify-skip-build.sh"
 
 [build.environment]
   NODE_VERSION = "20.18.0"
