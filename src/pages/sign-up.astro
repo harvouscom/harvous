@@ -88,7 +88,40 @@ import { ClientRouter } from "astro:transitions";
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
-    
+
+    // ========================================================================
+    // PWA/Mobile Device Detection & Fingerprinting
+    // ========================================================================
+    // Initialize device fingerprinting for new users
+    // This prevents "Detect new device" warnings on subsequent logins
+
+    async function initializePWAForSignUp() {
+      try {
+        const { getOrCreateDeviceId } = await import('/src/utils/device-fingerprint.ts');
+        const { initClerkForPWA } = await import('/src/utils/clerk-pwa-helper.ts');
+
+        console.log('[Auth] Initializing device fingerprinting for sign-up...');
+
+        // Generate device fingerprint
+        const deviceId = await getOrCreateDeviceId();
+        console.log('[Auth] Device ID created:', deviceId.substring(0, 8) + '...');
+
+        // Initialize PWA helper (cookie monitoring, session backup)
+        await initClerkForPWA();
+
+        console.log('[Auth] PWA initialization complete');
+      } catch (error) {
+        console.error('[Auth] PWA initialization failed:', error);
+      }
+    }
+
+    // Initialize PWA auth (non-blocking)
+    initializePWAForSignUp();
+
+    // ========================================================================
+    // Standard Clerk Sign-Up Flow (existing logic)
+    // ========================================================================
+
     // Check if we're in production (avoid using import.meta in inline scripts)
     var isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
     
@@ -172,6 +205,37 @@ import { ClientRouter } from "astro:transitions";
             console.log('[Clerk] Clerk loaded event fired, mounted components');
           }
         }
+
+        // Set up session backup listener for new user sign-ups
+        if (window.Clerk) {
+          window.Clerk.addListener(async function(session) {
+            if (session && session.id && session.userId) {
+              console.log('[Auth] New user signed up, backing up session...');
+
+              try {
+                const { getOrCreateDeviceId } = await import('/src/utils/device-fingerprint.ts');
+                const { backupClerkSession } = await import('/src/utils/clerk-session-backup.ts');
+
+                const deviceId = await getOrCreateDeviceId();
+
+                await backupClerkSession({
+                  sessionId: session.id,
+                  sessionToken: session.lastActiveToken?.getRawString() || null,
+                  userId: session.userId,
+                  deviceId: deviceId,
+                  expiresAt: session.expireAt || null,
+                  createdAt: Date.now(),
+                  lastRefreshed: Date.now(),
+                });
+
+                console.log('[Auth] New user session backup complete');
+              } catch (error) {
+                console.error('[Auth] Failed to backup new user session:', error);
+              }
+            }
+          });
+        }
+
         redirectIfAlreadySignedIn();
       });
       clerkLoadedListenerSetup = true;
