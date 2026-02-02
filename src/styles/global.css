@@ -1322,18 +1322,12 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Sheet overlay: transparent so content below is visible; top band is light
-   so area behind status bar / device utility is not dark on mobile. */
+/* Sheet overlay: transparent so content below is visible. */
 .sheet-overlay {
   position: fixed !important;
   inset: 0 !important;
   z-index: 49 !important;
-  background: linear-gradient(
-    to bottom,
-    var(--color-light-paper) 0,
-    var(--color-light-paper) max(env(safe-area-inset-top, 0px), 44px),
-    transparent max(env(safe-area-inset-top, 0px), 44px)
-  ) !important;
+  background-color: transparent !important;
 }
 
 .sheet-overlay[data-state="open"] {
