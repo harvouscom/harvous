@@ -2,7 +2,6 @@
 // Static page (hybrid): redirect for already-authenticated users is handled client-side after Clerk loads
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
-import { ClientRouter } from "astro:transitions";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 ---
@@ -82,9 +81,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     </div>
   </div>
 </EmptyLayout>
-
-<!-- Enable View Transitions for client-side navigation -->
-<ClientRouter />
 
 <!-- Clerk publishable key (EmptyLayout does not set it; required for Clerk to initialize) -->
 <script is:inline define:vars={{ publishableKey }}>
@@ -270,14 +266,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       setTimeout(forceSignOutIfNeeded, 500);
       setTimeout(redirectIfAlreadySignedIn, 500);
     }
-    
-    // View Transitions: Re-initialize on page navigation
-    document.addEventListener('astro:page-load', function() {
-      // Only re-initialize if we're on the sign-in page
-      if (window.location.pathname === '/sign-in') {
-        initializeSignIn();
-      }
-    });
   })();
 </script>
 
