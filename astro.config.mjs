@@ -102,6 +102,11 @@ export default defineConfig({
             title: 'Sign up for Harvous',
             subtitle: 'Fill out the following to get started.'
           }
+        },
+        signIn: {
+          start: {
+            subtitle: "Enter your email and we'll get you signed in."
+          }
         }
       }
     }),
