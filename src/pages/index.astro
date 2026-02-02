@@ -38,26 +38,27 @@ let userData: CachedUserData = {
 };
 
 try {
-    // Fetch all data in parallel for better performance
-    const [threadsData, spacesData, inboxCountData, cachedUserData] = await Promise.allSettled([
+    // Await user data first so new users get onboarding thread created before we fetch threads
+    userData = await getCachedUserData(userId).catch(() => ({
+      firstName: '',
+      lastName: '',
+      email: '',
+      initials: 'U',
+      displayName: 'User',
+      userColor: 'paper',
+    }));
+
+    // Then fetch threads, spaces, inbox in parallel (onboarding thread now exists for new users)
+    const [threadsData, spacesData, inboxCountData] = await Promise.allSettled([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxCount(userId),
-      getCachedUserData(userId).catch(() => ({
-        firstName: '',
-        lastName: '',
-        email: '',
-        initials: 'U',
-        displayName: 'User',
-        userColor: 'paper',
-      })),
     ]);
-    
+
     // Extract results from Promise.allSettled
     threads = threadsData.status === 'fulfilled' ? threadsData.value : [];
     spaces = spacesData.status === 'fulfilled' ? spacesData.value : [];
     inboxCount = inboxCountData.status === 'fulfilled' ? inboxCountData.value : 0;
-    userData = cachedUserData.status === 'fulfilled' ? cachedUserData.value : userData;
     
     // Fetch content items with threads passed in to avoid duplicate query
     try {
