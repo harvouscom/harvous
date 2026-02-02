@@ -5,6 +5,11 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch:
 
+# Only one run at a time; a new run cancels any in-progress run (avoids pile-up and ambiguous cancellations)
+concurrency:
+  group: keep-functions-warm
+  cancel-in-progress: true
+
 jobs:
   ping:
     runs-on: ubuntu-latest

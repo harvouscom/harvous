@@ -5,6 +5,7 @@ export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import { getReferrerDisplayName } from "@/utils/referral-code";
+import { Fragment } from "astro/jsx-runtime";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
@@ -19,9 +20,35 @@ if (ref && ref.trim()) {
   });
   referrerName = await getReferrerDisplayName(ref.trim());
 }
+
+// OG image and meta for referral links
+const siteUrl = Astro.url.origin;
+const ogImageUrl = ref
+  ? `${siteUrl}/api/og/referral/${encodeURIComponent(ref.trim())}`
+  : `${siteUrl}/og-default.png`;
+const ogTitle = referrerName
+  ? `${referrerName} invited you to Harvous`
+  : 'Sign Up | Harvous';
+const ogDescription = 'Join Harvous - a notes app designed for Bible study.';
 ---
 
-<EmptyLayout title="Sign Up">
+<EmptyLayout title={ogTitle}>
+  <Fragment slot="head">
+    {/* Open Graph / Facebook */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={Astro.url.href} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
+  </Fragment>
   <div id="sign-up-content" class="auth-page auth-page__hidden">
     <div class="auth-page__container">
       <!-- Top Row (Mobile) / Left Column (Desktop): Animated Gradient Background -->
