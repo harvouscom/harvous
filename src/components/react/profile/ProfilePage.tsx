@@ -13,6 +13,7 @@ import GetSupportPanel from '@/components/react/GetSupportPanel';
 import ManageBillingPanel from '@/components/react/ManageBillingPanel';
 import ReferralPanel from '@/components/react/ReferralPanel';
 import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
+import LockPinPanel from '@/components/react/LockPinPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -44,7 +45,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -353,6 +354,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <ReferralPanel />;
       case 'aboutHarvous':
         return <AboutHarvousPanel letterHtml={founderLetterHtml} />;
+      case 'lockPin':
+        return <LockPinPanel />;
       default:
         return (
             <div id="default-panel" className="flex flex-col items-left h-full justify-end">

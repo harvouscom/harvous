@@ -5,7 +5,7 @@ import { encryptContent, decryptContent, validatePin, deriveKey, decodeBlob } fr
 import { setNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
 
-export type PinEntryPanelInitialMode = 'set' | 'unlock' | 'removeLock' | 'changeLock';
+export type PinEntryPanelInitialMode = 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin';
 
 interface PinEntryPanelProps {
   noteId: string;
@@ -26,13 +26,13 @@ export default function PinEntryPanel({
   onClose,
   inBottomSheet = false
 }: PinEntryPanelProps) {
-  // changeLock: start at 'unlock' (current PIN) so we decrypt and then set new PIN with that plaintext
+  // changeLock/setForAccount: set starts at set; lockWithAccountPin starts at unlock (enter PIN to lock)
   const [step, setStep] = useState<Step>(
-    initialMode === 'changeLock'
+    initialMode === 'changeLock' || initialMode === 'removeLock'
       ? 'unlock'
-      : initialMode === 'set'
+      : initialMode === 'set' || initialMode === 'setForAccount'
         ? 'set'
-        : initialMode === 'removeLock'
+        : initialMode === 'lockWithAccountPin'
           ? 'unlock'
           : 'unlock'
   );
@@ -82,6 +82,18 @@ export default function PinEntryPanel({
     setIsProcessing(true);
     setError(undefined);
     try {
+      if (initialMode === 'setForAccount') {
+        const setRes = await fetch('/api/user/set-lock-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ pin: pendingPin! })
+        });
+        if (!setRes.ok) {
+          const data = await setRes.json();
+          throw new Error(data.error || 'Failed to set PIN');
+        }
+      }
       const encryptedContent = await encryptContent(contentToEncrypt, pendingPin!);
       const response = await fetch(`/api/notes/${noteId}/update-content`, {
         method: 'POST',
@@ -101,12 +113,18 @@ export default function PinEntryPanel({
       }));
       if (initialMode === 'changeLock') {
         toast.success('PIN changed');
+      } else if (initialMode === 'setForAccount') {
+        toast.success('Lock PIN set and note locked');
       } else {
         toast.success('Note locked with PIN');
       }
       handleClose();
-    } catch {
-      setError('Failed to encrypt note. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to encrypt note. Please try again.');
+      clearPin();
+      setPendingPin(null);
+      setStep('set');
+      inputRefs.current[0]?.focus();
     } finally {
       setIsProcessing(false);
     }
@@ -116,6 +134,32 @@ export default function PinEntryPanel({
     setIsProcessing(true);
     setError(undefined);
     try {
+      if (initialMode === 'lockWithAccountPin') {
+        const verifyRes = await fetch('/api/user/verify-lock-pin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ pin: enteredPin })
+        });
+        if (!verifyRes.ok) {
+          const data = await verifyRes.json();
+          throw new Error(data.error || 'Incorrect PIN');
+        }
+        const encryptedContent = await encryptContent(noteContent, enteredPin);
+        const response = await fetch(`/api/notes/${noteId}/update-content`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ content: encryptedContent, contentEncrypted: true })
+        });
+        if (!response.ok) throw new Error('Failed to save encrypted note');
+        window.dispatchEvent(new CustomEvent('pinEntryComplete', {
+          detail: { noteId, newContent: encryptedContent, encrypted: true, contentEncryptedServer: true }
+        }));
+        toast.success('Note locked');
+        handleClose();
+        return;
+      }
       const decrypted = await decryptContent(noteContent, enteredPin);
       if (initialMode === 'removeLock') {
         try {
@@ -281,20 +325,30 @@ export default function PinEntryPanel({
   };
 
   const getTitle = () => {
-    if (step === 'set') return initialMode === 'changeLock' ? 'Change Lock' : 'Set a 4-digit PIN';
+    if (step === 'set') {
+      if (initialMode === 'changeLock') return 'Change Lock';
+      if (initialMode === 'setForAccount') return 'Set your Harvous lock PIN';
+      return 'Set a 4-digit PIN';
+    }
     if (step === 'confirm') return 'Confirm your PIN';
     if (step === 'unlocked') return 'Note unlocked';
     if (initialMode === 'removeLock') return 'Remove Lock';
     if (initialMode === 'changeLock' && step === 'unlock') return 'Change Lock';
+    if (initialMode === 'lockWithAccountPin') return 'Lock this note';
     return 'Enter PIN to unlock';
   };
 
   const getSubtitle = () => {
-    if (step === 'set') return initialMode === 'changeLock' ? 'Enter a new 4-digit PIN for this note.' : 'This PIN will be required to unlock the note';
+    if (step === 'set') {
+      if (initialMode === 'changeLock') return 'Enter a new 4-digit PIN for this note.';
+      if (initialMode === 'setForAccount') return "This PIN is for your entire Harvous. You'll use it to lock and unlock notes.";
+      return 'This PIN will be required to unlock the note';
+    }
     if (step === 'confirm') return 'Enter your PIN again to confirm';
     if (step === 'unlocked') return 'You can remove the lock to save this note without a PIN.';
     if (initialMode === 'removeLock') return 'Confirm your PIN to remove the lock from this note.';
     if (initialMode === 'changeLock' && step === 'unlock') return 'Enter your current PIN, then set a new one.';
+    if (initialMode === 'lockWithAccountPin') return 'Enter your Harvous lock PIN to lock this note.';
     return 'Enter your PIN to view this note';
   };
 

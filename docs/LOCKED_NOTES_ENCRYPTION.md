@@ -1,7 +1,7 @@
 # Locked Notes with Encryption
 
 **Status:** Implemented  
-**Last Updated:** January 2026
+**Last Updated:** February 2026
 
 This feature is live. See [FEATURES.md](./FEATURES.md#-locked-notes--encryption--implemented) for the user-facing summary.
 
@@ -9,7 +9,7 @@ This feature is live. See [FEATURES.md](./FEATURES.md#-locked-notes--encryption-
 
 ## Overview
 
-Lock individual notes with a 4-digit PIN so that content is encrypted on the client and only you (and God) can read it. The server and database only ever see ciphertext. Use cases include prayer notes, confessions, and “things only God knows.”
+Lock individual notes with a **single account-level 4-digit PIN** so that content is encrypted on the client and only you (and God) can read it. The PIN is set and changed in **Profile → Lock PIN**; any note can be locked or unlocked with that same PIN. The server and database only ever see ciphertext. Use cases include prayer notes, confessions, and “things only God knows.”
 
 ---
 
@@ -40,7 +40,7 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 
 | App | Lock / encryption | Cipher & key | Key derivation | Published details? |
 |-----|-------------------|--------------|----------------|--------------------|
-| **Harvous** | Per-note lock, 4-digit PIN; client-only, server never sees plaintext | **AES-GCM 256-bit** | **PBKDF2-SHA256, 310,000 iterations** (OWASP 2025) | Yes — algorithms and parameters in this doc and in code |
+| **Harvous** | Account-level lock PIN (one PIN for all notes); client-only, server never sees plaintext | **AES-GCM 256-bit** | **PBKDF2-SHA256, 310,000 iterations** (OWASP 2025) | Yes — algorithms and parameters in this doc and in code |
 | **Apple Notes** | Per-note lock; device passcode or custom Notes password; E2E on iCloud | End-to-end encrypted; exact cipher/key size not published | Not published | No — “E2E” and no recovery only |
 | **Evernote** | Encrypt *selected text* in a note with passphrase; passphrase never sent | **AES 128-bit**, CBC mode | PBKDF2, **50,000 iterations** (per Evernote help) | Yes — AES 128, PBKDF2 50k, no escrow |
 | **OneNote** | Password-protect *sections*; content encrypted | **AES 128-bit** (per Microsoft) | Not published | Minimal — 128-bit AES only |
@@ -68,8 +68,8 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 ## Architecture
 
 - **Client-only encryption.** Encrypt/decrypt in the browser; server and DB only see ciphertext.
-- **PIN never stored or transmitted.** Key is derived from PIN + salt and kept only in memory during the session.
-- **API contract:** Create/update/update-content accept optional `contentEncrypted`; when true, `content` is stored as-is. Reads return ciphertext; client decrypts after PIN.
+- **Account-level PIN.** One PIN per account, set and changed in Profile → Lock PIN. A **verifier** (hash + salt) is stored in `UserMetadata` so the server can verify the PIN when locking; the PIN itself is never stored or transmitted. Key for each note is derived from PIN + per-note salt and kept only in memory during the session.
+- **API contract:** Create/update/update-content accept optional `contentEncrypted`; when true, `content` is stored as-is. Reads return ciphertext; client decrypts after PIN. **Lock PIN APIs:** `POST /api/user/set-lock-pin` (set or change PIN), `POST /api/user/verify-lock-pin` (verify before locking), `GET /api/user/locked-notes` (list locked note IDs for change-PIN re-encrypt flow).
 
 ---
 
@@ -78,6 +78,11 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 **Table:** [db/config.ts](../db/config.ts) – `Notes`
 
 - `contentEncrypted` – boolean, default `false`. When true, `content` holds the base64 blob (salt || IV || ciphertext).
+
+**Table:** `UserMetadata` (account-level lock PIN)
+
+- `lockPinSalt` – optional; per-user salt for PIN hashing (server-only, never sent to client).
+- `lockPinHash` – optional; hash of PIN for verification (server-only, never sent to client). Client only receives `hasLockPinSet: boolean` (e.g. from get-profile).
 
 ---
 
@@ -95,9 +100,12 @@ How Harvous’s encryption compares to common alternatives (as of 2025–2026; c
 
 - [src/utils/note-encryption.ts](../src/utils/note-encryption.ts) – deriveKey, encryptContent, decryptContent, blob encode/decode
 - [src/utils/note-unlock-state.ts](../src/utils/note-unlock-state.ts) – in-memory unlock state
-- [src/components/react/LockNoteButton.tsx](../src/components/react/LockNoteButton.tsx), [PinEntryPanel.tsx](../src/components/react/PinEntryPanel.tsx), [InlinePinUnlock.tsx](../src/components/react/InlinePinUnlock.tsx)
-- APIs: create, update, update-content, details, recent; [dashboard-data](../src/utils/dashboard-data.ts), [search](../src/pages/api/search.ts)
-- Schema: [db/config.ts](../db/config.ts) – `contentEncrypted` on Notes
+- [src/utils/lock-pin-server.ts](../src/utils/lock-pin-server.ts) – server-side PIN hashing/verification (set-lock-pin, verify-lock-pin)
+- [src/components/react/LockNoteButton.tsx](../src/components/react/LockNoteButton.tsx), [PinEntryPanel.tsx](../src/components/react/PinEntryPanel.tsx), [InlinePinUnlock.tsx](../src/components/react/InlinePinUnlock.tsx), [LockPinPanel.tsx](../src/components/react/LockPinPanel.tsx) (profile)
+- APIs: create, update, update-content, details, recent; [dashboard-data](../src/utils/dashboard-data.ts), [search](../src/pages/api/search.ts); user/set-lock-pin, user/verify-lock-pin, user/locked-notes, get-profile (hasLockPinSet)
+- Schema: [db/config.ts](../db/config.ts) – `contentEncrypted` on Notes; `lockPinSalt`, `lockPinHash` on UserMetadata
+
+Optional future enhancements (e.g. remove lock PIN, session PIN) are documented in [docs/future/LOCKED_NOTES_ENCRYPTION.md](future/LOCKED_NOTES_ENCRYPTION.md).
 
 ---
 

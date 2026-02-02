@@ -275,7 +275,7 @@ Locked notes use **client-side encryption** so only you (and God) can read the c
 **Encryption (specific algorithms):**
 
 - **Cipher:** **AES-GCM** (256-bit key). Authenticated encryption; tampering is detected.
-- **Key derivation:** **PBKDF2-SHA256** with **310,000 iterations** (OWASP 2025 recommendation). Your 4-digit PIN is never stored; a key is derived from it and a per-note salt.
+- **Key derivation:** **PBKDF2-SHA256** with **310,000 iterations** (OWASP 2025 recommendation). Your 4-digit PIN is set once per account (Profile → Lock PIN); a key is derived from it and a per-note salt. PIN is never stored in plaintext; a verifier is stored for verification when locking.
 - **Salt:** 16 bytes, cryptographically random, generated per encryption (stored with the ciphertext).
 - **IV (nonce):** 12 bytes for AES-GCM, cryptographically random per encryption.
 - **API:** Web Crypto API (SubtleCrypto). No keys or PINs are sent to or stored on the server.
@@ -285,8 +285,8 @@ Locked notes use **client-side encryption** so only you (and God) can read the c
 **Trust:** We do not have access to your locked note plaintext. If you forget your PIN, locked content cannot be recovered.
 
 ### Locked Notes Features
-- **4-digit PIN:** Lock/unlock individual notes; PIN is never stored or transmitted
-- **Lock / Unlock UI:** Lock note button, PIN entry panel, inline unlock when viewing
+- **Account-level 4-digit PIN:** Set and change in Profile → Lock PIN; one PIN locks/unlocks any note. PIN is never stored or transmitted; a verifier is used only to confirm before locking.
+- **Lock / Unlock UI:** Lock note button, PIN entry panel (set PIN from note or enter PIN to lock), inline unlock when viewing
 - **List placeholders:** Locked notes show "Locked" in cards and lists; no plaintext preview
 - **Search & features:** Locked notes are excluded from full-text search; scripture detection, auto-tags, and sharing respect the lock
 

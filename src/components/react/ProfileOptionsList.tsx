@@ -109,6 +109,7 @@ export default function ProfileOptionsList() {
       {renderOption('referral', 'Refer My Friends', true)}
       {renderOption('editNameColor', 'Edit Name & Color', true)}
       {renderOption('emailPassword', 'Email & Password', true)}
+      {renderOption('lockPin', 'Lock PIN', true)}
 
       {/* Billing & Data Management */}
       {renderOption('manageBilling', 'My Subscription', true)}

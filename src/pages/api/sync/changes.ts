@@ -178,7 +178,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       ))
       .all(),
 
-      // UserMetadata changed since timestamp
+      // UserMetadata changed since timestamp (lockPinHash used only to derive hasLockPinSet; never sent to client)
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,
@@ -198,6 +198,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         churchAddedAt: UserMetadata.churchAddedAt,
         createdAt: UserMetadata.createdAt,
         updatedAt: UserMetadata.updatedAt,
+        lockPinHash: UserMetadata.lockPinHash,
       })
       .from(UserMetadata)
       .where(and(
@@ -251,14 +252,18 @@ export const GET: APIRoute = async ({ request, locals }) => {
         ...nt,
         createdAt: nt.createdAt.toISOString(),
       })),
-      userMetadata: changedUserMetadata ? {
-        ...changedUserMetadata,
-        clerkDataUpdatedAt: changedUserMetadata.clerkDataUpdatedAt?.toISOString() || null,
-        lastMonthlyVisit: changedUserMetadata.lastMonthlyVisit?.toISOString() || null,
-        churchAddedAt: changedUserMetadata.churchAddedAt?.toISOString() || null,
-        createdAt: changedUserMetadata.createdAt.toISOString(),
-        updatedAt: changedUserMetadata.updatedAt?.toISOString() || null,
-      } : null,
+      userMetadata: changedUserMetadata ? (() => {
+        const { lockPinHash, ...rest } = changedUserMetadata;
+        return {
+          ...rest,
+          hasLockPinSet: !!lockPinHash,
+          clerkDataUpdatedAt: rest.clerkDataUpdatedAt?.toISOString() || null,
+          lastMonthlyVisit: rest.lastMonthlyVisit?.toISOString() || null,
+          churchAddedAt: rest.churchAddedAt?.toISOString() || null,
+          createdAt: rest.createdAt.toISOString(),
+          updatedAt: rest.updatedAt?.toISOString() || null,
+        };
+      })() : null,
     };
 
     return new Response(JSON.stringify(changes), {

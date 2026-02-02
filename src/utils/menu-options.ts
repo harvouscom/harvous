@@ -27,8 +27,8 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentType The type of content being displayed
  * @param contentId Optional content ID to check for special cases (e.g., unorganized thread)
  * @param noteType Optional note type to determine if scripture-specific options should be shown
- * @param contentEncrypted Optional; when true for a note, lock option shows "Unlock" instead of "Lock"
- * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked so we show "Remove lock"
+ * @param contentEncrypted Optional; when true, note is locked so we show "Remove lock" only
+ * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked in session so we show "Remove lock"
  * @returns Array of menu options
  */
 export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean) {
@@ -61,14 +61,10 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: "openNoteDetailsTags", label: "Tags" }
       );
 
-      // Lock/Unlock for default notes only, before Share and Erase
+      // Lock / Remove lock for default notes only (one option: Lock when unlocked, Remove lock when locked)
       if (noteType === 'default') {
-        const lockLabel = contentEncrypted ? "Unlock" : (contentEncryptedServer ? "Change Lock" : "Lock");
-        options.push({ action: "lockNote", label: lockLabel });
-        // When note is encrypted on server but currently unlocked, show Remove lock
-        if (contentEncryptedServer && !contentEncrypted) {
-          options.push({ action: "removeLock", label: "Remove lock" });
-        }
+        const isLocked = contentEncrypted || contentEncryptedServer;
+        options.push({ action: isLocked ? "removeLock" : "lockNote", label: isLocked ? "Remove lock" : "Lock" });
       }
 
       // Share only when note is not locked

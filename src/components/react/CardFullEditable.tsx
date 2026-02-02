@@ -17,6 +17,13 @@ import InlinePinUnlock from './InlinePinUnlock';
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
 
+/** Heuristic: avoid ever rendering encrypted blob as HTML (e.g. race where content branch would show it). */
+function looksLikeEncryptedBlob(s: string): boolean {
+  if (!s || typeof s !== 'string' || s.length < 40) return false;
+  const t = s.trim();
+  return t.length >= 40 && /^[A-Za-z0-9+/]+=*$/.test(t);
+}
+
 // Title character limits
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
 const TITLE_WARNING_LIMIT = 45;  // Red text when >= 45 (within 5 of limit)
@@ -1194,7 +1201,7 @@ export default function CardFullEditable({
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden', paddingTop: 12 }}>
-                {effectiveEncrypted && !isNoteUnlocked(noteId ?? '') ? (
+                {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
                   <div ref={contentDisplayRef} className="flex flex-col shrink-0">
                     {noteId != null ? (
                       <InlinePinUnlock noteId={String(noteId)} encryptedContent={displayContent ?? ''} />

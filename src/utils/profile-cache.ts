@@ -30,6 +30,8 @@ export interface CachedProfileData {
   churchName: string | null;
   churchCity: string | null;
   churchState: string | null;
+  /** True if user has set account-level lock PIN (from get-profile). */
+  hasLockPinSet?: boolean;
 }
 
 const CACHE_KEY = 'profileData';

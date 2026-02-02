@@ -32,20 +32,39 @@ export default function LockNoteButton({
 }: LockNoteButtonProps) {
   const isUnlocked = isNoteUnlocked(noteId);
 
-  const handleButtonClick = () => {
+  const handleButtonClick = async () => {
     if (isEncrypted && isUnlocked) {
       lockNote(noteId);
       onLockStateChange?.(true);
       toast.success('Note locked');
-    } else {
-      const isChangeLock = serverContentEncrypted && !isEncrypted;
-      // For changeLock pass encrypted content so panel can decrypt with current PIN, then set new PIN
+    } else if (isEncrypted && !isUnlocked) {
       window.dispatchEvent(new CustomEvent('openPinEntryPanel', {
         detail: {
           noteId,
-          mode: isChangeLock ? 'changeLock' : isEncrypted ? 'unlock' : 'set',
-          noteContent: isChangeLock ? (serverNoteContent ?? noteContent) : noteContent,
-          isEncrypted: isChangeLock ? true : (serverContentEncrypted ?? isEncrypted)
+          mode: 'unlock',
+          noteContent: serverNoteContent ?? noteContent,
+          isEncrypted: true
+        }
+      }));
+    } else {
+      // Locking a note: use account PIN (set in profile). Fetch hasLockPinSet to choose flow.
+      let hasLockPinSet = false;
+      try {
+        const res = await fetch('/api/user/get-profile', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          hasLockPinSet = !!data.hasLockPinSet;
+        }
+      } catch {
+        // fallback: open setForAccount so user can set PIN and lock
+      }
+      const mode = hasLockPinSet ? 'lockWithAccountPin' : 'setForAccount';
+      window.dispatchEvent(new CustomEvent('openPinEntryPanel', {
+        detail: {
+          noteId,
+          mode,
+          noteContent,
+          isEncrypted: false
         }
       }));
     }

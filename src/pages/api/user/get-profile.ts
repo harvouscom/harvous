@@ -46,6 +46,18 @@ export const GET: APIRoute = async ({ locals }) => {
       console.error('❌ Error fetching church data from database:', error);
       // Don't fail the request if church data fetch fails
     }
+
+    // hasLockPinSet: true if user has set account-level lock PIN (never send hash/salt to client)
+    let hasLockPinSet = false;
+    try {
+      const lockMeta = await db.select({ lockPinHash: UserMetadata.lockPinHash })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get();
+      hasLockPinSet = !!(lockMeta?.lockPinHash);
+    } catch (lockError) {
+      console.error('❌ Error fetching lock PIN status:', lockError);
+    }
     
     // Get user email verification status from Clerk API
     let emailVerified = false;
@@ -77,7 +89,8 @@ export const GET: APIRoute = async ({ locals }) => {
       emailVerified,
       churchName: churchData.churchName,
       churchCity: churchData.churchCity,
-      churchState: churchData.churchState
+      churchState: churchData.churchState,
+      hasLockPinSet
     };
 
     return new Response(JSON.stringify(responseData), {

@@ -125,7 +125,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .where(eq(Notes.userId, userId))
       .all(),
 
-      // UserMetadata
+      // UserMetadata (lockPinHash used only to derive hasLockPinSet; never sent to client)
       db.select({
         id: UserMetadata.id,
         userId: UserMetadata.userId,
@@ -145,6 +145,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         churchAddedAt: UserMetadata.churchAddedAt,
         createdAt: UserMetadata.createdAt,
         updatedAt: UserMetadata.updatedAt,
+        lockPinHash: UserMetadata.lockPinHash,
       })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
@@ -193,16 +194,20 @@ export const GET: APIRoute = async ({ request, locals }) => {
         ...nt,
         createdAt: nt.createdAt.toISOString(),
       })),
-      userMetadata: userMetadata ? {
-        ...userMetadata,
-        highestSimpleNoteId: userMetadata.highestSimpleNoteId,
-        reservedSimpleNoteIdRange: reservedRange,
-        clerkDataUpdatedAt: userMetadata.clerkDataUpdatedAt?.toISOString() || null,
-        lastMonthlyVisit: userMetadata.lastMonthlyVisit?.toISOString() || null,
-        churchAddedAt: userMetadata.churchAddedAt?.toISOString() || null,
-        createdAt: userMetadata.createdAt.toISOString(),
-        updatedAt: userMetadata.updatedAt?.toISOString() || null,
-      } : null,
+      userMetadata: userMetadata ? (() => {
+        const { lockPinHash, ...rest } = userMetadata;
+        return {
+          ...rest,
+          hasLockPinSet: !!lockPinHash,
+          highestSimpleNoteId: rest.highestSimpleNoteId,
+          reservedSimpleNoteIdRange: reservedRange,
+          clerkDataUpdatedAt: rest.clerkDataUpdatedAt?.toISOString() || null,
+          lastMonthlyVisit: rest.lastMonthlyVisit?.toISOString() || null,
+          churchAddedAt: rest.churchAddedAt?.toISOString() || null,
+          createdAt: rest.createdAt.toISOString(),
+          updatedAt: rest.updatedAt?.toISOString() || null,
+        };
+      })() : null,
     };
 
     return new Response(JSON.stringify(bootstrapData), {
