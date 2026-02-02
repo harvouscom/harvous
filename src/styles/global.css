@@ -1322,12 +1322,13 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Sheet overlay - invisible but captures clicks for dismiss */
+/* Sheet overlay: light background so area behind status bar / device utility
+   matches the app (avoids dark band on mobile when sheet is open). */
 .sheet-overlay {
   position: fixed !important;
   inset: 0 !important;
   z-index: 49 !important;
-  background-color: transparent !important;
+  background-color: var(--color-light-paper) !important;
 }
 
 .sheet-overlay[data-state="open"] {
