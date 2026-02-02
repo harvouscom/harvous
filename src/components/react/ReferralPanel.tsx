@@ -90,7 +90,7 @@ export default function ReferralPanel({
           </div>
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} panel__content--no-bottom-padding`}>
+            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px', textWrap: 'balance' }}>
                 When friends sign up with your link, you get 100 extra notes on top of your 1,000 free notes, so {totalNotesBeforeUnlimited.toLocaleString()} before you need unlimited.
               </div>
@@ -134,10 +134,6 @@ export default function ReferralPanel({
       </div>
 
       <style>{`
-        .referral-panel .panel__content::after {
-          height: 0;
-        }
-
         .referral-panel__link-container {
           display: flex;
           align-items: center;
