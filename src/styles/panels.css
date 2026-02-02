@@ -16,7 +16,7 @@
   flex-direction: column;
   align-items: flex-start;
   overflow: clip;
-  padding-bottom: 1.5rem;  /* 24px */
+  padding-bottom: 0;  /* 12px bottom is on .panel__content only */
   padding-top: 0;
   padding-left: 0;
   padding-right: 0;
@@ -169,7 +169,8 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  margin-bottom: -24px;
+  /* Extend 12px into header's 24px gap so only 12px bottom shows (like referral panel had) */
+  margin-bottom: -12px;
   overflow: clip;
   position: relative;
   width: 100%;
@@ -194,7 +195,7 @@
   overflow-x: clip;
   overflow-y: auto;  /* Always allow vertical scrolling */
   padding: 12px;
-  padding-bottom: 0; /* Bottom padding handled by ::after for scrollable area */
+  padding-bottom: 12px;
   position: relative;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
@@ -202,15 +203,17 @@
   flex: 1;
   min-height: 0;
   
-  /* Add pseudo-element to ensure 12px bottom spacing is always visible when scrolling */
   &::after {
     content: '';
     display: block;
-    height: 12px;
+    height: 0;
     flex-shrink: 0;
   }
   
-  /* Remove bottom spacing for panels that don't need it */
+  /* Panels that need no extra bottom spacing (e.g. referral uses own padding-bottom) */
+  &.panel__content--no-bottom-padding {
+    padding-bottom: 0;
+  }
   &.panel__content--no-bottom-padding::after {
     display: none;
   }
