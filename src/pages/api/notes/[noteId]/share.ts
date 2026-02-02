@@ -32,7 +32,8 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         shareToken: Notes.shareToken,
         shareTokenCreatedAt: Notes.shareTokenCreatedAt,
         userId: Notes.userId,
-        noteType: Notes.noteType
+        noteType: Notes.noteType,
+        contentEncrypted: Notes.contentEncrypted
       })
       .from(Notes)
       .where(eq(Notes.id, noteId))
@@ -62,7 +63,8 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       shareToken: note.shareToken,
       shareUrl,
       shareTokenCreatedAt: note.shareTokenCreatedAt,
-      noteType: note.noteType || 'default'
+      noteType: note.noteType || 'default',
+      contentEncrypted: note.contentEncrypted || false
     }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
@@ -119,7 +121,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         id: Notes.id,
         isPublic: Notes.isPublic,
         shareToken: Notes.shareToken,
-        userId: Notes.userId
+        userId: Notes.userId,
+        contentEncrypted: Notes.contentEncrypted
       })
       .from(Notes)
       .where(eq(Notes.id, noteId))
@@ -135,6 +138,17 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     if (note.userId !== userId) {
       return new Response(JSON.stringify({ error: 'You do not have permission to modify this note' }), {
         status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Prevent sharing encrypted notes
+    if (note.contentEncrypted && action === 'enable') {
+      return new Response(JSON.stringify({
+        error: 'Remove the lock first to share it.',
+        code: 'ENCRYPTED_NOTE_CANNOT_SHARE'
+      }), {
+        status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -174,6 +188,16 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
     } else if (action === 'refresh') {
+      // Locked notes cannot be shared or refreshed
+      if (note.contentEncrypted) {
+        return new Response(JSON.stringify({
+          error: 'Remove the lock first to share it.',
+          code: 'ENCRYPTED_NOTE_CANNOT_SHARE'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
       // Generate a new share token (invalidates old links)
       if (!note.isPublic) {
         return new Response(JSON.stringify({ error: 'Cannot refresh share link for a private note' }), {

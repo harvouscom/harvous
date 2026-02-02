@@ -140,6 +140,7 @@ export const POST: APIRoute = async ({ locals }) => {
         isPublic: false,
         addedBy: 'system',
         createdAt: new Date(),
+        contentEncrypted: false,
       });
       
       // Link note to thread via junction table

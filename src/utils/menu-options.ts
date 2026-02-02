@@ -27,9 +27,11 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentType The type of content being displayed
  * @param contentId Optional content ID to check for special cases (e.g., unorganized thread)
  * @param noteType Optional note type to determine if scripture-specific options should be shown
+ * @param contentEncrypted Optional; when true for a note, lock option shows "Unlock" instead of "Lock"
+ * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked so we show "Remove lock"
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -53,14 +55,27 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       if (noteType === 'scripture') {
         options.push({ action: "openNoteDetailsNotes", label: "Notes" });
       }
-      
-      // Then add existing options
+
       options.push(
         { action: "openNoteDetailsThreads", label: "Threads" },
-        { action: "openNoteDetailsTags", label: "Tags" },
-        { action: "shareNote", label: "Share" },
-        { action: "eraseNote", label: "Erase Note" }
+        { action: "openNoteDetailsTags", label: "Tags" }
       );
+
+      // Lock/Unlock for default notes only, before Share and Erase
+      if (noteType === 'default') {
+        const lockLabel = contentEncrypted ? "Unlock" : (contentEncryptedServer ? "Change Lock" : "Lock");
+        options.push({ action: "lockNote", label: lockLabel });
+        // When note is encrypted on server but currently unlocked, show Remove lock
+        if (contentEncryptedServer && !contentEncrypted) {
+          options.push({ action: "removeLock", label: "Remove lock" });
+        }
+      }
+
+      // Share only when note is not locked
+      if (contentEncrypted !== true) {
+        options.push({ action: "shareNote", label: "Share" });
+      }
+      options.push({ action: "eraseNote", label: "Erase Note" });
 
       return options;
     case "space":

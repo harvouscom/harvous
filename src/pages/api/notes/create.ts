@@ -70,6 +70,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const resourceUrl = formData.get('resourceUrl') as string | null;
     const resourceMetadataStr = formData.get('resourceMetadata') as string | null;
     const spaceId = formData.get('spaceId') as string | null;
+    const contentEncrypted = formData.get('contentEncrypted') === 'true'; // Client-side encrypted content
     
     // Parse pre-fetched resource metadata if provided
     let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
@@ -213,11 +214,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     const now = new Date();
     
-    // Scripture notes are automatically shared
+    // Scripture notes are automatically shared (but not if encrypted)
     const isScriptureNote = finalNoteType === 'scripture';
-    const shouldAutoShare = isScriptureNote;
+    const shouldAutoShare = isScriptureNote && !contentEncrypted; // Don't auto-share encrypted notes
     const shareToken = shouldAutoShare ? generateShareToken() : null;
-    
+
     const newNote = await db.insert(Notes)
       .values({
         id: generateNoteId(),
@@ -231,6 +232,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         isPublic: shouldAutoShare,
         shareToken: shareToken,
         shareTokenCreatedAt: shouldAutoShare ? now : null,
+        contentEncrypted: contentEncrypted, // Store encryption status
         createdAt: now,
         lastVisited: now // Set lastVisited so newly created notes appear above unvisited items
       })
@@ -345,7 +347,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Auto-generate and apply tags (async, fire-and-forget)
     // For resource notes, this runs after content extraction below
-    if (finalNoteType !== 'resource') {
+    // Skip for encrypted notes (server can't read content)
+    if (finalNoteType !== 'resource' && !contentEncrypted) {
       const autoTagAsync = async () => {
         try {
           if (!generateAutoTags || !applyAutoTags) return;
@@ -531,25 +534,28 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
     // Process scripture references in the note content (async, fire-and-forget for all note types)
     // This allows the frontend to redirect immediately while scripture notes are created in the background
-    const processScriptureReferencesAsync = async () => {
-      try {
-        const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+    // Skip for encrypted notes (server can't read content)
+    if (!contentEncrypted) {
+      const processScriptureReferencesAsync = async () => {
+        try {
+          const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
 
-        // For resource notes, get latest content (may have been updated with articleContent)
-        const latestNote = finalNoteType === 'resource'
-          ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
-          : null;
-        const contentToProcess = latestNote?.content || newNote.content;
+          // For resource notes, get latest content (may have been updated with articleContent)
+          const latestNote = finalNoteType === 'resource'
+            ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
+            : null;
+          const contentToProcess = latestNote?.content || newNote.content;
 
-        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-        await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
-      } catch (error: any) {
-        console.error('Error processing scripture references (non-critical):', error);
-      }
-    };
+          const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+          await processScriptureReferences(newNote.id, userId, actualThreadId, contentToProcess);
+        } catch (error: any) {
+          console.error('Error processing scripture references (non-critical):', error);
+        }
+      };
 
-    // Start async processing (fire-and-forget)
-    processScriptureReferencesAsync().catch(() => {});
+      // Start async processing (fire-and-forget)
+      processScriptureReferencesAsync().catch(() => {});
+    }
 
     // Return response immediately
     return successResponse({

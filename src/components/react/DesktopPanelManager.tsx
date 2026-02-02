@@ -49,6 +49,7 @@ const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'Refe
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
+const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
 interface DesktopPanelManagerProps {
   currentThread?: any;
@@ -77,6 +78,7 @@ type PanelType =
   | 'myData'
   | 'getSupport'
   | 'noteShare'
+  | 'pinEntry'
   | null;
 
 interface InboxItem {
@@ -135,6 +137,8 @@ type PanelAction =
   | { type: 'CLOSE_GET_SUPPORT' }
   | { type: 'OPEN_NOTE_SHARE' }
   | { type: 'CLOSE_NOTE_SHARE' }
+  | { type: 'OPEN_PIN_ENTRY' }
+  | { type: 'CLOSE_PIN_ENTRY' }
   | { type: 'LOAD_FROM_STORAGE' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
@@ -308,6 +312,12 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     case 'CLOSE_NOTE_SHARE':
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_PIN_ENTRY':
+      return { activePanel: 'pinEntry', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_PIN_ENTRY':
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
@@ -390,6 +400,7 @@ export default function DesktopPanelManager({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
+  const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock'; noteContent: string; isEncrypted: boolean } | null>(null);
 
   // Load panel state from localStorage on mount
   useEffect(() => {
@@ -543,6 +554,20 @@ export default function DesktopPanelManager({
       setNoteShareData(null);
     };
 
+    const handleOpenPinEntryPanel = (event: CustomEvent) => {
+      const { noteId: id, mode, noteContent: content, isEncrypted } = event.detail || {};
+      if (id && mode && content !== undefined) {
+        setPinEntryData({ noteId: id, mode, noteContent: content, isEncrypted: !!isEncrypted });
+        dispatch({ type: 'OPEN_PIN_ENTRY' });
+        window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      }
+    };
+
+    const handleClosePinEntryPanel = () => {
+      dispatch({ type: 'CLOSE_PIN_ENTRY' });
+      setPinEntryData(null);
+    };
+
     // Register all event listeners
     window.addEventListener('openNewNotePanel', handleOpenNewNote);
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
@@ -562,6 +587,8 @@ export default function DesktopPanelManager({
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
     window.addEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
     window.addEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
+    window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
+    window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
 
     // Cleanup
     return () => {
@@ -583,6 +610,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
       window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
+      window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
+      window.removeEventListener('closePinEntryPanel', handleClosePinEntryPanel);
     };
   }, []);
 
@@ -668,6 +697,10 @@ export default function DesktopPanelManager({
 
   const handleCloseNoteShare = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+  }, []);
+
+  const handleClosePinEntry = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
   }, []);
 
   // Expose panel state to hide/show SquareButtons in Layout.astro
@@ -799,6 +832,25 @@ export default function DesktopPanelManager({
                 noteId={noteShareData.noteId}
                 noteTitle={currentNote?.title || noteShareData.noteTitle}
                 onClose={handleCloseNoteShare}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* Pin Entry Panel (Lock / Unlock note) - Desktop Only */}
+      {state.activePanel === 'pinEntry' && pinEntryData && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <PinEntryPanel
+                key={`pin-entry-${state.panelKey}`}
+                noteId={pinEntryData.noteId}
+                initialMode={pinEntryData.mode}
+                noteContent={pinEntryData.noteContent}
+                isEncrypted={pinEntryData.isEncrypted}
+                onClose={handleClosePinEntry}
                 inBottomSheet={false}
               />
             </div>

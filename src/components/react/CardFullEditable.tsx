@@ -6,9 +6,13 @@ import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tip
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
+import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
+import { toast } from '@/utils/toast';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
+import LockNoteButton from './LockNoteButton';
+import InlinePinUnlock from './InlinePinUnlock';
 
 // Lazy load TiptapEditor to reduce initial bundle size - only loads when user enters edit mode
 const TiptapEditor = lazy(() => import('./TiptapEditor'));
@@ -29,6 +33,7 @@ interface CardFullEditableProps {
   resourceDescription?: string;
   resourceImage?: string;
   resourceUrl?: string;
+  contentEncrypted?: boolean;
   className?: string;
   isEditable?: boolean;
   onSave?: (title: string, content: string) => Promise<any>;
@@ -49,6 +54,7 @@ export default function CardFullEditable({
   resourceDescription,
   resourceImage,
   resourceUrl,
+  contentEncrypted = false,
   className = '',
   isEditable = true,
   onSave,
@@ -78,19 +84,58 @@ export default function CardFullEditable({
   const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
-
   // Track if we've updated content locally (e.g., with a highlight)
   const hasLocalContentUpdate = useRef(false);
+  // Skip next init-effect overwrite when we just set decrypted content from pinEntryComplete (avoids race where effect runs with stale lockStateOverride and overwrites with encrypted content)
+  const skipNextContentSyncRef = useRef(false);
+  // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
+  const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
+  const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
 
   // Initialize display content
   useEffect(() => {
     setDisplayTitle(title);
+    if (skipNextContentSyncRef.current) {
+      skipNextContentSyncRef.current = false;
+      return;
+    }
+    // Don't overwrite displayContent with encrypted prop when note is unlocked in session
+    if (contentEncrypted && lockStateOverride === false) return;
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
       setDisplayContent(content);
     }
-  }, [title, content]);
+  }, [title, content, contentEncrypted, lockStateOverride]);
+
+  // Reset lock state override when contentEncrypted prop changes (e.g. from server)
+  useEffect(() => {
+    setLockStateOverride(null);
+  }, [contentEncrypted]);
+
+  // Update content and lock state when PIN panel completes (lock/unlock from panel or bottom sheet)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.noteId != null && detail?.newContent !== undefined && String(detail.noteId) === String(noteId)) {
+        skipNextContentSyncRef.current = true;
+        setDisplayContent(detail.newContent);
+        setLockStateOverride(detail.encrypted === true);
+        if (detail.encrypted === true && noteId != null) {
+          lockNote(String(noteId));
+        }
+        window.dispatchEvent(new CustomEvent('noteLockStateChanged', {
+          detail: {
+            noteId: String(noteId),
+            contentEncrypted: detail.encrypted === true,
+            contentEncryptedServer: detail.contentEncryptedServer ?? (detail.encrypted === true)
+          }
+        }));
+      }
+    };
+    window.addEventListener('pinEntryComplete', handler);
+    return () => window.removeEventListener('pinEntryComplete', handler);
+  }, [noteId]);
 
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
@@ -378,7 +423,11 @@ export default function CardFullEditable({
     if (!effectiveIsEditable) {
       return;
     }
-    
+    // Don't open editor when note is locked (would show encrypted content)
+    if (contentEncrypted && !isNoteUnlocked(noteId ?? '')) {
+      return;
+    }
+
     // Save current scroll position
     if (contentDisplayRef.current) {
       const currentScroll = contentDisplayRef.current.scrollTop;
@@ -1026,6 +1075,18 @@ export default function CardFullEditable({
   // Default and Scripture notes - original editable layout
   return (
     <>
+      {noteType === 'default' && noteId && (
+        <LockNoteButton
+          noteId={noteId}
+          noteContent={displayContent}
+          isEncrypted={effectiveEncrypted}
+          serverContentEncrypted={contentEncrypted}
+          serverNoteContent={contentEncrypted ? content : undefined}
+          onContentChange={(newContent) => setDisplayContent(newContent)}
+          onLockStateChange={(isLocked) => setLockStateOverride(isLocked)}
+          hideButton={true}
+        />
+      )}
       <div 
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
@@ -1132,8 +1193,16 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
-                {displayContent && displayContent.trim() ? (
+              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden', paddingTop: 12 }}>
+                {effectiveEncrypted && !isNoteUnlocked(noteId ?? '') ? (
+                  <div ref={contentDisplayRef} className="flex flex-col shrink-0">
+                    {noteId != null ? (
+                      <InlinePinUnlock noteId={String(noteId)} encryptedContent={displayContent ?? ''} />
+                    ) : (
+                      <p>This note is locked. Tap Unlock to view.</p>
+                    )}
+                  </div>
+                ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
                     className="flex-1 overflow-auto rounded"

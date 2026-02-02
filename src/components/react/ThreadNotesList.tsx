@@ -21,6 +21,7 @@ interface Note {
   id: string;
   title: string | null;
   content: string;
+  contentEncrypted?: boolean;
   noteType?: 'default' | 'scripture' | 'resource';
   updatedAt?: Date;
   createdAt?: Date;
@@ -1309,7 +1310,8 @@ export default function ThreadNotesList({
 
   const renderItem = (note: Note, index: number) => {
     const isScriptureNote = note.noteType === 'scripture';
-    const cleanContent = stripHtml(note.content);
+    const isEncrypted = note.contentEncrypted === true;
+    const cleanContent = isEncrypted ? '' : stripHtml(note.content);
     const truncatedContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
 
     return (
@@ -1397,6 +1399,7 @@ export default function ThreadNotesList({
               resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
               isPendingSync={note.syncStatus === 'pending'}
+              contentEncrypted={note.contentEncrypted === true}
             />
           )}
         </a>

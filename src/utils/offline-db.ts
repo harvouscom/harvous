@@ -41,6 +41,7 @@ export interface OfflineThread extends BaseOfflineEntity {
 export interface OfflineNote extends BaseOfflineEntity {
   title: string | null;
   content: string;
+  contentEncrypted?: boolean;
   threadId: string; // Legacy field (always 'thread_unorganized')
   spaceId: string | null;
   simpleNoteId: number | null;

@@ -398,6 +398,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         id: Notes.id,
         title: Notes.title,
         content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
@@ -465,6 +466,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             id: Notes.id,
             title: Notes.title,
             content: Notes.content,
+            contentEncrypted: Notes.contentEncrypted,
             threadId: Notes.threadId,
             spaceId: Notes.spaceId,
             simpleNoteId: Notes.simpleNoteId,
@@ -500,6 +502,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         id: Notes.id,
         title: Notes.title,
         content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
@@ -564,6 +567,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             id: Notes.id,
             title: Notes.title,
             content: Notes.content,
+            contentEncrypted: Notes.contentEncrypted,
             threadId: Notes.threadId,
             spaceId: Notes.spaceId,
             simpleNoteId: Notes.simpleNoteId,
@@ -1218,11 +1222,13 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     const assignedNoteItems = assignedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const isEncrypted = (note as any).contentEncrypted === true;
       return {
         id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
-        content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        content: isEncrypted ? "" : (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        contentEncrypted: isEncrypted,
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
@@ -1242,11 +1248,13 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     const unorganizedNoteItems = unorganizedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const isEncrypted = (note as any).contentEncrypted === true;
       return {
         id: note.id, // Use note.id directly (already in note_ format)
         type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
-        content: (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        content: isEncrypted ? "" : (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        contentEncrypted: isEncrypted,
         noteId: note.id, // Full ID including prefix
         threadId: note.threadId,
         spaceId: note.spaceId,
@@ -1384,6 +1392,7 @@ export async function getUnorganizedNotesForDashboard(userId: string, limit = 10
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
+      contentEncrypted: Notes.contentEncrypted,
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,
@@ -1442,6 +1451,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
         id: Notes.id,
         title: Notes.title,
         content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
         threadId: Notes.threadId,
         spaceId: Notes.spaceId,
         simpleNoteId: Notes.simpleNoteId,
@@ -1486,6 +1496,7 @@ export async function getAssignedNotesForDashboard(userId: string, limit = 10) {
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
+      contentEncrypted: Notes.contentEncrypted,
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId,

@@ -456,6 +456,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           userId,
           isPublic: false,
           createdAt: createdDate, // Preserve original date
+          contentEncrypted: false, // Imported notes are never encrypted
         }).returning().get();
 
         // Update user metadata

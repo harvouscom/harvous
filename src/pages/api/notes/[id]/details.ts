@@ -292,6 +292,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         id: note.id,
         title: note.title,
         content: note.content,
+        contentEncrypted: note.contentEncrypted || false, // Include encryption status
         threadId: note.threadId,
         spaceId: note.spaceId,
         simpleNoteId: note.simpleNoteId,

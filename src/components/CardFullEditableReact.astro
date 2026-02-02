@@ -12,10 +12,11 @@ export interface Props {
   resourceDescription?: string;
   resourceImage?: string;
   resourceUrl?: string;
+  contentEncrypted?: boolean;
   className?: string;
 }
 
-const { title, content, date, noteId, noteType = 'default', version, resourceTitle, resourceDescription, resourceImage, resourceUrl, className } = Astro.props;
+const { title, content, date, noteId, noteType = 'default', version, resourceTitle, resourceDescription, resourceImage, resourceUrl, contentEncrypted, className } = Astro.props;
 ---
 
 <!-- React version of CardFullEditable -->
@@ -30,6 +31,7 @@ const { title, content, date, noteId, noteType = 'default', version, resourceTit
   resourceDescription={resourceDescription}
   resourceImage={resourceImage}
   resourceUrl={resourceUrl}
+  contentEncrypted={contentEncrypted}
   className={className}
   client:load 
 />

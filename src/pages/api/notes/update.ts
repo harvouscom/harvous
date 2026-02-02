@@ -28,7 +28,7 @@ export const PUT: APIRoute = async ({ request, locals }) => {
 
     // Parse request body
     const body = await request.json();
-    const { noteId, title, content, resourceImage } = body;
+    const { noteId, title, content, resourceImage, contentEncrypted } = body;
 
     if (!noteId) {
       return errorResponse('Note ID is required');
@@ -50,17 +50,40 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       return notFoundResponse('Note');
     }
 
-    // Capitalize content and title
-    const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+    // Capitalize content and title (skip for encrypted content - store as-is)
+    const isEncrypted = contentEncrypted === true;
+    const capitalizedContent = isEncrypted ? content : (content.charAt(0).toUpperCase() + content.slice(1));
     const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : title;
+
+    // Build update data
+    const updateData: {
+      title?: string;
+      content: string;
+      contentEncrypted?: boolean;
+      updatedAt: Date;
+      isPublic?: boolean;
+      shareToken?: string | null;
+      shareTokenCreatedAt?: Date | null;
+    } = {
+      title: capitalizedTitle,
+      content: capitalizedContent,
+      updatedAt: new Date()
+    };
+
+    // Only update contentEncrypted if explicitly provided
+    if (typeof contentEncrypted === 'boolean') {
+      updateData.contentEncrypted = contentEncrypted;
+      // When locking, make note private (clear share state)
+      if (contentEncrypted === true) {
+        updateData.isPublic = false;
+        updateData.shareToken = null;
+        updateData.shareTokenCreatedAt = null;
+      }
+    }
 
     // Update the note
     const updatedNote = await db.update(Notes)
-      .set({ 
-        title: capitalizedTitle,
-        content: capitalizedContent,
-        updatedAt: new Date()
-      })
+      .set(updateData)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
       .returning()
       .get();
@@ -82,19 +105,22 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     }
 
     // Regenerate auto-tags based on updated content (async, fire-and-forget)
-    const autoTagAsync = async () => {
-      try {
-        const { removeAutoTags, generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
-        await removeAutoTags(noteId);
-        const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, 0.8);
-        if (autoTagResult.suggestions.length > 0) {
-          await applyAutoTags(noteId, autoTagResult.suggestions, userId);
+    // Skip for encrypted notes (server can't read content)
+    if (!isEncrypted) {
+      const autoTagAsync = async () => {
+        try {
+          const { removeAutoTags, generateAutoTags, applyAutoTags } = await import('@/utils/auto-tag-generator');
+          await removeAutoTags(noteId);
+          const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, 0.8);
+          if (autoTagResult.suggestions.length > 0) {
+            await applyAutoTags(noteId, autoTagResult.suggestions, userId);
+          }
+        } catch (error) {
+          console.error('Auto-tagging failed (non-critical):', error);
         }
-      } catch (error) {
-        console.error('Auto-tagging failed (non-critical):', error);
-      }
-    };
-    autoTagAsync().catch(() => {});
+      };
+      autoTagAsync().catch(() => {});
+    }
 
     // Update ResourceMetadata if this is a resource note and resourceImage is provided
     if (existingNote.noteType === 'resource' && resourceImage !== undefined) {
@@ -118,24 +144,27 @@ export const PUT: APIRoute = async ({ request, locals }) => {
     }
 
     // Process scripture references in the note content (async, fire-and-forget)
-    const scriptureAsync = async () => {
-      try {
-        let actualThreadId = 'thread_unorganized';
-        const threadRelation = await db.select()
-          .from(NoteThreads)
-          .where(eq(NoteThreads.noteId, noteId))
-          .limit(1)
-          .get();
-        if (threadRelation) {
-          actualThreadId = threadRelation.threadId;
+    // Skip for encrypted notes (server can't read content)
+    if (!isEncrypted) {
+      const scriptureAsync = async () => {
+        try {
+          let actualThreadId = 'thread_unorganized';
+          const threadRelation = await db.select()
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, noteId))
+            .limit(1)
+            .get();
+          if (threadRelation) {
+            actualThreadId = threadRelation.threadId;
+          }
+          const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+          await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
+        } catch (error: any) {
+          console.error('Error processing scripture references (non-critical):', error);
         }
-        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-        await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
-      } catch (error: any) {
-        console.error('Error processing scripture references (non-critical):', error);
-      }
-    };
-    scriptureAsync().catch(() => {});
+      };
+      scriptureAsync().catch(() => {});
+    }
 
     return successResponse({
       success: "Note updated!",

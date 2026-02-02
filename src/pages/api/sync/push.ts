@@ -240,6 +240,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       updatedAt: new Date(),
       // Set lastVisited so new notes appear at top (matches server-side note creation)
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : new Date(),
+      contentEncrypted: data.contentEncrypted || false,
     }).returning().get();
 
     // Update highestSimpleNoteId
@@ -277,6 +278,13 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
         updatedAt: new Date(),
         // Sync lastVisited if provided (preserves visit history across devices)
         ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
+        ...(typeof data.contentEncrypted === 'boolean' && { contentEncrypted: data.contentEncrypted }),
+        // When locking, make note private (clear share state)
+        ...(data.contentEncrypted === true && {
+          isPublic: false,
+          shareToken: null,
+          shareTokenCreatedAt: null
+        }),
       })
       .where(eq(Notes.id, entityId));
 

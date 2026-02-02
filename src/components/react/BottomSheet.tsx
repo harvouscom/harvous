@@ -23,6 +23,7 @@ import ReferralPanel from './ReferralPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 import AboutHarvousPanel from './AboutHarvousPanel';
 import NoteSharePanel from './NoteSharePanel';
+import PinEntryPanel from './PinEntryPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -45,7 +46,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -87,6 +88,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'inboxPreview': 'Inbox Preview',
     'aboutHarvous': 'Letter from the Founder',
     'noteShare': 'Share Note',
+    'pinEntry': 'Lock Note',
   };
   return titleMap[drawerType] || 'Panel';
 };
@@ -110,6 +112,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
+  const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
@@ -329,6 +332,17 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
     window.addEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
 
+    // Listen for pin entry panel event (lock/unlock note)
+    const handleOpenPinEntryPanel = (event: CustomEvent) => {
+      if (!isMobile) return;
+      const { noteId: id, mode, noteContent: content, isEncrypted } = event.detail || {};
+      if (id && mode && content !== undefined) {
+        setPinEntryData({ noteId: id, mode, noteContent: content, isEncrypted: !!isEncrypted });
+        openBottomSheet('pinEntry');
+      }
+    };
+    window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
+
     // Listen for panel close events
     window.addEventListener('closeNewNotePanel', handleCloseBottomSheet);
     window.addEventListener('closeNewThreadPanel', handleCloseBottomSheet);
@@ -339,6 +353,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeEditSpacePanel', handleCloseBottomSheet);
     window.addEventListener('closeInboxPreview', handleCloseBottomSheet);
     window.addEventListener('closeNoteSharePanel', handleCloseBottomSheet);
+    window.addEventListener('closePinEntryPanel', handleCloseBottomSheet);
 
     return () => {
       window.removeEventListener('openMobileDrawer', handleOpenBottomSheet as EventListener);
@@ -360,6 +375,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
       window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
       window.removeEventListener('closeNoteSharePanel', handleCloseBottomSheet);
+      window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
+      window.removeEventListener('closePinEntryPanel', handleCloseBottomSheet);
     };
   }, [openBottomSheet, closeBottomSheet, isMobile, currentNote]);
 
@@ -729,6 +746,22 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 noteTitle={currentNote?.title || noteShareData.noteTitle}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+
+          {drawerType === 'pinEntry' && pinEntryData && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <PinEntryPanel
+                key={`mobile-pin-entry-${panelKey}`}
+                noteId={pinEntryData.noteId}
+                initialMode={pinEntryData.mode}
+                noteContent={pinEntryData.noteContent}
+                isEncrypted={pinEntryData.isEncrypted}
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
                 }}
                 inBottomSheet={true}
               />

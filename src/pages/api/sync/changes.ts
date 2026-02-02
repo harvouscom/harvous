@@ -113,6 +113,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         lastVisited: Notes.lastVisited,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
+        contentEncrypted: Notes.contentEncrypted,
       })
       .from(Notes)
       .where(and(

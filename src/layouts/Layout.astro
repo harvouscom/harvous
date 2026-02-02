@@ -54,8 +54,9 @@ const {
   founderLetterHtml = ''
 }: Props = Astro.props;
 
-// Extract noteType from currentNote for menu options
+// Extract noteType and contentEncrypted from currentNote for menu options
 const noteType = currentNote?.noteType;
+const contentEncrypted = currentNote?.contentEncrypted;
 
 // Determine if More button should be shown (pass contentId to hide for unorganized thread)
 const showMoreButton = shouldShowMoreButton(contentType, contentId);
@@ -421,7 +422,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
               <!-- SquareButtons (shown when no panel is open) -->
               <div id="square-buttons-container" class={`square-buttons-container ${showMoreButton ? 'square-buttons-container--with-more' : ''}`}>
                 {showMoreButton && (
-                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} />
+                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} />
                 )}
                 {contentType !== 'profile' && (
                   <SquareButton variant="Add" withMenu={true} />
@@ -702,21 +703,21 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 <!-- Toast Handler -->
 <script is:inline src="/scripts/toast-handler.js"></script>
 
-<!-- Custom Toast event listener -->
+<!-- Custom Toast event listener (showToast and toast events) -->
 <script>
-  window.addEventListener('showToast', (event) => {
-    // @ts-ignore - event.detail is a CustomEvent detail
-    const { message, type } = event.detail;
+  function handleToastEvent(event) {
+    const { message, type } = event.detail || {};
     if (window.toast && type in window.toast) {
-      // @ts-ignore
       const toastMethod = window.toast[type];
       if (typeof toastMethod === 'function') {
         toastMethod(message);
       }
     } else {
-      console.warn('Toast system not available to handle showToast event.');
+      console.warn('Toast system not available to handle toast event.');
     }
-  });
+  }
+  window.addEventListener('showToast', handleToastEvent);
+  window.addEventListener('toast', handleToastEvent);
 </script>
 
 <!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->

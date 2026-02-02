@@ -54,6 +54,7 @@ const Notes = defineTable({
     order: column.number({ default: 0 }),
     shareToken: column.text({ optional: true }), // Unique token for sharing (null = private)
     shareTokenCreatedAt: column.date({ optional: true }), // When the share token was created
+    contentEncrypted: column.boolean({ default: false }), // When true, content holds client-encrypted ciphertext
   }
 })
 

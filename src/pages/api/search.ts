@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, eq, and, or, like, desc } from 'astro:db';
+import { db, Notes, Threads, eq, and, or, like, desc, not } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { successResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
 
@@ -28,6 +28,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
     let results: any[] = [];
 
     // Search notes if requested
+    // Exclude encrypted notes from search (server can't read their content)
     if (type === 'all' || type === 'notes') {
       const notes = await db
         .select()
@@ -35,6 +36,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .where(
           and(
             eq(Notes.userId, userId),
+            not(eq(Notes.contentEncrypted, true)), // Exclude encrypted notes
             or(
               like(Notes.title, searchTerm),
               like(Notes.content, searchTerm)
@@ -49,6 +51,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         type: 'note',
         title: note.title || 'Untitled Note',
         content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
+        contentEncrypted: false, // Always false since we excluded encrypted notes
         threadId: note.threadId,
         spaceId: note.spaceId,
         lastUpdated: note.updatedAt || note.createdAt,

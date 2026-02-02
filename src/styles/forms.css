@@ -112,6 +112,13 @@
   }
 }
 
+/* PIN digit inputs (InlinePinUnlock, PinEntryPanel) - focus ring matches lock icon (stone grey) */
+.pin-digit-input:focus {
+  border-color: var(--color-stone-grey) !important;
+  box-shadow: 0 0 0 2px var(--color-stone-grey) !important;
+  outline: none !important;
+}
+
 /* ==========================================================================
    Title Input (Large, borderless)
    ========================================================================== */

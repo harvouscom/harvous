@@ -35,6 +35,7 @@ interface OrganizedContentItem {
   lastVisited?: Date | string | null;
   createdAt?: Date | string | null;
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
+  contentEncrypted?: boolean;
 }
 
 interface OrganizedContentListProps {
@@ -270,20 +271,24 @@ export default function OrganizedContentList({
             createdAt: t.createdAt,
             updatedAt: t.updatedAt || t.createdAt,
           })),
-          ...snapshot.recentNotes.map(n => ({
-            id: n.id, // Use n.id directly (already in note_ format)
-            type: 'note' as const,
-            title: n.title || 'Untitled Note',
-            content: n.content,
-            noteId: n.id,
-            threadId: n.threadId,
-            spaceId: n.spaceId,
-            noteType: n.noteType,
-            lastVisited: n.lastVisited || null,
-            createdAt: n.createdAt,
-            updatedAt: n.updatedAt || n.createdAt,
-            syncStatus: n.syncStatus,
-          }))
+          ...snapshot.recentNotes.map(n => {
+            const isEncrypted = (n as any).contentEncrypted === true;
+            return {
+              id: n.id, // Use n.id directly (already in note_ format)
+              type: 'note' as const,
+              title: n.title || 'Untitled Note',
+              content: isEncrypted ? '' : n.content,
+              noteId: n.id,
+              threadId: n.threadId,
+              spaceId: n.spaceId,
+              noteType: n.noteType,
+              lastVisited: n.lastVisited || null,
+              createdAt: n.createdAt,
+              updatedAt: n.updatedAt || n.createdAt,
+              syncStatus: n.syncStatus,
+              contentEncrypted: isEncrypted,
+            };
+          })
         ];
 
         // Filter out deleted items
@@ -1027,7 +1032,8 @@ export default function OrganizedContentList({
               threadColors: note.threadColors,
               resourceTitle: note.resourceTitle,
               resourceDescription: note.resourceDescription,
-              resourceImage: note.resourceImage
+              resourceImage: note.resourceImage,
+              contentEncrypted: (note as any).contentEncrypted === true
             };
 
             optimisticUpdates.addOptimistic(noteId, noteItem);
@@ -1530,6 +1536,7 @@ export default function OrganizedContentList({
               showScriptureRefsCollapsible={filter === 'all'}
               scriptureReferences={item.scriptureReferences}
               isPendingSync={item.syncStatus === 'pending'}
+              contentEncrypted={item.contentEncrypted === true}
             />
           </a>
         ) : (

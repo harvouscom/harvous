@@ -47,6 +47,7 @@ export interface DashboardSnapshot {
     id: string;
     title: string | null;
     content: string;
+    contentEncrypted?: boolean;
     threadId: string;
     spaceId: string | null;
     simpleNoteId: number | null;
@@ -113,21 +114,25 @@ export async function getDashboardSnapshotLocal(userId: string): Promise<Dashboa
     return {
       spaces: spacesWithCounts,
       threads: threadsWithCounts,
-      recentNotes: recentNotes.map(note => ({
-        id: note.id,
-        title: note.title,
-        content: note.content,
-        threadId: note.threadId,
-        spaceId: note.spaceId,
-        simpleNoteId: note.simpleNoteId,
-        noteType: note.noteType,
-        isPublic: note.isPublic,
-        isFeatured: note.isFeatured,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt,
-        lastVisited: note.lastVisited,
-        syncStatus: note.syncStatus,
-      })),
+      recentNotes: recentNotes.map(note => {
+        const isEncrypted = (note as OfflineNote).contentEncrypted === true;
+        return {
+          id: note.id,
+          title: note.title,
+          content: isEncrypted ? '' : note.content,
+          contentEncrypted: isEncrypted,
+          threadId: note.threadId,
+          spaceId: note.spaceId,
+          simpleNoteId: note.simpleNoteId,
+          noteType: note.noteType,
+          isPublic: note.isPublic,
+          isFeatured: note.isFeatured,
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          lastVisited: note.lastVisited,
+          syncStatus: note.syncStatus,
+        };
+      }),
       userMetadata: userMetadata ? {
         highestSimpleNoteId: userMetadata.highestSimpleNoteId,
         reservedSimpleNoteIdRange: userMetadata.reservedSimpleNoteIdRange,

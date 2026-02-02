@@ -213,6 +213,11 @@
   &.panel__content--no-bottom-padding::after {
     display: none;
   }
+
+  /* Pin entry panel: match InlinePinUnlock design (24px bottom, full radius) */
+  &.panel__content--pin-entry::after {
+    height: 24px;
+  }
 }
 
 /* ==========================================================================

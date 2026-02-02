@@ -26,6 +26,8 @@ interface CardNoteProps {
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
   // Offline sync status indicator
   isPendingSync?: boolean;
+  // Encryption status - when true, note is locked and content is encrypted
+  contentEncrypted?: boolean;
 }
 
 // Helper function to convert HTML to readable text
@@ -53,7 +55,8 @@ const CardNote: React.FC<CardNoteProps> = ({
   noteId,
   showScriptureRefsCollapsible = false,
   scriptureReferences: propScriptureReferences = [],
-  isPendingSync = false
+  isPendingSync = false,
+  contentEncrypted = false
 }) => {
   const [isScriptureRefsExpanded, setIsScriptureRefsExpanded] = useState(false);
   // Generate mesh gradient on client only to avoid hydration mismatch
@@ -101,6 +104,9 @@ const CardNote: React.FC<CardNoteProps> = ({
   // Determine if scripture refs will be shown
   const hasScriptureRefs = showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0;
 
+  // When locked, show placeholder instead of content excerpt
+  const excerptText = contentEncrypted ? 'This note is locked' : (effectiveContent ? stripHtml(effectiveContent) : '');
+
   // Deduplicate scripture references based on noteId (defense-in-depth)
   const uniqueScriptureRefs = React.useMemo(() => {
     if (!scriptureReferences) return [];
@@ -114,6 +120,36 @@ const CardNote: React.FC<CardNoteProps> = ({
       return true;
     });
   }, [scriptureReferences]);
+
+  // If note is encrypted, render locked card UI - same DOM structure as default note (sidebar + body, same thread colors)
+  if (contentEncrypted) {
+    return (
+      <div className={`card card-note ${className}`} onClick={onClick} style={{ position: 'relative' }}>
+        <div className="card-note__content" style={{ padding: '8px' }}>
+          <div className="card-note__sidebar" style={sidebarStyle}>
+            <div className="card-note__sidebar-icon">
+              <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
+                <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+            </div>
+          </div>
+          <div className="card-note__body">
+            <div className="card-note__text">
+              <div className="card-note__title">
+                <p>{title || "Locked Note"}</p>
+              </div>
+              <div className="card-note__excerpt">
+                <p style={{ color: 'var(--color-stone-grey)' }}>
+                  This note is locked
+                </p>
+              </div>
+            </div>
+          </div>
+          <div aria-hidden="true" className="card__border" style={{ borderColor: '#f7f7f6' }} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`card card-note ${className}`} onClick={onClick} style={{ position: 'relative' }}>
@@ -182,7 +218,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                         } : {}}
                       >
                         <p style={hasScriptureRefs ? { flex: 1, minWidth: 0 } : {}}>
-                          {effectiveContent ? stripHtml(effectiveContent) : ""}
+                          {excerptText}
                         </p>
                         {/* Scripture refs trigger inline with excerpt */}
                         {hasScriptureRefs && (
@@ -413,7 +449,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                 {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
                 {(noteType !== 'resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
-                    <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                    <p>{excerptText}</p>
                   </div>
                 )}
               </div>
@@ -472,7 +508,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                         } : {}}
                       >
                         <p style={hasScriptureRefs ? { flex: 1, minWidth: 0 } : {}}>
-                          {effectiveContent ? stripHtml(effectiveContent) : ""}
+                          {excerptText}
                         </p>
                         {/* Scripture refs trigger inline with excerpt */}
                         {hasScriptureRefs && (
@@ -709,7 +745,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                 {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
                 {(noteType !== 'resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
-                    <p>{effectiveContent ? stripHtml(effectiveContent) : ""}</p>
+                    <p>{excerptText}</p>
                   </div>
                 )}
               </div>

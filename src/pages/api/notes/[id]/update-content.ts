@@ -33,7 +33,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     }
 
     const { id } = params;
-    const { content } = await request.json();
+    const { content, contentEncrypted } = await request.json();
 
     if (!id) {
       return new Response(JSON.stringify({ 
@@ -71,12 +71,33 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
+    // Build update data
+    const updateData: {
+      content: string;
+      contentEncrypted?: boolean;
+      updatedAt: Date;
+      isPublic?: boolean;
+      shareToken?: string | null;
+      shareTokenCreatedAt?: Date | null;
+    } = {
+      content: content,
+      updatedAt: new Date()
+    };
+
+    // Only update contentEncrypted if explicitly provided
+    if (typeof contentEncrypted === 'boolean') {
+      updateData.contentEncrypted = contentEncrypted;
+      // When locking, make note private (clear share state)
+      if (contentEncrypted === true) {
+        updateData.isPublic = false;
+        updateData.shareToken = null;
+        updateData.shareTokenCreatedAt = null;
+      }
+    }
+
     // Update the note content
     await db.update(Notes)
-      .set({ 
-        content: content,
-        updatedAt: new Date()
-      })
+      .set(updateData)
       .where(and(eq(Notes.id, id), eq(Notes.userId, userId)));
 
     return new Response(JSON.stringify({

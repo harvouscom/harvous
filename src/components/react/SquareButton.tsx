@@ -10,6 +10,8 @@ const EditIcon = { src: 'pen-to-square' };
 const EraseIcon = { src: 'eraser' };
 const CircleInfoIcon = { src: 'circle-info' };
 const TagIcon = { src: 'tag' };
+const LockIcon = { src: 'lock' };
+const UnlockIcon = { src: 'unlock' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";
@@ -22,6 +24,7 @@ interface SquareButtonProps {
   currentThreadId?: string; // Add this prop
   inBottomSheet?: boolean;
   noteType?: string;
+  contentEncrypted?: boolean;
 }
 
 export default function SquareButton({
@@ -34,10 +37,40 @@ export default function SquareButton({
   contentId,
   currentThreadId, // Add this prop
   inBottomSheet = false,
-  noteType
+  noteType,
+  contentEncrypted
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
+  // After remove lock / lock, server state is known from event until page refetches; used so menu updates without refresh
+  const [contentEncryptedServerOverride, setContentEncryptedServerOverride] = useState<boolean | null>(null);
+
+  const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
+  const effectiveContentEncryptedServer = contentEncryptedServerOverride ?? contentEncrypted;
+  const hideMoreForLockedNote = variant === 'More' && contentType === 'note' && effectiveEncrypted;
+
+  // Sync lock state when note changes or server-driven contentEncrypted changes
+  useEffect(() => {
+    setLockStateOverride(null);
+    setContentEncryptedServerOverride(null);
+  }, [contentId, contentEncrypted]);
+
+  // Listen for lock state changes from PIN panel (so menu shows Unlock after locking, and updates after remove lock)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail != null && contentId != null && String(detail.noteId) === String(contentId)) {
+        const encrypted = detail.contentEncrypted === true;
+        setLockStateOverride(encrypted);
+        if (detail.contentEncryptedServer !== undefined) {
+          setContentEncryptedServerOverride(detail.contentEncryptedServer === true);
+        }
+      }
+    };
+    window.addEventListener('noteLockStateChanged', handler);
+    return () => window.removeEventListener('noteLockStateChanged', handler);
+  }, [contentId]);
 
   // Get menu options based on variant
   const getMenuOptionsData = () => {
@@ -47,7 +80,7 @@ export default function SquareButton({
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType);
+      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer);
       return options.map(option => {
         let icon;
         switch (option.action) {
@@ -68,6 +101,12 @@ export default function SquareButton({
             break;
           case "openNoteDetailsTags":
             icon = TagIcon;
+            break;
+          case "lockNote":
+            icon = effectiveEncrypted ? UnlockIcon : LockIcon;
+            break;
+          case "removeLock":
+            icon = UnlockIcon;
             break;
           default:
             icon = EditIcon;
@@ -296,6 +335,12 @@ export default function SquareButton({
   };
 
   const iconSize = getIconSize();
+
+  // Hide More button when viewing a locked note (unlock is inline in the card).
+  // Render a spacer so the Add button stays at the bottom (space-between layout).
+  if (hideMoreForLockedNote) {
+    return <div style={{ flex: 1, minHeight: 0 }} aria-hidden="true" />;
+  }
 
   return (
     <div className="square-button square-button-container" ref={containerRef}>
