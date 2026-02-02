@@ -394,10 +394,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isOpen, openBottomSheet, isVisible]);
 
-  // When PIN panel is open on mobile, size sheet to visual viewport so keyboard doesn't get cut off
+  // When PIN panel (note or profile Lock PIN) is open on mobile, size sheet to visual viewport so keyboard doesn't overlap input
+  const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
   useEffect(() => {
-    if (!isVisible || drawerType !== 'pinEntry' || typeof window === 'undefined' || !window.visualViewport) {
-      if (drawerType !== 'pinEntry' || !isVisible) {
+    if (!isVisible || !isPinSheet || typeof window === 'undefined' || !window.visualViewport) {
+      if (!isPinSheet || !isVisible) {
         setPinEntrySheetHeight(null);
       }
       return;
@@ -412,7 +413,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       vv.removeEventListener('scroll', updateHeight);
       setPinEntrySheetHeight(null);
     };
-  }, [isVisible, drawerType]);
+  }, [isVisible, drawerType, isPinSheet]);
 
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
@@ -461,8 +462,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     >
       <SheetContent 
         side="bottom" 
-        className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 ${drawerType === 'pinEntry' && pinEntrySheetHeight != null ? '' : 'h-[90vh]'}`}
-        style={drawerType === 'pinEntry' && pinEntrySheetHeight != null
+        className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 ${(drawerType === 'pinEntry' || drawerType === 'lockPin') && pinEntrySheetHeight != null ? '' : 'h-[90vh]'}`}
+        style={(drawerType === 'pinEntry' || drawerType === 'lockPin') && pinEntrySheetHeight != null
           ? {
               padding: '0',
               outline: 'none',
