@@ -349,7 +349,7 @@ export default function LockPinPanel({
               <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
               <div style={{ textAlign: 'center', marginTop: 0 }}>
                 {subtitle && (
-                  <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0, fontStyle: 'normal' }}>{subtitle}</p>
+                  <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0, marginTop: 12, fontStyle: 'normal', textWrap: 'balance' }}>{subtitle}</p>
                 )}
               </div>
 
