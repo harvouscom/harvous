@@ -99,7 +99,7 @@ export default defineConfig({
       localization: {
         signUp: {
           start: {
-            title: 'Sign Up for Harvous',
+            title: 'Sign up for Harvous',
             subtitle: 'Fill out the following to get started.'
           }
         }
