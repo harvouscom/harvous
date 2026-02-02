@@ -420,6 +420,12 @@
   font-size: 0.75rem;  /* 12px */
 }
 
+/* Text footer inside content: no extra top/bottom padding so content's 12px bottom is the only bottom space */
+.panel__content .panel__footer {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Button footer variant - for panels with action buttons */
 .panel__footer--buttons {
   display: flex;
