@@ -75,7 +75,7 @@ export default function NoteSharePanel({
 
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: enabled ? 'Note sharing enabled' : 'Note sharing disabled',
+            message: enabled ? 'Note is now shared' : 'Note is now private',
             type: 'success'
           }
         }));

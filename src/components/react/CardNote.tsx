@@ -248,7 +248,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 whiteSpace: 'nowrap'
                               }}
                             >
-                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note' : 'scripture notes'}
                             </span>
                             <Icon 
                               name="chevron-down" 
@@ -538,7 +538,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 whiteSpace: 'nowrap'
                               }}
                             >
-                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note included' : 'scripture notes included'}
+                              {uniqueScriptureRefs.length} {uniqueScriptureRefs.length === 1 ? 'scripture note' : 'scripture notes'}
                             </span>
                             <Icon 
                               name="chevron-down" 
