@@ -53,16 +53,37 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
+    // Scripture notes without a share token: create one so the share panel always has a link
+    let effectiveShareToken = note.shareToken;
+    let effectiveShareTokenCreatedAt = note.shareTokenCreatedAt;
+    const isScriptureNote = note.noteType === 'scripture';
+    const needsToken = isScriptureNote && !note.shareToken && !note.contentEncrypted;
+
+    if (needsToken) {
+      const now = new Date();
+      effectiveShareToken = generateShareToken();
+      effectiveShareTokenCreatedAt = now;
+      await db
+        .update(Notes)
+        .set({
+          isPublic: true,
+          shareToken: effectiveShareToken,
+          shareTokenCreatedAt: effectiveShareTokenCreatedAt,
+          updatedAt: now
+        })
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+    }
+
     // Build the share URL
     const origin = new URL(request.url).origin;
-    const shareUrl = note.shareToken ? `${origin}/shared/note/${note.shareToken}` : null;
+    const shareUrl = effectiveShareToken ? `${origin}/shared/note/${effectiveShareToken}` : null;
 
     // Return current share status
     return new Response(JSON.stringify({
-      isPublic: note.isPublic,
-      shareToken: note.shareToken,
+      isPublic: needsToken ? true : note.isPublic,
+      shareToken: effectiveShareToken,
       shareUrl,
-      shareTokenCreatedAt: note.shareTokenCreatedAt,
+      shareTokenCreatedAt: effectiveShareTokenCreatedAt,
       noteType: note.noteType || 'default',
       contentEncrypted: note.contentEncrypted || false
     }), {

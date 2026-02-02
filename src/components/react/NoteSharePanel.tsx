@@ -23,29 +23,39 @@ export default function NoteSharePanel({
   const [copied, setCopied] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [noteType, setNoteType] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchShareStatus = async () => {
+    setFetchError(false);
+    try {
+      const response = await safeFetch(`/api/notes/${noteId}/share`, { retries: 1 });
+      if (response && response.ok) {
+        const data = await response.json();
+        setIsShared(data.isPublic);
+        setShareUrl(data.shareUrl);
+        setNoteType(data.noteType || 'default');
+      } else {
+        setFetchError(true);
+      }
+    } catch (error) {
+      console.error('Error fetching share status:', error);
+      setFetchError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Fetch share status on mount
   useEffect(() => {
     setIsMounted(true);
-
-    const fetchShareStatus = async () => {
-      try {
-        const response = await safeFetch(`/api/notes/${noteId}/share`, { retries: 1 });
-        if (response.ok) {
-          const data = await response.json();
-          setIsShared(data.isPublic);
-          setShareUrl(data.shareUrl);
-          setNoteType(data.noteType || 'default');
-        }
-      } catch (error) {
-        console.error('Error fetching share status:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchShareStatus();
   }, [noteId]);
+
+  const handleRetry = () => {
+    setFetchError(false);
+    setIsLoading(true);
+    fetchShareStatus();
+  };
 
   // Handle close
   const handleClose = () => {
@@ -195,8 +205,8 @@ export default function NoteSharePanel({
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                {/* Visibility Toggle Section - hidden for scripture notes */}
-                {showVisibilityToggle && (
+                {/* Visibility Toggle Section - hidden for scripture notes or when fetch failed */}
+                {showVisibilityToggle && !fetchError && (
                 <div className="note-share-panel__visibility">
                   {/* Private Option */}
                   <button
@@ -260,8 +270,24 @@ export default function NoteSharePanel({
                 </div>
                 )}
 
-                {/* Sharing UI - shown when shared or for scripture notes */}
-                {showSharingUI ? (
+                {/* Error state when fetch failed */}
+                {fetchError ? (
+                  <div className="note-share-panel__sharing-ui">
+                    <div className="note-share-panel__placeholder">
+                      <Icon name="circle-info" size={14} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
+                      <span>Couldn&apos;t load share link.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRetry}
+                      disabled={isLoading}
+                      className="btn-cta btn--secondary"
+                    >
+                      <span className="btn-cta__content">Retry</span>
+                      <div className="btn-cta__shadow" />
+                    </button>
+                  </div>
+                ) : showSharingUI ? (
                   <div className="note-share-panel__sharing-ui">
                     {shareUrl ? (
                       <Fragment>
