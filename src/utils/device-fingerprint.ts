@@ -24,6 +24,7 @@ const STORAGE_KEY = 'harvous-device-fingerprint';
 const DB_NAME = 'harvous-device-auth';
 const DB_VERSION = 1;
 const FINGERPRINT_STORE = 'deviceFingerprint';
+const isDev = import.meta.env.DEV;
 
 /**
  * Detect if app is running in PWA mode
@@ -311,12 +312,12 @@ export async function getOrCreateDeviceId(): Promise<string> {
       await storeInIndexedDB(fingerprint);
       storeInLocalStorage(fingerprint);
 
-      console.log('[DeviceFingerprint] Existing device ID found:', fingerprint.deviceId.substring(0, 8) + '...');
+      if (isDev) console.log('[DeviceFingerprint] Existing device ID found:', fingerprint.deviceId.substring(0, 8) + '...');
       return fingerprint.deviceId;
     }
 
     // Generate new fingerprint (for first-time visitors, run all checks)
-    console.log('[DeviceFingerprint] Generating new device ID...');
+    if (isDev) console.log('[DeviceFingerprint] Generating new device ID...');
     const deviceId = await generateDeviceFingerprint(false);
 
     const newFingerprint: DeviceFingerprint = {
@@ -335,7 +336,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
     await storeInIndexedDB(newFingerprint);
     storeInLocalStorage(newFingerprint);
 
-    console.log('[DeviceFingerprint] New device ID created:', deviceId.substring(0, 8) + '...');
+    if (isDev) console.log('[DeviceFingerprint] New device ID created:', deviceId.substring(0, 8) + '...');
     return deviceId;
   } catch (error) {
     console.error('[DeviceFingerprint] Error getting/creating device ID:', error);

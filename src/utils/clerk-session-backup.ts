@@ -23,6 +23,15 @@ const DB_NAME = 'harvous-session-backup';
 const DB_VERSION = 1;
 const SESSION_STORE = 'sessionBackup';
 
+// Session cache for performance optimization
+let sessionCache: {
+  data: ClerkSessionBackup | null;
+  timestamp: number;
+} | null = null;
+
+const CACHE_TTL = 60000; // 1 minute cache
+const isDev = import.meta.env.DEV;
+
 /**
  * Open IndexedDB connection
  */
@@ -168,7 +177,10 @@ async function decryptSessionData(encryptedData: string): Promise<ClerkSessionBa
  */
 export async function backupClerkSession(session: ClerkSessionBackup): Promise<void> {
   try {
-    console.log('[SessionBackup] Backing up session for user:', session.userId);
+    // Invalidate cache
+    sessionCache = null;
+
+    if (isDev) console.log('[SessionBackup] Backing up session for user:', session.userId);
 
     // Encrypt session data
     const encrypted = await encryptSessionData(session);
@@ -196,17 +208,23 @@ export async function backupClerkSession(session: ClerkSessionBackup): Promise<v
       console.warn('[SessionBackup] localStorage backup failed:', e);
     }
 
-    console.log('[SessionBackup] Session backup successful');
+    if (isDev) console.log('[SessionBackup] Session backup successful');
   } catch (error) {
     console.error('[SessionBackup] Failed to backup session:', error);
   }
 }
 
 /**
- * Restore Clerk session from IndexedDB
+ * Restore Clerk session from IndexedDB (with caching for performance)
  */
 export async function restoreClerkSession(): Promise<ClerkSessionBackup | null> {
   try {
+    // Return cached session if fresh
+    if (sessionCache && Date.now() - sessionCache.timestamp < CACHE_TTL) {
+      if (isDev) console.log('[SessionBackup] Using cached session');
+      return sessionCache.data;
+    }
+
     // Try to get from IndexedDB first
     const db = await openDB();
     const transaction = db.transaction([SESSION_STORE], 'readonly');
@@ -221,23 +239,31 @@ export async function restoreClerkSession(): Promise<ClerkSessionBackup | null> 
     db.close();
 
     if (allBackups.length === 0) {
-      console.log('[SessionBackup] No session backups found in IndexedDB');
+      if (isDev) console.log('[SessionBackup] No session backups found in IndexedDB');
+      // Cache the null result
+      sessionCache = { data: null, timestamp: Date.now() };
       return null;
     }
 
     // Get most recent backup
     const backup = allBackups.sort((a, b) => b.lastRefreshed - a.lastRefreshed)[0];
 
+    let decrypted: ClerkSessionBackup | null = null;
+
     // Decrypt if encrypted field exists
     if ((backup as any).encrypted) {
-      const decrypted = await decryptSessionData((backup as any).encrypted);
+      decrypted = await decryptSessionData((backup as any).encrypted);
       if (decrypted) {
-        console.log('[SessionBackup] Session restored from IndexedDB');
+        if (isDev) console.log('[SessionBackup] Session restored from IndexedDB');
+        // Cache the result
+        sessionCache = { data: decrypted, timestamp: Date.now() };
         return decrypted;
       }
     }
 
-    console.log('[SessionBackup] Session restored from IndexedDB (unencrypted fallback)');
+    if (isDev) console.log('[SessionBackup] Session restored from IndexedDB (unencrypted fallback)');
+    // Cache the result
+    sessionCache = { data: backup, timestamp: Date.now() };
     return backup;
   } catch (error) {
     console.error('[SessionBackup] Failed to restore from IndexedDB:', error);
@@ -250,7 +276,9 @@ export async function restoreClerkSession(): Promise<ClerkSessionBackup | null> 
         if (encrypted) {
           const decrypted = await decryptSessionData(encrypted);
           if (decrypted) {
-            console.log('[SessionBackup] Session restored from localStorage');
+            if (isDev) console.log('[SessionBackup] Session restored from localStorage');
+            // Cache the result
+            sessionCache = { data: decrypted, timestamp: Date.now() };
             return decrypted;
           }
         }
@@ -259,34 +287,37 @@ export async function restoreClerkSession(): Promise<ClerkSessionBackup | null> 
       console.error('[SessionBackup] localStorage restore failed:', e);
     }
 
+    // Cache the null result
+    sessionCache = { data: null, timestamp: Date.now() };
     return null;
   }
 }
 
 /**
- * Check if session backup is still valid
+ * Check if session backup is still valid (now async to properly validate device ID)
  */
-export function isSessionValid(session: ClerkSessionBackup): boolean {
+export async function isSessionValid(session: ClerkSessionBackup | null): Promise<boolean> {
+  if (!session) return false;
+
   // Check if session has expired
   if (session.expiresAt && session.expiresAt < Date.now()) {
-    console.log('[SessionBackup] Session expired');
+    if (isDev) console.log('[SessionBackup] Session expired');
     return false;
   }
 
   // Check if session is too old (max 7 days)
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
   if (Date.now() - session.createdAt > sevenDaysMs) {
-    console.log('[SessionBackup] Session too old (>7 days)');
+    if (isDev) console.log('[SessionBackup] Session too old (>7 days)');
     return false;
   }
 
-  // Check if device ID matches
-  getDeviceId().then(deviceId => {
-    if (deviceId && session.deviceId !== deviceId) {
-      console.warn('[SessionBackup] Device ID mismatch');
-      return false;
-    }
-  });
+  // Check if device ID matches (now properly awaited - fixes security bug)
+  const deviceId = await getDeviceId();
+  if (deviceId && session.deviceId !== deviceId) {
+    if (isDev) console.warn('[SessionBackup] Device ID mismatch');
+    return false;
+  }
 
   return true;
 }
@@ -296,6 +327,9 @@ export function isSessionValid(session: ClerkSessionBackup): boolean {
  */
 export async function clearSessionBackup(userId?: string): Promise<void> {
   try {
+    // Invalidate cache
+    sessionCache = null;
+
     const db = await openDB();
     const transaction = db.transaction([SESSION_STORE], 'readwrite');
     const store = transaction.objectStore(SESSION_STORE);

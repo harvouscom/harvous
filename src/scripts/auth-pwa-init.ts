@@ -13,6 +13,10 @@ import {
 } from '@/utils/clerk-session-backup';
 import { initClerkForPWA } from '@/utils/clerk-pwa-helper';
 
+// Cache device ID for reuse in session listener
+let cachedDeviceId: string | null = null;
+const isDev = import.meta.env.DEV;
+
 declare global {
   interface Window {
     Clerk?: {
@@ -47,7 +51,7 @@ function waitForClerk(): Promise<typeof window.Clerk | null> {
  */
 export async function initializePWAAuth(): Promise<void> {
   try {
-    console.log('[Auth] Initializing PWA auth...');
+    if (isDev) console.log('[Auth] Initializing PWA auth...');
 
     // Run all operations in parallel for faster initialization
     const [deviceId, sessionBackup] = await Promise.all([
@@ -56,34 +60,37 @@ export async function initializePWAAuth(): Promise<void> {
       initClerkForPWA() // Initialize Clerk in parallel
     ]);
 
-    console.log('[Auth] Device ID:', deviceId.substring(0, 8) + '...');
+    // Cache device ID for later use in session listener
+    cachedDeviceId = deviceId;
 
-    if (sessionBackup && isSessionValid(sessionBackup)) {
-      console.log('[Auth] Valid session backup found');
+    if (isDev) console.log('[Auth] Device ID:', deviceId.substring(0, 8) + '...');
+
+    if (sessionBackup && await isSessionValid(sessionBackup)) {
+      if (isDev) console.log('[Auth] Valid session backup found');
 
       if (sessionBackup.deviceId === deviceId) {
-        console.log('[Auth] Device ID matches, attempting silent restore');
+        if (isDev) console.log('[Auth] Device ID matches, attempting silent restore');
 
         const Clerk = await waitForClerk();
 
         if (Clerk && sessionBackup.sessionId) {
           try {
             await Clerk.setSession(sessionBackup.sessionId);
-            console.log('[Auth] Session restored successfully, redirecting...');
+            if (isDev) console.log('[Auth] Session restored successfully, redirecting...');
 
             const urlParams = new URLSearchParams(window.location.search);
             const redirectUrl = urlParams.get('redirect_url') || '/';
             window.location.href = redirectUrl;
             return;
           } catch (error) {
-            console.log('[Auth] Silent restore failed, continuing to sign-in:', error);
+            if (isDev) console.log('[Auth] Silent restore failed, continuing to sign-in:', error);
           }
         }
       } else {
-        console.log('[Auth] Device ID mismatch - session from different device');
+        if (isDev) console.log('[Auth] Device ID mismatch - session from different device');
       }
     } else {
-      console.log('[Auth] No valid session backup found');
+      if (isDev) console.log('[Auth] No valid session backup found');
     }
   } catch (error) {
     console.error('[Auth] PWA auth initialization failed:', error);
@@ -95,14 +102,16 @@ export async function initializePWAAuth(): Promise<void> {
  */
 export async function initializePWAForSignUp(): Promise<void> {
   try {
-    console.log('[Auth] Initializing device fingerprinting for sign-up...');
+    if (isDev) console.log('[Auth] Initializing device fingerprinting for sign-up...');
 
     const deviceId = await getOrCreateDeviceId();
-    console.log('[Auth] Device ID created:', deviceId.substring(0, 8) + '...');
+    // Cache device ID for later use in session listener
+    cachedDeviceId = deviceId;
+    if (isDev) console.log('[Auth] Device ID created:', deviceId.substring(0, 8) + '...');
 
     await initClerkForPWA();
 
-    console.log('[Auth] PWA initialization complete');
+    if (isDev) console.log('[Auth] PWA initialization complete');
   } catch (error) {
     console.error('[Auth] PWA initialization failed:', error);
   }
@@ -120,10 +129,11 @@ export function setupClerkSessionBackupListener(): void {
     window.Clerk.addListener(async (session) => {
       if (!session?.id || !session?.userId) return;
 
-      console.log('[Auth] User signed in, backing up session...');
+      if (isDev) console.log('[Auth] User signed in, backing up session...');
 
       try {
-        const deviceId = await getOrCreateDeviceId();
+        // Use cached device ID (instant) or fetch if not available
+        const deviceId = cachedDeviceId || await getOrCreateDeviceId();
 
         await backupClerkSession({
           sessionId: session.id,
@@ -135,7 +145,7 @@ export function setupClerkSessionBackupListener(): void {
           lastRefreshed: Date.now(),
         });
 
-        console.log('[Auth] Session backup complete');
+        if (isDev) console.log('[Auth] Session backup complete');
       } catch (error) {
         console.error('[Auth] Failed to backup session:', error);
       }
