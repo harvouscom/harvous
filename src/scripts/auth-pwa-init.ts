@@ -43,15 +43,20 @@ function waitForClerk(): Promise<typeof window.Clerk | null> {
 
 /**
  * Sign-in PWA auth: fingerprint, optional session restore + redirect, then initClerkForPWA.
+ * Optimized: runs operations in parallel to reduce initialization time.
  */
 export async function initializePWAAuth(): Promise<void> {
   try {
     console.log('[Auth] Initializing PWA auth...');
 
-    const deviceId = await getOrCreateDeviceId();
-    console.log('[Auth] Device ID:', deviceId.substring(0, 8) + '...');
+    // Run all operations in parallel for faster initialization
+    const [deviceId, sessionBackup] = await Promise.all([
+      getOrCreateDeviceId(),
+      restoreClerkSession(),
+      initClerkForPWA() // Initialize Clerk in parallel
+    ]);
 
-    const sessionBackup = await restoreClerkSession();
+    console.log('[Auth] Device ID:', deviceId.substring(0, 8) + '...');
 
     if (sessionBackup && isSessionValid(sessionBackup)) {
       console.log('[Auth] Valid session backup found');
@@ -80,8 +85,6 @@ export async function initializePWAAuth(): Promise<void> {
     } else {
       console.log('[Auth] No valid session backup found');
     }
-
-    await initClerkForPWA();
   } catch (error) {
     console.error('[Auth] PWA auth initialization failed:', error);
   }

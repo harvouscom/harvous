@@ -69,7 +69,7 @@ async function encryptSessionData(data: ClerkSessionBackup): Promise<string> {
       {
         name: 'PBKDF2',
         salt: encoder.encode('harvous-session-backup-v1'),
-        iterations: 100000,
+        iterations: 10000, // Reduced from 100000 for faster performance (still secure for ephemeral session data)
         hash: 'SHA-256',
       },
       keyMaterial,
@@ -132,7 +132,7 @@ async function decryptSessionData(encryptedData: string): Promise<ClerkSessionBa
       {
         name: 'PBKDF2',
         salt: encoder.encode('harvous-session-backup-v1'),
-        iterations: 100000,
+        iterations: 10000, // Reduced from 100000 for faster performance (still secure for ephemeral session data)
         hash: 'SHA-256',
       },
       keyMaterial,

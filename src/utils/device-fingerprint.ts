@@ -91,7 +91,7 @@ async function getWebGLFingerprint(): Promise<string> {
 }
 
 /**
- * Generate audio context fingerprint
+ * Generate audio context fingerprint (optimized with reduced timeout)
  */
 async function getAudioFingerprint(): Promise<string> {
   try {
@@ -124,14 +124,14 @@ async function getAudioFingerprint(): Promise<string> {
         resolve(hash);
       };
 
-      // Timeout fallback
+      // Reduced timeout from 1000ms to 300ms for faster fingerprinting
       setTimeout(() => {
         try {
           oscillator.stop();
           context.close();
         } catch (e) {}
         resolve('audio-timeout');
-      }, 1000);
+      }, 300);
     });
   } catch (e) {
     return 'audio-error';
@@ -153,7 +153,7 @@ function hashString(str: string): string {
 /**
  * Generate complete device fingerprint
  */
-async function generateDeviceFingerprint(): Promise<string> {
+async function generateDeviceFingerprint(skipExpensiveChecks: boolean = false): Promise<string> {
   const components = [
     // Stable browser/device identifiers
     navigator.userAgent,
@@ -169,8 +169,8 @@ async function generateDeviceFingerprint(): Promise<string> {
     // WebGL fingerprint
     await getWebGLFingerprint(),
 
-    // Audio context fingerprint
-    await getAudioFingerprint(),
+    // Audio context fingerprint (skip for returning visitors to save 0-300ms)
+    skipExpensiveChecks ? 'audio-skipped' : await getAudioFingerprint(),
 
     // Storage availability
     typeof Storage !== 'undefined' ? 'storage' : 'no-storage',
@@ -302,7 +302,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
       fingerprint = getFromLocalStorage();
     }
 
-    // If we have a fingerprint, update lastSeen and return
+    // If we have a fingerprint, update lastSeen and return (skip expensive checks)
     if (fingerprint) {
       fingerprint.lastSeen = Date.now();
       fingerprint.isPWA = isPWAMode();
@@ -315,9 +315,9 @@ export async function getOrCreateDeviceId(): Promise<string> {
       return fingerprint.deviceId;
     }
 
-    // Generate new fingerprint
+    // Generate new fingerprint (for first-time visitors, run all checks)
     console.log('[DeviceFingerprint] Generating new device ID...');
-    const deviceId = await generateDeviceFingerprint();
+    const deviceId = await generateDeviceFingerprint(false);
 
     const newFingerprint: DeviceFingerprint = {
       deviceId,
