@@ -4,17 +4,20 @@ export const prerender = false;
 // Static page (hybrid): redirect for already-authenticated users is handled client-side after Clerk loads
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
+import { getReferrerDisplayName } from "@/utils/referral-code";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
 // Referral attribution: store ref in cookie when user lands with ?ref=referralCode
 const ref = Astro.url.searchParams.get('ref');
+let referrerName: string | null = null;
 if (ref && ref.trim()) {
   Astro.cookies.set('harvous_referrer', ref.trim(), {
     path: '/',
     maxAge: 60 * 60 * 24 * 7, // 7 days
     sameSite: 'lax'
   });
+  referrerName = await getReferrerDisplayName(ref.trim());
 }
 ---
 
@@ -44,6 +47,10 @@ if (ref && ref.trim()) {
       <!-- Bottom Row (Mobile) / Right Column (Desktop): Sign Up Form -->
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
+
+        {referrerName && (
+          <p class="auth-page__referral-message">{referrerName} invited you to Harvous.</p>
+        )}
 
         <ClerkSignUp
             appearance={{
@@ -228,6 +235,16 @@ if (ref && ref.trim()) {
   .auth-page__hidden {
     opacity: 0 !important;
     visibility: hidden !important;
+  }
+
+  /* Referral message above Clerk form */
+  .auth-page__referral-message {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    text-align: center;
+    margin: 0 0 1rem 0;
   }
   /* Custom primary button styling */
   .primary-button,

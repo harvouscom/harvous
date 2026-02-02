@@ -58,3 +58,28 @@ export async function resolveRefToUserId(ref: string): Promise<string | null> {
     .get();
   return row?.userId ?? null;
 }
+
+/**
+ * Resolve ref (query param / cookie value) to referrer display name (firstName).
+ * Used on the sign-up page to show "{firstName} invited you to Harvous."
+ */
+export async function getReferrerDisplayName(ref: string): Promise<string | null> {
+  const trimmed = (ref ?? '').trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('user_')) {
+    const row = await db
+      .select({ firstName: UserMetadata.firstName })
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, trimmed))
+      .get();
+    return row?.firstName ?? null;
+  }
+
+  const row = await db
+    .select({ firstName: UserMetadata.firstName })
+    .from(UserMetadata)
+    .where(eq(UserMetadata.referralCode, trimmed))
+    .get();
+  return row?.firstName ?? null;
+}
