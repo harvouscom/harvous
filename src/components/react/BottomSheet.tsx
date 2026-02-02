@@ -24,6 +24,7 @@ import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 import AboutHarvousPanel from './AboutHarvousPanel';
 import NoteSharePanel from './NoteSharePanel';
 import PinEntryPanel from './PinEntryPanel';
+import LockPinPanel from './LockPinPanel';
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -46,7 +47,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -89,6 +90,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'aboutHarvous': 'Letter from the Founder',
     'noteShare': 'Share Note',
     'pinEntry': 'Lock Note',
+    'lockPin': 'Lock PIN',
   };
   return titleMap[drawerType] || 'Panel';
 };
@@ -291,6 +293,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       else if (panelName === 'manageBilling') openBottomSheet('manageBilling');
       else if (panelName === 'referral') openBottomSheet('referral');
       else if (panelName === 'aboutHarvous') openBottomSheet('aboutHarvous');
+      else if (panelName === 'lockPin') openBottomSheet('lockPin');
     };
     
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
@@ -793,6 +796,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 isEncrypted={pinEntryData.isEncrypted}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+
+          {/* Lock PIN Panel (profile) */}
+          {drawerType === 'lockPin' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <LockPinPanel
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
                 inBottomSheet={true}
               />
