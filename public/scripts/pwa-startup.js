@@ -48,15 +48,23 @@ function prefetchRoutes() {
 }
 
 /**
- * Warm up API endpoint
+ * Warm up API endpoints to reduce cold start latency
  */
 function warmUpAPI() {
-  // Simple health check - no retries, no complex logic
-  fetch('/api/health', {
-    method: 'GET',
-    credentials: 'include'
-  }).catch(() => {
-    // Silently fail - this is just a warmup
+  // Warm up critical API endpoints in parallel
+  const endpoints = [
+    '/api/health',           // Lightweight health check
+    '/api/threads/list',     // Thread list (common first load)
+    '/api/navigation/data',  // Navigation structure
+  ];
+
+  endpoints.forEach(endpoint => {
+    fetch(endpoint, {
+      method: 'GET',
+      credentials: 'include'
+    }).catch(() => {
+      // Silently fail - this is just a warmup
+    });
   });
 }
 
