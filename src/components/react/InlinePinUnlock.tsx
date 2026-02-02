@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import Icon from './Icon';
 import { decryptContent, decodeBlob, deriveKey } from '@/utils/note-encryption';
 import { setNoteUnlocked } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
@@ -119,11 +118,6 @@ export default function InlinePinUnlock({ noteId, encryptedContent }: InlinePinU
     >
       <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
       <div style={{ textAlign: 'center', marginTop: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-          <div style={{ width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="lock" size={24} style={{ color: 'var(--color-stone-grey)' }} />
-          </div>
-        </div>
         <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0 }}>
           Enter your PIN to view this note
         </p>

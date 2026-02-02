@@ -117,6 +117,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [pinEntrySheetHeight, setPinEntrySheetHeight] = useState<number | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
+  const sheetContentRef = useRef<HTMLDivElement | null>(null);
+  const pinSheetUpdateHeightRef = useRef<(() => void) | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
@@ -401,16 +403,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (!isPinSheet || !isVisible) {
         setPinEntrySheetHeight(null);
       }
+      pinSheetUpdateHeightRef.current = null;
       return;
     }
     const vv = window.visualViewport;
     const updateHeight = () => setPinEntrySheetHeight(vv.height);
+    pinSheetUpdateHeightRef.current = updateHeight;
     updateHeight();
     vv.addEventListener('resize', updateHeight);
     vv.addEventListener('scroll', updateHeight);
     return () => {
       vv.removeEventListener('resize', updateHeight);
       vv.removeEventListener('scroll', updateHeight);
+      pinSheetUpdateHeightRef.current = null;
       setPinEntrySheetHeight(null);
     };
   }, [isVisible, drawerType, isPinSheet]);
@@ -480,9 +485,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             }
         }
         onOpenAutoFocus={(e) => {
-          // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
           e.preventDefault();
-          requestAnimationFrame(() => sheetFocusRef.current?.focus());
+          if (isPinSheet) {
+            // Focus first PIN input so keyboard opens; resize sheet when keyboard appears.
+            const focusPinInput = () => {
+              const first = sheetContentRef.current?.querySelector<HTMLInputElement>('.pin-digit-input');
+              first?.focus();
+            };
+            requestAnimationFrame(() => {
+              focusPinInput();
+              pinSheetUpdateHeightRef.current?.();
+            });
+            setTimeout(focusPinInput, 150);
+            setTimeout(() => pinSheetUpdateHeightRef.current?.(), 300);
+            setTimeout(() => pinSheetUpdateHeightRef.current?.(), 600);
+          } else {
+            requestAnimationFrame(() => sheetFocusRef.current?.focus());
+          }
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={async (e) => {
@@ -511,13 +530,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           </SheetDescription>
         </SheetHeader>
 
-        {/* Focus anchor: keeps focus out of aria-hidden background */}
+        {/* Focus anchor: keeps focus out of aria-hidden background (used when not PIN sheet) */}
         <button ref={sheetFocusRef} type="button" className="sr-only">
           {getDrawerTitle(drawerType)}
         </button>
         
         {/* Content */}
-        <div className="bottom-sheet__inner h-full flex flex-col min-h-0">
+        <div
+          ref={sheetContentRef}
+          className="bottom-sheet__inner h-full flex flex-col min-h-0"
+          onFocusIn={(e) => {
+            if (isPinSheet && (e.target as HTMLElement).classList?.contains('pin-digit-input')) {
+              pinSheetUpdateHeightRef.current?.();
+              setTimeout(() => pinSheetUpdateHeightRef.current?.(), 300);
+              setTimeout(() => pinSheetUpdateHeightRef.current?.(), 600);
+            }
+          }}
+        >
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">

@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import SquareButton from './SquareButton';
-import Icon from './Icon';
 import { encryptContent, decryptContent, validatePin, deriveKey, decodeBlob } from '@/utils/note-encryption';
 import { setNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
@@ -379,11 +378,6 @@ export default function PinEntryPanel({
             >
               <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
               <div style={{ textAlign: 'center', marginTop: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                  <div style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name={step === 'unlock' ? 'lock' : 'unlock'} size={24} style={{ color: 'var(--color-stone-grey)' }} />
-                  </div>
-                </div>
                 <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0, fontStyle: 'normal' }}>{getSubtitle()}</p>
               </div>
 

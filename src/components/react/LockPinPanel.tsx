@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SquareButton from './SquareButton';
-import Icon from './Icon';
 import { validatePin, encryptContent, decryptContent } from '@/utils/note-encryption';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 import { toast } from '@/utils/toast';
@@ -349,11 +348,6 @@ export default function LockPinPanel({
             >
               <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
               <div style={{ textAlign: 'center', marginTop: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                  <div style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name="lock" size={24} style={{ color: 'var(--color-stone-grey)' }} />
-                  </div>
-                </div>
                 {subtitle && (
                   <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0, fontStyle: 'normal' }}>{subtitle}</p>
                 )}
