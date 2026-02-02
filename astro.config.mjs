@@ -95,7 +95,15 @@ export default defineConfig({
   integrations: [
     db(),
     clerk({
-      enableEnvSchema: true
+      enableEnvSchema: true,
+      localization: {
+        signUp: {
+          start: {
+            title: 'Sign Up for Harvous',
+            subtitle: 'Fill out the following to get started.'
+          }
+        }
+      }
     }),
     react(),
   ],
