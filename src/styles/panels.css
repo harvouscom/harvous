@@ -68,6 +68,7 @@
 .bottom-sheet-content .bottom-sheet__inner {
   box-sizing: border-box;
   padding: 4px 6px 16px;
+  min-height: 0; /* Allow shrinking when sheet height is set by JS (e.g. PIN panel + keyboard) */
 }
 
 /* Bottom-sheet panels should use tighter header gutters */

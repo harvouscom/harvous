@@ -113,6 +113,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock'; noteContent: string; isEncrypted: boolean } | null>(null);
+  const [pinEntrySheetHeight, setPinEntrySheetHeight] = useState<number | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
@@ -390,6 +391,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isOpen, openBottomSheet, isVisible]);
 
+  // When PIN panel is open on mobile, size sheet to visual viewport so keyboard doesn't get cut off
+  useEffect(() => {
+    if (!isVisible || drawerType !== 'pinEntry' || typeof window === 'undefined' || !window.visualViewport) {
+      if (drawerType !== 'pinEntry' || !isVisible) {
+        setPinEntrySheetHeight(null);
+      }
+      return;
+    }
+    const vv = window.visualViewport;
+    const updateHeight = () => setPinEntrySheetHeight(vv.height);
+    updateHeight();
+    vv.addEventListener('resize', updateHeight);
+    vv.addEventListener('scroll', updateHeight);
+    return () => {
+      vv.removeEventListener('resize', updateHeight);
+      vv.removeEventListener('scroll', updateHeight);
+      setPinEntrySheetHeight(null);
+    };
+  }, [isVisible, drawerType]);
+
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {
@@ -437,13 +458,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     >
       <SheetContent 
         side="bottom" 
-        className="h-[90vh] rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
-        style={{ 
-          padding: '0',
-          outline: 'none',
-          border: 'none',
-          borderWidth: '0'
-        }}
+        className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 ${drawerType === 'pinEntry' && pinEntrySheetHeight != null ? '' : 'h-[90vh]'}`}
+        style={drawerType === 'pinEntry' && pinEntrySheetHeight != null
+          ? {
+              padding: '0',
+              outline: 'none',
+              border: 'none',
+              borderWidth: '0',
+              height: `${pinEntrySheetHeight}px`,
+              maxHeight: `${pinEntrySheetHeight}px`
+            }
+          : {
+              padding: '0',
+              outline: 'none',
+              border: 'none',
+              borderWidth: '0'
+            }
+        }
         onOpenAutoFocus={(e) => {
           // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
           e.preventDefault();
