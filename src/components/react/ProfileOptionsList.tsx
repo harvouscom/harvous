@@ -106,7 +106,7 @@ export default function ProfileOptionsList() {
 
       {/* Profile & Account Settings */}
       {renderOption('myChurch', 'My Church', true)}
-      {renderOption('referral', 'Refer Friends', true)}
+      {renderOption('referral', 'Refer My Friends', true)}
       {renderOption('editNameColor', 'Edit Name & Color', true)}
       {renderOption('emailPassword', 'Email & Password', true)}
 

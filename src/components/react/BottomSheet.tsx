@@ -84,7 +84,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'myData': 'My Data',
     'myAchievements': 'My Achievements',
     'manageBilling': 'Manage Billing',
-    'referral': 'Refer Friends',
+    'referral': 'Refer My Friends',
     'inboxPreview': 'Inbox Preview',
     'aboutHarvous': 'Letter from the Founder',
     'noteShare': 'Share Note',

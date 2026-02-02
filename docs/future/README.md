@@ -1,12 +1,22 @@
 # Future Features Documentation
 
-This folder contains documentation for features planned for post-V1 release. These are designed and ready to implement when you're ready to build them.
+This folder contains documentation for features planned for post-V1 release. Some have been implemented and moved to the main docs; the rest are designed and ready to implement when you're ready to build them.
 
 ## 📋 Overview
 
-All features documented here are **deferred to v1.1+** (post-V1 launch). The architecture is designed and ready, but implementation can wait until after V1 is complete.
+- **Implemented features:** Listed below; full docs live in the main [docs/](../) folder.
+- **Planned features:** Deferred to v1.1+ (post-V1 launch). Architecture is designed and ready.
 
-## 📁 Documentation Structure
+## ✅ Implemented (moved to main docs)
+
+These were designed here and are now live. The stub files in this folder point to the canonical docs.
+
+- **Referral Bonus** – [REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md) → [../REFERRAL_BONUS_IMPLEMENTATION.md](../REFERRAL_BONUS_IMPLEMENTATION.md)  
+  User-facing summary: [../FEATURES.md#💳 Billing & Referrals](../FEATURES.md#-billing--referrals--implemented)
+- **Locked Notes & Encryption** – [LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md) → [../LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md)  
+  Encryption: AES-GCM 256-bit, PBKDF2-SHA256 310k iterations (see main doc for full transparency). User-facing summary: [../FEATURES.md#🔒 Locked Notes & Encryption](../FEATURES.md#-locked-notes--encryption--implemented)
+
+## 📁 Documentation Structure (planned / not yet implemented)
 
 ### Mobile Apps
 
@@ -165,5 +175,5 @@ See `CLERK_MONETIZATION_ARCHITECTURE.md` for complete database schemas.
 
 ---
 
-**Status**: All features documented and ready for implementation post-V1 🚀
+**Status**: Some features implemented (see above); rest documented and ready for implementation post-V1 🚀
 
