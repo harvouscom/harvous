@@ -116,6 +116,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [pinEntrySheetHeight, setPinEntrySheetHeight] = useState<number | null>(null);
+  const [pinEntrySheetTop, setPinEntrySheetTop] = useState<number | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
   const pinSheetUpdateHeightRef = useRef<(() => void) | null>(null);
@@ -396,27 +397,39 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isOpen, openBottomSheet, isVisible]);
 
-  // When PIN panel (note or profile Lock PIN) is open on mobile, size sheet to visual viewport so keyboard doesn't overlap input
+  // When PIN panel (note or profile Lock PIN) is open on mobile, position sheet in visual viewport so it stays above the keyboard
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
   useEffect(() => {
     if (!isVisible || !isPinSheet || typeof window === 'undefined' || !window.visualViewport) {
       if (!isPinSheet || !isVisible) {
         setPinEntrySheetHeight(null);
+        setPinEntrySheetTop(null);
       }
       pinSheetUpdateHeightRef.current = null;
       return;
     }
     const vv = window.visualViewport;
-    const updateHeight = () => setPinEntrySheetHeight(vv.height);
-    pinSheetUpdateHeightRef.current = updateHeight;
-    updateHeight();
-    vv.addEventListener('resize', updateHeight);
-    vv.addEventListener('scroll', updateHeight);
+    const updateViewport = () => {
+      // Only position sheet in visual viewport when keyboard is open (viewport noticeably smaller)
+      const keyboardLikelyOpen = vv.height < window.innerHeight * 0.85;
+      if (keyboardLikelyOpen) {
+        setPinEntrySheetTop(vv.offsetTop);
+        setPinEntrySheetHeight(vv.height);
+      } else {
+        setPinEntrySheetTop(null);
+        setPinEntrySheetHeight(null);
+      }
+    };
+    pinSheetUpdateHeightRef.current = updateViewport;
+    updateViewport();
+    vv.addEventListener('resize', updateViewport);
+    vv.addEventListener('scroll', updateViewport);
     return () => {
-      vv.removeEventListener('resize', updateHeight);
-      vv.removeEventListener('scroll', updateHeight);
+      vv.removeEventListener('resize', updateViewport);
+      vv.removeEventListener('scroll', updateViewport);
       pinSheetUpdateHeightRef.current = null;
       setPinEntrySheetHeight(null);
+      setPinEntrySheetTop(null);
     };
   }, [isVisible, drawerType, isPinSheet]);
 
@@ -468,12 +481,16 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       <SheetContent 
         side="bottom" 
         className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 ${(drawerType === 'pinEntry' || drawerType === 'lockPin') && pinEntrySheetHeight != null ? '' : 'h-[90vh]'}`}
-        style={(drawerType === 'pinEntry' || drawerType === 'lockPin') && pinEntrySheetHeight != null
+        style={(drawerType === 'pinEntry' || drawerType === 'lockPin') && pinEntrySheetHeight != null && pinEntrySheetTop != null
           ? {
               padding: '0',
               outline: 'none',
               border: 'none',
               borderWidth: '0',
+              top: `${pinEntrySheetTop}px`,
+              bottom: 'auto',
+              left: 0,
+              right: 0,
               height: `${pinEntrySheetHeight}px`,
               maxHeight: `${pinEntrySheetHeight}px`
             }
