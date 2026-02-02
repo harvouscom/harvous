@@ -16,7 +16,7 @@ export default defineConfig({
   },
   prefetch: {
     defaultStrategy: 'tap',  // Prefetch on tap/click start, not hover
-    prefetchAll: true        // Apply to all internal links; SSR cache (Phase 1) reduces duplicate hits
+    prefetchAll: false       // Disabled to reduce Netlify function invocations
   },
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
