@@ -55,7 +55,7 @@ export async function initializePWAAuth(): Promise<void> {
 
     // Run all operations in parallel for faster initialization
     const [deviceId, sessionBackup] = await Promise.all([
-      getOrCreateDeviceId(),
+      getOrCreateDeviceId(true),  // Skip audio for faster sign-in
       restoreClerkSession(),
       initClerkForPWA() // Initialize Clerk in parallel
     ]);

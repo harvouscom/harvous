@@ -8,6 +8,8 @@
  * Privacy: Device ID is app-specific, not cross-site tracking
  */
 
+import { getDBConnection, type DBConfig } from './indexeddb-pool';
+
 export interface DeviceFingerprint {
   deviceId: string;
   createdAt: number;
@@ -25,6 +27,16 @@ const DB_NAME = 'harvous-device-auth';
 const DB_VERSION = 1;
 const FINGERPRINT_STORE = 'deviceFingerprint';
 const isDev = import.meta.env.DEV;
+
+const DB_CONFIG: DBConfig = {
+  name: DB_NAME,
+  version: DB_VERSION,
+  onUpgrade: (db: IDBDatabase) => {
+    if (!db.objectStoreNames.contains(FINGERPRINT_STORE)) {
+      db.createObjectStore(FINGERPRINT_STORE, { keyPath: 'id' });
+    }
+  }
+};
 
 /**
  * Detect if app is running in PWA mode
@@ -154,12 +166,12 @@ function hashString(str: string): string {
 /**
  * Generate complete device fingerprint (optimized: runs async fingerprints in parallel)
  */
-async function generateDeviceFingerprint(skipExpensiveChecks: boolean = false): Promise<string> {
+async function generateDeviceFingerprint(skipAudio: boolean = false): Promise<string> {
   // Run async fingerprints in parallel for faster generation (15-50ms improvement)
   const [canvasFingerprint, webglFingerprint, audioFingerprint] = await Promise.all([
     getCanvasFingerprint(),
     getWebGLFingerprint(),
-    skipExpensiveChecks ? Promise.resolve('audio-skipped') : getAudioFingerprint()
+    skipAudio ? Promise.resolve('audio-skipped') : getAudioFingerprint()
   ]);
 
   const components = [
@@ -207,24 +219,10 @@ async function generateDeviceFingerprint(skipExpensiveChecks: boolean = false): 
 }
 
 /**
- * Open IndexedDB connection
+ * Open IndexedDB connection (uses connection pool)
  */
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-
-      // Create object stores
-      if (!db.objectStoreNames.contains(FINGERPRINT_STORE)) {
-        db.createObjectStore(FINGERPRINT_STORE, { keyPath: 'id' });
-      }
-    };
-  });
+  return getDBConnection(DB_CONFIG);
 }
 
 /**
@@ -241,8 +239,6 @@ async function storeInIndexedDB(fingerprint: DeviceFingerprint): Promise<void> {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-
-    db.close();
   } catch (error) {
     console.warn('[DeviceFingerprint] Failed to store in IndexedDB:', error);
   }
@@ -263,7 +259,6 @@ async function getFromIndexedDB(): Promise<DeviceFingerprint | null> {
       request.onerror = () => reject(request.error);
     });
 
-    db.close();
     return fingerprint;
   } catch (error) {
     console.warn('[DeviceFingerprint] Failed to retrieve from IndexedDB:', error);
@@ -300,7 +295,7 @@ function getFromLocalStorage(): DeviceFingerprint | null {
  * Get or create device fingerprint
  * Returns existing fingerprint if available, otherwise generates new one
  */
-export async function getOrCreateDeviceId(): Promise<string> {
+export async function getOrCreateDeviceId(skipAudio: boolean = false): Promise<string> {
   try {
     // Try IndexedDB first (most reliable)
     let fingerprint = await getFromIndexedDB();
@@ -325,7 +320,7 @@ export async function getOrCreateDeviceId(): Promise<string> {
 
     // Generate new fingerprint (for first-time visitors, run all checks)
     if (isDev) console.log('[DeviceFingerprint] Generating new device ID...');
-    const deviceId = await generateDeviceFingerprint(false);
+    const deviceId = await generateDeviceFingerprint(skipAudio);
 
     const newFingerprint: DeviceFingerprint = {
       deviceId,
@@ -387,8 +382,6 @@ export async function clearDeviceFingerprint(): Promise<void> {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-
-    db.close();
 
     // Clear localStorage
     localStorage.removeItem(STORAGE_KEY);
