@@ -1313,7 +1313,7 @@ export default function CardFullEditable({
             style={{
               marginTop: 'auto',
               flexShrink: 0,
-              paddingTop: '12px'
+              paddingBottom: '12px'
             }}
           >
             {footer}
@@ -1323,7 +1323,7 @@ export default function CardFullEditable({
             style={{
               marginTop: 'auto',
               flexShrink: 0,
-              paddingTop: '12px'
+              paddingBottom: '12px'
             }}
           >
             <SharedNoteCTAFooter
