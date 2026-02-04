@@ -1271,6 +1271,40 @@ button .menu-item__label {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Enhanced semantic menu styles */
+.menu {
+  background-color: var(--color-white);
+  border-radius: 24px;
+  overflow: hidden;
+  min-width: 223px;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 16px 20px;
+  cursor: pointer;
+  background-color: transparent;
+  width: 100%;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-deep-grey);
+  transition: background-color 0.2s ease;
+}
+
+.menu-item:hover {
+  background-color: oklch(var(--lch-snow-white) / 0.5);
+}
+
+.menu-separator {
+  height: 1px;
+  background-color: var(--color-soft-gray);
+  margin: 0;
+  border: none;
+}
+
 /* Space button text - navigation buttons */
 .space-btn__text {
   font-family: "Reddit Sans", var(--font-sans), system-ui, sans-serif !important;
