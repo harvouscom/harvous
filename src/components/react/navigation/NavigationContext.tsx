@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo, useCall
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
-import { getSelectedSpaceId } from './selectedSpace';
+import { getSelectedSpaceId, setSelectedSpaceId } from './selectedSpace';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -1899,6 +1899,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (spaceId) {
         // Remove the space from navigation history only; Menu already navigates to /
         removeFromNavigationHistory(spaceId, { navigateIfActive: false });
+        // Clear selected space so desktop nav shows "My Home" after redirect
+        if (getSelectedSpaceId() === spaceId) {
+          setSelectedSpaceId(null);
+        }
       }
     };
 
