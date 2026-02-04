@@ -169,19 +169,17 @@ export default function Menu({
   // Keyboard navigation: Escape to close menu
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen && !showConfirmDialog) {
+      if (e.key === 'Escape' && !showConfirmDialog) {
         closeMenu();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown);
-    }
+    document.addEventListener('keydown', handleKeyDown);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, showConfirmDialog]);
+  }, [showConfirmDialog]);
 
   // Keyboard navigation: Escape to close confirmation dialog
   useEffect(() => {
@@ -203,10 +201,10 @@ export default function Menu({
 
   // Focus management: Focus first menu item when menu opens
   useEffect(() => {
-    if (isOpen && isMounted && firstItemRef.current) {
+    if (isMounted && firstItemRef.current) {
       firstItemRef.current.focus();
     }
-  }, [isOpen, isMounted]);
+  }, [isMounted]);
 
   // Close the parent menu container
   const closeMenu = () => {
