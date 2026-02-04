@@ -34,6 +34,7 @@ import {
 
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import SuggestedThreadDialog from './dialogs/SuggestedThreadDialog';
+import NoteTemplatePicker from './note-panel/NoteTemplatePicker';
 
 interface NewNotePanelProps {
   currentThread?: any;
@@ -59,6 +60,15 @@ export default function NewNotePanel({
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Show template picker on mount if no draft content exists and note type is default
+  useEffect(() => {
+    if (isMounted && !form.title && !form.content && form.noteType === 'default' && !initialNoteType) {
+      setShowTemplatePicker(true);
+    } else {
+      setShowTemplatePicker(false);
+    }
+  }, [isMounted, form.title, form.content, form.noteType, initialNoteType]);
 
   // Call onPanelReady when panel is mounted and form is ready
   useEffect(() => {
@@ -99,6 +109,9 @@ export default function NewNotePanel({
   const [isLimitReached, setIsLimitReached] = useState(false);
   const [currentCount, setCurrentCount] = useState(0);
   const [limit, setLimit] = useState(1000);
+
+  // Template picker state
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -291,15 +304,15 @@ export default function NewNotePanel({
   // Handle editor ready callback - focus the editor when it's initialized
   const handleEditorReady = (editor: any) => {
     if (!editor) return;
-    
+
     editorRef.current = editor;
     setTimeout(() => {
       // Check if editor is still valid (not destroyed)
       if (!editor || editor.isDestroyed) return;
-      
+
       // Check if view and docView are still valid
       if (!editor.view || !editor.view.docView) return;
-      
+
       try {
         editor.commands.focus();
         try {
@@ -311,6 +324,17 @@ export default function NewNotePanel({
         // Ignore errors during focus
       }
     }, 50);
+  };
+
+  // Template picker handlers
+  const handleSelectTemplate = (templateId: string) => {
+    form.setSelectedTemplateId(templateId);
+    setShowTemplatePicker(false);
+  };
+
+  const handleStartBlank = () => {
+    form.setSelectedTemplateId(null);
+    setShowTemplatePicker(false);
   };
 
   // Initialize data
@@ -1075,18 +1099,32 @@ export default function NewNotePanel({
   return (
     <>
       <NewNotePanelStyles />
-      <form 
-        onSubmit={handleFormSubmit}
-        className="new-note-panel h-full flex flex-col w-full"
-        style={{ 
+      {showTemplatePicker ? (
+        <div className="new-note-panel h-full flex flex-col w-full" style={{
           height: '100%',
           maxHeight: '100%',
           minHeight: 0,
           width: '100%'
-        }}
-      >
-        {/* Thread Selection */}
-        <div className="mb-3.5 shrink-0">
+        }}>
+          <NoteTemplatePicker
+            onSelectTemplate={handleSelectTemplate}
+            onStartBlank={handleStartBlank}
+            onClose={inBottomSheet ? undefined : onClose}
+          />
+        </div>
+      ) : (
+        <form
+          onSubmit={handleFormSubmit}
+          className="new-note-panel h-full flex flex-col w-full"
+          style={{
+            height: '100%',
+            maxHeight: '100%',
+            minHeight: 0,
+            width: '100%'
+          }}
+        >
+          {/* Thread Selection */}
+          <div className="mb-3.5 shrink-0">
           <div className="new-note-panel__thread-combobox">
             <ThreadCombobox
               selectedThread={threadSelection.selectedThread}
@@ -1217,18 +1255,19 @@ export default function NewNotePanel({
           )}
         </div>
 
-        {/* Bottom buttons */}
-        <NoteFormFooter
-          isSubmitting={submission.isSubmitting}
-          onClose={handleClose}
-          noteType={form.noteType}
-          duplicateInfo={duplicateInfo}
-          isLimitReached={isLimitReached}
-          currentCount={currentCount}
-          limit={limit}
-          showCloseButton={!inBottomSheet}
-        />
-      </form>
+          {/* Bottom buttons */}
+          <NoteFormFooter
+            isSubmitting={submission.isSubmitting}
+            onClose={handleClose}
+            noteType={form.noteType}
+            duplicateInfo={duplicateInfo}
+            isLimitReached={isLimitReached}
+            currentCount={currentCount}
+            limit={limit}
+            showCloseButton={!inBottomSheet}
+          />
+        </form>
+      )}
 
       {/* Unsaved Changes Dialog */}
       <UnsavedChangesDialog

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { getTemplateById } from '@/data/note-templates';
 
 export type NoteType = 'default' | 'scripture' | 'resource';
 
@@ -31,7 +32,9 @@ interface NewNotePanelContextType {
   sourceSelectionTo: number | null;
   addToSpace: boolean;
   setAddToSpace: (add: boolean) => void;
-  
+  selectedTemplateId: string | null;
+  setSelectedTemplateId: (id: string | null) => void;
+
   // Refs
   isLoadingFromLocalStorage: React.MutableRefObject<boolean>;
   
@@ -59,7 +62,8 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [sourceSelectionFrom, setSourceSelectionFrom] = useState<number | null>(null);
   const [sourceSelectionTo, setSourceSelectionTo] = useState<number | null>(null);
   const [addToSpace, setAddToSpace] = useState(false);
-  
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+
   // Track if we're loading from localStorage to prevent auto-detection toast on mount
   const isLoadingFromLocalStorage = useRef(false);
   
@@ -79,7 +83,8 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
     const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
     const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
-    
+    const savedTemplateId = localStorage.getItem('newNoteTemplateId') || '';
+
     // Mark that we're loading from localStorage to prevent auto-detection toast
     isLoadingFromLocalStorage.current = true;
     
@@ -97,7 +102,12 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (savedSourceSelectionTo) {
       setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
     }
-    
+
+    // Load template selection if available
+    if (savedTemplateId) {
+      setSelectedTemplateId(savedTemplateId);
+    }
+
     // Set note type if detected from selection
     // IMPORTANT: Set noteType FIRST to prevent auto-detection from running
     if (savedNoteType === 'scripture') {
@@ -229,6 +239,29 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
       localStorage.setItem('newNoteResourceUrl', resourceUrl);
     }
   }, [resourceUrl, noteType]);
+
+  // Apply template when selected
+  useEffect(() => {
+    if (selectedTemplateId) {
+      const template = getTemplateById(selectedTemplateId);
+      if (template) {
+        // Pre-fill form with template data
+        setTitle(template.titleTemplate || '');
+        setContent(template.content);
+        setNoteType(template.noteType);
+      }
+    }
+  }, [selectedTemplateId]);
+
+  // Save template selection to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (selectedTemplateId) {
+      localStorage.setItem('newNoteTemplateId', selectedTemplateId);
+    } else {
+      localStorage.removeItem('newNoteTemplateId');
+    }
+  }, [selectedTemplateId]);
   
   // Check if there are unsaved changes
   const hasUnsavedChanges = useCallback((): boolean => {
@@ -267,6 +300,7 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     localStorage.removeItem('newNoteTitle');
     localStorage.removeItem('newNoteContent');
     localStorage.removeItem('newNoteResourceUrl');
+    localStorage.removeItem('newNoteTemplateId');
     // Don't clear newNoteThread - preserve thread selection for next time
   }, []);
   
@@ -291,7 +325,9 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     sourceSelectionTo,
     addToSpace,
     setAddToSpace,
-    
+    selectedTemplateId,
+    setSelectedTemplateId,
+
     // Refs
     isLoadingFromLocalStorage,
     
