@@ -30,7 +30,9 @@ export interface UseNewNoteFormReturn {
   sourceSelectionTo: number | null;
   addToSpace: boolean;
   setAddToSpace: (add: boolean) => void;
-  
+  selectedTemplateId: string | null;
+  setSelectedTemplateId: (id: string | null) => void;
+
   // Refs
   isLoadingFromLocalStorage: React.MutableRefObject<boolean>;
   
@@ -85,7 +87,9 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     sourceSelectionTo: context.sourceSelectionTo,
     addToSpace: context.addToSpace,
     setAddToSpace: context.setAddToSpace,
-    
+    selectedTemplateId: context.selectedTemplateId,
+    setSelectedTemplateId: context.setSelectedTemplateId,
+
     // Refs
     isLoadingFromLocalStorage: context.isLoadingFromLocalStorage,
     
