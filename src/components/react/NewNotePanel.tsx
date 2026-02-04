@@ -61,15 +61,6 @@ export default function NewNotePanel({
     setIsMounted(true);
   }, []);
 
-  // Show template picker on mount if no draft content exists and note type is default
-  useEffect(() => {
-    if (isMounted && !form.title && !form.content && form.noteType === 'default' && !initialNoteType) {
-      setShowTemplatePicker(true);
-    } else {
-      setShowTemplatePicker(false);
-    }
-  }, [isMounted, form.title, form.content, form.noteType, initialNoteType]);
-
   // Call onPanelReady when panel is mounted and form is ready
   useEffect(() => {
     if (isMounted && onPanelReady) {
@@ -121,6 +112,15 @@ export default function NewNotePanel({
     currentSpace,
     initialNoteType,
   });
+
+  // Show template picker on mount if no draft content exists and note type is default
+  useEffect(() => {
+    if (isMounted && !form.title && !form.content && form.noteType === 'default' && !initialNoteType) {
+      setShowTemplatePicker(true);
+    } else {
+      setShowTemplatePicker(false);
+    }
+  }, [isMounted, form.title, form.content, form.noteType, initialNoteType]);
 
   // Use extracted thread selection hook
   const threadSelection = useThreadSelection({
