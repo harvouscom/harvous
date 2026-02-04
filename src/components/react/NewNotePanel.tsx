@@ -42,6 +42,7 @@ interface NewNotePanelProps {
   initialNoteType?: 'default' | 'scripture' | 'resource';
   inBottomSheet?: boolean;
   registerSheetCloseHandler?: ((handler: (reason: 'dismiss' | 'escape' | 'button') => boolean | Promise<boolean>) => void) | null;
+  onPanelReady?: () => void;
 }
 
 export default function NewNotePanel({
@@ -51,12 +52,20 @@ export default function NewNotePanel({
   initialNoteType,
   inBottomSheet = false,
   registerSheetCloseHandler = null,
+  onPanelReady,
 }: NewNotePanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Call onPanelReady when panel is mounted and form is ready
+  useEffect(() => {
+    if (isMounted && onPanelReady) {
+      onPanelReady();
+    }
+  }, [isMounted, onPanelReady]);
 
   // Get userId for offline operations (works online and offline)
   const userId = usePersistedUserId();

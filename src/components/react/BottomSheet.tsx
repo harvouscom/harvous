@@ -144,21 +144,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     setIsVisible(true);
     // Increment panelKey to force remount and re-read localStorage
     setPanelKey(prev => prev + 1);
-    
-    // Initialize form handlers for the specific panel type
-    if (type === 'thread') {
-      setTimeout(() => {
-        if (typeof window.initThreadCreation === 'function') {
-          window.initThreadCreation();
-        }
-      }, 100);
-    } else if (type === 'note' || type === 'resource') {
-      setTimeout(() => {
-        if (typeof window.setupCreateNoteButton === 'function') {
-          window.setupCreateNoteButton();
-        }
-      }, 100);
-    }
   }, [isMobile]);
   
   // Check mobile on mount and resize
@@ -506,6 +491,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
                 }}
+                onPanelReady={() => {
+                  if (typeof window.setupCreateNoteButton === 'function') {
+                    window.setupCreateNoteButton();
+                  }
+                }}
               />
             </div>
           )}
@@ -520,6 +510,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 registerSheetCloseHandler={registerActiveCloseHandler}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+                }}
+                onPanelReady={() => {
+                  if (typeof window.initThreadCreation === 'function') {
+                    window.initThreadCreation();
+                  }
                 }}
               />
             </div>
@@ -537,6 +532,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 registerSheetCloseHandler={registerActiveCloseHandler}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
+                }}
+                onPanelReady={() => {
+                  if (typeof window.setupCreateNoteButton === 'function') {
+                    window.setupCreateNoteButton();
+                  }
                 }}
               />
             </div>

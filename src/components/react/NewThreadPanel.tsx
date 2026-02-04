@@ -48,6 +48,8 @@ interface NewThreadPanelProps {
   // Bottom sheet integration
   inBottomSheet?: boolean;
   registerSheetCloseHandler?: ((handler: (reason: 'dismiss' | 'escape' | 'button') => boolean | Promise<boolean>) => void) | null;
+  // Lifecycle callback
+  onPanelReady?: () => void;
 }
 
 export default function NewThreadPanel({
@@ -62,12 +64,20 @@ export default function NewThreadPanel({
   useBackButton = false,
   inBottomSheet = false,
   registerSheetCloseHandler = null,
+  onPanelReady,
 }: NewThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Call onPanelReady when panel is mounted and form is ready
+  useEffect(() => {
+    if (isMounted && onPanelReady) {
+      onPanelReady();
+    }
+  }, [isMounted, onPanelReady]);
 
   const userId = usePersistedUserId();
   

@@ -154,6 +154,7 @@ export default function InfiniteScrollList<T>({
       if (errorTimeoutRef.current) {
         clearTimeout(errorTimeoutRef.current);
       }
+      // Auto-clear error message after 5 seconds for better UX
       errorTimeoutRef.current = setTimeout(() => {
         setError(null);
         errorTimeoutRef.current = null;
@@ -188,13 +189,11 @@ export default function InfiniteScrollList<T>({
     if (shouldTriggerLoad) {
       initialLoadAttemptedRef.current = true;
       lastLoadMoreTimeRef.current = Date.now();
-      const timer = setTimeout(() => {
-        const stillVisible = isElementVisible(containerRef.current);
-        if (hasMoreRef.current && !loadingRef.current && stillVisible) {
-          handleLoadMoreRef.current();
-        }
-      }, 100);
-      return () => clearTimeout(timer);
+      // Use visibility check without arbitrary timeout
+      const stillVisible = isElementVisible(containerRef.current);
+      if (hasMoreRef.current && !loadingRef.current && stillVisible) {
+        handleLoadMoreRef.current();
+      }
     }
   }, [hasMore, isLoading, items.length, limit, minimumExpectedCount, handleLoadMore, isElementVisible]);
 
@@ -247,12 +246,12 @@ export default function InfiniteScrollList<T>({
         const needsMoreItems = items.length < expectedCount;
         
         if (needsMoreItems) {
-          // Small delay to ensure DOM is ready
-          setTimeout(() => {
+          // Use requestAnimationFrame to ensure DOM has updated
+          requestAnimationFrame(() => {
             if (hasMore && !isLoading && !loadingRef.current && isElementVisible(containerRef.current)) {
               handleLoadMore();
             }
-          }, 150);
+          });
         }
       }
     };
@@ -262,8 +261,8 @@ export default function InfiniteScrollList<T>({
 
     // Listen for tab change events (from tab-manager.js) - event bubbles to document
     const handleTabChange = (event: Event) => {
-      // Small delay to let DOM update
-      setTimeout(checkVisibilityAndLoad, 50);
+      // Use requestAnimationFrame to let DOM update
+      requestAnimationFrame(checkVisibilityAndLoad);
     };
 
     // Listen for custom tab change events on document (since they bubble)
@@ -278,7 +277,8 @@ export default function InfiniteScrollList<T>({
           mutation.type === 'attributes' && mutation.attributeName === 'class'
         );
         if (hadVisibilityChange) {
-          setTimeout(checkVisibilityAndLoad, 50);
+          // Use requestAnimationFrame to let DOM update
+          requestAnimationFrame(checkVisibilityAndLoad);
         }
       });
       

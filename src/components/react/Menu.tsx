@@ -1,10 +1,10 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
-import { isNetworkError } from '@/utils/network';
+import { safeFetch } from '@/utils/safe-fetch';
 
 export interface MenuOption {
   action: string;
@@ -142,6 +142,7 @@ export default function Menu({
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isExiting, setIsExiting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const firstItemRef = useRef<HTMLButtonElement>(null);
 
   // Mount animation with delay to ensure DOM ready
   useEffect(() => {
@@ -158,12 +159,54 @@ export default function Menu({
     } else {
       document.body.style.overflow = '';
     }
-    
+
     // Cleanup on unmount
     return () => {
       document.body.style.overflow = '';
     };
   }, [showConfirmDialog]);
+
+  // Keyboard navigation: Escape to close menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !showConfirmDialog) {
+        closeMenu();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, showConfirmDialog]);
+
+  // Keyboard navigation: Escape to close confirmation dialog
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showConfirmDialog) {
+        setShowConfirmDialog(false);
+        setPendingAction(null);
+      }
+    };
+
+    if (showConfirmDialog) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showConfirmDialog]);
+
+  // Focus management: Focus first menu item when menu opens
+  useEffect(() => {
+    if (isOpen && isMounted && firstItemRef.current) {
+      firstItemRef.current.focus();
+    }
+  }, [isOpen, isMounted]);
 
   // Close the parent menu container
   const closeMenu = () => {
@@ -357,70 +400,68 @@ export default function Menu({
       
       // Then try to push deletion to server
       let response: Response | null = null;
-      let networkError = false;
       let data: any = null;
-      
-      try {
-        response = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        
-        if (response) {
-          data = await response.json();
-        }
-      } catch (error) {
-        // Network error occurred
-        networkError = isNetworkError(error);
-        
-        if (networkError) {
-          // Network error but local deletion succeeded - proceed with navigation
-          console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
-          
-          // Dispatch deletion events for navigation updates
-          if (contentType === 'thread') {
-            window.dispatchEvent(new CustomEvent('threadDeleted', {
-              detail: { threadId: contentId }
-            }));
-          } else if (contentType === 'note') {
-            window.dispatchEvent(new CustomEvent('noteDeleted', {
-              detail: { 
-                noteId: contentId,
-                threadId: currentThreadId
-              }
-            }));
-          } else if (contentType === 'space') {
-            window.dispatchEvent(new CustomEvent('spaceDeleted', {
-              detail: { spaceId: contentId }
-            }));
-          }
-          
-          // Navigate based on content type
-          let redirectUrl: string;
-          if (contentType === 'note') {
-            const currentPath = window.location.pathname;
-            const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
-            if (threadPageMatch) {
-              const threadIdFromUrl = threadPageMatch[1];
-              redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
-            } else if (currentThreadId) {
-              redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
-            } else {
-              redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+
+      // Use safeFetch for automatic retries and timeout handling
+      response = await safeFetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        retries: 3,
+        timeout: 10000
+      });
+
+      // safeFetch returns null on network/auth failures
+      if (response === null) {
+        // Network error but local deletion succeeded - proceed with navigation
+        console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
+
+        // Dispatch deletion events for navigation updates
+        if (contentType === 'thread') {
+          window.dispatchEvent(new CustomEvent('threadDeleted', {
+            detail: { threadId: contentId }
+          }));
+        } else if (contentType === 'note') {
+          window.dispatchEvent(new CustomEvent('noteDeleted', {
+            detail: {
+              noteId: contentId,
+              threadId: currentThreadId
             }
+          }));
+        } else if (contentType === 'space') {
+          window.dispatchEvent(new CustomEvent('spaceDeleted', {
+            detail: { spaceId: contentId }
+          }));
+        }
+
+        // Navigate based on content type
+        let redirectUrl: string;
+        if (contentType === 'note') {
+          const currentPath = window.location.pathname;
+          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          if (threadPageMatch) {
+            const threadIdFromUrl = threadPageMatch[1];
+            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+          } else if (currentThreadId) {
+            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
           } else {
             redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
           }
-          
-          safeNavigate(redirectUrl, { history: 'replace' });
-          return;
         } else {
-          // Real error - rethrow
-          throw error;
+          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
         }
+
+        safeNavigate(redirectUrl, { history: 'replace' });
+        return;
+      }
+
+      // Parse response JSON if successful
+      try {
+        data = await response.json();
+      } catch (error) {
+        console.error('[Menu] Failed to parse response JSON', error);
       }
       
       if (response && response.ok) {
@@ -611,23 +652,27 @@ export default function Menu({
 
   return (
     <>
-      <div 
-        className={`menu bg-white rounded-3xl overflow-hidden ${isMounted && !isExiting ? 'menu-enter' : ''} ${isExiting ? 'menu-exit' : ''}`}
+      <div
+        role="menu"
+        aria-label="Options menu"
+        className={`menu ${isMounted && !isExiting ? 'menu--enter' : ''} ${isExiting ? 'menu--exit' : ''}`}
         style={!isMounted ? { opacity: 0, transform: 'translateY(-2px)' } : undefined}
       >
         {options.map((option, index) => (
           <Fragment key={index}>
             {index > 0 && (
-              <div className="menu-separator border-t" />
+              <div className="menu__separator" />
             )}
             <button
+              ref={index === 0 ? firstItemRef : null}
+              role="menuitem"
               onClick={() => handleAction(option.action, option.label)}
-              className="menu-item flex items-center gap-3 py-[18px] px-4 pb-5 transition-colors duration-150 cursor-pointer w-full text-left rounded-[3px]"
+              className="menu__item"
             >
-              <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
+              <span className="menu__item-icon">
                 {renderIcon(option.icon, option.action)}
-              </div>
-              <span className="menu-item__label">
+              </span>
+              <span>
                 {option.label}
               </span>
             </button>

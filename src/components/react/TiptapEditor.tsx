@@ -611,12 +611,13 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
     return; // All references are already being processed
   }
 
-  // Schedule cleanup after processing
+  // Clear pending pills after processing to prevent duplicates
+  // This 500ms delay ensures we don't recreate pills that are already being processed
   setTimeout(() => {
     newReferences.forEach(ref => {
       pendingPillCreations.delete(normalizeScriptureReference(ref.reference));
     });
-  }, 500); // Clear after 500ms to prevent rapid re-creation
+  }, 500);
 
   try {
     const view = editor.view;
@@ -681,7 +682,8 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
       state = view.state;
     }
     
-    // Position cursor and clear marks
+    // Brief delay for pill DOM to settle before cursor positioning
+    // This 10ms delay allows the DOM to update after pill insertion
     setTimeout(() => {
       if (!editor || editor.isDestroyed) return;
       
