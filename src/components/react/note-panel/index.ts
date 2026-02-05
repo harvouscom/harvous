@@ -16,6 +16,10 @@ export type { NoteFormFooterProps } from './NoteFormFooter';
 
 export { default as NewNotePanelStyles } from './NewNotePanelStyles';
 
+export { default as NoteTemplateHeader } from './NoteTemplateHeader';
+export { default as TemplateSelector } from './TemplateSelector';
+export { default as ThreadPickerHeader } from './ThreadPickerHeader';
+
 // Re-export hooks
 export * from './hooks';
 

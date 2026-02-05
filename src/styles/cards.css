@@ -857,14 +857,8 @@
   min-width: 1px;
   flex-shrink: 0;
   width: 100%;
-  
-  /* Add pseudo-element to ensure 12px bottom spacing is always visible when scrolling */
-  &::after {
-    content: '';
-    display: block;
-    height: 12px;
-    flex-shrink: 0;
-  }
+  display: flex;
+  flex-direction: column;
 }
 
 

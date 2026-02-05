@@ -67,7 +67,7 @@
 /* Compact, uniform gutters for all bottom sheets (matches mobile nav tightness) */
 .bottom-sheet-content .bottom-sheet__inner {
   box-sizing: border-box;
-  padding: 4px 6px 16px;
+  padding: 0 0 16px;
   min-height: 0; /* Allow shrinking when sheet height is set by JS (e.g. PIN panel + keyboard) */
 }
 
@@ -993,5 +993,154 @@
   .about-harvous-letter h1 {
     font-size: 24px;
   }
+}
+
+/* ==========================================================================
+   New Note Panel – CardStack layout
+   ========================================================================== */
+
+.new-note-panel__card-stack-wrapper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  gap: 12px;
+}
+
+/* Override card-stack height for new note panel so it shrinks for footer */
+.new-note-panel__card-stack-wrapper > .card-stack {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+
+.new-note-panel__card-stack-wrapper > .card-stack > .card-stack__container {
+  height: 100%;
+}
+
+/* Note template header (CardStack header with template name + dropdown trigger) */
+.card-stack__header.note-template-header,
+.card-stack__header[data-template-header] {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.card-stack__header.note-template-header::before,
+.card-stack__header[data-template-header]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-stack__header.note-template-header:hover::before,
+.card-stack__header[data-template-header]:hover::before {
+  opacity: 1;
+}
+
+.card-stack__header.note-template-header:active::before,
+.card-stack__header[data-template-header]:active::before {
+  opacity: 0.8;
+}
+
+.note-template-header__title-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.note-template-header__caret {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Template selector dropdown – button items use same panel styling as SpaceSwitcherDropdown */
+.template-selector-dropdown .space-switcher-dropdown__item {
+  border: none;
+  background: transparent;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Thread picker header (CardStack header with thread name + gradient + badge) */
+.card-stack__header.thread-picker-header,
+.card-stack__header[data-thread-picker-header] {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.card-stack__header.thread-picker-header::before,
+.card-stack__header[data-thread-picker-header]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.05), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-stack__header.thread-picker-header:hover::before,
+.card-stack__header[data-thread-picker-header]:hover::before {
+  opacity: 1;
+}
+
+.card-stack__header.thread-picker-header:active::before,
+.card-stack__header[data-thread-picker-header]:active::before {
+  opacity: 0.8;
+}
+
+.thread-picker-header__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  min-width: 0;
+}
+
+.thread-picker-header__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
+.thread-picker-header__right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.thread-picker-header__badge {
+  /* Uses .badge-count from navigation.css */
+}
+
+.thread-picker-header__caret {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 

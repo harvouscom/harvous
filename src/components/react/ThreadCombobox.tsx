@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import { formatBadgeCount } from '@/utils/badge-count';
@@ -23,6 +24,14 @@ interface ThreadComboboxProps {
   suggestedThreadName?: string | null;
   onCreateThread?: (threadName: string) => void;
   onSuggestedThreadNameChange?: (threadName: string) => void;
+  /** When true, hide the trigger button and render only the dropdown (controlled by parent). */
+  triggerless?: boolean;
+  /** Controlled open state when triggerless. */
+  isOpen?: boolean;
+  /** Called when dropdown should close (triggerless). */
+  onClose?: () => void;
+  /** Anchor rect for dropdown positioning when triggerless. */
+  anchorRect?: DOMRect | null;
 }
 
 const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
@@ -34,8 +43,19 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   suggestedThreadName,
   onCreateThread,
   onSuggestedThreadNameChange,
+  triggerless = false,
+  isOpen: externalIsOpen = false,
+  onClose: externalOnClose,
+  anchorRect: externalAnchorRect = null,
 }) => {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const open = triggerless ? externalIsOpen : internalOpen;
+  const setOpen = (value: boolean) => {
+    if (!triggerless) setInternalOpen(value);
+    if (triggerless && !value && externalOnClose) externalOnClose();
+  };
   const [searchValue, setSearchValue] = useState('');
   const [editedThreadName, setEditedThreadName] = useState(suggestedThreadName || '');
   const [createThreadName, setCreateThreadName] = useState('');
@@ -100,6 +120,33 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     return 'var(--color-gradient-gray)';
   };
 
+  // When triggerless, close on Escape and click outside
+  useEffect(() => {
+    if (!triggerless || !open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        externalOnClose?.();
+      }
+    };
+    const handlePointerDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      const el = target as unknown as HTMLElement;
+      if (el?.closest?.('.thread-picker-header')) return;
+      if (dropdownRef.current?.contains(target)) return;
+      externalOnClose?.();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [triggerless, open, externalOnClose]);
+
   // Handle create thread name keydown for auto-capitalize
   const handleCreateThreadNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Handle Enter key (existing behavior)
@@ -137,45 +184,27 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   };
 
-  return (
-    <div className="relative">
-      {/* Trigger Button */}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
-        style={{ 
-          backgroundImage: getButtonBackground(),
-          boxShadow: 'none'
-        }}
-      >
-        <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-          {/* Thread name */}
-          <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
-            {selectedThread}
-          </span>
-          
-          {/* Right side: badge count + suggestion label */}
-          <div className="flex items-center gap-2">
-            {/* Badge count - with original padding */}
-            <div className="p-[20px]">
-              <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
-                <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
-                  {formatBadgeCount(selectedThreadObj?.noteCount)}
-                </span>
-              </div>
-            </div>
-            
-          </div>
-        </div>
-      </button>
-
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl border max-h-[300px] overflow-hidden flex flex-col" style={{ 
-          backgroundColor: 'var(--color-snow-white)',
-          borderColor: 'var(--color-fog-white)'
-        }}>
+  const dropdownContent = open ? (
+    <div
+      ref={dropdownRef}
+      className="border max-h-[300px] overflow-hidden flex flex-col"
+      style={{
+        borderTopLeftRadius: '24px',
+        borderTopRightRadius: '24px',
+        position: triggerless && externalAnchorRect ? 'fixed' : 'absolute',
+        ...(triggerless && externalAnchorRect
+          ? {
+              position: 'fixed' as const,
+              top: Math.min(externalAnchorRect.bottom - 24, typeof window !== 'undefined' ? window.innerHeight - 16 : 9999),
+              left: Math.max(16, Math.min(externalAnchorRect.left, typeof window !== 'undefined' ? window.innerWidth - Math.max(260, externalAnchorRect.width) - 16 : externalAnchorRect.left)),
+              width: Math.max(260, externalAnchorRect.width),
+              zIndex: 1000000
+            }
+          : { position: 'absolute' as const, top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 50 }),
+        backgroundColor: 'var(--color-snow-white)',
+        borderColor: 'var(--color-fog-white)'
+      }}
+    >
           {/* Search Input */}
           <div className="p-4">
             <SearchInput
@@ -466,14 +495,49 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             )}
           </div>
         </div>
+  ) : null;
+
+  return (
+    <div className="relative">
+      {/* Trigger Button - only when not triggerless */}
+      {!triggerless && (
+        <button
+          type="button"
+          onClick={() => setInternalOpen(!internalOpen)}
+          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
+          style={{
+            backgroundImage: getButtonBackground(),
+            boxShadow: 'none'
+          }}
+        >
+          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+            <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+              {selectedThread}
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="p-[20px]">
+                <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                  <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
+                    {formatBadgeCount(selectedThreadObj?.noteCount)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </button>
       )}
 
-      {/* Backdrop */}
-      {open && (
-        <div 
-          className="fixed inset-0 z-40" 
+      {/* Dropdown - portal when triggerless, inline otherwise */}
+      {triggerless && open && typeof document !== 'undefined'
+        ? createPortal(dropdownContent, document.body)
+        : dropdownContent}
+
+      {/* Backdrop - only when not triggerless (triggerless uses global click handler) */}
+      {!triggerless && open && (
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => {
-            setOpen(false);
+            setInternalOpen(false);
             setSearchValue('');
           }}
         />

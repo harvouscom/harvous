@@ -1,49 +1,63 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { getBuiltInTemplates, getTemplateById } from '@/data/note-templates';
 import Icon from '@/components/react/Icon';
 import { captureEvent } from '@/utils/posthog';
 
-interface TemplateSelectorProps {
+export interface TemplateSelectorDropdownProps {
+  isOpen: boolean;
+  onClose: () => void;
+  anchorRect: DOMRect | null;
   selectedTemplateId: string | null;
   onSelectTemplate: (templateId: string | null) => void;
 }
 
+/**
+ * TemplateSelectorDropdown - Dropdown panel only (no trigger).
+ * Renders via portal to document.body. Styling matches SpaceSwitcherDropdown
+ * (space-switcher-dropdown__panel, space-switcher-dropdown__item) for consistency.
+ */
 export default function TemplateSelector({
+  isOpen,
+  onClose,
+  anchorRect,
   selectedTemplateId,
   onSelectTemplate
-}: TemplateSelectorProps) {
-  const [isOpen, setIsOpen] = useState(false);
+}: TemplateSelectorDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const templates = getBuiltInTemplates();
 
-  // Get selected template or default to blank
-  const selectedTemplate = selectedTemplateId
-    ? getTemplateById(selectedTemplateId)
-    : null;
-
-  const displayName = selectedTemplate?.name || 'Blank Note';
-
-  // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
       }
     };
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      const targetEl = target as unknown as HTMLElement;
+      if (targetEl?.closest?.('.note-template-header')) return;
+      if (dropdownRef.current && dropdownRef.current.contains(target)) return;
+      onClose();
     };
-  }, [isOpen]);
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('mousedown', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('mousedown', handlePointerDown);
+      window.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [isOpen, onClose]);
 
   const handleSelectTemplate = (templateId: string) => {
     const template = getTemplateById(templateId);
-
-    // Track template selection
     captureEvent('note_template_selected', {
       template_id: templateId,
       template_name: template?.name,
@@ -51,120 +65,76 @@ export default function TemplateSelector({
       level: template?.level,
       note_type: template?.noteType
     });
-
     onSelectTemplate(templateId);
-    setIsOpen(false);
+    onClose();
   };
 
   const handleSelectBlank = () => {
-    // Track when user chooses blank note
-    captureEvent('note_template_blank_selected', {
-      from_dropdown: true
-    });
-
+    captureEvent('note_template_blank_selected', { from_dropdown: true });
     onSelectTemplate(null);
-    setIsOpen(false);
+    onClose();
   };
 
-  return (
-    <div className="relative mb-3" ref={dropdownRef}>
-      {/* Trigger Button - matches SpaceSelector styling */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
-        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-        type="button"
-      >
-        <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
-          <span
-            className="font-sans text-[18px] font-semibold whitespace-nowrap"
-            style={{ color: 'var(--color-deep-grey)' }}
-          >
-            {displayName}
-          </span>
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
-            <Icon
-              name={isOpen ? 'caret-up' : 'caret-down'}
-              size={16}
-              style={{ color: 'var(--color-deep-grey)' }}
-            />
-          </div>
-        </div>
-      </button>
+  if (!isOpen || typeof document === 'undefined' || !anchorRect) {
+    return null;
+  }
 
-      {/* Backdrop (click outside to close) */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+  const width = Math.max(260, anchorRect.width);
+  const top = Math.min(anchorRect.bottom + 8, window.innerHeight - 16);
+  const left = Math.max(16, Math.min(anchorRect.left, window.innerWidth - width - 16));
 
-      {/* Dropdown Panel - matches ThreadCombobox styling */}
-      {isOpen && (
-        <div
-          className="absolute top-full left-0 right-0 mt-2 z-50 rounded-2xl border max-h-[300px] overflow-hidden flex flex-col"
-          style={{
-            backgroundColor: 'var(--color-snow-white)',
-            borderColor: 'var(--color-fog-white)'
-          }}
+  return createPortal(
+    <div
+      ref={dropdownRef}
+      className="space-switcher-dropdown template-selector-dropdown"
+      style={{
+        position: 'fixed',
+        top,
+        left,
+        width,
+        zIndex: 1000000
+      }}
+      role="dialog"
+      aria-label="Select note template"
+    >
+      <div className="space-switcher-dropdown__panel">
+        <button
+          type="button"
+          className={`space-switcher-dropdown__item ${selectedTemplateId === null ? 'is-active' : ''}`}
+          onClick={handleSelectBlank}
         >
-          {/* Blank Note option */}
-          <button
-            onClick={handleSelectBlank}
-            className="flex items-center justify-between w-full px-4 py-3 h-12 rounded-xl transition-colors"
-            style={{
-              backgroundColor: selectedTemplateId === null ? 'oklch(var(--lch-bold-blue) / 0.1)' : 'transparent',
-              color: selectedTemplateId === null ? 'var(--color-bold-blue)' : 'var(--color-deep-grey)'
-            }}
-            onMouseEnter={(e) => {
-              if (selectedTemplateId !== null) {
-                e.currentTarget.style.backgroundColor = 'oklch(var(--lch-snow-white) / 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (selectedTemplateId !== null) {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }
-            }}
-            type="button"
-          >
-            <span className="text-base font-medium">Blank Note</span>
-            {selectedTemplateId === null && (
-              <Icon name="check" size={16} style={{ color: 'var(--color-bold-blue)' }} />
-            )}
-          </button>
+          <span className="space-switcher-dropdown__label">Blank Note</span>
+          <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
+            {selectedTemplateId === null ? (
+              <span className="space-switcher-dropdown__check" aria-hidden="true">
+                <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+              </span>
+            ) : null}
+          </span>
+        </button>
 
-          {/* Template list - name only, no divider, no metadata */}
-          {templates.map((template) => (
+        {templates.map((template) => {
+          const isActive = selectedTemplateId === template.id;
+          return (
             <button
               key={template.id}
-              onClick={() => handleSelectTemplate(template.id)}
-              className="flex items-center justify-between w-full px-4 py-3 h-12 rounded-xl transition-colors"
-              style={{
-                backgroundColor: selectedTemplateId === template.id ? 'oklch(var(--lch-bold-blue) / 0.1)' : 'transparent',
-                color: selectedTemplateId === template.id ? 'var(--color-bold-blue)' : 'var(--color-deep-grey)'
-              }}
-              onMouseEnter={(e) => {
-                if (selectedTemplateId !== template.id) {
-                  e.currentTarget.style.backgroundColor = 'oklch(var(--lch-snow-white) / 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (selectedTemplateId !== template.id) {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
               type="button"
+              className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
+              onClick={() => handleSelectTemplate(template.id)}
             >
-              <span className="text-base font-medium">{template.name}</span>
-              {selectedTemplateId === template.id && (
-                <Icon name="check" size={16} style={{ color: 'var(--color-bold-blue)' }} />
-              )}
+              <span className="space-switcher-dropdown__label">{template.name}</span>
+              <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
+                {isActive ? (
+                  <span className="space-switcher-dropdown__check" aria-hidden="true">
+                    <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                  </span>
+                ) : null}
+              </span>
             </button>
-          ))}
-        </div>
-      )}
-    </div>
+          );
+        })}
+      </div>
+    </div>,
+    document.body
   );
 }

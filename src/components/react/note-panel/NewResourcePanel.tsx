@@ -414,7 +414,7 @@ export default function NewResourcePanel({
   })();
 
   return (
-    <div className="box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-3 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%', backgroundColor: 'var(--color-snow-white)' }}>
+    <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
       {/* URL Input - matches SearchInput pattern */}
       <div className="w-full shrink-0">
         <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full" style={{ gridTemplateColumns: '1fr auto' }}>
@@ -667,7 +667,7 @@ export default function NewResourcePanel({
 
       {/* Footer with date and note ID - moved below preview */}
       <div 
-        className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" 
+        className="flex font-sans font-normal items-center justify-between leading-[0] not-italic relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" 
         style={{ marginTop: '12px' }}
       >
         <div className="relative shrink-0">

@@ -448,7 +448,8 @@ export default function NewThreadPanel({
             }
           }
 
-          window.dispatchEvent(new CustomEvent('threadCreated', {
+          // Use document (NavigationContext listens on document)
+          document.dispatchEvent(new CustomEvent('threadCreated', {
             detail: { 
               thread: result.thread,
               threadId: result.thread?.id,

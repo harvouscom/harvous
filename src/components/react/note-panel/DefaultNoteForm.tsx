@@ -60,9 +60,9 @@ export default function DefaultNoteForm({
   };
 
   return (
-    <div className="bg-white box-border flex flex-col flex-1 min-h-0 items-start pb-3 pt-6 px-3 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)]" style={{ maxHeight: '100%' }}>
+    <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
       {/* Title Input Row */}
-      <div className="flex gap-3 items-center justify-center px-3 py-0 relative shrink-0 w-full">
+      <div className="flex gap-3 items-center justify-center relative shrink-0 w-full">
         <div className="basis-0 font-sans font-semibold grow min-h-px min-w-0 not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           <input 
             type="text"
@@ -100,7 +100,7 @@ export default function DefaultNoteForm({
       
       {/* Editor */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
-        <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
+        <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
           <TiptapEditor
             content={content}
             id="new-note-content"
@@ -117,7 +117,7 @@ export default function DefaultNoteForm({
       </div>
 
       {/* Footer with date and note ID */}
-      <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic px-3 py-0 relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
+      <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
         <div className="relative shrink-0">
           <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
         </div>
