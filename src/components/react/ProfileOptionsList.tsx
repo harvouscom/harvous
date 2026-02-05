@@ -103,7 +103,6 @@ export default function ProfileOptionsList() {
       {/* Content & Activity (most frequently used) */}
       {renderOption('mySpaces', 'My Spaces', true)}
       {renderOption('myAchievements', 'My Achievements', true)}
-      {renderOption('noteTemplates', 'Note Templates', false)}
 
       {/* Profile & Account Settings */}
       {renderOption('myChurch', 'My Church', true)}
