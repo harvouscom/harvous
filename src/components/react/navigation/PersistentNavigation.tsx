@@ -46,9 +46,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
     const handleNavigationUpdate = () => {
       if (timeoutRef) clearTimeout(timeoutRef);
-      timeoutRef = setTimeout(() => {
-        setRenderKey(prev => prev + 1);
-      }, 50);
+      setRenderKey(prev => prev + 1);
     };
 
     const handleThreadUpdated = () => {

@@ -1538,6 +1538,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             );
             
             saveNavigationHistory(updatedHistory);
+            
+            // Dispatch event immediately for instant UI update (optimistic update path)
+            if (typeof window !== 'undefined') {
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+              }, 0);
+            }
+            
             return updatedHistory;
           }
           

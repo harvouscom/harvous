@@ -1110,6 +1110,13 @@ export default function NewNotePanel({
           width: '100%'
         }}
       >
+        {currentSpace && currentSpace.id && (
+          <SpaceSelector
+            space={currentSpace}
+            isSelected={form.addToSpace}
+            onToggle={() => form.setAddToSpace(!form.addToSpace)}
+          />
+        )}
         {/* CardStack Layout - matches CardStack.astro structure */}
         <div className="new-note-panel__card-stack-wrapper" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div className="card-stack" style={{ flex: 1, minHeight: 0 }}>
@@ -1198,15 +1205,6 @@ export default function NewNotePanel({
               <div className="card-stack__content">
                 <div className="card-stack__inner">
                   <div className="card-stack__inner-content">
-                    {/* Space Selector - Only show when currentSpace is provided */}
-                    {currentSpace && currentSpace.id && (
-                      <SpaceSelector
-                        space={currentSpace}
-                        isSelected={form.addToSpace}
-                        onToggle={() => form.setAddToSpace(!form.addToSpace)}
-                      />
-                    )}
-
                     {/* Template Selector - Show for default note type */}
                     {form.noteType === 'default' && (
                       <TemplateSelector
