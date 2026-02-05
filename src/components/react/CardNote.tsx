@@ -287,7 +287,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '4px',
+                      gap: '8px',
                       maxHeight: '280px',
                       overflowY: 'auto',
                       paddingBottom: '8px',
@@ -577,7 +577,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     style={{
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: '4px',
+                      gap: '8px',
                       maxHeight: '280px',
                       overflowY: 'auto',
                       paddingBottom: '8px',

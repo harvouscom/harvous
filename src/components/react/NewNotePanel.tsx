@@ -105,7 +105,10 @@ export default function NewNotePanel({
   // Thread dropdown (CardStack header)
   const [isThreadDropdownOpen, setIsThreadDropdownOpen] = useState(false);
   const [threadAnchorRect, setThreadAnchorRect] = useState<DOMRect | null>(null);
+  const [threadDropdownAlignTop, setThreadDropdownAlignTop] = useState<number | null>(null);
   const threadHeaderRef = useRef<HTMLDivElement>(null);
+  const cardStackInnerRef = useRef<HTMLDivElement>(null);
+  const cardStackContentRef = useRef<HTMLDivElement>(null);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -1089,11 +1092,14 @@ export default function NewNotePanel({
   const threadColor = selectedThreadObj?.color || null;
   const threadNoteCount = selectedThreadObj?.noteCount || 0;
 
-  // Handle thread header click
+  // Handle thread header click - align dropdown top with card-stack__inner (desktop-like)
   const handleThreadHeaderClick = () => {
     if (threadHeaderRef.current) {
       setThreadAnchorRect(threadHeaderRef.current.getBoundingClientRect());
     }
+    const alignTop =
+      cardStackInnerRef.current?.getBoundingClientRect().top ?? null;
+    setThreadDropdownAlignTop(alignTop);
     setIsThreadDropdownOpen(true);
   };
 
@@ -1199,11 +1205,13 @@ export default function NewNotePanel({
                 isOpen={isThreadDropdownOpen}
                 onClose={() => setIsThreadDropdownOpen(false)}
                 anchorRect={threadAnchorRect}
+                alignTopWith={threadDropdownAlignTop}
+                dropdownPortalTargetRef={cardStackContentRef}
               />
 
               {/* Card Content */}
-              <div className="card-stack__content">
-                <div className="card-stack__inner">
+              <div ref={cardStackContentRef} className="card-stack__content">
+                <div ref={cardStackInnerRef} className="card-stack__inner">
                   <div className="card-stack__inner-content">
                     {/* Template Selector - Show for default note type */}
                     {form.noteType === 'default' && (

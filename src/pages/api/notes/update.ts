@@ -160,10 +160,18 @@ export const PUT: APIRoute = async ({ request, locals }) => {
           const { processScriptureReferences } = await import('@/utils/process-scripture-references');
           await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
         } catch (error: any) {
-          console.error('Error processing scripture references (non-critical):', error);
+          console.error('[api/notes/update] Scripture reference processing failed (non-critical)', {
+            noteId,
+            userId,
+            message: error?.message ?? String(error),
+            stack: error?.stack,
+          });
         }
       };
-      scriptureAsync().catch(() => {});
+      scriptureAsync().catch((err: unknown) => {
+        const e = err as { message?: string; stack?: string };
+        console.error('[api/notes/update] Scripture async threw (unhandled):', e?.message ?? err, e?.stack);
+      });
     }
 
     return successResponse({

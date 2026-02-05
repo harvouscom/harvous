@@ -176,6 +176,57 @@ export async function processScriptureReferences(
     }
   }
 
+  // Pattern 6: Tiptap may output class/style first - span with class then data-scripture-reference then data-note-id
+  const pillPattern6 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern6.exec(noteContent)) !== null) {
+    const reference = match[1];
+    const pillNoteId = match[2];
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+
+  // Pattern 7: Same as 6 but data-note-id before data-scripture-reference (class first)
+  const pillPattern7 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern7.exec(noteContent)) !== null) {
+    const pillNoteId = match[1];
+    const reference = match[2];
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+
+  // Pattern 8: Pills with style attribute (no class) - data attrs in either order
+  const pillPattern8 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern8.exec(noteContent)) !== null) {
+    const reference = match[1];
+    const pillNoteId = match[2];
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+
+  const pillPattern9 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match = pillPattern9.exec(noteContent)) !== null) {
+    const pillNoteId = match[1];
+    const reference = match[2];
+    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+
   // Extract plain text from HTML content for detection
   // Preserve existing scripture pills by extracting their text content
   // This regex removes HTML tags but keeps text inside scripture pills
@@ -187,14 +238,6 @@ export async function processScriptureReferences(
   
   // Detect all scripture references in the content
   const detectedReferences = detectScriptureReferences(plainText);
-
-  if (detectedReferences.length === 0) {
-    // No scripture references detected - silent in production
-    return {
-      results: [],
-      updatedContent: note.content
-    };
-  }
 
   const results: ProcessingResult[] = [];
   const referenceMap: Map<string, string> = new Map(); // reference -> noteId
@@ -230,7 +273,7 @@ export async function processScriptureReferences(
   // Track references processed in this run to prevent duplicates
   const processedReferences = new Set<string>();
 
-  // Process each detected reference
+  // Process each detected reference (skip when content has only pills - junction creation happens below)
   for (const detectedRef of detectedReferences) {
     const reference = detectedRef.reference;
     // Normalize the reference for consistent storage and comparison
@@ -467,12 +510,11 @@ export async function processScriptureReferences(
               createdAt: new Date()
             });
           } catch (junctionError: any) {
-            // Only ignore duplicate entry errors (from unique constraint)
             if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
-              console.error(`Failed to create junction entry for ${reference}:`, junctionError);
+              console.error(`[processScriptureReferences] Failed to create junction for new scripture (noteId=${noteId}, scriptureNoteId=${scriptureNote.id}, reference=${reference}):`, junctionError?.message ?? junctionError);
             }
           }
-          
+
           results.push({
             action: 'created',
             noteId: scriptureNote.id,
@@ -508,9 +550,8 @@ export async function processScriptureReferences(
             });
           }
         } catch (junctionError: any) {
-          // Only ignore duplicate entry errors (from unique constraint)
           if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
-            console.error(`Failed to create junction entry for ${reference}:`, junctionError);
+            console.error(`[processScriptureReferences] Failed to create junction for existing scripture (noteId=${noteId}, scriptureNoteId=${existingNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
           }
         }
 
@@ -604,16 +645,17 @@ export async function processScriptureReferences(
     noteId
   }));
   
-  // Also add existing references to the map so they're preserved
+  // Also add existing references to the map so they're preserved (including pills-only case when no plain text refs detected)
   for (const [normalizedRef, existingScriptureNoteId] of existingReferences.entries()) {
-    // Find the original reference format from detected references
+    // Find the original reference format from detected references, or use normalized ref for pills-only
     const matchingRef = detectedReferences.find(d => normalizeScriptureReference(d.reference) === normalizedRef);
-    if (matchingRef && !referenceMap.has(matchingRef.reference)) {
-      referenceMap.set(matchingRef.reference, existingScriptureNoteId);
-      referencesForHighlighting.push({ reference: matchingRef.reference, noteId: existingScriptureNoteId });
+    const referenceForHighlight = matchingRef?.reference ?? normalizedRef;
+    if (!referenceMap.has(referenceForHighlight)) {
+      referenceMap.set(referenceForHighlight, existingScriptureNoteId);
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId });
     }
-    
-    // Ensure junction entry exists for existing references too
+
+    // Ensure junction entry exists for existing references (critical for collapsible list)
     try {
       const existingJunction = await db.select()
         .from(NoteScriptureReferences)
@@ -635,42 +677,37 @@ export async function processScriptureReferences(
         });
       }
     } catch (junctionError: any) {
-      // Only ignore duplicate entry errors (from unique constraint)
       if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
-        console.error(`Failed to create junction entry for existing reference:`, junctionError);
+        console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
       }
     }
   }
 
   // ADDITIONAL FIX: Extract ALL scripture pills with real noteIds from content
-  // and ensure junction entries exist, even if they weren't part of detected references
-  // This handles pills that were inserted with real noteIds but never processed (e.g., from copying/pasting)
-  // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
-  const allPillsPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  const allPillsPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  // and ensure junction entries exist (handles manually linked scripture notes, paste, etc.)
   const allExistingPills = new Map<string, string>(); // scriptureNoteId -> reference
 
-  // Pattern 1: data-scripture-reference comes before data-note-id
-  let pillMatch;
-  while ((pillMatch = allPillsPattern1.exec(noteContent)) !== null) {
-    const reference = pillMatch[1];
-    const pillNoteId = pillMatch[2];
-
-    // Only track pills with REAL noteIds (skip pending/null/empty)
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '') {
-      allExistingPills.set(pillNoteId, reference);
+  function collectPill(scriptureNoteId: string, reference: string) {
+    if (scriptureNoteId && scriptureNoteId !== 'pending' && scriptureNoteId !== 'null' && scriptureNoteId !== '' && !allExistingPills.has(scriptureNoteId)) {
+      allExistingPills.set(scriptureNoteId, reference);
     }
   }
 
-  // Pattern 2: data-note-id comes before data-scripture-reference
-  while ((pillMatch = allPillsPattern2.exec(noteContent)) !== null) {
-    const pillNoteId = pillMatch[1];
-    const reference = pillMatch[2];
+  const allPillPatterns: Array<{ re: RegExp; refIdx: number; noteIdIdx: number }> = [
+    { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+  ];
 
-    // Only track pills with REAL noteIds (skip pending/null/empty)
-    // Only add if not already found by pattern 1
-    if (pillNoteId && pillNoteId !== 'pending' && pillNoteId !== 'null' && pillNoteId !== '' && !allExistingPills.has(pillNoteId)) {
-      allExistingPills.set(pillNoteId, reference);
+  let pillMatch;
+  for (const { re, refIdx, noteIdIdx } of allPillPatterns) {
+    re.lastIndex = 0;
+    while ((pillMatch = re.exec(noteContent)) !== null) {
+      collectPill(pillMatch[noteIdIdx], pillMatch[refIdx]);
     }
   }
 
@@ -930,20 +967,16 @@ export async function processScriptureReferences(
         .get();
 
       if (!existingJunction) {
-        // Create missing junction entry
         await db.insert(NoteScriptureReferences).values({
           id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           noteId: noteId,
           scriptureNoteId: scriptureNoteId,
           createdAt: new Date()
         });
-
-        console.log(`Created missing junction entry for ${reference} (${scriptureNoteId})`);
       }
     } catch (junctionError: any) {
-      // Only ignore duplicate entry errors (from unique constraint)
       if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
-        console.error(`Failed to create junction entry for pill ${reference}:`, junctionError);
+        console.error(`[processScriptureReferences] Failed to create junction for pill (noteId=${noteId}, scriptureNoteId=${scriptureNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
       }
     }
   }

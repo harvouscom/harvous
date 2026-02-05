@@ -6,6 +6,8 @@ interface SearchInputProps {
   value?: string;
   onChange?: (value: string) => void;
   onClear?: () => void;
+  /** Applied to the input element (e.g. touchAction for mobile focus) */
+  inputStyle?: React.CSSProperties;
 }
 
 export default function SearchInput({
@@ -13,7 +15,8 @@ export default function SearchInput({
   placeholder = "Find",
   value = "",
   onChange,
-  onClear
+  onClear,
+  inputStyle,
 }: SearchInputProps) {
   const [query, setQuery] = useState(value);
 
@@ -45,6 +48,7 @@ export default function SearchInput({
         placeholder={placeholder}
         value={query}
         onChange={handleInputChange}
+        style={inputStyle}
       />
       
       {/* Clear Icon */}

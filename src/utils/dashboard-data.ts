@@ -1185,7 +1185,71 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
             }
           }
         }
-        
+
+        // Fallback: extract scripture refs from note content when junction entries are missing
+        // (e.g. manually created scripture notes referenced before junction was written)
+        const defaultNotesWithContent = [...assignedNotes, ...unorganizedNotes].filter(
+          n => (n.noteType === 'default' || !n.noteType) && n.content && typeof n.content === 'string'
+        );
+        const pillPatterns: Array<{ re: RegExp; refIdx: number; noteIdIdx: number }> = [
+          { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+          { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+        ];
+        const fallbackPills: Array<{ noteId: string; scriptureNoteId: string; reference: string }> = [];
+        for (const note of defaultNotesWithContent) {
+          const existingIds = new Set((scriptureReferencesMap[note.id] ?? []).map(r => r.noteId));
+          for (const { re, refIdx, noteIdIdx } of pillPatterns) {
+            re.lastIndex = 0;
+            let m: RegExpExecArray | null;
+            while ((m = re.exec(note.content!)) !== null) {
+              const scriptureNoteId = m[noteIdIdx];
+              const reference = m[refIdx];
+              if (
+                scriptureNoteId &&
+                scriptureNoteId !== 'pending' &&
+                scriptureNoteId !== 'null' &&
+                scriptureNoteId !== '' &&
+                reference &&
+                !existingIds.has(scriptureNoteId)
+              ) {
+                existingIds.add(scriptureNoteId);
+                fallbackPills.push({ noteId: note.id, scriptureNoteId, reference });
+              }
+            }
+          }
+        }
+        if (fallbackPills.length > 0) {
+          const fallbackScriptureIds = [...new Set(fallbackPills.map(p => p.scriptureNoteId))];
+          const validScriptureNotes = await db.select({ id: Notes.id })
+            .from(Notes)
+            .where(
+              and(
+                inArray(Notes.id, fallbackScriptureIds),
+                eq(Notes.userId, userId),
+                eq(Notes.noteType, 'scripture')
+              )
+            )
+            .all();
+          const validSet = new Set(validScriptureNotes.map(n => n.id));
+          const fallbackMetadata = await db.select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference })
+            .from(ScriptureMetadata)
+            .where(inArray(ScriptureMetadata.noteId, fallbackScriptureIds))
+            .all();
+          const refByNoteId = Object.fromEntries(fallbackMetadata.map(m => [m.noteId, m.reference]));
+          const fallbackThreadColors = await getThreadColorsForNotesBatch(fallbackScriptureIds.filter((id): id is string => !!id), userId);
+          for (const { noteId, scriptureNoteId, reference } of fallbackPills) {
+            if (!validSet.has(scriptureNoteId)) continue;
+            const displayRef = refByNoteId[scriptureNoteId] ?? reference;
+            if (!scriptureReferencesMap[noteId]) scriptureReferencesMap[noteId] = [];
+            if (scriptureReferencesMap[noteId].some(r => r.noteId === scriptureNoteId)) continue;
+            scriptureReferencesMap[noteId].push({
+              reference: displayRef,
+              noteId: scriptureNoteId,
+              threadColors: fallbackThreadColors.get(scriptureNoteId) ?? undefined
+            });
+          }
+        }
+
         // Only filter out referenced scripture notes if filterExcludeReferencedScripture is true
         // This should only happen in the 'all' tab, not in the 'scripture' tab
         if (filterExcludeReferencedScripture) {

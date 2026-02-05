@@ -32,6 +32,10 @@ interface ThreadComboboxProps {
   onClose?: () => void;
   /** Anchor rect for dropdown positioning when triggerless. */
   anchorRect?: DOMRect | null;
+  /** When set, dropdown top aligns with this viewport Y (e.g. card content top) instead of below anchor. */
+  alignTopWith?: number | null;
+  /** When set (e.g. card-stack__content ref), dropdown is portaled into this element and positioned absolute at top for correct alignment on mobile. */
+  dropdownPortalTargetRef?: React.RefObject<HTMLElement | null>;
 }
 
 const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
@@ -47,12 +51,24 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   isOpen: externalIsOpen = false,
   onClose: externalOnClose,
   anchorRect: externalAnchorRect = null,
+  alignTopWith: externalAlignTopWith = null,
+  dropdownPortalTargetRef = undefined,
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
+  const [renderDropdownInline, setRenderDropdownInline] = useState(true);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const createThreadInputRef = useRef<HTMLInputElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [hasScrolledDown, setHasScrolledDown] = useState(false);
+
+  useEffect(() => {
+    const isTouch =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    const isNarrow = typeof window !== 'undefined' && window.innerWidth < 768;
+    setRenderDropdownInline(!!(isTouch || isNarrow));
+  }, []);
 
   const open = triggerless ? externalIsOpen : internalOpen;
   const setOpen = (value: boolean) => {
@@ -229,6 +245,13 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   };
 
+  const usePortalTarget =
+    open &&
+    triggerless &&
+    renderDropdownInline &&
+    typeof dropdownPortalTargetRef?.current !== 'undefined' &&
+    dropdownPortalTargetRef?.current !== null;
+
   const dropdownContent = open ? (
     <div
       ref={dropdownRef}
@@ -238,26 +261,59 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         borderTopRightRadius: '24px',
         borderBottomLeftRadius: '24px',
         borderBottomRightRadius: '24px',
-        position: triggerless && externalAnchorRect ? 'fixed' : 'absolute',
-        ...(triggerless && externalAnchorRect
+        ...(usePortalTarget
           ? {
-              position: 'fixed' as const,
-              top: Math.min(externalAnchorRect.bottom - 24, typeof window !== 'undefined' ? window.innerHeight - 16 : 9999),
-              left: Math.max(16, Math.min(externalAnchorRect.left, typeof window !== 'undefined' ? window.innerWidth - Math.max(260, externalAnchorRect.width) - 16 : externalAnchorRect.left)),
-              width: Math.max(260, externalAnchorRect.width),
-              zIndex: 1000000
+              position: 'absolute' as const,
+              top: 0,
+              left: 0,
+              right: 0,
+              width: '100%',
+              zIndex: 1000000,
+              touchAction: 'manipulation',
+              pointerEvents: 'auto'
             }
-          : { position: 'absolute' as const, top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 50 }),
+          : triggerless && externalAnchorRect
+            ? {
+                position: 'fixed' as const,
+                top:
+                  externalAlignTopWith != null
+                    ? Math.max(8, Math.min(externalAlignTopWith, typeof window !== 'undefined' ? window.innerHeight - 16 : 9999))
+                    : Math.min(externalAnchorRect.bottom - 24, typeof window !== 'undefined' ? window.innerHeight - 16 : 9999),
+                left: Math.max(0, Math.min(externalAnchorRect.left, typeof window !== 'undefined' ? window.innerWidth - Math.max(260, externalAnchorRect.width) - 16 : externalAnchorRect.left)),
+                width: Math.max(260, externalAnchorRect.width),
+                zIndex: 1000000,
+                touchAction: 'manipulation',
+                pointerEvents: 'auto'
+              }
+            : { position: 'absolute' as const, top: '100%', left: 0, right: 0, marginTop: 8, zIndex: 50 }),
         backgroundColor: 'var(--color-snow-white)',
         borderColor: 'var(--color-fog-white)'
       }}
     >
-          {/* Search Input */}
-          <div className="p-3">
+          {/* Search Input - tap-to-focus wrapper for mobile */}
+          <div
+            className="p-3"
+            style={{ touchAction: 'manipulation', minHeight: 44, cursor: 'text' }}
+            onClick={(e) => {
+              const input = (e.currentTarget as HTMLElement).querySelector('input');
+              if (input instanceof HTMLInputElement) input.focus();
+            }}
+            onTouchEnd={(e) => {
+              const input = (e.currentTarget as HTMLElement).querySelector('input');
+              if (input instanceof HTMLInputElement) {
+                e.preventDefault();
+                input.focus();
+              }
+            }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Focus search"
+          >
             <SearchInput
               placeholder="Search threads..."
               value={searchValue}
               onChange={setSearchValue}
+              inputStyle={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
             />
           </div>
 
@@ -272,7 +328,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 }}
               />
             )}
-            <div ref={scrollContainerRef} className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto rounded-b-[24px]">
+            <div
+              ref={scrollContainerRef}
+              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto rounded-b-[24px]"
+              style={{ touchAction: 'pan-y' }}
+            >
               <style>{`
                 @keyframes fadeIn {
                   from {
@@ -511,20 +571,34 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       </svg>
                     </div>
                     
-                    {/* Editable input with create badge - matches thread title styling */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {/* Editable input with create badge - tap-to-focus wrapper for mobile */}
+                    <div
+                      className="flex items-center gap-2 flex-1 min-w-0"
+                      style={{ minHeight: 44, cursor: 'text' }}
+                      onClick={() => createThreadInputRef.current?.focus()}
+                      onTouchEnd={(e) => {
+                        if (createThreadInputRef.current) {
+                          e.preventDefault();
+                          createThreadInputRef.current.focus();
+                        }
+                      }}
+                      role="button"
+                      tabIndex={-1}
+                      aria-label="Focus thread name"
+                    >
                       <input
+                        ref={createThreadInputRef}
                         type="text"
                         value={createThreadName}
                         onChange={(e) => {
                           const newValue = e.target.value;
                           setCreateThreadName(newValue);
-                          // Also update search value to keep them in sync
                           setSearchValue(newValue);
                         }}
                         onKeyDown={handleCreateThreadNameKeyDown}
                         className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
                         placeholder="Thread name..."
+                        style={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
                       />
                       
                       {/* Create badge */}
@@ -603,10 +677,13 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         </button>
       )}
 
-      {/* Dropdown - portal when triggerless, inline otherwise */}
-      {triggerless && open && typeof document !== 'undefined'
-        ? createPortal(dropdownContent, document.body)
-        : dropdownContent}
+      {/* Dropdown - portal into card content on mobile for correct top alignment; else portal to body or inline. */}
+      {open &&
+        (usePortalTarget && dropdownPortalTargetRef?.current
+          ? createPortal(dropdownContent, dropdownPortalTargetRef.current)
+          : triggerless && typeof document !== 'undefined' && !renderDropdownInline
+            ? createPortal(dropdownContent, document.body)
+            : dropdownContent)}
 
       {/* Backdrop - only when not triggerless (triggerless uses global click handler) */}
       {!triggerless && open && (
