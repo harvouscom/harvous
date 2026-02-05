@@ -50,6 +50,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 }) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [hasScrolledDown, setHasScrolledDown] = useState(false);
 
   const open = triggerless ? externalIsOpen : internalOpen;
   const setOpen = (value: boolean) => {
@@ -95,6 +98,48 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   // Show when: onCreateThread exists and no suggested thread option is showing
   // The create option should always be visible (not just when searching)
   const shouldShowCreateFromSearch = onCreateThread && !isSuggestedThreadShowing;
+
+  // Check if content is overflowing
+  useEffect(() => {
+    if (!open || !scrollContainerRef.current) return;
+    
+    const checkOverflow = () => {
+      if (scrollContainerRef.current) {
+        const hasOverflow = scrollContainerRef.current.scrollHeight > scrollContainerRef.current.clientHeight;
+        setIsOverflowing(hasOverflow);
+      }
+    };
+    
+    // Check immediately
+    checkOverflow();
+    
+    // Check again after a short delay to ensure content is rendered
+    const timer = setTimeout(checkOverflow, 50);
+    
+    return () => clearTimeout(timer);
+  }, [open, filteredThreads.length, isSuggestedThreadShowing, shouldShowCreateFromSearch]);
+
+  // Track scroll position to show/hide top gradient
+  useEffect(() => {
+    if (!open || !scrollContainerRef.current) return;
+    
+    const handleScroll = () => {
+      if (scrollContainerRef.current) {
+        const scrollTop = scrollContainerRef.current.scrollTop;
+        setHasScrolledDown(scrollTop > 0);
+      }
+    };
+    
+    const container = scrollContainerRef.current;
+    container.addEventListener('scroll', handleScroll);
+    
+    // Reset scroll state when opening
+    setHasScrolledDown(false);
+    
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [open]);
 
   // Get the selected thread object
   const selectedThreadObj = threads.find(thread => thread.title === selectedThread);
@@ -215,19 +260,29 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
           </div>
 
           {/* Thread List */}
-          <div className="flex flex-col gap-2 px-4 pb-4 max-h-[200px] overflow-y-auto">
-            <style>{`
-              @keyframes fadeIn {
-                from {
-                  opacity: 0;
-                  transform: translateY(4px);
+          <div className="relative">
+            {/* Gradient overlay at top - only show when overflowing and scrolled down */}
+            {isOverflowing && hasScrolledDown && (
+              <div 
+                className="absolute top-0 left-0 right-0 h-12 pointer-events-none z-10"
+                style={{
+                  background: 'linear-gradient(to top, transparent, var(--color-snow-white))'
+                }}
+              />
+            )}
+            <div ref={scrollContainerRef} className="flex flex-col gap-2 px-4 pb-4 max-h-[200px] overflow-y-auto">
+              <style>{`
+                @keyframes fadeIn {
+                  from {
+                    opacity: 0;
+                    transform: translateY(4px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: translateY(0);
+                  }
                 }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-            `}</style>
+              `}</style>
             
             {/* Create Thread Suggestion - show if suggestedThreadName exists and no matching thread found */}
             {isSuggestedThreadShowing && (
@@ -492,6 +547,16 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+            </div>
+            {/* Gradient overlay at bottom - only show when overflowing */}
+            {isOverflowing && (
+              <div 
+                className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none"
+                style={{
+                  background: 'linear-gradient(to bottom, transparent, var(--color-snow-white))'
+                }}
+              />
             )}
           </div>
         </div>

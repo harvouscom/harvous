@@ -1019,6 +1019,11 @@
   height: 100%;
 }
 
+/* Override card-stack__inner background for new note panel */
+.new-note-panel .card-stack__inner {
+  background-color: white;
+}
+
 /* Note template header (CardStack header with template name + dropdown trigger) */
 .card-stack__header.note-template-header,
 .card-stack__header[data-template-header] {
