@@ -34,7 +34,7 @@ import {
 
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import SuggestedThreadDialog from './dialogs/SuggestedThreadDialog';
-import NoteTemplatePicker from './note-panel/NoteTemplatePicker';
+import TemplateSelector from './note-panel/TemplateSelector';
 
 interface NewNotePanelProps {
   currentThread?: any;
@@ -100,9 +100,6 @@ export default function NewNotePanel({
   const [isLimitReached, setIsLimitReached] = useState(false);
   const [currentCount, setCurrentCount] = useState(0);
   const [limit, setLimit] = useState(1000);
-
-  // Template picker state
-  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -324,17 +321,6 @@ export default function NewNotePanel({
         // Ignore errors during focus
       }
     }, 50);
-  };
-
-  // Template picker handlers
-  const handleSelectTemplate = (templateId: string) => {
-    form.setSelectedTemplateId(templateId);
-    setShowTemplatePicker(false);
-  };
-
-  const handleStartBlank = () => {
-    form.setSelectedTemplateId(null);
-    setShowTemplatePicker(false);
   };
 
   // Initialize data
@@ -1099,21 +1085,7 @@ export default function NewNotePanel({
   return (
     <>
       <NewNotePanelStyles />
-      {showTemplatePicker ? (
-        <div className="new-note-panel h-full flex flex-col w-full" style={{
-          height: '100%',
-          maxHeight: '100%',
-          minHeight: 0,
-          width: '100%'
-        }}>
-          <NoteTemplatePicker
-            onSelectTemplate={handleSelectTemplate}
-            onStartBlank={handleStartBlank}
-            onClose={inBottomSheet ? undefined : onClose}
-          />
-        </div>
-      ) : (
-        <form
+      <form
           onSubmit={handleFormSubmit}
           className="new-note-panel h-full flex flex-col w-full"
           style={{
@@ -1212,6 +1184,14 @@ export default function NewNotePanel({
           />
         )}
 
+        {/* Template Selector - Show for default note type */}
+        {form.noteType === 'default' && (
+          <TemplateSelector
+            selectedTemplateId={form.selectedTemplateId}
+            onSelectTemplate={form.setSelectedTemplateId}
+          />
+        )}
+
         {/* Note Content - Type-specific layouts */}
         <div className="flex-1 flex flex-col min-h-0 note-content-wrapper" style={{ marginBottom: '12px' }}>
           {form.noteType === 'default' && (
@@ -1267,7 +1247,6 @@ export default function NewNotePanel({
             showCloseButton={!inBottomSheet}
           />
         </form>
-      )}
 
       {/* Unsaved Changes Dialog */}
       <UnsavedChangesDialog
