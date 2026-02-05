@@ -110,15 +110,6 @@ export default function NewNotePanel({
     initialNoteType,
   });
 
-  // Show template picker on mount if no draft content exists and note type is default
-  useEffect(() => {
-    if (isMounted && !form.title && !form.content && form.noteType === 'default' && !initialNoteType) {
-      setShowTemplatePicker(true);
-    } else {
-      setShowTemplatePicker(false);
-    }
-  }, [isMounted, form.title, form.content, form.noteType, initialNoteType]);
-
   // Use extracted thread selection hook
   const threadSelection = useThreadSelection({
     currentThread,
