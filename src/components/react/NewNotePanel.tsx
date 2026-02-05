@@ -1256,19 +1256,19 @@ export default function NewNotePanel({
               </div>
             </div>
           </div>
-
-          {/* Bottom buttons - inside wrapper but after card-stack */}
-          <NoteFormFooter
-            isSubmitting={submission.isSubmitting}
-            onClose={handleClose}
-            noteType={form.noteType}
-            duplicateInfo={duplicateInfo}
-            isLimitReached={isLimitReached}
-            currentCount={currentCount}
-            limit={limit}
-            showCloseButton={!inBottomSheet}
-          />
         </div>
+
+        {/* Bottom buttons - outside wrapper to allow shadow to render */}
+        <NoteFormFooter
+          isSubmitting={submission.isSubmitting}
+          onClose={handleClose}
+          noteType={form.noteType}
+          duplicateInfo={duplicateInfo}
+          isLimitReached={isLimitReached}
+          currentCount={currentCount}
+          limit={limit}
+          showCloseButton={!inBottomSheet}
+        />
       </form>
 
       {/* Unsaved Changes Dialog */}

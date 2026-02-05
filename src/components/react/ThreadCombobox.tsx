@@ -236,6 +236,8 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       style={{
         borderTopLeftRadius: '24px',
         borderTopRightRadius: '24px',
+        borderBottomLeftRadius: '24px',
+        borderBottomRightRadius: '24px',
         position: triggerless && externalAnchorRect ? 'fixed' : 'absolute',
         ...(triggerless && externalAnchorRect
           ? {
@@ -251,7 +253,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       }}
     >
           {/* Search Input */}
-          <div className="p-4">
+          <div className="p-3">
             <SearchInput
               placeholder="Search threads..."
               value={searchValue}
@@ -270,7 +272,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 }}
               />
             )}
-            <div ref={scrollContainerRef} className="flex flex-col gap-2 px-4 pb-4 max-h-[200px] overflow-y-auto">
+            <div ref={scrollContainerRef} className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto rounded-b-[24px]">
               <style>{`
                 @keyframes fadeIn {
                   from {
@@ -436,7 +438,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           )}
                         </div>
                         
-                        {/* Text content - only title, no subtitle or count */}
+                        {/* Text content - title, suggestion badge, and count badge */}
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           {/* Title */}
                           <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] truncate">
@@ -453,6 +455,15 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                             >
                               {thread.suggestedReason || 'Suggested'}
                             </span>
+                          )}
+                          
+                          {/* Thread note count badge */}
+                          {thread.noteCount != null && thread.noteCount > 0 && (
+                            <div className="badge-count" style={{ flexShrink: 0 }}>
+                              <span className="badge-number">
+                                {formatBadgeCount(thread.noteCount)}
+                              </span>
+                            </div>
                           )}
                         </div>
                       </div>

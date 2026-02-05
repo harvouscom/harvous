@@ -1,7 +1,7 @@
 # Note Templates
 
-**Status:** Future Feature  
-**Last Updated:** January 2026
+**Status:** Partially Implemented  
+**Last Updated:** February 2026
 
 ---
 
@@ -13,18 +13,31 @@ Note templates let users create notes from pre-filled title and content. The fea
 
 ## Current State
 
-- **Notes:** Schema in [db/config.ts](../db/config.ts): `Notes` table with `title`, `content`, `noteType`, `threadId`, `spaceId`, `userId`, etc. Content is whatever Tiptap persists (HTML or JSON).
-- **Create flow:** [NewNotePanel.tsx](../../src/components/react/NewNotePanel.tsx) plus [useNewNoteForm](../../src/components/react/note-panel/hooks/), [DefaultNoteForm](../../src/components/react/note-panel/DefaultNoteForm.tsx), and [TiptapEditor](../../src/components/react/TiptapEditor.tsx). Form state is title, content, noteType, thread, space, etc.; submit calls the existing note create API.
-- **Entry points:** `openNewNotePanel` and `openNewResourcePanel` (the latter sets `newNoteType` in localStorage). Desktop: panel in [DesktopPanelManager](../../src/components/react/DesktopPanelManager.tsx); mobile: [BottomSheet](../../src/components/react/BottomSheet.tsx) with the same New Note panel.
-- **No template concept today:** There is no template picker, no "Save as template," and no `NoteTemplates` table or static template data.
+### What's Implemented
+
+- **Built-in templates data:** Static template definitions in [`src/data/note-templates.ts`](../../src/data/note-templates.ts) with 6 study method templates (SOAP, Inductive Study, Bible Nerd Method, Topical Study, Chapter Summary, Comparative Study). Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), and `noteType`. Helper functions: `getBuiltInTemplates()`, `getTemplateById()`.
+- **TemplateSelector dropdown:** [`TemplateSelector.tsx`](../../src/components/react/note-panel/TemplateSelector.tsx) renders a portal-based dropdown showing "Blank Note" plus all built-in templates. Includes selection state, keyboard navigation (Escape to close), click-outside-to-close, and analytics tracking (`note_template_selected`, `note_template_blank_selected`).
+- **NoteTemplateHeader component:** [`NoteTemplateHeader.tsx`](../../src/components/react/note-panel/NoteTemplateHeader.tsx) is a CardStack-style header that displays the selected template name with a caret. Intended for use as a trigger to open the dropdown.
+- **Form state:** `selectedTemplateId` and `setSelectedTemplateId` in [`useNewNoteForm`](../../src/components/react/note-panel/hooks/useNewNoteForm.ts) and [`NewNotePanelContext`](../../src/components/react/contexts/NewNotePanelContext.tsx) track the currently selected template.
+
+### What's Not Yet Wired Up
+
+- **Template switcher trigger:** The bookmark icon in [`DefaultNoteForm.tsx`](../../src/components/react/note-panel/DefaultNoteForm.tsx) (lines 94–98) is intended to be the template switcher trigger. Currently it's a static SVG with a tooltip "Note type switching disabled until designs are ready." This icon should open the `TemplateSelector` dropdown and represent the "Blank Note" default state.
+- **Content pre-fill:** When a template is selected, the form `content` should be set to the template's HTML. This wiring is not yet complete—`setSelectedTemplateId` is called but the content isn't populated from the template.
+- **TemplateSelector integration:** In [`NewNotePanel.tsx`](../../src/components/react/NewNotePanel.tsx), `TemplateSelector` is rendered but missing `isOpen`, `onClose`, and `anchorRect` props needed to function as a dropdown. It needs a trigger (the bookmark icon) and state to control open/close.
+
+### What's Still Future Work
+
+- **User-created templates:** No `NoteTemplates` database table, no API endpoints, no "Save as template" UI.
+- **Shared space templates:** No `TemplateSpaces` table, no space linking for templates.
 
 ---
 
 ## Pre-defined Study Method Templates
 
-The built-in set can align with the **top study methods** (e.g. a "Guide" list): SOAP, Comparative, Biographical, Word Study, Theological, Inductive, Topical, Chapter Summary, Bible Nerd. Using these as the source for pre-defined templates gives users familiar, trusted study structures out of the box. The template picker can mirror a hierarchical presentation (e.g. a "Guide" header with methods listed beneath, with clear separation and selection state).
+✅ **Implemented** in [`src/data/note-templates.ts`](../../src/data/note-templates.ts).
 
-Below is an initial set of six (no database; stored as static app data). The list can be extended to include Biographical, Word Study, Theological, and any other top methods as needed:
+The built-in set aligns with the **top study methods** (e.g. a "Guide" list). The current implementation includes six templates; the list can be extended to include Biographical, Word Study, Theological, and any other top methods as needed:
 
 | Method | Description | Time | Level |
 |--------|-------------|------|-------|
@@ -35,11 +48,13 @@ Below is an initial set of six (no database; stored as static app data). The lis
 | **Chapter Summary** | Quick summaries for reading retention | 10–15 min | Beginner |
 | **Comparative Study** | Side-by-side analysis of translations, parallel passages, authors | 20–60 min | Intermediate |
 
-Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, optional `titleTemplate`, and `content` (Tiptap-compatible string). "Create from template" pre-fills the existing new-note form with that title and content; the user then submits via the same create API.
+Each template has: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (Tiptap-compatible HTML), and `noteType`.
 
 ---
 
 ## User-Created Templates
+
+⏳ **Future work** — Not yet implemented.
 
 Users can save a note (or the current new-note form) as a template and reuse it later.
 
@@ -50,6 +65,8 @@ Users can save a note (or the current new-note form) as a template and reuse it 
 ---
 
 ## Shared Spaces
+
+⏳ **Future work** — Depends on shared spaces implementation.
 
 When shared spaces are implemented (see [ARCHITECTURE.md](../ARCHITECTURE.md), [SHARING_SYSTEM_DESIGN.md](SHARING_SYSTEM_DESIGN.md)):
 
@@ -63,11 +80,15 @@ When shared spaces are implemented (see [ARCHITECTURE.md](../ARCHITECTURE.md), [
 
 ### Pre-defined templates
 
-- **Location:** `src/data/note-templates/` (or `src/data/study-methods/`).
-- **Shape:** One file per method (e.g. `soap.ts`, `inductive.ts`) exporting an object with: `id`, `name`, `description`, `estimatedMinutes`, `level`, optional `titleTemplate`, and `content` (same format as note `content` for Tiptap).
-- **Usage:** A small util (e.g. `getBuiltInTemplates()`) imports and returns the list. The template picker in the new-note flow calls it and, on selection, sets initial `title` and `content` in the form state.
+✅ **Done** — [`src/data/note-templates.ts`](../../src/data/note-templates.ts)
+
+- **Location:** `src/data/note-templates.ts` (single file with all templates).
+- **Shape:** `NoteTemplate` interface with: `id`, `name`, `description`, `estimatedMinutes`, `level`, `titleTemplate`, `content` (HTML for Tiptap), and `noteType`. `BUILT_IN_TEMPLATES` array holds all 6 templates.
+- **Usage:** `getBuiltInTemplates()` returns all templates; `getTemplateById(id)` looks up a specific template. Used by `TemplateSelector` to populate the dropdown.
 
 ### User templates (schema and API)
+
+⏳ **Future work**
 
 - **Schema (db/config.ts):** Add `NoteTemplates` with columns above; optionally add `TemplateSpaces` (e.g. `templateId`, `spaceId`) if a template can be in multiple spaces.
 - **APIs:**
@@ -77,28 +98,45 @@ When shared spaces are implemented (see [ARCHITECTURE.md](../ARCHITECTURE.md), [
 
 ### Create-from-template flow
 
-- **Entry:** Same as today (e.g. "Add note" opens New Note panel). Add a step or control: "Start from blank" vs "Choose a template." If template chosen, show template list (built-in / My templates / Space templates), then pre-fill the form and show the same New Note form (thread selector, space selector, title, content, footer).
-- **Pre-fill:** When user picks a template, set `title` and `content` in the same state that `useNewNoteForm` / `DefaultNoteForm` use; no new form component. Submit uses existing `POST /api/notes/create`.
-- **Files to touch:** [NewNotePanel.tsx](../../src/components/react/NewNotePanel.tsx) (template picker step or inline control, initial state from template); optional `NoteTemplatePicker.tsx`; form hooks already accept initial title/content.
+🔧 **Partially implemented** — Components exist but not fully wired up.
+
+**What exists:**
+- `TemplateSelector` dropdown component in [`TemplateSelector.tsx`](../../src/components/react/note-panel/TemplateSelector.tsx)
+- `NoteTemplateHeader` trigger component in [`NoteTemplateHeader.tsx`](../../src/components/react/note-panel/NoteTemplateHeader.tsx)
+- Form state: `selectedTemplateId` / `setSelectedTemplateId` in context and hooks
+- Bookmark icon in [`DefaultNoteForm.tsx`](../../src/components/react/note-panel/DefaultNoteForm.tsx) (currently disabled)
+
+**What's needed to complete:**
+- Wire the bookmark icon to open `TemplateSelector` dropdown (add `onClick`, `isOpen` state, `anchorRect`)
+- Populate form `content` when a template is selected (call `getTemplateById(selectedTemplateId)` and set content)
+- Pass required props (`isOpen`, `onClose`, `anchorRect`) to `TemplateSelector` in `NewNotePanel.tsx`
 
 ### Save as template
+
+⏳ **Future work** — Depends on user templates.
 
 - From note detail panel ("⋯" menu) or from new-note form: "Save as template" → modal for template name + optional "Make available in this space" (when in a space) → call `POST /api/note-templates/create`.
 
 ### Content format
 
-- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` must use the same format so it can be set as the initial value in the editor without conversion. Built-in templates should be authored once as HTML/JSON (e.g. headings for SOAP sections) and shipped in the static config.
+✅ **Done** — Built-in templates use Tiptap-compatible HTML.
 
-### File checklist (when implementing)
+- Note `content` in the database is whatever Tiptap persists (see [TiptapEditor](../../src/components/react/TiptapEditor.tsx)). Template `content` uses the same format (HTML) so it can be set as the initial value in the editor without conversion. Built-in templates are authored as HTML (e.g. `<h2>📖 Scripture</h2>`) in [`src/data/note-templates.ts`](../../src/data/note-templates.ts).
 
-- `src/data/note-templates/` — static template definitions (or one index file that imports per-method files).
-- `src/utils/note-templates.ts` (or similar) — `getBuiltInTemplates()` and any shared types.
-- `db/config.ts` — `NoteTemplates` (and optionally `TemplateSpaces`).
-- `src/pages/api/note-templates/list.ts` — GET list (built-in + user + space).
-- `src/pages/api/note-templates/create.ts` — POST create.
-- Optional: delete, update, add-to-space, remove-from-space endpoints.
-- [NewNotePanel.tsx](../../src/components/react/NewNotePanel.tsx) — template picker and pre-fill; optional [NoteTemplatePicker.tsx](../../src/components/react/NoteTemplatePicker.tsx).
-- Note details panel (and optionally new-note form) — "Save as template" action and modal.
+### File checklist
+
+| File | Status | Notes |
+|------|--------|-------|
+| `src/data/note-templates.ts` | ✅ Done | Built-in templates data, `NoteTemplate` interface, helper functions |
+| `src/components/react/note-panel/TemplateSelector.tsx` | ✅ Done | Dropdown component for template selection |
+| `src/components/react/note-panel/NoteTemplateHeader.tsx` | ✅ Done | Header trigger component |
+| `src/components/react/note-panel/DefaultNoteForm.tsx` | 🔧 Partial | Bookmark icon exists but not wired to dropdown |
+| `src/components/react/NewNotePanel.tsx` | 🔧 Partial | `TemplateSelector` imported but missing props |
+| `src/components/react/contexts/NewNotePanelContext.tsx` | ✅ Done | `selectedTemplateId` state |
+| `db/config.ts` | ⏳ Future | `NoteTemplates` table for user templates |
+| `src/pages/api/note-templates/list.ts` | ⏳ Future | GET endpoint (built-in + user + space) |
+| `src/pages/api/note-templates/create.ts` | ⏳ Future | POST endpoint for user templates |
+| Note details panel | ⏳ Future | "Save as template" action |
 
 ---
 
@@ -108,35 +146,46 @@ Decisions and suggestions based on the current UI.
 
 ### Where does "Blank vs From template" live?
 
-- **Option A – First step:** Before the form, show "Start from blank" vs "Choose a template." If template chosen, show template list (built-in / My templates / Space templates), then show the same New Note form pre-filled. Fits the current panel flow as one extra "screen" before the thread combobox and form. Similar to how `initialNoteType` can open directly into the resource flow.
-- **Option B – Inline in form:** Add a "Template" control (dropdown or link) above or beside the thread selector ([ThreadCombobox](../../src/components/react/ThreadCombobox.tsx), [SpaceSelector](../../src/components/react/note-panel/SpaceSelector.tsx)). Choosing a template pre-fills title/content without leaving the form. Reuses existing combobox/selector patterns.
-- **Suggestion:** Option A for clarity and to avoid crowding the top of the form; document Option B as an alternative for power users who want everything on one screen.
+**Decision:** Option B (inline) — implemented as a bookmark icon in the title row of `DefaultNoteForm`.
+
+- **Current implementation:** A bookmark icon sits next to the title input. Clicking it opens the `TemplateSelector` dropdown. The default state (blank note) is represented by the bookmark icon. When a template is selected, the same icon serves as the trigger to switch templates.
+- **Rationale:** Keeps the form compact and allows quick template switching without a separate step. The icon is subtle and doesn't crowd the UI—users who don't care about templates can ignore it.
 
 ### Template picker UX
 
-- **List structure:** Sections: "Study methods" (built-in), "My templates," "Space templates" (when in a shared space). The built-in section can follow a "Guide" style: a bold header (e.g. "Guide") with study methods listed beneath, horizontal separators between items, and clear selection/hover state (e.g. light gray highlight). Reuse list/card patterns from the thread list and [ThreadCombobox](../../src/components/react/ThreadCombobox.tsx) (search, optional "Create template").
-- **Metadata on items:** Show estimated time and level (e.g. "15–20 min · Beginner") as small badges so users can scan; keep row height consistent with current thread/space buttons (e.g. ~64px where applicable per [SpaceSelector](../../src/components/react/note-panel/SpaceSelector.tsx)).
-- **Empty states:** First-time users see only built-in; after creating templates, show "My templates" section. If no space templates, hide that section or show "No space templates yet."
+✅ **Implemented** — `TemplateSelector` dropdown.
+
+- **List structure:** "Blank Note" option at top, followed by built-in templates. Styled with `space-switcher-dropdown__item` classes for consistency with other dropdowns. Check icon shows for selected template.
+- **Future:** "My templates" and "Space templates" sections when user templates are implemented.
+- **Metadata on items:** Currently shows template name only. Future: could add estimated time and level badges.
 
 ### "Save as template" placement
+
+⏳ **Future work**
 
 - **Options:** Note details panel "⋯" menu ([NoteDetailsPanel](../../src/components/react/NoteDetailsPanel.tsx)); or context menu on note card; or both. Modal: template name + optional "Make available in this space" (when in a space). Align with existing "Share," "Add to thread," etc. in the same panel.
 
 ### Mobile / bottom sheet
 
-- **Constraint:** [BottomSheet](../../src/components/react/BottomSheet.tsx) hosts the same New Note panel with limited height. Template list and form in one sheet can feel cramped.
-- **Suggestion:** Two-step flow on mobile: step 1 = "Blank" or "From template" with a scrollable template list; step 2 = same form (with "Back" to change template). Alternatively, collapse template choice into a single dropdown at the top (like the thread selector) to keep one screen. Document the tradeoff: two-step = clearer; one screen = fewer taps.
+⏳ **Not yet tested**
+
+- **Current approach:** Same inline icon trigger works on mobile. Dropdown positioning may need adjustment for bottom sheet context.
+- **Constraint:** [BottomSheet](../../src/components/react/BottomSheet.tsx) hosts the same New Note panel with limited height.
+- **Suggestion:** The inline dropdown approach should work well since it's just a single icon. If cramped, consider moving dropdown to sheet-relative positioning.
 
 ### Consistency with current UI
 
-- **Components and styles:** Use existing panel semantics ([NewNotePanel](../../src/components/react/NewNotePanel.tsx) layout, `panel__footer--buttons`, [NoteFormFooter](../../src/components/react/note-panel/NoteFormFooter.tsx)); reuse [ThreadCombobox](../../src/components/react/ThreadCombobox.tsx)-style dropdown for template selector if inline; use [SquareButton](../../src/components/react/SquareButton.tsx) and primary actions where appropriate. See [ANIMATION_GUIDELINES.md](../ANIMATION_GUIDELINES.md) for any template-picker transitions.
-- **Accessibility:** Keyboard navigation for the template list; focus management when moving from template picker to form (and back); ensure "Start from blank" and "Back" are clearly labeled and focusable.
+✅ **Implemented**
 
-### Design decisions to make before implementation
+- **Components and styles:** `TemplateSelector` uses `space-switcher-dropdown__*` classes for visual consistency with other dropdowns. Portal-based rendering to `document.body` for proper z-index handling.
+- **Accessibility:** Escape key closes dropdown; click-outside-to-close; keyboard navigation (needs testing).
 
-- Final placement of "Blank vs From template" (first step vs inline).
-- Mobile: two-step vs single-screen template choice.
-- Whether "New from template" gets a separate menu entry (like "Add resource") or lives only inside "Add note."
+### Design decisions made
+
+- ✅ **Placement:** Inline icon in title row (Option B)
+- ✅ **Icon:** Bookmark icon represents blank note / template trigger
+- ⏳ **Mobile:** TBD — likely same inline approach
+- ⏳ **"New from template" menu entry:** Not planned; lives only inside "Add note"
 
 ---
 
@@ -144,13 +193,12 @@ Decisions and suggestions based on the current UI.
 
 ```mermaid
 flowchart LR
-  Open[User opens New Note] --> Choice[Blank or Template]
-  Choice --> Blank[Start from blank]
-  Choice --> Template[Choose template]
-  Blank --> Form[Same New Note form]
-  Template --> List[Template list]
-  List --> Form
-  Form --> Submit[Submit]
+  Open[User opens New Note] --> Form[New Note form with blank content]
+  Form --> Icon[User clicks bookmark icon]
+  Icon --> Dropdown[Template dropdown opens]
+  Dropdown --> Select[User selects template]
+  Select --> Prefill[Form content pre-filled]
+  Prefill --> Submit[Submit]
   Submit --> Create[Existing create API]
 ```
 
