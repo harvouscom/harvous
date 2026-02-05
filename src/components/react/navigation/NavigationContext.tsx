@@ -1478,86 +1478,73 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // The note was never actually in unorganized (it was immediately added to the thread via junction table)
         const wasCreatedWithThread = event.detail?.actualThreadId && event.detail.actualThreadId !== 'thread_unorganized';
         
-        // CRITICAL: If note was created with a specific thread (not unorganized), never add unorganized
-        // Even if the legacy threadId field is 'thread_unorganized', the note is actually in the specified thread
-        // via the junction table, so unorganized should not appear in navigation
-        // Use current React state to check if thread exists and update/add it
-        setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
+        // CRITICAL: Update localStorage SYNCHRONOUSLY before React state update
+        // This ensures the update persists even if navigation happens before React processes the state
+        // Read current history from localStorage (source of truth)
+        const currentHistory = getNavigationHistory();
+        const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
+        
+        if (threadIndex !== -1) {
+          // Thread exists in history - update the count immediately
+          const existingItem = currentHistory[threadIndex];
+          const oldCount = existingItem.count || 0;
+          const newCount = oldCount + 1;
           
-          if (threadIndex !== -1) {
-            // Thread exists in history - update the count immediately for UI responsiveness
-            // Also check if we need to update title/backgroundGradient if they're incomplete
-            // (e.g., if a minimal entry was created with just the threadId)
-            const existingItem = currentHistory[threadIndex];
-            const oldCount = existingItem.count || 0;
-            const newCount = oldCount + 1;
-            
-            // Check if entry has incomplete data (title is same as id, indicating minimal entry)
-            const needsFullData = existingItem.title === existingItem.id || !existingItem.backgroundGradient || existingItem.backgroundGradient === 'var(--color-paper)';
-            
-            if (needsFullData) {
-              // Fetch full thread data to update the entry
-              safeFetch('/api/threads/list')
-                .then(response => {
-                  if (response && response.ok) {
-                    return response.json();
-                  }
-                  return null;
-                })
-                .then(threads => {
-                  if (threads) {
-                    const threadData = threads.find((t: any) => t.id === actualThreadId);
-                    if (threadData) {
-                      // Update the existing entry with full data
-                      const updatedHistory = currentHistory.map((item, index) => 
-                        index === threadIndex 
-                          ? { 
-                              ...item, 
-                              count: newCount,
-                              title: threadData.title,
-                              backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
-                            }
-                          : item
-                      );
-                      saveNavigationHistory(updatedHistory);
-                      setNavigationHistory(updatedHistory);
-                    }
-                  }
-                })
-                .catch(error => {
-                  console.error('NavigationContext: Error fetching thread data for update:', error);
-                });
-            }
-            
-            // Update count immediately (even if we're fetching full data)
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === threadIndex 
-                ? { ...item, count: newCount }
-                : item
-            );
-            
-            saveNavigationHistory(updatedHistory);
-            
-            // Dispatch event immediately for instant UI update (optimistic update path)
-            if (typeof window !== 'undefined') {
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-              }, 0);
-            }
-            
-            return updatedHistory;
+          // Update localStorage SYNCHRONOUSLY (before React state update)
+          const updatedHistory = currentHistory.map((item, index) => 
+            index === threadIndex 
+              ? { ...item, count: newCount }
+              : item
+          );
+          saveNavigationHistory(updatedHistory);
+          
+          // Also update React state for immediate UI update (if page doesn't navigate)
+          setNavigationHistory(updatedHistory);
+          
+          // Dispatch event for UI update
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
           }
           
+          // Check if entry has incomplete data and fetch full data in background
+          const needsFullData = existingItem.title === existingItem.id || !existingItem.backgroundGradient || existingItem.backgroundGradient === 'var(--color-paper)';
+          if (needsFullData) {
+            safeFetch('/api/threads/list')
+              .then(response => {
+                if (response && response.ok) {
+                  return response.json();
+                }
+                return null;
+              })
+              .then(threads => {
+                if (threads) {
+                  const threadData = threads.find((t: any) => t.id === actualThreadId);
+                  if (threadData) {
+                    const fullDataHistory = getNavigationHistory().map((item) => 
+                      item.id === actualThreadId 
+                        ? { 
+                            ...item, 
+                            title: threadData.title,
+                            backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
+                          }
+                        : item
+                    );
+                    saveNavigationHistory(fullDataHistory);
+                    setNavigationHistory(fullDataHistory);
+                  }
+                }
+              })
+              .catch(error => {
+                console.error('NavigationContext: Error fetching thread data for update:', error);
+              });
+          }
+        } else {
           // Thread not in history - we need to fetch it and add it (unless caller will navigate to note)
           // If the caller is about to navigate to the note page, trackNavigationAccess will add the thread on load
           if (event.detail?.willNavigateToNote) {
-            return currentHistory;
-          }
-          if (!isAuthReady()) {
-            return currentHistory;
-          }
-          safeFetch('/api/threads/list')
+            // Do nothing - trackNavigationAccess will handle it on the new page
+          } else if (isAuthReady()) {
+            safeFetch('/api/threads/list')
             .then(response => {
               if (response && response.ok) {
                 return response.json();
@@ -1614,10 +1601,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               // If wasCreatedWithThread is true, we should NOT add unorganized even if the fetch fails
               // The note was created with a specific thread, so unorganized should never appear
             });
-          
-          // Return current state unchanged - the async fetch will update it via addToNavigationHistory
-          return currentHistory;
-        });
+          }
+        }
         
         // Refresh counts from API after a delay to ensure database is committed
         // Use debounced version to prevent multiple rapid refreshes from overwriting each other
