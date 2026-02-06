@@ -3,6 +3,7 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
 import { debug } from '@/utils/logger';
+import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { useSelectedSpaceId } from './selectedSpace';
 
 interface PersistentNavigationProps {
@@ -78,7 +79,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     if (typeof window === 'undefined' || !pathname) return;
     let currentId: string | null = null;
     let currentTitle: string | null = null;
-    if (pathname.includes('/note_')) {
+    if (pathname.startsWith('/note/')) {
       const noteEl = document.querySelector('[data-note-id][data-parent-thread-id]') as HTMLElement | null;
       const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
       const rawId = noteEl?.dataset?.parentThreadId ?? navEl?.dataset?.parentThreadId ?? null;
@@ -88,9 +89,9 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       } else {
         currentId = null;
       }
-    } else if (pathname.startsWith('/thread_')) {
-      const pathId = pathname.replace(/^\//, '').replace(/\/+$/, '');
-      if (pathId.startsWith('thread_')) {
+    } else if (pathname.startsWith('/thread/')) {
+      const pathId = extractIdFromPath(pathname);
+      if (pathId && pathId.startsWith('thread_')) {
         currentId = pathId;
         const fromHistory = navigationHistory.find((i) => i.id === pathId);
         currentTitle = fromHistory?.title ?? null;
@@ -174,12 +175,12 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     });
 
     // Compute the active parent thread *before* scoping so we can always include it.
-    const activeParentThread = window.location.pathname.includes('/note_') ? getActiveParentThreadFromDom() : null;
+    const activeParentThread = window.location.pathname.startsWith('/note/') ? getActiveParentThreadFromDom() : null;
     const activeThreadIdFromPath = (() => {
       try {
         const path = window.location.pathname || '/';
-        const id = path.startsWith('/') ? path.slice(1) : path;
-        return id.startsWith('thread_') ? id : null;
+        const id = extractIdFromPath(path);
+        return id && id.startsWith('thread_') ? id : null;
       } catch {
         return null;
       }
@@ -319,7 +320,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
   // On note page, use same DOM source as display (note element then nav) so active state matches the displayed thread
   let effectiveActiveItemId = currentActiveItemId;
-  if (typeof window !== 'undefined' && pathname.includes('/note_')) {
+  if (typeof window !== 'undefined' && pathname.startsWith('/note/')) {
     try {
       const noteEl = document.querySelector('[data-note-id][data-parent-thread-id]') as HTMLElement | null;
       const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
@@ -376,11 +377,11 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           // Keep the space switcher pinned to the *current* selected space.
           // (Visibility is controlled by opened-in scopes.)
           const hasSpace = typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_');
-          return hasSpace ? `/${item.id}?space=${encodeURIComponent(selectedSpaceId)}` : `/${item.id}`;
+          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(selectedSpaceId)}` : idToUrl(item.id);
         };
 
         // CRITICAL: Ensure href is always valid - never set to /undefined
-        const validHref = item.id.startsWith('thread_') ? getThreadHrefWithSpace() : `/${item.id}`;
+        const validHref = item.id.startsWith('thread_') ? getThreadHrefWithSpace() : idToUrl(item.id);
 
         return (
           <div

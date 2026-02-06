@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
+import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { getSelectedSpaceId, setSelectedSpaceId } from './selectedSpace';
 
@@ -495,7 +496,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    const currentItemId = extractIdFromPath(currentPath) ?? (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
 
     // If we're on a note page, we need to determine the parent thread
     if (currentItemId.startsWith('note_')) {
@@ -634,7 +635,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Navigate to next item or dashboard (unless caller will navigate, e.g. Erase Space → Menu goes to /)
       if (navigateIfActive) {
-        const targetUrl = nextItem ? `/${nextItem.id}?closed=${encodeURIComponent(itemId)}` : '/';
+        const targetUrl = nextItem ? `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}` : '/';
         if (document.hidden) {
           window.location.href = targetUrl;
           return;
@@ -817,7 +818,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    const currentItemId = extractIdFromPath(currentPath) ?? (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
 
     // Skip dashboard and empty paths
     if (currentItemId === 'dashboard' || currentItemId === '' || currentItemId === 'sign-in' || currentItemId === 'sign-up') {
@@ -1401,7 +1402,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // This ensures badge counts are accurate when navigating to note pages
         // This is especially important after creating a note with a suggested thread and redirecting
         const currentPath = window.location.pathname;
-        const isNotePage = currentPath.startsWith('/note_');
+        const isNotePage = currentPath.startsWith('/note/');
         
         if (isNotePage) {
           // Refresh navigation counts after a delay to ensure counts are accurate after redirect
