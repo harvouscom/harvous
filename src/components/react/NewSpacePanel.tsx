@@ -912,17 +912,40 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                       </div>
                     </button>
                     
-                    {/* Shared button - disabled */}
+                    {/* Shared button */}
                     <button
                       type="button"
-                      disabled
-                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
+                      onClick={() => setSelectedType('Shared')}
+                      className={`space-button button-group__button button-group__button--right h-[64px] ${
+                        selectedType === 'Shared'
+                          ? ''
+                          : 'bg-transparent'
+                      }`}
+                      style={selectedType === 'Shared' ? {
+                        backgroundImage: 'var(--color-gradient-gray)'
+                      } : {}}
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
+                          <Icon
+                            name="user-group"
+                            size={16}
+                            style={{
+                              color: selectedType === 'Shared'
+                                ? 'var(--color-deep-grey)'
+                                : 'var(--color-pebble-grey)'
+                            }}
+                          />
                         </div>
-                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                        <span
+                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                            selectedType === 'Shared'
+                              ? 'text-[var(--color-deep-grey)]'
+                              : 'text-[var(--color-pebble-grey)]'
+                          }`}
+                        >
+                          Shared
+                        </span>
                       </div>
                     </button>
                   </div>
