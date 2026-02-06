@@ -1186,132 +1186,166 @@ export default function EditSpacePanel({
                       </div>
                     </button>
                     
-                    {/* Shared button - disabled */}
+                    {/* Shared button */}
                     <button
                       type="button"
-                      disabled
-                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
+                      onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Shared' }))}
+                      className={`space-button button-group__button button-group__button--right h-[64px] ${
+                        formData.selectedType === 'Shared'
+                          ? ''
+                          : 'bg-transparent'
+                      }`}
+                      style={formData.selectedType === 'Shared' ? {
+                        backgroundImage: 'var(--color-gradient-gray)'
+                      } : {}}
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
                         <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
+                          <Icon
+                            name="user-group"
+                            size={16}
+                            style={{
+                              color: formData.selectedType === 'Shared'
+                                ? 'var(--color-deep-grey)'
+                                : 'var(--color-pebble-grey)'
+                            }}
+                          />
                         </div>
-                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
+                        <span
+                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                            formData.selectedType === 'Shared'
+                              ? 'text-[var(--color-deep-grey)]'
+                              : 'text-[var(--color-pebble-grey)]'
+                          }`}
+                        >
+                          Shared
+                        </span>
                       </div>
                     </button>
                   </div>
                 </div>
 
-                {/* Member Management Section - shown if space has members or user is owner */}
-                {(memberCount > 1 || isOwner) && (
-                  <div className="members-section w-full">
-                    <div className="members-section__content">
-                      {/* Member count indicator */}
-                      {memberCount > 1 && (
-                        <div className="members-section__indicator">
-                          <SharedSpaceIndicator memberCount={memberCount} />
-                        </div>
-                      )}
+                {/* Private Mode: Show AddToSpaceSection */}
+                {formData.selectedType === 'Private' && (
+                  <>
+                    {/* Current Items in Space - displayed above AddToSpaceSection */}
+                    {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
+                      <div className="w-full shrink-0 mb-3">
+                        <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
+                          {/* Current Threads */}
+                          {currentSpaceThreads.map(thread => (
+                            <div key={thread.id} className="relative group">
+                              <a
+                                href={`/${thread.id}`}
+                                className="block"
+                                aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
+                              >
+                                {renderCompactThreadItem(thread)}
+                              </a>
+                              {/* Remove from space button */}
+                              <ActionButton
+                                variant="Remove"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveFromSpace(thread.id, 'thread');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                disabled={isRemovingItem}
+                              />
+                            </div>
+                          ))}
 
-                      {/* Action buttons for owner */}
-                      {isOwner && (
-                        <div className="members-section__actions">
-                          <button
-                            type="button"
-                            onClick={() => setShowMembersPanel(true)}
-                            className="members-action-button"
-                          >
-                            <Icon name="user-group" size={16} />
-                            <span>Manage Members</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setShowInvitePanel(true)}
-                            className="members-action-button members-action-button--primary"
-                          >
-                            <Icon name="user-plus" size={16} />
-                            <span>Invite People</span>
-                          </button>
+                          {/* Current Notes */}
+                          {currentSpaceNotes.map(note => (
+                            <div key={note.id} className="relative group">
+                              <a
+                                href={`/${note.id}`}
+                                className="block"
+                                aria-label={`View note: ${note.title || 'Untitled note'}`}
+                              >
+                                {renderCompactNoteItem(note)}
+                              </a>
+                              {/* Remove from space button */}
+                              <ActionButton
+                                variant="Remove"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveFromSpace(note.id, 'note');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                disabled={isRemovingItem}
+                              />
+                            </div>
+                          ))}
                         </div>
+                      </div>
+                    )}
+
+                    {/* AddToSpaceSection - for adding items to existing space */}
+                    <div className="w-full flex-1 min-h-0">
+                      {isLoadingItems ? (
+                        <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                          Loading items...
+                        </div>
+                      ) : (
+                        <AddToSpaceSection
+                          allNotes={allNotes}
+                          allThreads={allThreads}
+                          currentSpaceId={spaceId}
+                          onItemSelect={handleItemSelect}
+                          selectedItems={[]}
+                          isLoading={isAddingItems}
+                          placeholder="Search notes and threads"
+                          emptyMessage="No items found"
+                        />
                       )}
                     </div>
-                  </div>
+                  </>
                 )}
 
-                {/* Current Items in Space - displayed above AddToSpaceSection */}
-                {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
-                  <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
-                      {/* Current Threads */}
-                      {currentSpaceThreads.map(thread => (
-                        <div key={thread.id} className="relative group">
-                          <a 
-                            href={`/${thread.id}`}
-                            className="block"
-                            aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
-                          >
-                            {renderCompactThreadItem(thread)}
-                          </a>
-                          {/* Remove from space button */}
-                          <ActionButton
-                            variant="Remove"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRemoveFromSpace(thread.id, 'thread');
-                            }}
-                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                            disabled={isRemovingItem}
-                          />
-                        </div>
-                      ))}
-                      
-                      {/* Current Notes */}
-                      {currentSpaceNotes.map(note => (
-                        <div key={note.id} className="relative group">
-                          <a 
-                            href={`/${note.id}`}
-                            className="block"
-                            aria-label={`View note: ${note.title || 'Untitled note'}`}
-                          >
-                            {renderCompactNoteItem(note)}
-                          </a>
-                          {/* Remove from space button */}
-                          <ActionButton
-                            variant="Remove"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRemoveFromSpace(note.id, 'note');
-                            }}
-                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                            disabled={isRemovingItem}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                {/* Shared Mode: Show Member Management */}
+                {formData.selectedType === 'Shared' && (
+                  <div className="w-full flex-1 flex flex-col gap-4 p-4">
+                    {/* Member count badge */}
+                    {memberCount > 1 && (
+                      <div className="flex justify-center">
+                        <SharedSpaceIndicator memberCount={memberCount} />
+                      </div>
+                    )}
+
+                    {/* Action buttons - only show if owner */}
+                    {isOwner && (
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => setShowMembersPanel(true)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-snow-white)] rounded-xl text-[var(--color-deep-grey)] font-semibold text-[16px] hover:bg-[var(--color-paper-grey)] transition-colors"
+                        >
+                          <Icon name="user-group" size={16} />
+                          <span>Manage Members</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowInvitePanel(true)}
+                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-white font-semibold text-[16px] hover:opacity-90 transition-opacity"
+                          style={{ backgroundImage: 'var(--color-gradient-blue)' }}
+                        >
+                          <Icon name="user-plus" size={16} />
+                          <span>Invite People</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Members list preview (optional) */}
+                    {memberCount > 1 && (
+                      <div className="text-center text-[var(--color-pebble-grey)] text-sm">
+                        Click "Manage Members" to see all {memberCount} members
+                      </div>
+                    )}
                   </div>
                 )}
-
-                {/* AddToSpaceSection - for adding items to existing space */}
-                <div className="w-full flex-1 min-h-0">
-                  {isLoadingItems ? (
-                    <div className="text-center py-8 text-[var(--color-stone-grey)]">
-                      Loading items...
-                    </div>
-                  ) : (
-                    <AddToSpaceSection
-                      allNotes={allNotes}
-                      allThreads={allThreads}
-                      currentSpaceId={spaceId}
-                      onItemSelect={handleItemSelect}
-                      selectedItems={[]}
-                      isLoading={isAddingItems}
-                      placeholder="Search notes and threads"
-                      emptyMessage="No items found"
-                    />
-                  )}
-                </div>
               </div>
             </div>
           </div>
@@ -1352,74 +1386,6 @@ export default function EditSpacePanel({
         />
       )}
 
-      {/* Member Management Styles */}
-      <style>{`
-        .members-section {
-          margin: 16px 0;
-          padding: 16px;
-          background: var(--color-paper-grey);
-          border-radius: 12px;
-        }
-
-        .members-section__content {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .members-section__indicator {
-          display: flex;
-          justify-content: center;
-        }
-
-        .members-section__actions {
-          display: flex;
-          gap: 8px;
-          flex-direction: column;
-        }
-
-        .members-action-button {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          padding: 12px 16px;
-          background: white;
-          border: 1px solid var(--color-feather-grey);
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--color-deep-grey);
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .members-action-button:hover {
-          background: var(--color-paper-grey);
-          border-color: var(--color-pebble-grey);
-        }
-
-        .members-action-button--primary {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border-color: transparent;
-        }
-
-        .members-action-button--primary:hover {
-          opacity: 0.9;
-          background: linear-gradient(135deg, #5a67d8 0%, #6b3fa0 100%);
-        }
-
-        @media (min-width: 640px) {
-          .members-section__actions {
-            flex-direction: row;
-          }
-
-          .members-action-button {
-            flex: 1;
-          }
-        }
-      `}</style>
     </div>
   );
 }
