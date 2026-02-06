@@ -11,7 +11,7 @@ import {
   isSessionValid,
   backupClerkSession
 } from '@/utils/clerk-session-backup';
-import { initClerkForPWA } from '@/utils/clerk-pwa-helper';
+import { initClerkForPWA, restoreClerkCookies } from '@/utils/clerk-pwa-helper';
 
 // Cache device ID for reuse in session listener
 let cachedDeviceId: string | null = null;
@@ -71,6 +71,9 @@ export async function initializePWAAuth(): Promise<void> {
       if (sessionBackup.deviceId === deviceId) {
         if (isDev) console.log('[Auth] Device ID matches, attempting silent restore');
 
+        // Restore Clerk cookies before setSession so Clerk's next request has full device context
+        await restoreClerkCookies();
+
         const Clerk = await waitForClerk();
 
         if (Clerk && sessionBackup.sessionId) {
@@ -104,7 +107,7 @@ export async function initializePWAForSignUp(): Promise<void> {
   try {
     if (isDev) console.log('[Auth] Initializing device fingerprinting for sign-up...');
 
-    const deviceId = await getOrCreateDeviceId();
+    const deviceId = await getOrCreateDeviceId(true);
     // Cache device ID for later use in session listener
     cachedDeviceId = deviceId;
     if (isDev) console.log('[Auth] Device ID created:', deviceId.substring(0, 8) + '...');
@@ -132,8 +135,8 @@ export function setupClerkSessionBackupListener(): void {
       if (isDev) console.log('[Auth] User signed in, backing up session...');
 
       try {
-        // Use cached device ID (instant) or fetch if not available
-        const deviceId = cachedDeviceId || await getOrCreateDeviceId();
+        // Use cached device ID (instant) or fetch if not available (same semantics as restore)
+        const deviceId = cachedDeviceId || await getOrCreateDeviceId(true);
 
         await backupClerkSession({
           sessionId: session.id,

@@ -175,7 +175,6 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
         href="#"
         data-outer-shadow
         class="btn-cta btn--secondary flex-1 group no-underline"
-        onclick="event.preventDefault(); if (window.Clerk && window.Clerk.signOut) { window.Clerk.signOut({ redirectUrl: '/sign-in' }); } else { window.location.href = '/sign-in'; } return false;"
       >
         <span class="btn-cta__content">
           Logout
@@ -218,4 +217,32 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
   <div slot="mobile-additional">
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
+  <!-- Expose session backup clear for Astro logout button (same behavior as ProfilePage handleLogout) -->
+  <script type="module">
+    import { clearSessionBackup } from '@/utils/clerk-session-backup';
+    if (typeof window !== 'undefined') {
+      window['__harvousClearSessionBackup'] = clearSessionBackup;
+    }
+  </script>
+  <script is:inline>
+    (function() {
+      var btn = document.getElementById('logout-button');
+      if (!btn) return;
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
+          ? window.__harvousClearSessionBackup()
+          : Promise.resolve();
+        clearPromise.then(function() {
+          if (window.Clerk && window.Clerk.signOut) {
+            return window.Clerk.signOut({ redirectUrl: '/sign-in' });
+          }
+          window.location.href = '/sign-in';
+        }).catch(function() {
+          window.location.href = '/sign-in';
+        });
+        return false;
+      });
+    })();
+  </script>
 </Layout>

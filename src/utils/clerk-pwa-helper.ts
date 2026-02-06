@@ -102,9 +102,9 @@ async function backupClerkCookies(): Promise<void> {
 }
 
 /**
- * Restore Clerk cookies from IndexedDB
+ * Restore Clerk cookies from IndexedDB (exported for auth-pwa-init restore path)
  */
-async function restoreClerkCookies(): Promise<void> {
+export async function restoreClerkCookies(): Promise<void> {
   try {
     const db = await openDB();
     const transaction = db.transaction([COOKIES_STORE], 'readonly');
@@ -201,8 +201,8 @@ export async function listenForClerkSession(): Promise<void> {
       if (session?.id) {
         console.log('[ClerkPWA] Clerk session changed, backing up...');
 
-        // Get device ID
-        getOrCreateDeviceId().then(deviceId => {
+        // Get device ID (same semantics as auth-pwa-init for backup/restore consistency)
+        getOrCreateDeviceId(true).then(deviceId => {
           const backup: ClerkSessionBackup = {
             sessionId: session.id,
             sessionToken: session.lastActiveToken?.getRawString() || null,
@@ -234,14 +234,12 @@ export async function initClerkForPWA(): Promise<void> {
 
   console.log('[ClerkPWA] Initializing Clerk PWA helper, isPWA:', isPWA);
 
-  // Generate/retrieve device ID
-  const deviceId = await getOrCreateDeviceId();
+  // Generate/retrieve device ID (same semantics as auth-pwa-init for backup/restore consistency)
+  const deviceId = await getOrCreateDeviceId(true);
   console.log('[ClerkPWA] Device ID:', deviceId.substring(0, 8) + '...');
 
-  if (isPWA) {
-    // In PWA mode, try to restore cookies first
-    await restoreClerkCookies();
-  }
+  // Restore Clerk cookies from backup (always, not only PWA) so Clerk has full context
+  await restoreClerkCookies();
 
   // Watch for cookie changes
   watchClerkCookies();
