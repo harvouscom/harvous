@@ -160,7 +160,7 @@
   }
 }
 
-/* Tag button variant - uses gradient background */
+/* Tag button variant - uses gradient background, shadow matches AddToSection items */
 .btn--tag {
   background-image: var(--color-gradient-gray);
   color: var(--color-deep-grey) !important;
@@ -169,9 +169,7 @@
   font-weight: 600;
   min-height: 40px;
   border-radius: 0.75rem; /* 12px */
-  box-shadow:
-    0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset,
-    0px 2px 2px 0px rgba(0, 0, 0, 0.1);
+  box-shadow: 0px 2px 8px 0px rgba(120, 118, 111, 0.1);
 
   & .btn__content,
   & span,
@@ -183,16 +181,15 @@
   }
 
   & .btn__shadow-overlay {
-    box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+    box-shadow: none;
   }
 
   &:active {
     filter: brightness(0.97);
-    
+    box-shadow: 0px 1px 4px 0px rgba(120, 118, 111, 0.15);
+
     & .btn__shadow-overlay {
-      box-shadow: 
-        0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
-        0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+      box-shadow: none;
     }
   }
 }
