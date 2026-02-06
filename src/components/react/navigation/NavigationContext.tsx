@@ -1540,8 +1540,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         } else {
           // Thread not in history - we need to fetch it and add it (unless caller will navigate to note)
-          // If the caller is about to navigate to the note page, trackNavigationAccess will add the thread on load
-          if (event.detail?.willNavigateToNote) {
+          // CRITICAL: When note is created in unorganized, add unorganized synchronously even if we're about to navigate.
+          // This ensures the desktop nav shows Unorganized before/after navigation (trackNavigationAccess can run before new DOM is ready).
+          if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
+            addToNavigationHistory({
+              id: 'thread_unorganized',
+              title: 'Unorganized',
+              count: 1, // At least 1 (the new note)
+              backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+            });
+          } else if (event.detail?.willNavigateToNote) {
             // Do nothing - trackNavigationAccess will handle it on the new page
           } else if (isAuthReady()) {
             safeFetch('/api/threads/list')
