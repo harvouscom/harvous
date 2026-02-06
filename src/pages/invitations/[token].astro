@@ -1,0 +1,420 @@
+---
+export const prerender = false;
+
+import { db, SpaceInvitations, Spaces, Members, UserMetadata, eq, and } from 'astro:db';
+
+const { token } = Astro.params;
+
+if (!token) {
+  return Astro.redirect('/404');
+}
+
+// Fetch invitation details server-side
+const invitation = await db.select()
+  .from(SpaceInvitations)
+  .where(eq(SpaceInvitations.inviteToken, token))
+  .get();
+
+if (!invitation) {
+  return Astro.redirect('/404');
+}
+
+// Get space details
+const space = await db.select()
+  .from(Spaces)
+  .where(eq(Spaces.id, invitation.spaceId))
+  .get();
+
+if (!space) {
+  return Astro.redirect('/404');
+}
+
+// Get inviter details
+const inviter = await db.select()
+  .from(UserMetadata)
+  .where(eq(UserMetadata.userId, invitation.invitedBy))
+  .get();
+
+// Check if expired
+const isExpired = invitation.expiresAt && new Date() > new Date(invitation.expiresAt);
+
+// Check if current user is already a member (if logged in)
+const { userId } = Astro.locals.auth();
+let alreadyMember = false;
+let isOwner = false;
+
+if (userId) {
+  isOwner = space.userId === userId;
+
+  if (!isOwner) {
+    const existingMember = await db.select()
+      .from(Members)
+      .where(and(
+        eq(Members.spaceId, invitation.spaceId),
+        eq(Members.userId, userId)
+      ))
+      .get();
+
+    alreadyMember = !!existingMember;
+  } else {
+    alreadyMember = true;
+  }
+}
+
+const canAccept = !isExpired && invitation.status === 'pending' && !alreadyMember && userId;
+const requiresAuth = !userId;
+
+const inviterName = inviter?.firstName
+  ? `${inviter.firstName}${inviter.lastName ? ' ' + inviter.lastName : ''}`
+  : 'Someone';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Space Invitation - Harvous</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .invitation-card {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .invitation-icon {
+      font-size: 48px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      text-align: center;
+      margin-bottom: 8px;
+      color: #1a202c;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #718096;
+      margin-bottom: 32px;
+      font-size: 15px;
+    }
+
+    .space-info {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+
+    .space-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 8px;
+    }
+
+    .space-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 12px;
+    }
+
+    .message {
+      color: #4a5568;
+      font-size: 14px;
+      line-height: 1.6;
+      font-style: italic;
+      padding: 12px;
+      background: white;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .status-expired {
+      background: #fed7d7;
+      color: #c53030;
+    }
+
+    .status-already-member {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .status-already-accepted {
+      background: #bee3f8;
+      color: #2c5282;
+    }
+
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    button, .button {
+      flex: 1;
+      padding: 14px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+    }
+
+    .button-primary {
+      background: #667eea;
+      color: white;
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: #5a67d8;
+      transform: translateY(-1px);
+    }
+
+    .button-secondary {
+      background: #e2e8f0;
+      color: #4a5568;
+    }
+
+    .button-secondary:hover:not(:disabled) {
+      background: #cbd5e0;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      color: #718096;
+      margin-top: 16px;
+    }
+
+    .loading.active {
+      display: block;
+    }
+
+    .error {
+      background: #fed7d7;
+      color: #c53030;
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 16px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .error.active {
+      display: block;
+    }
+
+    .expiry-warning {
+      color: #d69e2e;
+      font-size: 13px;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 600px) {
+      .invitation-card {
+        padding: 24px;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="invitation-card">
+    <div class="invitation-icon">📬</div>
+
+    <h1>Space Invitation</h1>
+    <p class="subtitle">{inviterName} invited you to join a space</p>
+
+    {invitation.status !== 'pending' && (
+      <div class={`status-badge status-already-accepted`}>
+        This invitation has been {invitation.status}
+      </div>
+    )}
+
+    {isExpired && (
+      <div class="status-badge status-expired">
+        ⚠️ This invitation has expired
+      </div>
+    )}
+
+    {alreadyMember && (
+      <div class="status-badge status-already-member">
+        ✓ You're already a member of this space
+      </div>
+    )}
+
+    <div class="space-info">
+      <div class="space-badge" style={`background: ${space.color || '#e2e8f0'}; color: #2d3748;`}>
+        Space
+      </div>
+      <div class="space-name">{space.title}</div>
+      {invitation.message && (
+        <div class="message">"{invitation.message}"</div>
+      )}
+    </div>
+
+    {invitation.expiresAt && !isExpired && (
+      <div class="expiry-warning">
+        Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+      </div>
+    )}
+
+    {requiresAuth ? (
+      <div class="actions">
+        <a href="/sign-in" class="button button-primary">
+          Sign In to Accept
+        </a>
+      </div>
+    ) : canAccept ? (
+      <>
+        <div class="actions">
+          <button id="acceptButton" class="button button-primary">
+            Accept Invitation
+          </button>
+          <button id="declineButton" class="button button-secondary">
+            Decline
+          </button>
+        </div>
+        <div id="loading" class="loading">Processing...</div>
+        <div id="error" class="error"></div>
+      </>
+    ) : alreadyMember ? (
+      <div class="actions">
+        <a href={`/spaces/${space.id}`} class="button button-primary">
+          Go to Space
+        </a>
+      </div>
+    ) : null}
+  </div>
+
+  <script define:vars={{ token, spaceId: space.id }}>
+    const acceptButton = document.getElementById('acceptButton');
+    const declineButton = document.getElementById('declineButton');
+    const loading = document.getElementById('loading');
+    const errorDiv = document.getElementById('error');
+
+    async function acceptInvitation() {
+      if (!acceptButton) return;
+
+      acceptButton.disabled = true;
+      if (declineButton) declineButton.disabled = true;
+      loading.classList.add('active');
+      errorDiv.classList.remove('active');
+
+      try {
+        const response = await fetch(`/api/invitations/${token}/accept`, {
+          method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Redirect to space
+          window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
+        } else {
+          throw new Error(data.error || 'Failed to accept invitation');
+        }
+      } catch (error) {
+        loading.classList.remove('active');
+        errorDiv.textContent = error.message;
+        errorDiv.classList.add('active');
+        acceptButton.disabled = false;
+        if (declineButton) declineButton.disabled = false;
+      }
+    }
+
+    async function declineInvitation() {
+      if (!declineButton) return;
+
+      if (!confirm('Are you sure you want to decline this invitation?')) {
+        return;
+      }
+
+      acceptButton.disabled = true;
+      declineButton.disabled = true;
+      loading.classList.add('active');
+      errorDiv.classList.remove('active');
+
+      try {
+        const response = await fetch(`/api/invitations/${token}/decline`, {
+          method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Show success message
+          alert('Invitation declined');
+          window.location.href = '/';
+        } else {
+          throw new Error(data.error || 'Failed to decline invitation');
+        }
+      } catch (error) {
+        loading.classList.remove('active');
+        errorDiv.textContent = error.message;
+        errorDiv.classList.add('active');
+        acceptButton.disabled = false;
+        declineButton.disabled = false;
+      }
+    }
+
+    if (acceptButton) {
+      acceptButton.addEventListener('click', acceptInvitation);
+    }
+
+    if (declineButton) {
+      declineButton.addEventListener('click', declineInvitation);
+    }
+  </script>
+</body>
+</html>
