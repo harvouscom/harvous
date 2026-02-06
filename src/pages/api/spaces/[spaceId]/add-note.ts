@@ -1,35 +1,25 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Spaces, eq, and } from 'astro:db';
+import { db, Notes, eq, and } from 'astro:db';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
     const { userId } = locals.auth();
-    
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/spaces/[spaceId]/add-note', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return errorResponse(rateLimit.error, 'RATE_LIMIT_EXCEEDED', 429);
     }
 
     const { spaceId } = params;
@@ -37,31 +27,15 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const { noteId } = body;
 
     if (!spaceId) {
-      return new Response(JSON.stringify({ error: 'Space ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Space ID is required', 'INVALID_SPACE_ID');
     }
 
     if (!noteId) {
-      return new Response(JSON.stringify({ error: 'Note ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Note ID is required', 'INVALID_NOTE_ID');
     }
 
-    // Verify the space exists and belongs to the user
-    const space = await db.select()
-      .from(Spaces)
-      .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-      .get();
-
-    if (!space) {
-      return new Response(JSON.stringify({ error: 'Space not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Verify user has access to space (owner or member)
+    await requireSpaceAccess(spaceId, userId);
 
     // Verify the note exists and belongs to the user
     const note = await db.select()
@@ -79,27 +53,29 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     // Update the note's spaceId
     // Don't update updatedAt - only metadata change, not content change
     await db.update(Notes)
-      .set({ 
+      .set({
         spaceId: spaceId
       })
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
-    return new Response(JSON.stringify({
+    return successResponse({
       success: true,
       message: 'Note added to space'
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error adding note to space:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to add note to space' 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
+    // Handle permission errors from requireSpaceAccess
+    if (error instanceof Response) {
+      return error;
+    }
+
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/add-note',
+      action: 'add_note_to_space',
+      spaceId: params.spaceId,
     });
+
+    return errorResponse(standardError.message, standardError.code, 500);
   }
 };
 

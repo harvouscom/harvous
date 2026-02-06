@@ -3,34 +3,24 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, Spaces, eq, and } from 'astro:db';
 import { getThreadGradientCSS } from '@/utils/colors';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
     const { userId } = locals.auth();
-    
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     // Rate limiting for write operations
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/spaces/[spaceId]/update', 'write', ip);
     if (!rateLimit.allowed) {
-      return new Response(JSON.stringify({ 
-        error: rateLimit.error,
-        code: 'RATE_LIMIT_EXCEEDED'
-      }), {
-        status: 429,
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-RateLimit-Remaining': String(rateLimit.remaining || 0),
-          'X-RateLimit-Reset': String(rateLimit.resetTime || Date.now())
-        }
-      });
+      return errorResponse(rateLimit.error, 'RATE_LIMIT_EXCEEDED', 429);
     }
 
     const { spaceId } = params;
@@ -39,31 +29,15 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const color = formData.get('color') as string;
 
     if (!spaceId) {
-      return new Response(JSON.stringify({ error: 'Space ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Space ID is required', 'INVALID_SPACE_ID');
     }
 
     if (!title || !title.trim()) {
-      return new Response(JSON.stringify({ error: 'Title is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Title is required', 'INVALID_TITLE');
     }
 
-    // Verify the space exists and belongs to the user
-    const space = await db.select()
-      .from(Spaces)
-      .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-      .get();
-
-    if (!space) {
-      return new Response(JSON.stringify({ error: 'Space not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Verify user is owner (only owner can update space settings)
+    const { space } = await requireSpaceAccess(spaceId, userId, true);
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color || space.color || 'paper');
@@ -80,22 +54,24 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       .returning()
       .get();
 
-    return new Response(JSON.stringify({
+    return successResponse({
       success: 'Space updated!',
       space: updatedSpace
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error updating space:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to update space' 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
+    // Handle permission errors from requireSpaceAccess
+    if (error instanceof Response) {
+      return error;
+    }
+
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/update',
+      action: 'update_space',
+      spaceId: params.spaceId,
     });
+
+    return errorResponse(standardError.message, standardError.code, 500);
   }
 };
 
