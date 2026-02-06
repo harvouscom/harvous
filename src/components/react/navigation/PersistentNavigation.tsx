@@ -174,7 +174,20 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     });
 
     // Compute the active parent thread *before* scoping so we can always include it.
-    const activeParentThread = window.location.pathname.includes('/note_') ? getActiveParentThreadFromDom() : null;
+    let activeParentThread = window.location.pathname.includes('/note_') ? getActiveParentThreadFromDom() : null;
+    // Fallback when on note page and DOM hasn't updated yet (View Transitions): use getCurrentActiveItemId (sessionStorage + fallback)
+    if (window.location.pathname.includes('/note_') && activeParentThread === null) {
+      const fallbackThreadId = getCurrentActiveItemId();
+      if (fallbackThreadId === 'thread_unorganized') {
+        activeParentThread = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          count: 1,
+          backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
+          spaceId: null,
+        };
+      }
+    }
     const activeThreadIdFromPath = (() => {
       try {
         const path = window.location.pathname || '/';
