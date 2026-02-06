@@ -18,6 +18,14 @@ These were designed here and are now live. The stub files in this folder point t
 
 ## 📁 Documentation Structure (planned / not yet implemented)
 
+### Strategy & Roadmap
+
+- **`HARVOUS_SDK_AND_FUTURE_ROADMAP.md`** - SDK vision and future core product roadmap
+  - Harvous SDK idea and why (inspired by OpenAI Apps SDK; deferred in favor of core product)
+  - Contrast with share sheet/extension and MCP/API-only approaches
+  - Future core features: space sharing and groups, then learning (challenges, recall/quizzes, live events)
+  - Phase sequence and anti-patterns (not a dumping ground, not fragmented)
+
 ### Mobile Apps
 
 - **`CAPACITOR_STRATEGIC_ANALYSIS.md`** - Strategic analysis for iOS/Android native apps
