@@ -55,9 +55,9 @@ export function initPrefetching(currentPath: string): void {
   if (typeof window === 'undefined') return;
   
   // If we're on a thread, note, or space page, prefetch dashboard
-  const isThreadPage = currentPath.startsWith('/thread_');
-  const isNotePage = currentPath.startsWith('/note_');
-  const isSpacePage = currentPath.startsWith('/space_');
+  const isThreadPage = currentPath.startsWith('/thread/');
+  const isNotePage = currentPath.startsWith('/note/');
+  const isSpacePage = currentPath.startsWith('/space/');
   
   if (isThreadPage || isNotePage || isSpacePage) {
     prefetchDashboardData();

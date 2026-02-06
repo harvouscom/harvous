@@ -75,7 +75,7 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     // we navigate away from it, so its page doesn't load and lastVisited isn't updated
 
     // Strip query parameters and hash from both paths for comparison
-    // This handles cases like /thread_123?tab=all vs /thread_123
+    // This handles cases like /thread/123?tab=all vs /thread/123
     const normalizePath = (path: string): string => {
       // Remove query string and hash
       return path.split('?')[0].split('#')[0];
@@ -228,14 +228,30 @@ const { firstName, lastName, initials, userColor } = userData;
 // Cache-Control for Netlify function optimization (repeat visits served from CDN when valid)
 Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
-const { id } = Astro.params;
+// Parse slug from [...slug] rest parameter and handle URL format conversion
+const rawSlug = Astro.params.slug || '';
+const currentSlugPath = '/' + rawSlug;
+
+// BACKWARD COMPATIBILITY: Redirect old /thread_ID format to new /thread/ID format
+import { isOldUrlFormat, oldUrlToNewUrl, urlToId } from '@/utils/url-helpers';
+if (isOldUrlFormat(currentSlugPath)) {
+  return Astro.redirect(oldUrlToNewUrl(currentSlugPath, Astro.url.search), 301);
+}
+
+// Extract database ID from new URL format (/thread/abc123 → thread_abc123)
+const id = urlToId(currentSlugPath);
+
+// If no valid ID found, redirect to dashboard
+if (!id) {
+  return Astro.redirect('/');
+}
 
 // Determine if this is a thread, note, or space based on the ID prefix
-const isThread = id?.startsWith('thread_');
-const isNote = id?.startsWith('note_');
-const isSpace = id?.startsWith('space_');
+const isThread = id.startsWith('thread_');
+const isNote = id.startsWith('note_');
+const isSpace = id.startsWith('space_');
 // Detect offline thread IDs (local_ prefix)
-const isOfflineThread = id?.startsWith('local_');
+const isOfflineThread = id.startsWith('local_');
 
 // Determine content type for context-aware More menu
 let contentType: "thread" | "note" | "space" | "dashboard" = "dashboard";

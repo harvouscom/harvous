@@ -83,9 +83,9 @@ function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolea
   }
   
   const path = window.location.pathname;
-  const isNote = path.startsWith('/note_');
-  const isThread = path.startsWith('/thread_') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space_') && path !== '/' && path !== '/find' && path !== '/profile' && path !== '/sign-in' && path !== '/new-space');
-  const isSpace = path.startsWith('/space_');
+  const isNote = path.startsWith('/note/');
+  const isThread = path.startsWith('/thread/') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space/') && !path.startsWith('/note/') && path !== '/' && path !== '/find' && path !== '/profile' && path !== '/sign-in' && path !== '/new-space');
+  const isSpace = path.startsWith('/space/');
   
   return { isNote, isThread, isSpace, path };
 }
