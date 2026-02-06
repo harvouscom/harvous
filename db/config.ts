@@ -92,6 +92,43 @@ const Members = defineTable({
     spaceId: column.text(),
     role: column.text({ default: "member" }), // member, admin, owner
     createdAt: column.date(),
+  },
+  indexes: {
+    spaceIdIndex: {
+      on: ['spaceId']
+    },
+    userIdIndex: {
+      on: ['userId']
+    }
+  }
+})
+
+const SpaceInvitations = defineTable({
+  columns: {
+    id: column.text({ primaryKey: true }),
+    spaceId: column.text(), // References Spaces.id
+    invitedBy: column.text(), // Clerk userId who sent invite
+    invitedEmail: column.text({ optional: true }), // Email if email-based
+    invitedUserId: column.text({ optional: true }), // If inviting existing user
+    inviteToken: column.text({ unique: true }), // Unique token for invite links
+    role: column.text({ default: "member" }), // Role they'll receive
+    status: column.text(), // 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled'
+    message: column.text({ optional: true }), // Optional invite message
+    expiresAt: column.date({ optional: true }), // Optional expiration (7 days default)
+    createdAt: column.date(),
+    acceptedAt: column.date({ optional: true }),
+  },
+  indexes: {
+    tokenIndex: {
+      on: ['inviteToken'],
+      unique: true
+    },
+    spaceStatusIndex: {
+      on: ['spaceId', 'status']
+    },
+    emailIndex: {
+      on: ['invitedEmail']
+    }
   }
 })
 
@@ -319,6 +356,7 @@ export default defineDb({
     NoteThreads,
     Comments,
     Members,
+    SpaceInvitations,
     UserMetadata,
     UserXP,
     UserSeasonalXP,
