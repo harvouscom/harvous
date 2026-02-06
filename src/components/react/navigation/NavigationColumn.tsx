@@ -1006,7 +1006,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             ) : null}
             
             {/* Persistent Navigation - shows recently accessed items */}
-            <PersistentNavigation />
+            <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
           </div>
         </div>
         
