@@ -4,6 +4,9 @@ import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
+import InviteMemberPanel from './InviteMemberPanel';
+import SpaceMembersList from './SpaceMembersList';
+import SharedSpaceIndicator from './SharedSpaceIndicator';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { updateSpaceOffline } from '@/utils/offline-mutations';
@@ -70,6 +73,12 @@ export default function EditSpacePanel({
   const [isLoadingCurrentItems, setIsLoadingCurrentItems] = useState(true);
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
+
+  // Member management state
+  const [memberCount, setMemberCount] = useState(1); // Default to 1 (owner)
+  const [isOwner, setIsOwner] = useState(false);
+  const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [showMembersPanel, setShowMembersPanel] = useState(false);
   
   // Refs to track current values for save functions (avoid stale closures)
   const formDataRef = useRef(formData);
@@ -152,6 +161,42 @@ export default function EditSpacePanel({
     if (spaceId) {
       fetchCurrentSpaceItems();
     }
+  }, [spaceId]);
+
+  // Fetch member info to determine member count and ownership
+  const fetchMemberInfo = async () => {
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/members`, {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMemberCount(data.totalMembers || 1);
+        setIsOwner(data.isOwner || false);
+      }
+    } catch (error) {
+      console.error('Error fetching member info:', error);
+    }
+  };
+
+  // Fetch member info on mount and when spaceId changes
+  useEffect(() => {
+    if (spaceId) {
+      fetchMemberInfo();
+    }
+  }, [spaceId]);
+
+  // Handle visibility change to refresh member list
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && spaceId) {
+        fetchMemberInfo();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [spaceId]);
   
   // Update initial values when props change
@@ -1157,6 +1202,42 @@ export default function EditSpacePanel({
                   </div>
                 </div>
 
+                {/* Member Management Section - shown if space has members or user is owner */}
+                {(memberCount > 1 || isOwner) && (
+                  <div className="members-section w-full">
+                    <div className="members-section__content">
+                      {/* Member count indicator */}
+                      {memberCount > 1 && (
+                        <div className="members-section__indicator">
+                          <SharedSpaceIndicator memberCount={memberCount} />
+                        </div>
+                      )}
+
+                      {/* Action buttons for owner */}
+                      {isOwner && (
+                        <div className="members-section__actions">
+                          <button
+                            type="button"
+                            onClick={() => setShowMembersPanel(true)}
+                            className="members-action-button"
+                          >
+                            <Icon name="user-group" size={16} />
+                            <span>Manage Members</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowInvitePanel(true)}
+                            className="members-action-button members-action-button--primary"
+                          >
+                            <Icon name="user-plus" size={16} />
+                            <span>Invite People</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Current Items in Space - displayed above AddToSpaceSection */}
                 {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
                   <div className="w-full shrink-0 mb-3">
@@ -1239,13 +1320,106 @@ export default function EditSpacePanel({
         {/* Bottom buttons */}
         <div className="panel__footer--buttons">
           {/* Back button */}
-          <SquareButton 
+          <SquareButton
             variant="Back"
             onClick={handleClose}
             inBottomSheet={inBottomSheet}
           />
         </div>
       </div>
+
+      {/* Member Management Modals */}
+      {showInvitePanel && (
+        <InviteMemberPanel
+          spaceId={spaceId}
+          spaceName={formData.title}
+          onClose={() => setShowInvitePanel(false)}
+          onSuccess={() => {
+            fetchMemberInfo(); // Refresh member count
+          }}
+        />
+      )}
+
+      {showMembersPanel && (
+        <SpaceMembersList
+          spaceId={spaceId}
+          spaceName={formData.title}
+          isOwner={isOwner}
+          onClose={() => setShowMembersPanel(false)}
+          onMemberRemoved={() => {
+            fetchMemberInfo(); // Refresh member count
+          }}
+        />
+      )}
+
+      {/* Member Management Styles */}
+      <style>{`
+        .members-section {
+          margin: 16px 0;
+          padding: 16px;
+          background: var(--color-paper-grey);
+          border-radius: 12px;
+        }
+
+        .members-section__content {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .members-section__indicator {
+          display: flex;
+          justify-content: center;
+        }
+
+        .members-section__actions {
+          display: flex;
+          gap: 8px;
+          flex-direction: column;
+        }
+
+        .members-action-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          padding: 12px 16px;
+          background: white;
+          border: 1px solid var(--color-feather-grey);
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          color: var(--color-deep-grey);
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .members-action-button:hover {
+          background: var(--color-paper-grey);
+          border-color: var(--color-pebble-grey);
+        }
+
+        .members-action-button--primary {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          border-color: transparent;
+        }
+
+        .members-action-button--primary:hover {
+          opacity: 0.9;
+          background: linear-gradient(135deg, #5a67d8 0%, #6b3fa0 100%);
+        }
+
+        @media (min-width: 640px) {
+          .members-section__actions {
+            flex-direction: row;
+          }
+
+          .members-action-button {
+            flex: 1;
+          }
+        }
+      `}</style>
     </div>
   );
 }
