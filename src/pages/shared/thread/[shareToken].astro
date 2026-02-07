@@ -117,7 +117,7 @@ const validThreadColors = new Set(THREAD_COLORS);
 const rawColor = thread?.color?.trim().toLowerCase();
 const safeOgColor = rawColor && validThreadColors.has(rawColor as ThreadColor) ? rawColor : 'paper';
 
-// Construct URLs for Open Graph
+// Construct URLs for Open Graph (thread color name = filename after hyphen, e.g. blue → thread-blue.png)
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
 const ogImageUrl = `${siteUrl}/og/thread-${safeOgColor}.png`;
