@@ -113,9 +113,10 @@ if (!shareToken || !isValidShareToken(shareToken)) {
 // Get thread color for styling
 const threadColor = (thread?.color || 'blue') as ThreadColor;
 
-// Safe thread color for static OG image (must be one of the 7; fallback paper)
-const validThreadColors = [...THREAD_COLORS];
-const safeOgColor = thread && validThreadColors.includes(thread.color as ThreadColor) ? thread.color : 'paper';
+// Thread color must match filename: thread-{color}.png (e.g. blue → thread-blue.png)
+const validThreadColors = new Set(THREAD_COLORS);
+const rawColor = thread?.color?.trim().toLowerCase();
+const safeOgColor = rawColor && validThreadColors.has(rawColor as ThreadColor) ? rawColor : 'paper';
 
 // Construct URLs for Open Graph
 const siteUrl = Astro.url.origin;
