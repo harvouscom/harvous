@@ -98,6 +98,7 @@ export default function TemplateSelector({
       aria-label="Select note template"
     >
       <div className="space-switcher-dropdown__panel">
+        <div className="space-switcher-dropdown__scroll">
         <button
           type="button"
           className={`space-switcher-dropdown__item ${selectedTemplateId === null ? 'is-active' : ''}`}
@@ -133,6 +134,7 @@ export default function TemplateSelector({
             </button>
           );
         })}
+        </div>
       </div>
     </div>,
     document.body

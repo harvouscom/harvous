@@ -899,6 +899,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   </span>
                 </summary>
                 <div className="space-switcher-details__panel space-switcher-dropdown__panel" role="dialog" aria-label="Switch space">
+                  <div className="space-switcher-dropdown__scroll">
                   <a
                     href="/"
                     className={`space-switcher-dropdown__item ${!effectiveSelectedSpaceId ? 'is-active' : ''}`}
@@ -988,6 +989,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                     </span>
                   </a>
+                  </div>
                 </div>
               </details>
             </div>

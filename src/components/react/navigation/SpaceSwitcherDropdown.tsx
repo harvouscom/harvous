@@ -103,6 +103,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
           aria-label="Switch space"
         >
           <div className="space-switcher-dropdown__panel">
+            <div className="space-switcher-dropdown__scroll">
             {items.map((item) => {
               const isHome = item.id === 'home';
               const isActive = isHome ? !currentSpaceId : item.id === currentSpaceId;
@@ -173,6 +174,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
                 <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
               </span>
             </a>
+            </div>
           </div>
         </div>,
         document.body,
