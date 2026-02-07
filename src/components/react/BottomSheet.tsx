@@ -15,6 +15,7 @@ import EditSpacePanel from './EditSpacePanel';
 import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
 import MySpacesPanel from './MySpacesPanel';
+import MySharingPanel from './MySharingPanel';
 import MyDataPanel from './MyDataPanel';
 import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
@@ -47,7 +48,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -81,6 +82,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'getSupport': 'Get Support',
     'emailPassword': 'Email & Password',
     'myChurch': 'My Church',
+    'mySharing': 'My Sharing',
     'mySpaces': 'My Spaces',
     'myData': 'My Data',
     'myAchievements': 'My Achievements',
@@ -271,6 +273,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (panelName === 'editNameColor') openBottomSheet('editNameColor');
       else if (panelName === 'emailPassword') openBottomSheet('emailPassword');
       else if (panelName === 'myChurch') openBottomSheet('myChurch');
+      else if (panelName === 'mySharing') openBottomSheet('mySharing');
       else if (panelName === 'mySpaces') openBottomSheet('mySpaces');
       else if (panelName === 'myData') openBottomSheet('myData');
       else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
@@ -653,6 +656,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             <div className="panel-container flex-1 flex flex-col min-h-0">
               <MyChurchPanel 
                 key={`mobile-church-${panelKey}`}
+                onClose={() => {
+                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+                }}
+                inBottomSheet={true}
+              />
+            </div>
+          )}
+
+          {/* My Sharing Panel */}
+          {drawerType === 'mySharing' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              <MySharingPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}

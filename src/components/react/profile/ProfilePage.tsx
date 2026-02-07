@@ -15,6 +15,7 @@ import ManageBillingPanel from '@/components/react/ManageBillingPanel';
 import ReferralPanel from '@/components/react/ReferralPanel';
 import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
 import LockPinPanel from '@/components/react/LockPinPanel';
+import MySharingPanel from '@/components/react/MySharingPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -46,7 +47,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -340,6 +341,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <EmailPasswordPanel />;
       case 'myChurch':
         return <MyChurchPanel initialChurchData={churchData} />;
+      case 'mySharing':
+        return <MySharingPanel />;
       case 'mySpaces':
         return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} />;
       case 'myData':
