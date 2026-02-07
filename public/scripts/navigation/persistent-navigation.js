@@ -1,3 +1,25 @@
+// URL helpers for new /thread/ID format (standalone — can't import ES modules)
+function _idToPath(id) {
+  if (!id || typeof id !== 'string') return '/';
+  var prefixes = [['thread_', '/thread/'], ['note_', '/note/'], ['space_', '/space/']];
+  for (var i = 0; i < prefixes.length; i++) {
+    if (id.startsWith(prefixes[i][0])) {
+      return prefixes[i][1] + id.slice(prefixes[i][0].length);
+    }
+  }
+  return '/' + id;
+}
+
+function _pathToId(pathname) {
+  if (!pathname) return null;
+  var match = pathname.match(/^\/(thread|note|space)\/(.+)$/);
+  if (match) return match[1] + '_' + match[2];
+  // Fallback: old format /thread_abc → thread_abc
+  var id = pathname.startsWith('/') ? pathname.substring(1) : pathname;
+  if (id.startsWith('thread_') || id.startsWith('note_') || id.startsWith('space_')) return id;
+  return null;
+}
+
 // Load persistent navigation from localStorage with proper chronological ordering
 // Added retry logic to wait for DOM readiness
 function loadPersistentNavigation(retryCount) {
@@ -56,7 +78,7 @@ function loadPersistentNavigation(retryCount) {
     
     // Filter out items that shouldn't be shown
     const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+    const currentItemId = _pathToId(currentPath) || '';
     
     // Get active thread ID from navigation element data attributes
     const navigationElement = document.querySelector('[slot="navigation"]');
@@ -201,7 +223,7 @@ function loadPersistentNavigation(retryCount) {
         return; // Skip this item
       }
       
-      const linkHref = `/${item.id}`;
+      const linkHref = _idToPath(item.id);
       link.href = linkHref;
       link.className = 'w-full relative block';
       
@@ -241,8 +263,8 @@ function loadPersistentNavigation(retryCount) {
         }
         
         const currentPath = window.location.pathname;
-        const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-        
+        const currentItemId = _pathToId(currentPath) || '';
+
         // If we're already on the thread/space page, do nothing
         if (currentItemId === item.id) {
           e.preventDefault();
@@ -253,7 +275,7 @@ function loadPersistentNavigation(retryCount) {
         e.preventDefault();
         e.stopPropagation();
         
-        const navigationUrl = `/${item.id}`;
+        const navigationUrl = _idToPath(item.id);
         
         // CRITICAL: Double-check the URL is valid before allowing navigation
         if (!navigationUrl || navigationUrl.includes('undefined') || navigationUrl === '/') {
@@ -434,7 +456,7 @@ function loadPersistentNavigation(retryCount) {
         
         // If this is the active item, navigate to next available item
         if (isCurrentPage) {
-          const targetUrl = nextItem ? `/${nextItem.id}` : '/';
+          const targetUrl = nextItem ? _idToPath(nextItem.id) : '/';
           window.location.replace(targetUrl);
           return;
         }
@@ -610,8 +632,8 @@ function addCloseFunctionality() {
     
     // Get current path to determine if we're on a note page
     const currentPath = window.location.pathname;
-    const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-    
+    const currentItemId = _pathToId(currentPath) || '';
+
     // Determine the active item ID - handle note pages by checking parent thread
     let activeItemId = currentItemId;
     if (currentItemId.startsWith('note_')) {
@@ -671,7 +693,7 @@ function addCloseFunctionality() {
     
     // If this is the active item, navigate to next available item
     if (isActive) {
-      const targetUrl = nextItem ? `/${nextItem.id}` : '/';
+      const targetUrl = nextItem ? _idToPath(nextItem.id) : '/';
       window.location.replace(targetUrl);
       return;
     }

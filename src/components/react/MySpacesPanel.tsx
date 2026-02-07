@@ -3,6 +3,7 @@ import SquareButton from './SquareButton';
 import SearchInput from './SearchInput';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { error as logError } from '@/utils/logger';
 
@@ -348,7 +349,7 @@ export default function MySpacesPanel({
   }, [spaces, searchQuery]);
 
   const handleSpaceClick = (spaceId: string) => {
-    const spacePath = `/${spaceId}`;
+    const spacePath = idToUrl(spaceId);
     
     // Use View Transitions for smooth navigation
     safeNavigate(spacePath, { history: 'replace' });

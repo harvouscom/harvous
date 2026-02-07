@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { safeFetch } from '@/utils/safe-fetch';
+import { extractIdFromPath } from '@/utils/url-helpers';
 import { captureException } from '@/utils/posthog';
 import { getThreadsLocal } from '@/utils/offline-read-layer';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -83,7 +84,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     const pathname = window.location.pathname;
     if (pathname && pathname !== '/' && !pathname.includes('/dashboard') && 
         !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
-      const threadId = pathname.substring(1); // Remove leading slash
+      const threadId = extractIdFromPath(pathname); // Extract DB ID from URL path
       if (threadId && threadId !== 'dashboard') {
         // Check navigation history for thread title
         const navHistory = navigationHistory || [];

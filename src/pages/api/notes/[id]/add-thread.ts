@@ -60,7 +60,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     if (threadId.startsWith('thread_onboarding_')) {
       return new Response(JSON.stringify({ 
         success: false, 
-        error: 'Cannot add notes to the onboarding thread.' 
+        error: 'This thread doesn\'t take new notes.' 
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }

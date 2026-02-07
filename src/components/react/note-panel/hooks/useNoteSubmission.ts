@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { idToUrl } from '@/utils/url-helpers';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
@@ -874,7 +875,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         
         if (result.note && result.note.id) {
           // ALWAYS navigate to the note, never to the thread
-          let redirectUrl = `/${result.note.id}`;
+          let redirectUrl = idToUrl(result.note.id);
           // Add toast message if applicable
           if (scriptureToastMessage) {
             redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
@@ -1213,7 +1214,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
 
         if (result.note && result.note.id) {
-          let redirectUrl = `/${result.note.id}`;
+          let redirectUrl = idToUrl(result.note.id);
           if (scriptureToastMessage) {
             redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
           }

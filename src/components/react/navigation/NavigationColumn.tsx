@@ -9,6 +9,7 @@ import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { useNavigation } from './NavigationContext';
 import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
 /**
  * Check if Clerk authentication is ready
@@ -94,7 +95,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     } catch {
       // ignore
     }
-    if (pathname.startsWith('/space_')) return pathname.substring(1).replace(/\/$/, '');
+    if (pathname.startsWith('/space/')) {
+      const id = extractIdFromPath(pathname);
+      return id ? id.replace(/\/$/, '') : null;
+    }
     return null;
   }, [pathname, search]);
 
@@ -107,7 +111,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   });
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
-    return pathname.substring(1) || '';
+    return extractIdFromPath(pathname) || '';
   });
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
   const [isMovingThreadToSpace, setIsMovingThreadToSpace] = useState(false);
@@ -143,7 +147,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   }, [effectiveSelectedSpaceId, localSpaces, currentItemId]);
 
   const topSpaceLabel = selectedSpace ? selectedSpace.title : effectiveSelectedSpaceId ? 'Space' : 'My Home';
-  const topSpaceHref = effectiveSelectedSpaceId ? `/${effectiveSelectedSpaceId}` : '/';
+  const topSpaceHref = effectiveSelectedSpaceId ? idToUrl(effectiveSelectedSpaceId) : '/';
   // The switcher button shouldn't look "active" while viewing a thread/note.
   // It should only be active when you're actually on the selected space page (or dashboard for Home).
   const topSpaceIsActive = effectiveSelectedSpaceId ? currentItemId === effectiveSelectedSpaceId : isDashboard;
@@ -458,8 +462,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
   // Listen for page changes to update currentItemId when pathname changes
   useEffect(() => {
-    setCurrentItemId(pathname.substring(1) || '');
-    
+    setCurrentItemId(extractIdFromPath(pathname) || '');
+
     // Debounce to avoid multiple rapid updates during navigation
     let timeoutRef: ReturnType<typeof setTimeout> | null = null;
     
@@ -470,7 +474,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       // Use requestAnimationFrame for immediate visual update
       requestAnimationFrame(() => {
         if (typeof window !== 'undefined') {
-          const newPath = window.location.pathname.substring(1) || '';
+          const newPath = extractIdFromPath(window.location.pathname) || '';
           setCurrentItemId(newPath);
 
           // If we navigated to a space route, make that the selected space.
@@ -525,8 +529,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       } catch {
         // ignore
       }
-      if (path.startsWith('/space_')) {
-        setSelectedSpaceId(path.substring(1));
+      if (path.startsWith('/space/')) {
+        const id = extractIdFromPath(path);
+        if (id) setSelectedSpaceId(id);
       }
     };
 
@@ -913,7 +918,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                     return (
                       <a
                         key={s.id}
-                        href={`/${s.id}`}
+                        href={idToUrl(s.id)}
                         className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
                         onClick={() => setSelectedSpaceId(s.id)}
                       >
@@ -962,7 +967,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                         return (
                           <a
                             key={s.id}
-                            href={`/${s.id}`}
+                            href={idToUrl(s.id)}
                             className="space-switcher-dropdown__item"
                             onClick={() => {
                               setSelectedSpaceId(s.id);

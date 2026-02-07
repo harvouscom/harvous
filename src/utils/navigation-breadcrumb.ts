@@ -5,6 +5,7 @@
 
 import { debug } from './logger';
 import { safeNavigate } from './safe-navigate';
+import { extractIdFromPath, idToUrl } from './url-helpers';
 
 /**
  * Check if the current page is in a specific thread/space context
@@ -15,13 +16,13 @@ export function isInThreadOrSpaceContext(targetItemId: string): boolean {
   if (typeof window === 'undefined') return false;
   
   const currentPath = window.location.pathname;
-  const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-  
+  const currentItemId = extractIdFromPath(currentPath) || '';
+
   // If we're already on the thread/space page, we're in context
   if (currentItemId === targetItemId) {
     return true;
   }
-  
+
   // If we're on a note page, check if it belongs to this thread/space
   if (currentItemId.startsWith('note_')) {
     // Check note element for data-parent-thread-id or data-parent-space-id
@@ -76,28 +77,28 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
   }
   
   const currentPath = window.location.pathname;
-  const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
-  
+  const currentItemId = extractIdFromPath(currentPath) || '';
+
   // If we're already on the thread/space page, do nothing
   if (currentItemId === targetItemId) {
     debug('[handleBreadcrumbNavigation] Already on target page, skipping');
     return;
   }
-  
+
   // Check if we're currently on a note page
   const isOnNotePage = currentItemId.startsWith('note_');
-  
+
   // Check if we're navigating to a thread or space
   const isNavigatingToThreadOrSpace = targetItemId.startsWith('thread_') || targetItemId.startsWith('space_');
-  
+
   // If we're on a note page and navigating to a thread/space, always navigate directly
   // This ensures fresh data is loaded and prevents "Content not found" errors from stale cached pages
   // Use View Transitions (safeNavigate) to trigger astro:page-load events so refresh logic works
   // Fallback to full page reload only if View Transitions fails
   if (isOnNotePage && isNavigatingToThreadOrSpace) {
-    const targetUrl = `/${targetItemId}`;
+    const targetUrl = idToUrl(targetItemId);
     debug('[handleBreadcrumbNavigation] Navigating from note to thread/space', { targetItemId, targetUrl });
-    
+
     // Double-check the URL is valid before navigating
     if (!targetItemId.startsWith('thread_') && !targetItemId.startsWith('space_')) {
       console.error('[handleBreadcrumbNavigation] Invalid thread/space ID format - aborting navigation:', {
@@ -107,7 +108,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       });
       return;
     }
-    
+
     // Use View Transitions to ensure astro:page-load events fire and refresh logic works
     // This allows ThreadNotesList to refresh and show newly created notes
     debug('[handleBreadcrumbNavigation] Executing navigation with View Transitions', { targetUrl });
@@ -118,10 +119,10 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
     });
     return;
   }
-  
+
   // Check if we're in the context of this thread/space
   const isInContext = isInThreadOrSpaceContext(targetItemId);
-  
+
   if (isInContext) {
     // We're in context - go back one step in history
     // (This is used for navigating between notes within the same thread)
@@ -130,7 +131,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       window.history.back();
     } else {
       // Fallback: navigate directly if no history
-      const fallbackUrl = `/${targetItemId}`;
+      const fallbackUrl = idToUrl(targetItemId);
       debug('[handleBreadcrumbNavigation] In context but no history - navigating directly', { fallbackUrl });
       if ((window as any).astroNavigate) {
         (window as any).astroNavigate(fallbackUrl);
@@ -140,7 +141,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
     }
   } else {
     // Not in context - navigate directly
-    const directUrl = `/${targetItemId}`;
+    const directUrl = idToUrl(targetItemId);
     debug('[handleBreadcrumbNavigation] Not in context - navigating directly', { directUrl });
     if ((window as any).astroNavigate) {
       (window as any).astroNavigate(directUrl);

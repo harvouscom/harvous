@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { extractIdFromPath } from '@/utils/url-helpers';
 
 export interface TabNavProps {
   tabs: Array<{
@@ -43,7 +44,7 @@ export default function TabNav({
     
     // Check if we're on a thread page (client-only)
     const currentPath = window.location.pathname;
-    const currentThreadId = currentPath.substring(1);
+    const currentThreadId = extractIdFromPath(currentPath) || '';
     isThreadPageRef.current = currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized';
   }, [tabs]);
 
@@ -56,8 +57,8 @@ export default function TabNav({
     if (!threadId && typeof window !== 'undefined') {
       // Try to get threadId from current path
       const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
-      
+      const currentThreadId = extractIdFromPath(currentPath) || '';
+
       if (currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized') {
         try {
           const response = await fetch(`/api/threads/${currentThreadId}/note-type-counts`, {
@@ -126,7 +127,7 @@ export default function TabNav({
       // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
-        return currentPath.substring(1);
+        return extractIdFromPath(currentPath) || '';
       })();
       const noteThreadId = eventThreadId || actualThreadId || note?.threadId;
 
@@ -158,7 +159,7 @@ export default function TabNav({
       // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
-        return currentPath.substring(1);
+        return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {
@@ -184,7 +185,7 @@ export default function TabNav({
       // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
-        return currentPath.substring(1);
+        return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {
@@ -214,7 +215,7 @@ export default function TabNav({
       // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
-        return currentPath.substring(1);
+        return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {

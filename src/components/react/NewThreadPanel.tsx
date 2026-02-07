@@ -6,6 +6,7 @@ import ActionButton from './ActionButton';
 import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { safeFetch } from '@/utils/safe-fetch';
 import Icon from './Icon';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
@@ -498,7 +499,7 @@ export default function NewThreadPanel({
 
             // Redirect to the newly created thread
             if (result.thread && result.thread.id) {
-              const redirectUrl = `/${result.thread.id}`;
+              const redirectUrl = idToUrl(result.thread.id);
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
                 safeNavigate(redirectUrl, { history: 'replace' });
@@ -876,7 +877,7 @@ export default function NewThreadPanel({
                           return (
                             <div key={note.id} className="panel__item-list-item">
                               <a 
-                                href={`/${note.id}`}
+                                href={idToUrl(note.id)}
                                 className="panel__item-list-item-link"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
@@ -993,7 +994,7 @@ export default function NewThreadPanel({
                                   resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
                                   resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
                                   onClick={() => {
-                                    safeNavigate(`/note_${note.id}`, { history: 'replace' });
+                                    safeNavigate(idToUrl(note.id), { history: 'replace' });
                                   }}
                                 />
                               ))}

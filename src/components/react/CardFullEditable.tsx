@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
@@ -756,11 +757,11 @@ export default function CardFullEditable({
         // Navigate to the linked note
         e.preventDefault();
         e.stopPropagation();
-        safeNavigate(`/${noteId}`, { history: 'push' });
+        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
         return;
       }
     }
-    
+
     // Check if click is on a scripture pill
     const pillElement = target.closest('.scripture-pill');
     
@@ -782,7 +783,7 @@ export default function CardFullEditable({
           const result = await getOrCreateScriptureNote(reference, parentThreadId);
 
           if (result.noteId) {
-            safeNavigate(`/${result.noteId}`, { history: 'push' });
+            safeNavigate(idToUrl(result.noteId, parentThreadId), { history: 'push' });
           } else {
             // Show error toast if creation failed
             window.dispatchEvent(new CustomEvent('toast', {
@@ -806,7 +807,7 @@ export default function CardFullEditable({
 
       // Fallback: If we have noteId but no reference, navigate directly
       if (noteId && noteId !== 'pending') {
-        safeNavigate(`/${noteId}`, { history: 'push' });
+        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
         return;
       }
 

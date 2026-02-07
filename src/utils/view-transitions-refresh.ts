@@ -18,33 +18,38 @@ export function detectPageType(pathname: string = typeof window !== 'undefined' 
   if (!pathname || pathname === '/') {
     return 'dashboard';
   }
-  
-  const id = pathname.substring(1); // Remove leading '/'
-  
-  if (id.startsWith('thread_')) {
+
+  if (pathname.startsWith('/thread/')) {
     return 'thread';
   }
-  
-  if (id.startsWith('space_')) {
+
+  if (pathname.startsWith('/space/')) {
     return 'space';
   }
-  
-  if (id.startsWith('note_')) {
+
+  if (pathname.startsWith('/note/')) {
     return 'note';
   }
-  
+
   return 'unknown';
 }
 
 /**
- * Extract the ID from a pathname (removes leading '/')
+ * Extract the database ID from a pathname.
+ * Handles new format: /thread/abc123 → thread_abc123
  */
 export function extractIdFromPathname(pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''): string | null {
   if (!pathname || pathname === '/') {
     return null;
   }
-  
-  return pathname.substring(1);
+
+  // New URL format: /thread/abc123 → thread_abc123
+  const match = pathname.match(/^\/(thread|note|space|local)\/(.+)$/);
+  if (match) {
+    return match[1] + '_' + match[2];
+  }
+
+  return null;
 }
 
 /**

@@ -8,6 +8,22 @@
   NODE_VERSION = "20.18.0"
   NPM_FLAGS = "--prefer-offline --no-audit"
 
+# Redirect old URL format (/thread_ID) to new format (/thread/ID)
+[[redirects]]
+  from = "/thread_*"
+  to = "/thread/:splat"
+  status = 301
+
+[[redirects]]
+  from = "/note_*"
+  to = "/note/:splat"
+  status = 301
+
+[[redirects]]
+  from = "/space_*"
+  to = "/space/:splat"
+  status = 301
+
 # Redirect all non-API routes to index.html for SPA
 # API routes are handled by Astro serverless functions and should not be redirected
 # force = false means only redirect if the resource doesn't exist

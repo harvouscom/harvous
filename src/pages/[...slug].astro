@@ -75,7 +75,7 @@ function shouldUpdateLastVisitedTimestamp(request: Request, currentPath: string)
     // we navigate away from it, so its page doesn't load and lastVisited isn't updated
 
     // Strip query parameters and hash from both paths for comparison
-    // This handles cases like /thread_123?tab=all vs /thread_123
+    // This handles cases like /thread/123?tab=all vs /thread/123
     const normalizePath = (path: string): string => {
       // Remove query string and hash
       return path.split('?')[0].split('#')[0];
@@ -228,14 +228,30 @@ const { firstName, lastName, initials, userColor } = userData;
 // Cache-Control for Netlify function optimization (repeat visits served from CDN when valid)
 Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
-const { id } = Astro.params;
+// Parse slug from [...slug] rest parameter and handle URL format conversion
+const rawSlug = Astro.params.slug || '';
+const currentSlugPath = '/' + rawSlug;
+
+// BACKWARD COMPATIBILITY: Redirect old /thread_ID format to new /thread/ID format
+import { isOldUrlFormat, oldUrlToNewUrl, urlToId } from '@/utils/url-helpers';
+if (isOldUrlFormat(currentSlugPath)) {
+  return Astro.redirect(oldUrlToNewUrl(currentSlugPath, Astro.url.search), 301);
+}
+
+// Extract database ID from new URL format (/thread/abc123 → thread_abc123)
+const id = urlToId(currentSlugPath);
+
+// If no valid ID found, redirect to dashboard
+if (!id) {
+  return Astro.redirect('/');
+}
 
 // Determine if this is a thread, note, or space based on the ID prefix
-const isThread = id?.startsWith('thread_');
-const isNote = id?.startsWith('note_');
-const isSpace = id?.startsWith('space_');
+const isThread = id.startsWith('thread_');
+const isNote = id.startsWith('note_');
+const isSpace = id.startsWith('space_');
 // Detect offline thread IDs (local_ prefix)
-const isOfflineThread = id?.startsWith('local_');
+const isOfflineThread = id.startsWith('local_');
 
 // Determine content type for context-aware More menu
 let contentType: "thread" | "note" | "space" | "dashboard" = "dashboard";
@@ -618,22 +634,17 @@ try {
                   const referrerUrl = new URL(referrer);
                   const referrerPath = referrerUrl.pathname;
                   
-                  // Check if referrer is a thread page
-                  if (referrerPath.includes('/thread_') || (!referrerPath.includes('/note_') && !referrerPath.includes('/space_') && !referrerPath.includes('/dashboard'))) {
-                    const threadId = referrerPath.split('/').pop();
-                    
-                    if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up' && 
-                        !threadId.startsWith('note_') && !threadId.startsWith('space_')) {
-                      // Verify this thread is one the note belongs to
-                      if (uniqueThreadIds.includes(threadId)) {
-                        navigationHistoryThreadId = threadId;
-                      }
+                  // Check if referrer is a thread page (new format: /thread/ID)
+                  if (referrerPath.startsWith('/thread/')) {
+                    const referrerThreadId = 'thread_' + referrerPath.slice('/thread/'.length);
+                    if (referrerThreadId && uniqueThreadIds.includes(referrerThreadId)) {
+                      navigationHistoryThreadId = referrerThreadId;
                     }
                   }
-                  
+
                   // Check if referrer is a note page - extract thread from query params
                   // This is especially important for Scripture notes opened from other notes
-                  if (!navigationHistoryThreadId && referrerPath.includes('/note_')) {
+                  if (!navigationHistoryThreadId && referrerPath.startsWith('/note/')) {
                     const referrerThreadParam = referrerUrl.searchParams.get('thread');
                     if (referrerThreadParam && uniqueThreadIds.includes(referrerThreadParam)) {
                       navigationHistoryThreadId = referrerThreadParam;
@@ -1159,12 +1170,12 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     };
     
     // Debug logging removed for production
-    
+
     // Prefetch dashboard data in background (if on thread/note/space page)
     const currentPath = window.location.pathname;
-    const isThreadPage = currentPath.startsWith('/thread_');
-    const isNotePage = currentPath.startsWith('/note_');
-    const isSpacePage = currentPath.startsWith('/space_');
+    const isThreadPage = currentPath.startsWith('/thread/');
+    const isNotePage = currentPath.startsWith('/note/');
+    const isSpacePage = currentPath.startsWith('/space/');
     
     if (isThreadPage || isNotePage || isSpacePage) {
       schedulePrefetch(async () => {
@@ -1191,9 +1202,9 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
         
         // Re-prefetch if needed
         const newPath = window.location.pathname;
-        const isThread = newPath.startsWith('/thread_');
-        const isNote = newPath.startsWith('/note_');
-        const isSpace = newPath.startsWith('/space_');
+        const isThread = newPath.startsWith('/thread/');
+        const isNote = newPath.startsWith('/note/');
+        const isSpace = newPath.startsWith('/space/');
         
         if (isThread || isNote || isSpace) {
           schedulePrefetch(async () => {
@@ -1215,6 +1226,22 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
  
 <script>
   // @ts-nocheck
+  // URL format helpers (new /thread/ID format)
+  function _pathToId(p) {
+    if (!p) return null;
+    var m = p.match(/^\/(thread|note|space|local)\/(.+)$/);
+    if (m) return m[1] + '_' + m[2];
+    return null;
+  }
+  function _idToPath(id) {
+    if (!id) return '/';
+    var prefixes = [['thread_','/thread/'],['note_','/note/'],['space_','/space/'],['local_','/local/']];
+    for (var i = 0; i < prefixes.length; i++) {
+      if (id.startsWith(prefixes[i][0])) return prefixes[i][1] + id.slice(prefixes[i][0].length);
+    }
+    return '/' + id;
+  }
+
   // Helper function to safely import and use astro:transitions/client
   // Falls back to window.location if the module fails to load (e.g., on Mobile Safari)
   // @ts-ignore
@@ -1335,20 +1362,20 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     }
 
     // Check if we're viewing the note that was added to a thread
-    const currentPath = window.location.pathname.substring(1);
+    const currentItemId = _pathToId(window.location.pathname);
     const noteContainer = document.querySelector('[data-note-id]');
     const currentNoteId = noteContainer?.getAttribute('data-note-id');
 
-    if (currentNoteId === noteId && currentPath.startsWith('note_')) {
+    if (currentNoteId === noteId && currentItemId && currentItemId.startsWith('note_')) {
       // We're viewing the note that was just added to a thread
       // Update the URL to include the new thread context
       // @ts-ignore
-      await safeNavigate(`/${currentPath}?thread=${threadId}`, { history: 'replace' });
+      await safeNavigate(window.location.pathname + `?thread=${threadId}`, { history: 'replace' });
       return;
     }
 
     // Check if we're on the affected thread page
-    if (currentPath === threadId) {
+    if (currentItemId === threadId) {
       // Navigate using View Transitions to show updated note list
       // @ts-ignore
       await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
@@ -1357,7 +1384,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
 
     // Also refresh if we're viewing unorganized and a note was added to another thread
     // (the note is no longer in unorganized when it has a thread association)
-    if (currentPath === 'thread_unorganized' && threadId !== 'thread_unorganized') {
+    if (currentItemId === 'thread_unorganized' && threadId !== 'thread_unorganized') {
       // @ts-ignore
       await safeNavigate(window.location.pathname + window.location.search, { history: 'replace' });
     }
@@ -1374,7 +1401,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     }
     
     // Check if we're on the affected thread page
-    const currentThreadId = window.location.pathname.substring(1);
+    const currentThreadId = _pathToId(window.location.pathname);
     if (currentThreadId === threadId) {
       // Navigate using View Transitions to show updated note list
       // @ts-ignore
@@ -1396,7 +1423,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       // If remainingThreadIds provided in event, use them
       if (remainingThreadIds && remainingThreadIds.length > 0) {
         // Navigate to the first remaining thread
-        targetUrl = `/${remainingThreadIds[0]}`;
+        targetUrl = _idToPath(remainingThreadIds[0]);
       } else {
         // Fetch remaining threads for the note
         try {
@@ -1410,16 +1437,16 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
             
             if (threads.length > 0) {
               // Navigate to first remaining thread
-              targetUrl = `/${threads[0].id}`;
+              targetUrl = _idToPath(threads[0].id);
             } else {
               // No threads remaining, navigate to unorganized or dashboard
-              targetUrl = '/thread_unorganized';
+              targetUrl = '/thread/unorganized';
             }
           }
         } catch (error) {
           console.error('Error fetching note details for navigation:', error);
           // Fallback to unorganized
-          targetUrl = '/thread_unorganized';
+          targetUrl = '/thread/unorganized';
         }
       }
       
@@ -1437,7 +1464,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     if (!threadId) return;
     
     // Check if we're on the thread page that was updated
-    const currentPath = window.location.pathname.substring(1);
+    const currentPath = _pathToId(window.location.pathname);
     if (currentPath === threadId) {
       // Note: CardStack header updates are now handled by ThreadCardStackHeader React component
       // which listens for threadUpdated events and manages its own state
@@ -1507,7 +1534,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
         const noteId = noteContainer.getAttribute('data-note-id');
         
         // Fetch remaining threads for the note
-        let targetUrl = '/thread_unorganized';
+        let targetUrl = '/thread/unorganized';
         
         try {
           const response = await fetch(`/api/notes/${noteId}/details`, {
@@ -1520,16 +1547,16 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
             
             if (threads.length > 0) {
               // Navigate to first remaining thread
-              targetUrl = `/${threads[0].id}`;
+              targetUrl = _idToPath(threads[0].id);
             } else {
               // No threads remaining, navigate to unorganized
-              targetUrl = '/thread_unorganized';
+              targetUrl = '/thread/unorganized';
             }
           }
         } catch (error) {
           console.error('Error fetching note details for navigation:', error);
           // Fallback to unorganized
-          targetUrl = '/thread_unorganized';
+          targetUrl = '/thread/unorganized';
         }
         
         // Navigate to the target URL
@@ -1546,8 +1573,8 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     const { spaceId } = event.detail;
     
     const currentPath = window.location.pathname;
-    const currentId = currentPath.substring(1);
-    
+    const currentId = _pathToId(currentPath);
+
     // Check if we're viewing the deleted space
     if (currentId === spaceId) {
       // Navigate to dashboard
@@ -1575,8 +1602,8 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     const { spaceId } = event.detail;
     
     const currentPath = window.location.pathname;
-    const currentId = currentPath.substring(1);
-    
+    const currentId = _pathToId(currentPath);
+
     // If viewing the space, refresh it to show updated content
     if (currentId === spaceId) {
       // @ts-ignore
@@ -1590,20 +1617,20 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
   const currentPath = window.location.pathname;
   
   // More specific detection logic
-  const isThread = currentPath.includes('/thread_') || (currentPath.match(/^\/thread_[a-zA-Z0-9_-]+$/) && currentPath !== '/' && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
-  const isNote = currentPath.includes('/note_') || (currentPath.match(/^\/note_[a-zA-Z0-9_-]+$/) && currentPath !== '/' && !currentPath.includes('/sign-in') && !currentPath.includes('/sign-up'));
-  
+  const isThread = currentPath.startsWith('/thread/');
+  const isNote = currentPath.startsWith('/note/');
+
   // Track thread context for smart navigation (only on thread pages)
   // @ts-ignore
   if (window['trackThreadContext'] && isThread) {
-    const threadId = window.location.pathname.substring(1);
+    const threadId = _pathToId(window.location.pathname);
     // @ts-ignore
     window['trackThreadContext'](threadId);
   }
-  
+
   // Enhanced breadcrumb navigation tracking (on thread pages)
   if (isThread) {
-    const threadId = window.location.pathname.substring(1);
+    const threadId = _pathToId(window.location.pathname);
     
     // Track referrer-based context for breadcrumb navigation
     // @ts-ignore
@@ -1622,12 +1649,11 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       if (link) {
         const href = link.getAttribute('href');
         
-        // Check if it's a note link (starts with / and contains note ID pattern)
-        if (href && href.startsWith('/') && href.length > 1) {
-          const noteId = href.split('/').pop();
-          
-          // Check if it looks like a note ID (not a thread or space ID)
-          if (noteId && noteId !== 'dashboard' && noteId !== 'sign-in' && noteId !== 'sign-up' && !noteId.startsWith('thread_') && !noteId.startsWith('space_')) {
+        // Check if it's a note link (new format: /note/ID)
+        if (href && href.startsWith('/note/')) {
+          const noteId = _pathToId(href);
+
+          if (noteId) {
             // @ts-ignore
             if (window['trackBreadcrumbNavigation']) {
               // @ts-ignore
