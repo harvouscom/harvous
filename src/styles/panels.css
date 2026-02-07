@@ -427,6 +427,7 @@
 }
 
 /* Button footer variant - for panels with action buttons */
+/* Horizontal padding only on mobile (via .bottom-sheet-content rule below) */
 .panel__footer--buttons {
   display: flex;
   flex-direction: row;
@@ -434,7 +435,7 @@
   justify-content: space-between;
   gap: 0.75rem;  /* 12px */
   flex-shrink: 0;
-  padding: 0 12px;
+  padding: 0;
   color: inherit;
   font-size: inherit;
 }
