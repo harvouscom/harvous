@@ -1,6 +1,7 @@
 import { Mark } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
 /**
  * Helper function to detect the current thread context from the page
@@ -20,12 +21,12 @@ function getCurrentThreadContext(): string | null {
   }
   
   const pathname = window.location.pathname;
-  if (pathname && pathname !== '/' && !pathname.includes('/dashboard') && 
+  if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
       !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
-    const threadId = pathname.substring(1); 
-    if (threadId && threadId !== 'dashboard' && 
-        !threadId.startsWith('note_') && !threadId.startsWith('space_')) {
-      return threadId;
+    const itemId = extractIdFromPath(pathname);
+    if (itemId && itemId !== 'dashboard' &&
+        !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
+      return itemId;
     }
   }
   
@@ -237,8 +238,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               return true; 
             }
 
-            const threadId = getCurrentThreadContext();
-            const url = threadId ? `/${threadId}/note_${noteId}` : `/note_${noteId}`;
+            const url = idToUrl(`note_${noteId}`, getCurrentThreadContext() || undefined);
             safeNavigate(url);
             return true;
           },

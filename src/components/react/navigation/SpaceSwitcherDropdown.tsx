@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
 import { safeGetItem } from '@/utils/safe-storage';
+import { idToUrl } from '@/utils/url-helpers';
 import { setSelectedSpaceId } from './selectedSpace';
 
 interface SpaceLike {
@@ -41,7 +42,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
   const items = useMemo(() => {
     const spaceItems = spaces
       .filter((s) => !closedSpaceIds.has(s.id))
-      .map((s) => ({ id: s.id, title: s.title, href: `/${s.id}` }));
+      .map((s) => ({ id: s.id, title: s.title, href: idToUrl(s.id) }));
     return [{ id: 'home', title: 'My Home', href: '/' }, ...spaceItems];
   }, [spaces, closedSpaceIds]);
 

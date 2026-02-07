@@ -8,6 +8,7 @@ import ButtonSmall from './ButtonSmall';
 import NewTagPanel from './NewTagPanel';
 import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
+import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 
 interface Thread {
@@ -605,7 +606,7 @@ export default function NoteDetailsPanel({
                           {localThreads.map((thread: Thread) => (
                             <div key={thread.id} className="panel__item-list-item">
                               <a 
-                                href={`/${thread.id}`}
+                                href={idToUrl(thread.id)}
                                 className="panel__item-list-item-link"
                                 aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                               >
@@ -710,7 +711,7 @@ export default function NoteDetailsPanel({
                             {localReferencingNotes.map((refNote: ReferencingNote) => (
                               <a
                                 key={refNote.id}
-                                href={`/${refNote.id}`}
+                                href={idToUrl(refNote.id)}
                                 className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
                                 style={{ touchAction: 'manipulation' }}
                               >

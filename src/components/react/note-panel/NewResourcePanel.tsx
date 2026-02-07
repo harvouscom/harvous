@@ -5,6 +5,7 @@ import CardNote from '../CardNote';
 import ActionButton from '../ActionButton';
 import { normalizeUrl } from '@/utils/validation';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { safeRenderHtml } from '@/utils/content-renderer';
 
 export interface NewResourcePanelProps {
@@ -486,7 +487,7 @@ export default function NewResourcePanel({
             showSource={false}
             onClick={() => {
               if (duplicateInfo.noteId) {
-                safeNavigate(`/${duplicateInfo.noteId}`, { history: 'replace' });
+                safeNavigate(idToUrl(duplicateInfo.noteId), { history: 'replace' });
               }
             }}
           />

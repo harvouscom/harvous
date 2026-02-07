@@ -23,14 +23,22 @@ const PREFIXES: Array<[string, string]> = [
  * "thread_onboarding_user1" → "/thread/onboarding_user1"
  * "note_def456"             → "/note/def456"
  * "space_ghi789"            → "/space/ghi789"
+ *
+ * When `threadContext` is provided and the ID is a note, appends `?thread=threadId`
+ * so the server can reliably determine which thread the user navigated from.
  */
-export function idToUrl(id: string): string {
+export function idToUrl(id: string, threadContext?: string): string {
+  let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
     if (id.startsWith(prefix)) {
-      return urlPrefix + id.slice(prefix.length);
+      url = urlPrefix + id.slice(prefix.length);
+      break;
     }
   }
-  return `/${id}`;
+  if (threadContext && id.startsWith('note_')) {
+    url += `?thread=${threadContext}`;
+  }
+  return url;
 }
 
 /**

@@ -11,11 +11,11 @@ import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
+import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
-import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 
 
 interface Note {
@@ -801,14 +801,14 @@ export default function ThreadNotesList({
       }
 
       const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      const currentThreadId = extractIdFromPath(currentPath) || '';
       const previousPath = previousPathnameRef.current;
-      const previousThreadId = previousPath.substring(1);
+      const previousThreadId = extractIdFromPath(previousPath) || '';
 
       // Detect if we've navigated TO this thread (not just refreshed on it)
       const navigatedToThread = currentThreadId === threadId && previousThreadId !== threadId;
       // Detect if we navigated from a note page (likely after creating a note)
-      const navigatedFromNote = previousPath.startsWith('/note_');
+      const navigatedFromNote = previousPath.startsWith('/note/');
 
       // Check sessionStorage for recently created notes when navigating TO thread
       let shouldForceRefresh = navigatedToThread;
@@ -876,10 +876,10 @@ export default function ThreadNotesList({
       const dataIsStale = isStaleData(initialNotes, (note) => note.lastVisited);
       
       // Check if we came from a note page
-      const cameFromNotePage = referrerMatchesPattern('/note_');
+      const cameFromNotePage = referrerMatchesPattern('/note/');
       
       // Also check if previous pathname was a note (for View Transitions scenarios)
-      const previousWasNote = previousPathnameRef.current.startsWith('/note_');
+      const previousWasNote = previousPathnameRef.current.startsWith('/note/');
       
       // Check sessionStorage for recently created notes
       let hasRecentNote = false;
@@ -911,7 +911,7 @@ export default function ThreadNotesList({
         const delay = (inPWA || dataIsStale) ? 50 : 0;
         if (delay > 0) {
           setTimeout(() => {
-            if (isMountedRef.current && window.location.pathname.substring(1) === threadId) {
+            if (isMountedRef.current && extractIdFromPath(window.location.pathname) === threadId) {
               refreshFn();
             }
           }, delay);
@@ -1321,7 +1321,7 @@ export default function ThreadNotesList({
         style={{ animationDelay: `${index * 50}ms` }}
       >
         <a 
-          href={`/${note.id}`}
+          href={idToUrl(note.id, threadId)}
           className={`block transition-transform duration-200 active:scale-[0.99] ${isUnorganizedThread ? 'panel__item-list-item-link' : ''}`}
           style={{ touchAction: 'manipulation' }}
         >

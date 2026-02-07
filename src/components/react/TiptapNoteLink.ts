@@ -1,5 +1,25 @@
 import { Mark } from '@tiptap/core';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+
+/**
+ * Helper to detect the current thread context from the page DOM.
+ * Checks note element, navigation element, and URL pathname.
+ */
+function getThreadContext(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+
+  const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+  if (noteEl?.dataset.parentThreadId) return noteEl.dataset.parentThreadId;
+
+  const navEl = document.querySelector('[slot="navigation"]') as HTMLElement | null;
+  if (navEl?.dataset.parentThreadId) return navEl.dataset.parentThreadId;
+
+  const itemId = extractIdFromPath(window.location.pathname);
+  if (itemId && itemId.startsWith('thread_')) return itemId;
+
+  return undefined;
+}
 
 export interface NoteLinkOptions {
   HTMLAttributes: Record<string, any>;
@@ -110,7 +130,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
         if (noteId) {
           event.preventDefault();
           // Navigate to note using Astro view transitions
-          safeNavigate(`/${noteId}`, { history: 'push' });
+          safeNavigate(idToUrl(noteId, getThreadContext()), { history: 'push' });
           return true;
         }
 
@@ -120,7 +140,7 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
           const clickedNoteId = target.getAttribute('data-note-id');
           if (clickedNoteId) {
             event.preventDefault();
-            safeNavigate(`/${clickedNoteId}`, { history: 'push' });
+            safeNavigate(idToUrl(clickedNoteId, getThreadContext()), { history: 'push' });
             return true;
           }
         }
