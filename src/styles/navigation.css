@@ -931,7 +931,7 @@ button.space-btn .space-btn__text {
 
 .space-switcher-details__panel {
   position: absolute;
-  top: calc(64px + 8px);
+  top: calc(64px + 12px);
   right: 0;
   width: max(260px, 310px);
   z-index: 1000002;
