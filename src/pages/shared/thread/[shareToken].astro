@@ -5,11 +5,10 @@ import CardStack from "@/components/CardStack.astro";
 import CardNote from "@/components/react/CardNote";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import Button from "@/components/Button.astro";
-import { Fragment } from "astro/jsx-runtime";
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
-import { type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
 
@@ -114,10 +113,14 @@ if (!shareToken || !isValidShareToken(shareToken)) {
 // Get thread color for styling
 const threadColor = (thread?.color || 'blue') as ThreadColor;
 
+// Safe thread color for static OG image (must be one of the 7; fallback paper)
+const validThreadColors = [...THREAD_COLORS];
+const safeOgColor = thread && validThreadColors.includes(thread.color as ThreadColor) ? thread.color : 'paper';
+
 // Construct URLs for Open Graph
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
-const ogImageUrl = `${siteUrl}/api/og/thread/${shareToken}`;
+const ogImageUrl = `${siteUrl}/og/thread-${safeOgColor}.png`;
 
 // Prepare meta data
 const ogTitle = thread?.title ? `${thread.title} | Shared Thread` : 'Shared Thread';

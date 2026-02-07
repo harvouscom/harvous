@@ -2,7 +2,6 @@
 export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardFullEditable from "@/components/react/CardFullEditable";
-import { Fragment } from "astro/jsx-runtime";
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { ClientRouter } from "astro:transitions";
@@ -128,10 +127,11 @@ const formatDate = (date: Date | null) => {
   }).format(new Date(date));
 };
 
-// Construct URLs for Open Graph
+// Construct URLs for Open Graph (static image by note type; fallback default when missing/error)
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
-const ogImageUrl = `${siteUrl}/api/og/note/${shareToken}`;
+const ogNoteType = note?.noteType === 'scripture' ? 'scripture' : 'default';
+const ogImageUrl = `${siteUrl}/og/note-${ogNoteType}.png`;
 
 // Prepare meta data
 const ogTitle = note?.title ? `${note.title} | Shared Note` : 'Shared Note';
