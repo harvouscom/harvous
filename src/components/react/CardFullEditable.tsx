@@ -89,6 +89,7 @@ export default function CardFullEditable({
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
   const shouldFocusEditorRef = useRef(false);
+  const contentClickCoordsRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
@@ -488,20 +489,24 @@ export default function CardFullEditable({
         
         try {
           editor.commands.focus();
-          // Determine cursor position based on content
+          const doc = editor.state.doc;
+          const maxPos = doc.content.size;
+          const coords = contentClickCoordsRef.current;
+          contentClickCoordsRef.current = null;
+
           try {
-            const doc = editor.state.doc;
-            const textContent = doc.textContent.trim();
-            const isEmpty = textContent.length === 0;
-            
-            if (isEmpty) {
-              // For empty content, place cursor at start (position 1)
-              // Position 1 is after the document start, at the beginning of the first paragraph
-              editor.commands.setTextSelection(1);
+            if (coords && editor.view.posAtCoords) {
+              const result = editor.view.posAtCoords({ left: coords.clientX, top: coords.clientY });
+              const pos = result?.pos;
+              if (typeof pos === 'number' && pos >= 1 && pos <= maxPos) {
+                editor.commands.setTextSelection(pos);
+              } else {
+                const isEmpty = doc.textContent.trim().length === 0;
+                editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
+              }
             } else {
-              // For content with text, place cursor at end to avoid getting stuck on scripture pills
-              const endPos = doc.content.size;
-              editor.commands.setTextSelection(endPos);
+              const isEmpty = doc.textContent.trim().length === 0;
+              editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
             }
           } catch (e) {
             // If setting selection fails, just focus
@@ -823,6 +828,7 @@ export default function CardFullEditable({
     
     // If not a note-link or scripture pill, enter edit mode (if editable)
     if (effectiveIsEditable) {
+      contentClickCoordsRef.current = { clientX: e.clientX, clientY: e.clientY };
       startEditing('content');
     }
   };

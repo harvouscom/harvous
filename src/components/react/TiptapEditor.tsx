@@ -14,7 +14,6 @@ import { HighlightCustom } from './TiptapHighlightCustom.ts';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference, detectScriptureReferences, type ScriptureReference } from '@/utils/scripture-detector';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { idToUrl } from '@/utils/url-helpers';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -3424,7 +3423,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (noteId) {
           event.preventDefault();
           event.stopPropagation();
-          safeNavigate(idToUrl(noteId, parentThreadId), { history: 'replace' });
+          safeNavigate(`/${noteId}`, { history: 'replace' });
         }
       }
     };
