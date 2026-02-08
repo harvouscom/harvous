@@ -599,6 +599,34 @@ body {
   opacity: 0.3 !important;
 }
 
+/* ThreadCombobox Create Thread row icon: opacity only on wrapper (avoid compounding) */
+/* Mobile: override .new-note-panel * */
+.new-note-panel .thread-combobox-create-row-icon {
+  opacity: 0.3 !important;
+  color: var(--color-deep-grey) !important;
+}
+.new-note-panel .thread-combobox-create-row-icon span,
+.new-note-panel .thread-combobox-create-row-icon svg {
+  opacity: 1 !important;
+  color: var(--color-deep-grey) !important;
+  fill: currentColor !important;
+}
+
+/* Desktop: same fix when in panel-wrapper or desktop layout (overrides any panel * opacity) */
+.panel-wrapper .thread-combobox-create-row-icon,
+.desktop-layout .thread-combobox-create-row-icon {
+  opacity: 0.3 !important;
+  color: var(--color-deep-grey) !important;
+}
+.panel-wrapper .thread-combobox-create-row-icon span,
+.panel-wrapper .thread-combobox-create-row-icon svg,
+.desktop-layout .thread-combobox-create-row-icon span,
+.desktop-layout .thread-combobox-create-row-icon svg {
+  opacity: 1 !important;
+  color: var(--color-deep-grey) !important;
+  fill: currentColor !important;
+}
+
 /* SquareButton */
 .square-button button[data-outer-shadow] {
   will-change: transform, box-shadow;

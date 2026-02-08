@@ -293,6 +293,27 @@
   width: 100%;
 }
 
+/* ThreadCombobox Create Thread row: opacity only on wrapper so it doesn't compound with span/svg */
+.thread-combobox-create-row-icon {
+  color: var(--color-deep-grey) !important;
+  opacity: 0.3 !important;
+}
+.thread-combobox-create-row-icon span,
+.thread-combobox-create-row-icon svg {
+  color: var(--color-deep-grey) !important;
+  opacity: 1 !important;
+  fill: currentColor !important;
+}
+
+/* When portaled into card-stack (e.g. mobile) */
+.card-stack__content .thread-combobox-create-row-icon {
+  opacity: 0.3 !important;
+}
+.card-stack__content .thread-combobox-create-row-icon span,
+.card-stack__content .thread-combobox-create-row-icon svg {
+  opacity: 1 !important;
+}
+
 /* ==========================================================================
    Form Layout
    ========================================================================== */

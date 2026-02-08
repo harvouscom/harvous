@@ -347,10 +347,10 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 
           {/* Thread List */}
           <div className="relative">
-            {/* Gradient overlay at top - only show when overflowing and scrolled down */}
+            {/* Gradient overlay at top - only show when overflowing and scrolled down; shorter so it doesn't cover content */}
             {isOverflowing && hasScrolledDown && (
               <div 
-                className="absolute top-0 left-0 right-0 h-12 pointer-events-none z-10"
+                className="absolute top-0 left-0 right-0 h-6 pointer-events-none z-10"
                 style={{
                   background: 'linear-gradient(to top, transparent, var(--color-snow-white))'
                 }}
@@ -606,15 +606,15 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       aria-label="Choose thread color"
                     >
                       <div
-                        className="absolute inset-y-0 left-0 w-11 rounded-l-xl"
+                        className="absolute inset-y-0 left-0 w-11 rounded-l-xl pointer-events-none"
                         style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
                         aria-hidden
                       />
-                      <div className="relative z-[1] ml-3 flex size-5 items-center justify-center">
+                      <div className="thread-combobox-create-row-icon relative z-[1] ml-3 flex size-5 items-center justify-center">
                         <Icon
                           name="layer-group"
                           size={20}
-                          className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30"
+                          className="block max-w-none size-full"
                         />
                       </div>
                     </button>
@@ -716,10 +716,10 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
               </div>
             )}
             </div>
-            {/* Gradient overlay at bottom - only show when overflowing */}
+            {/* Gradient overlay at bottom - only show when overflowing; shorter so it doesn't cover Create row / color picker */}
             {isOverflowing && (
               <div 
-                className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none"
+                className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none"
                 style={{
                   background: 'linear-gradient(to bottom, transparent, var(--color-snow-white))'
                 }}
