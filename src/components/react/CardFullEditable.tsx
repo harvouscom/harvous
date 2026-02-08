@@ -89,7 +89,7 @@ export default function CardFullEditable({
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
   const shouldFocusEditorRef = useRef(false);
-  const contentClickCoordsRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const contentClickCoordsRef = useRef<{ contentX: number; contentY: number } | null>(null);
   const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
@@ -519,43 +519,51 @@ export default function CardFullEditable({
     if (!editor) return;
     
     editorInstanceRef.current = editor;
-    // Focus if we should focus the editor
+    // Focus and set cursor at click position when switching from view to edit
     if (shouldFocusEditorRef.current) {
       shouldFocusEditorRef.current = false;
-      requestAnimationFrame(() => {
-        // Check if editor is still valid (not destroyed)
-        if (!editor || editor.isDestroyed) return;
-        
-        // Check if view and docView are still valid
-        if (!editor.view || !editor.view.docView) return;
-        
-        try {
-          editor.commands.focus();
-          const doc = editor.state.doc;
-          const maxPos = doc.content.size;
-          const coords = contentClickCoordsRef.current;
-          contentClickCoordsRef.current = null;
+      const coords = contentClickCoordsRef.current;
+      contentClickCoordsRef.current = null;
+      const savedScroll = scrollPosition;
 
+      // Restore scroll first so posAtCoords sees the same viewport as the user
+      const scrollEl = editor.view?.dom?.closest?.('.tiptap-content') as HTMLElement | null;
+      if (scrollEl && savedScroll > 0) {
+        scrollEl.scrollTop = savedScroll;
+      }
+
+      // Wait for layout after scroll, then map content-relative coords to viewport and set cursor
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (!editor || editor.isDestroyed || !editor.view?.docView) return;
           try {
-            if (coords && editor.view.posAtCoords) {
-              const result = editor.view.posAtCoords({ left: coords.clientX, top: coords.clientY });
-              const pos = result?.pos;
-              if (typeof pos === 'number' && pos >= 1 && pos <= maxPos) {
-                editor.commands.setTextSelection(pos);
+            editor.commands.focus();
+            const doc = editor.state.doc;
+            const maxPos = doc.content.size;
+            try {
+              if (coords && scrollEl && editor.view.posAtCoords) {
+                const rect = scrollEl.getBoundingClientRect();
+                const viewportX = rect.left + coords.contentX - scrollEl.scrollLeft;
+                const viewportY = rect.top + coords.contentY - scrollEl.scrollTop;
+                const result = editor.view.posAtCoords({ left: viewportX, top: viewportY });
+                const pos = result?.pos;
+                if (typeof pos === 'number' && pos >= 1 && pos <= maxPos) {
+                  editor.commands.setTextSelection(pos);
+                } else {
+                  const isEmpty = doc.textContent.trim().length === 0;
+                  editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
+                }
               } else {
                 const isEmpty = doc.textContent.trim().length === 0;
                 editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
               }
-            } else {
-              const isEmpty = doc.textContent.trim().length === 0;
-              editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
+            } catch (e) {
+              // If setting selection fails, just focus
             }
           } catch (e) {
-            // If setting selection fails, just focus
+            // Ignore errors during focus
           }
-        } catch (e) {
-          // Ignore errors during focus
-        }
+        });
       });
     }
     // Note: Scripture detection is handled by TiptapEditor's useEffect
@@ -572,7 +580,7 @@ export default function CardFullEditable({
 
   // Helper function to render save/cancel buttons
   const renderSaveCancelButtons = (paddingClass: string = 'px-3') => (
-    <div className={`flex items-center gap-2 mt-4 mb-3 shrink-0 ${paddingClass}`}>
+    <div className={`flex items-center gap-2 mt-3 mb-3 shrink-0 ${paddingClass}`}>
       {/* Character counter - only show when editing title */}
       {isTitleEditing && isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
         <div 
@@ -870,7 +878,16 @@ export default function CardFullEditable({
     
     // If not a note-link or scripture pill, enter edit mode (if editable)
     if (effectiveIsEditable) {
-      contentClickCoordsRef.current = { clientX: e.clientX, clientY: e.clientY };
+      const displayEl = contentDisplayRef.current;
+      if (displayEl) {
+        const rect = displayEl.getBoundingClientRect();
+        contentClickCoordsRef.current = {
+          contentX: e.clientX - rect.left + displayEl.scrollLeft,
+          contentY: e.clientY - rect.top + displayEl.scrollTop,
+        };
+      } else {
+        contentClickCoordsRef.current = { contentX: e.clientX, contentY: e.clientY };
+      }
       startEditing('content');
     }
   };
