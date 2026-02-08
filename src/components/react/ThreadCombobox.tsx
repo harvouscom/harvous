@@ -350,7 +350,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             {/* Gradient overlay at top - only show when overflowing and scrolled down; shorter so it doesn't cover content */}
             {isOverflowing && hasScrolledDown && (
               <div 
-                className="absolute top-0 left-0 right-0 h-6 pointer-events-none z-10"
+                className="absolute top-0 left-0 right-0 h-3 pointer-events-none z-10"
                 style={{
                   background: 'linear-gradient(to top, transparent, var(--color-snow-white))'
                 }}
@@ -601,7 +601,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         e.stopPropagation();
                         setColorDropdownOpen((prev) => !prev);
                       }}
-                      className="relative flex h-full w-[76px] shrink-0 items-center rounded-l-xl border-0 cursor-pointer self-stretch"
+                      className="relative flex h-full min-w-[76px] w-[76px] shrink-0 items-center rounded-l-xl border-0 cursor-pointer self-stretch"
                       style={{ marginLeft: -12 }}
                       aria-label="Choose thread color"
                     >
@@ -719,7 +719,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             {/* Gradient overlay at bottom - only show when overflowing; shorter so it doesn't cover Create row / color picker */}
             {isOverflowing && (
               <div 
-                className="absolute bottom-0 left-0 right-0 h-6 pointer-events-none"
+                className="absolute bottom-0 left-0 right-0 h-3 pointer-events-none"
                 style={{
                   background: 'linear-gradient(to bottom, transparent, var(--color-snow-white))'
                 }}
