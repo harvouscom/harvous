@@ -220,6 +220,31 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
   addProseMirrorPlugins() {
     return [
+      // Safety net: strip scripturePill from stored marks when cursor is after a pill
+      // This prevents the mark from "sticking" to newly typed text
+      new Plugin({
+        key: new PluginKey('scripturePillStoredMarks'),
+        appendTransaction(transactions, oldState, newState) {
+          const { selection, storedMarks } = newState;
+          if (!storedMarks) return null;
+
+          const hasPillMark = storedMarks.some(m => m.type.name === 'scripturePill');
+          if (!hasPillMark) return null;
+
+          // Cursor is about to type with pill mark — check if we're actually inside a pill
+          const $from = selection.$from;
+          const marksAtCursor = $from.marks();
+          const insidePill = marksAtCursor.some(m => m.type.name === 'scripturePill');
+
+          // If cursor is NOT inside a pill, the stored marks shouldn't include pill
+          if (!insidePill) {
+            const cleaned = storedMarks.filter(m => m.type.name !== 'scripturePill');
+            return newState.tr.setStoredMarks(cleaned);
+          }
+
+          return null;
+        },
+      }),
       new Plugin({
         key: new PluginKey('scripturePillActions'),
         props: {

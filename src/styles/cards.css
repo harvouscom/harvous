@@ -847,7 +847,11 @@
   border-top-right-radius: 24px;
   flex-shrink: 0;
   width: 100%;
-  
+}
+
+/* In NewNotePanel, add bottom padding so content isn't hidden behind the footer */
+.new-note-panel .card-stack__inner {
+  padding-bottom: 80px;
 }
 
 .card-stack__inner-content {

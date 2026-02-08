@@ -143,40 +143,42 @@ export const PUT: APIRoute = async ({ request, locals }) => {
       }
     }
 
-    // Process scripture references in the note content (async, fire-and-forget)
+    // Process scripture references in the note content (awaited so results are returned)
     // Skip for encrypted notes (server can't read content)
+    let scriptureResults: any[] = [];
+    let processedContent: string | null = null;
+
     if (!isEncrypted) {
-      const scriptureAsync = async () => {
-        try {
-          let actualThreadId = 'thread_unorganized';
-          const threadRelation = await db.select()
-            .from(NoteThreads)
-            .where(eq(NoteThreads.noteId, noteId))
-            .limit(1)
-            .get();
-          if (threadRelation) {
-            actualThreadId = threadRelation.threadId;
-          }
-          const { processScriptureReferences } = await import('@/utils/process-scripture-references');
-          await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
-        } catch (error: any) {
-          console.error('[api/notes/update] Scripture reference processing failed (non-critical)', {
-            noteId,
-            userId,
-            message: error?.message ?? String(error),
-            stack: error?.stack,
-          });
+      try {
+        let actualThreadId = 'thread_unorganized';
+        const threadRelation = await db.select()
+          .from(NoteThreads)
+          .where(eq(NoteThreads.noteId, noteId))
+          .limit(1)
+          .get();
+        if (threadRelation) {
+          actualThreadId = threadRelation.threadId;
         }
-      };
-      scriptureAsync().catch((err: unknown) => {
-        const e = err as { message?: string; stack?: string };
-        console.error('[api/notes/update] Scripture async threw (unhandled):', e?.message ?? err, e?.stack);
-      });
+        const { processScriptureReferences } = await import('@/utils/process-scripture-references');
+        const scriptureResult = await processScriptureReferences(noteId, userId, actualThreadId, capitalizedContent);
+        scriptureResults = scriptureResult.results || [];
+        processedContent = scriptureResult.updatedContent || null;
+      } catch (error: any) {
+        console.error('[api/notes/update] Scripture reference processing failed (non-critical)', {
+          noteId,
+          userId,
+          message: error?.message ?? String(error),
+          stack: error?.stack,
+        });
+        // Non-critical: continue with response without scripture data
+      }
     }
 
     return successResponse({
       success: "Note updated!",
-      note: updatedNote
+      note: updatedNote,
+      scriptureResults,
+      processedContent
     });
 
   } catch (error: any) {

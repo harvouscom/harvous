@@ -676,22 +676,24 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
     
     if (modified) {
       tr.setMeta('addToHistory', false);
+      // Clear stored marks so next typed character won't inherit the pill mark
+      tr.setStoredMarks([]);
       view.dispatch(tr);
-      
+
       // Update our local state reference after dispatch
       state = view.state;
     }
-    
+
     // Brief delay for pill DOM to settle before cursor positioning
     // This 10ms delay allows the DOM to update after pill insertion
     setTimeout(() => {
       if (!editor || editor.isDestroyed) return;
-      
+
       const doc = editor.state.doc;
       const currentPos = editor.state.selection.from;
       let pillEndPos = currentPos;
       let foundPill = false;
-      
+
       for (let checkPos = Math.max(0, currentPos - 5); checkPos <= Math.min(currentPos + 2, doc.content.size); checkPos++) {
         try {
           const $check = doc.resolve(checkPos);
@@ -707,15 +709,18 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
           }
         } catch (e) {}
       }
-      
-      if (foundPill || true) { // Always clear marks after pill creation attempt
-        const targetPos = Math.max(pillEndPos, currentPos);
-        editor.chain()
-          .setTextSelection(targetPos)
-          .unsetMark('scripturePill')
-          .focus()
-          .run();
-      }
+
+      // Position cursor after pill and clear stored marks via direct transaction
+      // Using tr.setStoredMarks([]) instead of chain().unsetMark() ensures
+      // the next typed character won't inherit the pill mark
+      const targetPos = Math.max(pillEndPos, currentPos);
+      const view = editor.view;
+      const clearTr = view.state.tr.setSelection(
+        view.state.selection.constructor.near(view.state.doc.resolve(targetPos))
+      );
+      clearTr.setStoredMarks([]);
+      view.dispatch(clearTr);
+      editor.commands.focus();
     }, 10);
     
   } catch (error) {
@@ -2277,6 +2282,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
   const createNoteBubbleRef = useRef<HTMLDivElement>(null);
+  const mobileScriptureDetectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -2376,8 +2382,55 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Silently ignore errors (e.g., empty document, destroyed editor)
       }
 
-      // NOTE: Real-time scripture detection removed - pills are now created only on save
-      // See convertScriptureReferencesToPills() which is called after save
+      // Mobile: detect scripture references with debounce (500ms after typing stops)
+      // Desktop uses the space key handler instead; mobile uses onUpdate to avoid
+      // interfering with native keyboard behavior (e.g., iOS double-space-to-period)
+      if (isMobileDevice()) {
+        if (mobileScriptureDetectionTimer.current) {
+          clearTimeout(mobileScriptureDetectionTimer.current);
+        }
+        mobileScriptureDetectionTimer.current = setTimeout(() => {
+          if (!editor || editor.isDestroyed) return;
+          try {
+            const { from, to } = editor.state.selection;
+            if (from !== to) return; // Skip if text is selected
+            const $from = editor.state.doc.resolve(from);
+            if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return; // Skip if inside pill
+            const paragraphStart = $from.start($from.depth);
+            const textStart = Math.max(paragraphStart, from - 60);
+            const textBeforeCursor = editor.state.doc.textBetween(textStart, from);
+            if (textBeforeCursor.trim().length > 0) {
+              const references = detectScriptureReferences(textBeforeCursor);
+              if (references.length > 0) {
+                createPendingPillsForReferences(editor, references);
+              }
+            }
+          } catch (e) {
+            // Silently ignore errors
+          }
+        }, 500);
+      }
+
+      // Scroll cursor into view when content changes
+      // Ensures the cursor stays visible above the toolbar/footer
+      try {
+        const view = editor.view;
+        const { from } = editor.state.selection;
+        const coords = view.coordsAtPos(from);
+        if (coords) {
+          const editorDom = view.dom;
+          const scrollContainer = editorDom.closest('.card-stack__inner') || editorDom.closest('.tiptap-content');
+          if (scrollContainer) {
+            const scrollRect = scrollContainer.getBoundingClientRect();
+            // If cursor is below the visible area (with 80px buffer for footer)
+            if (coords.bottom > scrollRect.bottom - 80) {
+              scrollContainer.scrollTop += (coords.bottom - scrollRect.bottom + 100);
+            }
+          }
+        }
+      } catch (e) {
+        // Silently ignore scroll errors
+      }
     },
     editable: true,
     editorProps: {
@@ -2698,8 +2751,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
-        // Detect scripture references when space is pressed (before cursor is in a pill)
-        if (event.key === ' ' && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        // Detect scripture references when space is pressed (desktop only)
+        // On mobile, scripture detection happens in onUpdate to avoid interfering
+        // with native keyboard behavior (e.g., iOS double-space-to-period)
+        if (event.key === ' ' && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
           const doc = view.state.doc;
           const $from = view.state.selection.$from;
           const paragraphStart = $from.start($from.depth);
@@ -2710,29 +2765,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
               if (references.length > 0) {
-                // On mobile: Don't interfere with native keyboard behavior (e.g., double-space-to-period)
-                // Let the space be handled naturally, then process pills asynchronously
-                // Use 350ms delay to stay outside the double-tap-space-to-period window (~300ms on iOS)
-                if (isMobileDevice()) {
-                  // Use requestIdleCallback for non-critical pill creation, with setTimeout fallback
-                  const createPills = () => {
-                    if (editor && !editor.isDestroyed) {
-                      createPendingPillsForReferences(editor, references);
-                    }
-                  };
-
-                  if ('requestIdleCallback' in window) {
-                    // Wait 350ms, then schedule during idle time
-                    setTimeout(() => {
-                      (window as any).requestIdleCallback(createPills, { timeout: 500 });
-                    }, 350);
-                  } else {
-                    // Fallback for browsers without requestIdleCallback
-                    setTimeout(createPills, 350);
-                  }
-                  return false; // Let native keyboard handle the space
-                }
-
                 // On desktop: Synchronously handle the space and the pill creation
                 event.preventDefault();
 
