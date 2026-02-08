@@ -70,7 +70,7 @@ if (!shareToken || !isValidShareToken(shareToken)) {
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(eq(NoteThreads.threadId, thread.id))
+    .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.contentEncrypted, false)))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),

@@ -269,17 +269,14 @@ export default function TabNav({
     }
   };
 
-  // Get count for a tab (use badgeCounts state if available, otherwise fall back to prop)
+  // Get count for a tab. On thread page use badgeCounts (from API) for all/notes/scripture; otherwise use prop so parent-controlled counts (e.g. MySharingPanel) update when items change.
   const getTabCount = (tabId: string): number | undefined => {
-    // Map tab IDs to count keys
+    const tab = tabs.find(t => t.id === tabId);
     const countKey = tabId === 'notes' ? 'notes' : tabId === 'scripture' ? 'scripture' : tabId === 'all' ? 'all' : undefined;
-    
-    if (countKey && badgeCounts[countKey] !== undefined) {
+
+    if (isThreadPageRef.current && countKey && badgeCounts[countKey] !== undefined) {
       return badgeCounts[countKey];
     }
-    
-    // Fall back to prop
-    const tab = tabs.find(t => t.id === tabId);
     return tab?.count;
   };
 

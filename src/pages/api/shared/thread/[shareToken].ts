@@ -65,7 +65,7 @@ export const GET: APIRoute = async ({ params }) => {
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(eq(NoteThreads.threadId, thread.id))
+    .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.contentEncrypted, false)))
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
     // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
     .orderBy(
