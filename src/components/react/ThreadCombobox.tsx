@@ -104,6 +104,27 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   }, [searchValue]);
 
+  // Non-passive touch listeners on color button so we can preventDefault and open picker on mobile
+  useEffect(() => {
+    const el = createThreadAccentBarRef.current;
+    if (!el) return;
+    const onTouchStart = (e: TouchEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setColorDropdownOpen((prev) => !prev);
+    };
+    el.addEventListener('touchstart', onTouchStart, { passive: false });
+    el.addEventListener('touchend', onTouchEnd, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchend', onTouchEnd);
+    };
+  }, []);
+
   // Close color dropdown on outside click (bar and color panel are "inside")
   useEffect(() => {
     if (!colorDropdownOpen) return;
@@ -594,17 +615,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
                     aria-hidden
                   />
-                  {/* Color picker - full bar is tappable (absolute over bar); z-20 so above content on mobile */}
+                  {/* Color picker - full bar is tappable (absolute over bar); z-20 so above content on mobile. Touch handled via ref with passive: false to avoid "Unable to preventDefault inside passive event listener". */}
                   <button
                     ref={createThreadAccentBarRef}
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setColorDropdownOpen((prev) => !prev);
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
                       setColorDropdownOpen((prev) => !prev);
                     }}
                     className="absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center rounded-l-xl border-0 bg-transparent cursor-pointer no-underline shadow-none [appearance:none]"

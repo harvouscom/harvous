@@ -1572,6 +1572,30 @@ export default function OrganizedContentList({
            !deletedItemIds.has(normalizeId(item.noteId));
   });
 
+  // Placeholder used before hydration so server and client render identical HTML (avoids hydration mismatch from client-only state like isWaitingForFreshData, deletedItemIds, stale cache).
+  const placeholderStyle = {
+    display: 'flex' as const,
+    flexDirection: 'column' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    minHeight: '200px',
+    width: '100%',
+    paddingTop: '48px',
+    paddingBottom: '48px'
+  };
+
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-col">
+        <div style={placeholderStyle}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col">
       {isWaitingForFreshData && displayItems.length === 0 ? (
