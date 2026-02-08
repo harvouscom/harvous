@@ -588,13 +588,13 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     boxShadow: 'none'
                   }}
                 >
-                  {/* Accent bar on left - same as thread rows */}
+                  {/* Accent bar on left - z-10 so above content div (white) and visible; button (z-20) sits on top */}
                   <div
-                    className="absolute inset-y-0 left-0 w-11 rounded-l-xl"
+                    className="absolute inset-y-0 left-0 z-10 w-11 rounded-l-xl"
                     style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
                     aria-hidden
                   />
-                  {/* Color picker - full bar is tappable (absolute over bar); spacer keeps text aligned with thread rows */}
+                  {/* Color picker - full bar is tappable (absolute over bar); z-20 so above content on mobile */}
                   <button
                     ref={createThreadAccentBarRef}
                     type="button"
@@ -602,8 +602,17 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       e.stopPropagation();
                       setColorDropdownOpen((prev) => !prev);
                     }}
-                    className="absolute inset-y-0 left-0 z-10 flex w-11 items-center justify-center rounded-l-xl border-0 bg-transparent cursor-pointer no-underline [appearance:none]"
-                    style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      setColorDropdownOpen((prev) => !prev);
+                    }}
+                    className="absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center rounded-l-xl border-0 bg-transparent cursor-pointer no-underline shadow-none [appearance:none]"
+                    style={{
+                      touchAction: 'manipulation',
+                      WebkitTapHighlightColor: 'transparent',
+                      boxShadow: 'none'
+                    }}
                     aria-label="Choose thread color"
                   >
                     <Icon
@@ -612,9 +621,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       className="thread-combobox-create-row-icon block max-w-none size-full pointer-events-none"
                     />
                   </button>
-                  {/* Content - spacer size-5 so text aligns with thread rows; pr-3 so action button flush right */}
+                  {/* Content - relative z-0 so color button (z-20) is on top; spacer keeps text aligned */}
                   <div
-                    className="flex items-center gap-6 pl-3 pr-3 h-full"
+                    className="relative z-0 flex items-center gap-6 pl-3 pr-3 h-full"
                     style={{ backgroundColor: 'white' }}
                   >
                     <div className="shrink-0 size-5" aria-hidden />
