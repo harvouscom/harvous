@@ -2382,20 +2382,29 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Silently ignore errors (e.g., empty document, destroyed editor)
       }
 
-      // Mobile: detect scripture references with debounce (500ms after typing stops)
-      // Desktop uses the space key handler instead; mobile uses onUpdate to avoid
-      // interfering with native keyboard behavior (e.g., iOS double-space-to-period)
+      // Mobile: detect scripture references after a space or newline is typed
+      // Desktop uses the space keydown handler; mobile uses onUpdate to avoid
+      // intercepting keydown events which breaks iOS double-space-to-period.
+      // We gate on the character before the cursor being a space/newline so
+      // pills are only created after the user finishes typing the reference.
       if (isMobileDevice()) {
         if (mobileScriptureDetectionTimer.current) {
           clearTimeout(mobileScriptureDetectionTimer.current);
         }
+        // Short delay (50ms) to let the DOM settle after input
         mobileScriptureDetectionTimer.current = setTimeout(() => {
           if (!editor || editor.isDestroyed) return;
           try {
             const { from, to } = editor.state.selection;
             if (from !== to) return; // Skip if text is selected
+            if (from < 2) return; // Need at least 2 chars
             const $from = editor.state.doc.resolve(from);
             if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return; // Skip if inside pill
+
+            // Only trigger after a space or newline — same behavior as desktop
+            const charBefore = editor.state.doc.textBetween(from - 1, from);
+            if (charBefore !== ' ' && charBefore !== '\n') return;
+
             const paragraphStart = $from.start($from.depth);
             const textStart = Math.max(paragraphStart, from - 60);
             const textBeforeCursor = editor.state.doc.textBetween(textStart, from);
@@ -2408,7 +2417,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           } catch (e) {
             // Silently ignore errors
           }
-        }, 500);
+        }, 50);
       }
 
       // Scroll cursor into view when content changes
