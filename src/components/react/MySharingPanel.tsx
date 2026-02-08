@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import SquareButton from './SquareButton';
+import TabNav from './TabNav';
+import CondensedNoteItem from './CondensedNoteItem';
+import CondensedThreadItem from './CondensedThreadItem';
+import ActionButton from './ActionButton';
 import { toast } from '@/utils/toast';
+
+type SharingFilter = 'all' | 'threads' | 'notes';
 
 interface SharedThread {
   id: string;
   title: string;
+  color?: string | null;
   shareToken: string;
   shareUrl: string;
 }
@@ -30,6 +37,7 @@ export default function MySharingPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [disablingId, setDisablingId] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<SharingFilter>('all');
 
   const handleClose = () => {
     if (onClose) {
@@ -76,9 +84,9 @@ export default function MySharingPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to turn off sharing');
       setThreads((prev) => prev.filter((t) => t.id !== thread.id));
-      toast.success(`Sharing turned off for "${thread.title}"`);
+      toast.success('Thread is now private');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to turn off sharing. Please try again.');
+      toast.error(err instanceof Error ? err.message : 'Failed to make private. Please try again.');
     } finally {
       setDisablingId(null);
     }
@@ -96,15 +104,26 @@ export default function MySharingPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to turn off sharing');
       setNotes((prev) => prev.filter((n) => n.id !== note.id));
-      toast.success(`Sharing turned off for "${note.title}"`);
+      toast.success('Note is now private');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to turn off sharing. Please try again.');
+      toast.error(err instanceof Error ? err.message : 'Failed to make private. Please try again.');
     } finally {
       setDisablingId(null);
     }
   };
 
   const isEmpty = !isLoading && !error && threads.length === 0 && notes.length === 0;
+  const showThreads = activeFilter === 'all' || activeFilter === 'threads';
+  const showNotes = activeFilter === 'all' || activeFilter === 'notes';
+  const hasItemsForFilter =
+    activeFilter === 'all' ? threads.length + notes.length > 0 :
+    activeFilter === 'threads' ? threads.length > 0 : notes.length > 0;
+
+  const sharingTabs = [
+    { id: 'all', label: 'All', isActive: activeFilter === 'all', count: threads.length + notes.length },
+    { id: 'threads', label: 'Threads', isActive: activeFilter === 'threads', count: threads.length },
+    { id: 'notes', label: 'Notes', isActive: activeFilter === 'notes', count: notes.length }
+  ];
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
@@ -118,6 +137,15 @@ export default function MySharingPanel({
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              {!isLoading && !error && !isEmpty && (
+                <div className="mb-3">
+                  <TabNav
+                    tabs={sharingTabs}
+                    onTabChange={(tabId) => setActiveFilter(tabId as SharingFilter)}
+                  />
+                </div>
+              )}
+
               {error && (
                 <div className="w-full p-4 rounded-xl mb-3" style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}>
                   <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>{error}</p>
@@ -132,94 +160,58 @@ export default function MySharingPanel({
 
               {isEmpty && !isLoading && (
                 <div className="w-full p-8 text-center">
-                  <p className="font-sans mb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
-                    You haven&apos;t shared any threads or notes yet.
-                  </p>
-                  <p className="font-sans text-sm" style={{ color: 'var(--color-stone-grey)' }}>
-                    Turn on sharing from a thread or note to see it here.
+                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
+                    Turn on sharing from a thread or a note to see them here.
                   </p>
                 </div>
               )}
 
-              {!isLoading && !isEmpty && (
-                <div className="flex flex-col gap-4 w-full">
-                  {threads.length > 0 && (
-                    <section aria-labelledby="my-sharing-threads-heading">
-                      <h2 id="my-sharing-threads-heading" className="text-[12px] font-sans mb-2" style={{ color: 'var(--color-stone-grey)' }}>
-                        Threads
-                      </h2>
-                      <ul className="flex flex-col gap-2 list-none p-0 m-0">
-                        {threads.map((thread) => (
-                          <li key={thread.id}>
-                            <div
-                              className="relative rounded-xl w-full overflow-hidden flex items-center gap-3 px-3 py-3 min-h-[56px]"
-                              style={{ backgroundColor: 'white' }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <span className="font-sans text-[16px] font-medium block truncate" style={{ color: 'var(--color-deep-grey)' }}>
-                                  {thread.title}
-                                </span>
-                                <span className="text-[12px] font-sans" style={{ color: 'var(--color-stone-grey)' }}>Thread</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDisableThread(thread)}
-                                disabled={disablingId === thread.id}
-                                className="shrink-0 rounded-xl px-3 py-2 text-sm font-sans font-medium transition-opacity"
-                                style={{
-                                  color: 'var(--color-deep-grey)',
-                                  backgroundColor: 'var(--color-gradient-gray)',
-                                  opacity: disablingId === thread.id ? 0.6 : 1
-                                }}
-                                aria-label={`Turn off sharing for ${thread.title}`}
-                              >
-                                {disablingId === thread.id ? 'Turning off...' : 'Turn off sharing'}
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
+              {!isLoading && !isEmpty && hasItemsForFilter && (
+                <div className="flex flex-col gap-2 w-full">
+                  <ul className="flex flex-col gap-2 list-none p-0 m-0" role="list">
+                    {showThreads && threads.map((thread) => (
+                      <li key={thread.id}>
+                        <CondensedThreadItem
+                          title={thread.title}
+                          color={thread.color ?? undefined}
+                          isPublic={true}
+                          action={
+                            <ActionButton
+                              variant="Remove"
+                              onClick={() => handleDisableThread(thread)}
+                              disabled={disablingId === thread.id}
+                              aria-label={`Make private: ${thread.title}`}
+                            />
+                          }
+                        />
+                      </li>
+                    ))}
+                    {showNotes && notes.map((note) => (
+                      <li key={note.id}>
+                        <CondensedNoteItem
+                          title={note.title}
+                          noteType="default"
+                          itemType="note"
+                          action={
+                            <ActionButton
+                              variant="Remove"
+                              onClick={() => handleDisableNote(note)}
+                              disabled={disablingId === note.id}
+                              aria-label={`Make private: ${note.title}`}
+                            />
+                          }
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-                  {notes.length > 0 && (
-                    <section aria-labelledby="my-sharing-notes-heading">
-                      <h2 id="my-sharing-notes-heading" className="text-[12px] font-sans mb-2" style={{ color: 'var(--color-stone-grey)' }}>
-                        Notes
-                      </h2>
-                      <ul className="flex flex-col gap-2 list-none p-0 m-0">
-                        {notes.map((note) => (
-                          <li key={note.id}>
-                            <div
-                              className="relative rounded-xl w-full overflow-hidden flex items-center gap-3 px-3 py-3 min-h-[56px]"
-                              style={{ backgroundColor: 'white' }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <span className="font-sans text-[16px] font-medium block truncate" style={{ color: 'var(--color-deep-grey)' }}>
-                                  {note.title}
-                                </span>
-                                <span className="text-[12px] font-sans" style={{ color: 'var(--color-stone-grey)' }}>Note</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleDisableNote(note)}
-                                disabled={disablingId === note.id}
-                                className="shrink-0 rounded-xl px-3 py-2 text-sm font-sans font-medium transition-opacity"
-                                style={{
-                                  color: 'var(--color-deep-grey)',
-                                  backgroundColor: 'var(--color-gradient-gray)',
-                                  opacity: disablingId === note.id ? 0.6 : 1
-                                }}
-                                aria-label={`Turn off sharing for ${note.title}`}
-                              >
-                                {disablingId === note.id ? 'Turning off...' : 'Turn off sharing'}
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
+              {!isLoading && !isEmpty && !hasItemsForFilter && (
+                <div className="w-full p-8 text-center">
+                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
+                    No {activeFilter === 'threads' ? 'threads' : 'notes'} shared yet.
+                  </p>
                 </div>
               )}
             </div>

@@ -22,6 +22,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         .select({
           id: Threads.id,
           title: Threads.title,
+          color: Threads.color,
           shareToken: Threads.shareToken
         })
         .from(Threads)
@@ -48,6 +49,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .map((t) => ({
         id: t.id,
         title: t.title || 'Untitled thread',
+        color: t.color ?? undefined,
         shareToken: t.shareToken,
         shareUrl: `${origin}/shared/thread/${t.shareToken}`
       }));
