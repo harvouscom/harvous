@@ -103,6 +103,7 @@
 
   --color-bold-blue-50: oklch(var(--lch-bold-blue) / 0.5);
   --color-deep-grey-20: oklch(var(--lch-deep-grey) / 0.2);
+  --color-deep-grey-30: oklch(var(--lch-deep-grey) / 0.3);
   --color-stone-grey-20: oklch(var(--lch-stone-grey) / 0.2);
   --color-stone-grey-10: oklch(var(--lch-stone-grey) / 0.1);
 

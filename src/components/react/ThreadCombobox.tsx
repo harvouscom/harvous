@@ -4,6 +4,7 @@ import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 
 interface Thread {
   id: string;
@@ -23,7 +24,7 @@ interface ThreadComboboxProps {
   placeholder?: string;
   suggestedThreadIds?: string[];
   suggestedThreadName?: string | null;
-  onCreateThread?: (threadName: string) => void;
+  onCreateThread?: (threadName: string, color?: ThreadColor | string) => void;
   onSuggestedThreadNameChange?: (threadName: string) => void;
   /** When true, hide the trigger button and render only the dropdown (controlled by parent). */
   triggerless?: boolean;
@@ -60,8 +61,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const createThreadInputRef = useRef<HTMLInputElement>(null);
+  const createThreadAccentBarRef = useRef<HTMLButtonElement>(null);
+  const colorDropdownRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [hasScrolledDown, setHasScrolledDown] = useState(false);
+  const [createThreadColor, setCreateThreadColor] = useState<ThreadColor>('paper');
+  const [colorDropdownOpen, setColorDropdownOpen] = useState(false);
 
   useEffect(() => {
     const isTouch =
@@ -73,6 +78,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 
   const open = triggerless ? externalIsOpen : internalOpen;
   const setOpen = (value: boolean) => {
+    if (!value) setColorDropdownOpen(false);
     if (!triggerless) setInternalOpen(value);
     if (triggerless && !value && externalOnClose) externalOnClose();
   };
@@ -97,6 +103,25 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       setCreateThreadName('');
     }
   }, [searchValue]);
+
+  // Close color dropdown on outside click (bar and color panel are "inside")
+  useEffect(() => {
+    if (!colorDropdownOpen) return;
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        createThreadAccentBarRef.current?.contains(target) ||
+        colorDropdownRef.current?.contains(target)
+      ) return;
+      setColorDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [colorDropdownOpen]);
 
   // Filter threads based on search
   const filteredThreads = threads.filter(thread =>
@@ -215,10 +240,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     if (e.key === 'Enter') {
       e.preventDefault();
       if (createThreadName.trim()) {
-        onCreateThread?.(createThreadName.trim());
+        onCreateThread?.(createThreadName.trim(), createThreadColor);
         setOpen(false);
         setSearchValue('');
         setCreateThreadName('');
+        setCreateThreadColor('paper');
+        setColorDropdownOpen(false);
       }
       return;
     }
@@ -395,9 +422,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             if (editedThreadName.trim()) {
-                              onCreateThread(editedThreadName.trim());
+                              onCreateThread(editedThreadName.trim(), createThreadColor);
                               setOpen(false);
                               setSearchValue('');
+                              setCreateThreadColor('paper');
+                              setColorDropdownOpen(false);
                             }
                           }
                         }}
@@ -422,9 +451,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       variant="Add"
                       onClick={() => {
                         if (editedThreadName.trim()) {
-                          onCreateThread(editedThreadName.trim());
+                          onCreateThread(editedThreadName.trim(), createThreadColor);
                           setOpen(false);
                           setSearchValue('');
+                          setCreateThreadColor('paper');
+                          setColorDropdownOpen(false);
                         }
                       }}
                       disabled={!editedThreadName.trim()}
@@ -557,27 +588,40 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     boxShadow: 'none'
                   }}
                 >
-                  {/* Accent bar on left - matches thread rows */}
-                  <div 
-                    className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
-                    style={{ backgroundColor: 'var(--color-paper)' }}
-                  />
-                  
-                  {/* Content - matches thread row styling */}
-                  <div className="flex items-center gap-6 pl-3 pr-3 h-full">
-                    {/* Layer group icon (Font Awesome) */}
-                    <div className="relative shrink-0 size-5">
-                      <Icon
-                        name="layer-group"
-                        size={20}
-                        className="block max-w-none size-full text-[var(--color-deep-grey)]"
-                        style={{ opacity: 0.3 }}
+                  {/* Content - same structure as thread rows: pl-3, then bar+icon, gap-6, then input */}
+                  <div
+                    className="flex items-center gap-6 pl-3 pr-3 h-full"
+                    style={{ backgroundColor: 'white' }}
+                  >
+                    {/* Accent bar + icon as one tappable button (in flow so input gets correct width, bar aligned left via negative margin) */}
+                    <button
+                      ref={createThreadAccentBarRef}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setColorDropdownOpen((prev) => !prev);
+                      }}
+                      className="relative flex h-full w-[76px] shrink-0 items-center rounded-l-xl border-0 cursor-pointer self-stretch"
+                      style={{ marginLeft: -12 }}
+                      aria-label="Choose thread color"
+                    >
+                      <div
+                        className="absolute inset-y-0 left-0 w-11 rounded-l-xl"
+                        style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
+                        aria-hidden
                       />
-                    </div>
+                      <div className="relative z-[1] ml-3 flex size-5 items-center justify-center">
+                        <Icon
+                          name="layer-group"
+                          size={20}
+                          className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30"
+                        />
+                      </div>
+                    </button>
                     
-                    {/* Editable input - tap-to-focus wrapper for mobile */}
+                    {/* Editable input - same flex-1 min-w-0 as thread title */}
                     <div
-                      className="flex items-center gap-2 flex-1 min-w-0"
+                      className="flex min-w-0 flex-1 items-center gap-2"
                       style={{ minHeight: 44, cursor: 'text' }}
                       onClick={() => createThreadInputRef.current?.focus()}
                       onTouchEnd={(e) => {
@@ -611,10 +655,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       variant="Add"
                       onClick={() => {
                         if (createThreadName.trim()) {
-                          onCreateThread(createThreadName.trim());
+                          onCreateThread(createThreadName.trim(), createThreadColor);
                           setOpen(false);
                           setSearchValue('');
                           setCreateThreadName('');
+                          setCreateThreadColor('paper');
+                          setColorDropdownOpen(false);
                         }
                       }}
                       disabled={!createThreadName.trim()}
@@ -625,6 +671,48 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     />
                   </div>
                 </div>
+              </div>
+            )}
+            {/* Color picker inline - same width as rows, below Create Thread row when open */}
+            {colorDropdownOpen && shouldShowCreateFromSearch && (
+              <div
+                ref={colorDropdownRef}
+                className="color-selection rounded-xl"
+                role="menu"
+                aria-label="Thread color"
+                style={{
+                  backgroundColor: 'var(--color-snow-white)',
+                  border: '1px solid var(--color-fog-white)',
+                  paddingTop: 4,
+                  paddingBottom: 4,
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {THREAD_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setCreateThreadColor(color);
+                      setColorDropdownOpen(false);
+                    }}
+                    className={`color-swatch ${createThreadColor === color ? 'color-swatch--selected' : ''}`}
+                    style={{ backgroundColor: getThreadColorCSS(color) }}
+                  >
+                    {createThreadColor === color && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Icon
+                          name="check"
+                          size={20}
+                          style={{ color: getThreadTextColorCSS(color) }}
+                        />
+                      </div>
+                    )}
+                  </button>
+                ))}
               </div>
             )}
             </div>

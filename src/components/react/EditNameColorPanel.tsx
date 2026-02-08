@@ -331,8 +331,17 @@ export default function EditNameColorPanel({
                   )}
                 </div>
                 
-                {/* Color selection */}
-                <div className="color-selection flex gap-2 items-center justify-start w-full">
+                {/* Color selection - padding for hover state, overflow-x for more colors on small screens */}
+                <div
+                  className="color-selection flex gap-2 items-center justify-start w-full"
+                  style={{
+                    paddingTop: 4,
+                    paddingBottom: 4,
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
+                    WebkitOverflowScrolling: 'touch'
+                  }}
+                >
                   {THREAD_COLORS.map((color) => (
                     <button 
                       key={color}

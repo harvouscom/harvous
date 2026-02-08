@@ -828,11 +828,15 @@ export default function NewNotePanel({
           // Select the existing thread
           threadSelection.handleThreadSelect(existingThread.title);
         } else {
-          // Create the thread
+          // Create the thread - use color from pending thread if set via combobox color picker
+          const pendingThread = threadSelection.threadOptions.find(
+            (t) => t.id.startsWith('pending_') && t.title.trim().toLowerCase() === trimmedName.toLowerCase()
+          );
+          const threadColor = pendingThread?.color ?? 'paper';
           const formData = new FormData();
           formData.set('title', trimmedName);
           formData.set('isPublic', 'false');
-          formData.set('color', 'paper'); // New threads from dropdown use paper color
+          formData.set('color', threadColor);
           formData.set('spaceId', currentSpace?.id || '');
 
           const response = await fetch('/api/threads/create', {
@@ -1159,7 +1163,7 @@ export default function NewNotePanel({
                     setSuggestedThreadName(editedName.trim());
                   }
                 }}
-                onCreateThread={async (threadName: string) => {
+                onCreateThread={async (threadName: string, color?: string) => {
                   const trimmedName = threadName.trim();
                   if (!trimmedName) return;
 
@@ -1176,13 +1180,13 @@ export default function NewNotePanel({
                   }
 
                   setPendingThreadName(trimmedName);
-                  
+                  const threadColor = color ?? 'paper';
                   const pendingThread: Thread = {
                     id: `pending_${Date.now()}`,
                     title: trimmedName,
                     noteCount: 0,
-                    backgroundGradient: getThreadGradientCSS('paper'),
-                    color: 'paper',
+                    backgroundGradient: getThreadGradientCSS(threadColor),
+                    color: threadColor,
                   };
 
                   threadSelection.setThreadOptions((prev) => {
