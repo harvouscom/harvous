@@ -1018,16 +1018,40 @@ form.new-note-panel {
   flex: 1;
   min-height: 0;
   height: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .new-note-panel__card-stack-wrapper > .card-stack > .card-stack__container {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* Override card-stack__inner background for new note panel */
+.new-note-panel__card-stack-wrapper > .card-stack > .card-stack__container > .card-stack__content {
+  min-height: 0;
+}
+
+/* Same as CardFullEditable: card does not scroll; only .tiptap-content scrolls so title + toolbar stay at top */
 .new-note-panel .card-stack__inner {
   background-color: white;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
 }
+
+/* Let inner-content shrink so flex height flows to DefaultNoteForm → editor */
+.new-note-panel .card-stack__inner-content {
+  min-height: 0;
+}
+
+/* Editor area fills all remaining height (parent of .tiptap-editor-container) */
+.new-note-panel .tiptap-editor-container {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
 
 /* New note form footer: full width (parent has items-start), 12px above, flex justify-end, no left/right padding */
 .new-note-panel__form-footer {

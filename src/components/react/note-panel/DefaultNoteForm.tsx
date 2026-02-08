@@ -60,9 +60,9 @@ export default function DefaultNoteForm({
   };
 
   return (
-    <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
-      {/* Title Input Row */}
-      <div className="flex gap-3 items-center justify-center relative shrink-0 w-full">
+    <div className="box-border flex-1 min-h-0 flex flex-col items-start pt-3 px-3 relative w-full overflow-hidden">
+      {/* Header - same as CardFullEditable (shrink-0; card does not scroll so no sticky) */}
+      <div className="flex gap-3 items-center justify-center shrink-0 w-full">
         <div className="basis-0 font-sans font-semibold grow min-h-px min-w-0 not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
           <input 
             type="text"
@@ -98,34 +98,21 @@ export default function DefaultNoteForm({
         </div>
       </div>
       
-      {/* Editor */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '12px', maxHeight: '100%' }}>
-        <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+      {/* Content - flex-1 + min-h-0 so editor takes all remaining height; overflow hidden so only .tiptap-content scrolls */}
+      <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden" style={{ marginTop: '12px' }}>
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
           <TiptapEditor
-            content={content}
-            id="new-note-content"
-            name="content"
-            placeholder="Type your note..."
-            tabindex={2}
-            minimalToolbar={false}
-            onEditorReady={onEditorReady}
-            onContentChange={onContentChange}
-            parentThreadId={parentThreadId}
-            onEditorInstanceReady={onEditorInstanceReady}
-          />
-        </div>
-      </div>
-
-      {/* Footer: date | note ID, right-aligned (spacing from parent .new-note-panel__form-footer) */}
-      <div className="new-note-panel__form-footer">
-        <div className="panel__metadata-row">
-          <div className="panel__metadata-row__right">
-            <span className="leading-[normal] text-nowrap">
-              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-            </span>
-            <span className="leading-[normal]" style={{ color: 'rgba(136, 134, 128, 0.3)' }}>|</span>
-            <span className="leading-[normal] text-nowrap">{nextNoteId}</span>
-          </div>
+              content={content}
+              id="new-note-content"
+              name="content"
+              placeholder="Type your note..."
+              tabindex={2}
+              minimalToolbar={false}
+              onEditorReady={onEditorReady}
+              onContentChange={onContentChange}
+              parentThreadId={parentThreadId}
+              onEditorInstanceReady={onEditorInstanceReady}
+            />
         </div>
       </div>
     </div>

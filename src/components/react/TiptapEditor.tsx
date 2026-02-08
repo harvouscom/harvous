@@ -3782,7 +3782,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   };
 
   return (
-    <div className="tiptap-editor-container flex flex-col" style={{ height: '100%', minHeight: 0, width: '100%' }}>
+    <div className="tiptap-editor-container flex flex-col flex-1 min-h-0 w-full" style={{ minHeight: 0, height: '100%' }}>
       {/* Hidden input for form submission */}
       <input
         ref={hiddenInputRef}
@@ -3797,7 +3797,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         <div
           className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
-            position: 'relative',
+            position: 'sticky',
+            top: 0,
             zIndex: 20,
             marginBottom: '8px',
             backgroundColor: 'var(--color-snow-white)',
