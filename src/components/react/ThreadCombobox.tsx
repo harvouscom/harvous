@@ -582,7 +582,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 }}
               >
                 <div
-                  className="relative rounded-xl h-[48px] w-full overflow-hidden"
+                  className="relative rounded-xl h-[48px] w-full min-w-0 overflow-hidden"
                   style={{
                     backgroundColor: 'white',
                     boxShadow: 'none'
@@ -590,7 +590,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                 >
                   {/* Content - same structure as thread rows: pl-3, then bar+icon, gap-6, then input */}
                   <div
-                    className="flex items-center gap-6 pl-3 pr-3 h-full"
+                    className="flex min-w-0 items-center gap-6 pl-3 pr-3 h-full"
                     style={{ backgroundColor: 'white' }}
                   >
                     {/* Accent bar + icon as one tappable button (in flow so input gets correct width, bar aligned left via negative margin) */}
@@ -601,8 +601,8 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         e.stopPropagation();
                         setColorDropdownOpen((prev) => !prev);
                       }}
-                      className="relative flex h-full min-w-[76px] w-[76px] shrink-0 items-center rounded-l-xl border-0 cursor-pointer self-stretch"
-                      style={{ marginLeft: -12 }}
+                      className="relative flex h-full min-w-[76px] w-[76px] flex-none shrink-0 items-center rounded-l-xl border-0 cursor-pointer self-stretch"
+                      style={{ marginLeft: -12, minWidth: 76 }}
                       aria-label="Choose thread color"
                     >
                       <div
@@ -699,7 +699,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       setCreateThreadColor(color);
                       setColorDropdownOpen(false);
                     }}
-                    className={`color-swatch ${createThreadColor === color ? 'color-swatch--selected' : ''}`}
+                    className={`color-swatch shrink-0 flex-none min-w-[2.5rem] ${createThreadColor === color ? 'color-swatch--selected' : ''}`}
                     style={{ backgroundColor: getThreadColorCSS(color) }}
                   >
                     {createThreadColor === color && (
