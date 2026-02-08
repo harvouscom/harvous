@@ -1029,6 +1029,22 @@ form.new-note-panel {
   background-color: white;
 }
 
+/* New note form footer: full width (parent has items-start), 12px above, flex justify-end, no left/right padding */
+.new-note-panel__form-footer {
+  margin-top: 12px;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  padding-left: 0;
+  padding-right: 0;
+}
+.new-note-panel__form-footer .panel__metadata-row {
+  margin-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: flex-end !important;
+}
+
 /* Note template header (CardStack header with template name + dropdown trigger) */
 .card-stack__header.note-template-header,
 .card-stack__header[data-template-header] {

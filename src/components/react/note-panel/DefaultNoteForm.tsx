@@ -99,7 +99,7 @@ export default function DefaultNoteForm({
       </div>
       
       {/* Editor */}
-      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
+      <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '12px', maxHeight: '100%' }}>
         <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
           <TiptapEditor
             content={content}
@@ -116,13 +116,16 @@ export default function DefaultNoteForm({
         </div>
       </div>
 
-      {/* Footer with date and note ID */}
-      <div className="flex font-sans font-normal items-center justify-between leading-[0] not-italic relative shrink-0 text-[var(--color-stone-grey)] text-[12px] text-nowrap w-full" style={{ marginTop: '8px' }}>
-        <div className="relative shrink-0">
-          <p className="leading-[normal] text-nowrap whitespace-pre">Today</p>
-        </div>
-        <div className="relative shrink-0">
-          <p className="leading-[normal] text-nowrap whitespace-pre">{nextNoteId}</p>
+      {/* Footer: date | note ID, right-aligned (spacing from parent .new-note-panel__form-footer) */}
+      <div className="new-note-panel__form-footer">
+        <div className="panel__metadata-row">
+          <div className="panel__metadata-row__right">
+            <span className="leading-[normal] text-nowrap">
+              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <span className="leading-[normal]" style={{ color: 'rgba(136, 134, 128, 0.3)' }}>|</span>
+            <span className="leading-[normal] text-nowrap">{nextNoteId}</span>
+          </div>
         </div>
       </div>
     </div>

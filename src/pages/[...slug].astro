@@ -1471,13 +1471,16 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       
       // PRIORITY: Fetch from API to ensure we have latest data for other updates (navigation, data attributes, etc.)
       try {
-        const response = await fetch(`/api/threads/${threadId}`, {
+        const response = await fetch(`/api/threads/${threadId}/prefetch`, {
           credentials: 'include'
         });
         
-        if (response.ok) {
-          const threadData = await response.json();
-          const thread = threadData.thread;
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+          return;
+        }
+        const threadData = await response.json();
+        const thread = threadData.thread;
           
           if (thread) {
             // Use API data if event detail didn't have it
@@ -1511,7 +1514,6 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
             
             // Note: CardStack header updates are handled by ThreadCardStackHeader React component
           }
-        }
       } catch (error) {
         console.error('Error fetching updated thread data:', error);
       }

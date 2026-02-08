@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Threads, Notes, eq, and, isNotNull } from 'astro:db';
+import { db, Threads, Notes, eq, and, isNotNull, desc } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ request, locals }) => {
@@ -26,7 +26,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
           shareToken: Threads.shareToken
         })
         .from(Threads)
-        .where(and(eq(Threads.userId, userId), isNotNull(Threads.shareToken))),
+        .where(and(eq(Threads.userId, userId), isNotNull(Threads.shareToken)))
+        .orderBy(desc(Threads.shareTokenCreatedAt)),
       db
         .select({
           id: Notes.id,
@@ -42,6 +43,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
             isNotNull(Notes.shareToken)
           )
         )
+        .orderBy(desc(Notes.shareTokenCreatedAt))
     ]);
 
     const threads = threadRows

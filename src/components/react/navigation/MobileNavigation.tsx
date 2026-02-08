@@ -137,60 +137,61 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   }, [spaces]);
 
   // Best-effort fallback: derive the active thread from DOM (for timing / View Transition cases)
+  // Defined at component level so handleThreadUpdated (in a separate useEffect) can call it
+  const readActiveThreadFromDom = useCallback(() => {
+    try {
+      const path = window.location.pathname || '/';
+      const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
+
+      // Note page: parent thread data
+      if (itemId.startsWith('note_')) {
+        const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+        const parentThreadId = noteEl?.dataset?.parentThreadId ?? null;
+        if (!parentThreadId || !parentThreadId.startsWith('thread_')) {
+          setActiveThreadFromDom(null);
+          return;
+        }
+        setActiveThreadFromDom({
+          id: parentThreadId,
+          title: noteEl?.dataset?.parentThreadTitle || 'Thread',
+          noteCount: parseInt(noteEl?.dataset?.parentThreadCount || '0'),
+          backgroundGradient: noteEl?.dataset?.parentThreadBackgroundGradient || getThreadGradientCSS('paper'),
+          spaceId: noteEl?.dataset?.parentThreadSpaceId || undefined,
+        });
+        return;
+      }
+
+      // Thread page: thread data from navigation dataset (best available)
+      if (itemId.startsWith('thread_')) {
+        // Try multiple selectors to find thread data (desktop and mobile)
+        const navEl =
+          (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+          (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
+          (document.querySelector(`[data-thread-id="${itemId}"]`) as HTMLElement | null) ??
+          (document.querySelector(`[data-navigation-item="${itemId}"]`) as HTMLElement | null);
+        const threadId = navEl?.dataset?.threadId ?? itemId;
+        if (!threadId || !threadId.startsWith('thread_')) {
+          setActiveThreadFromDom(null);
+          return;
+        }
+        setActiveThreadFromDom({
+          id: threadId,
+          title: navEl?.dataset?.threadTitle || navEl?.dataset?.title || 'Thread',
+          noteCount: parseInt(navEl?.dataset?.threadNoteCount || '0'),
+          backgroundGradient: navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient || getThreadGradientCSS('paper'),
+          spaceId: (navEl?.dataset?.threadSpaceId as string | undefined) ?? undefined,
+        });
+        return;
+      }
+
+      setActiveThreadFromDom(null);
+    } catch {
+      setActiveThreadFromDom(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const readActiveThreadFromDom = () => {
-      try {
-        const path = window.location.pathname || '/';
-        const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
-
-        // Note page: parent thread data
-        if (itemId.startsWith('note_')) {
-          const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
-          const parentThreadId = noteEl?.dataset?.parentThreadId ?? null;
-          if (!parentThreadId || !parentThreadId.startsWith('thread_')) {
-            setActiveThreadFromDom(null);
-            return;
-          }
-          setActiveThreadFromDom({
-            id: parentThreadId,
-            title: noteEl?.dataset?.parentThreadTitle || 'Thread',
-            noteCount: parseInt(noteEl?.dataset?.parentThreadCount || '0'),
-            backgroundGradient: noteEl?.dataset?.parentThreadBackgroundGradient || getThreadGradientCSS('paper'),
-            spaceId: noteEl?.dataset?.parentThreadSpaceId || undefined,
-          });
-          return;
-        }
-
-        // Thread page: thread data from navigation dataset (best available)
-        if (itemId.startsWith('thread_')) {
-          // Try multiple selectors to find thread data (desktop and mobile)
-          const navEl =
-            (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
-            (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
-            (document.querySelector(`[data-thread-id="${itemId}"]`) as HTMLElement | null) ??
-            (document.querySelector(`[data-navigation-item="${itemId}"]`) as HTMLElement | null);
-          const threadId = navEl?.dataset?.threadId ?? itemId;
-          if (!threadId || !threadId.startsWith('thread_')) {
-            setActiveThreadFromDom(null);
-            return;
-          }
-          setActiveThreadFromDom({
-            id: threadId,
-            title: navEl?.dataset?.threadTitle || navEl?.dataset?.title || 'Thread',
-            noteCount: parseInt(navEl?.dataset?.threadNoteCount || '0'),
-            backgroundGradient: navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient || getThreadGradientCSS('paper'),
-            spaceId: (navEl?.dataset?.threadSpaceId as string | undefined) ?? undefined,
-          });
-          return;
-        }
-
-        setActiveThreadFromDom(null);
-      } catch {
-        setActiveThreadFromDom(null);
-      }
-    };
 
     readActiveThreadFromDom();
     document.addEventListener('astro:page-load', readActiveThreadFromDom);
@@ -199,7 +200,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       document.removeEventListener('astro:page-load', readActiveThreadFromDom);
       document.removeEventListener('astro:after-swap', readActiveThreadFromDom);
     };
-  }, []);
+  }, [readActiveThreadFromDom]);
 
   // Determine text color - pastel colors use dark text for visibility
   const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
@@ -559,7 +560,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return () => {
       window.removeEventListener('threadUpdated', handleThreadUpdated);
     };
-  }, [currentThread]);
+  }, [currentThread, readActiveThreadFromDom]);
 
   // Update localSpaces when a space is updated (for dropdown and other space lists)
   useEffect(() => {
