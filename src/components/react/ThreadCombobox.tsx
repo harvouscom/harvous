@@ -594,30 +594,30 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
                     aria-hidden
                   />
-                  {/* Content - same as thread rows but pr-3 so action button is flush right */}
+                  {/* Color picker - full bar is tappable (absolute over bar); spacer keeps text aligned with thread rows */}
+                  <button
+                    ref={createThreadAccentBarRef}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setColorDropdownOpen((prev) => !prev);
+                    }}
+                    className="absolute inset-y-0 left-0 z-10 flex w-11 items-center justify-center rounded-l-xl border-0 bg-transparent cursor-pointer no-underline [appearance:none]"
+                    style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                    aria-label="Choose thread color"
+                  >
+                    <Icon
+                      name="layer-group"
+                      size={20}
+                      className="thread-combobox-create-row-icon block max-w-none size-full pointer-events-none"
+                    />
+                  </button>
+                  {/* Content - spacer size-5 so text aligns with thread rows; pr-3 so action button flush right */}
                   <div
                     className="flex items-center gap-6 pl-3 pr-3 h-full"
                     style={{ backgroundColor: 'white' }}
                   >
-                    {/* Color picker icon - same size-5 as thread row icon so text aligns */}
-                    <button
-                      ref={createThreadAccentBarRef}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setColorDropdownOpen((prev) => !prev);
-                      }}
-                      className="relative z-10 flex shrink-0 size-5 items-center justify-center rounded-l-xl border-0 cursor-pointer"
-                      style={{ touchAction: 'manipulation' }}
-                      aria-label="Choose thread color"
-                    >
-                      <Icon
-                        name="layer-group"
-                        size={20}
-                        className="thread-combobox-create-row-icon block max-w-none size-full"
-                      />
-                    </button>
-                    
+                    <div className="shrink-0 size-5" aria-hidden />
                     {/* Editable input - same flex-1 min-w-0 as thread title */}
                     <div
                       className="flex min-w-0 flex-1 items-center gap-2"
