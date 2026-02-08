@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -2261,7 +2261,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [activeStates, setActiveStates] = useState({
     bold: false,
     italic: false,
@@ -2271,10 +2270,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
+  const [contentOverflowing, setContentOverflowing] = useState(false);
+  const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
+  const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
-  const toolbarPositionUpdater = useRef<() => void>(() => {});
-  const scrollCursorAboveToolbarRef = useRef<() => void>(() => {});
+  const tiptapContentRef = useRef<HTMLDivElement>(null);
+  const createNoteBubbleRef = useRef<HTMLDivElement>(null);
 
   // Helper function to check if editor/view is valid before accessing docView
   // This prevents errors when editor is destroyed but handlers still fire
@@ -2682,24 +2684,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           event.preventDefault();
           window.dispatchEvent(new CustomEvent('submitPanelForm'));
           return true; // Prevent default for Cmd+Enter only
-        }
-        
-        // Handle regular Enter key - trigger auto-scroll after newline is created
-        if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey) {
-          // Let ProseMirror handle the Enter key first, then trigger auto-scroll
-          // Timing: toolbar debounce is 30ms, so wait 50ms to ensure position is updated
-          setTimeout(() => {
-            // Update toolbar position first
-            if (toolbarPositionUpdater.current) {
-              toolbarPositionUpdater.current();
-            }
-            // Wait for toolbar position to update (after 30ms debounce), then scroll cursor
-            setTimeout(() => {
-              if (scrollCursorAboveToolbarRef.current) {
-                scrollCursorAboveToolbarRef.current();
-              }
-            }, 50);
-          }, 10);
         }
         
         // Handle Select All (Cmd+A on Mac, Ctrl+A on Windows/Linux)
@@ -3468,28 +3452,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       
       setIsEditorFocused(true);
-
-      // Immediately detect keyboard height when editor focuses
-      // Use multiple checks to catch keyboard animation timing
-      if (toolbarPositionUpdater.current) {
-        // Immediate check
-        toolbarPositionUpdater.current();
-        
-        // After requestAnimationFrame (next frame)
-        requestAnimationFrame(() => {
-          toolbarPositionUpdater.current?.();
-        });
-        
-        // After short delay (100ms) - catches initial keyboard animation
-        setTimeout(() => {
-          toolbarPositionUpdater.current?.();
-        }, 100);
-        
-        // After longer delay (300ms) - catches final keyboard height
-        setTimeout(() => {
-          toolbarPositionUpdater.current?.();
-        }, 300);
-      }
     };
 
     const handleBlur = (event: any) => {
@@ -3510,8 +3472,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       setTimeout(() => {
         if (isEditorValid(editor) && !editor.isFocused) {
           setIsEditorFocused(false);
-          // Reset keyboard height when editor loses focus (keyboard closes)
-          setKeyboardHeight(0);
         }
       }, 100);
     };
@@ -3531,173 +3491,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor]);
-
-  // Handle virtual keyboard for consistent toolbar positioning
-  // Calculate keyboard height as the difference between window height and visual viewport height
-  // This gives us the keyboard height without scroll interference
-  useEffect(() => {
-    const visualViewport = window.visualViewport;
-    if (!visualViewport) return;
-
-    let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-    let lastKeyboardHeight = 0; // Track last height to avoid unnecessary updates
-
-    const updateToolbarPosition = () => {
-      // Debounce updates to prevent jitter from rapid resize events
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-
-      debounceTimeout = setTimeout(() => {
-        // Check if editor is focused - keyboard only matters when editor is active
-        const editorFocused = editor && isEditorValid(editor) && editor.isFocused;
-
-        // Simple calculation: keyboard height = difference between window height and visible viewport height
-        // Don't use offsetTop as it changes with scroll and causes incorrect positioning
-        const newKeyboardHeight = window.innerHeight - visualViewport.height;
-
-        // Only update if keyboard is likely open (>150px threshold) AND editor is focused
-        // AND the height has changed significantly (>10px) to prevent jitter
-        if (newKeyboardHeight > 150 && editorFocused) {
-          // Only update state if height changed by more than 10px (prevents micro-jitter)
-          if (Math.abs(newKeyboardHeight - lastKeyboardHeight) > 10) {
-            lastKeyboardHeight = newKeyboardHeight;
-            setKeyboardHeight(newKeyboardHeight);
-          }
-        } else if (lastKeyboardHeight > 0) {
-          // Keyboard closed or editor not focused - reset
-          lastKeyboardHeight = 0;
-          setKeyboardHeight(0);
-        }
-      }, 30); // Reduced debounce for more responsive toolbar
-    };
-
-    toolbarPositionUpdater.current = updateToolbarPosition;
-
-    // Handle scroll events to update toolbar position
-    // This ensures toolbar follows scroll while maintaining 12px above keyboard
-    const handleScroll = () => {
-      // Update toolbar position based on current scroll state
-      // Maintain 12px above keyboard
-      updateToolbarPosition();
-    };
-
-    // Listen to resize events for keyboard open/close
-    visualViewport.addEventListener('resize', updateToolbarPosition);
-    window.addEventListener('resize', updateToolbarPosition);
-    
-    // Listen to scroll events to update toolbar position when scrolling
-    // Use visualViewport scroll if available (mobile browsers)
-    if (visualViewport.addEventListener) {
-      visualViewport.addEventListener('scroll', handleScroll);
-    }
-    
-    // Also listen to content container scroll as fallback
-    let contentContainer: HTMLElement | null = null;
-    if (editor?.view?.dom) {
-      contentContainer = editor.view.dom.closest('.tiptap-content') as HTMLElement;
-      if (contentContainer) {
-        contentContainer.addEventListener('scroll', handleScroll);
-      }
-    }
-
-    // Initial check
-    updateToolbarPosition();
-
-    return () => {
-      visualViewport.removeEventListener('resize', updateToolbarPosition);
-      window.removeEventListener('resize', updateToolbarPosition);
-      if (visualViewport.removeEventListener) {
-        visualViewport.removeEventListener('scroll', handleScroll);
-      }
-      if (contentContainer) {
-        contentContainer.removeEventListener('scroll', handleScroll);
-      }
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-      }
-    };
-  }, [editor]); // Add editor dependency to check focus state
-
-  // Auto-scroll cursor above toolbar when typing
-  // This ensures cursor stays visible above the fixed toolbar
-  useEffect(() => {
-    if (!editor || !isEditorFocused || keyboardHeight === 0) return;
-    if (!isEditorValid(editor)) return;
-
-    const scrollCursorAboveToolbar = () => {
-      if (!isEditorValid(editor)) return;
-      
-      const editorElement = editor.view.dom;
-      const contentContainer = editorElement?.closest('.tiptap-content') as HTMLElement;
-      if (!contentContainer) return;
-
-      try {
-        // Get cursor position in the editor
-        const { from } = editor.state.selection;
-        
-        // Get the DOM coordinates for the cursor
-        const coords = editor.view.coordsAtPos(from);
-        if (!coords) return;
-
-        // Get container's viewport position
-        const containerRect = contentContainer.getBoundingClientRect();
-        
-        // Calculate where toolbar is positioned (keyboardHeight + 12px offset)
-        // Toolbar height is approximately 48px, so we want cursor at least 80px above keyboard
-        const toolbarTop = window.innerHeight - keyboardHeight - 12 - 48;
-        const safeAreaTop = toolbarTop - 40; // 40px padding above toolbar (increased from 20)
-
-        // Check if cursor is below the safe area
-        const cursorTop = coords.top;
-        const cursorBottom = coords.bottom;
-
-        // If cursor is below or overlapping with toolbar area, scroll it up
-        if (cursorBottom > safeAreaTop || cursorTop < containerRect.top) {
-          // Calculate how much we need to scroll
-          // We want the cursor to be at the safe area top
-          const cursorRelativeTop = cursorTop - containerRect.top + contentContainer.scrollTop;
-          const targetScrollTop = cursorRelativeTop - (safeAreaTop - containerRect.top) - 40;
-
-          // Scroll to keep cursor visible above toolbar
-          // Use 'instant' instead of 'smooth' to prevent fighting with user scroll
-          contentContainer.scrollTo({
-            top: Math.max(0, targetScrollTop),
-            behavior: 'instant'
-          });
-        }
-      } catch (error) {
-        // Silently ignore errors (e.g., if editor is destroyed)
-      }
-    };
-
-    // Store function in ref so it can be called from handleKeyDown
-    scrollCursorAboveToolbarRef.current = scrollCursorAboveToolbar;
-
-    // Use requestAnimationFrame to debounce scroll updates
-    let rafId: number | null = null;
-    const debouncedScroll = () => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      rafId = requestAnimationFrame(scrollCursorAboveToolbar);
-    };
-
-    // Listen to selection updates and content updates
-    editor.on('selectionUpdate', debouncedScroll);
-    editor.on('update', debouncedScroll);
-
-    return () => {
-      scrollCursorAboveToolbarRef.current = () => {}; // Clear ref
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-      if (editor && !editor.isDestroyed) {
-        editor.off('selectionUpdate', debouncedScroll);
-        editor.off('update', debouncedScroll);
-      }
-    };
-  }, [editor, isEditorFocused, keyboardHeight]);
 
   // Update active states when editor changes
   useEffect(() => {
@@ -3742,6 +3535,52 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor]);
+
+  // Gradient overlay: check if tiptap-content is overflowing and update scroll state
+  useEffect(() => {
+    if (!editor || !tiptapContentRef.current) return;
+    const checkOverflow = () => {
+      if (tiptapContentRef.current) {
+        const el = tiptapContentRef.current;
+        setContentOverflowing(el.scrollHeight > el.clientHeight);
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        setContentHasScrolledDown(scrollTop > 0);
+        setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+      }
+    };
+    checkOverflow();
+    const timer = setTimeout(checkOverflow, 50);
+    editor.on('update', checkOverflow);
+    return () => {
+      clearTimeout(timer);
+      if (editor && !editor.isDestroyed) {
+        editor.off('update', checkOverflow);
+      }
+    };
+  }, [editor, content]);
+
+  // Gradient overlay: track scroll position for top and bottom gradient
+  useEffect(() => {
+    if (!tiptapContentRef.current) return;
+    const el = tiptapContentRef.current;
+    const updateScrollState = () => {
+      if (!tiptapContentRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = tiptapContentRef.current;
+      setContentHasScrolledDown(scrollTop > 0);
+      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+    };
+    el.addEventListener('scroll', updateScrollState);
+    updateScrollState();
+    return () => el.removeEventListener('scroll', updateScrollState);
+  }, [editor]);
+
+  // Create Note bubble menu: ensure its root has higher z-index than the sticky toolbar (z-index 10)
+  useLayoutEffect(() => {
+    const wrapper = createNoteBubbleRef.current;
+    if (wrapper?.parentElement) {
+      wrapper.parentElement.style.zIndex = '100';
+    }
+  }, []);
 
   // Set isLoaded immediately - SVG icons are imported directly
   useEffect(() => {
@@ -3912,64 +3751,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         value={editor.getHTML()}
       />
       
-      {/* Editor content area */}
-      <div
-        className="tiptap-content flex-1 min-h-0 overflow-auto"
-        onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
-          if (editor) {
-            // Let ProseMirror handle natural cursor placement at click position
-            // The CSS will prevent unwanted scrolling behavior
-            editor.commands.focus();
-          }
-        }}
-      >
-        <EditorContent editor={editor} />
-        {enableCreateNoteFromSelection && (
-          <BubbleMenu
-            editor={editor}
-            shouldShow={({ editor }: { editor: any }) => {
-              // Check if editor is still valid before checking selection
-              if (!isEditorValid(editor)) return false;
-              return isValidSelection(editor);
-            }}
-          >
-            <div style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}>
-              <ButtonSmall
-                state="Default"
-                onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-                  // Use onMouseDown for better reliability in Floating UI portals
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCreateNoteFromSelection();
-                }}
-                type="button"
-              >
-                <Icon name="plus" size={14} style={{ display: 'inline-block', marginRight: '8px', fill: 'currentColor' }} />
-                <span>Create Note</span>
-              </ButtonSmall>
-            </div>
-          </BubbleMenu>
-        )}
-      </div>
-      
-      {/* Custom SpaceButton-styled toolbar - positioned at bottom */}
-        {!minimalToolbar && isEditorFocused && (
-          <div 
-            className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
-            style={keyboardHeight > 0 ? {
-              // When keyboard is open: float above keyboard
-              position: 'fixed',
-              bottom: `${keyboardHeight + 12}px`,
-              left: '1rem',
-              right: '1rem',
-              width: 'calc(100% - 2rem)',
-              zIndex: 50,
-            } : {
-              // When no keyboard: stay in document flow (above footer buttons)
-              position: 'relative',
-              marginTop: '8px',
-            }}
-          >
+      {/* Toolbar above scroll area so it is not masked by top-fade; higher z-index than content */}
+      {!minimalToolbar && isEditorFocused && (
+        <div
+          className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+          style={{
+            position: 'relative',
+            zIndex: 20,
+            marginBottom: '8px',
+            backgroundColor: 'var(--color-snow-white)',
+          }}
+        >
           <ToolbarButton
             onClick={() => {
               if (!editor) {
@@ -4069,6 +3861,48 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </ToolbarButton>
         </div>
       )}
+      {/* Scroll area with top/bottom fade mask; toolbar is outside so not faded */}
+      <div
+        ref={tiptapContentRef}
+        className={`tiptap-content flex-1 min-h-0 overflow-auto relative ${contentOverflowing && !contentHasScrolledToBottom ? 'tiptap-content--bottom-fade' : ''} ${contentOverflowing && contentHasScrolledDown ? 'tiptap-content--top-fade' : ''}`}
+        onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+          if (editor) {
+            editor.commands.focus();
+          }
+        }}
+      >
+        <EditorContent editor={editor} />
+        {enableCreateNoteFromSelection && (
+          <BubbleMenu
+            editor={editor}
+            appendTo={() => document.body}
+            shouldShow={({ editor }: { editor: any }) => {
+              // Check if editor is still valid before checking selection
+              if (!isEditorValid(editor)) return false;
+              return isValidSelection(editor);
+            }}
+          >
+            <div
+              ref={createNoteBubbleRef}
+              style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}
+            >
+              <ButtonSmall
+                state="Default"
+                onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+                  // Use onMouseDown for better reliability in Floating UI portals
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCreateNoteFromSelection();
+                }}
+                type="button"
+              >
+                <Icon name="plus" size={14} style={{ display: 'inline-block', marginRight: '8px', fill: 'currentColor' }} />
+                <span>Create Note</span>
+              </ButtonSmall>
+            </div>
+          </BubbleMenu>
+        )}
+      </div>
     </div>
   );
 };

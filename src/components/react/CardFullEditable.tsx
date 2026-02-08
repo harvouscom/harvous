@@ -100,6 +100,9 @@ export default function CardFullEditable({
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
+  const [contentOverflowing, setContentOverflowing] = useState(false);
+  const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
+  const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
 
   // Initialize display content
   useEffect(() => {
@@ -145,6 +148,45 @@ export default function CardFullEditable({
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
   }, [noteId]);
+
+  // Top/bottom gradient: check if content area is overflowing and update scroll state (display mode only)
+  useEffect(() => {
+    if (isContentEditing || !contentDisplayRef.current) return;
+    const checkOverflow = () => {
+      if (contentDisplayRef.current) {
+        const el = contentDisplayRef.current;
+        setContentOverflowing(el.scrollHeight > el.clientHeight);
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+      }
+    };
+    checkOverflow();
+    const timer = setTimeout(checkOverflow, 50);
+    return () => clearTimeout(timer);
+  }, [isContentEditing, displayContent, resourceDescription]);
+
+  // Top/bottom gradient: track scroll position (display mode only)
+  useEffect(() => {
+    if (isContentEditing || !contentDisplayRef.current) return;
+    const el = contentDisplayRef.current;
+    const updateScrollState = () => {
+      if (!contentDisplayRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = contentDisplayRef.current;
+      setContentHasScrolledDown(scrollTop > 0);
+      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+    };
+    el.addEventListener('scroll', updateScrollState);
+    updateScrollState();
+    return () => el.removeEventListener('scroll', updateScrollState);
+  }, [isContentEditing, displayContent, resourceDescription]);
+
+  // Notify layout (e.g. MobileAdditional) to hide footer when in edit mode
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: isContentEditing } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: false } }));
+    };
+  }, [isContentEditing]);
 
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
@@ -1017,20 +1059,28 @@ export default function CardFullEditable({
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
-              <div 
-                ref={contentDisplayRef}
-                className="flex-1 overflow-auto rounded px-3"
-                style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
-                onClick={handleContentClick}
-              >
-                {effectiveContent && effectiveContent.trim() ? (
-                  <div 
-                    className="card-image-link__content-text"
-                    dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
+              <div className="relative flex-1 min-h-0 flex flex-col">
+                {contentOverflowing && contentHasScrolledDown && (
+                  <div
+                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
                   />
-                ) : (
-                  <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
                 )}
+                <div
+                  ref={contentDisplayRef}
+                  className={`flex-1 overflow-auto rounded px-3 ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                  style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
+                  onClick={handleContentClick}
+                >
+                  {effectiveContent && effectiveContent.trim() ? (
+                    <div 
+                      className="card-image-link__content-text"
+                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
+                    />
+                  ) : (
+                    <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex-1 flex flex-col min-h-0" style={{ width: '100%' }}>
@@ -1207,7 +1257,13 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                {contentOverflowing && contentHasScrolledDown && (
+                  <div
+                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
+                  />
+                )}
                 {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
                   <div ref={contentDisplayRef} className="flex flex-col shrink-0">
                     {noteId != null ? (
@@ -1219,7 +1275,7 @@ export default function CardFullEditable({
                 ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto rounded"
+                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
@@ -1227,7 +1283,7 @@ export default function CardFullEditable({
                 ) : (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto rounded"
+                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >

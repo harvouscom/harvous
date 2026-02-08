@@ -474,6 +474,21 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         />
       </div>
     </div>
+
+    <!-- Collapse mobile footer area when in edit mode so the 12px gap is removed -->
+    <script is:inline>
+      document.addEventListener('DOMContentLoaded', function() {
+        var layout = document.querySelector('.mobile-layout');
+        if (!layout) return;
+        window.addEventListener('contentEditModeChange', function(e) {
+          if (e.detail && e.detail.editing) {
+            layout.classList.add('mobile-layout--no-footer');
+          } else {
+            layout.classList.remove('mobile-layout--no-footer');
+          }
+        });
+      });
+    </script>
   </body>
 </html>
 

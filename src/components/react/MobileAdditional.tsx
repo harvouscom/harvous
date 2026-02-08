@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import SquareButton from './SquareButton';
 import { shouldShowMoreButton } from '@/utils/menu-options';
 
@@ -22,6 +22,16 @@ export default function MobileAdditional({
   contentEncrypted
 }: MobileAdditionalProps) {
   const showMoreButton = shouldShowMoreButton(contentType, contentId);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  useEffect(() => {
+    const handleEditModeChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setIsEditMode(detail?.editing === true);
+    };
+    window.addEventListener('contentEditModeChange', handleEditModeChange);
+    return () => window.removeEventListener('contentEditModeChange', handleEditModeChange);
+  }, []);
 
   useEffect(() => {
     // Listen for panel events and trigger mobile drawer
@@ -85,6 +95,10 @@ export default function MobileAdditional({
       window.removeEventListener('openProfilePanel' as any, handleOpenProfilePanel);
     };
   }, []);
+
+  if (isEditMode) {
+    return null;
+  }
 
   return (
     <div className="flex items-center justify-center gap-4">

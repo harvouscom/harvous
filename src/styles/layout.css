@@ -92,6 +92,11 @@
   flex-shrink: 0;
 }
 
+/* When footer is dismissed (e.g. edit mode), collapse so the 12px gap is removed */
+.mobile-layout.mobile-layout--no-footer .mobile-additional {
+  display: none;
+}
+
 .mobile-bottom-sheet {
   /* Mobile bottom sheet container */
 }

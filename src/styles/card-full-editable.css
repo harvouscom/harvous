@@ -171,3 +171,23 @@
   background-color: rgba(255, 235, 59, 0.5) !important;
 }
 
+/* Fade overflow content at bottom only; top stays fully visible */
+.card-full-editable__content-fade-edges {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+

@@ -145,13 +145,12 @@
   margin-bottom: 0 !important;
 }
 
-/* Tiptap Toolbar container */
+/* Tiptap Toolbar container - solid background for sticky so content doesn't show through */
 .tiptap-toolbar {
-  padding-left: 12px;
-  padding-right: 12px;
-  border-radius: 24px;
+  border-radius: 12px;
   overflow-x: auto;
   overflow-y: hidden;
+  background: var(--color-snow-white) !important;
 }
 
 /* Override all conflicting CSS for toolbar buttons */
@@ -238,5 +237,61 @@
 .tiptap-content .ProseMirror:focus {
   scroll-margin: 0 !important;
   scroll-padding: 0 !important;
+}
+
+/* Edit mode: bottom fade when not scrolled to bottom; top fade when scrolled down (mask stays fixed like bottom) */
+.tiptap-content.tiptap-content--bottom-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    black 0,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.tiptap-content.tiptap-content--top-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.tiptap-content.tiptap-content--top-fade.tiptap-content--bottom-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black calc(100% - 48px),
+    transparent 100%
+  );
 }
 
