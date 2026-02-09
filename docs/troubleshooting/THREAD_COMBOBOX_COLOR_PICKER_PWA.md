@@ -1,6 +1,6 @@
 # ThreadCombobox: Color picker not opening on PWA (mobile)
 
-**Status:** Open. Works in Chrome DevTools device emulator; does **not** open when tapping the thread color bar in the installed PWA (e.g. Add to Home Screen on iOS/Android).
+**Status:** Resolved. The Create Thread row and color picker were moved **outside** the scroll container so the color button's `onClick` fires without competing with `touch-action: pan-y` for touch ownership. All touch/pointer event listener gymnastics were removed in favor of a simple `onClick`.
 
 **Location:** Create Thread row in `ThreadCombobox` — the left accent bar (44px strip with layer icon) that should open the color swatch dropdown.
 
@@ -84,12 +84,23 @@
 
 ---
 
+## Resolution
+
+**Root cause:** The color button was inside a scroll container with `touch-action: pan-y` and `overflow-y: auto`. On iOS PWA standalone mode, the browser's touch-to-scroll gesture recognition is more aggressive than in regular Safari and claims the touch for panning before JavaScript event listeners can process it, regardless of `preventDefault()`, `passive: false`, capture-phase handlers, or pointer events.
+
+**Fix:** Moved the Create Thread row and color picker **outside** the scroll container, making them siblings below it in the same flex column. The scroll container now only contains the thread list. The color button uses a simple `onClick` handler (no touch/pointer event listener gymnastics), which works reliably because it no longer competes with a scroll container for touch ownership. This matches the pattern used by `EditNameColorPanel`'s working color picker.
+
+**Removed:**
+- Callback ref with `touchstart`/`touchend`/`pointerdown`/`pointerup` listeners
+- `colorButtonTouchCleanupRef` for listener cleanup
+- Scroll container capture-phase `touchstart` prevention effect
+- `touchAction: 'manipulation'` on the color button
+
 ## Quick reference: key code spots
 
 | What | Where in ThreadCombobox.tsx |
 |------|-----------------------------|
-| Scroll container preventDefault when target is color button | Effect ~108–123, `scrollContainerRef` |
-| Color button ref callback (touch + pointer listeners) | Button `ref` callback ~616–654 |
-| Color button (accent bar) | Create row, `shouldShowCreateFromSearch`, ~598–668 |
+| Color button (accent bar) | Create row, below scroll container, `shouldShowCreateFromSearch` |
+| Color picker (swatches) | Below Create row, outside scroll container |
 | Dropdown portaled into card content (NewNotePanel) | `dropdownPortalTargetRef={cardStackContentRef}` from parent |
 | Create row / dropdown visibility | Rendered only when `open` is true; Create row when `shouldShowCreateFromSearch` |
