@@ -618,7 +618,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       colorButtonTouchCleanupRef.current?.();
                       colorButtonTouchCleanupRef.current = null;
                       if (el) {
-                        const opts = { passive: false, capture: true };
+                        const touchOpts = { passive: false, capture: true };
                         const onTouchStart = (e: TouchEvent) => {
                           e.stopPropagation();
                           e.preventDefault();
@@ -628,11 +628,28 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           e.preventDefault();
                           setColorDropdownOpen((prev) => !prev);
                         };
-                        el.addEventListener('touchstart', onTouchStart, opts);
-                        el.addEventListener('touchend', onTouchEnd, opts);
+                        const onPointerDown = (e: PointerEvent) => {
+                          if (e.pointerType === 'touch') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }
+                        };
+                        const onPointerUp = (e: PointerEvent) => {
+                          if (e.pointerType === 'touch') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setColorDropdownOpen((prev) => !prev);
+                          }
+                        };
+                        el.addEventListener('touchstart', onTouchStart, touchOpts);
+                        el.addEventListener('touchend', onTouchEnd, touchOpts);
+                        el.addEventListener('pointerdown', onPointerDown, true);
+                        el.addEventListener('pointerup', onPointerUp, true);
                         colorButtonTouchCleanupRef.current = () => {
-                          el.removeEventListener('touchstart', onTouchStart, opts);
-                          el.removeEventListener('touchend', onTouchEnd, opts);
+                          el.removeEventListener('touchstart', onTouchStart, touchOpts);
+                          el.removeEventListener('touchend', onTouchEnd, touchOpts);
+                          el.removeEventListener('pointerdown', onPointerDown, true);
+                          el.removeEventListener('pointerup', onPointerUp, true);
                         };
                       }
                     }}
@@ -691,6 +708,28 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         style={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
                       />
                     </div>
+                    
+                    {/* Color fallback: visible control so PWA can open picker via click (bar touch can fail in standalone) */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setColorDropdownOpen((prev) => !prev);
+                      }}
+                      className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg border-0 bg-transparent cursor-pointer no-underline font-sans text-sm font-medium text-[var(--color-deep-grey)]"
+                      style={{
+                        WebkitTapHighlightColor: 'transparent',
+                        touchAction: 'manipulation'
+                      }}
+                      aria-label="Choose thread color"
+                    >
+                      <span
+                        className="shrink-0 w-6 h-6 rounded-full border border-[var(--color-fog-white)]"
+                        style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
+                        aria-hidden
+                      />
+                      <span className="hidden sm:inline">Color</span>
+                    </button>
                     
                     {/* Confirm button using ActionButton */}
                     <ActionButton
