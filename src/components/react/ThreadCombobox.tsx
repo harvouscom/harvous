@@ -104,7 +104,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   }, [searchValue]);
 
-  // Non-passive touch listeners on color button so we can preventDefault and open picker on mobile
+  // Non-passive touch listeners on color button so we can preventDefault and open picker on mobile.
+  // Effect runs when dropdown opens so the button (conditionally rendered) exists and gets listeners (fixes PWA).
+  const touchOpts = { passive: false, capture: true };
   useEffect(() => {
     const el = createThreadAccentBarRef.current;
     if (!el) return;
@@ -117,13 +119,13 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       e.preventDefault();
       setColorDropdownOpen((prev) => !prev);
     };
-    el.addEventListener('touchstart', onTouchStart, { passive: false });
-    el.addEventListener('touchend', onTouchEnd, { passive: false });
+    el.addEventListener('touchstart', onTouchStart, touchOpts);
+    el.addEventListener('touchend', onTouchEnd, touchOpts);
     return () => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('touchstart', onTouchStart, touchOpts);
+      el.removeEventListener('touchend', onTouchEnd, touchOpts);
     };
-  }, []);
+  }, [open]);
 
   // Close color dropdown on outside click (bar and color panel are "inside")
   useEffect(() => {
