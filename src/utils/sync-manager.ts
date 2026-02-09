@@ -1217,23 +1217,42 @@ let _bgSyncInterval: number | null = null;
 let _bgSyncIntervalMs: number = 300000;
 let _bgSyncFn: (() => Promise<void>) | null = null;
 let _bgSyncCleanup: (() => void) | null = null;
+let _immediateSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Trigger an immediate sync and reset the background interval timer.
- * Call this after mutations (e.g., note create/update/delete) so changes
- * push to the server immediately instead of waiting for the next poll.
+ * Trigger a debounced push-only sync after mutations.
+ *
+ * Instead of calling syncNow() (pull + push = 2 API calls) on every single
+ * enqueueMutation, this debounces with a 2-second window and only pushes
+ * (1 API call). Pulls happen on the next background interval or tab visibility change.
+ *
+ * Example: creating a note fires 2 enqueueMutation calls (note + noteThread).
+ * Without debounce: 2 full syncNow() = 4 API calls.
+ * With debounce: 1 pushQueue() after 2s = 1 API call.
  */
 export function triggerImmediateSync(userId: string): void {
   if (!navigator.onLine || document.visibilityState === 'hidden') return;
 
-  // Sync immediately
-  syncNow(userId).catch(err => console.error('[triggerImmediateSync] Error:', err));
-
-  // Reset the interval timer so the next background poll is a full interval from now
-  if (_bgSyncInterval !== null && _bgSyncFn) {
-    clearInterval(_bgSyncInterval);
-    _bgSyncInterval = window.setInterval(_bgSyncFn, _bgSyncIntervalMs);
+  // Debounce: batch mutations within 2 seconds into a single push
+  if (_immediateSyncTimeout) {
+    clearTimeout(_immediateSyncTimeout);
   }
+
+  _immediateSyncTimeout = setTimeout(async () => {
+    _immediateSyncTimeout = null;
+    try {
+      // Push-only (1 API call) instead of syncNow which does pull+push (2 API calls)
+      // Pull happens on the next background interval or when tab becomes visible
+      await pushQueue(userId);
+    } catch (err) {
+      console.error('[triggerImmediateSync] Error:', err);
+    }
+    // Reset background interval timer so next poll is a full interval from now
+    if (_bgSyncInterval !== null && _bgSyncFn) {
+      clearInterval(_bgSyncInterval);
+      _bgSyncInterval = window.setInterval(_bgSyncFn, _bgSyncIntervalMs);
+    }
+  }, 2000);
 }
 
 /**
@@ -1307,6 +1326,10 @@ export function startBackgroundSync(userId: string, intervalMs: number = 300000)
     }
     window.removeEventListener('online', handleOnline);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    if (_immediateSyncTimeout) {
+      clearTimeout(_immediateSyncTimeout);
+      _immediateSyncTimeout = null;
+    }
     _bgSyncFn = null;
     _bgSyncCleanup = null;
   };
