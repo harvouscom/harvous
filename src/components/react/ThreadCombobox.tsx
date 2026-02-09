@@ -283,7 +283,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const dropdownContent = open ? (
     <div
       ref={dropdownRef}
-      className="border max-h-[300px] overflow-hidden flex flex-col"
+      className="border max-h-[400px] overflow-hidden flex flex-col"
       style={{
         borderTopLeftRadius: '24px',
         borderTopRightRadius: '24px',
@@ -358,7 +358,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             )}
             <div
               ref={scrollContainerRef}
-              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto rounded-b-[24px]"
+              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto"
               style={{ touchAction: 'pan-y' }}
             >
               <style>{`
