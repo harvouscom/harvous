@@ -300,11 +300,15 @@ export default function NewNotePanel({
     setContent: form.setContent,
   });
 
-  // Handle editor ready callback - focus the editor when it's initialized
+  // Handle editor ready callback - focus the editor when it's initialized (desktop only).
+  // On mobile (pointer: coarse) we skip auto-focus so the toolbar doesn't show until the user taps.
   const handleEditorReady = (editor: any) => {
     if (!editor) return;
 
     editorRef.current = editor;
+    const isTouchPrimary = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (isTouchPrimary) return;
+
     setTimeout(() => {
       // Check if editor is still valid (not destroyed)
       if (!editor || editor.isDestroyed) return;
