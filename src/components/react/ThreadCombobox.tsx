@@ -347,12 +347,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 
           {/* Thread List */}
           <div className="relative">
-            {/* Gradient overlay at top - only show when overflowing and scrolled down; shorter so it doesn't cover content */}
+            {/* Gradient overlay at top - only show when overflowing and scrolled down */}
             {isOverflowing && hasScrolledDown && (
-              <div 
-                className="absolute top-0 left-0 right-0 h-3 pointer-events-none z-10"
+              <div
+                className="absolute top-0 left-0 right-0 h-8 pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(to top, transparent, var(--color-snow-white))'
+                  background: 'linear-gradient(to bottom, var(--color-snow-white) 0%, transparent 100%)'
                 }}
               />
             )}
@@ -576,9 +576,9 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             {/* Gradient overlay at bottom - only show when overflowing */}
             {isOverflowing && (
               <div
-                className="absolute bottom-0 left-0 right-0 h-3 pointer-events-none"
+                className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(to bottom, transparent, var(--color-snow-white))'
+                  background: 'linear-gradient(to top, var(--color-snow-white) 0%, transparent 100%)'
                 }}
               />
             )}
