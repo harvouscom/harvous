@@ -1190,12 +1190,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
         <div className="space-switcher-anchor space-switcher-anchor--mobile">
-          {/* Main button - always wrapped in <a> to avoid hydration mismatch, conditionally navigable */}
+          {/* Main button - navigates to thread when on note, else to space/home (no need to open sheet) */}
           <a
-            href={isNote && currentThread ? idToUrl(currentThread.id) : undefined}
+            href={isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/')}
             className="nav-link"
             style={{ display: 'block', width: '100%' }}
-            onClick={isNote && currentThread ? undefined : (e) => { e.preventDefault(); openSheet(); }}
           >
             <SpaceButton
               as="div"
