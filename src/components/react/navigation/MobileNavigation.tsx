@@ -1261,10 +1261,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               <div className="mobile-nav__dropdown-header">
                 <div className="mobile-nav__dropdown-header-row">
                   <div className="space-switcher-anchor space-switcher-anchor--mobile">
-                    {/* Main button - navigates to space/home when not active, toggles panel when active */}
-                    {topSpaceIsActive ? (
+                    {/* Main button - always navigates to space/home (matches desktop); sort icon opens switch panel */}
+                    <a 
+                      href={selectedSpaceId ? idToUrl(selectedSpaceId) : '/'}
+                      className="nav-link"
+                      style={{ display: 'block', width: '100%' }}
+                      onClick={() => closeSheet()}
+                    >
                       <SpaceButton 
                         key={spaceButtonKey}
+                        as="div"
                         text={selectedSpaceLabel}
                         count={selectedSpaceCount}
                         state="WithCount"
@@ -1272,28 +1278,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         backgroundGradient={selectedSpaceBackground}
                         isActive={topSpaceIsActive}
                         hideDropdownIcon={true}
-                        onClick={() => setIsSpacePanelOpen((v) => !v)}
                       />
-                    ) : (
-                      <a 
-                        href={selectedSpaceId ? idToUrl(selectedSpaceId) : '/'}
-                        className="nav-link"
-                        style={{ display: 'block', width: '100%' }}
-                        onClick={() => closeSheet()}
-                      >
-                        <SpaceButton 
-                          key={spaceButtonKey}
-                          as="div"
-                          text={selectedSpaceLabel}
-                          count={selectedSpaceCount}
-                          state="WithCount"
-                          rightAccessory="none"
-                          backgroundGradient={selectedSpaceBackground}
-                          isActive={topSpaceIsActive}
-                          hideDropdownIcon={true}
-                        />
-                      </a>
-                    )}
+                    </a>
                     {/* Toggle button - opens/closes space picker panel */}
                     <button
                       type="button"

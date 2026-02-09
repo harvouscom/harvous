@@ -709,28 +709,6 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       />
                     </div>
                     
-                    {/* Color fallback: visible control so PWA can open picker via click (bar touch can fail in standalone) */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setColorDropdownOpen((prev) => !prev);
-                      }}
-                      className="shrink-0 flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg border-0 bg-transparent cursor-pointer no-underline font-sans text-sm font-medium text-[var(--color-deep-grey)]"
-                      style={{
-                        WebkitTapHighlightColor: 'transparent',
-                        touchAction: 'manipulation'
-                      }}
-                      aria-label="Choose thread color"
-                    >
-                      <span
-                        className="shrink-0 w-6 h-6 rounded-full border border-[var(--color-fog-white)]"
-                        style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
-                        aria-hidden
-                      />
-                      <span className="hidden sm:inline">Color</span>
-                    </button>
-                    
                     {/* Confirm button using ActionButton */}
                     <ActionButton
                       variant="Add"
