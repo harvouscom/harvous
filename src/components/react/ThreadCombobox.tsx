@@ -324,14 +324,25 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             style={{ touchAction: 'manipulation', minHeight: 44, cursor: 'text' }}
             onClick={(e) => {
               const input = (e.currentTarget as HTMLElement).querySelector('input');
-              if (input instanceof HTMLInputElement) input.focus();
+              if (input instanceof HTMLInputElement) input.focus({ preventScroll: true });
             }}
             onTouchEnd={(e) => {
               const input = (e.currentTarget as HTMLElement).querySelector('input');
               if (input instanceof HTMLInputElement) {
                 e.preventDefault();
-                input.focus();
+                input.focus({ preventScroll: true });
               }
+            }}
+            onFocus={() => {
+              // Prevent iOS keyboard from scrolling/jumping the dropdown.
+              // The dropdown is absolutely positioned inside card-stack__content,
+              // so the browser's auto-scroll-into-view on focus causes a jump.
+              requestAnimationFrame(() => {
+                const wrapper = dropdownRef.current;
+                if (!wrapper) return;
+                let scrollable: Element | null = wrapper.closest('.card-stack__content') || wrapper.closest('.card-stack__inner');
+                if (scrollable) scrollable.scrollTop = 0;
+              });
             }}
             role="button"
             tabIndex={-1}
@@ -640,11 +651,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                   <div
                     className="flex min-w-0 flex-1 items-center gap-2"
                     style={{ minHeight: 44, cursor: 'text' }}
-                    onClick={() => createThreadInputRef.current?.focus()}
+                    onClick={() => createThreadInputRef.current?.focus({ preventScroll: true })}
                     onTouchEnd={(e) => {
                       if (createThreadInputRef.current) {
                         e.preventDefault();
-                        createThreadInputRef.current.focus();
+                        createThreadInputRef.current.focus({ preventScroll: true });
                       }
                     }}
                     role="button"
@@ -661,6 +672,20 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         setSearchValue(newValue);
                       }}
                       onKeyDown={handleCreateThreadNameKeyDown}
+                      onFocus={() => {
+                        // Prevent iOS keyboard from scrolling/jumping the dropdown.
+                        // When the keyboard opens, iOS auto-scrolls the nearest
+                        // scrollable ancestor to bring the input into view — but this
+                        // dropdown is absolutely positioned inside card-stack__content,
+                        // so the scroll causes the whole panel to jump. Resetting
+                        // scrollTop on the next frame keeps it stable.
+                        requestAnimationFrame(() => {
+                          const el = createThreadInputRef.current;
+                          if (!el) return;
+                          let scrollable: Element | null = el.closest('.card-stack__content') || el.closest('.card-stack__inner');
+                          if (scrollable) scrollable.scrollTop = 0;
+                        });
+                      }}
                       className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
                       placeholder="New thread..."
                       style={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
