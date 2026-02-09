@@ -1140,7 +1140,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     
     // Inline cache initialization to avoid import issues
     const CACHE_KEY = 'harvous_navigation_cache';
-    const CACHE_DURATION = 30 * 1000; // 30 seconds
+    const CACHE_DURATION = 120 * 1000; // 2 minutes
     
     function setCachedNavigationData(data) {
       try {
@@ -1177,19 +1177,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
     const isNotePage = currentPath.startsWith('/note/');
     const isSpacePage = currentPath.startsWith('/space/');
     
-    if (isThreadPage || isNotePage || isSpacePage) {
-      schedulePrefetch(async () => {
-        try {
-          const response = await fetch('/api/navigation/data', { credentials: 'include' });
-          if (response.ok) {
-            const data = await response.json();
-            setCachedNavigationData(data);
-          }
-        } catch (error) {
-          // Silently fail - prefetch is non-critical
-        }
-      });
-    }
+    // Navigation cache already seeded from SSR data above - no extra fetch needed
     
     // Re-initialize after View Transitions (debounced to avoid multiple calls)
     let pageLoadTimeout = null;
@@ -1197,28 +1185,8 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
       // Debounce to avoid multiple rapid calls
       if (pageLoadTimeout) clearTimeout(pageLoadTimeout);
       pageLoadTimeout = setTimeout(() => {
-        // Re-cache with current data
+        // Re-cache with current SSR data (no extra fetch needed)
         setCachedNavigationData({ threads, spaces, inboxCount });
-        
-        // Re-prefetch if needed
-        const newPath = window.location.pathname;
-        const isThread = newPath.startsWith('/thread/');
-        const isNote = newPath.startsWith('/note/');
-        const isSpace = newPath.startsWith('/space/');
-        
-        if (isThread || isNote || isSpace) {
-          schedulePrefetch(async () => {
-            try {
-              const response = await fetch('/api/navigation/data', { credentials: 'include' });
-              if (response.ok) {
-                const data = await response.json();
-                setCachedNavigationData(data);
-              }
-            } catch (error) {
-              // Silently fail
-            }
-          });
-        }
       }, 50);
     });
   })();

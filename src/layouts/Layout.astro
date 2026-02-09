@@ -234,7 +234,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         if (typeof window === 'undefined') return;
         
         const prefetchCriticalPaths = () => {
-          const paths = ['/', '/new-space', '/find'];
+          const paths = ['/', '/new-space', '/find', '/profile'];
           paths.forEach(path => {
             const link = document.createElement('link');
             link.rel = 'prefetch';
@@ -376,12 +376,12 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   <body
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
-    <ToastProvider client:load />
-    <KeyboardShortcutsInit client:load />
-    <PostHogUserInit client:load userId={userId} userData={userData} />
-    <UpgradeSuccessHandler client:load />
-    <ReferralCreditInit client:load userId={userId} />
-    <SyncManagerIsland client:only="react" userId={userId} />
+    <ToastProvider client:load transition:persist />
+    <KeyboardShortcutsInit client:load transition:persist />
+    <PostHogUserInit client:idle userId={userId} userData={userData} transition:persist />
+    <UpgradeSuccessHandler client:idle />
+    <ReferralCreditInit client:idle userId={userId} />
+    <SyncManagerIsland client:only="react" userId={userId} transition:persist />
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->

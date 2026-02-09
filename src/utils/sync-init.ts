@@ -7,8 +7,9 @@ import { isOfflineModeEnabled } from './posthog';
  * Initialize sync on app load
  * Should be called once when the app starts (after user is authenticated)
  * Only initializes if offline mode feature flag is enabled
+ * Returns a cleanup function to stop the background sync loop
  */
-export async function initializeSync(userId: string): Promise<void> {
+export async function initializeSync(userId: string): Promise<(() => void) | undefined> {
   // Check if offline mode is enabled via feature flag
   if (!isOfflineModeEnabled()) {
     return;
@@ -33,8 +34,9 @@ export async function initializeSync(userId: string): Promise<void> {
       }
     }
 
-    // Start background sync loop
-    startBackgroundSync(userId, 30000); // Sync every 30 seconds
+    // Start background sync loop and return cleanup function
+    const cleanup = startBackgroundSync(userId, 300000); // Sync every 5 minutes (immediate sync triggers on mutations and tab visibility)
+    return cleanup;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
@@ -58,11 +60,12 @@ export function useSyncInitialization() {
   React.useEffect(() => {
     if (!isLoaded || !user?.id) return;
 
-    initializeSync(user.id);
+    let cleanup: (() => void) | undefined;
 
-    // Cleanup function to stop background sync (if needed)
-    // Note: startBackgroundSync returns a cleanup function, but we're not storing it here
-    // In a production app, you might want to store and call it on unmount
+    initializeSync(user.id)
+      .then(cleanupFn => { cleanup = cleanupFn; })
+      .catch(() => {});
+
+    return () => { cleanup?.(); };
   }, [user?.id, isLoaded]);
 }
-

@@ -91,11 +91,8 @@ export default function MySpacesPanel({
       setIsLoading(true);
       setError(null);
       
-      // Add cache-busting query parameter to ensure fresh data
-      const cacheBuster = Date.now();
-      const response = await fetch(`/api/navigation/data?t=${cacheBuster}`, {
+      const response = await fetch('/api/navigation/data', {
         credentials: 'include',
-        cache: 'no-store'
       });
 
       if (!response.ok) {
