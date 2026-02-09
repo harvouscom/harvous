@@ -62,6 +62,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const createThreadInputRef = useRef<HTMLInputElement>(null);
   const createThreadAccentBarRef = useRef<HTMLButtonElement>(null);
+  const colorButtonTouchCleanupRef = useRef<(() => void) | null>(null);
   const colorDropdownRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [hasScrolledDown, setHasScrolledDown] = useState(false);
@@ -104,27 +105,20 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     }
   }, [searchValue]);
 
-  // Non-passive touch listeners on color button so we can preventDefault and open picker on mobile.
-  // Effect runs when dropdown opens so the button (conditionally rendered) exists and gets listeners (fixes PWA).
-  const touchOpts = { passive: false, capture: true };
+  // Scroll container: prevent browser from claiming touch for scroll when user taps the color button (PWA standalone).
   useEffect(() => {
-    const el = createThreadAccentBarRef.current;
-    if (!el) return;
-    const onTouchStart = (e: TouchEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
+    if (!open) return;
+    const scrollEl = scrollContainerRef.current;
+    if (!scrollEl) return;
+    const opts = { passive: false, capture: true };
+    const onScrollContainerTouchStart = (e: TouchEvent) => {
+      const target = e.target as Node;
+      if (createThreadAccentBarRef.current?.contains(target)) {
+        e.preventDefault();
+      }
     };
-    const onTouchEnd = (e: TouchEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      setColorDropdownOpen((prev) => !prev);
-    };
-    el.addEventListener('touchstart', onTouchStart, touchOpts);
-    el.addEventListener('touchend', onTouchEnd, touchOpts);
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart, touchOpts);
-      el.removeEventListener('touchend', onTouchEnd, touchOpts);
-    };
+    scrollEl.addEventListener('touchstart', onScrollContainerTouchStart, opts);
+    return () => scrollEl.removeEventListener('touchstart', onScrollContainerTouchStart, opts);
   }, [open]);
 
   // Close color dropdown on outside click (bar and color panel are "inside")
@@ -617,9 +611,31 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
                     aria-hidden
                   />
-                  {/* Color picker - full bar is tappable (absolute over bar); z-20 so above content on mobile. Touch handled via ref with passive: false to avoid "Unable to preventDefault inside passive event listener". */}
+                  {/* Color picker - full bar is tappable (absolute over bar); z-20 so above content on mobile. Touch via callback ref so listeners attach when button mounts (fixes PWA/portal timing). */}
                   <button
-                    ref={createThreadAccentBarRef}
+                    ref={(el) => {
+                      createThreadAccentBarRef.current = el;
+                      colorButtonTouchCleanupRef.current?.();
+                      colorButtonTouchCleanupRef.current = null;
+                      if (el) {
+                        const opts = { passive: false, capture: true };
+                        const onTouchStart = (e: TouchEvent) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                        };
+                        const onTouchEnd = (e: TouchEvent) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          setColorDropdownOpen((prev) => !prev);
+                        };
+                        el.addEventListener('touchstart', onTouchStart, opts);
+                        el.addEventListener('touchend', onTouchEnd, opts);
+                        colorButtonTouchCleanupRef.current = () => {
+                          el.removeEventListener('touchstart', onTouchStart, opts);
+                          el.removeEventListener('touchend', onTouchEnd, opts);
+                        };
+                      }
+                    }}
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
