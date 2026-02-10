@@ -819,6 +819,7 @@ try {
           title: spaceData.title,
           totalItemCount: spaceData.totalItemCount,
           color: spaceData.color,
+          isPublic: spaceData.isPublic,
           threads: spaceThreads,
           notes: spaceNotes // Standalone notes in this space
         };
@@ -826,6 +827,7 @@ try {
           id: spaceData.id,
           title: spaceData.title,
           color: spaceData.color,
+          isPublic: spaceData.isPublic,
           totalItemCount: spaceData.totalItemCount,
           backgroundGradient: spaceData.backgroundGradient || getThreadGradientCSS(spaceData.color || 'paper')
         };
@@ -1068,30 +1070,33 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                     
                     {/* All Content */}
                     <div class="organized-content flex flex-col" data-tab-content="all">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.sortedAllItems || []}
                         spaceId={id!}
                         filter="all"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>
-                    
+
                     {/* Threads Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.threads?.map((t: any) => ({ ...t, itemType: 'thread' })) || []}
                         spaceId={id!}
                         filter="threads"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>
-                    
+
                     {/* Notes Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.notes?.map((n: any) => ({ ...n, itemType: 'note' })) || []}
                         spaceId={id!}
                         filter="notes"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>

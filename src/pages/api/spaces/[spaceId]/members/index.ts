@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Members, SpaceInvitations, UserMetadata, eq, and } from 'astro:db';
+import { db, Members, SpaceInvitations, UserMetadata, eq, and, inArray } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
@@ -55,12 +55,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     // Fetch user metadata for all members
     const userMetadata = await db.select()
       .from(UserMetadata)
-      .where(
-        // Build OR condition for all user IDs
-        memberUserIds.length > 0
-          ? eq(UserMetadata.userId, memberUserIds[0]) // At least one condition
-          : eq(UserMetadata.userId, space.userId)
-      )
+      .where(inArray(UserMetadata.userId, memberUserIds))
       .all();
 
     // Create a map of userId -> metadata
@@ -80,6 +75,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       lastName: ownerMeta?.lastName || null,
       email: ownerMeta?.email || null,
       profileImageUrl: ownerMeta?.profileImageUrl || null,
+      userColor: ownerMeta?.userColor || 'paper',
       joinedAt: space.createdAt, // Owner joined when space was created
     });
 
@@ -93,6 +89,7 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
         lastName: meta?.lastName || null,
         email: meta?.email || null,
         profileImageUrl: meta?.profileImageUrl || null,
+        userColor: meta?.userColor || 'paper',
         joinedAt: member.createdAt,
       });
     }

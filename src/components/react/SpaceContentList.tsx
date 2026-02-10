@@ -32,6 +32,7 @@ interface SpaceContentListProps {
   initialItems: SpaceItem[];
   spaceId: string;
   filter?: 'all' | 'threads' | 'notes';
+  spaceIsShared?: boolean;
 }
 
 // Helper function to strip HTML tags
@@ -55,7 +56,8 @@ function stripHtml(html: string): string {
 export default function SpaceContentList({
   initialItems,
   spaceId,
-  filter = 'all'
+  filter = 'all',
+  spaceIsShared = false
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `/${noteId}?space=${encodeURIComponent(spaceId)}`;
   const threadHref = (threadId: string) => `/${threadId}?space=${encodeURIComponent(spaceId)}`;
@@ -695,16 +697,34 @@ export default function SpaceContentList({
       }
     };
 
+    const handleItemAddedToSpace = async (event: CustomEvent) => {
+      const { spaceId: eventSpaceId, itemId, itemType } = event.detail;
+      if (eventSpaceId === spaceId) {
+        await refreshSpaceContent(itemId, itemType);
+      }
+    };
+
+    const handleItemRemovedFromSpace = async (event: CustomEvent) => {
+      const { spaceId: eventSpaceId } = event.detail;
+      if (eventSpaceId === spaceId) {
+        await refreshSpaceContent();
+      }
+    };
+
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('threadCreated', handleThreadCreated as EventListener);
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+    window.addEventListener('itemAddedToSpace', handleItemAddedToSpace as EventListener);
+    window.addEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as EventListener);
 
     return () => {
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      window.removeEventListener('itemAddedToSpace', handleItemAddedToSpace as EventListener);
+      window.removeEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as EventListener);
     };
   }, [spaceId, filter, refreshSpaceContent]);
 
@@ -1018,7 +1038,7 @@ export default function SpaceContentList({
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
               onClick={handleSelectSpace}
             >
-              <CardThread 
+              <CardThread
                 thread={{
                   id: item.id,
                   title: item.title,
@@ -1026,7 +1046,8 @@ export default function SpaceContentList({
                   count: item.noteCount,
                   accentColor: item.accentColor,
                   lastUpdated: item.lastUpdated,
-                  isPrivate: !item.isPublic
+                  isPrivate: !item.isPublic,
+                  icon: spaceIsShared ? 'layer-group' : undefined
                 }}
               />
             </a>

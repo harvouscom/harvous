@@ -49,7 +49,7 @@ export default function ConfirmDialog({
         justifyContent: 'center',
         zIndex: 200,
         padding: '1rem',
-        backgroundColor: 'rgba(0, 0, 0, 0.4)',
+        backgroundColor: 'transparent',
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
       }}
@@ -99,7 +99,7 @@ export default function ConfirmDialog({
             justifyContent: 'flex-end',
           }}
         >
-          <ButtonSmall type="button" onClick={onCancel} state="Default">
+          <ButtonSmall type="button" onClick={onCancel} state="Secondary">
             {cancelLabel}
           </ButtonSmall>
           <ButtonSmall

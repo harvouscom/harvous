@@ -87,14 +87,14 @@ export default function SpaceMembersList({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to remove member');
+        throw new Error(data.error || 'Failed to remove person');
       }
 
       // Show success toast
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: {
-            message: data.message || 'Member removed successfully',
+            message: data.message || 'Person removed successfully',
             type: 'success',
           },
         })
@@ -113,7 +113,7 @@ export default function SpaceMembersList({
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: {
-            message: err.message || 'Failed to remove member',
+            message: err.message || 'Failed to remove person',
             type: 'error',
           },
         })

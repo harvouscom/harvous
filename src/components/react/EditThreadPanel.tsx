@@ -15,6 +15,7 @@ import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
+import TabNav from './TabNav';
 
 interface Note {
   id: string;
@@ -77,7 +78,10 @@ export default function EditThreadPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
-  
+
+  // Tab navigation
+  const [activeTab, setActiveTab] = useState<'added' | 'all'>('added');
+
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [allNotes, setAllNotes] = useState<Note[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
@@ -1671,183 +1675,201 @@ export default function EditThreadPanel({
                   isEditMode={true}
                 />
 
-                {/* Current Notes in Thread - displayed above selected notes */}
-                {!isLoadingItems && (
-                  <div className="w-full shrink-0 mb-3">
-                    {currentThreadNotes.length === 0 ? (
-                      <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm">
-                        No notes in this thread.
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        {currentThreadNotes
-                          .filter(note => {
-                            // First, exclude any note that has been removed
-                            if (removedNoteIds.has(note.id)) {
-                              return false;
-                            }
-                            // Exclude notes that are actively being removed right now (prevents flicker during removal)
-                            if (pendingRemovalsRef.current.has(note.id)) {
-                              return false;
-                            }
-                            return true;
-                          })
-                          .map(note => (
-                          <div key={note.id} className="relative group">
-                            <a
-                              href={idToUrl(note.id)}
-                              className="block"
-                              aria-label={`View note: ${note.title || 'Untitled note'}`}
-                              onMouseDown={(e) => {
-                                // Prevent navigation if button was clicked
-                                if (buttonClickRef.current === note.id) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  return false;
-                                }
-                                // Also check for remove button area
-                                const target = e.target as HTMLElement;
-                                const removeButton = target.closest('.btn-action') || 
-                                                    target.closest('[aria-label="Remove"]') ||
-                                                    target.closest('.remove-button-area');
-                                if (removeButton) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  return false;
-                                }
-                              }}
-                              onClick={(e) => {
-                                // Prevent navigation if button was clicked
-                                if (buttonClickRef.current === note.id) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  return false;
-                                }
-                                // Also check for remove button area
-                                const target = e.target as HTMLElement;
-                                const removeButton = target.closest('.btn-action') || 
-                                                    target.closest('[aria-label="Remove"]') ||
-                                                    target.closest('.remove-button-area');
-                                if (removeButton) {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  return false;
-                                }
-                              }}
-                            >
-                              {renderCompactNoteItem(note)}
-                            </a>
-                            {/* Remove from thread button - absolutely positioned over the link */}
-                            <div 
-                              className="remove-button-area absolute top-0 right-0 w-12 h-full"
-                              style={{ pointerEvents: 'none', zIndex: 10 }}
-                            >
-                              <ActionButton
-                                variant="Remove"
-                                onMouseDown={(e) => {
-                                  // Mark button click immediately on mousedown (before link's onMouseDown)
-                                  buttonClickRef.current = note.id;
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  console.log('Remove button mousedown for note:', note.id);
-                                }}
-                                onClick={(e) => {
-                                  // Mark button click immediately
-                                  buttonClickRef.current = note.id;
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (e.stopImmediatePropagation) {
-                                    e.stopImmediatePropagation();
-                                  }
-                                  console.log('Remove button clicked for note:', note.id);
-                                  handleRemoveFromThread(note.id);
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
-                                disabled={isRemovingNote}
-                                style={{ pointerEvents: 'auto', zIndex: 11 }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Tab navigation */}
+                {(() => {
+                  const addedCount = currentThreadNotes.filter(n => !removedNoteIds.has(n.id) && !pendingRemovalsRef.current.has(n.id)).length;
+                  const tabs = [
+                    { id: 'added', label: 'Added', isActive: activeTab === 'added', count: addedCount || undefined },
+                    { id: 'search', label: 'Add', isActive: activeTab === 'all' },
+                  ];
+                  return (
+                    <TabNav
+                      tabs={tabs}
+                      onTabChange={(id) => setActiveTab(id === 'search' ? 'all' : id as 'added' | 'all')}
+                      className="content-tabs"
+                    />
+                  );
+                })()}
 
-                {/* Selected Notes - displayed above AddToSpaceSection */}
-                {selectedItems.length > 0 && !isLoadingItems && (
-                  <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-2">
-                      {selectedItems.map(itemId => {
-                        const note = allNotes.find(n => n.id === itemId);
-                        
-                        if (note) {
-                          return (
+                {/* Added tab: current notes in thread + staged selections */}
+                {activeTab === 'added' && !isLoadingItems && (
+                  <>
+                    <div className="w-full shrink-0 mb-3">
+                      {currentThreadNotes.filter(n => !removedNoteIds.has(n.id) && !pendingRemovalsRef.current.has(n.id)).length === 0 && selectedItems.length === 0 ? (
+                        <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm">
+                          No notes in this thread.
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {currentThreadNotes
+                            .filter(note => {
+                              // First, exclude any note that has been removed
+                              if (removedNoteIds.has(note.id)) {
+                                return false;
+                              }
+                              // Exclude notes that are actively being removed right now (prevents flicker during removal)
+                              if (pendingRemovalsRef.current.has(note.id)) {
+                                return false;
+                              }
+                              return true;
+                            })
+                            .map(note => (
                             <div key={note.id} className="relative group">
                               <a
                                 href={idToUrl(note.id)}
                                 className="block"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
+                                onMouseDown={(e) => {
+                                  // Prevent navigation if button was clicked
+                                  if (buttonClickRef.current === note.id) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                    return false;
+                                  }
+                                  // Also check for remove button area
+                                  const target = e.target as HTMLElement;
+                                  const removeButton = target.closest('.btn-action') ||
+                                                      target.closest('[aria-label="Remove"]') ||
+                                                      target.closest('.remove-button-area');
+                                  if (removeButton) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                    return false;
+                                  }
+                                }}
+                                onClick={(e) => {
+                                  // Prevent navigation if button was clicked
+                                  if (buttonClickRef.current === note.id) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                    return false;
+                                  }
+                                  // Also check for remove button area
+                                  const target = e.target as HTMLElement;
+                                  const removeButton = target.closest('.btn-action') ||
+                                                      target.closest('[aria-label="Remove"]') ||
+                                                      target.closest('.remove-button-area');
+                                  if (removeButton) {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                    return false;
+                                  }
+                                }}
                               >
                                 {renderCompactNoteItem(note)}
                               </a>
-                              {/* Remove from selection button */}
-                              <ActionButton
-                                variant="Remove"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleItemSelect(note.id, 'note');
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                                disabled={isSaving}
-                              />
+                              {/* Remove from thread button - absolutely positioned over the link */}
+                              <div
+                                className="remove-button-area absolute top-0 right-0 w-12 h-full"
+                                style={{ pointerEvents: 'none', zIndex: 10 }}
+                              >
+                                <ActionButton
+                                  variant="Remove"
+                                  onMouseDown={(e) => {
+                                    // Mark button click immediately on mousedown (before link's onMouseDown)
+                                    buttonClickRef.current = note.id;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                  }}
+                                  onClick={(e) => {
+                                    // Mark button click immediately
+                                    buttonClickRef.current = note.id;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (e.stopImmediatePropagation) {
+                                      e.stopImmediatePropagation();
+                                    }
+                                    handleRemoveFromThread(note.id);
+                                  }}
+                                  className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
+                                  disabled={isRemovingNote}
+                                  style={{ pointerEvents: 'auto', zIndex: 11 }}
+                                />
+                              </div>
                             </div>
-                          );
-                        }
-                        return null;
-                      })}
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
+
+                    {/* Selected Notes - staged selections not yet saved */}
+                    {selectedItems.length > 0 && (
+                      <div className="w-full shrink-0 mb-3">
+                        <div className="flex flex-col gap-2">
+                          {selectedItems.map(itemId => {
+                            const note = allNotes.find(n => n.id === itemId);
+
+                            if (note) {
+                              return (
+                                <div key={note.id} className="relative group">
+                                  <a
+                                    href={`/${note.id}`}
+                                    className="block"
+                                    aria-label={`View note: ${note.title || 'Untitled note'}`}
+                                  >
+                                    {renderCompactNoteItem(note)}
+                                  </a>
+                                  {/* Remove from selection button */}
+                                  <ActionButton
+                                    variant="Remove"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      handleItemSelect(note.id, 'note');
+                                    }}
+                                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                    disabled={isSaving}
+                                  />
+                                </div>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* AddToSpaceSection - for selecting notes to add to thread */}
-                <div className="w-full flex-1 min-h-0">
-                  {isLoadingItems ? (
-                    <div className="text-center py-8 text-[var(--color-stone-grey)]">
-                      Loading notes...
-                    </div>
-                  ) : (
-                    <AddToSpaceSection
-                      allNotes={allNotes}
-                      allThreads={[]}
-                      currentSpaceId={null}
-                      currentThreadId={threadId}
-                      onItemSelect={handleItemSelect}
-                      selectedItems={selectedItems}
-                      isLoading={isSaving}
-                      placeholder="Search notes"
-                      emptyMessage="No notes found"
-                      itemsToShow="notes"
-                      currentThreadNoteIds={currentThreadNoteIds}
-                    />
-                  )}
-                </div>
+                {/* All tab: search/add interface */}
+                {activeTab === 'all' && (
+                  <div className="w-full flex-1 min-h-0">
+                    {isLoadingItems ? (
+                      <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                        Loading notes...
+                      </div>
+                    ) : (
+                      <AddToSpaceSection
+                        allNotes={allNotes}
+                        allThreads={[]}
+                        currentSpaceId={null}
+                        currentThreadId={threadId}
+                        onItemSelect={handleItemSelect}
+                        selectedItems={selectedItems}
+                        isLoading={isSaving}
+                        placeholder="Search notes"
+                        emptyMessage="No notes found"
+                        itemsToShow="notes"
+                        currentThreadNoteIds={currentThreadNoteIds}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -9,7 +9,7 @@ export default function SharedSpaceIndicator({ memberCount }: SharedSpaceIndicat
 
   return (
     <span className="shared-space-badge">
-      👥 {memberCount} {memberCount === 1 ? 'member' : 'members'}
+      👥 {memberCount} {memberCount === 1 ? 'person' : 'people'}
       <style>{`
         .shared-space-badge {
           display: inline-flex;

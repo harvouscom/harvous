@@ -49,7 +49,63 @@ The `CardThread.astro` component already supports `icon="layer-group"` for this 
 
 ---
 
+## Permission Model
+
+### Roles
+
+There are two effective roles:
+
+- **Owner** — the user who created the space, identified by `Spaces.userId`. All elevated permissions derive from this field directly.
+- **Member** — any user added to the `Members` table. The `Members.role` column always defaults to `'member'`.
+
+> The DB schema has `'admin'` and `'owner'` as possible `Members.role` values, but **neither is used in code**. All owner checks compare `Spaces.userId === currentUserId`, not the Members table. These are dead code reserved for a future ownership-transfer or admin-promotion feature.
+
+### What each role can do
+
+| Action | Owner | Member |
+|--------|-------|--------|
+| View space, see member list | ✅ | ✅ |
+| See pending invitations | ✅ | ❌ |
+| Edit title, color, visibility | ✅ | ❌ |
+| Toggle Public ↔ Private | ✅ | ❌ |
+| Generate / refresh share link | ✅ | ❌ |
+| Invite via link | ✅ | ❌ |
+| Remove any member | ✅ | ❌ |
+| Leave space (remove self) | ❌ (blocked) | ✅ |
+| Add/remove own notes & threads | ✅ | ✅ |
+| Delete the space | ✅ | ❌ |
+
+### Access enforcement
+
+All space API routes use `requireSpaceAccess(spaceId, userId, requireOwner?)` from `src/utils/space-permissions.ts`:
+- Default (no flag) → passes for owner **or** member
+- `requireOwner: true` → owner only, returns 403 for members
+
+Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
+
+---
+
 ## Current Architecture
+
+### What's Implemented
+
+| Feature | Status |
+|---------|--------|
+| Space creation (private) | ✅ Done |
+| Toggle Public / Private | ✅ Done |
+| Permanent share link (join via link) | ✅ Done |
+| Join page preview (`/spaces/join/[token]`) | ✅ Done |
+| Join API (`POST /api/spaces/join/[token]`) | ✅ Done |
+| Members list API with full metadata | ✅ Done |
+| Remove member (owner removes others) | ✅ Done |
+| People list in EditSpacePanel | ✅ Done |
+| "Make Private" confirmation when others are in space | ✅ Done |
+| Real-time space content update on add/remove | ✅ Done |
+| TabNav in EditSpacePanel (Added / Add / People) | ✅ Done |
+| TabNav in EditThreadPanel (Added / Add) | ✅ Done |
+| Member view page (`/spaces/[spaceId]`) | ❌ Not built |
+| Email invitations | ⏸ Out of scope for now — link-based joining only |
+| Leave space (member self-removal UI) | ❌ Not built |
 
 ### Key Files
 
@@ -57,81 +113,59 @@ The `CardThread.astro` component already supports `icon="layer-group"` for this 
 |---|---|
 | `db/config.ts` | Schema: `Spaces`, `Members`, `SpaceInvitations` tables |
 | `src/pages/spaces/join/[token].astro` | Public join page (unauthenticated preview + join CTA) |
-| `src/pages/invitations/[token].astro` | Email invitation acceptance page |
 | `src/pages/api/spaces/join/[token].ts` | POST: adds authenticated user as member |
 | `src/pages/api/spaces/[spaceId]/share-link.ts` | GET: returns share URL; POST: refreshes token |
 | `src/pages/api/spaces/[spaceId]/members/index.ts` | GET: lists members + pending invitations |
-| `src/pages/api/spaces/[spaceId]/members/invite.ts` | POST: creates invitation (email or link method) |
+| `src/pages/api/spaces/[spaceId]/members/invite.ts` | POST: creates invitation record (link method only) |
 | `src/pages/api/spaces/[spaceId]/members/[userId].ts` | DELETE: removes a member |
 | `src/pages/api/spaces/[spaceId]/update.ts` | PATCH: updates space (title, color, isPublic, etc.) |
-| `src/components/react/EditSpacePanel.tsx` | Owner UI: edit space, manage members, share link |
-| `src/components/react/InviteMemberPanel.tsx` | Modal: invite via email or link |
-| `src/components/react/SpaceMembersList.tsx` | Modal: view/remove members |
+| `src/components/react/EditSpacePanel.tsx` | Owner UI: edit space, manage members, share link, tab nav |
+| `src/components/react/SpaceMembersList.tsx` | Standalone panel: view/remove members |
 | `src/utils/space-permissions.ts` | `requireSpaceAccess()` — enforces owner/member access |
 | `src/utils/tier-limits.ts` | `canAddMemberToSpace()` — enforces member count limits |
 
-### Join Page Flow (Permanent Share Link)
+### Join Flow (Permanent Share Link — current approach)
 
-1. User visits `/spaces/join/[token]`
-2. Page fetches space by `shareToken`, checks `isPublic: true`
-3. Shows space preview: owner name, space title/color, condensed notes & threads (locked notes excluded)
-4. Shows member count ("X people in this space")
-5. CTA: "Join this space on Harvous" → if authenticated, POSTs to `/api/spaces/join/[token]`; if not, redirects to sign-up then returns
-6. On success: redirected to `/spaces/[spaceId]` (not yet built — see Outstanding Work below)
-
-### Invitation Flow (Email Invite)
-
-1. Owner sends invite from `InviteMemberPanel` → `POST /api/spaces/[spaceId]/members/invite`
-2. Invitation record created in `SpaceInvitations` with `status: 'pending'`, 7-day expiration
-3. Invite URL: `/invitations/[inviteToken]`
-4. Recipient visits invite page, sees space details and inviter name
-5. On accept: `POST /api/spaces/[spaceId]/members` → member added, invitation marked `accepted`
-6. **Email sending is not yet implemented** — the invite URL must be shared manually (see TODO in `invite.ts:124`)
+1. Owner toggles space to Shared in `EditSpacePanel` → `POST /api/spaces/[spaceId]/update`
+2. Share link auto-generated via `GET /api/spaces/[spaceId]/share-link`
+3. Owner copies link and shares it manually
+4. Recipient visits `/spaces/join/[token]`
+5. Page shows space preview: owner name, title/color, condensed notes & threads (locked notes excluded)
+6. CTA: "Join this space on Harvous" → if authenticated, POSTs to `/api/spaces/join/[token]`; if not, redirects to sign-up then returns
+7. On success: redirected to `/spaces/[spaceId]` (**not yet built** — currently 404s)
 
 ### Language: People, Not Members
 
-All user-facing text uses "person/people" (not "member/members") when referring to people in a space. This applies to:
+All user-facing text uses **"person/people"** (not "member/members") when referring to people in a space. This applies to:
 - Join page people count
-- Invitation page
-- SpaceMembersList panel header and count
-- EditSpacePanel member count display
+- `SpaceMembersList` panel header
+- `EditSpacePanel` member count display
+- `SharedSpaceIndicator` badge
 
 ---
 
 ## Known Issues & Gaps
 
-### Members API Only Fetches First User's Metadata
-
-In `src/pages/api/spaces/[spaceId]/members/index.ts` line 58–64, the `UserMetadata` query only fetches the first userId's metadata due to a missing `inArray` call. All other members will have `null` names/emails/avatars.
-
-```typescript
-// Current (broken for >1 member):
-.where(eq(UserMetadata.userId, memberUserIds[0]))
-
-// Should use:
-.where(inArray(UserMetadata.userId, memberUserIds))
-// (requires importing `inArray` from 'astro:db')
-```
-
 ### Member View Page Not Built
 
-The join API returns `redirectUrl: '/spaces/${space.id}'` but there is no `/spaces/[spaceId]` page yet. Members who join are redirected to a non-existent page. This is the most critical missing piece.
+The join API returns `redirectUrl: '/spaces/${space.id}'` but there is no `/spaces/[spaceId]` page. Members who join are redirected to a 404. This is the most critical missing piece.
 
 The member view page needs to:
 - Require authentication
-- Verify the user is a member or owner of the space
+- Verify the user is a member or owner (`requireSpaceAccess`)
 - Query notes/threads by `spaceId` (not `userId`) — **exclude** `contentEncrypted: true` notes for non-owners
 - Hide individual sharing UI on notes and threads
-- Show layer-group icon on threads (no per-thread privacy state)
-- Use `getNotesForSpace` only for the owner; write a separate member query for non-owners
+- Show layer-group icon on threads
+- Use separate queries for owner vs member (owner sees locked notes, member doesn't)
 
-### Email Sending Not Implemented
+### `createdAt` Missing from Members Insert
 
-`POST /api/spaces/[spaceId]/members/invite` with `method: 'email'` creates the invitation record but does not send an email. The invite URL is returned in the API response but never delivered. Needs integration with Clerk, Resend, or similar.
+In `join/[token].ts`, the `Members` insert does not include `createdAt`. The schema requires it (non-optional `column.date()`). Should add `createdAt: new Date()`.
 
 ### Invitation Already-Exists Check Has a Bug
 
-In `invite.ts` line 79, `.where()` is called with three separate arguments instead of wrapping them in `and()`:
+In `invite.ts`, `.where()` is called with three separate arguments instead of wrapping in `and()`. Since email invitations are out of scope for now this is low priority, but should be fixed before email invites are ever turned on:
+
 ```typescript
 // Current (incorrect):
 .where(
@@ -148,34 +182,28 @@ In `invite.ts` line 79, `.where()` is called with three separate arguments inste
 ))
 ```
 
-### `createdAt` Missing from Members Insert
-
-In `join/[token].ts` line 84–91, the `Members` insert does not include `createdAt`. The schema requires it (it's a non-optional `column.date()`). Should add `createdAt: new Date()` to the insert values.
-
 ---
 
 ## Outstanding Work
 
 ### High Priority
 
-1. **Build `/spaces/[spaceId]` member view page** — the redirect target after joining. See member view requirements above.
-2. **Fix `inArray` bug in members API** — members past the first won't show names/photos.
-3. **Fix `createdAt` missing from member insert** — will cause DB errors in production.
-4. **Fix `and()` missing in invitation duplicate-check query**.
+1. **Build `/spaces/[spaceId]` member view page** — the redirect target after joining (currently 404s).
+2. **Fix `createdAt` missing from member insert** — will cause DB errors in production.
 
 ### Medium Priority
 
-5. **Implement email sending** for invitations (Clerk or Resend).
-6. **NewSpacePanel: fix Shared mode** — currently hardcodes `isPublic: 'false'` regardless of user selection. See plan notes.
-7. **InviteMemberPanel / SpaceMembersList visual redesign** — currently use inline styles with hardcoded hex colors instead of design system variables. See plan notes.
+3. **Leave space UI** — members have no way to leave a space themselves. The DELETE endpoint supports self-removal but there's no UI for it.
+4. **NewSpacePanel: fix Shared mode** — currently hardcodes `isPublic: 'false'` regardless of user selection.
 
-### Low Priority / Future
+### Future / Not Needed Yet
 
-8. **Notification when space content is updated** — members have no way to know when new notes are added. Could be email digest or in-app badge.
-9. **Member-contributed content** — currently only the owner's notes/threads appear in the space (filtered by `userId`). The design intent includes members adding their own content to a shared space.
-10. **Role expansion** — schema supports `admin` role but only `owner` and `member` are used. No UI for promoting members.
-11. **Leave space** — members have no way to leave a space. Only the owner can remove them.
-12. **Space deletion** — when a space is deleted, `Members` and `SpaceInvitations` records are not cleaned up.
+5. **Email invitations** — infrastructure exists (`SpaceInvitations` table, `invite.ts` endpoint, `/invitations/[token]` page) but email sending is not implemented and this path is not being pursued right now. Link-based joining is the only active flow.
+6. **Notification when space content is updated** — members have no way to know when new notes are added.
+7. **Member-contributed content** — currently only the owner's notes/threads appear in the space (filtered by `userId`). Design intent includes members adding their own content.
+8. **Role expansion** — schema supports `admin` role but nothing uses it. No UI for promoting members or transferring ownership.
+9. **Space deletion cleanup** — when a space is deleted, `Members` and `SpaceInvitations` records are not cleaned up (orphaned rows).
+10. **Invitation expiration** — `expiresAt` is stored on `SpaceInvitations` but never validated.
 
 ---
 
@@ -183,62 +211,40 @@ In `join/[token].ts` line 84–91, the `Members` insert does not include `create
 
 ### Testing the "Make Private" confirmation dialog
 
-The dialog only fires when `memberCount > 1`. Since you can't add real members locally without a second account, temporarily hardcode the count:
+The dialog only fires when `memberCount > 1`. Seed a fake member directly into the DB:
 
-1. In `src/components/react/EditSpacePanel.tsx` line ~78, change:
-   ```ts
-   const [memberCount, setMemberCount] = useState(1);
-   // to:
-   const [memberCount, setMemberCount] = useState(3); // DEV ONLY
-   ```
-2. Open a Shared space → open Edit panel → open the visibility dropdown → click "Only I can see this space"
-3. The confirmation dialog should appear saying "This space has 2 people in it..."
-4. **Revert back to `useState(1)` when done**
+```bash
+# Insert
+npx astro db shell --query "INSERT INTO Members (id, spaceId, userId, role, createdAt, joinedAt) VALUES ('member_test_001', 'YOUR_SPACE_ID_HERE', 'user_test_fake_001', 'member', datetime('now'), datetime('now'));"
+
+# Verify
+npx astro db shell --query "SELECT * FROM Members WHERE id = 'member_test_001';"
+
+# Clean up when done
+npx astro db shell --query "DELETE FROM Members WHERE id = 'member_test_001';"
+```
+
+With the fake member inserted, open that space's `EditSpacePanel` → it should show "2 people in this space" and the People tab. Clicking "Turn off sharing" should trigger the confirmation dialog.
 
 ### Testing the full end-to-end join flow
 
-**Requirement**: Two Clerk accounts. Options:
+**Requirement**: Two Clerk accounts (or a second browser profile).
 
-#### Option A: Two Chrome profiles (recommended)
 1. Chrome → your profile avatar → Add Profile → create a second profile
 2. Sign into your main account in Profile 1, a test Clerk account in Profile 2
-3. In Profile 1: create a Shared space, go to EditSpacePanel, copy the share link
+3. In Profile 1: create a Shared space, open `EditSpacePanel`, copy the share link
 4. In Profile 2: paste the share link → join page appears with preview
-5. Click "Join this space on Harvous" → should join and redirect to `/spaces/[spaceId]` (page not yet built — will 404 currently, that's expected)
-6. Back in Profile 1: open EditSpacePanel → should now show 2 people in the space
-
-#### Option B: Seed a fake member in the DB (no second account needed)
-Use Astro DB studio or a seed script to insert a `Members` row directly:
-```bash
-npx astro db studio   # opens local DB browser
-```
-Or create `scripts/seed-test-member.ts`:
-```ts
-import { db, Members } from 'astro:db';
-await db.insert(Members).values({
-  id: 'member_test_001',
-  spaceId: 'YOUR_SPACE_ID_HERE',  // copy from URL when viewing a space
-  userId: 'user_test_fake_001',
-  role: 'member',
-  createdAt: new Date(),
-  joinedAt: new Date(),
-});
-```
-This lets you test member count UI, the "Make Private" dialog, and the SpaceMembersList without a real second account.
-
-#### Option C: Test the invitation page alone (no second account)
-1. Generate an invite link from EditSpacePanel → InviteMemberPanel → Link method
-2. Copy the resulting `/invitations/[token]` URL
-3. Open it in the same browser — you'll see the invitation page (it'll say you're already in the space since you're the owner, but the page renders and you can verify the layout)
+5. Click "Join this space on Harvous" → will join and attempt to redirect to `/spaces/[spaceId]` (currently 404s — expected until member view page is built)
+6. Back in Profile 1: open `EditSpacePanel` → should now show 2 people and the People tab
 
 ### What's testable without a second account
-- ✅ Join page preview (`/spaces/join/[token]`) — visible to anyone unauthenticated (use incognito)
-- ✅ Invitation page layout (`/invitations/[token]`) — renders without joining
-- ✅ EditSpacePanel share link generation and copy
-- ✅ "Make Private" dialog (with hardcoded memberCount)
-- ✅ SpaceMembersList with seeded DB member (Option B)
+
+- ✅ Join page preview (`/spaces/join/[token]`) — use incognito
+- ✅ `EditSpacePanel` share link generation and copy
+- ✅ "Make Private" dialog (seed a DB member per above)
+- ✅ People tab in `EditSpacePanel` (seed a DB member per above)
 - ❌ Actual join flow (requires second account)
-- ❌ Email invitation delivery (not yet implemented)
+- ❌ Email invitation delivery (not implemented, out of scope)
 
 ---
 
@@ -249,9 +255,9 @@ Spaces
   id, title, color, userId (owner), isPublic, shareToken, shareTokenCreatedAt
 
 Members
-  id, userId, spaceId, role ('owner'|'member'|'admin'), createdAt, joinedAt
+  id, userId, spaceId, role ('member' in practice; 'admin'/'owner' unused), createdAt, joinedAt
 
-SpaceInvitations
+SpaceInvitations  [infrastructure exists, email flow out of scope for now]
   id, spaceId, invitedBy, invitedEmail, invitedUserId, inviteToken (unique),
   role, status ('pending'|'accepted'|'declined'|'expired'|'cancelled'),
   message, expiresAt, createdAt, acceptedAt
