@@ -27,6 +27,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const formData = await request.formData();
     const title = formData.get('title') as string;
     const color = formData.get('color') as string;
+    const isPublicStr = formData.get('isPublic') as string | null;
 
     if (!spaceId) {
       return errorResponse('Space ID is required', 'INVALID_SPACE_ID');
@@ -42,14 +43,22 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color || space.color || 'paper');
 
+    // Build update object
+    const updateData: any = {
+      title: capitalizedTitle,
+      color: color || space.color,
+      backgroundGradient: backgroundGradient,
+      updatedAt: new Date()
+    };
+
+    // Update isPublic if provided
+    if (isPublicStr !== null) {
+      updateData.isPublic = isPublicStr === 'true';
+    }
+
     // Update the space
     const updatedSpace = await db.update(Spaces)
-      .set({
-        title: capitalizedTitle,
-        color: color || space.color,
-        backgroundGradient: backgroundGradient,
-        updatedAt: new Date()
-      })
+      .set(updateData)
       .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
       .returning()
       .get();

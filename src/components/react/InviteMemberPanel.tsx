@@ -113,62 +113,101 @@ export default function InviteMemberPanel({
 
   return createPortal(
     <div
-      className="panel-overlay"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="panel-container invite-member-panel">
+      <div className="bg-white rounded-[24px] w-full max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
         {/* Header */}
-        <div className="panel-header">
-          <h2 className="panel-title">Invite to {spaceName}</h2>
-          <button className="panel-close" onClick={onClose} aria-label="Close">
+        <div className="flex items-center justify-between p-6 border-b border-[var(--color-fog-white)]">
+          <h2 className="text-[18px] font-semibold text-[var(--color-deep-grey)] m-0">
+            Invite to {spaceName}
+          </h2>
+          <button
+            className="bg-transparent border-none text-[32px] leading-none text-[var(--color-pebble-grey)] cursor-pointer p-0 w-8 h-8 flex items-center justify-center hover:text-[var(--color-deep-grey)] transition-colors"
+            onClick={onClose}
+            aria-label="Close"
+          >
             ×
           </button>
         </div>
 
-        {/* Method Tabs */}
-        <div className="invite-method-tabs">
-          <button
-            className={`method-tab ${method === 'link' ? 'active' : ''}`}
-            onClick={() => setMethod('link')}
-          >
-            📎 Share Link
-          </button>
-          <button
-            className={`method-tab ${method === 'email' ? 'active' : ''}`}
-            onClick={() => setMethod('email')}
-          >
-            ✉️ Email Invite
-          </button>
+        {/* Method Toggle - Using button group pattern */}
+        <div className="button-group m-4 mb-0">
+          <div className="button-group__container">
+            <button
+              type="button"
+              onClick={() => setMethod('link')}
+              className={`button-group__button button-group__button--left h-[64px] flex items-center justify-center gap-2 px-4 border-none cursor-pointer ${
+                method === 'link' ? '' : 'bg-transparent'
+              }`}
+              style={method === 'link' ? { backgroundImage: 'var(--color-gradient-gray)' } : {}}
+            >
+              <span className="text-[18px]">📎</span>
+              <span
+                className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                  method === 'link'
+                    ? 'text-[var(--color-deep-grey)]'
+                    : 'text-[var(--color-pebble-grey)]'
+                }`}
+              >
+                Share Link
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod('email')}
+              className={`button-group__button button-group__button--right h-[64px] flex items-center justify-center gap-2 px-4 border-none cursor-pointer ${
+                method === 'email' ? '' : 'bg-transparent'
+              }`}
+              style={method === 'email' ? { backgroundImage: 'var(--color-gradient-gray)' } : {}}
+            >
+              <span className="text-[18px]">✉️</span>
+              <span
+                className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
+                  method === 'email'
+                    ? 'text-[var(--color-deep-grey)]'
+                    : 'text-[var(--color-pebble-grey)]'
+                }`}
+              >
+                Email Invite
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Success Message */}
         {showSuccess && !inviteLink && (
-          <div className="success-message">
+          <div className="bg-[var(--color-green)] text-[var(--color-deep-grey)] px-4 py-3 rounded-xl m-4 text-[14px] font-medium">
             ✓ Invitation sent to {email}!
           </div>
         )}
 
         {/* Invite Link Display */}
         {inviteLink && (
-          <div className="invite-link-section">
-            <div className="success-message">✓ Invitation link created!</div>
-            <div className="invite-link-container">
+          <div className="p-6">
+            <div className="bg-[var(--color-green)] text-[var(--color-deep-grey)] px-4 py-3 rounded-xl mb-4 text-[14px] font-medium">
+              ✓ Invitation link created!
+            </div>
+            <div className="flex gap-2 mb-2">
               <input
                 type="text"
                 value={inviteLink}
                 readOnly
-                className="invite-link-input"
+                className="flex-1 p-3 border border-[var(--color-fog-white)] rounded-xl text-[13px] font-mono bg-[var(--color-snow-white)] text-[var(--color-deep-grey)]"
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
-              <button className="copy-button" onClick={copyToClipboard}>
+              <button
+                className="px-5 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-medium cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={copyToClipboard}
+              >
                 Copy
               </button>
             </div>
-            <p className="helper-text">
+            <p className="text-[13px] text-[var(--color-pebble-grey)] m-0">
               Anyone with this link can join this space
             </p>
           </div>
@@ -176,15 +215,17 @@ export default function InviteMemberPanel({
 
         {/* Form (show only if not showing invite link) */}
         {!inviteLink && (
-          <div className="panel-content">
+          <div className="p-6 flex-1 overflow-y-auto">
             {/* Email Input (only for email method) */}
             {method === 'email' && (
-              <div className="form-group">
-                <label htmlFor="email">Email Address</label>
+              <div className="form-group mb-5">
+                <label htmlFor="email" className="form-label">
+                  Email Address
+                </label>
                 <input
                   id="email"
                   type="email"
-                  className="form-input"
+                  className="text-input"
                   placeholder="friend@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -194,13 +235,13 @@ export default function InviteMemberPanel({
             )}
 
             {/* Personal Message (optional) */}
-            <div className="form-group">
-              <label htmlFor="message">
-                Personal Message <span className="optional">(optional)</span>
+            <div className="form-group mb-5">
+              <label htmlFor="message" className="form-label">
+                Personal Message <span className="text-[var(--color-pebble-grey)] font-normal">(optional)</span>
               </label>
               <textarea
                 id="message"
-                className="form-textarea"
+                className="text-input resize-none"
                 placeholder="Come study with us!"
                 rows={3}
                 value={message}
@@ -211,11 +252,13 @@ export default function InviteMemberPanel({
             </div>
 
             {/* Expiration */}
-            <div className="form-group">
-              <label htmlFor="expiration">Expires In</label>
+            <div className="form-group mb-5">
+              <label htmlFor="expiration" className="form-label">
+                Expires In
+              </label>
               <select
                 id="expiration"
-                className="form-select"
+                className="select"
                 value={expiresIn}
                 onChange={(e) => setExpiresIn(Number(e.target.value))}
                 disabled={loading}
@@ -228,19 +271,34 @@ export default function InviteMemberPanel({
             </div>
 
             {/* Error Message */}
-            {error && <div className="error-message">{error}</div>}
+            {error && (
+              <div className="bg-[#FED7D7] text-[var(--color-red)] px-4 py-3 rounded-xl mb-4 text-[14px]">
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
-            {/* Action Buttons */}
-            <div className="panel-actions">
+        {/* Action Buttons */}
+        <div className="flex gap-3 p-4 border-t border-[var(--color-fog-white)]">
+          {inviteLink ? (
+            <button
+              className="flex-1 px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={onClose}
+            >
+              Done
+            </button>
+          ) : (
+            <>
               <button
-                className="button-secondary"
+                className="flex-1 px-6 py-3 bg-[var(--color-fog-white)] text-[var(--color-deep-grey)] border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:bg-[var(--color-soft-gray)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={onClose}
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
-                className="button-primary"
+                className="flex-1 px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleInvite}
                 disabled={loading}
               >
@@ -250,260 +308,10 @@ export default function InviteMemberPanel({
                   ? 'Send Invite'
                   : 'Generate Link'}
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Done Button (for link method) */}
-        {inviteLink && (
-          <div className="panel-actions">
-            <button className="button-primary" onClick={onClose}>
-              Done
-            </button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
-
-      <style>{`
-        .panel-overlay {
-          position: fixed;
-          inset: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 9999;
-          padding: 20px;
-        }
-
-        .invite-member-panel {
-          background: white;
-          border-radius: 12px;
-          width: 100%;
-          max-width: 500px;
-          max-height: 90vh;
-          overflow-y: auto;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .panel-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 24px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .panel-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #1a202c;
-          margin: 0;
-        }
-
-        .panel-close {
-          background: none;
-          border: none;
-          font-size: 32px;
-          line-height: 1;
-          color: #718096;
-          cursor: pointer;
-          padding: 0;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .panel-close:hover {
-          color: #2d3748;
-        }
-
-        .invite-method-tabs {
-          display: flex;
-          gap: 8px;
-          padding: 16px 24px 0;
-        }
-
-        .method-tab {
-          flex: 1;
-          padding: 12px;
-          border: 2px solid #e2e8f0;
-          background: white;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-
-        .method-tab:hover {
-          border-color: #cbd5e0;
-        }
-
-        .method-tab.active {
-          border-color: #667eea;
-          background: #eef2ff;
-          color: #667eea;
-        }
-
-        .panel-content {
-          padding: 24px;
-        }
-
-        .form-group {
-          margin-bottom: 20px;
-        }
-
-        .form-group label {
-          display: block;
-          font-size: 14px;
-          font-weight: 500;
-          color: #2d3748;
-          margin-bottom: 8px;
-        }
-
-        .optional {
-          font-weight: 400;
-          color: #718096;
-        }
-
-        .form-input,
-        .form-textarea,
-        .form-select {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #cbd5e0;
-          border-radius: 6px;
-          font-size: 14px;
-          font-family: inherit;
-          transition: border-color 0.2s;
-        }
-
-        .form-input:focus,
-        .form-textarea:focus,
-        .form-select:focus {
-          outline: none;
-          border-color: #667eea;
-        }
-
-        .form-input:disabled,
-        .form-textarea:disabled,
-        .form-select:disabled {
-          background: #f7fafc;
-          cursor: not-allowed;
-        }
-
-        .success-message {
-          background: #c6f6d5;
-          color: #22543d;
-          padding: 12px 16px;
-          border-radius: 8px;
-          margin: 16px 24px;
-          font-size: 14px;
-          font-weight: 500;
-        }
-
-        .error-message {
-          background: #fed7d7;
-          color: #c53030;
-          padding: 12px 16px;
-          border-radius: 8px;
-          margin-bottom: 16px;
-          font-size: 14px;
-        }
-
-        .invite-link-section {
-          padding: 24px;
-        }
-
-        .invite-link-container {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 8px;
-        }
-
-        .invite-link-input {
-          flex: 1;
-          padding: 10px 12px;
-          border: 1px solid #cbd5e0;
-          border-radius: 6px;
-          font-size: 13px;
-          font-family: monospace;
-          background: #f7fafc;
-        }
-
-        .copy-button {
-          padding: 10px 20px;
-          background: #667eea;
-          color: white;
-          border: none;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .copy-button:hover {
-          background: #5a67d8;
-        }
-
-        .helper-text {
-          font-size: 13px;
-          color: #718096;
-          margin: 0;
-        }
-
-        .panel-actions {
-          display: flex;
-          gap: 12px;
-          padding: 16px 24px 24px;
-        }
-
-        .button-primary,
-        .button-secondary {
-          flex: 1;
-          padding: 12px 24px;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.2s;
-          border: none;
-        }
-
-        .button-primary {
-          background: #667eea;
-          color: white;
-        }
-
-        .button-primary:hover:not(:disabled) {
-          background: #5a67d8;
-        }
-
-        .button-secondary {
-          background: #e2e8f0;
-          color: #4a5568;
-        }
-
-        .button-secondary:hover:not(:disabled) {
-          background: #cbd5e0;
-        }
-
-        .button-primary:disabled,
-        .button-secondary:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        @media (max-width: 600px) {
-          .invite-member-panel {
-            max-height: 95vh;
-          }
-        }
-      `}</style>
     </div>,
     document.body
   );

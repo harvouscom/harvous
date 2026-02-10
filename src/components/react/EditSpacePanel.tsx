@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
+import ButtonSmall from './ButtonSmall';
 import AddToSpaceSection from './AddToSpaceSection';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
-import InviteMemberPanel from './InviteMemberPanel';
-import SpaceMembersList from './SpaceMembersList';
-import SharedSpaceIndicator from './SharedSpaceIndicator';
+import TabNav from './TabNav';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { updateSpaceOffline } from '@/utils/offline-mutations';
@@ -77,8 +76,16 @@ export default function EditSpacePanel({
   // Member management state
   const [memberCount, setMemberCount] = useState(1); // Default to 1 (owner)
   const [isOwner, setIsOwner] = useState(false);
-  const [showInvitePanel, setShowInvitePanel] = useState(false);
-  const [showMembersPanel, setShowMembersPanel] = useState(false);
+  const [sharedTab, setSharedTab] = useState('invite');
+  const [members, setMembers] = useState<any[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+
+  // Share link state (simplified approach like ThreadVisibilityDropdown)
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
   
   // Refs to track current values for save functions (avoid stale closures)
   const formDataRef = useRef(formData);
@@ -166,18 +173,188 @@ export default function EditSpacePanel({
   // Fetch member info to determine member count and ownership
   const fetchMemberInfo = async () => {
     try {
+      setIsLoadingMembers(true);
       const response = await fetch(`/api/spaces/${spaceId}/members`, {
         credentials: 'include'
       });
 
       if (response.ok) {
         const data = await response.json();
-        setMemberCount(data.totalMembers || 1);
+        setMemberCount(data.totalMembers || data.members?.length || 1);
         setIsOwner(data.isOwner || false);
+        setMembers(data.members || []);
+        setPendingInvitations(data.pendingInvitations || []);
       }
     } catch (error) {
       console.error('Error fetching member info:', error);
+    } finally {
+      setIsLoadingMembers(false);
     }
+  };
+
+  // Handle remove member
+  const handleRemoveMember = async (userId: string, memberName: string) => {
+    const isSelf = members.find(m => m.userId === userId && m.role !== 'owner');
+    const confirmMessage = isSelf
+      ? `Are you sure you want to leave "${formData.title}"?`
+      : `Remove ${memberName} from "${formData.title}"?`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setRemovingUserId(userId);
+
+      const response = await fetch(`/api/spaces/${spaceId}/members/${userId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to remove member');
+      }
+
+      // Show success toast
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: data.message || 'Member removed successfully',
+            type: 'success',
+          },
+        })
+      );
+
+      // Refresh member list
+      await fetchMemberInfo();
+    } catch (err: any) {
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: err.message || 'Failed to remove member',
+            type: 'error',
+          },
+        })
+      );
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
+  // Fetch share link for public spaces
+  const fetchShareLink = async () => {
+    if (!spaceId) return;
+
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setShareLink(data.shareUrl || null);
+      }
+    } catch (error) {
+      console.error('[EditSpacePanel] Error fetching share link:', error);
+    }
+  };
+
+  // Handle copy share link
+  const copyShareLink = async () => {
+    if (!shareLink) return;
+
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setCopiedShareLink(true);
+
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: 'Link copied to clipboard',
+            type: 'success',
+          },
+        })
+      );
+
+      setTimeout(() => setCopiedShareLink(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: 'Failed to copy link',
+            type: 'error',
+          },
+        })
+      );
+    }
+  };
+
+  // Handle generate new share link
+  const generateNewShareLink = async () => {
+    if (isGeneratingLink || !spaceId) return;
+
+    const confirmed = confirm(
+      'This will create a new link. The old link will stop working. Continue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsGeneratingLink(true);
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh' }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to generate new link');
+      }
+
+      const data = await response.json();
+      setShareLink(data.shareUrl);
+
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: 'New share link generated',
+            type: 'success',
+          },
+        })
+      );
+    } catch (err: any) {
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: err.message || 'Failed to generate new link',
+            type: 'error',
+          },
+        })
+      );
+    } finally {
+      setIsGeneratingLink(false);
+    }
+  };
+
+  // Helper to get member display name
+  const getMemberDisplayName = (member: any) => {
+    if (member.firstName || member.lastName) {
+      return `${member.firstName || ''} ${member.lastName || ''}`.trim();
+    }
+    return member.email || 'Unknown User';
+  };
+
+  // Helper to format dates
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
   };
 
   // Fetch member info on mount and when spaceId changes
@@ -198,7 +375,16 @@ export default function EditSpacePanel({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [spaceId]);
-  
+
+  // Fetch or clear share link when selectedType changes
+  useEffect(() => {
+    if (formData.selectedType === 'Shared' && spaceId) {
+      fetchShareLink();
+    } else {
+      setShareLink(null);
+    }
+  }, [formData.selectedType, spaceId]);
+
   // Update initial values when props change
   useEffect(() => {
     setInitialValues({
@@ -265,14 +451,19 @@ export default function EditSpacePanel({
               title: space.title || '',
               selectedColor: space.color || 'paper'
             }));
-            
+
             // Always update initialValues to match fetched data
             setInitialValues(prev => ({
               ...prev,
               title: space.title || '',
               color: space.color || 'paper'
             }));
-            
+
+            // Fetch share link if space is public
+            if (space.isPublic) {
+              fetchShareLink();
+            }
+
             // Mark that we've fetched data
             hasFetchedSpaceDataRef.current = true;
           }
@@ -640,7 +831,74 @@ export default function EditSpacePanel({
       setIsSaving(false);
     }
   }, [spaceId, userId, initialValues.color]);
-  
+
+  // Save type change (Private/Shared)
+  const saveTypeChange = useCallback(async (selectedType: 'Private' | 'Shared') => {
+    const isPublic = selectedType === 'Shared';
+
+    // Track this save operation
+    const saveId = `type_${Date.now()}`;
+    activeSaveOperationsRef.current.add(saveId);
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      // Use refs to get current values (avoid stale closures)
+      const currentTitle = formDataRef.current.title;
+      const currentColor = formDataRef.current.selectedColor;
+
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', currentTitle.trim());
+      formDataToSend.append('color', currentColor);
+      formDataToSend.append('isPublic', isPublic.toString());
+
+      const response = await fetch(`/api/spaces/${spaceId}/update`, {
+        method: 'POST',
+        body: formDataToSend,
+        credentials: 'include'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Success - fetch share link if now public
+        if (isPublic) {
+          fetchShareLink();
+        } else {
+          setShareLink(null);
+        }
+
+        window.dispatchEvent(new CustomEvent('toast', {
+          detail: {
+            message: `Space is now ${selectedType.toLowerCase()}`,
+            type: 'success'
+          }
+        }));
+      } else {
+        throw new Error(data.error || 'Failed to update space type');
+      }
+    } catch (error) {
+      console.error('Error saving space type:', error);
+      setSaveError(error instanceof Error ? error.message : 'Failed to save space type');
+
+      // Revert the UI change
+      setFormData(prev => ({
+        ...prev,
+        selectedType: isPublic ? 'Private' : 'Shared'
+      }));
+
+      window.dispatchEvent(new CustomEvent('toast', {
+        detail: {
+          message: 'Failed to update space type. Please try again.',
+          type: 'error'
+        }
+      }));
+    } finally {
+      activeSaveOperationsRef.current.delete(saveId);
+      setIsSaving(false);
+    }
+  }, [spaceId, fetchShareLink]);
+
   // Check for pending saves from sessionStorage on mount (for mobile remounts)
   // Must be after saveTitleChange and saveColorChange are defined
   useEffect(() => {
@@ -1152,14 +1410,17 @@ export default function EditSpacePanel({
                     {/* Private button */}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Private' }))}
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, selectedType: 'Private' }));
+                        saveTypeChange('Private');
+                      }}
                       className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        formData.selectedType === 'Private' 
-                          ? '' 
+                        formData.selectedType === 'Private'
+                          ? ''
                           : 'bg-transparent'
                       }`}
-                      style={formData.selectedType === 'Private' ? { 
-                        backgroundImage: 'var(--color-gradient-gray)' 
+                      style={formData.selectedType === 'Private' ? {
+                        backgroundImage: 'var(--color-gradient-gray)'
                       } : {}}
                     >
                       <div className="flex items-center justify-center gap-3 relative w-full h-full">
@@ -1189,7 +1450,10 @@ export default function EditSpacePanel({
                     {/* Shared button */}
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, selectedType: 'Shared' }))}
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
+                        saveTypeChange('Shared');
+                      }}
                       className={`space-button button-group__button button-group__button--right h-[64px] ${
                         formData.selectedType === 'Shared'
                           ? ''
@@ -1225,127 +1489,128 @@ export default function EditSpacePanel({
                   </div>
                 </div>
 
-                {/* Private Mode: Show AddToSpaceSection */}
-                {formData.selectedType === 'Private' && (
-                  <>
-                    {/* Current Items in Space - displayed above AddToSpaceSection */}
-                    {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
-                      <div className="w-full shrink-0 mb-3">
-                        <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
-                          {/* Current Threads */}
-                          {currentSpaceThreads.map(thread => (
-                            <div key={thread.id} className="relative group">
-                              <a
-                                href={`/${thread.id}`}
-                                className="block"
-                                aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
-                              >
-                                {renderCompactThreadItem(thread)}
-                              </a>
-                              {/* Remove from space button */}
-                              <ActionButton
-                                variant="Remove"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleRemoveFromSpace(thread.id, 'thread');
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                                disabled={isRemovingItem}
-                              />
-                            </div>
-                          ))}
-
-                          {/* Current Notes */}
-                          {currentSpaceNotes.map(note => (
-                            <div key={note.id} className="relative group">
-                              <a
-                                href={`/${note.id}`}
-                                className="block"
-                                aria-label={`View note: ${note.title || 'Untitled note'}`}
-                              >
-                                {renderCompactNoteItem(note)}
-                              </a>
-                              {/* Remove from space button */}
-                              <ActionButton
-                                variant="Remove"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleRemoveFromSpace(note.id, 'note');
-                                }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                                disabled={isRemovingItem}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AddToSpaceSection - for adding items to existing space */}
-                    <div className="w-full flex-1 min-h-0">
-                      {isLoadingItems ? (
-                        <div className="text-center py-8 text-[var(--color-stone-grey)]">
-                          Loading items...
-                        </div>
-                      ) : (
-                        <AddToSpaceSection
-                          allNotes={allNotes}
-                          allThreads={allThreads}
-                          currentSpaceId={spaceId}
-                          onItemSelect={handleItemSelect}
-                          selectedItems={[]}
-                          isLoading={isAddingItems}
-                          placeholder="Search notes and threads"
-                          emptyMessage="No items found"
-                        />
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {/* Shared Mode: Show Member Management */}
+                {/* Shared Mode: Show share link (simplified like ThreadVisibilityDropdown) */}
                 {formData.selectedType === 'Shared' && (
-                  <div className="w-full flex-1 flex flex-col gap-4 p-4">
-                    {/* Member count badge */}
-                    {memberCount > 1 && (
-                      <div className="flex justify-center">
-                        <SharedSpaceIndicator memberCount={memberCount} />
+                  <div className="w-full shrink-0">
+                    {/* Share Link UI */}
+                    {isOwner && shareLink && (
+                      <div className="thread-visibility-dropdown__sharing-ui" style={{ padding: '0.75rem 1rem', background: 'var(--color-snow-white)', borderRadius: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {/* Shareable URL Input */}
+                        <div className="thread-visibility-dropdown__link-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--color-gradient-gray)', borderRadius: '1.5rem' }}>
+                          <input
+                            type="text"
+                            readOnly
+                            value={shareLink}
+                            className="thread-visibility-dropdown__link-input"
+                            style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', fontSize: '0.875rem', lineHeight: '1.25rem', color: 'var(--color-deep-grey)', outline: 'none', textOverflow: 'ellipsis', fontFamily: 'var(--font-sans)' }}
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                          />
+                          <ButtonSmall
+                            type="button"
+                            onClick={copyShareLink}
+                            disabled={false}
+                            state="Default"
+                          >
+                            {copiedShareLink ? 'Copied' : 'Copy'}
+                          </ButtonSmall>
+                        </div>
+
+                        {/* Generate New Link Button */}
+                        <button
+                          type="button"
+                          onClick={generateNewShareLink}
+                          disabled={isGeneratingLink}
+                          className="btn-cta btn--secondary"
+                        >
+                          <span className="btn-cta__content">
+                            {isGeneratingLink ? 'Generating...' : 'Generate a New Sharable Link'}
+                          </span>
+                          <div className="btn-cta__shadow" />
+                        </button>
                       </div>
                     )}
 
-                    {/* Action buttons - only show if owner */}
-                    {isOwner && (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <button
-                          type="button"
-                          onClick={() => setShowMembersPanel(true)}
-                          className="flex items-center justify-center gap-2 px-4 py-3 bg-[var(--color-snow-white)] rounded-xl text-[var(--color-deep-grey)] font-semibold text-[16px] hover:bg-[var(--color-paper-grey)] transition-colors"
-                        >
-                          <Icon name="user-group" size={16} />
-                          <span>Manage Members</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setShowInvitePanel(true)}
-                          className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-white font-semibold text-[16px] hover:opacity-90 transition-opacity"
-                          style={{ backgroundImage: 'var(--color-gradient-blue)' }}
-                        >
-                          <Icon name="user-plus" size={16} />
-                          <span>Invite People</span>
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Members list preview (optional) */}
-                    {memberCount > 1 && (
-                      <div className="text-center text-[var(--color-pebble-grey)] text-sm">
-                        Click "Manage Members" to see all {memberCount} members
-                      </div>
-                    )}
+                    {/* Simple member count info */}
+                    <div className="text-center py-4 text-[var(--color-stone-grey)] text-[14px]">
+                      {memberCount} {memberCount === 1 ? 'person' : 'people'} in this space
+                    </div>
                   </div>
                 )}
+
+                {/* Current Items in Space - always displayed regardless of Private/Shared */}
+                {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) && (
+                  <div className="w-full shrink-0 mb-3">
+                    <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
+                      {/* Current Threads */}
+                      {currentSpaceThreads.map(thread => (
+                        <div key={thread.id} className="relative group">
+                          <a
+                            href={`/${thread.id}`}
+                            className="block"
+                            aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
+                          >
+                            {renderCompactThreadItem(thread)}
+                          </a>
+                          {/* Remove from space button */}
+                          <ActionButton
+                            variant="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveFromSpace(thread.id, 'thread');
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                            disabled={isRemovingItem}
+                          />
+                        </div>
+                      ))}
+
+                      {/* Current Notes */}
+                      {currentSpaceNotes.map(note => (
+                        <div key={note.id} className="relative group">
+                          <a
+                            href={`/${note.id}`}
+                            className="block"
+                            aria-label={`View note: ${note.title || 'Untitled note'}`}
+                          >
+                            {renderCompactNoteItem(note)}
+                          </a>
+                          {/* Remove from space button */}
+                          <ActionButton
+                            variant="Remove"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRemoveFromSpace(note.id, 'note');
+                            }}
+                            className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                            disabled={isRemovingItem}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AddToSpaceSection - always displayed for searching notes/threads */}
+                <div className="w-full flex-1 min-h-0">
+                  {isLoadingItems ? (
+                    <div className="text-center py-8 text-[var(--color-stone-grey)]">
+                      Loading items...
+                    </div>
+                  ) : (
+                    <AddToSpaceSection
+                      allNotes={allNotes}
+                      allThreads={allThreads}
+                      currentSpaceId={spaceId}
+                      onItemSelect={handleItemSelect}
+                      selectedItems={[]}
+                      isLoading={isAddingItems}
+                      placeholder="Search notes and threads"
+                      emptyMessage="No items found"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1361,30 +1626,6 @@ export default function EditSpacePanel({
           />
         </div>
       </div>
-
-      {/* Member Management Modals */}
-      {showInvitePanel && (
-        <InviteMemberPanel
-          spaceId={spaceId}
-          spaceName={formData.title}
-          onClose={() => setShowInvitePanel(false)}
-          onSuccess={() => {
-            fetchMemberInfo(); // Refresh member count
-          }}
-        />
-      )}
-
-      {showMembersPanel && (
-        <SpaceMembersList
-          spaceId={spaceId}
-          spaceName={formData.title}
-          isOwner={isOwner}
-          onClose={() => setShowMembersPanel(false)}
-          onMemberRemoved={() => {
-            fetchMemberInfo(); // Refresh member count
-          }}
-        />
-      )}
 
     </div>
   );

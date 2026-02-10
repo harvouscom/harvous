@@ -13,6 +13,8 @@ const Spaces = defineTable({
     isPublic: column.boolean({ default: false }),
     isActive: column.boolean({ default: true }),
     order: column.number({ default: 0 }),
+    shareToken: column.text({ optional: true }), // Unique token for permanent share link (null = private)
+    shareTokenCreatedAt: column.date({ optional: true }), // When the share token was created
   }
 })
 
@@ -92,6 +94,7 @@ const Members = defineTable({
     spaceId: column.text(),
     role: column.text({ default: "member" }), // member, admin, owner
     createdAt: column.date(),
+    joinedAt: column.date({ optional: true }), // When member joined (same as createdAt for most)
   },
   indexes: {
     spaceIdIndex: {

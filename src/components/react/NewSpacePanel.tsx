@@ -13,6 +13,7 @@ import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { createSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import TabNav from './TabNav';
 
 interface Note {
   id: string;
@@ -56,6 +57,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   const [allThreads, setAllThreads] = useState<Thread[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [sharedTab, setSharedTab] = useState('preview');
 
   // Ref for auto-focusing the space name input
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -268,7 +270,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', 'false'); // Always private for now
+      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
       
       // Add selected items
       const selectedNoteIds: string[] = [];
@@ -303,7 +305,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           offlineSpaceId = await createSpaceOffline(userId, {
             title: title.trim(),
             color: selectedColor,
-            isPublic: false,
+            isPublic: selectedType === 'Shared',
           });
           console.log('[NewSpacePanel] Space created locally in IndexedDB (offline)', { offlineSpaceId });
         } catch (err) {
@@ -1012,27 +1014,147 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   </div>
                 )}
 
-                {/* AddToSpaceSection - replaces tabs */}
-                <div className="w-full flex-1 min-h-0 flex flex-col">
-                  {isLoadingItems ? (
-                    <div className="panel__loading-state">
-                      Loading items...
-                    </div>
-                  ) : (
-                    <div className="flex-1 min-h-0">
-                      <AddToSpaceSection
-                        allNotes={allNotes}
-                        allThreads={allThreads}
-                        currentSpaceId={null}
-                        onItemSelect={handleItemSelect}
-                        selectedItems={selectedItems}
-                        isLoading={isSubmitting}
-                        placeholder="Search notes and threads"
-                        emptyMessage="No items found"
+                {/* Private Mode: Show AddToSpaceSection */}
+                {selectedType === 'Private' && (
+                  <div className="w-full flex-1 min-h-0 flex flex-col">
+                    {isLoadingItems ? (
+                      <div className="panel__loading-state">
+                        Loading items...
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-h-0">
+                        <AddToSpaceSection
+                          allNotes={allNotes}
+                          allThreads={allThreads}
+                          currentSpaceId={null}
+                          onItemSelect={handleItemSelect}
+                          selectedItems={selectedItems}
+                          isLoading={isSubmitting}
+                          placeholder="Search notes and threads"
+                          emptyMessage="No items found"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Shared Mode: Show tabs with preview/info */}
+                {selectedType === 'Shared' && (
+                  <div className="w-full flex-1 flex flex-col min-h-0">
+                    {/* Tab Navigation */}
+                    <div className="px-3 pt-2 shrink-0">
+                      <TabNav
+                        tabs={[
+                          { id: 'preview', label: 'Preview', isActive: sharedTab === 'preview' },
+                          { id: 'about', label: 'About Shared Spaces', isActive: sharedTab === 'about' }
+                        ]}
+                        onTabChange={(tabId) => setSharedTab(tabId)}
                       />
                     </div>
-                  )}
-                </div>
+
+                    {/* Tab Content */}
+                    <div className="flex-1 overflow-y-auto p-4">
+                      {sharedTab === 'preview' && (
+                        <div className="flex flex-col gap-4">
+                          {/* Info message */}
+                          <div className="flex flex-col gap-2 text-center">
+                            <p className="text-[var(--color-deep-grey)] text-[16px] font-semibold">
+                              Collaborative Space
+                            </p>
+                            <p className="text-[var(--color-pebble-grey)] text-[14px]">
+                              After creating this space, you'll be able to invite people to collaborate with you.
+                            </p>
+                          </div>
+
+                          {/* Feature list */}
+                          <div className="flex flex-col gap-2 bg-[var(--color-snow-white)] rounded-xl p-4">
+                            <div className="flex items-center gap-3">
+                              <Icon name="user-group" size={20} style={{ color: 'var(--color-bold-blue)' }} />
+                              <span className="text-[var(--color-deep-grey)] text-[14px] font-medium">
+                                Invite members via email or link
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Icon name="pencil" size={20} style={{ color: 'var(--color-bold-blue)' }} />
+                              <span className="text-[var(--color-deep-grey)] text-[14px] font-medium">
+                                Collaborate on notes and threads
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Icon name="eye" size={20} style={{ color: 'var(--color-bold-blue)' }} />
+                              <span className="text-[var(--color-deep-grey)] text-[14px] font-medium">
+                                Everyone can view and contribute
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {sharedTab === 'about' && (
+                        <div className="flex flex-col gap-4">
+                          <div className="flex flex-col gap-3">
+                            <h3 className="text-[var(--color-deep-grey)] text-[16px] font-semibold m-0">
+                              What are Shared Spaces?
+                            </h3>
+                            <p className="text-[var(--color-deep-grey)] text-[14px] leading-relaxed m-0">
+                              Shared Spaces allow you to collaborate with others in real-time. You can invite members to view, edit, and contribute to notes and threads together.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-3">
+                            <h3 className="text-[var(--color-deep-grey)] text-[16px] font-semibold m-0">
+                              How does it work?
+                            </h3>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-start gap-2">
+                                <span className="text-[var(--color-bold-blue)] font-semibold">1.</span>
+                                <p className="text-[var(--color-deep-grey)] text-[14px] leading-relaxed m-0">
+                                  Create your shared space with a name and color
+                                </p>
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <span className="text-[var(--color-bold-blue)] font-semibold">2.</span>
+                                <p className="text-[var(--color-deep-grey)] text-[14px] leading-relaxed m-0">
+                                  Invite members by email or shareable link
+                                </p>
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <span className="text-[var(--color-bold-blue)] font-semibold">3.</span>
+                                <p className="text-[var(--color-deep-grey)] text-[14px] leading-relaxed m-0">
+                                  Everyone can add notes, create threads, and collaborate
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-3">
+                            <h3 className="text-[var(--color-deep-grey)] text-[16px] font-semibold m-0">
+                              Who can do what?
+                            </h3>
+                            <div className="bg-[var(--color-snow-white)] rounded-xl p-4 flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-block px-2 py-0.5 rounded-xl text-[11px] font-semibold uppercase tracking-wide bg-[var(--color-bold-blue)] text-white">
+                                  Owner
+                                </span>
+                                <span className="text-[var(--color-deep-grey)] text-[13px]">
+                                  Manage members, edit space settings, full access
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="inline-block px-2 py-0.5 rounded-xl text-[11px] font-semibold uppercase tracking-wide bg-[var(--color-fog-white)] text-[var(--color-stone-grey)]">
+                                  Member
+                                </span>
+                                <span className="text-[var(--color-deep-grey)] text-[13px]">
+                                  Add and edit content, view all items
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -2,9 +2,12 @@
 export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardStack from "@/components/CardStack.astro";
+import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import Button from "@/components/Button.astro";
 import { Fragment } from "astro/jsx-runtime";
-import { db, SpaceInvitations, Spaces, Members, UserMetadata, eq, and } from 'astro:db';
+import { db, Spaces, Members, UserMetadata, Notes, Threads, NoteThreads, eq, and, desc, asc, count } from 'astro:db';
+import { sql } from 'astro:db';
+import { isValidShareToken } from '@/utils/ids';
 import { type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
@@ -20,101 +23,163 @@ const { userId } = auth;
 const isAuthenticated = !!userId;
 
 // Initialize data
-let invitation = null;
 let space = null;
-let inviter = null;
+let owner = null;
 let error = null;
 let alreadyMember = false;
 let isOwner = false;
+let notes: any[] = [];
+let threads: any[] = [];
+let memberCount = 0;
 
-if (!token) {
+// Validate share token format
+if (!token || !isValidShareToken(token)) {
   error = 'invalid';
 } else {
-  // Fetch invitation details
-  invitation = await db.select()
-    .from(SpaceInvitations)
-    .where(eq(SpaceInvitations.inviteToken, token))
+  // Fetch space by share token
+  space = await db.select()
+    .from(Spaces)
+    .where(eq(Spaces.shareToken, token))
     .get();
 
-  if (!invitation) {
+  if (!space) {
     error = 'not_found';
-  } else if (invitation.status !== 'pending') {
-    error = 'already_used';
-  } else if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
-    error = 'expired';
+  } else if (!space.isPublic) {
+    error = 'not_public';
   } else {
-    // Get space details
-    space = await db.select()
-      .from(Spaces)
-      .where(eq(Spaces.id, invitation.spaceId))
+    // Set cache headers for successful space fetch
+    Astro.response.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+
+    // Fetch notes in this space
+    notes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
+    })
+    .from(Notes)
+    .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))
+    .orderBy(
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      asc(Notes.id)
+    )
+    .limit(10)
+    .all();
+
+    // Fetch threads in this space
+    const threadRows = await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+    })
+    .from(Threads)
+    .where(eq(Threads.spaceId, space.id))
+    .orderBy(desc(Threads.updatedAt))
+    .limit(5)
+    .all();
+
+    // Fetch note counts per thread using the junction table
+    const threadIds = threadRows.map(t => t.id);
+    const noteCounts = threadIds.length > 0
+      ? await db.select({
+          threadId: NoteThreads.threadId,
+          noteCount: count(NoteThreads.id),
+        })
+        .from(NoteThreads)
+        .groupBy(NoteThreads.threadId)
+        .all()
+      : [];
+
+    const noteCountMap = Object.fromEntries(noteCounts.map(r => [r.threadId, r.noteCount]));
+    threads = threadRows.map(t => ({ ...t, noteCount: noteCountMap[t.id] ?? 0 }));
+
+    // Get owner details
+    const ownerData = await db.select()
+      .from(UserMetadata)
+      .where(eq(UserMetadata.userId, space.userId))
       .get();
 
-    if (!space) {
-      error = 'space_not_found';
-    } else {
-      // Set cache headers
-      Astro.response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+    // Generate display name
+    const firstName = ownerData?.firstName || '';
+    const lastName = ownerData?.lastName || '';
+    const lastInitial = lastName.charAt(0).toUpperCase();
+    const displayName = firstName
+      ? (lastName ? `${firstName} ${lastInitial}.` : firstName)
+      : 'A Harvous User';
 
-      // Get inviter details
-      const inviterData = await db.select()
-        .from(UserMetadata)
-        .where(eq(UserMetadata.userId, invitation.invitedBy))
-        .get();
+    owner = {
+      firstName,
+      displayName,
+      userColor: ownerData?.userColor || 'paper'
+    };
 
-      const firstName = inviterData?.firstName || '';
-      const lastName = inviterData?.lastName || '';
-      const lastInitial = lastName.charAt(0).toUpperCase();
-      const displayName = firstName
-        ? (lastName ? `${firstName} ${lastInitial}.` : firstName)
-        : 'A Harvous User';
+    // Count total people in the space (owner + members)
+    const memberRows = await db.select({ id: Members.id })
+      .from(Members)
+      .where(eq(Members.spaceId, space.id))
+      .all();
+    memberCount = memberRows.length + 1; // +1 for the owner
 
-      inviter = {
-        firstName,
-        displayName,
-        userColor: inviterData?.userColor || 'paper'
-      };
+    // Check if current user is already a member (if logged in)
+    if (userId) {
+      isOwner = space.userId === userId;
 
-      // Check if current user is already a member (if logged in)
-      if (userId) {
-        isOwner = space.userId === userId;
+      if (!isOwner) {
+        const existingMember = await db.select()
+          .from(Members)
+          .where(and(
+            eq(Members.spaceId, space.id),
+            eq(Members.userId, userId)
+          ))
+          .get();
 
-        if (!isOwner) {
-          const existingMember = await db.select()
-            .from(Members)
-            .where(and(
-              eq(Members.spaceId, invitation.spaceId),
-              eq(Members.userId, userId)
-            ))
-            .get();
-
-          alreadyMember = !!existingMember;
-        } else {
-          alreadyMember = true;
-        }
+        alreadyMember = !!existingMember;
+      } else {
+        alreadyMember = true;
       }
     }
   }
 }
 
-const canAccept = !alreadyMember && isAuthenticated && !isOwner;
+const canJoin = !alreadyMember && isAuthenticated && !isOwner;
 const requiresAuth = !isAuthenticated;
 
 // Get space color for styling
 const spaceColor = (space?.color || 'paper') as ThreadColor;
 
+// Construct URLs for Open Graph
+const siteUrl = Astro.url.origin;
+const shareUrl = `${siteUrl}${Astro.url.pathname}`;
+
 // Prepare meta data
-const ogTitle = space?.title ? `${space.title} | Space Invitation` : 'Space Invitation';
-const ogDescription = `You've been invited to join a collaborative Bible study space on Harvous`;
+const ogTitle = space?.title ? `${space.title} | Join Space` : 'Join Space';
+const ogDescription = `Join a collaborative Bible study space${notes.length > 0 || threads.length > 0 ? ` with ${notes.length + threads.length} ${notes.length + threads.length === 1 ? 'item' : 'items'}` : ''} on Harvous`;
 ---
 
 <EmptyLayout title={ogTitle}>
   <Fragment slot="head">
+    {/* Open Graph / Facebook */}
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={shareUrl} />
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={ogDescription} />
-    <meta name="robots" content="noindex" />
+
+    {/* Twitter */}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
   </Fragment>
 
-  <div id="invitation-content" class="auth-page">
+  <div id="shared-space-content" class="auth-page">
     <div class="auth-page__container">
       <!-- Left Column: Animated Mesh Gradient Background -->
       <div class="auth-page__video-section thread-colors-mesh-gradient">
@@ -136,93 +201,95 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
         </div>
       </div>
 
-      <!-- Right Column: Invitation Content -->
+      <!-- Right Column: Space Content -->
       <div class="auth-page__form-section shared-page__content-section">
         <div class="shared-page__content">
-          {(error === 'invalid' || error === 'not_found' || error === 'space_not_found') ? (
+          {(error === 'invalid' || error === 'not_found' || error === 'not_public') ? (
             <div class="shared-page__error">
               <div class="shared-page__error-icon">
                 <svg width="48" height="48" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                   <path d={circleQuestionPath} />
                 </svg>
               </div>
-              <h1 class="shared-page__error-title">This invitation isn't available</h1>
+              <h1 class="shared-page__error-title">This space isn't available</h1>
               <p class="shared-page__error-message">
-                Hmm, we can't find this invitation. The link might be invalid or the invitation may have been cancelled.
+                {error === 'not_public'
+                  ? "This space is no longer public. The owner may have changed the privacy settings."
+                  : "Hmm, we can't find this space. The link might have expired or the owner made it private."}
               </p>
               <a href="https://harvous.com" class="shared-page__error-link">
                 Learn more about Harvous
               </a>
             </div>
-          ) : error === 'expired' ? (
-            <div class="shared-page__error">
-              <div class="shared-page__error-icon">⏰</div>
-              <h1 class="shared-page__error-title">This invitation has expired</h1>
-              <p class="shared-page__error-message">
-                This invitation link is no longer valid. Please request a new invitation from the space owner.
-              </p>
-              <a href="/" class="shared-page__error-link">
-                Go to Dashboard
-              </a>
-            </div>
-          ) : error === 'already_used' ? (
-            <div class="shared-page__error">
-              <div class="shared-page__error-icon">✓</div>
-              <h1 class="shared-page__error-title">This invitation has been {invitation?.status}</h1>
-              <p class="shared-page__error-message">
-                This invitation link has already been used and is no longer active.
-              </p>
-              {space && (
-                <Button variant="primary" href={`/spaces/${space.id}`}>
-                  Go to Space
-                </Button>
-              )}
-            </div>
           ) : space && (
             <>
-              <!-- Inviter info (above CardStack) -->
+              <!-- Owner info (above CardStack) -->
               <div class="shared-page__creator shared-page__fade-in" style="animation-delay: 0ms;">
-                <p>{inviter?.displayName || 'A Harvous User'} invited you to join this space on Harvous</p>
+                <p>{owner?.displayName || 'A Harvous User'} invited you to join this space on Harvous</p>
               </div>
 
-              <!-- CardStack with invitation -->
+              <!-- CardStack with space content -->
               <div class="shared-page__card-container shared-page__slide-up" style="animation-delay: 50ms;">
                 <CardStack
                   title={space.title}
                   headerBgColor={`var(--color-${spaceColor})`}
                   centerTitle={true}
                 >
-                  <!-- Invitation content (matches notes-scroll pattern) -->
+                  <!-- Notes and Threads list (scrollable) -->
                   <div class="shared-page__notes-scroll">
-                    {invitation?.message ? (
+                    <!-- People count inside content area -->
+                    <div class="shared-page__people-count">
+                      <span>{memberCount} {memberCount === 1 ? 'person' : 'people'} in this space</span>
+                    </div>
+                    {notes.length === 0 && threads.length === 0 ? (
                       <div class="shared-page__notes-empty">
-                        <p>"{invitation.message}"</p>
+                        <p>No notes yet. Join to get started.</p>
                       </div>
                     ) : (
-                      <div class="shared-page__notes-empty">
-                        <p>You've been invited to join this collaborative Bible study space.</p>
-                      </div>
-                    )}
+                      <div class="shared-page__notes">
+                        {/* Show threads first using condensed thread style */}
+                        {threads.map((thread, index) => (
+                          <div
+                            class="shared-page__thread-item card-enter"
+                            style={`animation-delay: ${150 + index * 50}ms;`}
+                          >
+                            <div class="condensed-thread-item">
+                              <div
+                                class="condensed-thread-item__accent"
+                                style={`background-color: var(--color-${thread.color || 'blue'});`}
+                              />
+                              <div class="condensed-thread-item__content">
+                                <div class="condensed-thread-item__icon">
+                                  <svg fill="currentColor" viewBox="0 0 576 512">
+                                    <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
+                                  </svg>
+                                </div>
+                                <span class="condensed-thread-item__title">{thread.title}</span>
+                                {Number(thread.noteCount) > 0 ? (
+                                  <div class="badge-count" style="flex-shrink: 0;">
+                                    <span class="badge-number">{Number(thread.noteCount) > 99 ? '99+' : Number(thread.noteCount)}</span>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
 
-                    {invitation?.expiresAt && (
-                      <div class="shared-page__expiry-notice">
-                        Expires {new Date(invitation.expiresAt).toLocaleDateString('en-US', {
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric'
-                        })}
-                      </div>
-                    )}
-
-                    {alreadyMember && isOwner && (
-                      <div class="shared-page__member-status">
-                        ✓ You own this space
-                      </div>
-                    )}
-
-                    {alreadyMember && !isOwner && (
-                      <div class="shared-page__member-status">
-                        ✓ You're already in this space
+                        {/* Show notes using CondensedNoteItem */}
+                        {notes.map((note, index) => (
+                          <div
+                            class="shared-page__note-item card-enter"
+                            style={`animation-delay: ${150 + (threads.length + index) * 50}ms;`}
+                          >
+                            <CondensedNoteItem
+                              client:load
+                              title={note.title || 'Untitled Note'}
+                              noteType={note.noteType || 'default'}
+                              href="#"
+                              noteId={note.id}
+                            />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -230,28 +297,28 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
                   <!-- CTA Button wrapper (matches shared thread pattern) -->
                   <div class="shared-page__cta-wrapper">
                     <!-- Toast notification for errors -->
-                    <div id="invitation-toast" class="shared-page__toast" aria-live="polite">
-                      <span id="invitation-toast-message"></span>
+                    <div id="join-space-toast" class="shared-page__toast" aria-live="polite">
+                      <span id="join-space-toast-message"></span>
                     </div>
 
                     <!-- CTA Button (inside CardStack) -->
                     {requiresAuth ? (
                       <Button
                         variant="primary"
-                        href={`/sign-in?redirect=/invitations/${token}`}
+                        href={`/sign-in?redirect=/spaces/join/${token}`}
                         class="shared-page__cta-button"
                       >
-                        <span class="shared-page__cta-text">Sign in to accept</span>
+                        <span class="shared-page__cta-text">Sign in to join</span>
                       </Button>
-                    ) : canAccept ? (
+                    ) : canJoin ? (
                       <Button
                         type="button"
-                        id="accept-invitation-btn"
+                        id="join-space-btn"
                         class="shared-page__cta-button"
                         data-token={token}
                         data-space-id={space.id}
                       >
-                        <span class="shared-page__cta-text" id="accept-btn-text">Accept Invitation</span>
+                        <span class="shared-page__cta-text" id="join-btn-text">Join space on Harvous</span>
                       </Button>
                     ) : alreadyMember ? (
                       <Button
@@ -259,7 +326,7 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
                         href={`/spaces/${space.id}`}
                         class="shared-page__cta-button"
                       >
-                        <span class="shared-page__cta-text">Go to Space</span>
+                        <span class="shared-page__cta-text">Join this space on Harvous</span>
                       </Button>
                     ) : null}
                   </div>
@@ -282,13 +349,13 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 <!-- Enable View Transitions for client-side navigation -->
 <ClientRouter />
 
-<!-- Client-side script for Accept Invitation functionality -->
+<!-- Client-side script for Join Space functionality -->
 <script is:inline>
   (function() {
-    const btn = document.getElementById('accept-invitation-btn');
-    const toastEl = document.getElementById('invitation-toast');
-    const toastMsgEl = document.getElementById('invitation-toast-message');
-    const btnTextEl = document.getElementById('accept-btn-text');
+    const btn = document.getElementById('join-space-btn');
+    const toastEl = document.getElementById('join-space-toast');
+    const toastMsgEl = document.getElementById('join-space-toast-message');
+    const btnTextEl = document.getElementById('join-btn-text');
 
     if (!btn) return;
 
@@ -299,10 +366,10 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
       // Disable button during request
       btn.disabled = true;
       const originalText = btnTextEl.textContent;
-      btnTextEl.textContent = 'Accepting...';
+      btnTextEl.textContent = 'Joining...';
 
       try {
-        const response = await fetch(`/api/invitations/${token}/accept`, {
+        const response = await fetch(`/api/spaces/join/${token}`, {
           method: 'POST',
         });
 
@@ -310,12 +377,12 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 
         if (response.ok && data.success) {
           // Show success and redirect
-          btnTextEl.textContent = 'Accepted! Redirecting...';
+          btnTextEl.textContent = 'Joined! Redirecting...';
           setTimeout(() => {
             window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
           }, 500);
         } else {
-          throw new Error(data.error || 'Failed to accept invitation');
+          throw new Error(data.error || 'Failed to join space');
         }
       } catch (error) {
         // Show error in toast
@@ -337,36 +404,36 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 
 <style is:global>
   /* Override video overlay padding for 24px spacing */
-  #invitation-content .auth-page__video-overlay {
+  #shared-space-content .auth-page__video-overlay {
     padding: 24px;
   }
 
   /* Keep outer padding on auth-page wrapper (12px around both columns) */
-  #invitation-content.auth-page {
+  #shared-space-content.auth-page {
     padding: 12px;
     min-height: 100vh;
   }
 
   /* Desktop: lock page to viewport height */
   @media (min-width: 1160px) {
-    #invitation-content {
+    #shared-space-content {
       height: 100vh;
       max-height: 100vh;
       overflow: hidden;
     }
 
-    #invitation-content .auth-page__container {
+    #shared-space-content .auth-page__container {
       height: 100%;
       max-height: 100vh;
     }
 
-    #invitation-content .auth-page__form-section {
+    #shared-space-content .auth-page__form-section {
       height: 100%;
       max-height: 100vh;
       overflow: hidden;
     }
 
-    #invitation-content .shared-page__content-section {
+    #shared-space-content .shared-page__content-section {
       padding-top: 12px !important;
     }
   }
@@ -381,18 +448,18 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 
   /* Mobile: lock page to viewport height, no scrolling */
   @media (max-width: 1159px) {
-    #invitation-content {
+    #shared-space-content {
       height: 100vh;
       max-height: 100vh;
       overflow: hidden;
     }
 
-    #invitation-content .auth-page__container {
+    #shared-space-content .auth-page__container {
       height: 100%;
       max-height: 100vh;
     }
 
-    #invitation-content .auth-page__form-section.shared-page__content-section {
+    #shared-space-content .auth-page__form-section.shared-page__content-section {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
       height: 100%;
@@ -557,6 +624,33 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
   .shared-page__notes-empty p {
     margin: 0;
     font-size: 14px;
+  }
+
+  /* People count inside content area */
+  .shared-page__people-count {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 4px 12px;
+    text-align: center;
+  }
+
+  .shared-page__people-count span {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-pebble-grey);
+  }
+
+  /* Note items wrapper - inherits card-enter from animations.css */
+  .shared-page__note-item {
+    /* card-enter class provides the animation */
+    cursor: default;
+  }
+
+  /* Override any pointer cursor from child components */
+  .shared-page__note-item * {
+    cursor: default !important;
   }
 
   /* Toast notification - absolutely positioned 12px above button */
@@ -842,5 +936,74 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
   }
+
+  /* Condensed thread item - matches CondensedNoteItem visual style */
+  .condensed-thread-item {
+    position: relative;
+    border-radius: 0.75rem;
+    height: 48px;
+    width: 100%;
+    background-color: white;
+    overflow: hidden;
+  }
+
+  .condensed-thread-item__accent {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 2.75rem;
+    border-top-left-radius: 0.75rem;
+    border-bottom-left-radius: 0.75rem;
+  }
+
+  .condensed-thread-item__content {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    padding-left: 0.75rem;
+    padding-right: 1rem;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .condensed-thread-item__icon {
+    position: relative;
+    flex-shrink: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--color-deep-grey);
+    opacity: 0.3;
+  }
+
+  .condensed-thread-item__icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .condensed-thread-item__title {
+    font-family: var(--font-sans);
+    font-weight: 700;
+    color: var(--color-deep-grey);
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .condensed-thread-item .badge-count {
+    width: auto;
+    min-width: 24px;
+    padding: 0 6px;
+    opacity: 1 !important;
+  }
+
+  .condensed-thread-item .badge-number {
+    opacity: 1 !important;
+  }
+
 </style>
 </EmptyLayout>
