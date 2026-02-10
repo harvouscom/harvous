@@ -9,6 +9,12 @@ interface ThreadVisibilityDropdownProps {
   onRefresh?: () => Promise<void>;
   isLoading?: boolean;
   isEditMode?: boolean;
+  // Optional label overrides for non-thread contexts (e.g. spaces)
+  privateTriggerLabel?: string;
+  sharedTriggerLabel?: string;
+  privateOptionLabel?: string;
+  sharedOptionLabel?: string;
+  shareNotReadyLabel?: string;
 }
 
 export default function ThreadVisibilityDropdown({
@@ -18,6 +24,11 @@ export default function ThreadVisibilityDropdown({
   onRefresh,
   isLoading = false,
   isEditMode = false,
+  privateTriggerLabel = 'Only I can see this thread',
+  sharedTriggerLabel = 'Shared with link to anyone',
+  privateOptionLabel = 'Only I can see this thread',
+  sharedOptionLabel = 'Turn on sharing with link to anyone',
+  shareNotReadyLabel,
 }: ThreadVisibilityDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -127,7 +138,7 @@ export default function ThreadVisibilityDropdown({
             <span 
               className="font-sans text-[18px] font-semibold whitespace-nowrap truncate text-[var(--color-deep-grey)]"
             >
-              {isShared ? 'Shared with link to anyone' : 'Only I can see this thread'}
+              {isShared ? sharedTriggerLabel : privateTriggerLabel}
             </span>
           </div>
           <div className="size-4 flex items-center justify-center shrink-0">
@@ -164,7 +175,9 @@ export default function ThreadVisibilityDropdown({
                   />
                 </div>
                 <span className="thread-visibility-dropdown__option-text">
-                  {isShared ? 'Turn off sharing so only I can see it' : 'Only I can see this thread'}
+                  {isShared
+                    ? `Turn off sharing so ${privateOptionLabel.charAt(0).toLowerCase() + privateOptionLabel.slice(1)}`
+                    : privateOptionLabel}
                 </span>
               </div>
               {!isShared && (
@@ -198,7 +211,7 @@ export default function ThreadVisibilityDropdown({
                   />
                 </div>
                 <span className="thread-visibility-dropdown__option-text">
-                  {isShared ? 'Shared with link to anyone' : 'Turn on sharing with link to anyone'}
+                  {isShared ? sharedTriggerLabel : sharedOptionLabel}
                 </span>
               </div>
               {isShared && (
@@ -259,9 +272,9 @@ export default function ThreadVisibilityDropdown({
                 <div className="thread-visibility-dropdown__placeholder">
                   <Icon name="circle-info" size={14} style={{ color: 'var(--color-pebble-grey)', flexShrink: 0 }} />
                   <span>
-                    {isEditMode 
-                      ? 'Share link will be available after enabling sharing' 
-                      : 'Share link will be available after creating the thread'}
+                    {shareNotReadyLabel ?? (isEditMode
+                      ? 'Share link will be available after enabling sharing'
+                      : 'Share link will be available after creating the thread')}
                   </span>
                 </div>
               )}

@@ -179,6 +179,69 @@ In `join/[token].ts` line 84–91, the `Members` insert does not include `create
 
 ---
 
+## Local Dev Testing Guide
+
+### Testing the "Make Private" confirmation dialog
+
+The dialog only fires when `memberCount > 1`. Since you can't add real members locally without a second account, temporarily hardcode the count:
+
+1. In `src/components/react/EditSpacePanel.tsx` line ~78, change:
+   ```ts
+   const [memberCount, setMemberCount] = useState(1);
+   // to:
+   const [memberCount, setMemberCount] = useState(3); // DEV ONLY
+   ```
+2. Open a Shared space → open Edit panel → open the visibility dropdown → click "Only I can see this space"
+3. The confirmation dialog should appear saying "This space has 2 people in it..."
+4. **Revert back to `useState(1)` when done**
+
+### Testing the full end-to-end join flow
+
+**Requirement**: Two Clerk accounts. Options:
+
+#### Option A: Two Chrome profiles (recommended)
+1. Chrome → your profile avatar → Add Profile → create a second profile
+2. Sign into your main account in Profile 1, a test Clerk account in Profile 2
+3. In Profile 1: create a Shared space, go to EditSpacePanel, copy the share link
+4. In Profile 2: paste the share link → join page appears with preview
+5. Click "Join this space on Harvous" → should join and redirect to `/spaces/[spaceId]` (page not yet built — will 404 currently, that's expected)
+6. Back in Profile 1: open EditSpacePanel → should now show 2 people in the space
+
+#### Option B: Seed a fake member in the DB (no second account needed)
+Use Astro DB studio or a seed script to insert a `Members` row directly:
+```bash
+npx astro db studio   # opens local DB browser
+```
+Or create `scripts/seed-test-member.ts`:
+```ts
+import { db, Members } from 'astro:db';
+await db.insert(Members).values({
+  id: 'member_test_001',
+  spaceId: 'YOUR_SPACE_ID_HERE',  // copy from URL when viewing a space
+  userId: 'user_test_fake_001',
+  role: 'member',
+  createdAt: new Date(),
+  joinedAt: new Date(),
+});
+```
+This lets you test member count UI, the "Make Private" dialog, and the SpaceMembersList without a real second account.
+
+#### Option C: Test the invitation page alone (no second account)
+1. Generate an invite link from EditSpacePanel → InviteMemberPanel → Link method
+2. Copy the resulting `/invitations/[token]` URL
+3. Open it in the same browser — you'll see the invitation page (it'll say you're already in the space since you're the owner, but the page renders and you can verify the layout)
+
+### What's testable without a second account
+- ✅ Join page preview (`/spaces/join/[token]`) — visible to anyone unauthenticated (use incognito)
+- ✅ Invitation page layout (`/invitations/[token]`) — renders without joining
+- ✅ EditSpacePanel share link generation and copy
+- ✅ "Make Private" dialog (with hardcoded memberCount)
+- ✅ SpaceMembersList with seeded DB member (Option B)
+- ❌ Actual join flow (requires second account)
+- ❌ Email invitation delivery (not yet implemented)
+
+---
+
 ## Data Model Quick Reference
 
 ```

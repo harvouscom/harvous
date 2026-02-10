@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
-import ButtonSmall from './ButtonSmall';
 import AddToSpaceSection from './AddToSpaceSection';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import TabNav from './TabNav';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
+import ConfirmDialog from './dialogs/ConfirmDialog';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { updateSpaceOffline } from '@/utils/offline-mutations';
@@ -74,7 +75,7 @@ export default function EditSpacePanel({
   const [isRemovingItem, setIsRemovingItem] = useState(false);
 
   // Member management state
-  const [memberCount, setMemberCount] = useState(1); // Default to 1 (owner)
+  const [memberCount, setMemberCount] = useState(3); // DEV ONLY: hardcoded to test dialog — change back to 1
   const [isOwner, setIsOwner] = useState(false);
   const [sharedTab, setSharedTab] = useState('invite');
   const [members, setMembers] = useState<any[]>([]);
@@ -84,8 +85,10 @@ export default function EditSpacePanel({
 
   // Share link state (simplified approach like ThreadVisibilityDropdown)
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const [copiedShareLink, setCopiedShareLink] = useState(false);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+
+  // Make-private confirmation dialog
+  const [showMakePrivateDialog, setShowMakePrivateDialog] = useState(false);
   
   // Refs to track current values for save functions (avoid stale closures)
   const formDataRef = useRef(formData);
@@ -257,37 +260,6 @@ export default function EditSpacePanel({
       }
     } catch (error) {
       console.error('[EditSpacePanel] Error fetching share link:', error);
-    }
-  };
-
-  // Handle copy share link
-  const copyShareLink = async () => {
-    if (!shareLink) return;
-
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      setCopiedShareLink(true);
-
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: {
-            message: 'Link copied to clipboard',
-            type: 'success',
-          },
-        })
-      );
-
-      setTimeout(() => setCopiedShareLink(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy:', error);
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: {
-            message: 'Failed to copy link',
-            type: 'error',
-          },
-        })
-      );
     }
   };
 
@@ -1404,136 +1376,33 @@ export default function EditSpacePanel({
                   ))}
                 </div>
 
-                {/* Space type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, selectedType: 'Private' }));
-                        saveTypeChange('Private');
-                      }}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        formData.selectedType === 'Private'
-                          ? ''
-                          : 'bg-transparent'
-                      }`}
-                      style={formData.selectedType === 'Private' ? {
-                        backgroundImage: 'var(--color-gradient-gray)'
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon 
-                            name="user" 
-                            size={16} 
-                            style={{ 
-                              color: formData.selectedType === 'Private' 
-                                ? 'var(--color-deep-grey)' 
-                                : 'var(--color-pebble-grey)' 
-                            }} 
-                          />
-                        </div>
-                        <span 
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            formData.selectedType === 'Private' 
-                              ? 'text-[var(--color-deep-grey)]' 
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-                    
-                    {/* Shared button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
-                        saveTypeChange('Shared');
-                      }}
-                      className={`space-button button-group__button button-group__button--right h-[64px] ${
-                        formData.selectedType === 'Shared'
-                          ? ''
-                          : 'bg-transparent'
-                      }`}
-                      style={formData.selectedType === 'Shared' ? {
-                        backgroundImage: 'var(--color-gradient-gray)'
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon
-                            name="user-group"
-                            size={16}
-                            style={{
-                              color: formData.selectedType === 'Shared'
-                                ? 'var(--color-deep-grey)'
-                                : 'var(--color-pebble-grey)'
-                            }}
-                          />
-                        </div>
-                        <span
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            formData.selectedType === 'Shared'
-                              ? 'text-[var(--color-deep-grey)]'
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Shared
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                {/* Space visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={formData.selectedType === 'Shared'}
+                  shareUrl={shareLink}
+                  onToggle={async (enabled) => {
+                    if (!enabled && memberCount > 1) {
+                      // Going Shared → Private with other people in the space: show confirmation
+                      setShowMakePrivateDialog(true);
+                    } else {
+                      const type = enabled ? 'Shared' : 'Private';
+                      setFormData(prev => ({ ...prev, selectedType: type }));
+                      await saveTypeChange(type);
+                    }
+                  }}
+                  onRefresh={generateNewShareLink}
+                  isLoading={isGeneratingLink}
+                  isEditMode={true}
+                  privateTriggerLabel="Only I can see this space"
+                  sharedTriggerLabel="Shared with anyone with the link"
+                  privateOptionLabel="Only I can see this space"
+                  sharedOptionLabel="Turn on sharing with link to anyone"
+                />
 
-                {/* Shared Mode: Show share link (simplified like ThreadVisibilityDropdown) */}
+                {/* Member count (shown when Shared) */}
                 {formData.selectedType === 'Shared' && (
-                  <div className="w-full shrink-0">
-                    {/* Share Link UI */}
-                    {isOwner && shareLink && (
-                      <div className="thread-visibility-dropdown__sharing-ui" style={{ padding: '0.75rem 1rem', background: 'var(--color-snow-white)', borderRadius: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {/* Shareable URL Input */}
-                        <div className="thread-visibility-dropdown__link-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.75rem', background: 'var(--color-gradient-gray)', borderRadius: '1.5rem' }}>
-                          <input
-                            type="text"
-                            readOnly
-                            value={shareLink}
-                            className="thread-visibility-dropdown__link-input"
-                            style={{ flex: 1, minWidth: 0, border: 'none', background: 'transparent', fontSize: '0.875rem', lineHeight: '1.25rem', color: 'var(--color-deep-grey)', outline: 'none', textOverflow: 'ellipsis', fontFamily: 'var(--font-sans)' }}
-                            onClick={(e) => (e.target as HTMLInputElement).select()}
-                          />
-                          <ButtonSmall
-                            type="button"
-                            onClick={copyShareLink}
-                            disabled={false}
-                            state="Default"
-                          >
-                            {copiedShareLink ? 'Copied' : 'Copy'}
-                          </ButtonSmall>
-                        </div>
-
-                        {/* Generate New Link Button */}
-                        <button
-                          type="button"
-                          onClick={generateNewShareLink}
-                          disabled={isGeneratingLink}
-                          className="btn-cta btn--secondary"
-                        >
-                          <span className="btn-cta__content">
-                            {isGeneratingLink ? 'Generating...' : 'Generate a New Sharable Link'}
-                          </span>
-                          <div className="btn-cta__shadow" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Simple member count info */}
-                    <div className="text-center py-4 text-[var(--color-stone-grey)] text-[14px]">
-                      {memberCount} {memberCount === 1 ? 'person' : 'people'} in this space
-                    </div>
+                  <div className="text-center py-2 text-[var(--color-stone-grey)] text-[14px]">
+                    {memberCount} {memberCount === 1 ? 'person' : 'people'} in this space
                   </div>
                 )}
 
@@ -1627,6 +1496,20 @@ export default function EditSpacePanel({
         </div>
       </div>
 
+      <ConfirmDialog
+        isOpen={showMakePrivateDialog}
+        title="Make this space private?"
+        message={`This space has ${memberCount - 1} ${memberCount - 1 === 1 ? 'person' : 'people'} in it. Making it private means they'll lose access to this space.`}
+        confirmLabel="Make Private"
+        cancelLabel="Keep Shared"
+        confirmDestructive={true}
+        onConfirm={async () => {
+          setShowMakePrivateDialog(false);
+          setFormData(prev => ({ ...prev, selectedType: 'Private' }));
+          await saveTypeChange('Private');
+        }}
+        onCancel={() => setShowMakePrivateDialog(false)}
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { createSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import TabNav from './TabNav';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
   id: string;
@@ -874,84 +875,21 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   ))}
                 </div>
                 
-                {/* Space type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedType('Private')}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        selectedType === 'Private' 
-                          ? '' 
-                          : 'bg-transparent'
-                      }`}
-                      style={selectedType === 'Private' ? { 
-                        backgroundImage: 'var(--color-gradient-gray)' 
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon 
-                            name="user" 
-                            size={16} 
-                            style={{ 
-                              color: selectedType === 'Private' 
-                                ? 'var(--color-deep-grey)' 
-                                : 'var(--color-pebble-grey)' 
-                            }} 
-                          />
-                        </div>
-                        <span 
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            selectedType === 'Private' 
-                              ? 'text-[var(--color-deep-grey)]' 
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-                    
-                    {/* Shared button */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedType('Shared')}
-                      className={`space-button button-group__button button-group__button--right h-[64px] ${
-                        selectedType === 'Shared'
-                          ? ''
-                          : 'bg-transparent'
-                      }`}
-                      style={selectedType === 'Shared' ? {
-                        backgroundImage: 'var(--color-gradient-gray)'
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon
-                            name="user-group"
-                            size={16}
-                            style={{
-                              color: selectedType === 'Shared'
-                                ? 'var(--color-deep-grey)'
-                                : 'var(--color-pebble-grey)'
-                            }}
-                          />
-                        </div>
-                        <span
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            selectedType === 'Shared'
-                              ? 'text-[var(--color-deep-grey)]'
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Shared
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                {/* Space visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={selectedType === 'Shared'}
+                  shareUrl={null}
+                  onToggle={async (enabled) => {
+                    setSelectedType(enabled ? 'Shared' : 'Private');
+                  }}
+                  isLoading={isSubmitting}
+                  isEditMode={false}
+                  privateTriggerLabel="Only I can see this space"
+                  sharedTriggerLabel="Shared with anyone with the link"
+                  privateOptionLabel="Only I can see this space"
+                  sharedOptionLabel="Turn on sharing with link to anyone"
+                  shareNotReadyLabel="Share link will be available after creating the space"
+                />
 
                 {/* Selected Items - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
