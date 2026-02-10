@@ -353,6 +353,10 @@ export default function NoteSharePanel({
       </div>
 
       <style>{`
+        .note-share-panel .panel__content {
+          padding-bottom: 12px;
+          gap: 12px;
+        }
         .note-share-panel .panel__content::after {
           height: 0;
         }
@@ -361,7 +365,7 @@ export default function NoteSharePanel({
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
-          margin-bottom: 1rem;
+          margin-bottom: 0;
         }
 
         .note-share-panel__option {

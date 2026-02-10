@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Icon from './Icon';
 import { generateThreadMeshGradient } from '@/utils/colors';
+import { idToUrl } from '@/utils/url-helpers';
 
 interface CardNoteProps {
   variant?: "default" | "withImage";
@@ -322,7 +323,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       return (
                         <a
                           key={index}
-                          href={`/${ref.noteId}`}
+                          href={idToUrl(ref.noteId)}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click, but allow link navigation
                           }}
@@ -612,7 +613,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       return (
                         <a
                           key={index}
-                          href={`/${ref.noteId}`}
+                          href={idToUrl(ref.noteId)}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click, but allow link navigation
                           }}

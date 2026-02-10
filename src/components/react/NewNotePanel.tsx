@@ -109,6 +109,8 @@ export default function NewNotePanel({
   const threadHeaderRef = useRef<HTMLDivElement>(null);
   const cardStackInnerRef = useRef<HTMLDivElement>(null);
   const cardStackContentRef = useRef<HTMLDivElement>(null);
+  const [cardOverflowing, setCardOverflowing] = useState(false);
+  const [cardHasScrolledDown, setCardHasScrolledDown] = useState(false);
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
@@ -298,11 +300,15 @@ export default function NewNotePanel({
     setContent: form.setContent,
   });
 
-  // Handle editor ready callback - focus the editor when it's initialized
+  // Handle editor ready callback - focus the editor when it's initialized (desktop only).
+  // On mobile (pointer: coarse) we skip auto-focus so the toolbar doesn't show until the user taps.
   const handleEditorReady = (editor: any) => {
     if (!editor) return;
 
     editorRef.current = editor;
+    const isTouchPrimary = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (isTouchPrimary) return;
+
     setTimeout(() => {
       // Check if editor is still valid (not destroyed)
       if (!editor || editor.isDestroyed) return;
@@ -615,6 +621,30 @@ export default function NewNotePanel({
     };
   }, [showUnsavedDialog]);
 
+  // Top gradient on card scroll: check overflow and track scroll (same smart treatment as TiptapEditor)
+  useEffect(() => {
+    if (!cardStackInnerRef.current) return;
+    const el = cardStackInnerRef.current;
+    const checkOverflow = () => {
+      if (cardStackInnerRef.current) {
+        const inner = cardStackInnerRef.current;
+        setCardOverflowing(inner.scrollHeight > inner.clientHeight);
+        setCardHasScrolledDown(inner.scrollTop > 0);
+      }
+    };
+    checkOverflow();
+    const timer = setTimeout(checkOverflow, 50);
+    const updateScrollState = () => {
+      if (!cardStackInnerRef.current) return;
+      setCardHasScrolledDown(cardStackInnerRef.current.scrollTop > 0);
+    };
+    el.addEventListener('scroll', updateScrollState);
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener('scroll', updateScrollState);
+    };
+  }, [form.noteType, form.content.length]);
+
   // Handle panel close
   const handleClose = () => {
     try {
@@ -828,11 +858,15 @@ export default function NewNotePanel({
           // Select the existing thread
           threadSelection.handleThreadSelect(existingThread.title);
         } else {
-          // Create the thread
+          // Create the thread - use color from pending thread if set via combobox color picker
+          const pendingThread = threadSelection.threadOptions.find(
+            (t) => t.id.startsWith('pending_') && t.title.trim().toLowerCase() === trimmedName.toLowerCase()
+          );
+          const threadColor = pendingThread?.color ?? 'paper';
           const formData = new FormData();
           formData.set('title', trimmedName);
           formData.set('isPublic', 'false');
-          formData.set('color', 'paper'); // New threads from dropdown use paper color
+          formData.set('color', threadColor);
           formData.set('spaceId', currentSpace?.id || '');
 
           const response = await fetch('/api/threads/create', {
@@ -1159,7 +1193,7 @@ export default function NewNotePanel({
                     setSuggestedThreadName(editedName.trim());
                   }
                 }}
-                onCreateThread={async (threadName: string) => {
+                onCreateThread={async (threadName: string, color?: string) => {
                   const trimmedName = threadName.trim();
                   if (!trimmedName) return;
 
@@ -1176,13 +1210,13 @@ export default function NewNotePanel({
                   }
 
                   setPendingThreadName(trimmedName);
-                  
+                  const threadColor = color ?? 'paper';
                   const pendingThread: Thread = {
                     id: `pending_${Date.now()}`,
                     title: trimmedName,
                     noteCount: 0,
-                    backgroundGradient: getThreadGradientCSS('paper'),
-                    color: 'paper',
+                    backgroundGradient: getThreadGradientCSS(threadColor),
+                    color: threadColor,
                   };
 
                   threadSelection.setThreadOptions((prev) => {
@@ -1212,6 +1246,17 @@ export default function NewNotePanel({
               {/* Card Content */}
               <div ref={cardStackContentRef} className="card-stack__content">
                 <div ref={cardStackInnerRef} className="card-stack__inner">
+                  {/* Top gradient: shorter (36px) so visual fade matches CardFullEditable; card-stack__inner has 12px padding so 48px covered too much text */}
+                  {cardOverflowing && cardHasScrolledDown && (
+                    <div
+                      className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                      style={{
+                        height: '36px',
+                        background: 'linear-gradient(to top, transparent, white)',
+                      }}
+                      aria-hidden="true"
+                    />
+                  )}
                   <div className="card-stack__inner-content">
                     {/* Template Selector - Show for default note type */}
                     {form.noteType === 'default' && (

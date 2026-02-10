@@ -62,7 +62,10 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
       return;
     }
 
+    let syncCleanup: (() => void) | undefined;
+
     initializeSync(userId)
+      .then(cleanup => { syncCleanup = cleanup; })
       .catch(err => {
         const errorMessage = err?.message || String(err);
         // Silently ignore AUTH_NOT_READY errors (auth still loading)
@@ -72,6 +75,8 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
       });
 
     setHasInitialized(true);
+
+    return () => { syncCleanup?.(); };
   }, [userId, hasInitialized]);
 
   // Coordinate online recovery - single point of handling 'online' events

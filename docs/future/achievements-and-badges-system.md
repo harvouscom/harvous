@@ -1,7 +1,7 @@
 # Achievements and Badges System
 
 **Status:** Future Feature  
-**Last Updated:** January 2026
+**Last Updated:** February 2026
 
 ---
 
@@ -9,19 +9,16 @@
 
 Expand the current achievements panel to include a comprehensive badges and milestones system that gamifies user engagement and celebrates their Bible study journey. This builds on the existing XP system and milestone tracking already partially implemented.
 
-## Current State
+## Current State (Reference)
 
-The achievements system currently shows:
-- ✅ Seasonal XP and Lifetime XP totals
-- ✅ Past seasons history
-- ✅ Basic XP milestones (100, 500, 1K, 5K, 10K, 25K, 50K)
-- ⏳ "Milestones and Badges coming soon" placeholder
+For what is **currently** implemented—season date ranges, seasonal vs lifetime XP, past seasons, and the achievements panel—see **[XP and Achievements](../XP_AND_ACHIEVEMENTS.md)** in `docs/`. That doc also documents the calendar boundaries for each XP season (Spring, Summer, Fall, Winter).
 
-**Existing Infrastructure:**
+**Existing infrastructure this plan builds on:**
 - XP tracking system (`UserXP`, `UserSeasonalXP`, `UserLifetimeXP` tables)
 - Activity types tracked: sessions, creation bonuses, church added, monthly attendance, weekly streaks
 - Milestone checking function (`checkLifetimeMilestones()`)
 - Achievements API endpoint (`/api/user/achievements`)
+- UI placeholder: “Milestones and Badges coming soon”
 
 ## Proposed Badge Categories
 

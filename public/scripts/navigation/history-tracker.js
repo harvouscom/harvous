@@ -1,5 +1,16 @@
 // Simple Navigation History - Clean and Working
 
+// URL helpers for new /thread/ID format (standalone — can't import ES modules)
+function _histPathToId(pathname) {
+  if (!pathname) return null;
+  var match = pathname.match(/^\/(thread|note|space)\/(.+)$/);
+  if (match) return match[1] + '_' + match[2];
+  // Fallback: old format /thread_abc → thread_abc
+  var id = pathname.startsWith('/') ? pathname.substring(1) : pathname;
+  if (id.startsWith('thread_') || id.startsWith('note_') || id.startsWith('space_')) return id;
+  return null;
+}
+
 // Helper to check if error is quota exceeded
 function isQuotaExceededError(error) {
   if (!error) return false;
@@ -321,8 +332,8 @@ function getThreadContextFromReferrer() {
       const referrerPath = new URL(referrer).pathname;
       
       // Only extract thread context from actual thread pages
-      if (referrerPath.includes('/thread_')) {
-        const threadId = referrerPath.split('/').pop();
+      if (referrerPath.startsWith('/thread/')) {
+        const threadId = _histPathToId(referrerPath);
         if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
           return threadId;
         }
@@ -338,7 +349,7 @@ function getThreadContextFromReferrer() {
 // Track navigation access
 function trackNavigationAccess() {
   const currentPath = window.location.pathname;
-  const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+  const currentItemId = _histPathToId(currentPath) || '';
 
 
   // Skip dashboard and empty paths

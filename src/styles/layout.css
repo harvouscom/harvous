@@ -43,6 +43,13 @@
   min-height: 0;
 }
 
+/* Allow dropdown shadow to extend outside nav column (no left/right clipping) */
+@media (min-width: 1160px) {
+  .desktop-layout > .layout-column:first-child {
+    overflow: visible;
+  }
+}
+
 /* ==========================================================================
    Mobile Layout
    ========================================================================== */
@@ -83,6 +90,11 @@
   padding-left: 0.75rem;
   padding-right: 0.75rem;
   flex-shrink: 0;
+}
+
+/* When footer is dismissed (e.g. edit mode), collapse so the 12px gap is removed */
+.mobile-layout.mobile-layout--no-footer .mobile-additional {
+  display: none;
 }
 
 .mobile-bottom-sheet {

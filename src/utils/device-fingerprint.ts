@@ -164,45 +164,31 @@ function hashString(str: string): string {
 }
 
 /**
- * Generate complete device fingerprint (optimized: runs async fingerprints in parallel)
+ * Screen size bucket: stable across orientation, zoom, resize (reduces fingerprint volatility)
  */
-async function generateDeviceFingerprint(skipAudio: boolean = false): Promise<string> {
-  // Run async fingerprints in parallel for faster generation (15-50ms improvement)
-  const [canvasFingerprint, webglFingerprint, audioFingerprint] = await Promise.all([
-    getCanvasFingerprint(),
-    getWebGLFingerprint(),
-    skipAudio ? Promise.resolve('audio-skipped') : getAudioFingerprint()
-  ]);
+function getScreenBucket(): string {
+  if (typeof screen === 'undefined') return 'unknown';
+  const min = Math.min(screen.width, screen.height);
+  return min < 768 ? 'mobile' : 'desktop';
+}
+
+/**
+ * Generate complete device fingerprint (stabilized: no audio/WebGL/PWA in hash, screen bucketed)
+ */
+async function generateDeviceFingerprint(_skipAudio?: boolean): Promise<string> {
+  const canvasFingerprint = await getCanvasFingerprint();
 
   const components = [
-    // Stable browser/device identifiers
     navigator.userAgent,
-    `${screen.width}x${screen.height}`,
-    screen.colorDepth.toString(),
+    getScreenBucket(),
     navigator.language,
     Intl.DateTimeFormat().resolvedOptions().timeZone,
     navigator.hardwareConcurrency?.toString() || 'unknown',
-
-    // Canvas fingerprint (stable, privacy-friendly)
     canvasFingerprint,
-
-    // WebGL fingerprint
-    webglFingerprint,
-
-    // Audio context fingerprint (skip for returning visitors to save 0-300ms)
-    audioFingerprint,
-
-    // Storage availability
     typeof Storage !== 'undefined' ? 'storage' : 'no-storage',
-
-    // PWA mode
-    isPWAMode() ? 'pwa' : 'web',
-
-    // Platform
     navigator.platform,
   ];
 
-  // Combine and hash
   const combined = components.join('|');
 
   // Use SHA-256 if available (more secure), otherwise use simple hash
@@ -328,7 +314,7 @@ export async function getOrCreateDeviceId(skipAudio: boolean = false): Promise<s
       lastSeen: Date.now(),
       isPWA: isPWAMode(),
       userAgent: navigator.userAgent,
-      screenResolution: `${screen.width}x${screen.height}`,
+      screenResolution: getScreenBucket(),
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       language: navigator.language,
       version: 1,

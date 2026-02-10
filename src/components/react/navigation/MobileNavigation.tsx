@@ -9,6 +9,7 @@ import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { safeGetItem } from '@/utils/safe-storage';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
 /**
  * Check if Clerk authentication is ready
@@ -136,60 +137,61 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   }, [spaces]);
 
   // Best-effort fallback: derive the active thread from DOM (for timing / View Transition cases)
+  // Defined at component level so handleThreadUpdated (in a separate useEffect) can call it
+  const readActiveThreadFromDom = useCallback(() => {
+    try {
+      const path = window.location.pathname || '/';
+      const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
+
+      // Note page: parent thread data
+      if (itemId.startsWith('note_')) {
+        const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+        const parentThreadId = noteEl?.dataset?.parentThreadId ?? null;
+        if (!parentThreadId || !parentThreadId.startsWith('thread_')) {
+          setActiveThreadFromDom(null);
+          return;
+        }
+        setActiveThreadFromDom({
+          id: parentThreadId,
+          title: noteEl?.dataset?.parentThreadTitle || 'Thread',
+          noteCount: parseInt(noteEl?.dataset?.parentThreadCount || '0'),
+          backgroundGradient: noteEl?.dataset?.parentThreadBackgroundGradient || getThreadGradientCSS('paper'),
+          spaceId: noteEl?.dataset?.parentThreadSpaceId || undefined,
+        });
+        return;
+      }
+
+      // Thread page: thread data from navigation dataset (best available)
+      if (itemId.startsWith('thread_')) {
+        // Try multiple selectors to find thread data (desktop and mobile)
+        const navEl =
+          (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
+          (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
+          (document.querySelector(`[data-thread-id="${itemId}"]`) as HTMLElement | null) ??
+          (document.querySelector(`[data-navigation-item="${itemId}"]`) as HTMLElement | null);
+        const threadId = navEl?.dataset?.threadId ?? itemId;
+        if (!threadId || !threadId.startsWith('thread_')) {
+          setActiveThreadFromDom(null);
+          return;
+        }
+        setActiveThreadFromDom({
+          id: threadId,
+          title: navEl?.dataset?.threadTitle || navEl?.dataset?.title || 'Thread',
+          noteCount: parseInt(navEl?.dataset?.threadNoteCount || '0'),
+          backgroundGradient: navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient || getThreadGradientCSS('paper'),
+          spaceId: (navEl?.dataset?.threadSpaceId as string | undefined) ?? undefined,
+        });
+        return;
+      }
+
+      setActiveThreadFromDom(null);
+    } catch {
+      setActiveThreadFromDom(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
-    const readActiveThreadFromDom = () => {
-      try {
-        const path = window.location.pathname || '/';
-        const itemId = path.startsWith('/') ? path.slice(1) : path;
-
-        // Note page: parent thread data
-        if (itemId.startsWith('note_')) {
-          const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
-          const parentThreadId = noteEl?.dataset?.parentThreadId ?? null;
-          if (!parentThreadId || !parentThreadId.startsWith('thread_')) {
-            setActiveThreadFromDom(null);
-            return;
-          }
-          setActiveThreadFromDom({
-            id: parentThreadId,
-            title: noteEl?.dataset?.parentThreadTitle || 'Thread',
-            noteCount: parseInt(noteEl?.dataset?.parentThreadCount || '0'),
-            backgroundGradient: noteEl?.dataset?.parentThreadBackgroundGradient || getThreadGradientCSS('paper'),
-            spaceId: noteEl?.dataset?.parentThreadSpaceId || undefined,
-          });
-          return;
-        }
-
-        // Thread page: thread data from navigation dataset (best available)
-        if (itemId.startsWith('thread_')) {
-          // Try multiple selectors to find thread data (desktop and mobile)
-          const navEl =
-            (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
-            (document.querySelector('[slot="navigation"]') as HTMLElement | null) ??
-            (document.querySelector(`[data-thread-id="${itemId}"]`) as HTMLElement | null) ??
-            (document.querySelector(`[data-navigation-item="${itemId}"]`) as HTMLElement | null);
-          const threadId = navEl?.dataset?.threadId ?? itemId;
-          if (!threadId || !threadId.startsWith('thread_')) {
-            setActiveThreadFromDom(null);
-            return;
-          }
-          setActiveThreadFromDom({
-            id: threadId,
-            title: navEl?.dataset?.threadTitle || navEl?.dataset?.title || 'Thread',
-            noteCount: parseInt(navEl?.dataset?.threadNoteCount || '0'),
-            backgroundGradient: navEl?.dataset?.threadBackgroundGradient || navEl?.dataset?.backgroundGradient || getThreadGradientCSS('paper'),
-            spaceId: (navEl?.dataset?.threadSpaceId as string | undefined) ?? undefined,
-          });
-          return;
-        }
-
-        setActiveThreadFromDom(null);
-      } catch {
-        setActiveThreadFromDom(null);
-      }
-    };
 
     readActiveThreadFromDom();
     document.addEventListener('astro:page-load', readActiveThreadFromDom);
@@ -198,7 +200,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       document.removeEventListener('astro:page-load', readActiveThreadFromDom);
       document.removeEventListener('astro:after-swap', readActiveThreadFromDom);
     };
-  }, []);
+  }, [readActiveThreadFromDom]);
 
   // Determine text color - pastel colors use dark text for visibility
   const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
@@ -242,14 +244,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   // Initialize current item ID on mount (component is client-only, so window is always available)
   useEffect(() => {
-    setCurrentItemId(window.location.pathname.substring(1));
+    setCurrentItemId(extractIdFromPath(window.location.pathname) || window.location.pathname.substring(1));
   }, []);
 
   // Listen for page changes to update current item
   useEffect(() => {
     const handlePageLoad = () => {
       // Update current item ID when page changes
-      const newPath = window.location.pathname.substring(1);
+      const newPath = extractIdFromPath(window.location.pathname) || window.location.pathname.substring(1);
       setCurrentItemId(newPath);
 
       // If we navigated to a space route, make that the selected space.
@@ -292,8 +294,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       } catch {
         // ignore
       }
-      if (path.startsWith('/space_')) {
-        setSelectedSpaceId(path.substring(1));
+      const spaceId = extractIdFromPath(path);
+      if (spaceId && spaceId.startsWith('space_')) {
+        setSelectedSpaceId(spaceId);
       }
     };
 
@@ -453,7 +456,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       // Determine which thread to update
       // Use eventThreadId if available, otherwise check currentThread, otherwise check URL
       const path = window.location.pathname || '/';
-      const itemId = path.startsWith('/') ? path.slice(1) : path;
+      const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
       const threadIdToCheck = eventThreadId || currentThread?.id || (itemId.startsWith('thread_') ? itemId : null);
       
       // If we have a threadId from event and it doesn't match current thread, skip
@@ -557,7 +560,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return () => {
       window.removeEventListener('threadUpdated', handleThreadUpdated);
     };
-  }, [currentThread]);
+  }, [currentThread, readActiveThreadFromDom]);
 
   // Update localSpaces when a space is updated (for dropdown and other space lists)
   useEffect(() => {
@@ -609,7 +612,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       // Determine which space to update
       // Use eventSpaceId if available, otherwise check currentSpace, selectedSpaceId, or URL
       const path = window.location.pathname || '/';
-      const itemId = path.startsWith('/') ? path.slice(1) : path;
+      const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
       const spaceIdToCheck = eventSpaceId || currentSpace?.id || selectedSpaceId || (itemId.startsWith('space_') ? itemId : null);
       
       // Update updatedCurrentSpace if the space matches currentSpace OR selectedSpaceId
@@ -748,7 +751,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     const readActiveSpaceFromDom = () => {
       try {
         const path = window.location.pathname || '/';
-        const itemId = path.startsWith('/') ? path.slice(1) : path;
+        const itemId = extractIdFromPath(path) || (path.startsWith('/') ? path.slice(1) : path);
 
         // Space page: space data
         if (itemId.startsWith('space_')) {
@@ -1187,12 +1190,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
         <div className="space-switcher-anchor space-switcher-anchor--mobile">
-          {/* Main button - always wrapped in <a> to avoid hydration mismatch, conditionally navigable */}
+          {/* Main button - navigates to thread when on note, else to space/home (no need to open sheet) */}
           <a
-            href={isNote && currentThread ? `/${currentThread.id}` : undefined}
+            href={isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/')}
             className="nav-link"
             style={{ display: 'block', width: '100%' }}
-            onClick={isNote && currentThread ? undefined : (e) => { e.preventDefault(); openSheet(); }}
           >
             <SpaceButton
               as="div"
@@ -1258,10 +1260,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               <div className="mobile-nav__dropdown-header">
                 <div className="mobile-nav__dropdown-header-row">
                   <div className="space-switcher-anchor space-switcher-anchor--mobile">
-                    {/* Main button - navigates to space/home when not active, toggles panel when active */}
-                    {topSpaceIsActive ? (
+                    {/* Main button - always navigates to space/home (matches desktop); sort icon opens switch panel */}
+                    <a 
+                      href={selectedSpaceId ? idToUrl(selectedSpaceId) : '/'}
+                      className="nav-link"
+                      style={{ display: 'block', width: '100%' }}
+                      onClick={() => closeSheet()}
+                    >
                       <SpaceButton 
                         key={spaceButtonKey}
+                        as="div"
                         text={selectedSpaceLabel}
                         count={selectedSpaceCount}
                         state="WithCount"
@@ -1269,28 +1277,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         backgroundGradient={selectedSpaceBackground}
                         isActive={topSpaceIsActive}
                         hideDropdownIcon={true}
-                        onClick={() => setIsSpacePanelOpen((v) => !v)}
                       />
-                    ) : (
-                      <a 
-                        href={selectedSpaceId ? `/${selectedSpaceId}` : '/'}
-                        className="nav-link"
-                        style={{ display: 'block', width: '100%' }}
-                        onClick={() => closeSheet()}
-                      >
-                        <SpaceButton 
-                          key={spaceButtonKey}
-                          as="div"
-                          text={selectedSpaceLabel}
-                          count={selectedSpaceCount}
-                          state="WithCount"
-                          rightAccessory="none"
-                          backgroundGradient={selectedSpaceBackground}
-                          isActive={topSpaceIsActive}
-                          hideDropdownIcon={true}
-                        />
-                      </a>
-                    )}
+                    </a>
                     {/* Toggle button - opens/closes space picker panel */}
                     <button
                       type="button"
@@ -1332,7 +1320,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       return (
                         <a
                           key={s.id}
-                          href={`/${s.id}`}
+                          href={idToUrl(s.id)}
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
                           onClick={() => {
                             setSelectedSpaceId(s.id);
@@ -1396,7 +1384,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           return (
                             <a
                               key={s.id}
-                              href={`/${s.id}`}
+                              href={idToUrl(s.id)}
                               className="mobile-nav__space-panel-item"
                               onClick={() => {
                                 setSelectedSpaceId(s.id);
@@ -1452,8 +1440,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;
                       const threadHref =
                         typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
-                          ? `/${thread.id}?space=${encodeURIComponent(selectedSpaceId)}`
-                          : `/${thread.id}`;
+                          ? `${idToUrl(thread.id)}?space=${encodeURIComponent(selectedSpaceId)}`
+                          : idToUrl(thread.id);
                       return (
                         <div key={thread.id} className="nav-item-container group w-full">
                           <a

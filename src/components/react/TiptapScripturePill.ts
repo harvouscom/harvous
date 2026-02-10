@@ -1,6 +1,7 @@
 import { Mark } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from 'prosemirror-state';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
 /**
  * Helper function to detect the current thread context from the page
@@ -20,12 +21,12 @@ function getCurrentThreadContext(): string | null {
   }
   
   const pathname = window.location.pathname;
-  if (pathname && pathname !== '/' && !pathname.includes('/dashboard') && 
+  if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
       !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
-    const threadId = pathname.substring(1); 
-    if (threadId && threadId !== 'dashboard' && 
-        !threadId.startsWith('note_') && !threadId.startsWith('space_')) {
-      return threadId;
+    const itemId = extractIdFromPath(pathname);
+    if (itemId && itemId !== 'dashboard' &&
+        !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
+      return itemId;
     }
   }
   
@@ -136,7 +137,9 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     }
 
     // Always use cursor: pointer to indicate interactivity, even for pending pills
-    const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;';
+    // No min-height — let the pill's height be determined by the same line-height as
+    // surrounding text so lines with pills don't have different spacing.
+    const baseStyle = 'background-color: var(--color-paper); border-radius: 12px; padding: 2px 8px; display: inline-flex; align-items: baseline; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;';
 
     return [
       'span',
@@ -219,6 +222,31 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
 
   addProseMirrorPlugins() {
     return [
+      // Safety net: strip scripturePill from stored marks when cursor is after a pill
+      // This prevents the mark from "sticking" to newly typed text
+      new Plugin({
+        key: new PluginKey('scripturePillStoredMarks'),
+        appendTransaction(transactions, oldState, newState) {
+          const { selection, storedMarks } = newState;
+          if (!storedMarks) return null;
+
+          const hasPillMark = storedMarks.some(m => m.type.name === 'scripturePill');
+          if (!hasPillMark) return null;
+
+          // Cursor is about to type with pill mark — check if we're actually inside a pill
+          const $from = selection.$from;
+          const marksAtCursor = $from.marks();
+          const insidePill = marksAtCursor.some(m => m.type.name === 'scripturePill');
+
+          // If cursor is NOT inside a pill, the stored marks shouldn't include pill
+          if (!insidePill) {
+            const cleaned = storedMarks.filter(m => m.type.name !== 'scripturePill');
+            return newState.tr.setStoredMarks(cleaned);
+          }
+
+          return null;
+        },
+      }),
       new Plugin({
         key: new PluginKey('scripturePillActions'),
         props: {
@@ -237,8 +265,7 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
               return true; 
             }
 
-            const threadId = getCurrentThreadContext();
-            const url = threadId ? `/${threadId}/note_${noteId}` : `/note_${noteId}`;
+            const url = idToUrl(`note_${noteId}`, getCurrentThreadContext() || undefined);
             safeNavigate(url);
             return true;
           },

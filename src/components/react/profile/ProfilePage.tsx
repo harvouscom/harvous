@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/utils/toast';
 import { clearCachedProfileData, updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
+import { clearSessionBackup } from '@/utils/clerk-session-backup';
 
 // Import panel components
 import EditNameColorPanel from '@/components/react/EditNameColorPanel';
@@ -14,6 +15,7 @@ import ManageBillingPanel from '@/components/react/ManageBillingPanel';
 import ReferralPanel from '@/components/react/ReferralPanel';
 import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
 import LockPinPanel from '@/components/react/LockPinPanel';
+import MySharingPanel from '@/components/react/MySharingPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -45,7 +47,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -72,27 +74,26 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const handleLogout = async (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
-    
+
     try {
+      // Clear session backup so it doesn't outlive the session (reduces stale "new device" flows)
+      const userId = typeof window !== 'undefined' && (window as any).Clerk?.user?.id;
+      await clearSessionBackup(userId || undefined);
+
       // Clear local storage before sign-out
       sessionStorage.removeItem('userProfileData');
-      
+
       // Clear unified profile cache
       clearCachedProfileData();
-      
+
       // Use Clerk's built-in signOut with redirectUrl
-      // This handles the sign-out and redirect automatically
-      // @ts-ignore
-      if (window.Clerk && window.Clerk.signOut) {
-        // @ts-ignore
-        await window.Clerk.signOut({ redirectUrl: '/sign-in' });
+      if ((window as any).Clerk?.signOut) {
+        await (window as any).Clerk.signOut({ redirectUrl: '/sign-in' });
       } else {
-        // Fallback if Clerk isn't loaded
         window.location.href = '/sign-in';
       }
     } catch (error) {
       console.error('Logout failed:', error);
-      // Fallback redirect on error
       window.location.href = '/sign-in';
     }
   };
@@ -340,6 +341,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <EmailPasswordPanel />;
       case 'myChurch':
         return <MyChurchPanel initialChurchData={churchData} />;
+      case 'mySharing':
+        return <MySharingPanel />;
       case 'mySpaces':
         return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} />;
       case 'myData':

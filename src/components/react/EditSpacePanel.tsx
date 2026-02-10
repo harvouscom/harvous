@@ -8,6 +8,7 @@ import TabNav from './TabNav';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 import ConfirmDialog from './dialogs/ConfirmDialog';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { idToUrl } from '@/utils/url-helpers';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { updateSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -1414,7 +1415,7 @@ export default function EditSpacePanel({
                       {currentSpaceThreads.map(thread => (
                         <div key={thread.id} className="relative group">
                           <a
-                            href={`/${thread.id}`}
+                            href={idToUrl(thread.id)}
                             className="block"
                             aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                           >
@@ -1438,7 +1439,7 @@ export default function EditSpacePanel({
                       {currentSpaceNotes.map(note => (
                         <div key={note.id} className="relative group">
                           <a
-                            href={`/${note.id}`}
+                            href={idToUrl(note.id)}
                             className="block"
                             aria-label={`View note: ${note.title || 'Untitled note'}`}
                           >

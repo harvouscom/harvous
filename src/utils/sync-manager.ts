@@ -791,6 +791,8 @@ export async function enqueueMutation(userId: string, operation: Omit<SyncOperat
       timestamp: Date.now(),
       retryCount: 0,
     });
+    // Immediately push changes instead of waiting for next poll interval
+    triggerImmediateSync(userId);
   } catch (error) {
     console.error('Error enqueuing mutation:', error);
     throw error;
@@ -1210,13 +1212,63 @@ export async function needsBootstrap(userId: string): Promise<boolean> {
   }
 }
 
+// Module-level state for managing the background sync loop
+let _bgSyncInterval: number | null = null;
+let _bgSyncIntervalMs: number = 300000;
+let _bgSyncFn: (() => Promise<void>) | null = null;
+let _bgSyncCleanup: (() => void) | null = null;
+let _immediateSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Trigger a debounced push-only sync after mutations.
+ *
+ * Instead of calling syncNow() (pull + push = 2 API calls) on every single
+ * enqueueMutation, this debounces with a 2-second window and only pushes
+ * (1 API call). Pulls happen on the next background interval or tab visibility change.
+ *
+ * Example: creating a note fires 2 enqueueMutation calls (note + noteThread).
+ * Without debounce: 2 full syncNow() = 4 API calls.
+ * With debounce: 1 pushQueue() after 2s = 1 API call.
+ */
+export function triggerImmediateSync(userId: string): void {
+  if (!navigator.onLine || document.visibilityState === 'hidden') return;
+
+  // Debounce: batch mutations within 2 seconds into a single push
+  if (_immediateSyncTimeout) {
+    clearTimeout(_immediateSyncTimeout);
+  }
+
+  _immediateSyncTimeout = setTimeout(async () => {
+    _immediateSyncTimeout = null;
+    try {
+      // Push-only (1 API call) instead of syncNow which does pull+push (2 API calls)
+      // Pull happens on the next background interval or when tab becomes visible
+      await pushQueue(userId);
+    } catch (err) {
+      console.error('[triggerImmediateSync] Error:', err);
+    }
+    // Reset background interval timer so next poll is a full interval from now
+    if (_bgSyncInterval !== null && _bgSyncFn) {
+      clearInterval(_bgSyncInterval);
+      _bgSyncInterval = window.setInterval(_bgSyncFn, _bgSyncIntervalMs);
+    }
+  }, 2000);
+}
+
 /**
  * Start background sync loop
  */
-export function startBackgroundSync(userId: string, intervalMs: number = 30000): () => void {
-  let syncInterval: number | null = null;
+export function startBackgroundSync(userId: string, intervalMs: number = 300000): () => void {
+  // Clean up any existing sync loop to prevent duplicates
+  if (_bgSyncCleanup) {
+    _bgSyncCleanup();
+  }
+
+  _bgSyncIntervalMs = intervalMs;
 
   const sync = async () => {
+    // Skip sync when tab is not visible to save serverless invocations
+    if (document.visibilityState === 'hidden') return;
     if (navigator.onLine) {
       try {
         await syncNow(userId);
@@ -1226,11 +1278,26 @@ export function startBackgroundSync(userId: string, intervalMs: number = 30000):
     }
   };
 
+  _bgSyncFn = sync;
+
   // Initial sync
   sync();
 
   // Set up interval
-  syncInterval = window.setInterval(sync, intervalMs);
+  _bgSyncInterval = window.setInterval(sync, intervalMs);
+
+  // Sync when tab becomes visible again (user returns to the app)
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      sync();
+      // Reset interval so next poll is a full interval from now
+      if (_bgSyncInterval !== null) {
+        clearInterval(_bgSyncInterval);
+        _bgSyncInterval = window.setInterval(sync, intervalMs);
+      }
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
 
   // Also sync on online event - with delay to ensure connection is stable
   let onlineTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -1249,14 +1316,25 @@ export function startBackgroundSync(userId: string, intervalMs: number = 30000):
   window.addEventListener('online', handleOnline);
 
   // Return cleanup function
-  return () => {
-    if (syncInterval !== null) {
-      clearInterval(syncInterval);
+  const cleanup = () => {
+    if (_bgSyncInterval !== null) {
+      clearInterval(_bgSyncInterval);
+      _bgSyncInterval = null;
     }
     if (onlineTimeout) {
       clearTimeout(onlineTimeout);
     }
     window.removeEventListener('online', handleOnline);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    if (_immediateSyncTimeout) {
+      clearTimeout(_immediateSyncTimeout);
+      _immediateSyncTimeout = null;
+    }
+    _bgSyncFn = null;
+    _bgSyncCleanup = null;
   };
+
+  _bgSyncCleanup = cleanup;
+  return cleanup;
 }
 

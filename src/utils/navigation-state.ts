@@ -3,6 +3,7 @@
 
 import { db, Threads, Notes, NoteThreads, eq, and, ne, count, desc } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
+import { extractIdFromPath, detectEntityTypeFromPath } from "./url-helpers";
 
 export interface ActiveThread {
   id: string;
@@ -57,8 +58,9 @@ export async function getThreadContext(threadId: string, userId: string): Promis
 export async function detectActiveThreadFromPath(currentPath: string, userId: string): Promise<ActiveThread | null> {
   try {
     // Check if we're currently on a thread page
-    if (currentPath.includes('/thread_') || currentPath.match(/^\/[a-zA-Z0-9_-]+$/)) {
-      const threadId = currentPath.split('/').pop();
+    const entityType = detectEntityTypeFromPath(currentPath);
+    if (entityType === 'thread') {
+      const threadId = extractIdFromPath(currentPath);
       if (threadId && threadId !== 'dashboard' && threadId !== 'sign-in' && threadId !== 'sign-up') {
         // Special handling for unorganized thread
         if (threadId === 'thread_unorganized') {
@@ -82,8 +84,8 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
     }
     
     // Check if we're currently on a note page that belongs to a thread
-    if (currentPath.includes('/note_')) {
-      const noteId = currentPath.split('/').pop();
+    if (entityType === 'note') {
+      const noteId = extractIdFromPath(currentPath);
       if (noteId) {
         // Get note's threads from junction table (single source of truth)
         const noteThreads = await db.select({
@@ -114,7 +116,7 @@ export async function detectActiveThreadFromPath(currentPath: string, userId: st
     
     // For dashboard and space pages, don't show a specific thread context
     // This allows the mobile navigation to show "My Home" as the default
-    if (currentPath === '/' || currentPath.includes('/space_')) {
+    if (currentPath === '/' || entityType === 'space') {
       return null;
     }
     

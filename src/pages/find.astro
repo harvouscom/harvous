@@ -18,6 +18,7 @@ import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, 
 import { getThreadColorCSS } from "@/utils/colors";
 import { getInboxCount, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
 import { stripHtml } from "@/utils/html-stripper";
+import { idToUrl } from "@/utils/url-helpers";
 
 // Helper function to format relative time (same as dashboard)
 function formatRelativeTime(date: Date): string {
@@ -536,17 +537,17 @@ if (query.trim()) {
                   searchResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
                       {item.type === 'note' && item.noteType === 'scripture' ? (
-                        <CondensedNoteItem 
+                        <CondensedNoteItem
                           title={item.title || "Untitled Note"}
                           noteType={item.noteType || 'default'}
-                          href={`/${item.noteId}`}
+                          href={idToUrl(item.noteId)}
                           threadColors={item.threadColors}
                           noteId={item.noteId}
                           client:visible
                         />
                       ) : (
-                        <a 
-                          href={item.type === 'thread' ? `/${item.threadId}` : `/${item.noteId}`}
+                        <a
+                          href={item.type === 'thread' ? idToUrl(item.threadId) : idToUrl(item.noteId)}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
                         >
                           {item.type === 'note' ? (
@@ -593,17 +594,17 @@ if (query.trim()) {
                   notesResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
                       {item.noteType === 'scripture' ? (
-                        <CondensedNoteItem 
+                        <CondensedNoteItem
                           title={item.title || "Untitled Note"}
                           noteType={item.noteType || 'default'}
-                          href={`/${item.noteId}`}
+                          href={idToUrl(item.noteId)}
                           threadColors={item.threadColors}
                           noteId={item.noteId}
                           client:visible
                         />
                       ) : (
-                        <a 
-                          href={`/${item.noteId}`}
+                        <a
+                          href={idToUrl(item.noteId)}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
                         >
                           <CardNote 
@@ -639,8 +640,8 @@ if (query.trim()) {
                 {threadsResults.length > 0 ? (
                   threadsResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
-                      <a 
-                        href={`/${item.threadId}`}
+                      <a
+                        href={idToUrl(item.threadId)}
                         class="block transition-transform duration-200 hover:scale-[1.002]"
                       >
                         <CardThread 

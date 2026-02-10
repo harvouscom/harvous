@@ -31,7 +31,7 @@ export interface NavigationCache {
 }
 
 const CACHE_KEY = 'harvous_navigation_cache';
-const CACHE_DURATION = 30 * 1000; // 30 seconds
+const CACHE_DURATION = 120 * 1000; // 2 minutes (matches server stale-while-revalidate)
 const NAVIGATION_API_URL = '/api/navigation/data';
 
 /**

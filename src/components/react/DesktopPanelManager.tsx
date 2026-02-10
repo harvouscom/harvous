@@ -47,6 +47,7 @@ const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPane
 const ManageBillingPanel = createLazyComponent(() => import('./ManageBillingPanel'), 'ManageBillingPanel');
 const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'ReferralPanel');
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
+const MySharingPanel = createLazyComponent(() => import('./MySharingPanel'), 'MySharingPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
@@ -71,6 +72,7 @@ type PanelType =
   | 'mySpaces'
   | 'myAchievements'
   | 'myChurch'
+  | 'mySharing'
   | 'editNameColor'
   | 'emailPassword'
   | 'manageBilling'
@@ -123,6 +125,8 @@ type PanelAction =
   | { type: 'CLOSE_MY_ACHIEVEMENTS' }
   | { type: 'OPEN_MY_CHURCH' }
   | { type: 'CLOSE_MY_CHURCH' }
+  | { type: 'OPEN_MY_SHARING' }
+  | { type: 'CLOSE_MY_SHARING' }
   | { type: 'OPEN_EDIT_NAME_COLOR' }
   | { type: 'CLOSE_EDIT_NAME_COLOR' }
   | { type: 'OPEN_EMAIL_PASSWORD' }
@@ -240,6 +244,17 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_MY_SHARING':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'mySharing');
+      return { activePanel: 'mySharing', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_SHARING':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_EDIT_NAME_COLOR':
       localStorage.setItem('showNewNotePanel', 'false');
       localStorage.setItem('showNewThreadPanel', 'false');
@@ -330,6 +345,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'mySpaces' ||
           savedProfilePanel === 'myAchievements' ||
           savedProfilePanel === 'myChurch' ||
+          savedProfilePanel === 'mySharing' ||
           savedProfilePanel === 'editNameColor' ||
           savedProfilePanel === 'emailPassword' ||
           savedProfilePanel === 'manageBilling' ||
@@ -529,6 +545,7 @@ export default function DesktopPanelManager({
       if (panelName === 'mySpaces') dispatch({ type: 'OPEN_MY_SPACES' });
       else if (panelName === 'myAchievements') dispatch({ type: 'OPEN_MY_ACHIEVEMENTS' });
       else if (panelName === 'myChurch') dispatch({ type: 'OPEN_MY_CHURCH' });
+      else if (panelName === 'mySharing') dispatch({ type: 'OPEN_MY_SHARING' });
       else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
       else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
       else if (panelName === 'manageBilling') dispatch({ type: 'OPEN_MANAGE_BILLING' });
@@ -662,6 +679,11 @@ export default function DesktopPanelManager({
 
   const handleCloseMyChurch = useCallback(() => {
     dispatch({ type: 'CLOSE_MY_CHURCH' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseMySharing = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_SHARING' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -916,6 +938,16 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <MyChurchPanel key={`my-church-${state.panelKey}`} onClose={handleCloseMyChurch} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'mySharing' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MySharingPanel key={`my-sharing-${state.panelKey}`} onClose={handleCloseMySharing} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

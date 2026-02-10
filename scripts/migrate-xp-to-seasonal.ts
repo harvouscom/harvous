@@ -155,14 +155,9 @@ async function migrateXPToSeasonal() {
   }
 }
 
-// Run migration
-migrateXPToSeasonal()
-  .then(() => {
-    console.log('Migration script completed successfully');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('Migration script failed:', error);
-    process.exit(1);
-  });
+// Default export for: npx astro db execute scripts/migrate-xp-to-seasonal.ts [--remote]
+export default async function () {
+  await migrateXPToSeasonal();
+  console.log('Migration script completed successfully');
+}
 

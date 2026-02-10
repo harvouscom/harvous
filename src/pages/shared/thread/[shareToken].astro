@@ -5,11 +5,10 @@ import CardStack from "@/components/CardStack.astro";
 import CardNote from "@/components/react/CardNote";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import Button from "@/components/Button.astro";
-import { Fragment } from "astro/jsx-runtime";
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
-import { type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
 
@@ -56,9 +55,8 @@ if (!shareToken || !isValidShareToken(shareToken)) {
   if (!thread) {
     error = 'not_found';
   } else {
-    // Set cache headers for successful thread fetch
-    // Public shared content - longer cache since it rarely changes
-    Astro.response.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+    // Set cache headers so link previews (messages, etc.) get fresh HTML and correct og:image when thread color/title changes
+    Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 
     // Fetch notes for the thread via junction table
     notes = await db.select({
@@ -72,7 +70,7 @@ if (!shareToken || !isValidShareToken(shareToken)) {
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(eq(NoteThreads.threadId, thread.id))
+    .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.contentEncrypted, false)))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
@@ -114,10 +112,15 @@ if (!shareToken || !isValidShareToken(shareToken)) {
 // Get thread color for styling
 const threadColor = (thread?.color || 'blue') as ThreadColor;
 
-// Construct URLs for Open Graph
+// Thread color must match filename: thread-{color}.png (e.g. blue → thread-blue.png)
+const validThreadColors = new Set(THREAD_COLORS);
+const rawColor = thread?.color?.trim().toLowerCase();
+const safeOgColor = rawColor && validThreadColors.has(rawColor as ThreadColor) ? rawColor : 'paper';
+
+// Construct URLs for Open Graph (thread color name = filename after hyphen, e.g. blue → thread-blue.png)
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
-const ogImageUrl = `${siteUrl}/api/og/thread/${shareToken}`;
+const ogImageUrl = `${siteUrl}/og/thread-${safeOgColor}.png`;
 
 // Prepare meta data
 const ogTitle = thread?.title ? `${thread.title} | Shared Thread` : 'Shared Thread';

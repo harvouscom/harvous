@@ -735,11 +735,11 @@ export default function SpaceContentList({
       if (isSpacePage && isMountedRef.current) {
         // Check if we came from a thread or note page
         const referrer = document.referrer;
-        const cameFromThreadOrNote = referrerMatchesPattern('/thread_') || referrerMatchesPattern('/note_');
+        const cameFromThreadOrNote = referrerMatchesPattern('/thread/') || referrerMatchesPattern('/note/');
 
         // Also check if previous pathname was a thread/note (for View Transitions scenarios)
-        const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
-                                        previousPathnameRef.current.startsWith('/note_');
+        const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread/') || 
+                                        previousPathnameRef.current.startsWith('/note/');
 
         // Always refresh when navigating TO the space (to get fresh data with updated lastVisited)
         // Also refresh when coming from thread/note (to update lastVisited sorting)
@@ -831,10 +831,10 @@ export default function SpaceContentList({
       const dataIsStale = isStaleData(initialItems, (item) => item.lastVisited);
 
       const referrer = document.referrer;
-      const cameFromThreadOrNote = referrerMatchesPattern('/thread_') || referrerMatchesPattern('/note_');
+      const cameFromThreadOrNote = referrerMatchesPattern('/thread/') || referrerMatchesPattern('/note/');
 
-      const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
-                                      previousPathnameRef.current.startsWith('/note_');
+      const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread/') || 
+                                      previousPathnameRef.current.startsWith('/note/');
 
       // Refresh if: PWA context, stale data, or coming from thread/note
       if (inPWA || dataIsStale || cameFromThreadOrNote || previousWasThreadOrNote) {

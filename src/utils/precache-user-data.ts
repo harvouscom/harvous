@@ -1,12 +1,14 @@
 /**
  * Pre-caching utility for offline reading
  * Pre-caches user's recent notes, threads, and spaces for offline access
- * 
+ *
  * Features:
  * - Delayed start to ensure server is ready
  * - Retry logic with exponential backoff
  * - Non-blocking and fail-graceful
  */
+
+import { idToUrl } from './url-helpers';
 
 import { safeFetch, isAuthReady } from './safe-fetch';
 import { getPersistedUserId } from './user-id';
@@ -73,7 +75,7 @@ async function cacheUrls(urls: string[], cacheName: string = 'harvous-cache-v6',
  * Pre-cache individual note pages
  */
 async function precacheNotePages(noteIds: string[]): Promise<number> {
-  const urls = noteIds.map(id => `/${id}`);
+  const urls = noteIds.map(id => idToUrl(id));
   return cacheUrls(urls);
 }
 
@@ -81,7 +83,7 @@ async function precacheNotePages(noteIds: string[]): Promise<number> {
  * Pre-cache individual thread pages
  */
 async function precacheThreadPages(threadIds: string[]): Promise<number> {
-  const urls = threadIds.map(id => `/${id}`);
+  const urls = threadIds.map(id => idToUrl(id));
   return cacheUrls(urls);
 }
 
@@ -89,7 +91,7 @@ async function precacheThreadPages(threadIds: string[]): Promise<number> {
  * Pre-cache individual space pages
  */
 async function precacheSpacePages(spaceIds: string[]): Promise<number> {
-  const urls = spaceIds.map(id => `/${id}`);
+  const urls = spaceIds.map(id => idToUrl(id));
   return cacheUrls(urls);
 }
 

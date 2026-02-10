@@ -6,6 +6,7 @@ import AddToSpaceSection from './AddToSpaceSection';
 import { captureException } from '@/utils/posthog';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { safeURL } from '@/utils/safe-url';
 import Icon from './Icon';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
@@ -425,7 +426,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
             // Redirect to the newly created space
             if (result.space && result.space.id) {
-              const redirectUrl = `/${result.space.id}`;
+              const redirectUrl = idToUrl(result.space.id);
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {
                 safeNavigate(redirectUrl, { history: 'replace' });
@@ -903,7 +904,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                           return (
                             <div key={thread.id} className="relative group">
                               <a 
-                                href={`/${thread.id}`}
+                                href={idToUrl(thread.id)}
                                 className="block"
                                 aria-label={`View thread: ${thread.title || 'Untitled thread'}`}
                               >
@@ -926,7 +927,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                           return (
                             <div key={note.id} className="relative group">
                               <a 
-                                href={`/${note.id}`}
+                                href={idToUrl(note.id)}
                                 className="block"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >

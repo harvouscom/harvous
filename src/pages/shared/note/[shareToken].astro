@@ -2,7 +2,6 @@
 export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardFullEditable from "@/components/react/CardFullEditable";
-import { Fragment } from "astro/jsx-runtime";
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { ClientRouter } from "astro:transitions";
@@ -52,9 +51,8 @@ if (!shareToken || !isValidShareToken(shareToken)) {
   if (!note) {
     error = 'not_found';
   } else {
-    // Set cache headers for successful note fetch
-    // Public shared content - longer cache since it rarely changes
-    Astro.response.headers.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
+    // Set cache headers so link previews get fresh HTML and correct og:image when note/title changes
+    Astro.response.headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
 
     // Fetch scripture metadata if it's a scripture note
     if (note.noteType === 'scripture') {
@@ -128,10 +126,11 @@ const formatDate = (date: Date | null) => {
   }).format(new Date(date));
 };
 
-// Construct URLs for Open Graph
+// Construct URLs for Open Graph (static image by note type; fallback default when missing/error)
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
-const ogImageUrl = `${siteUrl}/api/og/note/${shareToken}`;
+const ogNoteType = note?.noteType === 'scripture' ? 'scripture' : 'default';
+const ogImageUrl = `${siteUrl}/og/note-${ogNoteType}.png`;
 
 // Prepare meta data
 const ogTitle = note?.title ? `${note.title} | Shared Note` : 'Shared Note';

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
@@ -88,6 +89,7 @@ export default function CardFullEditable({
   const contentDisplayRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
   const shouldFocusEditorRef = useRef(false);
+  const contentClickCoordsRef = useRef<{ contentX: number; contentY: number } | null>(null);
   const saveChangesRef = useRef<() => void>(() => {});
   const [scrollPosition, setScrollPosition] = useState(0);
   const [parentThreadId, setParentThreadId] = useState<string | undefined>(undefined);
@@ -98,6 +100,9 @@ export default function CardFullEditable({
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
+  const [contentOverflowing, setContentOverflowing] = useState(false);
+  const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
+  const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
 
   // Initialize display content
   useEffect(() => {
@@ -143,6 +148,45 @@ export default function CardFullEditable({
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
   }, [noteId]);
+
+  // Top/bottom gradient: check if content area is overflowing and update scroll state (display mode only)
+  useEffect(() => {
+    if (isContentEditing || !contentDisplayRef.current) return;
+    const checkOverflow = () => {
+      if (contentDisplayRef.current) {
+        const el = contentDisplayRef.current;
+        setContentOverflowing(el.scrollHeight > el.clientHeight);
+        const { scrollTop, scrollHeight, clientHeight } = el;
+        setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+      }
+    };
+    checkOverflow();
+    const timer = setTimeout(checkOverflow, 50);
+    return () => clearTimeout(timer);
+  }, [isContentEditing, displayContent, resourceDescription]);
+
+  // Top/bottom gradient: track scroll position (display mode only)
+  useEffect(() => {
+    if (isContentEditing || !contentDisplayRef.current) return;
+    const el = contentDisplayRef.current;
+    const updateScrollState = () => {
+      if (!contentDisplayRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = contentDisplayRef.current;
+      setContentHasScrolledDown(scrollTop > 0);
+      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+    };
+    el.addEventListener('scroll', updateScrollState);
+    updateScrollState();
+    return () => el.removeEventListener('scroll', updateScrollState);
+  }, [isContentEditing, displayContent, resourceDescription]);
+
+  // Notify layout (e.g. MobileAdditional) to hide footer when in edit mode
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: isContentEditing } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: false } }));
+    };
+  }, [isContentEditing]);
 
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
@@ -475,39 +519,51 @@ export default function CardFullEditable({
     if (!editor) return;
     
     editorInstanceRef.current = editor;
-    // Focus if we should focus the editor
+    // Focus and set cursor at click position when switching from view to edit
     if (shouldFocusEditorRef.current) {
       shouldFocusEditorRef.current = false;
+      const coords = contentClickCoordsRef.current;
+      contentClickCoordsRef.current = null;
+      const savedScroll = scrollPosition;
+
+      // Restore scroll first so posAtCoords sees the same viewport as the user
+      const scrollEl = editor.view?.dom?.closest?.('.tiptap-content') as HTMLElement | null;
+      if (scrollEl && savedScroll > 0) {
+        scrollEl.scrollTop = savedScroll;
+      }
+
+      // Wait for layout after scroll, then map content-relative coords to viewport and set cursor
       requestAnimationFrame(() => {
-        // Check if editor is still valid (not destroyed)
-        if (!editor || editor.isDestroyed) return;
-        
-        // Check if view and docView are still valid
-        if (!editor.view || !editor.view.docView) return;
-        
-        try {
-          editor.commands.focus();
-          // Determine cursor position based on content
+        requestAnimationFrame(() => {
+          if (!editor || editor.isDestroyed || !editor.view?.docView) return;
           try {
+            editor.commands.focus();
             const doc = editor.state.doc;
-            const textContent = doc.textContent.trim();
-            const isEmpty = textContent.length === 0;
-            
-            if (isEmpty) {
-              // For empty content, place cursor at start (position 1)
-              // Position 1 is after the document start, at the beginning of the first paragraph
-              editor.commands.setTextSelection(1);
-            } else {
-              // For content with text, place cursor at end to avoid getting stuck on scripture pills
-              const endPos = doc.content.size;
-              editor.commands.setTextSelection(endPos);
+            const maxPos = doc.content.size;
+            try {
+              if (coords && scrollEl && editor.view.posAtCoords) {
+                const rect = scrollEl.getBoundingClientRect();
+                const viewportX = rect.left + coords.contentX - scrollEl.scrollLeft;
+                const viewportY = rect.top + coords.contentY - scrollEl.scrollTop;
+                const result = editor.view.posAtCoords({ left: viewportX, top: viewportY });
+                const pos = result?.pos;
+                if (typeof pos === 'number' && pos >= 1 && pos <= maxPos) {
+                  editor.commands.setTextSelection(pos);
+                } else {
+                  const isEmpty = doc.textContent.trim().length === 0;
+                  editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
+                }
+              } else {
+                const isEmpty = doc.textContent.trim().length === 0;
+                editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
+              }
+            } catch (e) {
+              // If setting selection fails, just focus
             }
           } catch (e) {
-            // If setting selection fails, just focus
+            // Ignore errors during focus
           }
-        } catch (e) {
-          // Ignore errors during focus
-        }
+        });
       });
     }
     // Note: Scripture detection is handled by TiptapEditor's useEffect
@@ -524,7 +580,7 @@ export default function CardFullEditable({
 
   // Helper function to render save/cancel buttons
   const renderSaveCancelButtons = (paddingClass: string = 'px-3') => (
-    <div className={`flex items-center gap-2 mt-4 mb-3 shrink-0 ${paddingClass}`}>
+    <div className={`flex items-center gap-2 mt-3 mb-3 shrink-0 ${paddingClass}`}>
       {/* Character counter - only show when editing title */}
       {isTitleEditing && isTitleFocused && editTitle.length >= TITLE_SOFT_LIMIT && (
         <div 
@@ -756,11 +812,11 @@ export default function CardFullEditable({
         // Navigate to the linked note
         e.preventDefault();
         e.stopPropagation();
-        safeNavigate(`/${noteId}`, { history: 'push' });
+        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
         return;
       }
     }
-    
+
     // Check if click is on a scripture pill
     const pillElement = target.closest('.scripture-pill');
     
@@ -782,7 +838,7 @@ export default function CardFullEditable({
           const result = await getOrCreateScriptureNote(reference, parentThreadId);
 
           if (result.noteId) {
-            safeNavigate(`/${result.noteId}`, { history: 'push' });
+            safeNavigate(idToUrl(result.noteId, parentThreadId), { history: 'push' });
           } else {
             // Show error toast if creation failed
             window.dispatchEvent(new CustomEvent('toast', {
@@ -806,7 +862,7 @@ export default function CardFullEditable({
 
       // Fallback: If we have noteId but no reference, navigate directly
       if (noteId && noteId !== 'pending') {
-        safeNavigate(`/${noteId}`, { history: 'push' });
+        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
         return;
       }
 
@@ -822,6 +878,16 @@ export default function CardFullEditable({
     
     // If not a note-link or scripture pill, enter edit mode (if editable)
     if (effectiveIsEditable) {
+      const displayEl = contentDisplayRef.current;
+      if (displayEl) {
+        const rect = displayEl.getBoundingClientRect();
+        contentClickCoordsRef.current = {
+          contentX: e.clientX - rect.left + displayEl.scrollLeft,
+          contentY: e.clientY - rect.top + displayEl.scrollTop,
+        };
+      } else {
+        contentClickCoordsRef.current = { contentX: e.clientX, contentY: e.clientY };
+      }
       startEditing('content');
     }
   };
@@ -1010,20 +1076,28 @@ export default function CardFullEditable({
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
-              <div 
-                ref={contentDisplayRef}
-                className="flex-1 overflow-auto rounded px-3"
-                style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
-                onClick={handleContentClick}
-              >
-                {effectiveContent && effectiveContent.trim() ? (
-                  <div 
-                    className="card-image-link__content-text"
-                    dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
+              <div className="relative flex-1 min-h-0 flex flex-col">
+                {contentOverflowing && contentHasScrolledDown && (
+                  <div
+                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
                   />
-                ) : (
-                  <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
                 )}
+                <div
+                  ref={contentDisplayRef}
+                  className={`flex-1 overflow-auto rounded px-3 ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                  style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
+                  onClick={handleContentClick}
+                >
+                  {effectiveContent && effectiveContent.trim() ? (
+                    <div 
+                      className="card-image-link__content-text"
+                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
+                    />
+                  ) : (
+                    <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="flex-1 flex flex-col min-h-0" style={{ width: '100%' }}>
@@ -1200,7 +1274,13 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden', paddingTop: 12 }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+                {contentOverflowing && contentHasScrolledDown && (
+                  <div
+                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
+                  />
+                )}
                 {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
                   <div ref={contentDisplayRef} className="flex flex-col shrink-0">
                     {noteId != null ? (
@@ -1212,7 +1292,7 @@ export default function CardFullEditable({
                 ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto rounded"
+                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
@@ -1220,7 +1300,7 @@ export default function CardFullEditable({
                 ) : (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto rounded"
+                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >

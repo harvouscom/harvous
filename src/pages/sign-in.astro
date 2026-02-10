@@ -98,6 +98,11 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 <!-- PWA auth + session backup (bundled; no /src/ requests in production) -->
 <script type="module">
   import { initializePWAAuth, setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
+  import { clearSessionBackup } from '@/utils/clerk-session-backup';
+
+  if (typeof window !== 'undefined') {
+    window['__harvousClearSessionBackup'] = clearSessionBackup;
+  }
 
   // Session backup listener runs immediately (no performance impact)
   setupClerkSessionBackupListener();
@@ -141,7 +146,12 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       if (!fromLogout) return;
 
       if (window.Clerk && window.Clerk.signOut) {
-        window.Clerk.signOut().then(function() {
+        var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
+          ? window.__harvousClearSessionBackup()
+          : Promise.resolve();
+        clearPromise.then(function() {
+          return window.Clerk.signOut();
+        }).then(function() {
           try {
             sessionStorage.clear();
             localStorage.removeItem('userProfileData');

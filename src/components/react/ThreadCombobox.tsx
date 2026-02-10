@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import SearchInput from './SearchInput';
 import ActionButton from './ActionButton';
+import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 
 interface Thread {
   id: string;
@@ -22,7 +24,7 @@ interface ThreadComboboxProps {
   placeholder?: string;
   suggestedThreadIds?: string[];
   suggestedThreadName?: string | null;
-  onCreateThread?: (threadName: string) => void;
+  onCreateThread?: (threadName: string, color?: ThreadColor | string) => void;
   onSuggestedThreadNameChange?: (threadName: string) => void;
   /** When true, hide the trigger button and render only the dropdown (controlled by parent). */
   triggerless?: boolean;
@@ -59,8 +61,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const createThreadInputRef = useRef<HTMLInputElement>(null);
+  const createThreadAccentBarRef = useRef<HTMLButtonElement>(null);
+  const colorDropdownRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [hasScrolledDown, setHasScrolledDown] = useState(false);
+  const [createThreadColor, setCreateThreadColor] = useState<ThreadColor>('paper');
+  const [colorDropdownOpen, setColorDropdownOpen] = useState(false);
 
   useEffect(() => {
     const isTouch =
@@ -72,6 +78,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
 
   const open = triggerless ? externalIsOpen : internalOpen;
   const setOpen = (value: boolean) => {
+    if (!value) setColorDropdownOpen(false);
     if (!triggerless) setInternalOpen(value);
     if (triggerless && !value && externalOnClose) externalOnClose();
   };
@@ -96,6 +103,25 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
       setCreateThreadName('');
     }
   }, [searchValue]);
+
+  // Close color dropdown on outside click (bar and color panel are "inside")
+  useEffect(() => {
+    if (!colorDropdownOpen) return;
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (
+        createThreadAccentBarRef.current?.contains(target) ||
+        colorDropdownRef.current?.contains(target)
+      ) return;
+      setColorDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
+    };
+  }, [colorDropdownOpen]);
 
   // Filter threads based on search
   const filteredThreads = threads.filter(thread =>
@@ -214,10 +240,12 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
     if (e.key === 'Enter') {
       e.preventDefault();
       if (createThreadName.trim()) {
-        onCreateThread?.(createThreadName.trim());
+        onCreateThread?.(createThreadName.trim(), createThreadColor);
         setOpen(false);
         setSearchValue('');
         setCreateThreadName('');
+        setCreateThreadColor('paper');
+        setColorDropdownOpen(false);
       }
       return;
     }
@@ -255,7 +283,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
   const dropdownContent = open ? (
     <div
       ref={dropdownRef}
-      className="border max-h-[300px] overflow-hidden flex flex-col"
+      className="border max-h-[400px] overflow-hidden flex flex-col"
       style={{
         borderTopLeftRadius: '24px',
         borderTopRightRadius: '24px',
@@ -296,14 +324,25 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             style={{ touchAction: 'manipulation', minHeight: 44, cursor: 'text' }}
             onClick={(e) => {
               const input = (e.currentTarget as HTMLElement).querySelector('input');
-              if (input instanceof HTMLInputElement) input.focus();
+              if (input instanceof HTMLInputElement) input.focus({ preventScroll: true });
             }}
             onTouchEnd={(e) => {
               const input = (e.currentTarget as HTMLElement).querySelector('input');
               if (input instanceof HTMLInputElement) {
                 e.preventDefault();
-                input.focus();
+                input.focus({ preventScroll: true });
               }
+            }}
+            onFocus={() => {
+              // Prevent iOS keyboard from scrolling/jumping the dropdown.
+              // The dropdown is absolutely positioned inside card-stack__content,
+              // so the browser's auto-scroll-into-view on focus causes a jump.
+              requestAnimationFrame(() => {
+                const wrapper = dropdownRef.current;
+                if (!wrapper) return;
+                let scrollable: Element | null = wrapper.closest('.card-stack__content') || wrapper.closest('.card-stack__inner');
+                if (scrollable) scrollable.scrollTop = 0;
+              });
             }}
             role="button"
             tabIndex={-1}
@@ -321,16 +360,16 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
           <div className="relative">
             {/* Gradient overlay at top - only show when overflowing and scrolled down */}
             {isOverflowing && hasScrolledDown && (
-              <div 
-                className="absolute top-0 left-0 right-0 h-12 pointer-events-none z-10"
+              <div
+                className="absolute top-0 left-0 right-0 h-8 pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(to top, transparent, var(--color-snow-white))'
+                  background: 'linear-gradient(to bottom, var(--color-snow-white) 0%, transparent 100%)'
                 }}
               />
             )}
             <div
               ref={scrollContainerRef}
-              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto rounded-b-[24px]"
+              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto"
               style={{ touchAction: 'pan-y' }}
             >
               <style>{`
@@ -394,9 +433,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           if (e.key === 'Enter') {
                             e.preventDefault();
                             if (editedThreadName.trim()) {
-                              onCreateThread(editedThreadName.trim());
+                              onCreateThread(editedThreadName.trim(), createThreadColor);
                               setOpen(false);
                               setSearchValue('');
+                              setCreateThreadColor('paper');
+                              setColorDropdownOpen(false);
                             }
                           }
                         }}
@@ -421,9 +462,11 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                       variant="Add"
                       onClick={() => {
                         if (editedThreadName.trim()) {
-                          onCreateThread(editedThreadName.trim());
+                          onCreateThread(editedThreadName.trim(), createThreadColor);
                           setOpen(false);
                           setSearchValue('');
+                          setCreateThreadColor('paper');
+                          setColorDropdownOpen(false);
                         }
                       }}
                       disabled={!editedThreadName.trim()}
@@ -540,110 +583,183 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
               )
             )}
             
-            {/* Create Thread option - always visible at bottom when onCreateThread is available */}
-            {shouldShowCreateFromSearch && (
-              <div
-                className="relative group"
-                style={{
-                  animation: 'fadeIn 0.3s ease-out forwards',
-                  opacity: 0
-                }}
-              >
-                <div
-                  className="relative rounded-xl h-[48px] w-full overflow-hidden"
-                  style={{
-                    backgroundColor: 'white',
-                    boxShadow: 'none'
-                  }}
-                >
-                  {/* Accent bar on left - matches thread rows */}
-                  <div 
-                    className="absolute inset-y-0 left-0 w-11 rounded-l-xl" 
-                    style={{ backgroundColor: 'var(--color-paper)' }}
-                  />
-                  
-                  {/* Content - matches thread row styling */}
-                  <div className="flex items-center gap-6 pl-3 pr-3 h-full">
-                    {/* Wand magic sparkles icon - same as suggested thread */}
-                    <div className="relative shrink-0 size-5">
-                      <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 576 512">
-                        <path d="M234.7 42.7L197 56.8c-3 1.1-5 4-5 7.2s2 6.1 5 7.2l37.7 14.1L248.8 123c1.1 3 4 5 7.2 5s6.1-2 7.2-5l14.1-37.7L315 71.2c3-1.1 5-4 5-7.2s-2-6.1-5-7.2L277.3 42.7 263.2 5c-1.1-3-4-5-7.2-5s-6.1 2-7.2 5L234.7 42.7zM46.1 395.4c-18.7 18.7-18.7 49.1 0 67.9l34.6 34.6c18.7 18.7 49.1 18.7 67.9 0L529.9 116.5c18.7-18.7 18.7-49.1 0-67.9L495.3 14.1c-18.7-18.7-49.1-18.7-67.9 0L46.1 395.4zM484.6 82.6l-105 105-23.3-23.3 105-105 23.3 23.3zM7.5 117.2C3 118.9 0 123.2 0 128s3 9.1 7.5 10.8L64 160l21.2 56.5c1.7 4.5 6 7.5 10.8 7.5s9.1-3 10.8-7.5L128 160l56.5-21.2c4.5-1.7 7.5-6 7.5-10.8s-3-9.1-7.5-10.8L128 96 106.8 39.5C105.1 35 100.8 32 96 32s-9.1 3-10.8 7.5L64 96 7.5 117.2zm352 256c-4.5 1.7-7.5 6-7.5 10.8s3 9.1 7.5 10.8L416 416l21.2 56.5c1.7 4.5 6 7.5 10.8 7.5s9.1-3 10.8-7.5L480 416l56.5-21.2c4.5-1.7 7.5-6 7.5-10.8s-3-9.1-7.5-10.8L480 352l-21.2-56.5c-1.7-4.5-6-7.5-10.8-7.5s-9.1 3-10.8 7.5L416 352l-56.5 21.2z"/>
-                      </svg>
-                    </div>
-                    
-                    {/* Editable input with create badge - tap-to-focus wrapper for mobile */}
-                    <div
-                      className="flex items-center gap-2 flex-1 min-w-0"
-                      style={{ minHeight: 44, cursor: 'text' }}
-                      onClick={() => createThreadInputRef.current?.focus()}
-                      onTouchEnd={(e) => {
-                        if (createThreadInputRef.current) {
-                          e.preventDefault();
-                          createThreadInputRef.current.focus();
-                        }
-                      }}
-                      role="button"
-                      tabIndex={-1}
-                      aria-label="Focus thread name"
-                    >
-                      <input
-                        ref={createThreadInputRef}
-                        type="text"
-                        value={createThreadName}
-                        onChange={(e) => {
-                          const newValue = e.target.value;
-                          setCreateThreadName(newValue);
-                          setSearchValue(newValue);
-                        }}
-                        onKeyDown={handleCreateThreadNameKeyDown}
-                        className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
-                        placeholder="Thread name..."
-                        style={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
-                      />
-                      
-                      {/* Create badge */}
-                      <span 
-                        className="px-2 py-0.5 rounded-full text-[11px] font-sans font-medium text-[var(--color-stone-grey)] whitespace-nowrap"
-                        style={{ 
-                          backgroundColor: 'var(--color-light-paper)',
-                        }}
-                      >
-                        Create
-                      </span>
-                    </div>
-                    
-                    {/* Confirm button using ActionButton */}
-                    <ActionButton
-                      variant="Add"
-                      onClick={() => {
-                        if (createThreadName.trim()) {
-                          onCreateThread(createThreadName.trim());
-                          setOpen(false);
-                          setSearchValue('');
-                          setCreateThreadName('');
-                        }
-                      }}
-                      disabled={!createThreadName.trim()}
-                      style={{
-                        opacity: createThreadName.trim() ? 1 : 0.5,
-                        cursor: createThreadName.trim() ? 'pointer' : 'not-allowed'
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
             </div>
             {/* Gradient overlay at bottom - only show when overflowing */}
             {isOverflowing && (
-              <div 
-                className="absolute bottom-0 left-0 right-0 h-12 pointer-events-none"
+              <div
+                className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none z-10"
                 style={{
-                  background: 'linear-gradient(to bottom, transparent, var(--color-snow-white))'
+                  background: 'linear-gradient(to top, var(--color-snow-white) 0%, transparent 100%)'
                 }}
               />
             )}
           </div>
+
+          {/* Create Thread row — OUTSIDE scroll container so the color button
+              isn't competing with touch-action: pan-y for touch ownership.
+              This fixes the color picker not opening on iOS PWA standalone. */}
+          {shouldShowCreateFromSearch && (
+            <div
+              className="px-3 pb-3"
+              style={{
+                animation: 'fadeIn 0.3s ease-out forwards',
+                opacity: 0
+              }}
+            >
+              <div
+                className="relative rounded-xl h-[48px] w-full overflow-hidden"
+                style={{
+                  backgroundColor: 'white',
+                  boxShadow: 'none'
+                }}
+              >
+                {/* Accent bar on left */}
+                <div
+                  className="absolute inset-y-0 left-0 z-10 w-11 rounded-l-xl"
+                  style={{ backgroundColor: getThreadColorCSS(createThreadColor) }}
+                  aria-hidden
+                />
+                {/* Color picker button — simple onClick, no touch/pointer gymnastics needed
+                    since this element is outside the scroll container */}
+                <button
+                  ref={createThreadAccentBarRef}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setColorDropdownOpen((prev) => !prev);
+                  }}
+                  className="absolute inset-y-0 left-0 z-20 flex w-11 items-center justify-center rounded-l-xl border-0 bg-transparent cursor-pointer no-underline shadow-none [appearance:none]"
+                  style={{
+                    WebkitTapHighlightColor: 'transparent',
+                    boxShadow: 'none'
+                  }}
+                  aria-label="Choose thread color"
+                >
+                  <Icon
+                    name="layer-group"
+                    size={20}
+                    className="thread-combobox-create-row-icon block max-w-none size-full pointer-events-none"
+                  />
+                </button>
+                {/* Content */}
+                <div
+                  className="relative z-0 flex items-center gap-6 pl-3 pr-3 h-full"
+                  style={{ backgroundColor: 'white' }}
+                >
+                  <div className="shrink-0 size-5" aria-hidden />
+                  {/* Editable input */}
+                  <div
+                    className="flex min-w-0 flex-1 items-center gap-2"
+                    style={{ minHeight: 44, cursor: 'text' }}
+                    onClick={() => createThreadInputRef.current?.focus({ preventScroll: true })}
+                    onTouchEnd={(e) => {
+                      if (createThreadInputRef.current) {
+                        e.preventDefault();
+                        createThreadInputRef.current.focus({ preventScroll: true });
+                      }
+                    }}
+                    role="button"
+                    tabIndex={-1}
+                    aria-label="Focus thread name"
+                  >
+                    <input
+                      ref={createThreadInputRef}
+                      type="text"
+                      value={createThreadName}
+                      onChange={(e) => {
+                        const newValue = e.target.value;
+                        setCreateThreadName(newValue);
+                        setSearchValue(newValue);
+                      }}
+                      onKeyDown={handleCreateThreadNameKeyDown}
+                      onFocus={() => {
+                        // Prevent iOS keyboard from scrolling/jumping the dropdown.
+                        // When the keyboard opens, iOS auto-scrolls the nearest
+                        // scrollable ancestor to bring the input into view — but this
+                        // dropdown is absolutely positioned inside card-stack__content,
+                        // so the scroll causes the whole panel to jump. Resetting
+                        // scrollTop on the next frame keeps it stable.
+                        requestAnimationFrame(() => {
+                          const el = createThreadInputRef.current;
+                          if (!el) return;
+                          let scrollable: Element | null = el.closest('.card-stack__content') || el.closest('.card-stack__inner');
+                          if (scrollable) scrollable.scrollTop = 0;
+                        });
+                      }}
+                      className="flex-1 font-sans font-bold text-[var(--color-deep-grey)] text-[16px] bg-transparent border-none outline-none min-w-0"
+                      placeholder="New thread..."
+                      style={{ touchAction: 'manipulation', WebkitUserSelect: 'text', userSelect: 'text' }}
+                    />
+                  </div>
+
+                  {/* Confirm button */}
+                  <ActionButton
+                    variant="Add"
+                    onClick={() => {
+                      if (createThreadName.trim()) {
+                        onCreateThread(createThreadName.trim(), createThreadColor);
+                        setOpen(false);
+                        setSearchValue('');
+                        setCreateThreadName('');
+                        setCreateThreadColor('paper');
+                        setColorDropdownOpen(false);
+                      }
+                    }}
+                    disabled={!createThreadName.trim()}
+                    style={{
+                      opacity: createThreadName.trim() ? 1 : 0.5,
+                      cursor: createThreadName.trim() ? 'pointer' : 'not-allowed'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Color picker — also outside scroll container */}
+          {colorDropdownOpen && shouldShowCreateFromSearch && (
+            <div className="px-3 pb-3">
+              <div
+                ref={colorDropdownRef}
+                className="color-selection rounded-xl"
+                role="menu"
+                aria-label="Thread color"
+                style={{
+                  backgroundColor: 'var(--color-snow-white)',
+                  border: '1px solid var(--color-fog-white)',
+                  paddingTop: 4,
+                  paddingBottom: 4,
+                  overflowX: 'auto',
+                  overflowY: 'hidden',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+              >
+                {THREAD_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setCreateThreadColor(color);
+                      setColorDropdownOpen(false);
+                    }}
+                    className={`color-swatch shrink-0 flex-none min-w-[2.5rem] ${createThreadColor === color ? 'color-swatch--selected' : ''}`}
+                    style={{ backgroundColor: getThreadColorCSS(color) }}
+                  >
+                    {createThreadColor === color && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Icon
+                          name="check"
+                          size={20}
+                          style={{ color: getThreadTextColorCSS(color) }}
+                        />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
   ) : null;
 

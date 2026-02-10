@@ -234,7 +234,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         if (typeof window === 'undefined') return;
         
         const prefetchCriticalPaths = () => {
-          const paths = ['/', '/new-space', '/find'];
+          const paths = ['/', '/new-space', '/find', '/profile'];
           paths.forEach(path => {
             const link = document.createElement('link');
             link.rel = 'prefetch';
@@ -338,7 +338,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           return element;
         };
         
-        // Suppress specific MIME type errors in console
+        // Suppress specific MIME type errors and hydration noise from extensions (e.g. data-cursor-element-id)
         const originalConsoleError = console.error;
         // @ts-ignore
         console.error = function(...args) {
@@ -347,6 +347,11 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
               (message.includes('Failed to load module script') || 
                message.includes('MIME type'))) {
             console.warn('Development MIME type issue (suppressed):', ...args);
+            return;
+          }
+          // Hydration mismatch caused by extensions (e.g. Cursor adding data-cursor-element-id) before React loads
+          const full = args.map(a => (typeof a === 'string' ? a : String(a))).join(' ');
+          if (full.includes('hydrated but some attributes') && full.includes('data-cursor-element-id')) {
             return;
           }
           originalConsoleError.apply(console, args);
@@ -371,12 +376,12 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   <body
     class={`font-sans bg-[var(--color-light-paper)] ${classNames}`}
   >
-    <ToastProvider client:load />
-    <KeyboardShortcutsInit client:load />
-    <PostHogUserInit client:load userId={userId} userData={userData} />
-    <UpgradeSuccessHandler client:load />
-    <ReferralCreditInit client:load userId={userId} />
-    <SyncManagerIsland client:only="react" userId={userId} />
+    <ToastProvider client:load transition:persist />
+    <KeyboardShortcutsInit client:load transition:persist />
+    <PostHogUserInit client:idle userId={userId} userData={userData} transition:persist />
+    <UpgradeSuccessHandler client:idle />
+    <ReferralCreditInit client:idle userId={userId} />
+    <SyncManagerIsland client:only="react" userId={userId} transition:persist />
 
     <div class="app-layout" transition:animate={fade({ duration: '0.1s' })}>
       <!-- Desktop Layout (1160px and wider) -->
@@ -474,6 +479,21 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         />
       </div>
     </div>
+
+    <!-- Collapse mobile footer area when in edit mode so the 12px gap is removed -->
+    <script is:inline>
+      document.addEventListener('DOMContentLoaded', function() {
+        var layout = document.querySelector('.mobile-layout');
+        if (!layout) return;
+        window.addEventListener('contentEditModeChange', function(e) {
+          if (e.detail && e.detail.editing) {
+            layout.classList.add('mobile-layout--no-footer');
+          } else {
+            layout.classList.remove('mobile-layout--no-footer');
+          }
+        });
+      });
+    </script>
   </body>
 </html>
 
@@ -705,19 +725,19 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
 <!-- Custom Toast event listener (showToast and toast events) -->
 <script>
-  function handleToastEvent(event) {
+  function handleToastEvent(event: CustomEvent<{ message?: string; type?: string }>) {
     const { message, type } = event.detail || {};
-    if (window.toast && type in window.toast) {
-      const toastMethod = window.toast[type];
+    if (window.toast && typeof type === 'string' && type in window.toast) {
+      const toastMethod = (window.toast as Record<string, (m: string) => void>)[type];
       if (typeof toastMethod === 'function') {
-        toastMethod(message);
+        toastMethod(message ?? '');
       }
     } else {
       console.warn('Toast system not available to handle toast event.');
     }
   }
-  window.addEventListener('showToast', handleToastEvent);
-  window.addEventListener('toast', handleToastEvent);
+  window.addEventListener('showToast', handleToastEvent as EventListener);
+  window.addEventListener('toast', handleToastEvent as EventListener);
 </script>
 
 <!-- Note: toast utility is also imported in frontmatter to initialize window.toast -->

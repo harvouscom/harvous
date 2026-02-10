@@ -27,10 +27,11 @@ export default function ActionButton({
   style,
 }: ActionButtonProps) {
   const getAriaLabel = () => {
+    if (ariaLabelProp) return ariaLabelProp;
     if (variant === "Add") return "Add";
     if (variant === "Close") return "Close";
     if (variant === "Remove") return "Remove";
-    return ariaLabelProp || undefined;
+    return undefined;
   };
 
   return (

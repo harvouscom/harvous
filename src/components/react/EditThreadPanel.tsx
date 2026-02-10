@@ -9,6 +9,7 @@ import { captureException } from '@/utils/posthog';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import Icon from './Icon';
 import { safeURL } from '@/utils/safe-url';
+import { idToUrl } from '@/utils/url-helpers';
 import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
@@ -1693,8 +1694,8 @@ export default function EditThreadPanel({
                           })
                           .map(note => (
                           <div key={note.id} className="relative group">
-                            <a 
-                              href={`/${note.id}`}
+                            <a
+                              href={idToUrl(note.id)}
                               className="block"
                               aria-label={`View note: ${note.title || 'Untitled note'}`}
                               onMouseDown={(e) => {
@@ -1798,8 +1799,8 @@ export default function EditThreadPanel({
                         if (note) {
                           return (
                             <div key={note.id} className="relative group">
-                              <a 
-                                href={`/${note.id}`}
+                              <a
+                                href={idToUrl(note.id)}
                                 className="block"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >

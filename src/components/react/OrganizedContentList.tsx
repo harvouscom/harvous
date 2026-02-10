@@ -10,6 +10,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
+import { idToUrl } from '@/utils/url-helpers';
 
 // Content cache removed - server is the single source of truth
 // This simplification eliminates cache staleness and duplication issues
@@ -818,13 +819,14 @@ export default function OrganizedContentList({
   // Extract item ID from pathname
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
     const cleanPath = pathname.split('?')[0].split('#')[0];
-    const pathWithoutSlash = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-    
-    if (pathWithoutSlash.startsWith('thread_') && pathWithoutSlash.length > 7) {
-      return { id: pathWithoutSlash, type: 'thread' };
-    } else if (pathWithoutSlash.startsWith('note_') && pathWithoutSlash.length > 5) {
-      return { id: pathWithoutSlash, type: 'note' };
+
+    // Handle new URL format: /thread/abc123, /note/def456
+    const match = cleanPath.match(/^\/(thread|note)\/(.+)$/);
+    if (match) {
+      const dbId = match[1] + '_' + match[2];
+      return { id: dbId, type: match[1] as 'thread' | 'note' };
     }
+
     return null;
   }, []);
 
@@ -1142,8 +1144,8 @@ export default function OrganizedContentList({
 
       const isDashboard = window.location.pathname === '/';
       const navigatedToDashboard = isDashboard && previousPathnameRef.current !== '/';
-      const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread_') || 
-                                      previousPathnameRef.current.startsWith('/note_');
+      const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread/') || 
+                                      previousPathnameRef.current.startsWith('/note/');
 
       if (isDashboard && isMountedRef.current) {
         if (navigatedToDashboard || previousWasThreadOrNote) {
@@ -1219,8 +1221,8 @@ export default function OrganizedContentList({
 
       const inPWA = isPWA();
       const dataIsStale = isStaleData(initialItems, (item) => item.lastUpdated || item.lastVisited);
-      const cameFromNotePage = referrerMatchesPattern('/note_');
-      const previousWasNote = previousPathnameRef.current.startsWith('/note_');
+      const cameFromNotePage = referrerMatchesPattern('/note/');
+      const previousWasNote = previousPathnameRef.current.startsWith('/note/');
 
       // Check if SSR data is from a stale cached page (older than 30 seconds)
       const ssrAge = dataGeneratedAt ? Date.now() - dataGeneratedAt : 0;
@@ -1500,8 +1502,8 @@ export default function OrganizedContentList({
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
     const href = item.type === 'thread'
-      ? `/${item.threadId}`
-      : `/${item.noteId}`;
+      ? idToUrl(item.threadId || item.id)
+      : idToUrl(item.noteId || item.id);
 
     const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
 
@@ -1569,6 +1571,30 @@ export default function OrganizedContentList({
            !deletedItemIds.has(normalizeId(item.threadId)) && 
            !deletedItemIds.has(normalizeId(item.noteId));
   });
+
+  // Placeholder used before hydration so server and client render identical HTML (avoids hydration mismatch from client-only state like isWaitingForFreshData, deletedItemIds, stale cache).
+  const placeholderStyle = {
+    display: 'flex' as const,
+    flexDirection: 'column' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    minHeight: '200px',
+    width: '100%',
+    paddingTop: '48px',
+    paddingBottom: '48px'
+  };
+
+  if (!isHydrated) {
+    return (
+      <div className="flex flex-col">
+        <div style={placeholderStyle}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col">
