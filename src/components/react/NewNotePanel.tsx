@@ -69,15 +69,6 @@ export default function NewNotePanel({
     }
   }, [isMounted, onPanelReady]);
 
-  // When mobile panel opens, rehydrate form from localStorage (desktop draft) once on mount
-  const hasRehydratedRef = useRef(false);
-  useEffect(() => {
-    if (inBottomSheet && !hasRehydratedRef.current) {
-      hasRehydratedRef.current = true;
-      form.rehydrateFromStorage();
-    }
-  }, [inBottomSheet, form]);
-
   // Get userId for offline operations (works online and offline)
   const userId = usePersistedUserId();
 
@@ -129,6 +120,15 @@ export default function NewNotePanel({
     currentSpace,
     initialNoteType,
   });
+
+  // When mobile panel opens, rehydrate form from localStorage (desktop draft) once on mount
+  const hasRehydratedRef = useRef(false);
+  useEffect(() => {
+    if (inBottomSheet && !hasRehydratedRef.current) {
+      hasRehydratedRef.current = true;
+      form.rehydrateFromStorage();
+    }
+  }, [inBottomSheet, form]);
 
   // Use extracted thread selection hook
   const threadSelection = useThreadSelection({
