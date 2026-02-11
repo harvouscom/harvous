@@ -484,7 +484,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         <div ref={sheetContentRef} className="bottom-sheet__inner h-full flex flex-col min-h-0">
           {/* New Note Panel */}
           {drawerType === 'note' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
               <NewNotePanel
                 key={`mobile-note-${panelKey}`}
                 currentThread={currentThread}
@@ -525,7 +525,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* New Resource Panel */}
           {drawerType === 'resource' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
               <NewNotePanel
                 key={`mobile-resource-${panelKey}`}
                 currentThread={currentThread}

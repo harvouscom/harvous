@@ -1151,7 +1151,7 @@ export default function NewNotePanel({
       <NewNotePanelStyles />
       <form
         onSubmit={handleFormSubmit}
-        className="new-note-panel h-full flex flex-col w-full"
+        className={`new-note-panel h-full flex flex-col w-full${inBottomSheet ? ' new-note-panel--in-sheet' : ''}`}
         style={{
           height: '100%',
           maxHeight: '100%',

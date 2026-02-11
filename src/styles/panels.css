@@ -64,19 +64,41 @@
    Bottom Sheet (Radix SheetContent side="bottom") spacing
    ========================================================================== */
 
-/* Flex column so content area gets remaining height (same pattern as CardFullEditable); layout stays consistent */
+/* Flex column so content area gets remaining height; layout stays consistent (no viewport resize) */
 .bottom-sheet-content {
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-/* Inner takes remaining space below header/focus anchor so editor area has bounded height and can scroll */
+/* Prevent header/focus anchor from shrinking so title and toolbar stay visible every time */
+.bottom-sheet-content > div:first-of-type,
+.bottom-sheet-content > button {
+  flex-shrink: 0;
+}
+
+/* Inner takes remaining space so editor area has bounded height and can scroll */
 .bottom-sheet-content .bottom-sheet__inner {
   box-sizing: border-box;
   padding: 0 0 16px;
   min-height: 0;
   flex: 1 1 0%;
+  overflow: hidden;
+}
+
+/* New note panel inside bottom sheet only: strict flex chain so .tiptap-content gets a height and scrolls */
+.bottom-sheet-content .new-note-panel--in-sheet {
+  min-height: 0;
+  overflow: hidden;
+}
+.bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper {
+  min-height: 0;
+  overflow: hidden;
+}
+.bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  min-height: 0;
 }
 
 /* Bottom-sheet panels should use tighter header gutters */
