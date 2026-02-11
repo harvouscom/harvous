@@ -380,11 +380,11 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
           const data = await response.json();
 
           if (response.ok && data.success) {
-            // Show success and redirect to the space (match idToUrl: /space/xxx)
-            const redirectUrl = data.redirectUrl || (spaceId.startsWith('space_') ? '/space/' + spaceId.slice(6) : '/spaces/' + spaceId);
+            const path = data.redirectUrl || (spaceId.startsWith('space_') ? '/space/' + spaceId.slice(6) : '/spaces/' + spaceId);
             if (btnTextEl) btnTextEl.textContent = 'Joined! Redirecting...';
+            const absoluteUrl = window.location.origin + path;
             setTimeout(() => {
-              window.location.href = redirectUrl;
+              window.location.replace(absoluteUrl);
             }, 500);
           } else {
             throw new Error(data.error || 'Failed to join space');

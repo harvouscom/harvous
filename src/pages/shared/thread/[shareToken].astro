@@ -316,10 +316,12 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
           const data = await response.json();
 
           if (response.ok && data.success) {
-            // Success - show toast then redirect
             showToast('Added to your Harvous!', 'success', 0);
+            const id = data.createdIds.threadId;
+            const path = id.startsWith('thread_') ? '/thread/' + id.slice(7) : '/' + id;
+            const absoluteUrl = window.location.origin + path;
             setTimeout(() => {
-              window.location.href = '/' + data.createdIds.threadId;
+              window.location.replace(absoluteUrl);
             }, 800);
           } else {
             // Error - show toast
@@ -371,8 +373,9 @@ const ogDescription = thread?.subtitle || `A Bible study thread${notes.length > 
             .then(response => response.json())
             .then(data => {
               if (data.success) {
-                // Redirect with toast query parameters - toast-handler.js will show it automatically
-                window.location.href = '/' + data.createdIds.threadId + '?toast=success&message=' + encodeURIComponent('Thread was added to your Harvous');
+                const id = data.createdIds.threadId;
+                const path = (id.startsWith('thread_') ? '/thread/' + id.slice(7) : '/' + id) + '?toast=success&message=' + encodeURIComponent('Thread was added to your Harvous');
+                window.location.replace(window.location.origin + path);
               } else {
                 // Show error toast on current page
                 if (window.toast) {

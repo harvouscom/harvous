@@ -64,7 +64,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Prevent adding your own note (only in production - allow in dev for testing)
     if (import.meta.env.PROD && sourceNote.userId === userId) {
       return new Response(JSON.stringify({
-        error: 'You cannot add your own note to your Harvous'
+        error: 'Already in your Harvous'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }

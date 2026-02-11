@@ -65,7 +65,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     // Prevent adding your own thread (only in production - allow in dev for testing)
     if (import.meta.env.PROD && sourceThread.userId === userId) {
       return new Response(JSON.stringify({
-        error: 'You cannot add your own thread to your Harvous'
+        error: 'Already in your Harvous'
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }

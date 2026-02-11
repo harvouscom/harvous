@@ -648,12 +648,14 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
             const data = await response.json();
             if (response.ok && data.success) {
-              // Show toast and redirect to added note
               showToastWithRetry('Note was added to your Harvous');
+              const id = data.createdIds.noteId;
+              const path = id.startsWith('note_') ? '/note/' + id.slice(5) : '/' + id;
+              const absoluteUrl = window.location.origin + path;
               setTimeout(() => {
-                window.location.href = '/' + data.createdIds.noteId;
+                window.location.replace(absoluteUrl);
               }, 800);
-              return; // Exit early after processing note
+              return;
             }
           } else {
             // Clear stale pending action
@@ -685,10 +687,12 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
             const data = await response.json();
             if (response.ok && data.success) {
-              // Show toast and redirect to added thread
               showToastWithRetry('Thread was added to your Harvous');
+              const id = data.createdIds.threadId;
+              const path = id.startsWith('thread_') ? '/thread/' + id.slice(7) : '/' + id;
+              const absoluteUrl = window.location.origin + path;
               setTimeout(() => {
-                window.location.href = '/' + data.createdIds.threadId;
+                window.location.replace(absoluteUrl);
               }, 800);
             }
           } else {

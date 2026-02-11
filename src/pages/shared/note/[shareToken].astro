@@ -293,10 +293,12 @@ if (note) {
           const data = await response.json();
 
           if (response.ok && data.success) {
-            // Success - show toast then redirect
             showToast('Added to your Harvous!', 'success', 0);
+            const id = data.createdIds.noteId;
+            const path = id.startsWith('note_') ? '/note/' + id.slice(5) : '/' + id;
+            const absoluteUrl = window.location.origin + path;
             setTimeout(() => {
-              window.location.href = '/' + data.createdIds.noteId;
+              window.location.replace(absoluteUrl);
             }, 800);
           } else {
             // Error - show toast
@@ -348,8 +350,9 @@ if (note) {
             .then(response => response.json())
             .then(data => {
               if (data.success) {
-                // Redirect with toast query parameters - toast-handler.js will show it automatically
-                window.location.href = '/' + data.createdIds.noteId + '?toast=success&message=' + encodeURIComponent('Note was added to your Harvous');
+                const id = data.createdIds.noteId;
+                const path = (id.startsWith('note_') ? '/note/' + id.slice(5) : '/' + id) + '?toast=success&message=' + encodeURIComponent('Note was added to your Harvous');
+                window.location.replace(window.location.origin + path);
               } else {
                 // Show error toast on current page
                 if (window.toast) {
