@@ -238,8 +238,9 @@ export async function initClerkForPWA(): Promise<void> {
   const deviceId = await getOrCreateDeviceId(true);
   console.log('[ClerkPWA] Device ID:', deviceId.substring(0, 8) + '...');
 
-  // Restore Clerk cookies from backup (always, not only PWA) so Clerk has full context
-  await restoreClerkCookies();
+  // Do NOT restore cookies here. Restoring before Clerk runs can cause Clerk to skip device
+  // registration (Dashboard shows "unknown device"). Cookie restore only happens in the
+  // silent-restore path in auth-pwa-init (before setSession) when deviceId matches backup.
 
   // Watch for cookie changes
   watchClerkCookies();
