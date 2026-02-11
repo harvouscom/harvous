@@ -134,16 +134,20 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       }
     }
 
-    // Force sign-out if user is still authenticated after logout
-    function forceSignOutIfNeeded() {
-      if (!fromLogout) return;
+    // Force sign-out when coming from logout. Must run after Clerk has restored session from cookies
+    // (clerk:loaded can fire before that), so we use addListener: when Clerk reports a session we sign out.
+    function runSignOutAfterRestore() {
+      if (!fromLogout || !window.Clerk || !window.Clerk.signOut) return;
 
-      if (window.Clerk && window.Clerk.signOut) {
+      var signOutDone = false;
+      function doSignOut() {
+        if (signOutDone) return;
+        signOutDone = true;
         var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
           ? window.__harvousClearSessionBackup()
           : Promise.resolve();
         clearPromise.then(function() {
-          return window.Clerk.signOut();
+          return window.Clerk.signOut({ redirectUrl: '/sign-in' });
         }).then(function() {
           try {
             sessionStorage.clear();
@@ -155,20 +159,35 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           var newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('from_logout');
           window.history.replaceState({}, '', newUrl);
-        }).catch(function(error) {
+        }).catch(function() {
           var newUrl = new URL(window.location.href);
           newUrl.searchParams.delete('from_logout');
           window.history.replaceState({}, '', newUrl);
         });
       }
+
+      if (window.Clerk.user) {
+        doSignOut();
+        return;
+      }
+      if (typeof window.Clerk.addListener === 'function') {
+        var once = function(session) {
+          if (session && session.id) {
+            doSignOut();
+          }
+        };
+        window.Clerk.addListener(once);
+      } else {
+        setTimeout(doSignOut, 800);
+      }
     }
 
-    // Set up clerk:loaded listener (simplified - no complex polling)
+    // Set up clerk:loaded listener
     window.addEventListener('clerk:loaded', function() {
       if (typeof window.mountAllClerkAstroJSComponents === 'function') {
         window.mountAllClerkAstroJSComponents();
       }
-      forceSignOutIfNeeded();
+      runSignOutAfterRestore();
       redirectIfAlreadySignedIn();
     });
 
