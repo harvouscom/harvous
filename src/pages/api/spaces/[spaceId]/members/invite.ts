@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, SpaceInvitations, eq } from 'astro:db';
+import { db, SpaceInvitations, eq, and } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { canAddMemberToSpace } from '@/utils/tier-limits';
 import { generateShareToken } from '@/utils/ids';
@@ -76,9 +76,11 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       const existing = await db.select()
         .from(SpaceInvitations)
         .where(
-          eq(SpaceInvitations.spaceId, spaceId),
-          eq(SpaceInvitations.invitedEmail, email),
-          eq(SpaceInvitations.status, 'pending')
+          and(
+            eq(SpaceInvitations.spaceId, spaceId),
+            eq(SpaceInvitations.invitedEmail, email),
+            eq(SpaceInvitations.status, 'pending')
+          )
         )
         .get();
 

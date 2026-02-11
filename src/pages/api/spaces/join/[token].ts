@@ -10,6 +10,7 @@ import {
   unauthorizedResponse,
 } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
+import { idToUrl } from '@/utils/url-helpers';
 
 /**
  * POST /api/spaces/join/[token]
@@ -96,7 +97,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       success: true,
       spaceId: space.id,
       spaceName: space.title,
-      redirectUrl: `/spaces/${space.id}`,
+      redirectUrl: idToUrl(space.id),
       message: `Welcome to ${space.title}!`,
     });
 

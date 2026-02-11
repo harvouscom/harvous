@@ -103,9 +103,9 @@ Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 | Real-time space content update on add/remove | ✅ Done |
 | TabNav in EditSpacePanel (Added / Add / People) | ✅ Done |
 | TabNav in EditThreadPanel (Added / Add) | ✅ Done |
-| Member view page (`/spaces/[spaceId]`) | ❌ Not built |
+| Member view (same route as owner: `/space/{id}` via [...slug].astro) | ✅ Done |
 | Email invitations | ⏸ Out of scope for now — link-based joining only |
-| Leave space (member self-removal UI) | ❌ Not built |
+| Leave space (member self-removal UI) | ✅ Done (SpaceCardStackHeader when spaceRole === 'member') |
 
 ### Key Files
 
@@ -132,7 +132,7 @@ Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 4. Recipient visits `/spaces/join/[token]`
 5. Page shows space preview: owner name, title/color, condensed notes & threads (locked notes excluded)
 6. CTA: "Join this space on Harvous" → if authenticated, POSTs to `/api/spaces/join/[token]`; if not, redirects to sign-up then returns
-7. On success: redirected to `/spaces/[spaceId]` (**not yet built** — currently 404s)
+7. On success: redirected to canonical space URL (`/space/{id}` via `idToUrl(space.id)`). Same [...slug].astro route serves both owners and members; members see space content with locked notes excluded.
 
 ### Language: People, Not Members
 
@@ -146,41 +146,21 @@ All user-facing text uses **"person/people"** (not "member/members") when referr
 
 ## Known Issues & Gaps
 
-### Member View Page Not Built
+### Member View (Implemented in [...slug].astro)
 
-The join API returns `redirectUrl: '/spaces/${space.id}'` but there is no `/spaces/[spaceId]` page. Members who join are redirected to a 404. This is the most critical missing piece.
+The join API redirects to the canonical space URL via `idToUrl(space.id)` (e.g. `/space/1770777786201`). The same [...slug].astro route serves both owners and members:
 
-The member view page needs to:
-- Require authentication
-- Verify the user is a member or owner (`requireSpaceAccess`)
-- Query notes/threads by `spaceId` (not `userId`) — **exclude** `contentEncrypted: true` notes for non-owners
-- Hide individual sharing UI on notes and threads
-- Show layer-group icon on threads
-- Use separate queries for owner vs member (owner sees locked notes, member doesn't)
+- When the space is not in the user's owned list, `requireSpaceAccess(spaceId, userId)` is called. If the user is owner or member, the space and content are loaded.
+- For **members**: threads and notes are loaded by `spaceId` only; notes with `contentEncrypted: true` are excluded (`getNotesForSpaceForMember`). Helpers: `getThreadsForSpaceBySpaceId(spaceId)` and `getNotesForSpaceForMember(spaceId, ownerUserId, limit?, offset?)` in `dashboard-data.ts`.
+- For **owners**: existing `getThreadsForSpace` and `getNotesForSpace` are used. No separate member-view page; the same template renders for both.
 
-### `createdAt` Missing from Members Insert
+### Members Insert (Fixed)
 
-In `join/[token].ts`, the `Members` insert does not include `createdAt`. The schema requires it (non-optional `column.date()`). Should add `createdAt: new Date()`.
+In `join/[token].ts`, the `Members` insert includes both `createdAt: new Date()` and `joinedAt: new Date()`, satisfying the schema requirement for `createdAt` and recording join time.
 
-### Invitation Already-Exists Check Has a Bug
+### Invitation Already-Exists Check (Fixed)
 
-In `invite.ts`, `.where()` is called with three separate arguments instead of wrapping in `and()`. Since email invitations are out of scope for now this is low priority, but should be fixed before email invites are ever turned on:
-
-```typescript
-// Current (incorrect):
-.where(
-  eq(SpaceInvitations.spaceId, spaceId),
-  eq(SpaceInvitations.invitedEmail, email),
-  eq(SpaceInvitations.status, 'pending')
-)
-
-// Should be:
-.where(and(
-  eq(SpaceInvitations.spaceId, spaceId),
-  eq(SpaceInvitations.invitedEmail, email),
-  eq(SpaceInvitations.status, 'pending')
-))
-```
+In `invite.ts`, the existing-invitation check now wraps the three conditions in `and(...)` so the query is valid. Email invitations are still out of scope; the fix is in place for when they are enabled.
 
 ---
 
@@ -188,13 +168,13 @@ In `invite.ts`, `.where()` is called with three separate arguments instead of wr
 
 ### High Priority
 
-1. **Build `/spaces/[spaceId]` member view page** — the redirect target after joining (currently 404s).
-2. **Fix `createdAt` missing from member insert** — will cause DB errors in production.
+None at this time.
 
 ### Medium Priority
 
-3. **Leave space UI** — members have no way to leave a space themselves. The DELETE endpoint supports self-removal but there's no UI for it.
-4. **NewSpacePanel: fix Shared mode** — currently hardcodes `isPublic: 'false'` regardless of user selection.
+**NewSpacePanel Shared mode**: When the user selects "Shared", the create request correctly sends `isPublic: true` (formData and JSON body use `selectedType === 'Shared'`). No change needed.
+
+**Leave space UI**: Implemented in `SpaceCardStackHeader`: when the viewer is a member (`spaceRole === 'member'`), a "Leave space" control is shown. It calls `DELETE /api/spaces/[spaceId]/members/[userId]` with the current user's id, then redirects to `/`. [...slug].astro passes `spaceRole` and `currentUserId` to the header.
 
 ### Future / Not Needed Yet
 
