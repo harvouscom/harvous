@@ -95,23 +95,16 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
   })();
 </script>
 
-<!-- PWA auth + session backup (bundled; no /src/ requests in production) -->
+<!-- Session backup only after sign-in (no PWA auth init so Clerk can register device) -->
 <script type="module">
-  import { initializePWAAuth, setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
+  import { setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
   import { clearSessionBackup } from '@/utils/clerk-session-backup';
 
   if (typeof window !== 'undefined') {
     window['__harvousClearSessionBackup'] = clearSessionBackup;
   }
 
-  // Session backup listener runs immediately (no performance impact)
   setupClerkSessionBackupListener();
-
-  // Defer expensive auth initialization to idle time
-  const scheduleBackground = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
-  scheduleBackground(() => {
-    initializePWAAuth();
-  }, { timeout: 100 });
 </script>
 
 <!-- Clerk Client-Side Initialization Script (Optimized) -->

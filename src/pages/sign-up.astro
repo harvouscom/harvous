@@ -5,7 +5,6 @@ export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignUp as ClerkSignUp } from "@clerk/astro/components";
 import { getReferrerDisplayName } from "@/utils/referral-code";
-import { Fragment } from "astro/jsx-runtime";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
@@ -137,10 +136,9 @@ const ogDescription = 'Join Harvous - a notes app designed for Bible study.';
   })();
 </script>
 
-<!-- PWA auth + session backup (bundled; no /src/ requests in production) -->
+<!-- Session backup only after sign-in (no PWA auth init so Clerk can register device) -->
 <script>
-  import { initializePWAForSignUp, setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
-  initializePWAForSignUp();
+  import { setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
   setupClerkSessionBackupListener();
 </script>
 
