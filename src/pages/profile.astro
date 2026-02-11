@@ -175,6 +175,7 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
         href="#"
         data-outer-shadow
         class="btn-cta btn--secondary flex-1 group no-underline"
+        onclick="if(window.__harvousLogout) window.__harvousLogout(); return false;"
       >
         <span class="btn-cta__content">
           Logout

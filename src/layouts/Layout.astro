@@ -500,27 +500,29 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       import { clearSessionBackup } from '@/utils/clerk-session-backup';
       if (typeof window !== 'undefined') {
         (window as any).__harvousClearSessionBackup = clearSessionBackup;
+        (window as any).__harvousLogout = function() {
+          clearSessionBackup()
+            .then(function() {
+              if ((window as any).Clerk?.signOut) {
+                return (window as any).Clerk.signOut({ redirectUrl: '/sign-in' });
+              }
+              window.location.href = '/sign-in?from_logout=true';
+            })
+            .catch(function() {
+              window.location.href = '/sign-in?from_logout=true';
+            });
+        };
       }
     </script>
-    <!-- Logout button handler: event delegation so it works after View Transitions (slot content may be swapped). Runs sign-out on current page where Clerk is already loaded. -->
+    <!-- Logout: #logout-button calls __harvousLogout() via onclick so it works after View Transitions; body delegation kept as fallback. -->
     <script is:inline>
       (function() {
         function handleLogoutClick(e) {
           if (!e.target || !e.target.closest || !e.target.closest('#logout-button')) return;
           e.preventDefault();
-          var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
-            ? window.__harvousClearSessionBackup()
-            : Promise.resolve();
-          clearPromise.then(function() {
-            if (window.Clerk && window.Clerk.signOut) {
-              return window.Clerk.signOut({ redirectUrl: '/sign-in' });
-            }
-            window.location.href = '/sign-in?from_logout=true';
-          }).catch(function() {
-            window.location.href = '/sign-in?from_logout=true';
-          });
+          if (typeof window.__harvousLogout === 'function') window.__harvousLogout();
         }
-        document.body.addEventListener('click', handleLogoutClick);
+        document.body.addEventListener('click', handleLogoutClick, true);
       })();
     </script>
   </body>
