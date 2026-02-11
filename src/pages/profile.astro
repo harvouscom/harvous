@@ -237,9 +237,11 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
           if (window.Clerk && window.Clerk.signOut) {
             return window.Clerk.signOut({ redirectUrl: '/sign-in' });
           }
-          window.location.href = '/sign-in';
+          // Clerk not loaded on profile (no Clerk component here). Redirect so sign-in page
+          // can run forceSignOutIfNeeded() once Clerk loads there.
+          window.location.href = '/sign-in?from_logout=true';
         }).catch(function() {
-          window.location.href = '/sign-in';
+          window.location.href = '/sign-in?from_logout=true';
         });
         return false;
       });

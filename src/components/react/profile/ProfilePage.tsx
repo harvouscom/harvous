@@ -86,11 +86,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       // Clear unified profile cache
       clearCachedProfileData();
 
-      // Use Clerk's built-in signOut with redirectUrl
+      // Use Clerk's built-in signOut with redirectUrl when available. On profile, Clerk
+      // may not be loaded (no Clerk component), so fallback: redirect to sign-in with
+      // from_logout so the sign-in page runs forceSignOutIfNeeded() once Clerk loads.
       if ((window as any).Clerk?.signOut) {
         await (window as any).Clerk.signOut({ redirectUrl: '/sign-in' });
       } else {
-        window.location.href = '/sign-in';
+        window.location.href = '/sign-in?from_logout=true';
       }
     } catch (error) {
       console.error('Logout failed:', error);
