@@ -8,6 +8,7 @@ import HeadSlot from "@/components/HeadSlot.astro";
 import { db, Spaces, Members, UserMetadata, Notes, Threads, NoteThreads, eq, and, desc, asc, count } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
+import { idToUrl } from '@/utils/url-helpers';
 import { type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
@@ -152,6 +153,7 @@ if (!token || !isValidShareToken(token)) {
 
 const canJoin = !alreadyMember && isAuthenticated && !isOwner;
 const requiresAuth = !isAuthenticated;
+const spaceUrl = space ? idToUrl(space.id) : '';
 
 // Get space color for styling
 const spaceColor = (space?.color || 'paper') as ThreadColor;
@@ -323,7 +325,7 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
                     ) : alreadyMember ? (
                       <Button
                         variant="primary"
-                        href={`/spaces/${space.id}`}
+                        href={spaceUrl}
                         class="shared-page__cta-button"
                       >
                         <span class="shared-page__cta-text">Join this space on Harvous</span>
@@ -378,10 +380,11 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
           const data = await response.json();
 
           if (response.ok && data.success) {
-            // Show success and redirect
+            // Show success and redirect to the space (match idToUrl: /space/xxx)
+            const redirectUrl = data.redirectUrl || (spaceId.startsWith('space_') ? '/space/' + spaceId.slice(6) : '/spaces/' + spaceId);
             if (btnTextEl) btnTextEl.textContent = 'Joined! Redirecting...';
             setTimeout(() => {
-              window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
+              window.location.href = redirectUrl;
             }, 500);
           } else {
             throw new Error(data.error || 'Failed to join space');

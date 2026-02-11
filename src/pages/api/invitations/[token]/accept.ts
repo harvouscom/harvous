@@ -12,6 +12,7 @@ import {
   forbiddenResponse
 } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
+import { idToUrl } from '@/utils/url-helpers';
 
 /**
  * POST /api/invitations/[token]/accept
@@ -132,7 +133,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       })
       .where(eq(SpaceInvitations.id, invitation.id));
 
-    // Return success with space details for redirect
+    // Return success with space details for redirect (use idToUrl so redirect goes to /space/xxx)
     return successResponse({
       success: true,
       space: {
@@ -140,7 +141,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         title: space.title,
         color: space.color,
       },
-      redirectUrl: `/spaces/${space.id}`,
+      redirectUrl: idToUrl(space.id),
       member,
     });
 
