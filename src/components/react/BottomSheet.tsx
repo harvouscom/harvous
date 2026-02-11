@@ -119,6 +119,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
+  const sheetContentElRef = useRef<HTMLDivElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
@@ -384,6 +385,36 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
+  // Size sheet to visual viewport when note/resource panel is open so keyboard doesn't cover content
+  // and the editor area has a bounded height and can scroll. Only set height – no display/flex/overflow.
+  useEffect(() => {
+    if (!isVisible || !isMobile) return;
+    const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
+    const el = sheetContentElRef.current;
+    if (!el || !isNoteOrResource) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const setSize = () => {
+      el.style.top = `${vv.offsetTop}px`;
+      el.style.left = `${vv.offsetLeft}px`;
+      el.style.width = `${vv.width}px`;
+      el.style.height = `${vv.height}px`;
+      el.style.maxHeight = `${vv.height}px`;
+    };
+    setSize();
+    vv.addEventListener('resize', setSize);
+    vv.addEventListener('scroll', setSize);
+    return () => {
+      vv.removeEventListener('resize', setSize);
+      vv.removeEventListener('scroll', setSize);
+      el.style.top = '';
+      el.style.left = '';
+      el.style.width = '';
+      el.style.height = '';
+      el.style.maxHeight = '';
+    };
+  }, [isVisible, isMobile, drawerType]);
+
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {
@@ -430,6 +461,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
     >
       <SheetContent
+        ref={sheetContentElRef}
         side="bottom"
         className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 h-[90vh]"
         style={{
