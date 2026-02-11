@@ -4,7 +4,7 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardStack from "@/components/CardStack.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
 import Button from "@/components/Button.astro";
-import { Fragment } from "astro/jsx-runtime";
+import HeadSlot from "@/components/HeadSlot.astro";
 import { db, Spaces, Members, UserMetadata, Notes, Threads, NoteThreads, eq, and, desc, asc, count } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
@@ -166,7 +166,7 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
 ---
 
 <EmptyLayout title={ogTitle}>
-  <Fragment slot="head">
+  <HeadSlot slot="head">
     {/* Open Graph / Facebook */}
     <meta property="og:type" content="website" />
     <meta property="og:url" content={shareUrl} />
@@ -177,7 +177,7 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={ogTitle} />
     <meta name="twitter:description" content={ogDescription} />
-  </Fragment>
+  </HeadSlot>
 
   <div id="shared-space-content" class="auth-page">
     <div class="auth-page__container">
@@ -352,53 +352,61 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
 <!-- Client-side script for Join Space functionality -->
 <script is:inline>
   (function() {
-    const btn = document.getElementById('join-space-btn');
-    const toastEl = document.getElementById('join-space-toast');
-    const toastMsgEl = document.getElementById('join-space-toast-message');
-    const btnTextEl = document.getElementById('join-btn-text');
+    function initJoinButton() {
+      const btn = document.getElementById('join-space-btn');
+      const toastEl = document.getElementById('join-space-toast');
+      const toastMsgEl = document.getElementById('join-space-toast-message');
+      const btnTextEl = document.getElementById('join-btn-text');
 
-    if (!btn) return;
+      if (!btn || btn.dataset.listenerAttached === 'true') return;
 
-    const token = btn.dataset.token;
-    const spaceId = btn.dataset.spaceId;
+      const token = btn.dataset.token;
+      const spaceId = btn.dataset.spaceId;
+      btn.dataset.listenerAttached = 'true';
 
-    btn.addEventListener('click', async function() {
-      // Disable button during request
-      btn.disabled = true;
-      const originalText = btnTextEl.textContent;
-      btnTextEl.textContent = 'Joining...';
+      btn.addEventListener('click', async function() {
+        // Disable button during request
+        btn.disabled = true;
+        const originalText = btnTextEl ? btnTextEl.textContent : '';
+        if (btnTextEl) btnTextEl.textContent = 'Joining...';
 
-      try {
-        const response = await fetch(`/api/spaces/join/${token}`, {
-          method: 'POST',
-        });
+        try {
+          const response = await fetch(`/api/spaces/join/${token}`, {
+            method: 'POST',
+          });
 
-        const data = await response.json();
+          const data = await response.json();
 
-        if (response.ok && data.success) {
-          // Show success and redirect
-          btnTextEl.textContent = 'Joined! Redirecting...';
-          setTimeout(() => {
-            window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
-          }, 500);
-        } else {
-          throw new Error(data.error || 'Failed to join space');
+          if (response.ok && data.success) {
+            // Show success and redirect
+            if (btnTextEl) btnTextEl.textContent = 'Joined! Redirecting...';
+            setTimeout(() => {
+              window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
+            }, 500);
+          } else {
+            throw new Error(data.error || 'Failed to join space');
+          }
+        } catch (error) {
+          // Show error in toast
+          if (toastMsgEl) toastMsgEl.textContent = error.message;
+          if (toastEl) toastEl.classList.add('shared-page__toast--error', 'shared-page__toast--visible');
+
+          // Re-enable button
+          btn.disabled = false;
+          if (btnTextEl) btnTextEl.textContent = originalText;
+
+          // Hide toast after 5 seconds
+          if (toastEl) {
+            setTimeout(() => {
+              toastEl.classList.remove('shared-page__toast--visible', 'shared-page__toast--error');
+            }, 5000);
+          }
         }
-      } catch (error) {
-        // Show error in toast
-        toastMsgEl.textContent = error.message;
-        toastEl.classList.add('shared-page__toast--error', 'shared-page__toast--visible');
+      });
+    }
 
-        // Re-enable button
-        btn.disabled = false;
-        btnTextEl.textContent = originalText;
-
-        // Hide toast after 5 seconds
-        setTimeout(() => {
-          toastEl.classList.remove('shared-page__toast--visible', 'shared-page__toast--error');
-        }, 5000);
-      }
-    });
+    initJoinButton();
+    document.addEventListener('astro:page-load', initJoinButton);
   })();
 </script>
 

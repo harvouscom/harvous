@@ -3,7 +3,7 @@ export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import CardStack from "@/components/CardStack.astro";
 import Button from "@/components/Button.astro";
-import { Fragment } from "astro/jsx-runtime";
+import HeadSlot from "@/components/HeadSlot.astro";
 import { db, SpaceInvitations, Spaces, Members, UserMetadata, eq, and } from 'astro:db';
 import { type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
@@ -108,11 +108,11 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 ---
 
 <EmptyLayout title={ogTitle}>
-  <Fragment slot="head">
+  <HeadSlot slot="head">
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={ogDescription} />
     <meta name="robots" content="noindex" />
-  </Fragment>
+  </HeadSlot>
 
   <div id="invitation-content" class="auth-page">
     <div class="auth-page__container">
@@ -285,53 +285,61 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 <!-- Client-side script for Accept Invitation functionality -->
 <script is:inline>
   (function() {
-    const btn = document.getElementById('accept-invitation-btn');
-    const toastEl = document.getElementById('invitation-toast');
-    const toastMsgEl = document.getElementById('invitation-toast-message');
-    const btnTextEl = document.getElementById('accept-btn-text');
+    function initAcceptButton() {
+      const btn = document.getElementById('accept-invitation-btn');
+      const toastEl = document.getElementById('invitation-toast');
+      const toastMsgEl = document.getElementById('invitation-toast-message');
+      const btnTextEl = document.getElementById('accept-btn-text');
 
-    if (!btn) return;
+      if (!btn || btn.dataset.listenerAttached === 'true') return;
 
-    const token = btn.dataset.token;
-    const spaceId = btn.dataset.spaceId;
+      const token = btn.dataset.token;
+      const spaceId = btn.dataset.spaceId;
+      btn.dataset.listenerAttached = 'true';
 
-    btn.addEventListener('click', async function() {
-      // Disable button during request
-      btn.disabled = true;
-      const originalText = btnTextEl.textContent;
-      btnTextEl.textContent = 'Accepting...';
+      btn.addEventListener('click', async function() {
+        // Disable button during request
+        btn.disabled = true;
+        const originalText = btnTextEl ? btnTextEl.textContent : '';
+        if (btnTextEl) btnTextEl.textContent = 'Accepting...';
 
-      try {
-        const response = await fetch(`/api/invitations/${token}/accept`, {
-          method: 'POST',
-        });
+        try {
+          const response = await fetch(`/api/invitations/${token}/accept`, {
+            method: 'POST',
+          });
 
-        const data = await response.json();
+          const data = await response.json();
 
-        if (response.ok && data.success) {
-          // Show success and redirect
-          btnTextEl.textContent = 'Accepted! Redirecting...';
-          setTimeout(() => {
-            window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
-          }, 500);
-        } else {
-          throw new Error(data.error || 'Failed to accept invitation');
+          if (response.ok && data.success) {
+            // Show success and redirect
+            if (btnTextEl) btnTextEl.textContent = 'Accepted! Redirecting...';
+            setTimeout(() => {
+              window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
+            }, 500);
+          } else {
+            throw new Error(data.error || 'Failed to accept invitation');
+          }
+        } catch (error) {
+          // Show error in toast
+          if (toastMsgEl) toastMsgEl.textContent = error.message;
+          if (toastEl) toastEl.classList.add('shared-page__toast--error', 'shared-page__toast--visible');
+
+          // Re-enable button
+          btn.disabled = false;
+          if (btnTextEl) btnTextEl.textContent = originalText;
+
+          // Hide toast after 5 seconds
+          if (toastEl) {
+            setTimeout(() => {
+              toastEl.classList.remove('shared-page__toast--visible', 'shared-page__toast--error');
+            }, 5000);
+          }
         }
-      } catch (error) {
-        // Show error in toast
-        toastMsgEl.textContent = error.message;
-        toastEl.classList.add('shared-page__toast--error', 'shared-page__toast--visible');
+      });
+    }
 
-        // Re-enable button
-        btn.disabled = false;
-        btnTextEl.textContent = originalText;
-
-        // Hide toast after 5 seconds
-        setTimeout(() => {
-          toastEl.classList.remove('shared-page__toast--visible', 'shared-page__toast--error');
-        }, 5000);
-      }
-    });
+    initAcceptButton();
+    document.addEventListener('astro:page-load', initAcceptButton);
   })();
 </script>
 
