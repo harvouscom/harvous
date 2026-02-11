@@ -4,9 +4,10 @@
  * Simple, lightweight warmup for PWA experience.
  */
 
-// Check if launched as standalone app
-const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
-                    window.navigator.standalone === true;
+// Check if launched as app-like display (standalone, fullscreen, minimal-ui) or iOS/Android app
+const isStandalone = window.matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches ||
+                    window.navigator.standalone === true ||
+                    (typeof document !== 'undefined' && document.referrer.includes('android-app://'));
 
 let isWarmedUp = false;
 

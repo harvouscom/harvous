@@ -40,6 +40,7 @@ export interface UseNewNoteFormReturn {
   hasUnsavedChanges: () => boolean;
   resetForm: () => void;
   clearLocalStorage: () => void;
+  rehydrateFromStorage: () => void;
 }
 
 /**
@@ -97,6 +98,7 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
     hasUnsavedChanges: context.hasUnsavedChanges,
     resetForm: context.resetForm,
     clearLocalStorage: context.clearLocalStorage,
+    rehydrateFromStorage: context.rehydrateFromStorage,
   };
 }
 

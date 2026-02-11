@@ -1,12 +1,16 @@
 import { normalizeDate } from './sorting';
 
 /**
- * Detect if running in PWA context (standalone mode)
+ * Detect if running in PWA context (app-like display: standalone, fullscreen, or minimal-ui).
+ * Single source of truth for PWA vs browser detection.
  */
 export function isPWA(): boolean {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia('(display-mode: standalone)').matches ||
-         (window.navigator as any).standalone === true;
+  const displayModeAppLike =
+    window.matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches;
+  const iosStandalone = (window.navigator as any).standalone === true;
+  const androidApp = typeof document !== 'undefined' && document.referrer.includes('android-app://');
+  return displayModeAppLike || iosStandalone || androidApp;
 }
 
 /**

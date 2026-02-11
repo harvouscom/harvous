@@ -884,9 +884,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   isLoading={isSubmitting}
                   isEditMode={false}
                   privateTriggerLabel="Only I can see this space"
-                  sharedTriggerLabel="Shared with anyone with the link"
+                  sharedTriggerLabel="Shared to anyone with link"
                   privateOptionLabel="Only I can see this space"
-                  sharedOptionLabel="Turn on sharing with link to anyone"
+                  sharedOptionLabel="Share to anyone with link"
                   shareNotReadyLabel="Share link will be available after creating the space"
                 />
 

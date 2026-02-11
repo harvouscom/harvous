@@ -1410,9 +1410,9 @@ export default function EditSpacePanel({
                   isLoading={isGeneratingLink}
                   isEditMode={true}
                   privateTriggerLabel="Only I can see this space"
-                  sharedTriggerLabel="Shared with anyone with the link"
+                  sharedTriggerLabel="Shared to anyone with link"
                   privateOptionLabel="Only I can see this space"
-                  sharedOptionLabel="Turn on sharing with link to anyone"
+                  sharedOptionLabel="Share to anyone with link"
                 />
 
                 {/* Tab navigation */}

@@ -9,6 +9,7 @@
  */
 
 import { getDBConnection, type DBConfig } from './indexeddb-pool';
+import { isPWA } from './content-list-helpers';
 
 export interface DeviceFingerprint {
   deviceId: string;
@@ -38,16 +39,9 @@ const DB_CONFIG: DBConfig = {
   }
 };
 
-/**
- * Detect if app is running in PWA mode
- */
+// Use centralized PWA detection from content-list-helpers
 function isPWAMode(): boolean {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true ||
-    document.referrer.includes('android-app://')
-  );
+  return isPWA();
 }
 
 /**

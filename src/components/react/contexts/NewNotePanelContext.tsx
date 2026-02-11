@@ -42,7 +42,8 @@ interface NewNotePanelContextType {
   hasUnsavedChanges: () => boolean;
   resetForm: () => void;
   clearLocalStorage: () => void;
-  
+  rehydrateFromStorage: () => void;
+
   // Internal function to handle initialNoteType prop
   setInitialNoteType: (type: NoteType) => void;
 }
@@ -303,7 +304,75 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     localStorage.removeItem('newNoteTemplateId');
     // Don't clear newNoteThread - preserve thread selection for next time
   }, []);
-  
+
+  // Rehydrate form state from localStorage (used when mobile panel opens to sync desktop draft)
+  const rehydrateFromStorage = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const savedTitle = localStorage.getItem('newNoteTitle') || '';
+    const savedContent = localStorage.getItem('newNoteContent') || '';
+    const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
+    const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
+    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
+    const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
+    const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
+    const savedTemplateId = localStorage.getItem('newNoteTemplateId') || '';
+    const savedSourceNoteId = localStorage.getItem('newNoteSourceNoteId');
+    const savedSourceSelectionFrom = localStorage.getItem('newNoteSourceSelectionFrom');
+    const savedSourceSelectionTo = localStorage.getItem('newNoteSourceSelectionTo');
+
+    isLoadingFromLocalStorage.current = true;
+
+    if (savedSourceNoteId) {
+      setSourceNoteId(savedSourceNoteId);
+    } else {
+      setSourceNoteId(null);
+    }
+    if (savedSourceSelectionFrom) {
+      setSourceSelectionFrom(parseInt(savedSourceSelectionFrom, 10));
+    } else {
+      setSourceSelectionFrom(null);
+    }
+    if (savedSourceSelectionTo) {
+      setSourceSelectionTo(parseInt(savedSourceSelectionTo, 10));
+    } else {
+      setSourceSelectionTo(null);
+    }
+
+    if (savedTemplateId) {
+      setSelectedTemplateId(savedTemplateId);
+    } else {
+      setSelectedTemplateId(null);
+    }
+
+    if (savedNoteType === 'scripture') {
+      setNoteType('scripture');
+      setScriptureReference(savedScriptureRef);
+      setScriptureVersion(savedScriptureVersion);
+      setTitle(savedScriptureRef || savedTitle);
+      setContent(savedScriptureText || savedContent);
+    } else if (savedNoteType === 'resource') {
+      setNoteType('resource');
+      setResourceUrl(savedResourceUrl);
+      setTitle(savedTitle);
+      setContent(savedContent);
+    } else {
+      setNoteType('default');
+      setScriptureReference('');
+      setScriptureVersion('NET');
+      setTitle(savedTitle);
+      setContent(savedContent);
+    }
+
+    const savedThreadId = localStorage.getItem('newNoteThread') || '';
+    if (savedThreadId) {
+      localStorage.setItem('newNoteThreadPending', savedThreadId);
+    }
+
+    setTimeout(() => {
+      isLoadingFromLocalStorage.current = false;
+    }, 100);
+  }, []);
+
   const value: NewNotePanelContextType = {
     // State
     title,
@@ -335,6 +404,7 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     hasUnsavedChanges,
     resetForm,
     clearLocalStorage,
+    rehydrateFromStorage,
     setInitialNoteType,
   };
   
