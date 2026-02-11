@@ -1,25 +1,37 @@
 # Clerk "Unknown device" / "Unknown browser" in Session list
 
-## What we changed (already in place)
+All behavior and fixes below are based only on **Clerk docs** (no support contact).
 
-1. **No cookie restore on auth pages** – We no longer call `restoreClerkCookies()` in `initClerkForPWA()` on sign-in/sign-up. Restoring cookies before Clerk runs could cause Clerk to skip device registration. Cookie restore only runs in the silent-restore path (same device, valid backup) before `setSession()`.
-2. **Clerk script on all pages** – The @clerk/astro integration injects the Clerk hotload script into every HTML response (before `</head>`), so the Clerk client runs on profile/dashboard too and can send activity with the browser User-Agent.
-3. **Patch: forward browser User-Agent to Clerk client** – The @clerk/astro server creates a Clerk client with a fixed `userAgent: "@clerk/astro@2.11.8"`. When our middleware validates the session on every protected request, that client talks to Clerk’s API with that User-Agent, so Clerk was recording session activity as “unknown device”. We patch `@clerk/astro` (via `patches/@clerk+astro+2.11.8.patch`) so the client uses the **incoming request’s User-Agent** (the browser’s, e.g. “Mozilla/5.0 … Chrome/…”) when available. Session activity then shows “Mac using Chrome” (or the real device/browser). Run `npm install` so `patch-package` applies the patch.
+## What Clerk docs say
 
-## Why it might still show "Unknown device"
+- **SessionActivity** ([Backend SessionActivity](https://clerk.com/docs/reference/backend/types/backend-session-activity)): “models the activity of a user session, capturing details such as the device type, browser information, and geographical location.” Properties include optional `browserName`, `browserVersion`, `deviceType`, `isMobile` — “optional fields that may be undefined depending on what information is available.”
+- **createClerkClient** ([JS Backend SDK](https://clerk.com/docs/js-backend/getting-started/quickstart)): accepts `userAgent?` (string) — “The User-Agent request header passed to the Clerk API.”
+- **Astro**: “you must pass the endpoint context when invoking the `clerkClient` function” and use `clerkClient(context)` so the client is created with the request context.
 
-- **Session was created before the fix** – Existing sessions were created when we were still restoring cookies on auth pages. Sign out completely and sign in again to create a new session with the current flow.
-- **Server-side requests** – Clerk’s SessionActivity (device/browser) is derived from the **User-Agent** of the request that creates/updates the session. The @clerk/astro server client uses `userAgent: "@clerk/astro@2.x.x"` when the server talks to Clerk (e.g. `createClerkClient`). If Clerk records session activity from those server requests, it would show as "unknown device". We don’t control that; it would require Clerk to forward the **incoming request’s User-Agent** (the browser’s) when recording activity.
-- **PWA / standalone** – In PWA or standalone mode, the browser’s User-Agent can be reduced (e.g. no "Chrome" in the string), so Clerk’s parser might not recognize it and show "unknown browser".
+So: we must pass the **request’s User-Agent** into the Clerk client when we call the Clerk API (e.g. in middleware). Device/browser in SessionActivity depend on “what information is available” (per docs).
 
-## What to try
+## What we do in this app
 
-1. **Sign out and sign in again** – Create a fresh session with the current flow (no cookie restore on auth pages). Check in Clerk Dashboard whether the new session shows device/browser.
-2. **Sign in from a normal browser tab** – If you usually use the PWA or an embedded browser, try signing in from a regular Chrome/Safari tab and see if that session shows "Mac using Chrome".
-3. **Contact Clerk support** – If it still shows "Unknown device" for new sign-ins, ask them:
-   - "Session activity shows Unknown device / Unknown browser (and sometimes 'Data unavailable') for our users. It used to show e.g. 'Mac using Chrome'. We use @clerk/astro with custom sign-in/sign-up pages. We no longer restore cookies before Clerk runs on auth pages. Does SessionActivity get populated from server-side `authenticateRequest`? If so, can the request’s User-Agent (browser) be forwarded so device shows correctly?"
+1. **No PWA auth init on sign-in/sign-up** – We don’t run device fingerprint or cookie restore before Clerk on auth pages, so Clerk runs with a normal browser context.
+2. **Patch for @clerk/astro** – We patch the package so the server client always gets a User-Agent from the **incoming request**: we read both `User-Agent` and `user-agent` (some runtimes use lowercase) and fall back to the package default only when neither is present. See `patches/@clerk+astro+2.11.8.patch`. Run `npm install` so the patch is applied.
+3. **Astro** – We use `clerkClient(context)` in middleware so the client is created with the request context (per Clerk’s Astro docs).
 
-## References
+## Why you might still see "Unknown device"
 
-- [Clerk SessionActivity](https://clerk.com/docs/references/backend/types/backend-session-activity) – browserName, deviceType, etc. from User-Agent.
-- Our change: `src/utils/clerk-pwa-helper.ts` – removed unconditional `restoreClerkCookies()` from `initClerkForPWA()`.
+From Clerk docs, SessionActivity’s device/browser fields are **optional** and may be **undefined** “depending on what information is available.” So “Unknown device” is the Dashboard’s way of showing missing/optional data.
+
+- **Session created before the patch** – Sign out and sign in again so a new session is created with the current (patched) flow.
+- **Header not available in your runtime** – If the request never has a `User-Agent` (or `user-agent`) in the environment where middleware runs, the client will use the default and Clerk may not have information to fill device/browser.
+- **PWA / standalone** – In installed/PWA mode the browser often sends a reduced or custom User-Agent; Clerk may not recognize it, so device/browser can stay unknown (optional fields undefined).
+
+## What to try (no support contact)
+
+1. **Sign out and sign in again** – New session created with the patched client and current flow.
+2. **Confirm patch is applied** – Run `npm install` and ensure `patches/@clerk+astro+2.11.8.patch` exists; the patched file reads both `User-Agent` and `user-agent` from `context.request.headers`.
+3. **Sign in from a normal browser tab** – If you usually use PWA/standalone, try a normal Chrome/Safari tab; if that session shows device/browser, the issue is the PWA/standalone User-Agent.
+
+## References (Clerk docs only)
+
+- [Backend SessionActivity](https://clerk.com/docs/reference/backend/types/backend-session-activity) – device/browser are optional; may be undefined depending on what information is available.
+- [JS Backend SDK – createClerkClient](https://clerk.com/docs/js-backend/getting-started/quickstart) – `userAgent?`: “The User-Agent request header passed to the Clerk API.”
+- [SessionWithActivities](https://clerk.com/docs/reference/javascript/types/session-with-activities) – `latestActivity` holds SessionActivity data.
