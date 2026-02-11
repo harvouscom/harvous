@@ -308,7 +308,7 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
                         href={`/sign-in?redirect=/spaces/join/${token}`}
                         class="shared-page__cta-button"
                       >
-                        <span class="shared-page__cta-text">Sign in to join</span>
+                        <span class="shared-page__cta-text">Join this space on Harvous</span>
                       </Button>
                     ) : canJoin ? (
                       <Button
@@ -318,7 +318,7 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
                         data-token={token}
                         data-space-id={space.id}
                       >
-                        <span class="shared-page__cta-text" id="join-btn-text">Join space on Harvous</span>
+                        <span class="shared-page__cta-text" id="join-btn-text">Join this space on Harvous</span>
                       </Button>
                     ) : alreadyMember ? (
                       <Button
