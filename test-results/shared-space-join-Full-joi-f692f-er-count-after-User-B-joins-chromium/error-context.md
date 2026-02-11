@@ -1,0 +1,86 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic:
+    - region "Notifications alt+T"
+  - generic [ref=e3]:
+    - generic [ref=e9]:
+      - generic [ref=e12]:
+        - link "My Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - generic [ref=e17]: My Home
+        - group [ref=e18]:
+          - generic "Switch space" [ref=e19]:
+            - img [ref=e22] [cursor=pointer]
+      - generic [ref=e24]:
+        - link "Search" [ref=e26] [cursor=pointer]:
+          - /url: /find
+          - generic [ref=e28]:
+            - img [ref=e31]
+            - generic [ref=e34]: Search
+        - link "Go to profile" [ref=e35] [cursor=pointer]:
+          - /url: /profile
+          - paragraph [ref=e38]: TJ
+    - generic [ref=e42]:
+      - paragraph [ref=e45]: My Home
+      - generic [ref=e50]:
+        - generic [ref=e52]:
+          - button "All" [ref=e53] [cursor=pointer]:
+            - generic: All
+          - button "Threads" [ref=e54] [cursor=pointer]:
+            - generic: Threads
+          - button "Notes" [ref=e55] [cursor=pointer]:
+            - generic: Notes
+          - button "Scripture" [ref=e56] [cursor=pointer]:
+            - generic: Scripture
+        - generic [ref=e60]:
+          - link "John 3:16-17" [ref=e63] [cursor=pointer]:
+            - /url: /note/1770768571504
+            - generic [ref=e66]:
+              - img [ref=e69]
+              - generic [ref=e72]: John 3:16-17
+          - link "Proverbs 25:2" [ref=e75] [cursor=pointer]:
+            - /url: /note/1770768571431
+            - generic [ref=e78]:
+              - img [ref=e81]
+              - generic [ref=e84]: Proverbs 25:2
+          - link "Welcome to Harvous Just now" [ref=e87] [cursor=pointer]:
+            - /url: /thread/onboarding_user_39UwCvgLSptjjiMa4P0QWQ4zcqG
+            - generic [ref=e91]:
+              - img [ref=e93]
+              - generic [ref=e95]:
+                - paragraph [ref=e97]: Welcome to Harvous
+                - paragraph [ref=e99]: Just now
+          - link "Finding your way around Within Harvous you can of course create notes, threads, and spaces like we covered in the other note. And well you can also of course find said notes,..." [ref=e109] [cursor=pointer]:
+            - /url: /note/1770768571521
+            - generic [ref=e111]:
+              - img [ref=e114]
+              - generic [ref=e117]:
+                - paragraph [ref=e119]: Finding your way around
+                - paragraph [ref=e121]: Within Harvous you can of course create notes, threads, and spaces like we covered in the other note. And well you can also of course find said notes,...
+          - link "Notes, threads, and spaces oh my! First and foremost this is a notes app. But because it’s designed for Bible study there some some unique things worth mentioning. Spaces Spaces are wh... 1 scripture note" [ref=e124] [cursor=pointer]:
+            - /url: /note/1770768571445
+            - generic [ref=e128]:
+              - img [ref=e131]
+              - generic [ref=e134]:
+                - paragraph [ref=e136]: Notes, threads, and spaces oh my!
+                - generic [ref=e137]:
+                  - paragraph [ref=e138]: First and foremost this is a notes app. But because it’s designed for Bible study there some some unique things worth mentioning. Spaces Spaces are wh...
+                  - generic [ref=e139]:
+                    - generic: 1 scripture note
+                    - img [ref=e141]
+          - link "Note from the Founder Hey, I’m Derek! I started Harvous with the mission to help us who are curious about Jesus stay curious and remember our journey—our Bible study. My jo... 1 scripture note" [ref=e145] [cursor=pointer]:
+            - /url: /note/1770768571159
+            - generic [ref=e149]:
+              - img [ref=e152]
+              - generic [ref=e155]:
+                - paragraph [ref=e157]: Note from the Founder
+                - generic [ref=e158]:
+                  - paragraph [ref=e159]: Hey, I’m Derek! I started Harvous with the mission to help us who are curious about Jesus stay curious and remember our journey—our Bible study. My jo...
+                  - generic [ref=e160]:
+                    - generic: 1 scripture note
+                    - img [ref=e162]
+    - button "Add new item" [ref=e169] [cursor=pointer]:
+      - img [ref=e173]
+```

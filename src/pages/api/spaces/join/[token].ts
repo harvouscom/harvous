@@ -87,6 +87,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         spaceId: space.id,
         userId,
         role: 'member',
+        createdAt: new Date(),
         joinedAt: new Date(),
       });
 

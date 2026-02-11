@@ -28,7 +28,11 @@ export default async function() {
       userId: testUserId,
       isPublic: true,
       isActive: true,
-      order: 2
+      order: 2,
+      // Known share token for Playwright e2e tests (must be exactly 12 alphanumeric chars)
+      // Join URL: /spaces/join/testToken123
+      shareToken: 'testToken123',
+      shareTokenCreatedAt: new Date(),
     }
   ]);
 

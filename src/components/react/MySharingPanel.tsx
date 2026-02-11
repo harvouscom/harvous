@@ -175,12 +175,14 @@ export default function MySharingPanel({
                           title={thread.title}
                           color={thread.color ?? undefined}
                           isPublic={true}
+                          icon="layer-group"
                           action={
                             <ActionButton
                               variant="Remove"
                               onClick={() => handleDisableThread(thread)}
                               disabled={disablingId === thread.id}
                               aria-label={`Make private: ${thread.title}`}
+                              className="w-8 h-8"
                             />
                           }
                         />
@@ -198,6 +200,7 @@ export default function MySharingPanel({
                               onClick={() => handleDisableNote(note)}
                               disabled={disablingId === note.id}
                               aria-label={`Make private: ${note.title}`}
+                              className="w-8 h-8"
                             />
                           }
                         />
