@@ -1,5 +1,7 @@
 # Collaborative Shared Spaces Implementation Plan
 
+**v1 complete (February 2026).** The implementation described below has been completed. Future work: performance and quality-of-life improvements.
+
 ## Overview
 Implement collaborative shared spaces where users can invite specific members (via email or shareable link) to view and contribute content together. Built on existing Members table and Clerk authentication.
 

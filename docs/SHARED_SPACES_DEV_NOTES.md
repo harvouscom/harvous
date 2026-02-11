@@ -1,6 +1,8 @@
 # Shared Spaces — Development Notes & Decisions
 
-This document captures design decisions, rules, and outstanding work for the collaborative shared spaces feature. It is a living reference for continued development.
+**Status: v1 complete (February 2026).** Shared spaces are fully implemented. Future work focuses on performance and quality-of-life improvements.
+
+This document captures design decisions, rules, and implementation details for the collaborative shared spaces feature. It is a living reference for continued development.
 
 ---
 

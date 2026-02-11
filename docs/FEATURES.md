@@ -1,6 +1,6 @@
 # Harvous Features
 
-Discover the powerful features that make Harvous the perfect companion for your Bible study journey. Harvous is a modern Bible study notes application with a solid foundation and React Islands architecture, currently 85% complete for v1 with production-ready core functionality.
+Discover the powerful features that make Harvous the perfect companion for your Bible study journey. Harvous is a modern Bible study notes application with a solid foundation and React Islands architecture. **v1 is complete** with production-ready core functionality; ongoing focus is performance and quality-of-life improvements.
 
 ## 🗂️ Flexible Organization
 
@@ -100,11 +100,13 @@ N004: Prayer Request - Healing for Sarah
 - Perfect for personal Bible reading, prayer journaling, and individual reflection
 - Only visible to you - your private spiritual journey
 
-### Shared Spaces
+### Shared Spaces ✅ **v1 COMPLETE**
 - **Collaborative environments** where multiple people can contribute
 - Perfect for church small groups, Bible study groups, book clubs, and family devotions
 - All members can create threads and notes within the shared space
-- Future features: Permission levels (view, contribute, moderate) and member management
+- **Invitations:** Email and shareable invite links; accept/decline flow
+- **Member management:** Owner can invite, remove members; members can leave; tier limits (e.g. free: 1 space, 5 members)
+- **Visibility:** Join page, member view, shared space indicator; locked notes never shown in shared contexts
 
 ### Example Use Cases:
 ```
@@ -386,16 +388,16 @@ Ready to transform your Bible study? Here's how to begin:
 3. **Add a thread** with its own color (e.g., "Current Book Study" - Purple)
 4. **Start taking notes** with the rich text editor and watch your XP grow!
 5. **Use the search** to find your insights quickly with enhanced relevance scoring
-6. **Create shared spaces** for group study and collaboration
-7. **Coming in V1**: Select text to create notes instantly and use specialized note types
+6. **Create shared spaces** for group study and collaboration (invite via email or link, member management, tier limits)
+7. Select text to create notes instantly and use specialized note types
 
-### Current Status: 85% Complete for V1
+### Current Status: V1 Complete
 - ✅ **Core Features**: Content creation, viewing, and management
 - ✅ **Mobile Experience**: Modern bottom sheet system with React Islands
 - ✅ **XP System**: Gamification with automatic XP awarding
 - ✅ **Search**: Enhanced search with relevance scoring and tag support
 - ✅ **Billing & Referrals**: Free tier (1,000 notes), upgrade to unlimited, referral bonus (100 notes per friend)
 - ✅ **Locked Notes**: Client-side encryption (AES-GCM 256-bit, PBKDF2-SHA256 310k iterations); 4-digit PIN, no recovery
-- 🆕 **V1 Features**: Selected text note creation and note types system
+- ✅ **Shared Spaces**: Invitations (email + link), member management, join/leave, tier limits; v1 complete. Next: performance and QoL.
 
 Your journey of organized, meaningful Bible study starts now. 📖✨

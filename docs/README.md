@@ -24,6 +24,7 @@ Complete documentation index for the Harvous Bible study notes application.
 - **[REFACTORING_PLAN.md](./REFACTORING_PLAN.md)** - Refactoring guidelines and best practices
 
 ### Feature Documentation
+- **[SHARED_SPACES_DEV_NOTES.md](./SHARED_SPACES_DEV_NOTES.md)** - Shared spaces: design decisions, visibility rules, permissions (v1 complete)
 - **[LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md)** - Locked notes: AES-GCM 256-bit, PBKDF2-SHA256 310k iterations (transparency)
 - **[REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md)** - Referral bonus (100 notes per friend), ReferralPanel, billing limit
 - **[SCRIPTURE_PILL_IMPLEMENTATION.md](./SCRIPTURE_PILL_IMPLEMENTATION.md)** - Scripture detection and pill system
