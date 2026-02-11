@@ -385,58 +385,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // Size sheet to visual viewport when note/resource panel is open so keyboard doesn't cover content
-  // and the editor area has a bounded height and can scroll. Only set height – no display/flex/overflow.
-  useEffect(() => {
-    if (!isVisible || !isMobile) return;
-    const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
-    const el = sheetContentElRef.current;
-    if (!el || !isNoteOrResource) return;
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const setSize = () => {
-      el.style.top = `${vv.offsetTop}px`;
-      el.style.left = `${vv.offsetLeft}px`;
-      el.style.width = `${vv.width}px`;
-      el.style.height = `${vv.height}px`;
-      el.style.maxHeight = `${vv.height}px`;
-      el.style.setProperty('--sheet-viewport-height', `${vv.height}px`);
-    };
-    setSize();
-    vv.addEventListener('resize', setSize);
-    vv.addEventListener('scroll', setSize);
-    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
-    const handleFocusIn = () => {
-      if (!el || !window.visualViewport) return;
-      timeoutIds.forEach((id) => clearTimeout(id));
-      timeoutIds.length = 0;
-      setSize();
-      timeoutIds.push(
-        setTimeout(() => {
-          if (el && window.visualViewport) setSize();
-        }, 100)
-      );
-      timeoutIds.push(
-        setTimeout(() => {
-          if (el && window.visualViewport) setSize();
-        }, 300)
-      );
-    };
-    el.addEventListener('focusin', handleFocusIn);
-    return () => {
-      timeoutIds.forEach((id) => clearTimeout(id));
-      el.removeEventListener('focusin', handleFocusIn);
-      vv.removeEventListener('resize', setSize);
-      vv.removeEventListener('scroll', setSize);
-      el.style.top = '';
-      el.style.left = '';
-      el.style.width = '';
-      el.style.height = '';
-      el.style.maxHeight = '';
-      el.style.removeProperty('--sheet-viewport-height');
-    };
-  }, [isVisible, isMobile, drawerType]);
-
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {
@@ -485,7 +433,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       <SheetContent
         ref={sheetContentElRef}
         side="bottom"
-        className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 h-[90vh]"
+        className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{
           padding: '0',
           outline: 'none',

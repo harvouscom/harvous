@@ -69,6 +69,12 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: 90vh;
+}
+@supports (height: 100dvh) {
+  .bottom-sheet-content {
+    height: 90dvh;
+  }
 }
 
 /* Prevent header/focus anchor from shrinking so title and toolbar stay visible every time */
@@ -106,16 +112,19 @@
   min-height: 0;
 }
 
-/* In-sheet: allow editor content to scroll when content is long or keyboard is open.
-   --sheet-viewport-height is set by BottomSheet when note/resource panel is open (visual viewport)
-   so the editor scroll area is keyboard-aware. Subtract reserves space for header, title, toolbar, footer. */
+/* In-sheet: allow editor content to scroll when content is long */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(var(--sheet-viewport-height, 90vh) - 360px);
+  max-height: calc(90vh - 320px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
+}
+@supports (height: 100dvh) {
+  .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
+    max-height: calc(100dvh - 320px);
+  }
 }
 
 /* Bottom-sheet panels should use tighter header gutters */
