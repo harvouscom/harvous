@@ -95,10 +95,14 @@
   min-height: 0;
   overflow: hidden;
 }
+/* Force editor scroll: explicit max-height so content can scroll on mobile (flex chain can fail in sheet) */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
+  max-height: calc(90vh - 320px);
+  min-height: 120px;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-  min-height: 0;
 }
 
 /* Bottom-sheet panels should use tighter header gutters */
