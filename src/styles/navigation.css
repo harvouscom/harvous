@@ -472,8 +472,14 @@
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.12) inset;
 }
 
-/* Ensure last item covers bottom edge to prevent shadow artifact */
-.mobile-nav__space-panel-item:last-child {
+/* Last item in scroll list stays square; only New Space (footer) has bottom radius */
+.mobile-nav__space-panel-scroll .mobile-nav__space-panel-item:last-child {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Ensure New Space (panel footer) covers bottom edge with radius */
+.mobile-nav__space-panel > .mobile-nav__space-panel-item:last-child {
   border-bottom-left-radius: 16px;
   border-bottom-right-radius: 16px;
   position: relative;
