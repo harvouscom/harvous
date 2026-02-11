@@ -317,6 +317,41 @@ sequenceDiagram
     ProfilePage->>User: Display XP total and breakdown
 ```
 
+## Space Join / Invite Flow
+
+```mermaid
+sequenceDiagram
+    participant Owner
+    participant API
+    participant Database
+    participant Invitee
+    participant JoinPage
+
+    Owner->>API: POST /api/spaces/[spaceId]/members/invite
+    API->>Database: Create SpaceInvitations record (status: pending)
+    API-->>Owner: Return invite link (token)
+
+    Invitee->>JoinPage: Open /spaces/join/[token]
+    JoinPage->>API: GET invite details (by token)
+    API->>Database: Look up SpaceInvitations
+    Database-->>API: Return invite (space, inviter)
+    API-->>JoinPage: Return space preview
+
+    alt Invitee accepts
+        Invitee->>JoinPage: Click "Join"
+        JoinPage->>API: POST /api/invitations/[token]/accept
+        API->>Database: Insert Members record
+        API->>Database: Update SpaceInvitations status: accepted
+        API-->>JoinPage: Success
+        JoinPage->>Invitee: Redirect to space/dashboard
+    else Invitee declines
+        Invitee->>JoinPage: Click "Decline"
+        JoinPage->>API: POST /api/invitations/[token]/decline
+        API->>Database: Update SpaceInvitations status: declined
+        API-->>JoinPage: Success
+    end
+```
+
 ## Related Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall system architecture

@@ -17,9 +17,10 @@ When a note belongs to multiple threads, there's a UX challenge: **Which thread 
 - When clicking a note from navigation, it opens in the most contextually appropriate thread:
   1. URL parameter override (`?thread=threadId`) - explicit user choice
   2. Navigation context detection - thread user was viewing when they clicked
-  3. **Last accessed thread** - tracks per-note access patterns via `NoteThreadAccess` table
-  4. Most recent thread activity - fallback to thread with most recent updates
-  5. Unorganized thread fallback - final fallback for edge cases
+  3. Most recent thread activity - fallback to thread with most recent updates
+  4. Unorganized thread fallback - final fallback for edge cases
+
+  *(Note: A `NoteThreadAccess` table for per-note last-accessed-thread tracking was removed; context is determined by URL and navigation state only. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [DATABASE.md](./DATABASE.md).)*
 - The note shows which threads it belongs to in the NoteDetailsPanel
 - Thread pages show all notes that belong to that thread
 - **No more arbitrary "primary thread" defaults** - system is now user-centric
@@ -275,16 +276,16 @@ When a note belongs to multiple threads, there's a UX challenge: **Which thread 
 ## Implementation Summary
 
 ### ✅ Completed Features
-- **NoteThreadAccess Table**: Tracks per-note thread access patterns
-- **Smart Thread Selection**: 5-tier priority system for thread context
-- **Access Tracking**: Automatic tracking when notes are opened from specific threads
+- **Smart Thread Selection**: 4-tier priority (URL param → navigation context → most recent thread → unorganized fallback)
 - **Primary Thread Removal**: Eliminated arbitrary "primary thread" defaults
 - **Unorganized Thread Preservation**: Maintains existing unorganized thread behavior
 - **Graceful Degradation**: Multiple fallback levels ensure notes always open in valid context
 
+*(NoteThreadAccess table and per-note access tracking were removed; see ARCHITECTURE.md and DATABASE.md.)*
+
 ### 🎯 Key Benefits
-- **User-Centric**: Notes open in the thread the user last accessed them from
-- **Contextual**: Respects user's actual usage patterns and navigation history
+- **User-Centric**: Notes open in the thread suggested by URL or current navigation context
+- **Contextual**: Respects navigation state and most-recent-thread fallback
 - **Intuitive**: Matches user expectations without arbitrary defaults
 - **Backwards Compatible**: All existing functionality preserved
 - **Performance Optimized**: Only tracks multi-thread notes to minimize overhead

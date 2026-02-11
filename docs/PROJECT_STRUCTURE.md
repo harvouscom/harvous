@@ -10,36 +10,76 @@ harvous/
 │   ├── pages/              # Astro pages (routes)
 │   │   ├── index.astro     # Landing page
 │   │   ├── dashboard.astro # Main dashboard
-│   │   ├── [id].astro      # Dynamic thread/note/space view
+│   │   ├── find.astro      # Find/search page
 │   │   ├── profile.astro   # User profile
+│   │   ├── new-space.astro # Space creation
+│   │   ├── space.astro     # Space view (redirect/legacy)
+│   │   ├── sign-in.astro   # Clerk sign-in
+│   │   ├── sign-up.astro   # Clerk sign-up
+│   │   ├── logout.astro    # Logout
+│   │   ├── upgrade.astro   # Upgrade/billing
+│   │   ├── [...slug].astro # Dynamic thread/note/space view (catch-all)
+│   │   ├── invitations/[token].astro  # Space invite accept/decline
+│   │   ├── shared/note/[shareToken].astro  # Shared note preview
+│   │   ├── shared/thread/[shareToken].astro # Shared thread preview
+│   │   ├── spaces/join/[token].astro  # Join shared space
 │   │   └── api/            # API endpoints
-│   │       ├── notes/      # Note operations
-│   │       ├── threads/    # Thread operations
-│   │       ├── user/       # User operations
-│   │       └── scripture/  # Scripture operations
+│   │       ├── notes/      # Note CRUD, add-thread, comments, share, etc.
+│   │       ├── threads/    # Thread CRUD, share, notes, prefetch
+│   │       ├── spaces/     # Space CRUD, items, members, invite, join
+│   │       ├── user/       # Profile, XP, limits, session, locked-notes, etc.
+│   │       ├── scripture/  # Detect, fetch-verse, check-existing
+│   │       ├── inbox/      # Inbox preview, archive, add-to-harvous, etc.
+│   │       ├── shared/     # Shared note/thread add-to-harvous
+│   │       ├── invitations/ # Accept, decline, index
+│   │       ├── navigation/ # data.ts
+│   │       ├── billing/    # checkout, downgrade
+│   │       ├── referral/   # credit, status
+│   │       ├── webhooks/   # clerk
+│   │       ├── webflow/    # sync-inbox, webhook
+│   │       └── ...         # admin, content, tags, resource, sync, test, etc.
 │   │
 │   ├── components/
-│   │   ├── react/          # React island components
-│   │   │   ├── TiptapEditor.tsx
-│   │   │   ├── NavigationColumn.tsx
-│   │   │   ├── NewNotePanel.tsx
-│   │   │   ├── NoteDetailsPanel.tsx
-│   │   │   └── BottomSheet.tsx
-│   │   ├── ui/             # Radix UI components
-│   │   └── *.astro         # Astro components
+│   │   ├── react/          # React island components (~118 TSx)
+│   │   │   ├── navigation/ # NavigationColumn, PersistentNavigation, etc.
+│   │   │   ├── TiptapEditor.tsx, NewNotePanel.tsx, CardFullEditable.tsx
+│   │   │   ├── NewThreadPanel.tsx, EditThreadPanel.tsx, NoteDetailsPanel.tsx
+│   │   │   ├── SquareButton.tsx, Menu.tsx, BottomSheet.tsx
+│   │   │   └── ...         # Panels, profile, contexts
+│   │   ├── ui/             # Radix UI primitives
+│   │   └── *.astro         # Astro components (CardNote, CardStack, SpaceButton, etc.)
 │   │
 │   ├── layouts/            # Page layouts
 │   │   └── Layout.astro    # Main layout
 │   │
+│   ├── hooks/              # React hooks
+│   │   ├── useOptimisticUpdates.ts
+│   │   ├── usePWAAndNavigationRefresh.ts
+│   │   ├── useBottomSheetDrag.ts
+│   │   └── useNavigationFeedback.ts
+│   │
+│   ├── scripts/            # Client/build scripts
+│   │   ├── navigation-cache-client.ts
+│   │   ├── navigation-close.js
+│   │   ├── auth-pwa-init.ts
+│   │   └── activity-panel-handler.js
+│   │
+│   ├── data/               # Static/data content
+│   │   ├── onboarding/     # Welcome, create-organize, find markdown
+│   │   ├── note-templates.ts
+│   │   ├── bible-chapters.json
+│   │   └── about/
+│   │
+│   ├── lib/                # Shared lib (e.g. utils.ts)
 │   ├── utils/              # Utility functions
-│   │   ├── dashboard-data.ts    # Data fetching
-│   │   ├── xp-system.ts         # XP logic
-│   │   ├── auto-tag-generator.ts # Auto-tagging
-│   │   ├── scripture-detector.ts # Scripture parsing
-│   │   └── user-cache.ts        # Clerk data caching
+│   │   ├── dashboard-data.ts, xp-system.ts
+│   │   ├── auto-tag-generator.ts, scripture-detector.ts
+│   │   └── user-cache.ts, menu-options.ts, ...
 │   │
 │   ├── actions/            # Server actions
-│   └── styles/             # Global CSS
+│   │   ├── notes.ts, threads.ts, noteThreads.ts
+│   │   └── api/threads.ts
+│   └── styles/             # Global CSS (colors, layout, components)
 │
 ├── db/
 │   ├── config.ts           # Database schema
@@ -47,16 +87,20 @@ harvous/
 │
 ├── public/
 │   ├── scripts/            # Client-side JS
-│   │   ├── navigation/     # Navigation tracking
-│   │   └── pwa-startup.js  # PWA initialization
+│   │   ├── navigation/     # history-tracker.js, persistent-navigation.js, unorganized-handler.js
+│   │   ├── tabs/            # tab-manager.js
+│   │   ├── pwa-startup.js, service-worker-manager.js
+│   │   ├── session-tracker.js, profile-sync.js
+│   │   ├── avatar-manager-global.js, toast-handler.js
+│   │   └── haptics-handler.js
 │   ├── manifest.json       # PWA manifest
 │   └── sw.js               # Service worker
 │
-├── docs/                    # Documentation
-├── *.md                     # Root documentation files
-├── astro.config.mjs         # Astro configuration
-├── package.json             # Dependencies
-└── netlify.toml             # Netlify config
+├── docs/                   # Documentation
+├── *.md                    # Root documentation files
+├── astro.config.mjs        # Astro configuration
+├── package.json            # Dependencies
+└── netlify.toml            # Netlify config
 ```
 
 ## Key Directories
@@ -67,9 +111,16 @@ Astro pages that define routes. Each `.astro` file becomes a route.
 
 **Key Files:**
 - `dashboard.astro` - Main dashboard with inbox and organized content
-- `[id].astro` - Dynamic routing for threads, notes, and spaces
+- `[...slug].astro` - Dynamic catch-all routing for threads, notes, and spaces
+- `find.astro` - Find/search page
 - `profile.astro` - User profile page with XP display
-- `api/` - API endpoints organized by resource type
+- `new-space.astro` - Space creation
+- `sign-in.astro`, `sign-up.astro`, `logout.astro` - Auth (Clerk)
+- `upgrade.astro` - Billing/upgrade
+- `invitations/[token].astro` - Space invite accept/decline
+- `shared/note/[shareToken].astro`, `shared/thread/[shareToken].astro` - Shared content preview
+- `spaces/join/[token].astro` - Join shared space
+- `api/` - API endpoints (notes, threads, spaces, user, inbox, shared, billing, webhooks, etc.)
 
 ### `src/components/`
 
@@ -81,10 +132,11 @@ Component library organized by type.
 - `*.astro` - Astro components (server-rendered)
 
 **Key Components:**
-- `NavigationColumn.tsx` - Main navigation
-- `TiptapEditor.tsx` - Rich text editor
-- `CardNote.astro` - Note preview cards
-- `CardStack.astro` - Stacked card container
+- `react/navigation/NavigationColumn.tsx`, `PersistentNavigation.tsx` - Navigation
+- `react/TiptapEditor.tsx`, `NewNotePanel.tsx`, `CardFullEditable.tsx` - Editing
+- `react/NewThreadPanel.tsx`, `EditThreadPanel.tsx`, `NoteDetailsPanel.tsx` - Panels
+- `react/SquareButton.tsx`, `Menu.tsx` - Context menus (SquareButton also has Astro wrapper)
+- `CardNote.astro`, `CardStack.astro`, `SpaceButton.astro` - Astro cards and layout
 
 ### `src/utils/`
 
@@ -127,7 +179,10 @@ Database configuration and schema.
 Static assets and client-side scripts.
 
 **Key Files:**
-- `scripts/` - Client-side JavaScript
+- `scripts/navigation/` - history-tracker.js, persistent-navigation.js, unorganized-handler.js
+- `scripts/tabs/` - tab-manager.js
+- `scripts/pwa-startup.js`, `service-worker-manager.js`, `session-tracker.js`, `profile-sync.js`
+- `scripts/avatar-manager-global.js`, `toast-handler.js`, `haptics-handler.js`
 - `manifest.json` - PWA manifest
 - `sw.js` - Service worker for offline support
 
@@ -155,7 +210,7 @@ Documentation files organized by topic.
 
 ### TypeScript Files
 - Utilities: `kebab-case.ts` (e.g., `dashboard-data.ts`)
-- Actions: `kebab-case.ts` (e.g., `note-threads.ts`)
+- Actions: `camelCase.ts` (e.g., `notes.ts`, `threads.ts`, `noteThreads.ts`)
 
 ## Import Paths
 

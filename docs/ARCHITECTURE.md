@@ -24,7 +24,7 @@ Harvous uses a hierarchical content organization system to help users structure 
 **Space Creation:**
 - Full customization with color selection (same palette as threads)
 - Private spaces enabled - users can create and organize private spaces
-- Shared spaces coming soon (disabled in UI with "Coming Soon" indicator)
+- **Shared spaces v1 complete** - invite via link, join/accept/decline; see [SHARED_SPACES_DEV_NOTES.md](./SHARED_SPACES_DEV_NOTES.md) for design and permissions
 - Persistent form state with localStorage
 - Real-time preview of selected color in header
 - New Space button enabled in both desktop and mobile navigation
@@ -136,11 +136,12 @@ The system uses a dual ID approach for notes:
 
 > **Detailed Documentation**: See [DATABASE.md](./DATABASE.md) for complete database schema, ERD diagrams, table definitions, and special patterns.
 
+**Additional schema (see DATABASE.md for full detail):** Spaces, Threads, and Notes support **shareToken** / **shareTokenCreatedAt** for public or email-specific sharing. Notes have **addedBy** (e.g. `user`, `harvous`) and **contentEncrypted** for locked notes. **SpaceInvitations** and **Members** support shared spaces (invite links, roles). **UserMetadata** includes referral (referralCode, referralBonusNotes), lock PIN (lockPinSalt, lockPinHash), church fields, and season/XP tracking.
+
 The system uses a hybrid approach for note-thread relationships:
 
 - **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread (used primarily for unorganized thread fallback)
 - **Many-to-Many Support**: `NoteThreads` junction table allows notes to belong to multiple threads
-- **Access Tracking**: `NoteThreadAccess` table tracks which thread a user last accessed each note from for smart multi-thread navigation
 - **Unorganized Thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
 - **Thread Deletion Logic**: When a thread is deleted, notes with that thread as primary `threadId` are moved to unorganized thread
 - **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted
@@ -152,16 +153,10 @@ When a note belongs to multiple threads, the system uses intelligent defaults to
 
 1. **URL Parameter Override** (`?thread=threadId`) - explicit user choice
 2. **Navigation Context Detection** - thread user was viewing when they clicked the note
-3. **Last Accessed Thread** - tracks per-note thread access patterns via `NoteThreadAccess` table
-4. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
-5. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
+3. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
+4. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
 
-The `NoteThreadAccess` table stores:
-- `userId`: Clerk user ID
-- `noteId`: Reference to the note
-- `threadId`: Reference to the thread the user accessed the note from
-- `lastAccessed`: Timestamp of last access
-- `accessCount`: Number of times the user accessed this note from this thread
+*(NoteThreadAccess table was removed; context is determined by URL and navigation state only. See [DATABASE.md](./DATABASE.md).)*
 
 ### XP System & Gamification
 
@@ -207,10 +202,12 @@ The application includes a comprehensive XP (Experience Points) system to gamify
 - **Pinned Threads**: Show note count, use thread color, highlight when active
 - **Persistent Navigation**: Simple localStorage-based system that tracks recently accessed items
 
-## Page Routing (`src/pages/[id].astro`)
+## Page Routing (`src/pages/[...slug].astro`)
+
+Dynamic catch-all route for threads, spaces, and notes:
 
 - **Thread Routes** (`/thread_*`): Display thread with notes, use thread color in header
-- **Space Routes** (`/space_*`): Display space with threads, use space color in header  
+- **Space Routes** (`/space_*`): Display space with threads, use space color in header
 - **Note Routes** (`/note_*`): Display individual note, use paper color in header
 
 ## Real Database System
@@ -267,9 +264,9 @@ function stripHtml(html: string): string {
 - `src/components/CardNote.astro` - Note preview cards
 - `src/components/CardFeat.astro` - Featured content cards
 - `src/utils/dashboard-data.ts` - Dashboard data processing
-- `src/pages/search.astro` - Search results processing
-- `src/pages/[id].astro` - Thread page content processing
-- `src/components/NewThreadPanel.astro` - Recent notes and search results
+- `src/pages/find.astro` - Find/search results processing
+- `src/pages/[...slug].astro` - Thread page content processing
+- `src/components/react/NewThreadPanel.tsx` - Recent notes and search results
 
 **Benefits:**
 - Clean text previews without HTML artifacts
@@ -875,20 +872,20 @@ Add a **"Manage Threads"** section to note pages and cards:
 
 - `src/utils/dashboard-data.ts`: Database queries for dashboard content
 - `src/pages/dashboard.astro`: Main dashboard with inbox/organized content
-- `src/pages/[id].astro`: Dynamic routing for threads, spaces, and notes
+- `src/pages/[...slug].astro`: Dynamic catch-all routing for threads, spaces, and notes
 - `src/pages/new-space.astro`: Space creation page with form and tab navigation
 - `src/pages/api/spaces/create.ts`: API endpoint for creating new spaces
 - `src/components/CardStack.astro`: Header component with color logic
 - `src/pages/api/threads/delete.ts`: Thread deletion API with note preservation logic
 - `src/actions/threads.ts`: Thread actions including safe deletion
-- `src/components/SquareButton.astro`: Context-aware button with menu functionality
-- `src/components/ContextMoreMenu.astro`: Context-aware menu for different content types
+- `src/components/react/SquareButton.tsx`: Context-aware button with menu (also `SquareButton.astro` wrapper)
+- `src/components/react/Menu.tsx`: Context-aware menu for different content types
 - `src/utils/menu-options.ts`: Utility for determining available menu options
 - `src/components/SpaceButton.astro`: Button component with close functionality
-- `src/components/NewThreadPanel.astro`: Thread creation panel with search functionality and tab persistence
-- `src/components/PersistentNavigation.astro`: Enhanced navigation component with space support and confirmation dialogs
+- `src/components/react/NewThreadPanel.tsx`: Thread creation panel with search and tab persistence
+- `src/components/react/navigation/PersistentNavigation.tsx`: Navigation with space support and confirmation dialogs
 - `src/pages/api/search.ts`: Search API endpoint for notes and threads
-- `public/scripts/navigation-history.js`: Simplified navigation history system
+- **Navigation scripts**: `public/scripts/navigation/` (history-tracker.js, persistent-navigation.js, unorganized-handler.js), `src/scripts/navigation-cache-client.ts`, `src/scripts/navigation-close.js`
 - `src/layouts/Layout.astro`: Alpine.js and View Transitions setup
 - `src/utils/xp-system.ts`: XP calculation and awarding system
 - `src/pages/api/user/xp.ts`: User XP API endpoint

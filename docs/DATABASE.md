@@ -12,10 +12,14 @@ erDiagram
     USERS ||--o{ TAGS : creates
     USERS ||--|| USERMETADATA : has
     USERS ||--o{ USERXP : earns
+    USERS ||--o{ USERSEASONALXP : earns
+    USERS ||--|| USERLIFETIMEXP : has
+    USERS ||--o{ WEEKLYSTREAKS : has
 
     SPACES ||--o{ THREADS : contains
     SPACES ||--o{ NOTES : contains
     SPACES ||--o{ MEMBERS : has
+    SPACES ||--o{ SPACEINVITATIONS : has
 
     THREADS ||--o{ NOTETHREADS : "via junction"
 
@@ -23,8 +27,13 @@ erDiagram
     NOTES ||--o{ NOTETAGS : has
     NOTES ||--o{ COMMENTS : has
     NOTES ||--o| SCRIPTUREMETADATA : "may have"
+    NOTES ||--o| RESOURCEMETADATA : "may have"
+    NOTES ||--o{ NOTESCRIPTUREREFERENCES : "references"
 
     TAGS ||--o{ NOTETAGS : "via junction"
+
+    INBOXITEMS ||--o{ INBOXITEMNOTES : contains
+    INBOXITEMS ||--o{ USERINBOXITEMS : "user status"
 
     USERS {
         text userId PK "Clerk ID"
@@ -40,50 +49,87 @@ erDiagram
         text userColor
         text firstName
         text lastName
+        text referralCode
+        int referralBonusNotes
+        text lockPinSalt
+        text lockPinHash
+        text churchName
+        text currentSeason
+        date lastMonthlyVisit
     }
 
     SPACES {
         text id PK
         text title
+        text description
         text userId FK
         text color
+        text backgroundGradient
         boolean isPublic
+        boolean isActive
         int order
+        text shareToken
+        date shareTokenCreatedAt
     }
 
     THREADS {
         text id PK
         text title
+        text subtitle
         text spaceId FK
         text userId FK
         text color
         boolean isPinned
         int order
+        text shareToken
+        date shareTokenCreatedAt
     }
 
     NOTES {
         text id PK
         text title
         text content
-        text threadId FK "Legacy field (always 'thread_unorganized')"
+        text threadId FK "Legacy (thread_unorganized)"
         text spaceId FK
         int simpleNoteId "N001, N002..."
         text noteType "default|scripture|resource"
+        text addedBy "user|harvous"
         text userId FK
         boolean isFeatured
+        boolean contentEncrypted
         int order
+        text shareToken
+        date shareTokenCreatedAt
     }
 
     NOTETHREADS {
         text id PK
         text noteId FK
         text threadId FK
+        date createdAt
+    }
+
+    MEMBERS {
+        text id PK
+        text userId FK
+        text spaceId FK
+        text role "member|admin|owner"
+    }
+
+    SPACEINVITATIONS {
+        text id PK
+        text spaceId FK
+        text inviteToken
+        text status "pending|accepted|declined|expired|cancelled"
+        text invitedEmail
+        text invitedUserId
     }
 
     TAGS {
         text id PK
         text name
         text category
+        text color
         text userId FK
         boolean isSystem
     }
@@ -103,7 +149,24 @@ erDiagram
         text book
         int chapter
         int verse
+        int verseEnd
         text translation
+        text originalText
+    }
+
+    RESOURCEMETADATA {
+        text id PK
+        text noteId FK
+        text sourceUrl
+        text sourceDomain
+        text sourceTitle
+        text sourceImage
+    }
+
+    NOTESCRIPTUREREFERENCES {
+        text id PK
+        text noteId FK
+        text scriptureNoteId FK
     }
 
     USERXP {
@@ -112,6 +175,61 @@ erDiagram
         text activityType
         int xpAmount
         text relatedId
+        text season
+    }
+
+    USERSEASONALXP {
+        text id PK
+        text userId FK
+        text season
+        int totalXP
+        int sessionCount
+    }
+
+    USERLIFETIMEXP {
+        text id PK
+        text userId FK
+        int totalXP
+        date lastUpdated
+    }
+
+    WEEKLYSTREAKS {
+        text id PK
+        text userId FK
+        date weekStart
+        int daysWithSessions
+        int xpAwarded
+    }
+
+    INBOXITEMS {
+        text id PK
+        text webflowItemId
+        text contentType "thread|note"
+        text title
+        text targetAudience
+    }
+
+    INBOXITEMNOTES {
+        text id PK
+        text inboxItemId FK
+        text content
+        int order
+    }
+
+    USERINBOXITEMS {
+        text id PK
+        text userId FK
+        text inboxItemId FK
+        text status "inbox|archived|added"
+    }
+
+    MONTHLYANALYTICS {
+        text id PK
+        text month "YYYY-MM"
+        text bookName
+        text tagName
+        text category "book|tag"
+        int count
     }
 ```
 
@@ -119,15 +237,27 @@ erDiagram
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
-| **Spaces** | Top-level organization containers | title, color, userId, isPublic |
-| **Threads** | Collections of related notes | title, spaceId, color, isPinned |
-| **Notes** | Individual content items | title, content, threadId (legacy), simpleNoteId, noteType |
+| **Spaces** | Top-level organization containers | title, description, color, backgroundGradient, userId, isPublic, isActive, shareToken |
+| **Threads** | Collections of related notes | title, subtitle, spaceId, color, isPinned, shareToken |
+| **Notes** | Individual content items | title, content, threadId (legacy), simpleNoteId, noteType, addedBy, contentEncrypted, shareToken |
 | **NoteThreads** | **Single source of truth**: notes ↔ threads (many-to-many) | noteId, threadId |
-| **Tags** | Categorization labels | name, category, isSystem |
-| **NoteTags** | Many-to-many: notes ↔ tags | noteId, tagId, isAutoGenerated |
-| **UserMetadata** | User preferences & cached data | highestSimpleNoteId, userColor, firstName, referralBonusNotes, referralCode |
-| **UserXP** | Gamification tracking | activityType, xpAmount, relatedId |
-| **ScriptureMetadata** | Bible reference data | reference, book, chapter, verse |
+| **Members** | Shared space membership | userId, spaceId, role |
+| **SpaceInvitations** | Invites to join shared spaces | spaceId, inviteToken, status, invitedEmail, invitedUserId |
+| **Tags** | Categorization labels | name, category, color, isSystem |
+| **NoteTags** | Many-to-many: notes ↔ tags | noteId, tagId, isAutoGenerated, confidence |
+| **UserMetadata** | User preferences & cached data | highestSimpleNoteId, userColor, referralBonusNotes, referralCode, lockPinSalt, lockPinHash, church fields, currentSeason |
+| **UserXP** | XP activity log | activityType, xpAmount, relatedId, season |
+| **UserSeasonalXP** | Aggregated XP per season | userId, season, totalXP, sessionCount |
+| **UserLifetimeXP** | Lifetime XP total | userId, totalXP, lastUpdated |
+| **WeeklyStreaks** | Weekly session streaks | userId, weekStart, daysWithSessions, xpAwarded |
+| **ScriptureMetadata** | Bible reference data | reference, book, chapter, verse, verseEnd, translation, originalText |
+| **ResourceMetadata** | Resource note metadata (URLs, OG) | noteId, sourceUrl, sourceDomain, sourceTitle, sourceImage |
+| **NoteScriptureReferences** | Notes referencing scripture notes | noteId, scriptureNoteId |
+| **Comments** | Note comments | noteId, userId, content |
+| **InboxItems** | Curated content (Webflow sync) | webflowItemId, contentType, title, targetAudience |
+| **InboxItemNotes** | Notes within inbox threads | inboxItemId, content, order |
+| **UserInboxItems** | User inbox status | userId, inboxItemId, status (inbox/archived/added) |
+| **MonthlyAnalytics** | Anonymous book/tag usage | month, bookName, tagName, category, count |
 
 ## Special Patterns
 
@@ -206,16 +336,10 @@ When a note belongs to multiple threads, the system uses intelligent defaults to
 
 1. **URL Parameter Override** (`?thread=threadId`) - explicit user choice
 2. **Navigation Context Detection** - thread user was viewing when they clicked the note
-3. **Last Accessed Thread** - tracks per-note thread access patterns via `NoteThreadAccess` table
-4. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
-5. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
+3. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
+4. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
 
-The `NoteThreadAccess` table stores:
-- `userId`: Clerk user ID
-- `noteId`: Reference to the note
-- `threadId`: Reference to the thread the user accessed the note from
-- `lastAccessed`: Timestamp of last access
-- `accessCount`: Number of times the user accessed this note from this thread
+*(Note: A `NoteThreadAccess` table for per-note last-accessed-thread tracking was removed; context is determined by URL and navigation state only.)*
 
 ## Database Schema & Relationships
 
@@ -223,7 +347,6 @@ The system uses a hybrid approach for note-thread relationships:
 
 - **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread (used primarily for unorganized thread fallback)
 - **Many-to-Many Support**: `NoteThreads` junction table allows notes to belong to multiple threads
-- **Access Tracking**: `NoteThreadAccess` table tracks which thread a user last accessed each note from for smart multi-thread navigation
 - **Unorganized Thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
 - **Thread Deletion Logic**: When a thread is deleted, notes with that thread as primary `threadId` are moved to unorganized thread
 - **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted

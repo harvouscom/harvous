@@ -7,8 +7,8 @@ Complete documentation of Harvous's component architecture, including component 
 ```mermaid
 graph TD
     Layout[Layout.astro] --> Dashboard[dashboard.astro]
-    Layout --> ThreadPage["[id].astro - Thread View"]
-    Layout --> NotePage["[id].astro - Note View"]
+    Layout --> ThreadPage["[...slug].astro - Thread View"]
+    Layout --> NotePage["[...slug].astro - Note View"]
     Layout --> Profile[profile.astro]
 
     Dashboard --> Nav[NavigationColumn.tsx]
@@ -28,9 +28,9 @@ graph TD
     Panels --> NewThread[NewThreadPanel.tsx]
     Panels --> EditThread[EditThreadPanel.tsx]
 
-    Nav --> SpaceButtons[SpaceButton.tsx]
+    Nav --> SpaceButtons[SpaceButton.astro]
     Nav --> ThreadButtons[ThreadButton.tsx]
-    Nav --> PersistentNav[PersistentNavigation]
+    Nav --> PersistentNav[PersistentNavigation.tsx]
 
     CardStack --> CardNote[CardNote.astro]
     CardStack --> CardThread[CardThread.astro]
@@ -47,11 +47,13 @@ graph TD
 
 ## Component Organization
 
+Many interactive components have been migrated to React; see [REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md) for patterns and the full list.
+
 ### Astro Components (Server-Rendered)
 
 **Pages:**
 - `dashboard.astro` - Main dashboard view
-- `[id].astro` - Dynamic thread/note/space view
+- `[...slug].astro` - Dynamic thread/note/space view (catch-all route)
 - `profile.astro` - User profile page
 
 **Cards:**
@@ -63,7 +65,7 @@ graph TD
 **Buttons:**
 - `Button.astro` - Standard button component
 - `ActionButton.astro` - Action-specific button
-- `SquareButton.astro` - Square button with context-aware menus
+- `SquareButton.astro` - Astro wrapper; primary implementation is `react/SquareButton.tsx` for context menus
 
 **Layout:**
 - `Layout.astro` - Main application layout
@@ -71,13 +73,13 @@ graph TD
 
 **Other:**
 - `SpaceButton.astro` - Space navigation button
-- `PersistentNavigation.astro` - Persistent navigation component
-- `ContextMoreMenu.astro` - Context-aware menu system
+- Context-aware menus: React `Menu.tsx` (used by SquareButton and others)
 
 ### React Islands (Client-Hydrated)
 
 **Navigation:**
-- `NavigationColumn.tsx` - Main navigation column
+- `navigation/NavigationColumn.tsx` - Main navigation column
+- `navigation/PersistentNavigation.tsx` - Persistent nav with space support and confirmation dialogs
 - `MobileNavigation.tsx` - Mobile navigation component
 
 **Panels:**
@@ -212,9 +214,9 @@ function stripHtml(html: string): string {
 - `src/components/CardNote.astro` - Note preview cards
 - `src/components/CardFeat.astro` - Featured content cards
 - `src/utils/dashboard-data.ts` - Dashboard data processing
-- `src/pages/search.astro` - Search results processing
-- `src/pages/[id].astro` - Thread page content processing
-- `src/components/NewThreadPanel.astro` - Recent notes and search results
+- `src/pages/find.astro` - Find/search results processing
+- `src/pages/[...slug].astro` - Thread page content processing
+- `src/components/react/NewThreadPanel.tsx` - Recent notes and search results
 
 **Benefits:**
 - Clean text previews without HTML artifacts
