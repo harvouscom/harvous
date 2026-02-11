@@ -3,6 +3,8 @@ import { db, Spaces, Threads, Notes, NoteThreads } from 'astro:db';
 export default async function() {
   // Create a test user ID (this would normally come from Clerk)
   const testUserId = 'user_test_123';
+  // For e2e: space_test_2 owner so User A sees "Test Space 2" on dashboard (test 5)
+  const spaceOwnerId = process.env.TEST_USER_A_CLERK_ID ?? testUserId;
 
   // Create test spaces
   await db.insert(Spaces).values([
@@ -25,7 +27,7 @@ export default async function() {
       color: 'lovely-lavender',
       createdAt: new Date(),
       updatedAt: new Date(),
-      userId: testUserId,
+      userId: spaceOwnerId,
       isPublic: true,
       isActive: true,
       order: 2,
