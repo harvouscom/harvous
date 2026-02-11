@@ -95,8 +95,18 @@
   min-height: 0;
   overflow: hidden;
 }
-/* Force editor scroll: explicit max-height so content can scroll on mobile (flex chain can fail in sheet) */
-.bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
+
+/* Mobile-sheet flat layout: single editor slot gets remaining height so .tiptap-content can scroll */
+.new-note-panel__editor-slot {
+  flex: 1 1 0%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Legacy card-stack in sheet: force editor scroll when flex chain fails */
+.bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .tiptap-content {
   max-height: calc(90vh - 320px);
   min-height: 120px;
   overflow-y: auto !important;

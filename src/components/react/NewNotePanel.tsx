@@ -1190,159 +1190,254 @@ export default function NewNotePanel({
             onToggle={() => form.setAddToSpace(!form.addToSpace)}
           />
         )}
-        {/* CardStack Layout - matches CardStack.astro structure */}
-        <div className="new-note-panel__card-stack-wrapper" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <div className="card-stack" style={{ flex: 1, minHeight: 0 }}>
-            <div className="card-stack__container">
-              {/* Thread Picker Header */}
-              <ThreadPickerHeader
-                ref={threadHeaderRef}
-                selectedThreadName={threadSelection.selectedThread}
-                threadBackgroundGradient={threadBackgroundGradient}
-                threadColor={threadColor}
-                noteCount={threadNoteCount}
-                isOpen={isThreadDropdownOpen}
-                onClick={handleThreadHeaderClick}
-              />
-
-              {/* Thread Dropdown (triggerless - controlled by header click) */}
-              <ThreadCombobox
-                selectedThread={threadSelection.selectedThread}
-                onThreadSelect={(thread: string) => {
-                  threadSelection.handleThreadSelect(thread);
+        {inBottomSheet && form.noteType === 'default' ? (
+          /* Mobile-sheet flat layout: single editor slot so .tiptap-content gets bounded height and can scroll */
+          <div ref={mobileSheetContentRef} className="flex flex-col flex-1 min-h-0 overflow-hidden px-3 pt-3">
+            <ThreadPickerHeader
+              ref={threadHeaderRef}
+              selectedThreadName={threadSelection.selectedThread}
+              threadBackgroundGradient={threadBackgroundGradient}
+              threadColor={threadColor}
+              noteCount={threadNoteCount}
+              isOpen={isThreadDropdownOpen}
+              onClick={handleThreadHeaderClick}
+            />
+            <ThreadCombobox
+              selectedThread={threadSelection.selectedThread}
+              onThreadSelect={(thread: string) => {
+                threadSelection.handleThreadSelect(thread);
+                setSuggestedThreadName(null);
+                setIsThreadDropdownOpen(false);
+                if (pendingThreadName && thread.trim().toLowerCase() !== pendingThreadName.trim().toLowerCase()) {
+                  setPendingThreadName(null);
+                  threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
+                }
+              }}
+              threads={threadSelection.threadOptions}
+              placeholder="Select thread..."
+              suggestedThreadName={suggestedThreadName}
+              onSuggestedThreadNameChange={(editedName: string) => {
+                if (editedName?.trim()) setSuggestedThreadName(editedName.trim());
+              }}
+              onCreateThread={async (threadName: string, color?: string) => {
+                const trimmedName = threadName.trim();
+                if (!trimmedName) return;
+                const existingThread = threadSelection.threadOptions.find(
+                  (t) => t.title.trim().toLowerCase() === trimmedName.toLowerCase()
+                );
+                if (existingThread) {
+                  threadSelection.handleThreadSelect(existingThread.title);
+                  setPendingThreadName(null);
                   setSuggestedThreadName(null);
                   setIsThreadDropdownOpen(false);
-                  
-                  if (pendingThreadName && thread.trim().toLowerCase() !== pendingThreadName.trim().toLowerCase()) {
-                    setPendingThreadName(null);
-                    threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
-                  }
-                }}
-                threads={threadSelection.threadOptions}
-                placeholder="Select thread..."
-                suggestedThreadName={suggestedThreadName}
-                onSuggestedThreadNameChange={(editedName: string) => {
-                  if (editedName && editedName.trim()) {
-                    setSuggestedThreadName(editedName.trim());
-                  }
-                }}
-                onCreateThread={async (threadName: string, color?: string) => {
-                  const trimmedName = threadName.trim();
-                  if (!trimmedName) return;
-
-                  const existingThread = threadSelection.threadOptions.find(
-                    (t) => t.title.trim().toLowerCase() === trimmedName.toLowerCase()
-                  );
-
-                  if (existingThread) {
-                    threadSelection.handleThreadSelect(existingThread.title);
-                    setPendingThreadName(null);
+                  return;
+                }
+                setPendingThreadName(trimmedName);
+                const threadColor = color ?? 'paper';
+                const pendingThread: Thread = {
+                  id: `pending_${Date.now()}`,
+                  title: trimmedName,
+                  noteCount: 0,
+                  backgroundGradient: getThreadGradientCSS(threadColor),
+                  color: threadColor,
+                };
+                threadSelection.setThreadOptions((prev) => {
+                  const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
+                  const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+                  return unorganizedIdx === -1
+                    ? [...filtered, pendingThread]
+                    : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];
+                });
+                threadSelection.handleThreadSelect(trimmedName);
+                setSuggestedThreadName(null);
+                setIsThreadDropdownOpen(false);
+                debug('[NewNotePanel] Stored pending thread name', { threadName: trimmedName });
+              }}
+              triggerless={true}
+              isOpen={isThreadDropdownOpen}
+              onClose={() => setIsThreadDropdownOpen(false)}
+              anchorRect={threadAnchorRect}
+              alignTopWith={threadDropdownAlignTop}
+              dropdownPortalTargetRef={mobileSheetContentRef}
+            />
+            <TemplateSelector
+              selectedTemplateId={form.selectedTemplateId}
+              onSelectTemplate={form.setSelectedTemplateId}
+            />
+            <div className="flex gap-3 items-center shrink-0 w-full pt-2">
+              <div className="basis-0 font-sans font-semibold grow min-h-px min-w-0 text-[var(--color-deep-grey)] text-[24px]">
+                <input
+                  type="text"
+                  value={form.title}
+                  onChange={(e) => form.setTitle(e.target.value.slice(0, TITLE_HARD_LIMIT))}
+                  onKeyDown={handleMobileTitleKeyDown}
+                  maxLength={TITLE_HARD_LIMIT}
+                  placeholder="Note title"
+                  tabIndex={1}
+                  className="w-full bg-transparent border-none text-[24px] font-bold text-[var(--color-deep-grey)] focus:outline-none placeholder-[var(--color-pebble-grey)]"
+                />
+                {form.title.length >= TITLE_SOFT_LIMIT && (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontFamily: 'var(--font-sans)',
+                      textAlign: 'right',
+                      marginTop: '4px',
+                      color: form.title.length >= TITLE_WARNING_LIMIT ? 'var(--color-red)' : 'var(--color-deep-grey)',
+                    }}
+                  >
+                    {form.title.length}/{TITLE_HARD_LIMIT}
+                  </div>
+                )}
+              </div>
+              <div className="relative shrink-0 size-5" title="Note type">
+                <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-50" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+                </svg>
+              </div>
+            </div>
+            <div className="new-note-panel__editor-slot flex-1 min-h-0 overflow-hidden" style={{ marginTop: '12px' }}>
+              <TiptapEditor
+                content={form.content}
+                id="new-note-content"
+                name="content"
+                placeholder="Type your note..."
+                tabindex={2}
+                minimalToolbar={false}
+                onEditorReady={handleEditorReady}
+                onContentChange={form.setContent}
+                parentThreadId={threadSelection.getSelectedThread()?.id}
+              />
+            </div>
+          </div>
+        ) : (
+          /* CardStack layout (desktop or scripture/resource in sheet) */
+          <div className="new-note-panel__card-stack-wrapper" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <div className="card-stack" style={{ flex: 1, minHeight: 0 }}>
+              <div className="card-stack__container">
+                <ThreadPickerHeader
+                  ref={threadHeaderRef}
+                  selectedThreadName={threadSelection.selectedThread}
+                  threadBackgroundGradient={threadBackgroundGradient}
+                  threadColor={threadColor}
+                  noteCount={threadNoteCount}
+                  isOpen={isThreadDropdownOpen}
+                  onClick={handleThreadHeaderClick}
+                />
+                <ThreadCombobox
+                  selectedThread={threadSelection.selectedThread}
+                  onThreadSelect={(thread: string) => {
+                    threadSelection.handleThreadSelect(thread);
                     setSuggestedThreadName(null);
                     setIsThreadDropdownOpen(false);
-                    return;
-                  }
-
-                  setPendingThreadName(trimmedName);
-                  const threadColor = color ?? 'paper';
-                  const pendingThread: Thread = {
-                    id: `pending_${Date.now()}`,
-                    title: trimmedName,
-                    noteCount: 0,
-                    backgroundGradient: getThreadGradientCSS(threadColor),
-                    color: threadColor,
-                  };
-
-                  threadSelection.setThreadOptions((prev) => {
-                    const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
-                    const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
-                    const updated = unorganizedIdx === -1 
-                      ? [...filtered, pendingThread]
-                      : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];
-                    
-                    return updated;
-                  });
-
-                  threadSelection.handleThreadSelect(trimmedName);
-                  setSuggestedThreadName(null);
-                  setIsThreadDropdownOpen(false);
-                  
-                  debug('[NewNotePanel] Stored pending thread name', { threadName: trimmedName });
-                }}
-                triggerless={true}
-                isOpen={isThreadDropdownOpen}
-                onClose={() => setIsThreadDropdownOpen(false)}
-                anchorRect={threadAnchorRect}
-                alignTopWith={threadDropdownAlignTop}
-                dropdownPortalTargetRef={cardStackContentRef}
-              />
-
-              {/* Card Content */}
-              <div ref={cardStackContentRef} className="card-stack__content">
-                <div ref={cardStackInnerRef} className="card-stack__inner">
-                  {/* Top gradient: shorter (36px) so visual fade matches CardFullEditable; card-stack__inner has 12px padding so 48px covered too much text */}
-                  {cardOverflowing && cardHasScrolledDown && (
-                    <div
-                      className="absolute top-0 left-0 right-0 pointer-events-none z-10"
-                      style={{
-                        height: '36px',
-                        background: 'linear-gradient(to top, transparent, white)',
-                      }}
-                      aria-hidden="true"
-                    />
-                  )}
-                  <div className="card-stack__inner-content">
-                    {/* Template Selector - Show for default note type */}
-                    {form.noteType === 'default' && (
-                      <TemplateSelector
-                        selectedTemplateId={form.selectedTemplateId}
-                        onSelectTemplate={form.setSelectedTemplateId}
+                    if (pendingThreadName && thread.trim().toLowerCase() !== pendingThreadName.trim().toLowerCase()) {
+                      setPendingThreadName(null);
+                      threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
+                    }
+                  }}
+                  threads={threadSelection.threadOptions}
+                  placeholder="Select thread..."
+                  suggestedThreadName={suggestedThreadName}
+                  onSuggestedThreadNameChange={(editedName: string) => {
+                    if (editedName && editedName.trim()) setSuggestedThreadName(editedName.trim());
+                  }}
+                  onCreateThread={async (threadName: string, color?: string) => {
+                    const trimmedName = threadName.trim();
+                    if (!trimmedName) return;
+                    const existingThread = threadSelection.threadOptions.find(
+                      (t) => t.title.trim().toLowerCase() === trimmedName.toLowerCase()
+                    );
+                    if (existingThread) {
+                      threadSelection.handleThreadSelect(existingThread.title);
+                      setPendingThreadName(null);
+                      setSuggestedThreadName(null);
+                      setIsThreadDropdownOpen(false);
+                      return;
+                    }
+                    setPendingThreadName(trimmedName);
+                    const threadColor = color ?? 'paper';
+                    const pendingThread: Thread = {
+                      id: `pending_${Date.now()}`,
+                      title: trimmedName,
+                      noteCount: 0,
+                      backgroundGradient: getThreadGradientCSS(threadColor),
+                      color: threadColor,
+                    };
+                    threadSelection.setThreadOptions((prev) => {
+                      const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
+                      const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+                      return unorganizedIdx === -1
+                        ? [...filtered, pendingThread]
+                        : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];
+                    });
+                    threadSelection.handleThreadSelect(trimmedName);
+                    setSuggestedThreadName(null);
+                    setIsThreadDropdownOpen(false);
+                    debug('[NewNotePanel] Stored pending thread name', { threadName: trimmedName });
+                  }}
+                  triggerless={true}
+                  isOpen={isThreadDropdownOpen}
+                  onClose={() => setIsThreadDropdownOpen(false)}
+                  anchorRect={threadAnchorRect}
+                  alignTopWith={threadDropdownAlignTop}
+                  dropdownPortalTargetRef={cardStackContentRef}
+                />
+                <div ref={cardStackContentRef} className="card-stack__content">
+                  <div ref={cardStackInnerRef} className="card-stack__inner">
+                    {cardOverflowing && cardHasScrolledDown && (
+                      <div
+                        className="absolute top-0 left-0 right-0 pointer-events-none z-10"
+                        style={{ height: '36px', background: 'linear-gradient(to top, transparent, white)' }}
+                        aria-hidden="true"
                       />
                     )}
-
-                    {/* Note Content - Type-specific layouts */}
-                    {form.noteType === 'default' && (
-                      <DefaultNoteForm
-                        title={form.title}
-                        onTitleChange={form.setTitle}
-                        content={form.content}
-                        onContentChange={form.setContent}
-                        nextNoteId={nextNoteId}
-                        onEditorReady={handleEditorReady}
-                        parentThreadId={threadSelection.getSelectedThread()?.id}
-                      />
-                    )}
-
-                    {form.noteType === 'scripture' && (
-                      <ScriptureNoteForm
-                        scriptureReference={form.scriptureReference}
-                        onReferenceChange={form.setScriptureReference}
-                        content={form.content}
-                        onContentChange={form.setContent}
-                        nextNoteId={nextNoteId}
-                        onEditorReady={handleEditorReady}
-                        parentThreadId={threadSelection.getSelectedThread()?.id}
-                      />
-                    )}
-
-                    {form.noteType === 'resource' && (
-                      <NewResourcePanel
-                        resourceUrl={form.resourceUrl}
-                        onResourceUrlChange={form.setResourceUrl}
-                        nextNoteId={nextNoteId}
-                        onMetadataFetched={form.setResourceMetadata}
-                        onSuggestedThread={(threadId: string, threadTitle: string) => {
-                          setSuggestedThreadName(threadTitle);
-                        }}
-                        onScriptureCountChange={setScriptureCount}
-                        onDuplicateDetected={setDuplicateInfo}
-                      />
-                    )}
+                    <div className="card-stack__inner-content">
+                      {form.noteType === 'default' && (
+                        <TemplateSelector
+                          selectedTemplateId={form.selectedTemplateId}
+                          onSelectTemplate={form.setSelectedTemplateId}
+                        />
+                      )}
+                      {form.noteType === 'default' && (
+                        <DefaultNoteForm
+                          title={form.title}
+                          onTitleChange={form.setTitle}
+                          content={form.content}
+                          onContentChange={form.setContent}
+                          nextNoteId={nextNoteId}
+                          onEditorReady={handleEditorReady}
+                          parentThreadId={threadSelection.getSelectedThread()?.id}
+                        />
+                      )}
+                      {form.noteType === 'scripture' && (
+                        <ScriptureNoteForm
+                          scriptureReference={form.scriptureReference}
+                          onReferenceChange={form.setScriptureReference}
+                          content={form.content}
+                          onContentChange={form.setContent}
+                          nextNoteId={nextNoteId}
+                          onEditorReady={handleEditorReady}
+                          parentThreadId={threadSelection.getSelectedThread()?.id}
+                        />
+                      )}
+                      {form.noteType === 'resource' && (
+                        <NewResourcePanel
+                          resourceUrl={form.resourceUrl}
+                          onResourceUrlChange={form.setResourceUrl}
+                          nextNoteId={nextNoteId}
+                          onMetadataFetched={form.setResourceMetadata}
+                          onSuggestedThread={(threadId: string, threadTitle: string) => setSuggestedThreadName(threadTitle)}
+                          onScriptureCountChange={setScriptureCount}
+                          onDuplicateDetected={setDuplicateInfo}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Bottom buttons - outside wrapper to allow shadow to render */}
         <NoteFormFooter
