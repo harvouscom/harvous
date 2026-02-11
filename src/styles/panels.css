@@ -1044,6 +1044,7 @@ form.new-note-panel {
 /* Let inner-content shrink so flex height flows to DefaultNoteForm → editor */
 .new-note-panel .card-stack__inner-content {
   min-height: 0;
+  flex-shrink: 1;
 }
 
 /* Editor area fills all remaining height (parent of .tiptap-editor-container) */

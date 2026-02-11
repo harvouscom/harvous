@@ -2428,7 +2428,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const coords = view.coordsAtPos(from);
         if (coords) {
           const editorDom = view.dom;
-          const scrollContainer = editorDom.closest('.card-stack__inner') || editorDom.closest('.tiptap-content');
+          const scrollContainer = editorDom.closest('.tiptap-content') || editorDom.closest('.card-stack__inner');
           if (scrollContainer) {
             const scrollRect = scrollContainer.getBoundingClientRect();
             // If cursor is below the visible area (with 80px buffer for footer)
