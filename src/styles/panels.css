@@ -64,11 +64,19 @@
    Bottom Sheet (Radix SheetContent side="bottom") spacing
    ========================================================================== */
 
-/* Compact, uniform gutters for all bottom sheets (matches mobile nav tightness) */
+/* Flex column so content area gets remaining height (same pattern as CardFullEditable); layout stays consistent */
+.bottom-sheet-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Inner takes remaining space below header/focus anchor so editor area has bounded height and can scroll */
 .bottom-sheet-content .bottom-sheet__inner {
   box-sizing: border-box;
   padding: 0 0 16px;
   min-height: 0;
+  flex: 1 1 0%;
 }
 
 /* Bottom-sheet panels should use tighter header gutters */

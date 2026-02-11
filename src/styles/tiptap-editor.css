@@ -221,10 +221,11 @@
   background-color: rgba(255, 235, 59, 0.5) !important;
 }
 
-/* Prevent unwanted scrolling behavior on mobile */
+/* Prevent unwanted scrolling behavior on mobile; allow vertical touch scroll (same for CardFullEditable and NewNotePanel) */
 .tiptap-content {
   scroll-behavior: auto !important;
   -webkit-overflow-scrolling: touch !important;
+  touch-action: pan-y;
 }
 
 .tiptap-content .ProseMirror {
