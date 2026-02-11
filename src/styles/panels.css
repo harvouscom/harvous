@@ -598,6 +598,35 @@
   }
 }
 
+/* Mobile only: dialogs as bottom sheets */
+@media (max-width: 1159px) {
+  .modal-overlay-enter,
+  .modal-overlay,
+  .modal-overlay--centered {
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
+    padding-top: 0 !important;
+    padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    background-color: rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .modal-content-enter,
+  .modal-dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border-radius: 24px 24px 0 0 !important;
+    max-height: 90vh !important;
+    animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .modal-dialog--lg {
+    max-height: 90vh !important;
+  }
+}
+
 /* ==========================================================================
    Tab Navigation
    ========================================================================== */
