@@ -1,8 +1,8 @@
 /**
  * Clerk Session Backup Utility
  *
- * Backs up Clerk session data to IndexedDB to restore on app relaunch.
- * Solves the "Detect new device" issue in PWA/mobile where cookies don't persist.
+ * Backs up Clerk session data to IndexedDB for potential future use (e.g. PWA restore).
+ * Clear on logout via clearSessionBackup. No restore path runs so Clerk device/session flow is unchanged.
  *
  * Security: Session tokens are encrypted using device fingerprint as key
  */
@@ -24,13 +24,6 @@ const DB_NAME = 'harvous-session-backup';
 const DB_VERSION = 1;
 const SESSION_STORE = 'sessionBackup';
 
-// Session cache for performance optimization
-let sessionCache: {
-  data: ClerkSessionBackup | null;
-  timestamp: number;
-} | null = null;
-
-const CACHE_TTL = 60000; // 1 minute cache
 const isDev = import.meta.env.DEV;
 
 // Database configuration for connection pooling (8-12ms improvement)
@@ -111,74 +104,10 @@ async function encryptSessionData(data: ClerkSessionBackup): Promise<string> {
 }
 
 /**
- * Decrypt session data
- */
-async function decryptSessionData(encryptedData: string): Promise<ClerkSessionBackup | null> {
-  try {
-    // Use device ID as part of decryption key
-    const deviceId = await getDeviceId();
-    if (!deviceId) throw new Error('No device ID for decryption');
-
-    // Try to decode base64
-    const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
-
-    // Extract IV and encrypted data
-    const iv = combined.slice(0, 12);
-    const encrypted = combined.slice(12);
-
-    // Derive decryption key
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(deviceId),
-      'PBKDF2',
-      false,
-      ['deriveBits', 'deriveKey']
-    );
-
-    const key = await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: encoder.encode('harvous-session-backup-v1'),
-        iterations: 10000, // Reduced from 100000 for faster performance (still secure for ephemeral session data)
-        hash: 'SHA-256',
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['decrypt']
-    );
-
-    // Decrypt
-    const decrypted = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encrypted
-    );
-
-    const decoder = new TextDecoder();
-    const jsonString = decoder.decode(decrypted);
-    return JSON.parse(jsonString) as ClerkSessionBackup;
-  } catch (error) {
-    console.warn('[SessionBackup] Decryption failed, trying unencrypted fallback:', error);
-    // Try parsing as unencrypted JSON (fallback)
-    try {
-      return JSON.parse(encryptedData) as ClerkSessionBackup;
-    } catch (e) {
-      console.error('[SessionBackup] Failed to parse session backup:', e);
-      return null;
-    }
-  }
-}
-
-/**
  * Backup Clerk session to IndexedDB
  */
 export async function backupClerkSession(session: ClerkSessionBackup): Promise<void> {
   try {
-    // Invalidate cache
-    sessionCache = null;
-
     if (isDev) console.log('[SessionBackup] Backing up session for user:', session.userId);
 
     // Encrypt session data
@@ -214,121 +143,10 @@ export async function backupClerkSession(session: ClerkSessionBackup): Promise<v
 }
 
 /**
- * Restore Clerk session from IndexedDB (with caching for performance)
- */
-export async function restoreClerkSession(): Promise<ClerkSessionBackup | null> {
-  try {
-    // Return cached session if fresh
-    if (sessionCache && Date.now() - sessionCache.timestamp < CACHE_TTL) {
-      if (isDev) console.log('[SessionBackup] Using cached session');
-      return sessionCache.data;
-    }
-
-    // Try to get from IndexedDB first
-    const db = await openDB();
-    const transaction = db.transaction([SESSION_STORE], 'readonly');
-    const store = transaction.objectStore(SESSION_STORE);
-
-    const allBackups = await new Promise<ClerkSessionBackup[]>((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    });
-
-    // Note: Connection stays open (using connection pooling)
-
-    if (allBackups.length === 0) {
-      if (isDev) console.log('[SessionBackup] No session backups found in IndexedDB');
-      // Cache the null result
-      sessionCache = { data: null, timestamp: Date.now() };
-      return null;
-    }
-
-    // Get most recent backup
-    const backup = allBackups.sort((a, b) => b.lastRefreshed - a.lastRefreshed)[0];
-
-    let decrypted: ClerkSessionBackup | null = null;
-
-    // Decrypt if encrypted field exists
-    if ((backup as any).encrypted) {
-      decrypted = await decryptSessionData((backup as any).encrypted);
-      if (decrypted) {
-        if (isDev) console.log('[SessionBackup] Session restored from IndexedDB');
-        // Cache the result
-        sessionCache = { data: decrypted, timestamp: Date.now() };
-        return decrypted;
-      }
-    }
-
-    if (isDev) console.log('[SessionBackup] Session restored from IndexedDB (unencrypted fallback)');
-    // Cache the result
-    sessionCache = { data: backup, timestamp: Date.now() };
-    return backup;
-  } catch (error) {
-    console.error('[SessionBackup] Failed to restore from IndexedDB:', error);
-
-    // Fallback to localStorage
-    try {
-      const keys = Object.keys(localStorage).filter(k => k.startsWith('clerk-session-'));
-      if (keys.length > 0) {
-        const encrypted = localStorage.getItem(keys[0]);
-        if (encrypted) {
-          const decrypted = await decryptSessionData(encrypted);
-          if (decrypted) {
-            if (isDev) console.log('[SessionBackup] Session restored from localStorage');
-            // Cache the result
-            sessionCache = { data: decrypted, timestamp: Date.now() };
-            return decrypted;
-          }
-        }
-      }
-    } catch (e) {
-      console.error('[SessionBackup] localStorage restore failed:', e);
-    }
-
-    // Cache the null result
-    sessionCache = { data: null, timestamp: Date.now() };
-    return null;
-  }
-}
-
-/**
- * Check if session backup is still valid (now async to properly validate device ID)
- */
-export async function isSessionValid(session: ClerkSessionBackup | null): Promise<boolean> {
-  if (!session) return false;
-
-  // Check if session has expired
-  if (session.expiresAt && session.expiresAt < Date.now()) {
-    if (isDev) console.log('[SessionBackup] Session expired');
-    return false;
-  }
-
-  // Check if session is too old (max 7 days)
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  if (Date.now() - session.createdAt > sevenDaysMs) {
-    if (isDev) console.log('[SessionBackup] Session too old (>7 days)');
-    return false;
-  }
-
-  // Check if device ID matches (now properly awaited - fixes security bug)
-  const deviceId = await getDeviceId();
-  if (deviceId && session.deviceId !== deviceId) {
-    if (isDev) console.warn('[SessionBackup] Device ID mismatch');
-    return false;
-  }
-
-  return true;
-}
-
-/**
  * Clear session backup (on logout)
  */
 export async function clearSessionBackup(userId?: string): Promise<void> {
   try {
-    // Invalidate cache
-    sessionCache = null;
-
     const db = await openDB();
     const transaction = db.transaction([SESSION_STORE], 'readwrite');
     const store = transaction.objectStore(SESSION_STORE);
@@ -360,43 +178,5 @@ export async function clearSessionBackup(userId?: string): Promise<void> {
     console.log('[SessionBackup] Session backup cleared');
   } catch (error) {
     console.error('[SessionBackup] Failed to clear session backup:', error);
-  }
-}
-
-/**
- * Refresh session backup timestamp
- */
-export async function refreshSessionBackup(userId: string): Promise<void> {
-  try {
-    const session = await restoreClerkSession();
-    if (session && session.userId === userId) {
-      session.lastRefreshed = Date.now();
-      await backupClerkSession(session);
-    }
-  } catch (error) {
-    console.error('[SessionBackup] Failed to refresh session backup:', error);
-  }
-}
-
-/**
- * Get all session backups (for debugging)
- */
-export async function getAllSessionBackups(): Promise<ClerkSessionBackup[]> {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction([SESSION_STORE], 'readonly');
-    const store = transaction.objectStore(SESSION_STORE);
-
-    const backups = await new Promise<ClerkSessionBackup[]>((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    });
-
-    // Note: Connection stays open (using connection pooling)
-    return backups;
-  } catch (error) {
-    console.error('[SessionBackup] Failed to get all backups:', error);
-    return [];
   }
 }

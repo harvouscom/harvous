@@ -12,7 +12,8 @@ All behavior below is based on **Clerk docs**. We've contacted Clerk about devic
 
 1. **No PWA auth init on sign-in/sign-up** – We don't run device fingerprint or cookie restore before Clerk on auth pages, so Clerk runs with a normal browser context.
 2. **Astro** – We use `clerkClient(context)` in middleware (per Clerk's Astro docs).
-3. **Service worker** – Our PWA service worker skips cross-origin requests, so requests to Clerk (e.g. clerk.harvous.com) are not intercepted; the browser sends its User-Agent directly to Clerk.
+3. **Service worker** – Our PWA service worker skips cross-origin requests, so requests to Clerk (e.g. clerk.harvous.com) are not intercepted; the browser sends its User-Agent directly to Clerk. We removed the unused Clerk cookie backup from the SW so it does not touch auth responses.
+4. **No restore path** – We removed the unused PWA restore flow (cookie restore + `setSession`) and the `clerk-pwa-helper` module so nothing restores Clerk state; only session backup on sign-in (for future use) and clear on logout remain.
 
 We previously tried patching `@clerk/astro` to pass the request User-Agent into `createClerkClient`; it did not fix "Unknown device" in the Dashboard, so the patch was removed. Awaiting Clerk's response.
 
