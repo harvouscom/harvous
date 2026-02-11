@@ -119,7 +119,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
   const sheetContentRef = useRef<HTMLDivElement | null>(null);
-  const sheetContentWrapperRef = useRef<HTMLDivElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
@@ -385,41 +384,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // When note/thread/resource panel is open on mobile, size sheet to visual viewport
-  // so the content area shrinks when the keyboard opens and the editor can scroll
-  useEffect(() => {
-    if (!isVisible || !isMobile) return;
-    const isEditorDrawer = drawerType === 'note' || drawerType === 'thread' || drawerType === 'resource';
-    const el = sheetContentWrapperRef.current;
-    if (!el) return;
-
-    const setHeightFromViewport = () => {
-      const vh = typeof window !== 'undefined' && window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      if (isEditorDrawer) {
-        el.style.height = `${vh}px`;
-        el.style.maxHeight = `${vh}px`;
-      } else {
-        el.style.height = '';
-        el.style.maxHeight = '';
-      }
-    };
-
-    setHeightFromViewport();
-    const vv = window.visualViewport;
-    if (vv) {
-      vv.addEventListener('resize', setHeightFromViewport);
-      vv.addEventListener('scroll', setHeightFromViewport);
-    }
-    return () => {
-      if (vv) {
-        vv.removeEventListener('resize', setHeightFromViewport);
-        vv.removeEventListener('scroll', setHeightFromViewport);
-      }
-      el.style.height = '';
-      el.style.maxHeight = '';
-    };
-  }, [isVisible, isMobile, drawerType]);
-
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {
@@ -466,7 +430,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
     >
       <SheetContent
-        ref={sheetContentWrapperRef}
         side="bottom"
         className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0 h-[90vh]"
         style={{

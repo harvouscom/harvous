@@ -3615,37 +3615,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return () => el.removeEventListener('scroll', updateScrollState);
   }, [editor]);
 
-  // When viewport resizes (e.g. mobile keyboard open), scroll cursor into view
-  // so the user can keep typing without the cursor being hidden behind the keyboard
-  useEffect(() => {
-    if (!editor || typeof window === 'undefined' || !window.visualViewport) return;
-    const scrollCursorIntoView = () => {
-      try {
-        if (!editor || editor.isDestroyed || !editor.view?.docView) return;
-        const view = editor.view;
-        const { from } = editor.state.selection;
-        const coords = view.coordsAtPos(from);
-        if (!coords) return;
-        const editorDom = view.dom;
-        const scrollContainer = editorDom.closest('.tiptap-content') as HTMLElement | null;
-        if (!scrollContainer) return;
-        const scrollRect = scrollContainer.getBoundingClientRect();
-        if (coords.bottom > scrollRect.bottom - 80) {
-          scrollContainer.scrollTop += (coords.bottom - scrollRect.bottom + 100);
-        }
-      } catch {
-        // Silently ignore
-      }
-    };
-    const vv = window.visualViewport;
-    vv.addEventListener('resize', scrollCursorIntoView);
-    vv.addEventListener('scroll', scrollCursorIntoView);
-    return () => {
-      vv.removeEventListener('resize', scrollCursorIntoView);
-      vv.removeEventListener('scroll', scrollCursorIntoView);
-    };
-  }, [editor]);
-
   // Create Note bubble menu: ensure its root has higher z-index than the sticky toolbar (z-index 10)
   useLayoutEffect(() => {
     const wrapper = createNoteBubbleRef.current;
