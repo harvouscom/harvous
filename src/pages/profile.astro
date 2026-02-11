@@ -172,7 +172,7 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
     <div class="mt-4 mb-safe">
       <a
         id="logout-button"
-        href="/logout"
+        href="#"
         data-outer-shadow
         class="btn-cta btn--secondary flex-1 group no-underline"
       >
@@ -217,5 +217,5 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
   <div slot="mobile-additional">
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
-  <!-- Logout is handled by event delegation in Layout.astro (#logout-button) so it works after View Transitions. -->
+  <!-- Logout is handled by event delegation in Layout.astro (click on #logout-button); sign-out runs on current page where Clerk is already loaded. -->
 </Layout>
