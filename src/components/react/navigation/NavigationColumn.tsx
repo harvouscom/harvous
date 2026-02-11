@@ -990,13 +990,15 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       })}
                     </>
                   )}
-                  <div className="space-switcher-dropdown__divider" />
-                  <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
-                    <span className="space-switcher-dropdown__label">New Space</span>
-                    <span className="space-switcher-dropdown__check" aria-hidden="true">
-                      <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                    </span>
-                  </a>
+                  </div>
+                  <div className="space-switcher-dropdown__footer">
+                    <div className="space-switcher-dropdown__divider" />
+                    <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
+                      <span className="space-switcher-dropdown__label">New Space</span>
+                      <span className="space-switcher-dropdown__check" aria-hidden="true">
+                        <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                      </span>
+                    </a>
                   </div>
                 </div>
               </details>

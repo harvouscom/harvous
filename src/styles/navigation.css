@@ -425,11 +425,18 @@
 }
 
 .mobile-nav__space-panel {
+  display: flex;
+  flex-direction: column;
   margin: 0 4px;
   border-radius: 16px;
   background: white;
   overflow: hidden;
   max-height: 240px;
+}
+
+.mobile-nav__space-panel-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -981,16 +988,37 @@ button.space-btn .space-btn__text {
 
 /* Space switcher dropdown (desktop) - match card-stack shadow to avoid clipping */
 .space-switcher-dropdown__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: min(420px, calc(100vh - 32px));
+  overflow: hidden;
   background-color: white;
   border-radius: 24px;
   box-shadow: 0px 1px 3px rgba(120, 118, 111, 0.1);
 }
 
 .space-switcher-dropdown__scroll {
-  max-height: min(352px, calc(100vh - 32px));
+  flex: 1;
+  min-height: 0;
+  max-height: min(352px, calc(100vh - 120px));
   overflow-y: auto;
   overflow-x: hidden;
-  border-radius: inherit;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+/* Last item in scroll list stays square so only footer has bottom radius */
+.space-switcher-dropdown__scroll .space-switcher-dropdown__item:last-child {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.space-switcher-dropdown__footer {
+  flex-shrink: 0;
+  overflow: hidden;
+  background-color: white;
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
 }
 
 .space-switcher-dropdown__item {

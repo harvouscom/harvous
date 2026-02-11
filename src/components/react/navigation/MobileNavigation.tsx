@@ -1298,6 +1298,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
                 {isSpacePanelOpen && (
                   <div className="mobile-nav__space-panel" role="dialog" aria-label="Switch space">
+                    <div className="mobile-nav__space-panel-scroll">
                     <a
                       href="/"
                       className={`mobile-nav__space-panel-item ${!selectedSpaceId ? 'is-active' : ''}`}
@@ -1398,6 +1399,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         })}
                       </>
                     )}
+                    </div>
                     <div className="mobile-nav__space-panel-divider" />
                     <a
                       href="/new-space"
