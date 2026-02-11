@@ -405,7 +405,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     setSize();
     vv.addEventListener('resize', setSize);
     vv.addEventListener('scroll', setSize);
+    const handleFocusIn = () => {
+      if (!el || !window.visualViewport) return;
+      setSize();
+    };
+    el.addEventListener('focusin', handleFocusIn);
     return () => {
+      el.removeEventListener('focusin', handleFocusIn);
       vv.removeEventListener('resize', setSize);
       vv.removeEventListener('scroll', setSize);
       el.style.top = '';
