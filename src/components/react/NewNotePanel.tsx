@@ -36,6 +36,12 @@ import {
 
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import SuggestedThreadDialog from './dialogs/SuggestedThreadDialog';
+import TiptapEditor from './TiptapEditor';
+
+// Title limits (match DefaultNoteForm for mobile-sheet title row)
+const TITLE_SOFT_LIMIT = 30;
+const TITLE_WARNING_LIMIT = 45;
+const TITLE_HARD_LIMIT = 50;
 
 interface NewNotePanelProps {
   currentThread?: any;
@@ -109,6 +115,7 @@ export default function NewNotePanel({
   const threadHeaderRef = useRef<HTMLDivElement>(null);
   const cardStackInnerRef = useRef<HTMLDivElement>(null);
   const cardStackContentRef = useRef<HTMLDivElement>(null);
+  const mobileSheetContentRef = useRef<HTMLDivElement>(null);
   const [cardOverflowing, setCardOverflowing] = useState(false);
   const [cardHasScrolledDown, setCardHasScrolledDown] = useState(false);
 
@@ -1135,15 +1142,32 @@ export default function NewNotePanel({
   const threadColor = selectedThreadObj?.color || null;
   const threadNoteCount = selectedThreadObj?.noteCount || 0;
 
-  // Handle thread header click - align dropdown top with card-stack__inner (desktop-like)
+  // Handle thread header click - align dropdown top with content (card-stack__inner on desktop, mobile content ref in sheet)
   const handleThreadHeaderClick = () => {
     if (threadHeaderRef.current) {
       setThreadAnchorRect(threadHeaderRef.current.getBoundingClientRect());
     }
-    const alignTop =
-      cardStackInnerRef.current?.getBoundingClientRect().top ?? null;
+    const alignTop = inBottomSheet && mobileSheetContentRef.current
+      ? mobileSheetContentRef.current.getBoundingClientRect().top
+      : (cardStackInnerRef.current?.getBoundingClientRect().top ?? null);
     setThreadDropdownAlignTop(alignTop);
     setIsThreadDropdownOpen(true);
+  };
+
+  // Title keydown for mobile-sheet title row (same as DefaultNoteForm: select all, auto-capitalize)
+  const handleMobileTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'a') {
+      e.preventDefault();
+      e.currentTarget.select();
+      return;
+    }
+    const input = e.currentTarget;
+    if (input.selectionStart === 0 && input.selectionEnd === 0 && e.key.length === 1 && /^[a-z]$/.test(e.key)) {
+      e.preventDefault();
+      const capitalized = e.key.toUpperCase();
+      form.setTitle(form.title.length === 0 ? capitalized : capitalized + form.title);
+      setTimeout(() => input.setSelectionRange(1, 1), 0);
+    }
   };
 
   return (
