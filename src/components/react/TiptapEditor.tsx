@@ -2002,18 +2002,19 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
                   });
                 }, 10);
                 
-                // Ensure the cursor is visible by scrolling if needed
+                // Ensure the cursor is visible by scrolling only the editor content area (not the window/sheet)
                 try {
                   const coords = view.coordsAtPos(finalPos);
                   if (coords) {
-                    const scrollContainer = dom.closest('.ProseMirror') || dom;
-                    if (scrollContainer) {
-                      const scrollRect = (scrollContainer as HTMLElement).getBoundingClientRect();
-                      // Check if cursor is outside visible area
-                      if (coords.top < scrollRect.top || coords.top > scrollRect.bottom) {
-                        (scrollContainer as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        debug('[TiptapEditor] Scrolled cursor into view', { finalPos, coords });
+                    const scrollEl = dom.closest('.tiptap-content') as HTMLElement | null;
+                    if (scrollEl) {
+                      const scrollRect = scrollEl.getBoundingClientRect();
+                      if (coords.top < scrollRect.top) {
+                        scrollEl.scrollTop -= scrollRect.top - coords.top;
+                      } else if (coords.bottom > scrollRect.bottom) {
+                        scrollEl.scrollTop += coords.bottom - scrollRect.bottom;
                       }
+                      debug('[TiptapEditor] Scrolled cursor into view within editor', { finalPos, coords });
                     }
                   }
                 } catch (scrollError) {

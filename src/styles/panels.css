@@ -108,9 +108,9 @@
 
 /* In-sheet: allow editor content to scroll when content is long or keyboard is open.
    --sheet-viewport-height is set by BottomSheet when note/resource panel is open (visual viewport)
-   so the editor scroll area is keyboard-aware. */
+   so the editor scroll area is keyboard-aware. Subtract reserves space for header, title, toolbar, footer. */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(var(--sheet-viewport-height, 90vh) - 280px);
+  max-height: calc(var(--sheet-viewport-height, 90vh) - 320px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -130,6 +130,11 @@
   padding-left: 12px;
   padding-right: 12px;
   padding-bottom: 0;
+}
+
+/* In-sheet: keep Create Note footer visible above keyboard – never shrink so it stays in the visible strip */
+.bottom-sheet-content .new-note-panel--in-sheet .panel__footer--buttons {
+  flex-shrink: 0;
 }
 
 /* Bottom sheets use tap-outside / swipe-down to dismiss; hide explicit Close buttons. */
