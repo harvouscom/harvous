@@ -400,6 +400,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       el.style.width = `${vv.width}px`;
       el.style.height = `${vv.height}px`;
       el.style.maxHeight = `${vv.height}px`;
+      el.style.setProperty('--sheet-viewport-height', `${vv.height}px`);
     };
     setSize();
     vv.addEventListener('resize', setSize);
@@ -412,6 +413,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       el.style.width = '';
       el.style.height = '';
       el.style.maxHeight = '';
+      el.style.removeProperty('--sheet-viewport-height');
     };
   }, [isVisible, isMobile, drawerType]);
 

@@ -106,9 +106,11 @@
   min-height: 0;
 }
 
-/* In-sheet: allow editor content to scroll when content is long or keyboard is open */
+/* In-sheet: allow editor content to scroll when content is long or keyboard is open.
+   --sheet-viewport-height is set by BottomSheet when note/resource panel is open (visual viewport)
+   so the editor scroll area is keyboard-aware. */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(90vh - 320px);
+  max-height: calc(var(--sheet-viewport-height, 90vh) - 280px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
