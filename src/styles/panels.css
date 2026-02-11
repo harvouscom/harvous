@@ -96,17 +96,18 @@
   overflow: hidden;
 }
 
-/* Mobile-sheet flat layout: single editor slot gets remaining height so .tiptap-content can scroll */
-.new-note-panel__editor-slot {
+/* In-sheet: allow card-stack content and inner to shrink so height flows to .tiptap-content (like CardFullEditable) */
+.bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .card-stack__content {
   flex: 1 1 0%;
   min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+}
+.bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .card-stack__inner {
+  flex: 1 1 0%;
+  min-height: 0;
 }
 
-/* Legacy card-stack in sheet: force editor scroll when flex chain fails */
-.bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .tiptap-content {
+/* In-sheet: allow editor content to scroll when content is long or keyboard is open */
+.bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
   max-height: calc(90vh - 320px);
   min-height: 120px;
   overflow-y: auto !important;
