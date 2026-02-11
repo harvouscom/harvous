@@ -494,6 +494,35 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         });
       });
     </script>
+
+    <!-- Session backup global (for profile logout and sign-in forceSignOut). Set in Layout so it exists on all Layout pages. -->
+    <script>
+      import { clearSessionBackup } from '@/utils/clerk-session-backup';
+      if (typeof window !== 'undefined') {
+        (window as any).__harvousClearSessionBackup = clearSessionBackup;
+      }
+    </script>
+    <!-- Logout button handler: event delegation so it works after View Transitions (slot content may be swapped). -->
+    <script is:inline>
+      (function() {
+        function handleLogoutClick(e) {
+          if (!e.target || !e.target.closest || !e.target.closest('#logout-button')) return;
+          e.preventDefault();
+          var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
+            ? window.__harvousClearSessionBackup()
+            : Promise.resolve();
+          clearPromise.then(function() {
+            if (window.Clerk && window.Clerk.signOut) {
+              return window.Clerk.signOut({ redirectUrl: '/sign-in' });
+            }
+            window.location.href = '/sign-in?from_logout=true';
+          }).catch(function() {
+            window.location.href = '/sign-in?from_logout=true';
+          });
+        }
+        document.body.addEventListener('click', handleLogoutClick);
+      })();
+    </script>
   </body>
 </html>
 

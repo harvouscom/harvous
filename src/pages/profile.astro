@@ -217,34 +217,5 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
   <div slot="mobile-additional">
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
-  <!-- Expose session backup clear for Astro logout button (same behavior as ProfilePage handleLogout) -->
-  <script type="module">
-    import { clearSessionBackup } from '@/utils/clerk-session-backup';
-    if (typeof window !== 'undefined') {
-      window['__harvousClearSessionBackup'] = clearSessionBackup;
-    }
-  </script>
-  <script is:inline>
-    (function() {
-      var btn = document.getElementById('logout-button');
-      if (!btn) return;
-      btn.addEventListener('click', function(e) {
-        e.preventDefault();
-        var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
-          ? window.__harvousClearSessionBackup()
-          : Promise.resolve();
-        clearPromise.then(function() {
-          if (window.Clerk && window.Clerk.signOut) {
-            return window.Clerk.signOut({ redirectUrl: '/sign-in' });
-          }
-          // Clerk not loaded on profile (no Clerk component here). Redirect so sign-in page
-          // can run forceSignOutIfNeeded() once Clerk loads there.
-          window.location.href = '/sign-in?from_logout=true';
-        }).catch(function() {
-          window.location.href = '/sign-in?from_logout=true';
-        });
-        return false;
-      });
-    })();
-  </script>
+  <!-- Logout is handled by event delegation in Layout.astro (#logout-button) so it works after View Transitions. -->
 </Layout>
