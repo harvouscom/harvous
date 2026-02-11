@@ -110,7 +110,7 @@
    --sheet-viewport-height is set by BottomSheet when note/resource panel is open (visual viewport)
    so the editor scroll area is keyboard-aware. Subtract reserves space for header, title, toolbar, footer. */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(var(--sheet-viewport-height, 90vh) - 320px);
+  max-height: calc(var(--sheet-viewport-height, 90vh) - 360px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -598,18 +598,15 @@
   }
 }
 
-/* Mobile only: dialogs as bottom sheets */
+/* Mobile only: dialogs as bottom sheets (match SpaceSwitcher sheet: flush bottom, no overlay, subtle shadow) */
 @media (max-width: 1159px) {
   .modal-overlay-enter,
   .modal-overlay,
   .modal-overlay--centered {
     align-items: flex-end !important;
     justify-content: flex-end !important;
-    padding-top: 0 !important;
-    padding-bottom: max(0px, env(safe-area-inset-bottom)) !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    background-color: rgba(0, 0, 0, 0.4) !important;
+    padding: 0 !important;
+    background-color: transparent !important;
   }
 
   .modal-content-enter,
@@ -619,6 +616,8 @@
     margin: 0 !important;
     border-radius: 24px 24px 0 0 !important;
     max-height: 90vh !important;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom)) !important;
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08) !important;
     animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 

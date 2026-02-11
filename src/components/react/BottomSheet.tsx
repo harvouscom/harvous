@@ -405,12 +405,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     setSize();
     vv.addEventListener('resize', setSize);
     vv.addEventListener('scroll', setSize);
+    const timeoutIds: ReturnType<typeof setTimeout>[] = [];
     const handleFocusIn = () => {
       if (!el || !window.visualViewport) return;
+      timeoutIds.forEach((id) => clearTimeout(id));
+      timeoutIds.length = 0;
       setSize();
+      timeoutIds.push(
+        setTimeout(() => {
+          if (el && window.visualViewport) setSize();
+        }, 100)
+      );
+      timeoutIds.push(
+        setTimeout(() => {
+          if (el && window.visualViewport) setSize();
+        }, 300)
+      );
     };
     el.addEventListener('focusin', handleFocusIn);
     return () => {
+      timeoutIds.forEach((id) => clearTimeout(id));
       el.removeEventListener('focusin', handleFocusIn);
       vv.removeEventListener('resize', setSize);
       vv.removeEventListener('scroll', setSize);
