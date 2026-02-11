@@ -761,6 +761,31 @@
   text-align: center;
 }
 
+.card-stack__header-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-stack__header-leave {
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.85;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.card-stack__header-leave:hover {
+  opacity: 1;
+}
+
 /* Legacy class name - kept for backwards compatibility if needed */
 .card-stack__title {
   flex-basis: 0;

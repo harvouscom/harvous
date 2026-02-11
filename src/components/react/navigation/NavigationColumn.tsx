@@ -248,24 +248,32 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
   // Use raw navigation history from storage since NavigationContext filters out spaces
   // IMPORTANT: Only filter by navigation history after hydration to prevent SSR/client mismatch
+  // Include spaces from raw history that aren't in localSpaces (e.g. after remount when navigating to My Home)
   const filteredSpaces = useMemo(() => {
     // During SSR and initial render, return empty array to match server
-    // After hydration, filter by navigation history
     if (!isHydrated) {
       return [];
     }
     
     const rawHistory = getRawNavigationHistory();
-    // Get space IDs from raw navigation history (includes spaces that NavigationContext filters out)
-    const navigationSpaceIds = new Set(
-      rawHistory
-        .filter((item: any) => item.id && item.id.startsWith('space_'))
-        .map((item: any) => item.id)
+    const rawSpaceItems = rawHistory.filter(
+      (item: any) => item.id && item.id.startsWith('space_')
     );
+    const navigationSpaceIds = new Set(rawSpaceItems.map((item: any) => item.id));
     
-    // Only show spaces that are in navigation history
-    return spaces.filter(space => navigationSpaceIds.has(space.id));
-  }, [spaces, forceUpdate, isHydrated]);
+    const fromLocal = localSpaces.filter(space => navigationSpaceIds.has(space.id));
+    const localIds = new Set(fromLocal.map(s => s.id));
+    const fromRaw = rawSpaceItems
+      .filter((item: any) => !localIds.has(item.id))
+      .map((item: any) => ({
+        id: item.id,
+        title: item.title || 'Space',
+        totalItemCount: typeof item.count === 'number' ? item.count : 0,
+        backgroundGradient: item.backgroundGradient || 'var(--color-paper)',
+      } satisfies Space));
+    
+    return [...fromLocal, ...fromRaw];
+  }, [localSpaces, forceUpdate, isHydrated]);
 
   // Calculate spaces to show in dropdown - include current space even if not in history yet
   // IMPORTANT: During SSR and initial render, only include currentSpace to prevent hydration mismatch
@@ -292,8 +300,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     // This ensures SSR and client render the same initial state
     if (currentSpace && currentSpace.id && currentSpace.id.startsWith('space_')) {
       if (!spacesById.has(currentSpace.id)) {
-        // Build a full Space object from the CurrentSpace
-        const currentSpaceData = spaces.find(s => s.id === currentSpace.id);
+        // Build a full Space object from the CurrentSpace (use localSpaces so newly created space is found)
+        const currentSpaceData = localSpaces.find(s => s.id === currentSpace.id);
         if (currentSpaceData) {
           spacesById.set(currentSpace.id, currentSpaceData);
         }
@@ -302,7 +310,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, selectedSpace, currentSpace, spaces, isHydrated]);
+  }, [filteredSpaces, selectedSpace, currentSpace, spaces, localSpaces, isHydrated]);
 
   // Calculate available spaces that aren't in the dropdown
   const availableSpaces = useMemo(() => {
@@ -982,13 +990,15 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                       })}
                     </>
                   )}
-                  <div className="space-switcher-dropdown__divider" />
-                  <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
-                    <span className="space-switcher-dropdown__label">New Space</span>
-                    <span className="space-switcher-dropdown__check" aria-hidden="true">
-                      <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                    </span>
-                  </a>
+                  </div>
+                  <div className="space-switcher-dropdown__footer">
+                    <div className="space-switcher-dropdown__divider" />
+                    <a href="/new-space" className="space-switcher-dropdown__item space-switcher-dropdown__new-space">
+                      <span className="space-switcher-dropdown__label">New Space</span>
+                      <span className="space-switcher-dropdown__check" aria-hidden="true">
+                        <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                      </span>
+                    </a>
                   </div>
                 </div>
               </details>

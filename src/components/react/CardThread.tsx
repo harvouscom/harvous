@@ -14,6 +14,7 @@ interface Thread {
   createdAt?: string;
   isPrivate?: boolean;
   isPrimary?: boolean;
+  icon?: 'layer-group';
 }
 
 interface CardThreadProps {
@@ -31,7 +32,8 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
     lastUpdated,
     lastVisited,
     createdAt,
-    isPrivate = true
+    isPrivate = true,
+    icon
   } = thread;
 
   // Convert color to CSS variable format
@@ -109,9 +111,13 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
       {/* Header content */}
       <div className="card-thread__header">
         <div className="card-thread__header-row">
-          {/* User icon (Private) or User group icon (Shared) */}
+          {/* Layer-group (space context), single user (private), or group (shared) */}
           <div className="card-thread__icon">
-            {isPrivate ? (
+            {icon === 'layer-group' ? (
+              <svg fill="currentColor" viewBox="0 0 576 512">
+                <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
+              </svg>
+            ) : isPrivate ? (
               <svg fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
               </svg>

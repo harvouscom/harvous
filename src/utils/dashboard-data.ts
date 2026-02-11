@@ -880,6 +880,178 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
   }
 }
 
+/**
+ * Fetch threads for a space by spaceId only (no userId filter).
+ * Used when displaying space content to a member (content is owner's).
+ */
+export async function getThreadsForSpaceBySpaceId(spaceId: string) {
+  try {
+    const threads = await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited,
+    })
+    .from(Threads)
+    .where(eq(Threads.spaceId, spaceId))
+    .orderBy(
+      desc(Threads.isPinned),
+      asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Threads.lastVisited),
+      desc(Threads.updatedAt),
+      desc(Threads.createdAt),
+      asc(Threads.id)
+    )
+    .all();
+
+    const threadIds = threads.map(thread => thread.id);
+    let noteCountsMap = new Map<string, number>();
+    if (threadIds.length > 0) {
+      const noteCounts = await db.select({
+        threadId: NoteThreads.threadId,
+        count: count(),
+      })
+      .from(NoteThreads)
+      .where(inArray(NoteThreads.threadId, threadIds))
+      .groupBy(NoteThreads.threadId)
+      .all();
+      noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+    }
+
+    const threadsWithCounts = threads.map(thread => ({
+      ...thread,
+      noteCount: noteCountsMap.get(thread.id) || 0
+    }));
+
+    return threadsWithCounts.map(thread => ({
+      id: thread.id,
+      title: thread.title,
+      subtitle: thread.subtitle,
+      color: thread.color,
+      spaceId: thread.spaceId,
+      isPublic: thread.isPublic,
+      isPinned: thread.isPinned,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+      lastVisited: thread.lastVisited,
+      noteCount: thread.noteCount || 0,
+      lastUpdated: thread.lastVisited || thread.updatedAt || thread.createdAt,
+      accentColor: getThreadColorCSS(thread.color),
+      backgroundGradient: getThreadGradientCSS(thread.color),
+    }));
+  } catch (error) {
+    console.error("Error fetching threads for space by spaceId:", error);
+    return [];
+  }
+}
+
+/**
+ * Fetch notes for a space for member view (by spaceId only, exclude locked notes).
+ * ownerUserId is used for getThreadColorsForNotesBatch so thread colors resolve correctly.
+ */
+export async function getNotesForSpaceForMember(
+  spaceId: string,
+  ownerUserId: string,
+  limit = 100,
+  offset = 0
+): Promise<{ notes: any[]; hasMore: boolean }> {
+  try {
+    const fetchLimit = limit + offset + 1;
+    const allNotes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
+    })
+    .from(Notes)
+    .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
+    .orderBy(
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      asc(Notes.id)
+    )
+    .limit(fetchLimit)
+    .all();
+
+    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id || ''
+    })));
+    const hasMore = sortedAllNotes.length > offset + limit;
+    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
+
+    const resourceNoteIds = sortedNotes
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
+    if (resourceNoteIds.length > 0) {
+      try {
+        const resourceMetadata = await db.select({
+          noteId: ResourceMetadata.noteId,
+          sourceTitle: ResourceMetadata.sourceTitle,
+          sourceDescription: ResourceMetadata.sourceDescription,
+          sourceImage: ResourceMetadata.sourceImage,
+          sourceDomain: ResourceMetadata.sourceDomain,
+          sourceName: ResourceMetadata.sourceName,
+        })
+        .from(ResourceMetadata)
+        .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+        .all();
+        resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+          acc[meta.noteId] = {
+            sourceTitle: meta.sourceTitle,
+            sourceDescription: meta.sourceDescription,
+            sourceImage: meta.sourceImage,
+            sourceDomain: meta.sourceDomain,
+            sourceName: meta.sourceName,
+          };
+          return acc;
+        }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }>);
+      } catch (err) {
+        console.error("Error fetching resource metadata:", err);
+      }
+    }
+
+    const noteIds = sortedNotes.map(note => note.id).filter((id): id is string => !!id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
+    const notesWithThreadColors = sortedNotes.map((note) => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const threadColors = threadColorsMap.get(note.id);
+      return {
+        ...note,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+      };
+    });
+
+    return { notes: notesWithThreadColors, hasMore };
+  } catch (error) {
+    console.error("Error fetching notes for space (member view):", error);
+    return { notes: [], hasMore: false };
+  }
+}
+
 // Fetch notes for dashboard (all notes)
 export async function getNotesForDashboard(userId: string, limit = 10) {
   try {

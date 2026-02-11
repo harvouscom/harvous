@@ -1,7 +1,7 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "1.62.23",
+  "version": "1.63.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
@@ -11,6 +11,7 @@
   },
   "scripts": {
     "dev": "astro dev",
+    "dev:clean": "node -e \"require('fs').rmSync('node_modules/.vite', { recursive: true, force: true })\" && astro dev",
     "build": "astro build --remote",
     "preview": "astro preview",
     "astro": "astro",
@@ -26,7 +27,10 @@
     "release-notes:generate": "node scripts/generate-release-notes.js",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:setup": "astro db execute db/seed.ts --remote && npm run test:e2e"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.6",
@@ -82,6 +86,8 @@
     "typescript": "^5.9.2"
   },
   "devDependencies": {
+    "@clerk/testing": "^1.13.35",
+    "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@vitest/ui": "^2.1.8",

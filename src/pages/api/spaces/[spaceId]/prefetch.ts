@@ -44,7 +44,8 @@ export const GET: APIRoute = async ({ params, locals }) => {
         title: space.title,
         color: space.color,
         backgroundGradient: space.backgroundGradient,
-        totalItemCount: space.totalItemCount
+        totalItemCount: space.totalItemCount,
+        isPublic: space.isPublic
       }
     }), {
       status: 200,

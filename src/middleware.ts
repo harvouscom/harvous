@@ -16,6 +16,7 @@ if (import.meta.env.PROD) {
 const isPublicRoute = createRouteMatcher([
   '/sign-in',
   '/sign-up',
+  '/spaces/join/(.*)', // Public space join preview page — auth handled per-page via locals.auth()
   '/shared/(.*)', // Public shared pages (threads and notes)
   '/api/shared/(.*)', // Public shared API (note: add-to-harvous still checks auth via locals.auth())
   '/api/og/(.*)', // Open Graph image generation - must be public for social media crawlers

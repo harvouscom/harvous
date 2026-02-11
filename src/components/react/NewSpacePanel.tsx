@@ -14,6 +14,7 @@ import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import { createSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 
 interface Note {
   id: string;
@@ -269,8 +270,8 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
-      formData.append('isPublic', 'false'); // Always private for now
-      
+      formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
+
       // Add selected items
       const selectedNoteIds: string[] = [];
       const selectedThreadIds: string[] = [];
@@ -304,7 +305,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           offlineSpaceId = await createSpaceOffline(userId, {
             title: title.trim(),
             color: selectedColor,
-            isPublic: false,
+            isPublic: selectedType === 'Shared',
           });
           console.log('[NewSpacePanel] Space created locally in IndexedDB (offline)', { offlineSpaceId });
         } catch (err) {
@@ -873,61 +874,21 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   ))}
                 </div>
                 
-                {/* Space type selection with ButtonGroup */}
-                <div className="button-group">
-                  <div className="button-group__container">
-                    {/* Private button */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedType('Private')}
-                      className={`space-button button-group__button button-group__button--left h-[64px] ${
-                        selectedType === 'Private' 
-                          ? '' 
-                          : 'bg-transparent'
-                      }`}
-                      style={selectedType === 'Private' ? { 
-                        backgroundImage: 'var(--color-gradient-gray)' 
-                      } : {}}
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon 
-                            name="user" 
-                            size={16} 
-                            style={{ 
-                              color: selectedType === 'Private' 
-                                ? 'var(--color-deep-grey)' 
-                                : 'var(--color-pebble-grey)' 
-                            }} 
-                          />
-                        </div>
-                        <span 
-                          className={`font-sans text-[18px] font-semibold whitespace-nowrap ${
-                            selectedType === 'Private' 
-                              ? 'text-[var(--color-deep-grey)]' 
-                              : 'text-[var(--color-pebble-grey)]'
-                          }`}
-                        >
-                          Private
-                        </span>
-                      </div>
-                    </button>
-                    
-                    {/* Shared button - disabled */}
-                    <button
-                      type="button"
-                      disabled
-                      className="space-button button-group__button button-group__button--right button-group__button--disabled h-[64px] bg-transparent"
-                    >
-                      <div className="flex items-center justify-center gap-3 relative w-full h-full">
-                        <div className="size-4 flex items-center justify-center shrink-0">
-                          <Icon name="user-group" size={16} style={{ color: 'var(--color-pebble-grey)' }} />
-                        </div>
-                        <span className="text-[var(--color-pebble-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">Shared</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
+                {/* Space visibility dropdown */}
+                <ThreadVisibilityDropdown
+                  isShared={selectedType === 'Shared'}
+                  shareUrl={null}
+                  onToggle={async (enabled) => {
+                    setSelectedType(enabled ? 'Shared' : 'Private');
+                  }}
+                  isLoading={isSubmitting}
+                  isEditMode={false}
+                  privateTriggerLabel="Only I can see this space"
+                  sharedTriggerLabel="Shared with anyone with the link"
+                  privateOptionLabel="Only I can see this space"
+                  sharedOptionLabel="Turn on sharing with link to anyone"
+                  shareNotReadyLabel="Share link will be available after creating the space"
+                />
 
                 {/* Selected Items - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
@@ -990,7 +951,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   </div>
                 )}
 
-                {/* AddToSpaceSection - replaces tabs */}
+                {/* Search and add notes/threads — always visible regardless of Private/Shared */}
                 <div className="w-full flex-1 min-h-0 flex flex-col">
                   {isLoadingItems ? (
                     <div className="panel__loading-state">

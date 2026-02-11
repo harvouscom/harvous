@@ -1,0 +1,846 @@
+---
+export const prerender = false;
+import EmptyLayout from "@/layouts/EmptyLayout.astro";
+import CardStack from "@/components/CardStack.astro";
+import Button from "@/components/Button.astro";
+import { Fragment } from "astro/jsx-runtime";
+import { db, SpaceInvitations, Spaces, Members, UserMetadata, eq, and } from 'astro:db';
+import { type ThreadColor } from '@/utils/colors';
+import { ClientRouter } from "astro:transitions";
+import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
+
+// Extract path from SVG
+const circleQuestionPath = circleQuestionIconRaw.match(/<path d="([^"]+)"/)?.[1] || '';
+
+const { token } = Astro.params;
+
+// Check if user is authenticated
+const auth = Astro.locals.auth();
+const { userId } = auth;
+const isAuthenticated = !!userId;
+
+// Initialize data
+let invitation = null;
+let space = null;
+let inviter = null;
+let error = null;
+let alreadyMember = false;
+let isOwner = false;
+
+if (!token) {
+  error = 'invalid';
+} else {
+  // Fetch invitation details
+  invitation = await db.select()
+    .from(SpaceInvitations)
+    .where(eq(SpaceInvitations.inviteToken, token))
+    .get();
+
+  if (!invitation) {
+    error = 'not_found';
+  } else if (invitation.status !== 'pending') {
+    error = 'already_used';
+  } else if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
+    error = 'expired';
+  } else {
+    // Get space details
+    space = await db.select()
+      .from(Spaces)
+      .where(eq(Spaces.id, invitation.spaceId))
+      .get();
+
+    if (!space) {
+      error = 'space_not_found';
+    } else {
+      // Set cache headers
+      Astro.response.headers.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+
+      // Get inviter details
+      const inviterData = await db.select()
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, invitation.invitedBy))
+        .get();
+
+      const firstName = inviterData?.firstName || '';
+      const lastName = inviterData?.lastName || '';
+      const lastInitial = lastName.charAt(0).toUpperCase();
+      const displayName = firstName
+        ? (lastName ? `${firstName} ${lastInitial}.` : firstName)
+        : 'A Harvous User';
+
+      inviter = {
+        firstName,
+        displayName,
+        userColor: inviterData?.userColor || 'paper'
+      };
+
+      // Check if current user is already a member (if logged in)
+      if (userId) {
+        isOwner = space.userId === userId;
+
+        if (!isOwner) {
+          const existingMember = await db.select()
+            .from(Members)
+            .where(and(
+              eq(Members.spaceId, invitation.spaceId),
+              eq(Members.userId, userId)
+            ))
+            .get();
+
+          alreadyMember = !!existingMember;
+        } else {
+          alreadyMember = true;
+        }
+      }
+    }
+  }
+}
+
+const canAccept = !alreadyMember && isAuthenticated && !isOwner;
+const requiresAuth = !isAuthenticated;
+
+// Get space color for styling
+const spaceColor = (space?.color || 'paper') as ThreadColor;
+
+// Prepare meta data
+const ogTitle = space?.title ? `${space.title} | Space Invitation` : 'Space Invitation';
+const ogDescription = `You've been invited to join a collaborative Bible study space on Harvous`;
+---
+
+<EmptyLayout title={ogTitle}>
+  <Fragment slot="head">
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta name="robots" content="noindex" />
+  </Fragment>
+
+  <div id="invitation-content" class="auth-page">
+    <div class="auth-page__container">
+      <!-- Left Column: Animated Mesh Gradient Background -->
+      <div class="auth-page__video-section thread-colors-mesh-gradient">
+        <div class="auth-page__video-overlay">
+          <!-- Harvous logo (white) -->
+          <a href="https://harvous.com" class="auth-page__logo-container">
+            <svg
+              width="28"
+              height="40"
+              viewBox="0 0 45 64"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              class="auth-page__logo"
+              aria-label="Harvous"
+            >
+              <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Column: Invitation Content -->
+      <div class="auth-page__form-section shared-page__content-section">
+        <div class="shared-page__content">
+          {(error === 'invalid' || error === 'not_found' || error === 'space_not_found') ? (
+            <div class="shared-page__error">
+              <div class="shared-page__error-icon">
+                <svg width="48" height="48" viewBox="0 0 512 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d={circleQuestionPath} />
+                </svg>
+              </div>
+              <h1 class="shared-page__error-title">This invitation isn't available</h1>
+              <p class="shared-page__error-message">
+                Hmm, we can't find this invitation. The link might be invalid or the invitation may have been cancelled.
+              </p>
+              <a href="https://harvous.com" class="shared-page__error-link">
+                Learn more about Harvous
+              </a>
+            </div>
+          ) : error === 'expired' ? (
+            <div class="shared-page__error">
+              <div class="shared-page__error-icon">⏰</div>
+              <h1 class="shared-page__error-title">This invitation has expired</h1>
+              <p class="shared-page__error-message">
+                This invitation link is no longer valid. Please request a new invitation from the space owner.
+              </p>
+              <a href="/" class="shared-page__error-link">
+                Go to Dashboard
+              </a>
+            </div>
+          ) : error === 'already_used' ? (
+            <div class="shared-page__error">
+              <div class="shared-page__error-icon">✓</div>
+              <h1 class="shared-page__error-title">This invitation has been {invitation?.status}</h1>
+              <p class="shared-page__error-message">
+                This invitation link has already been used and is no longer active.
+              </p>
+              {space && (
+                <Button variant="primary" href={`/spaces/${space.id}`}>
+                  Go to Space
+                </Button>
+              )}
+            </div>
+          ) : space && (
+            <>
+              <!-- Inviter info (above CardStack) -->
+              <div class="shared-page__creator shared-page__fade-in" style="animation-delay: 0ms;">
+                <p>{inviter?.displayName || 'A Harvous User'} invited you to join this space on Harvous</p>
+              </div>
+
+              <!-- CardStack with invitation -->
+              <div class="shared-page__card-container shared-page__slide-up" style="animation-delay: 50ms;">
+                <CardStack
+                  title={space.title}
+                  headerBgColor={`var(--color-${spaceColor})`}
+                  centerTitle={true}
+                >
+                  <!-- Invitation content (matches notes-scroll pattern) -->
+                  <div class="shared-page__notes-scroll">
+                    {invitation?.message ? (
+                      <div class="shared-page__notes-empty">
+                        <p>"{invitation.message}"</p>
+                      </div>
+                    ) : (
+                      <div class="shared-page__notes-empty">
+                        <p>You've been invited to join this collaborative Bible study space.</p>
+                      </div>
+                    )}
+
+                    {invitation?.expiresAt && (
+                      <div class="shared-page__expiry-notice">
+                        Expires {new Date(invitation.expiresAt).toLocaleDateString('en-US', {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </div>
+                    )}
+
+                    {alreadyMember && isOwner && (
+                      <div class="shared-page__member-status">
+                        ✓ You own this space
+                      </div>
+                    )}
+
+                    {alreadyMember && !isOwner && (
+                      <div class="shared-page__member-status">
+                        ✓ You're already in this space
+                      </div>
+                    )}
+                  </div>
+
+                  <!-- CTA Button wrapper (matches shared thread pattern) -->
+                  <div class="shared-page__cta-wrapper">
+                    <!-- Toast notification for errors -->
+                    <div id="invitation-toast" class="shared-page__toast" aria-live="polite">
+                      <span id="invitation-toast-message"></span>
+                    </div>
+
+                    <!-- CTA Button (inside CardStack) -->
+                    {requiresAuth ? (
+                      <Button
+                        variant="primary"
+                        href={`/sign-in?redirect=/invitations/${token}`}
+                        class="shared-page__cta-button"
+                      >
+                        <span class="shared-page__cta-text">Sign in to accept</span>
+                      </Button>
+                    ) : canAccept ? (
+                      <Button
+                        type="button"
+                        id="accept-invitation-btn"
+                        class="shared-page__cta-button"
+                        data-token={token}
+                        data-space-id={space.id}
+                      >
+                        <span class="shared-page__cta-text" id="accept-btn-text">Accept Invitation</span>
+                      </Button>
+                    ) : alreadyMember ? (
+                      <Button
+                        variant="primary"
+                        href={`/spaces/${space.id}`}
+                        class="shared-page__cta-button"
+                      >
+                        <span class="shared-page__cta-text">Go to Space</span>
+                      </Button>
+                    ) : null}
+                  </div>
+                </CardStack>
+              </div>
+
+              <!-- Footer text (below CardStack) -->
+              <div class="shared-page__footer shared-page__fade-in" style="animation-delay: 200ms;">
+                <p>Harvous is a notes app designed for Bible study.</p>
+                <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+</EmptyLayout>
+
+<!-- Enable View Transitions for client-side navigation -->
+<ClientRouter />
+
+<!-- Client-side script for Accept Invitation functionality -->
+<script is:inline>
+  (function() {
+    const btn = document.getElementById('accept-invitation-btn');
+    const toastEl = document.getElementById('invitation-toast');
+    const toastMsgEl = document.getElementById('invitation-toast-message');
+    const btnTextEl = document.getElementById('accept-btn-text');
+
+    if (!btn) return;
+
+    const token = btn.dataset.token;
+    const spaceId = btn.dataset.spaceId;
+
+    btn.addEventListener('click', async function() {
+      // Disable button during request
+      btn.disabled = true;
+      const originalText = btnTextEl.textContent;
+      btnTextEl.textContent = 'Accepting...';
+
+      try {
+        const response = await fetch(`/api/invitations/${token}/accept`, {
+          method: 'POST',
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          // Show success and redirect
+          btnTextEl.textContent = 'Accepted! Redirecting...';
+          setTimeout(() => {
+            window.location.href = data.redirectUrl || `/spaces/${spaceId}`;
+          }, 500);
+        } else {
+          throw new Error(data.error || 'Failed to accept invitation');
+        }
+      } catch (error) {
+        // Show error in toast
+        toastMsgEl.textContent = error.message;
+        toastEl.classList.add('shared-page__toast--error', 'shared-page__toast--visible');
+
+        // Re-enable button
+        btn.disabled = false;
+        btnTextEl.textContent = originalText;
+
+        // Hide toast after 5 seconds
+        setTimeout(() => {
+          toastEl.classList.remove('shared-page__toast--visible', 'shared-page__toast--error');
+        }, 5000);
+      }
+    });
+  })();
+</script>
+
+<style is:global>
+  /* Override video overlay padding for 24px spacing */
+  #invitation-content .auth-page__video-overlay {
+    padding: 24px;
+  }
+
+  /* Keep outer padding on auth-page wrapper (12px around both columns) */
+  #invitation-content.auth-page {
+    padding: 12px;
+    min-height: 100vh;
+  }
+
+  /* Desktop: lock page to viewport height */
+  @media (min-width: 1160px) {
+    #invitation-content {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #invitation-content .auth-page__container {
+      height: 100%;
+      max-height: 100vh;
+    }
+
+    #invitation-content .auth-page__form-section {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #invitation-content .shared-page__content-section {
+      padding-top: 12px !important;
+    }
+  }
+
+  /* Shared page content section */
+  .shared-page__content-section {
+    background-color: var(--color-light-paper) !important;
+    padding: 0 !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Mobile: lock page to viewport height, no scrolling */
+  @media (max-width: 1159px) {
+    #invitation-content {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    #invitation-content .auth-page__container {
+      height: 100%;
+      max-height: 100vh;
+    }
+
+    #invitation-content .auth-page__form-section.shared-page__content-section {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+  }
+
+  .shared-page__content {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  /* Mobile: constrain content to viewport height */
+  @media (max-width: 1159px) {
+    .shared-page__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+    }
+  }
+
+  /* Desktop: constrain content to viewport height */
+  @media (min-width: 1160px) {
+    .shared-page__content {
+      height: 100%;
+      max-height: 100vh;
+      overflow: hidden;
+      justify-content: flex-start;
+      padding-top: 0;
+    }
+  }
+
+  /* Creator info */
+  .shared-page__creator {
+    padding: 12px 0;
+    text-align: center;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .shared-page__creator p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  /* CardStack container */
+  .shared-page__card-container {
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+  }
+
+  /* Mobile: constrain card container to fit within viewport */
+  @media (max-width: 1159px) {
+    .shared-page__card-container {
+      min-height: 0;
+      overflow: hidden;
+      max-height: calc(100vh - 120px); /* Account for creator info and spacing */
+    }
+  }
+
+  /* Desktop: allow CardStack to shrink to fit available space */
+  @media (min-width: 1160px) {
+    .shared-page__card-container {
+      min-height: 0;
+      overflow: hidden;
+    }
+  }
+
+  /* Make CardStack fill container */
+  .shared-page__card-container .card-stack {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .shared-page__card-container .card-stack__container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .shared-page__card-container .card-stack__content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .shared-page__card-container .card-stack__inner {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .shared-page__card-container .card-stack__inner-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* Scrollable notes container */
+  .shared-page__notes-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+  }
+
+  /* Mobile: add padding-bottom to account for fixed button */
+  @media (max-width: 1159px) {
+    .shared-page__notes-scroll {
+      padding-bottom: 72px; /* Space for fixed button (60px button + 12px spacing) */
+    }
+  }
+
+  /* Desktop: remove max-height constraint, let flex handle it */
+  @media (min-width: 1160px) {
+    .shared-page__notes-scroll {
+      max-height: none;
+    }
+  }
+
+  /* Notes inside CardStack */
+  .shared-page__notes {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .shared-page__notes-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    color: var(--color-stone-grey);
+    text-align: center;
+  }
+
+  .shared-page__notes-empty p {
+    margin: 0;
+    font-size: 14px;
+  }
+
+  /* Toast notification - absolutely positioned 12px above button */
+  .shared-page__toast {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 20px;
+    background: linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%);
+    border-radius: 12px;
+    box-shadow: 0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-deep-grey);
+    text-align: center;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 10;
+  }
+
+  .shared-page__toast--visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .shared-page__toast--success {
+    color: var(--color-deep-grey);
+  }
+
+  .shared-page__toast--error {
+    color: var(--color-red);
+  }
+
+  /* CTA Button wrapper - relative positioning for toast */
+  /* Mobile: fixed button at bottom of viewport */
+  @media (max-width: 1159px) {
+    .shared-page__cta-wrapper {
+      position: fixed;
+      bottom: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 480px;
+      padding: 0 12px;
+      z-index: 100;
+      margin-top: 0;
+    }
+  }
+
+  /* Desktop: keep button inside CardStack */
+  @media (min-width: 1160px) {
+    .shared-page__cta-wrapper {
+      position: relative;
+      flex-shrink: 0;
+      margin-top: 12px;
+    }
+  }
+
+  /* CTA Button inside CardStack - pinned at bottom */
+  .shared-page__cta-button {
+    margin-top: 0;
+    flex-shrink: 0;
+  }
+
+  /* Footer */
+  .shared-page__footer {
+    padding: 12px 0;
+    text-align: center;
+    width: 100%;
+    flex-shrink: 0;
+  }
+
+  .shared-page__footer p {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    margin: 0 0 4px 0;
+    line-height: 1.5;
+  }
+
+  .shared-page__footer a {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--color-stone-grey);
+    text-decoration: underline;
+    text-decoration-skip-ink: none;
+  }
+
+  .shared-page__footer a:hover {
+    color: var(--color-deep-grey);
+  }
+
+  /* Error state */
+  .shared-page__error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 48px 24px;
+    flex: 1;
+  }
+
+  .shared-page__error-icon {
+    color: var(--color-pebble-grey);
+    margin-bottom: 24px;
+  }
+
+  .shared-page__error-title {
+    font-family: var(--font-roundo);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-deep-grey);
+    margin: 0 0 12px 0;
+  }
+
+  .shared-page__error-message {
+    font-size: 16px;
+    color: var(--color-stone-grey);
+    margin: 0 0 32px 0;
+    max-width: 400px;
+    line-height: 1.5;
+  }
+
+  .shared-page__error-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 32px;
+    background: var(--color-bold-blue);
+    color: white;
+    text-decoration: none;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 16px;
+    transition: background-color 0.15s ease;
+    box-shadow: inset 0px -4px 0px 0px rgba(0, 0, 0, 0.1);
+  }
+
+  .shared-page__error-link:hover {
+    background: var(--color-navy);
+  }
+
+  /* Animations */
+  @keyframes sharedPageFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes sharedPageSlideUp {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .shared-page__fade-in {
+    animation: sharedPageFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .shared-page__slide-up {
+    animation: sharedPageSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Mesh gradient using all thread colors with subtle movement */
+  .thread-colors-mesh-gradient {
+    position: relative;
+    overflow: hidden;
+    background: var(--color-paper);
+  }
+
+  .thread-colors-mesh-gradient::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background:
+      radial-gradient(circle at 20% 30%, var(--color-blue) 0%, transparent 50%),
+      radial-gradient(circle at 80% 20%, var(--color-purple) 0%, transparent 50%),
+      radial-gradient(circle at 40% 70%, var(--color-pink) 0%, transparent 50%),
+      radial-gradient(circle at 60% 80%, var(--color-orange) 0%, transparent 50%),
+      radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
+      radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
+    background-size: 100% 100%;
+    animation: mesh-movement 6s ease-in-out infinite;
+    opacity: 0.8;
+  }
+
+  .thread-colors-mesh-gradient::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background:
+      radial-gradient(circle at 70% 40%, var(--color-pink) 0%, transparent 40%),
+      radial-gradient(circle at 30% 90%, var(--color-yellow) 0%, transparent 40%),
+      radial-gradient(circle at 50% 10%, var(--color-blue) 0%, transparent 40%),
+      radial-gradient(circle at 15% 50%, var(--color-green) 0%, transparent 40%),
+      radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
+      radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
+    background-size: 100% 100%;
+    animation: mesh-movement-reverse 7.5s ease-in-out infinite;
+    opacity: 0.6;
+  }
+
+  @keyframes mesh-movement {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+    }
+    16.66% {
+      transform: translate(4%, 3%) scale(1.06);
+    }
+    33.33% {
+      transform: translate(-3%, 4%) scale(1.08);
+    }
+    50% {
+      transform: translate(-4%, -2%) scale(1.07);
+    }
+    66.66% {
+      transform: translate(3%, -3%) scale(1.05);
+    }
+    83.33% {
+      transform: translate(-2%, 3%) scale(1.08);
+    }
+  }
+
+  @keyframes mesh-movement-reverse {
+    0%, 100% {
+      transform: translate(0, 0) rotate(0deg) scale(1);
+    }
+    20% {
+      transform: translate(-3%, 2%) rotate(5deg) scale(1.05);
+    }
+    40% {
+      transform: translate(2%, -4%) rotate(-3deg) scale(1.07);
+    }
+    60% {
+      transform: translate(4%, 3%) rotate(4deg) scale(1.06);
+    }
+    80% {
+      transform: translate(-2%, -3%) rotate(-2deg) scale(1.08);
+    }
+  }
+
+  /* Mobile: Blue to pink gradient with blend zone sliding side to side */
+  @media (max-width: 1159px) {
+    .thread-colors-mesh-gradient::before {
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, var(--color-blue), var(--color-pink));
+      background-size: 200% 100%;
+      animation: mesh-gradient-slide 6s ease-in-out infinite;
+      opacity: 0.9;
+    }
+    .thread-colors-mesh-gradient::after {
+      opacity: 0;
+    }
+  }
+
+  @keyframes mesh-gradient-slide {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+</style>
+</EmptyLayout>

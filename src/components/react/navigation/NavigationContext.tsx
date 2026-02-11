@@ -370,10 +370,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // This handles the case where user explicitly navigates to a closed item
     removeFromClosedItems(item.id);
 
-    const history = getNavigationHistory();
+    // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
+    const rawHistory = getRawNavigationHistory();
 
     // Check if item already exists - use strict equality check
-    const existingIndex = history.findIndex(h => h.id === item.id);
+    const existingIndex = rawHistory.findIndex((h: any) => h.id === item.id);
 
     const itemOpenedInSpaceIds = mergeOpenedInSpaceIds(
       getItemOpenedInSpaceIds(item),
@@ -382,24 +383,18 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position
-      const existingItem = history[existingIndex];
-      // Defensive: ensure firstAccessed is preserved, use current time if missing (shouldn't happen)
-      // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
+      const existingItem = rawHistory[existingIndex];
       const preservedFirstAccessed = (existingItem.firstAccessed != null) ? existingItem.firstAccessed : Date.now();
-      history[existingIndex] = {
+      rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
-        // Multi-scope: preserve and merge opened-in contexts
         openedInSpaceIds: mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), getItemOpenedInSpaceIds(item)),
-        // Legacy: keep last opened-in for older consumers
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
       };
     } else {
-      // Item doesn't exist - this could be first time opening or reopening after being closed
-      // For now, we'll add to the end (first time opening behavior)
-      // TODO: In the future, we could track closed items to detect true reopening
+      // Item doesn't exist - add to the end (first time opening behavior)
       const newItem: NavigationItem = {
         ...item,
         openedInSpaceIds: itemOpenedInSpaceIds,
@@ -407,75 +402,39 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         firstAccessed: Date.now(),
         lastAccessed: Date.now()
       };
-      history.push(newItem); // Add to end for first time opening
+      rawHistory.push(newItem);
     }
-    
-    // Sort by firstAccessed to maintain chronological order
-    // This ensures the order is consistent between React and Astro
-    // Defensive: handle missing firstAccessed by treating as oldest (very large number)
-    // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
-    history.sort((a, b) => {
+
+    // Sort by firstAccessed to maintain chronological order (full list: threads + spaces)
+    rawHistory.sort((a: any, b: any) => {
       const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
       const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
       return aFirst - bFirst;
     });
-    
+
     // Remove any duplicates by ID (defensive programming)
-    const uniqueHistory = history.reduce((acc, current) => {
-      const existingItem = acc.find(item => item.id === current.id);
-      if (!existingItem) {
+    const uniqueHistory = rawHistory.reduce((acc: any[], current: any) => {
+      const existing = acc.find((i: any) => i.id === current.id);
+      if (!existing) {
         acc.push(current);
-      } else {
-        // Keep the one with the most recent lastAccessed
-        if (current.lastAccessed > existingItem.lastAccessed) {
-          const index = acc.findIndex(item => item.id === current.id);
-          acc[index] = current;
-        }
+      } else if ((current.lastAccessed ?? 0) > (existing.lastAccessed ?? 0)) {
+        const index = acc.findIndex((i: any) => i.id === current.id);
+        acc[index] = current;
       }
       return acc;
-    }, [] as NavigationItem[]);
-    
-    // Sort again after deduplication to maintain chronological order
-    // Defensive: handle missing firstAccessed by treating as oldest (very large number)
-    // Check for undefined/null specifically, not falsy (0 is a valid timestamp)
-    uniqueHistory.sort((a, b) => {
+    }, []);
+
+    uniqueHistory.sort((a: any, b: any) => {
       const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
       const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
       return aFirst - bFirst;
     });
 
-    // Limit to 10 items, keeping the most recently accessed
-    let limitedHistory = uniqueHistory;
-    if (uniqueHistory.length > 10) {
-      limitedHistory = uniqueHistory.slice(0, 10);
-    }
+    // Limit to 10 items, keeping the most recently accessed (full list so spaces are preserved)
+    const limitedHistory = uniqueHistory.length > 10 ? uniqueHistory.slice(0, 10) : uniqueHistory;
 
     saveNavigationHistory(limitedHistory);
-    // CRITICAL: Use functional update to ensure we always work with latest state
-    // This prevents race conditions where multiple addToNavigationHistory calls could
-    // cause duplicates due to stale React state
-    setNavigationHistory(prevHistory => {
-      // Merge the new history with current React state to prevent duplicates
-      const mergedIds = new Set(limitedHistory.map(item => item.id));
-      // Add any items from prevHistory that aren't in limitedHistory (shouldn't happen, but defensive)
-      const merged = [...limitedHistory];
-      for (const item of prevHistory) {
-        if (!mergedIds.has(item.id)) {
-          merged.push(item);
-        }
-      }
-      // Final deduplication (defensive)
-      const seen = new Set<string>();
-      const deduplicated = merged.filter(item => {
-        if (seen.has(item.id)) {
-          console.warn('[NavigationContext] addToNavigationHistory: Removing duplicate from state:', item.id);
-          return false;
-        }
-        seen.add(item.id);
-        return true;
-      });
-      return deduplicated;
-    });
+    setNavigationHistory(getNavigationHistory());
 
     // CRITICAL: Dispatch custom event to notify PersistentNavigation to refresh
     // This is needed because React Context updates don't reliably propagate during View Transitions
@@ -948,8 +907,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Check if this is a new item (not in history yet)
-      const history = getNavigationHistory();
-      const existingItem = history.find(h => h.id === itemData.id);
+      // Use raw history so we don't drop spaces when saving (getNavigationHistory filters out spaces)
+      const rawHistory = getRawNavigationHistory();
+      const existingItem = rawHistory.find((h: any) => h.id === itemData.id);
 
       // Get current active item ID to check if user explicitly navigated to this item
       // For notes: if we extracted thread data, check if we're viewing content in this thread
@@ -988,10 +948,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           removeFromClosedItems(itemData.id);
         }
 
-        // Update the item data but DON'T change its position
-        // CRITICAL: Create new array without mutation to ensure React detects change
-        const existingIndex = history.findIndex(h => h.id === itemData.id);
-        const updatedHistory = history.map((item, index) => {
+        // Update the item data but DON'T change its position (use raw history to preserve spaces)
+        const existingIndex = rawHistory.findIndex((h: any) => h.id === itemData.id);
+        const updatedRawHistory = rawHistory.map((item: any, index: number) => {
           if (index === existingIndex) {
             const mergedScopes = mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [openedInSpaceId]);
             return {
@@ -1005,9 +964,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return item;
         });
 
-        saveNavigationHistory(updatedHistory);
-        // Set the new array (already a new reference from map())
-        setNavigationHistory(updatedHistory);
+        saveNavigationHistory(updatedRawHistory);
+        setNavigationHistory(getNavigationHistory());
 
         // CRITICAL: Dispatch custom event to force UI update during View Transitions
         // React Context updates don't always trigger re-renders during View Transitions
@@ -1062,13 +1020,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const data = await response.json();
       const threads = data.threads || [];
       const spaces = data.spaces || [];
-      const history = getNavigationHistory();
+      // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
+      const rawHistory = getRawNavigationHistory();
       
       // Get unorganized thread from API response
       const unorganizedThreadFromAPI = threads.find((t: any) => t.id === 'thread_unorganized');
       const unorganizedCountFromAPI = unorganizedThreadFromAPI?.noteCount || 0;
       
-      const updatedHistory = history.map((item) => {
+      const updatedHistory = rawHistory.map((item: any) => {
         // Check if this is a thread
         if (item.id.startsWith('thread_')) {
           // Find matching thread in API response
@@ -1161,16 +1120,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }) as NavigationItem[];
       
       // Check if any counts actually changed or items were removed
-      const hasChanges = history.length !== filteredHistory.length || 
-        history.some((item, index) => {
+      const hasChanges = rawHistory.length !== filteredHistory.length ||
+        rawHistory.some((item: any, index: number) => {
           const filteredItem = filteredHistory[index];
           return !filteredItem || item.count !== filteredItem.count;
         });
 
-      // Save and update state if there were changes
+      // Save and update state if there were changes (filteredHistory includes spaces)
       if (hasChanges) {
         saveNavigationHistory(filteredHistory);
-        setNavigationHistory(filteredHistory);
+        setNavigationHistory(getNavigationHistory());
       }
     } catch (error) {
       console.error('NavigationContext: Error refreshing navigation counts:', error);
@@ -1217,12 +1176,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Check cache first - skip if recent validation exists and not forced
       const now = Date.now();
       if (!force && validationCache.current && (now - validationCache.current.timestamp) < VALIDATION_CACHE_DURATION) {
-        // Use cached thread IDs
+        // Use cached thread IDs; work with raw history to preserve spaces
         const threadIds = validationCache.current.threadIds;
-        const history = getNavigationHistory();
+        const rawHistory = getRawNavigationHistory();
         const thirtySecondsAgo = Date.now() - 30000;
 
-        const validatedHistory = history.filter((item: NavigationItem) => {
+        const validatedHistory = rawHistory.filter((item: any) => {
           if (item.firstAccessed > thirtySecondsAgo) return true;
           if (item.id.startsWith('space_')) return true;
           if (item.id === 'thread_unorganized') return true;
@@ -1232,9 +1191,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return true;
         });
 
-        if (validatedHistory.length < history.length) {
+        if (validatedHistory.length < rawHistory.length) {
           saveNavigationHistory(validatedHistory);
-          setNavigationHistory(validatedHistory);
+          setNavigationHistory(getNavigationHistory());
           window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
         }
         return;
@@ -1268,14 +1227,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         threadIds
       };
       
-      // Get current history from localStorage (source of truth)
-      const history = getNavigationHistory();
+      // Get current history from localStorage (source of truth); use raw to preserve spaces
+      const rawHistory = getRawNavigationHistory();
       
       // Add a 30-second grace period for newly created threads
       const thirtySecondsAgo = Date.now() - 30000;
 
       // Filter out deleted threads (keep spaces and thread_unorganized)
-      const validatedHistory = history.filter((item: NavigationItem) => {
+      const validatedHistory = rawHistory.filter((item: any) => {
         // Always keep items created in the last 30 seconds to prevent race conditions
         if (item.firstAccessed > thirtySecondsAgo) {
           return true;
@@ -1297,11 +1256,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       
       // Only update if something was removed
-      if (validatedHistory.length < history.length) {
+      if (validatedHistory.length < rawHistory.length) {
         saveNavigationHistory(validatedHistory);
-        
-        // Update React state directly and dispatch an event instead of forcing a reload
-        setNavigationHistory(validatedHistory);
+        setNavigationHistory(getNavigationHistory());
         window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
       }
     } catch (error) {
@@ -1340,8 +1297,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const backfillThreadSpaceIds = async () => {
       try {
         if (typeof window === 'undefined') return;
-        const history = getNavigationHistory();
-        const needsBackfill = history.some((item) => {
+        const rawHistory = getRawNavigationHistory();
+        const needsBackfill = rawHistory.some((item: any) => {
           return item?.id?.startsWith('thread_') && item.id !== 'thread_unorganized' && item.spaceId === undefined;
         });
         if (!needsBackfill) return;
@@ -1356,14 +1313,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (t?.id) spaceIdByThreadId.set(t.id, t.spaceId ?? null);
         }
 
-        const updatedHistory = history.map((item) => {
+        const updatedHistory = rawHistory.map((item: any) => {
           if (!item?.id?.startsWith('thread_') || item.id === 'thread_unorganized') return item;
           if (item.spaceId !== undefined) return item;
           return { ...item, spaceId: spaceIdByThreadId.get(item.id) ?? null };
         });
 
         saveNavigationHistory(updatedHistory);
-        setNavigationHistory(updatedHistory);
+        setNavigationHistory(getNavigationHistory());
         window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
       } catch {
         // non-critical
@@ -1480,27 +1437,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const wasCreatedWithThread = event.detail?.actualThreadId && event.detail.actualThreadId !== 'thread_unorganized';
         
         // CRITICAL: Update localStorage SYNCHRONOUSLY before React state update
-        // This ensures the update persists even if navigation happens before React processes the state
-        // Read current history from localStorage (source of truth)
-        const currentHistory = getNavigationHistory();
-        const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
+        // Use raw history so we preserve spaces when saving
+        const rawHistory = getRawNavigationHistory();
+        const threadIndex = rawHistory.findIndex((item: any) => item.id === actualThreadId);
         
         if (threadIndex !== -1) {
           // Thread exists in history - update the count immediately
-          const existingItem = currentHistory[threadIndex];
+          const existingItem = rawHistory[threadIndex];
           const oldCount = existingItem.count || 0;
           const newCount = oldCount + 1;
           
           // Update localStorage SYNCHRONOUSLY (before React state update)
-          const updatedHistory = currentHistory.map((item, index) => 
-            index === threadIndex 
+          const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+            index === threadIndex
               ? { ...item, count: newCount }
               : item
           );
-          saveNavigationHistory(updatedHistory);
-          
-          // Also update React state for immediate UI update (if page doesn't navigate)
-          setNavigationHistory(updatedHistory);
+          saveNavigationHistory(updatedRawHistory);
+          setNavigationHistory(getNavigationHistory());
           
           // Dispatch event for UI update
           if (typeof window !== 'undefined') {
@@ -1521,17 +1475,18 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 if (threads) {
                   const threadData = threads.find((t: any) => t.id === actualThreadId);
                   if (threadData) {
-                    const fullDataHistory = getNavigationHistory().map((item) => 
-                      item.id === actualThreadId 
-                        ? { 
-                            ...item, 
+                    const rawHistory = getRawNavigationHistory();
+                    const fullDataHistory = rawHistory.map((item: any) =>
+                      item.id === actualThreadId
+                        ? {
+                            ...item,
                             title: threadData.title,
                             backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
                           }
                         : item
                     );
                     saveNavigationHistory(fullDataHistory);
-                    setNavigationHistory(fullDataHistory);
+                    setNavigationHistory(getNavigationHistory());
                   }
                 }
               })
@@ -1623,30 +1578,25 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleNoteRemovedFromThread = (event: CustomEvent) => {
       const { noteId, threadId } = event.detail;
       if (threadId) {
-        // Use current React state instead of reading from localStorage
-        // Combine both updates into a single state update to prevent double renders
-        setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
-          const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
-          
-          // Build updated history in a single pass
-          const updatedHistory = currentHistory.map((item, index) => {
-            if (index === threadIndex) {
-              // Update thread count
-              const oldCount = item.count || 0;
-              return { ...item, count: Math.max(0, oldCount - 1) };
-            }
-            if (index === unorganizedIndex) {
-              // Increment unorganized thread count (note was moved back to unorganized)
-              const oldUnorganizedCount = item.count || 0;
-              return { ...item, count: oldUnorganizedCount + 1 };
-            }
-            return item;
-          });
-          
-          saveNavigationHistory(updatedHistory);
-          return updatedHistory;
+        // Use raw history so we preserve spaces when saving
+        const rawHistory = getRawNavigationHistory();
+        const threadIndex = rawHistory.findIndex((item: any) => item.id === threadId);
+        const unorganizedIndex = rawHistory.findIndex((item: any) => item.id === 'thread_unorganized');
+        
+        const updatedRawHistory = rawHistory.map((item: any, index: number) => {
+          if (index === threadIndex) {
+            const oldCount = item.count || 0;
+            return { ...item, count: Math.max(0, oldCount - 1) };
+          }
+          if (index === unorganizedIndex) {
+            const oldUnorganizedCount = item.count || 0;
+            return { ...item, count: oldUnorganizedCount + 1 };
+          }
+          return item;
         });
+        
+        saveNavigationHistory(updatedRawHistory);
+        setNavigationHistory(getNavigationHistory());
         
         // Refresh counts from API after a delay to ensure database is committed
         setTimeout(async () => {
@@ -1703,28 +1653,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (threads) {
             const threadData = threads.find((t: any) => t.id === threadId);
             if (threadData) {
-              setNavigationHistory(currentHistory => {
-                const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
-                
-                if (threadIndex !== -1) {
-                  // Update existing entry with new title and color
-                  const updatedHistory = currentHistory.map((item, index) => 
-                    index === threadIndex 
-                      ? { 
-                          ...item, 
-                          title: threadData.title,
-                          backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
-                        }
-                      : item
-                  );
-                  saveNavigationHistory(updatedHistory);
-                  // Dispatch event to notify other components
-                  window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-                  return updatedHistory;
-                }
-                
-                return currentHistory;
-              });
+              const rawHistory = getRawNavigationHistory();
+              const threadIndex = rawHistory.findIndex((item: any) => item.id === threadId);
+              if (threadIndex !== -1) {
+                const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+                  index === threadIndex
+                    ? {
+                        ...item,
+                        title: threadData.title,
+                        backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
+                      }
+                    : item
+                );
+                saveNavigationHistory(updatedRawHistory);
+                setNavigationHistory(getNavigationHistory());
+                window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+              }
             }
           }
         })
@@ -1740,28 +1684,18 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Use event detail if available (immediate update), otherwise fetch from API
       if (title && backgroundGradient) {
-        setNavigationHistory(currentHistory => {
-          const spaceIndex = currentHistory.findIndex((item: any) => item.id === spaceId);
-          
-          if (spaceIndex !== -1) {
-            // Update existing entry with new title and backgroundGradient
-            const updatedHistory = currentHistory.map((item, index) => 
-              index === spaceIndex 
-                ? { 
-                    ...item, 
-                    title: title,
-                    backgroundGradient: backgroundGradient
-                  }
-                : item
-            );
-            saveNavigationHistory(updatedHistory);
-            // Dispatch event to notify other components
-            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-            return updatedHistory;
-          }
-          
-          return currentHistory;
-        });
+        const rawHistory = getRawNavigationHistory();
+        const spaceIndex = rawHistory.findIndex((item: any) => item.id === spaceId);
+        if (spaceIndex !== -1) {
+          const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+            index === spaceIndex
+              ? { ...item, title, backgroundGradient }
+              : item
+          );
+          saveNavigationHistory(updatedRawHistory);
+          setNavigationHistory(getNavigationHistory());
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        }
       } else {
         // Fallback: fetch from API if event detail is incomplete
         if (!isAuthReady()) {
@@ -1779,28 +1713,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (data && data.spaces) {
               const spaceData = data.spaces.find((s: any) => s.id === spaceId);
               if (spaceData) {
-                setNavigationHistory(currentHistory => {
-                  const spaceIndex = currentHistory.findIndex((item: any) => item.id === spaceId);
-                  
-                  if (spaceIndex !== -1) {
-                    // Update existing entry with new title and backgroundGradient
-                    const updatedHistory = currentHistory.map((item, index) => 
-                      index === spaceIndex 
-                        ? { 
-                            ...item, 
-                            title: spaceData.title,
-                            backgroundGradient: spaceData.backgroundGradient || item.backgroundGradient
-                          }
-                        : item
-                    );
-                    saveNavigationHistory(updatedHistory);
-                    // Dispatch event to notify other components
-                    window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-                    return updatedHistory;
-                  }
-                  
-                  return currentHistory;
-                });
+                const rawHistory = getRawNavigationHistory();
+                const spaceIndex = rawHistory.findIndex((item: any) => item.id === spaceId);
+                if (spaceIndex !== -1) {
+                  const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+                    index === spaceIndex
+                      ? {
+                          ...item,
+                          title: spaceData.title,
+                          backgroundGradient: spaceData.backgroundGradient || item.backgroundGradient
+                        }
+                      : item
+                  );
+                  saveNavigationHistory(updatedRawHistory);
+                  setNavigationHistory(getNavigationHistory());
+                  window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+                }
               }
             }
           })
@@ -1818,74 +1746,50 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const wasJustCreated = recentlyCreatedNotes.current.has(noteId);
         
         // Notes always start in unorganized, so when moved to a thread, decrement unorganized
-        // Use current React state instead of reading from localStorage
-        // Combine both updates into a single state update to prevent double renders
-        setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === threadId);
-          const unorganizedIndex = currentHistory.findIndex((item: any) => item.id === 'thread_unorganized');
-          
-          // If note was just created and unorganized isn't in history, don't add it
-          // This prevents unorganized from appearing when notes are created with suggested threads
-          if (wasJustCreated && unorganizedIndex === -1) {
-            // Note was just created with a thread, so unorganized shouldn't appear
-            // Just update the thread count and return
-            if (threadIndex !== -1) {
-              const updatedHistory = currentHistory.map((item, index) => {
-                if (index === threadIndex) {
-                  const oldCount = item.count || 0;
-                  return { ...item, count: oldCount + 1 };
-                }
-                return item;
-              });
-              saveNavigationHistory(updatedHistory);
-              return updatedHistory;
-            }
-          }
-          
-          // Build updated history in a single pass
-          let shouldRemoveUnorganized = false;
-          const updatedHistory = currentHistory.map((item, index) => {
+        // Use raw history so we preserve spaces when saving
+        const rawHistory = getRawNavigationHistory();
+        const threadIndex = rawHistory.findIndex((item: any) => item.id === threadId);
+        const unorganizedIndex = rawHistory.findIndex((item: any) => item.id === 'thread_unorganized');
+        
+        let updatedRawHistory: any[];
+        let shouldRemoveUnorganized = false;
+        
+        if (wasJustCreated && unorganizedIndex === -1 && threadIndex !== -1) {
+          updatedRawHistory = rawHistory.map((item: any, index: number) => {
             if (index === threadIndex) {
-              // Update thread count
+              const oldCount = item.count || 0;
+              return { ...item, count: oldCount + 1 };
+            }
+            return item;
+          });
+        } else {
+          updatedRawHistory = rawHistory.map((item: any, index: number) => {
+            if (index === threadIndex) {
               const oldCount = item.count || 0;
               return { ...item, count: oldCount + 1 };
             }
             if (index === unorganizedIndex) {
-              // Always decrement unorganized when a note is moved to a thread
-              // Notes always start in unorganized, so this is correct
               const oldUnorganizedCount = item.count || 0;
               const newUnorganizedCount = Math.max(0, oldUnorganizedCount - 1);
-              
-              // If unorganized thread is now empty, mark for removal
               if (newUnorganizedCount === 0) {
                 shouldRemoveUnorganized = true;
-                return null; // Mark for removal
+                return null;
               }
-              
               return { ...item, count: newUnorganizedCount };
             }
             return item;
-          }).filter(item => item !== null) as NavigationItem[];
-          
-          // If unorganized wasn't in navigation history but we need to decrement it,
-          // we'll rely on the API refresh to get the correct count
-          // This handles the case where a note is created with a thread and unorganized
-          // isn't in navigation history yet
-          
-          saveNavigationHistory(updatedHistory);
-          
-          // If unorganized thread was removed, call the standard removal function
-          // to handle closed items tracking
-          if (shouldRemoveUnorganized) {
-            addToClosedItems('thread_unorganized');
-            safeSetItem('unorganized-thread-closed', 'true', {
-              cleanupOldest: false,
-              fallbackToSession: true,
-            });
-          }
-          
-          return updatedHistory;
-        });
+          }).filter((item: any) => item !== null);
+        }
+        
+        saveNavigationHistory(updatedRawHistory);
+        setNavigationHistory(getNavigationHistory());
+        if (shouldRemoveUnorganized) {
+          addToClosedItems('thread_unorganized');
+          safeSetItem('unorganized-thread-closed', 'true', {
+            cleanupOldest: false,
+            fallbackToSession: true,
+          });
+        }
         
         // Remove from recently created set after processing
         recentlyCreatedNotes.current.delete(noteId);
@@ -1918,31 +1822,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         trackNoteDeletion(noteId, actualThreadId);
         
         let shouldCloseUnorganized = false;
-
-        setNavigationHistory(currentHistory => {
-          const threadIndex = currentHistory.findIndex((item: any) => item.id === actualThreadId);
-          if (threadIndex === -1) {
-            return currentHistory;
-          }
-
-          const oldCount = currentHistory[threadIndex].count || 0;
+        const rawHistory = getRawNavigationHistory();
+        const threadIndex = rawHistory.findIndex((item: any) => item.id === actualThreadId);
+        if (threadIndex !== -1) {
+          const oldCount = rawHistory[threadIndex].count || 0;
           const newCount = Math.max(0, oldCount - 1);
-            
-          // If the unorganized thread is now empty, set a flag to close it
           if (actualThreadId === 'thread_unorganized' && newCount === 0) {
             shouldCloseUnorganized = true;
           }
-            
-          const updatedHistory = currentHistory.map((item, index) => 
-            index === threadIndex 
-              ? { ...item, count: newCount }
-              : item
+          const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+            index === threadIndex ? { ...item, count: newCount } : item
           );
-          saveNavigationHistory(updatedHistory);
-          return updatedHistory;
-        });
+          saveNavigationHistory(updatedRawHistory);
+          setNavigationHistory(getNavigationHistory());
+        }
 
-        // Call removal function outside of the state update
         if (shouldCloseUnorganized) {
           removeFromNavigationHistory('thread_unorganized');
         }
@@ -2007,9 +1901,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addToClosedItems(newId);
       }
       
-      // Update storage to persist the change
-      const history = getNavigationHistory();
-      const updated = history.map(item => 
+      // Update storage to persist the change (use raw history to preserve spaces)
+      const rawHistory = getRawNavigationHistory();
+      const updated = rawHistory.map((item: any) =>
         item.id === oldId ? { ...item, id: newId } : item
       );
       saveNavigationHistory(updated);

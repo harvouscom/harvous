@@ -19,7 +19,8 @@ import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
 import SpaceCardStackHeader from "@/components/react/SpaceCardStackHeader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
-import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
+import { requireSpaceAccess } from "@/utils/space-permissions";
 import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
 import { detectActiveThreadFromPath } from "@/utils/navigation-state";
@@ -266,9 +267,13 @@ let pageTitle = "";
 let pageContent = "";
 let currentThread: any = null;
 let currentSpace: any = null;
+let spaceRole: 'owner' | 'member' | null = null;
 let threadNotes: any[] = [];
 let noteTypeCounts: { all: number; default: number; scripture: number; resource: number } | null = null;
 let inboxCount: number = 0;
+
+/** Minimal space shape used when building content/currentSpace (owner list or requireSpaceAccess fallback). */
+type SpaceDataForView = { id: string; title: string; color: string | null; isPublic: boolean; totalItemCount: number; backgroundGradient?: string | null };
 
 // Always use real database data
 try {
@@ -805,51 +810,90 @@ try {
         // Removed: NoteThreadAccess tracking (complexity reduction)
       }
     } else if (isSpace) {
-      // Fetch space, its threads, and standalone notes from database
-      const [spaceData, spaceThreads, spaceNotesResult] = await Promise.all([
-        getSpacesWithCounts(authenticatedUserId).then(spaces => spaces.find(s => s.id === id)),
-        getThreadsForSpace(id!, authenticatedUserId),
-        getNotesForSpace(id!, authenticatedUserId)
-      ]);
-      const spaceNotes = spaceNotesResult.notes;
-      
+      // Try owner's spaces first; if not found, check member access (requireSpaceAccess)
+      let spaceData: SpaceDataForView | null = await getSpacesWithCounts(authenticatedUserId).then(spaces => spaces.find(s => s.id === id) ?? null);
+      let spaceThreads: any[] = [];
+      let spaceNotes: any[] = [];
+
+      if (spaceData) {
+        spaceRole = 'owner';
+        const spaceNotesResult = await getNotesForSpace(id!, authenticatedUserId);
+        spaceThreads = await getThreadsForSpace(id!, authenticatedUserId);
+        spaceNotes = spaceNotesResult.notes;
+      } else {
+        try {
+          const access = await requireSpaceAccess(id!, authenticatedUserId);
+          const { role, space } = access;
+          spaceRole = role;
+          if (role === 'owner') {
+            const spaceNotesResult = await getNotesForSpace(id!, authenticatedUserId);
+            spaceThreads = await getThreadsForSpace(id!, authenticatedUserId);
+            spaceNotes = spaceNotesResult.notes;
+            const ownerSpaceFromList = await getSpacesWithCounts(authenticatedUserId).then(spaces => spaces.find(s => s.id === id));
+            const totalCount = spaceThreads.length + spaceNotes.length;
+            spaceData = ownerSpaceFromList ?? {
+              id: space.id,
+              title: space.title,
+              color: space.color,
+              isPublic: space.isPublic,
+              totalItemCount: totalCount,
+              backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+            };
+          } else {
+            const [threadsForMember, notesResult] = await Promise.all([
+              getThreadsForSpaceBySpaceId(id!),
+              getNotesForSpaceForMember(id!, space.userId, 100)
+            ]);
+            spaceThreads = threadsForMember;
+            spaceNotes = notesResult.notes;
+            const totalItemCount = spaceThreads.length + spaceNotes.length;
+            spaceData = {
+              id: space.id,
+              title: space.title,
+              color: space.color,
+              isPublic: space.isPublic,
+              totalItemCount,
+              backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+            };
+          }
+        } catch {
+          spaceData = null;
+        }
+      }
+
       if (spaceData) {
         content = {
           id: spaceData.id,
           title: spaceData.title,
           totalItemCount: spaceData.totalItemCount,
           color: spaceData.color,
+          isPublic: spaceData.isPublic,
           threads: spaceThreads,
-          notes: spaceNotes // Standalone notes in this space
+          notes: spaceNotes
         };
         currentSpace = {
           id: spaceData.id,
           title: spaceData.title,
           color: spaceData.color,
+          isPublic: spaceData.isPublic,
           totalItemCount: spaceData.totalItemCount,
           backgroundGradient: spaceData.backgroundGradient || getThreadGradientCSS(spaceData.color || 'paper')
         };
-        
-        // Create combined and sorted array for "All" tab (most recent first)
-        // Ensure threadColors are explicitly preserved when spreading notes
         const allItems = [
           ...spaceThreads.map((thread: any) => ({ ...thread, itemType: 'thread' })),
-          ...spaceNotes.map((note: any) => ({ 
-            ...note, 
+          ...spaceNotes.map((note: any) => ({
+            ...note,
             itemType: 'note',
-            threadColors: note.threadColors // Explicitly preserve threadColors
+            threadColors: note.threadColors
           }))
         ].sort((a, b) => {
-          // Sort by lastVisited (newest first), fallback to createdAt if lastVisited is null
           const aTime = a.lastVisited || a.createdAt;
           const bTime = b.lastVisited || b.createdAt;
           const aDate = aTime instanceof Date ? aTime : new Date(aTime);
           const bDate = bTime instanceof Date ? bTime : new Date(bTime);
-          return bDate.getTime() - aDate.getTime(); // Descending order (newest first)
+          return bDate.getTime() - aDate.getTime();
         });
-        
         content.sortedAllItems = allItems;
-        
         threads = spaceThreads;
         pageTitle = spaceData.title;
         pageContent = `${spaceData.totalItemCount} items`;
@@ -987,6 +1031,8 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                   initialTitle={currentSpace.title || 'Unorganized'}
                   initialColor={currentSpace.color}
                   spaceId={currentSpace.id}
+                  spaceRole={spaceRole}
+                  currentUserId={authenticatedUserId}
                   client:load
                 />
               ) : null}
@@ -1068,41 +1114,54 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                     
                     {/* All Content */}
                     <div class="organized-content flex flex-col" data-tab-content="all">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.sortedAllItems || []}
                         spaceId={id!}
                         filter="all"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>
-                    
+
                     {/* Threads Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="threads">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.threads?.map((t: any) => ({ ...t, itemType: 'thread' })) || []}
                         spaceId={id!}
                         filter="threads"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>
-                    
+
                     {/* Notes Only Content */}
                     <div class="organized-content flex flex-col hidden" data-tab-content="notes">
-                      <SpaceContentList 
+                      <SpaceContentList
                         initialItems={content.notes?.map((n: any) => ({ ...n, itemType: 'note' })) || []}
                         spaceId={id!}
                         filter="notes"
+                        spaceIsShared={content.isPublic === true}
                         client:load
                       />
                     </div>
                   </div>
                 ) : isThread ? (
-                  <div class="empty-state" style="padding-top: 64px; padding-bottom: 64px;">
-                    <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No notes found in this thread.</p>
+                  <div class="empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                    <div style="font-family: var(--font-sans); font-weight: 600; color: var(--color-deep-grey); font-size: 18px; line-height: 1.2; margin-bottom: 8px;">
+                      <p style="margin: 0;">No notes yet.</p>
+                    </div>
+                    <div style="font-family: var(--font-sans); font-weight: 400; color: var(--color-pebble-grey); font-size: 14px; line-height: 1.3; max-width: 280px;">
+                      <p style="margin: 0;">Add a note to get started.</p>
+                    </div>
                   </div>
                 ) : (
-                  <div style="text-align: center; padding-top: 64px; padding-bottom: 64px;">
-                    <p style="font-weight: 600; color: var(--color-pebble-grey); font-size: 18px;">No content found.</p>
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                    <div style="font-family: var(--font-sans); font-weight: 600; color: var(--color-deep-grey); font-size: 18px; line-height: 1.2; margin-bottom: 8px;">
+                      <p style="margin: 0;">Nothing here yet.</p>
+                    </div>
+                    <div style="font-family: var(--font-sans); font-weight: 400; color: var(--color-pebble-grey); font-size: 14px; line-height: 1.3; max-width: 280px;">
+                      <p style="margin: 0;">Add something to get started.</p>
+                    </div>
                   </div>
                 )}
               </div>

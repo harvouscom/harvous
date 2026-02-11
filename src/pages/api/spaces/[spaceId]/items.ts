@@ -2,26 +2,27 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { getNotesForSpace, getThreadsForSpace } from '@/utils/dashboard-data';
+import { requireSpaceAccess } from '@/utils/space-permissions';
+import { unauthorizedResponse, errorResponse, successResponse } from '@/utils/api-responses';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
     const { userId } = locals.auth();
-    
+
     if (!userId) {
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return unauthorizedResponse();
     }
 
     const { spaceId } = params;
-    
+
     if (!spaceId) {
-      return new Response(JSON.stringify({ error: 'Space ID is required' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return errorResponse('Space ID is required', 'INVALID_SPACE_ID');
     }
+
+    // NEW: Verify user has access (owner or member)
+    // This replaces the implicit permission check in getNotesForSpace/getThreadsForSpace
+    await requireSpaceAccess(spaceId, userId);
 
     // Fetch notes and threads currently in the space
     // getNotesForSpace now returns { notes, hasMore }
@@ -31,22 +32,24 @@ export const GET: APIRoute = async ({ params, locals }) => {
     ]);
     const notes = notesResult.notes;
 
-    return new Response(JSON.stringify({
+    return successResponse({
       notes,
       threads
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Error fetching space items:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to fetch space items' 
-    }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
+    // Handle permission errors from requireSpaceAccess
+    if (error instanceof Response) {
+      return error;
+    }
+
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/items',
+      action: 'fetch_space_items',
+      spaceId: params.spaceId,
     });
+
+    return errorResponse(standardError.message, standardError.code, 500);
   }
 };
 
