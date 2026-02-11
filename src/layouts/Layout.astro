@@ -502,27 +502,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         (window as any).__harvousClearSessionBackup = clearSessionBackup;
       }
     </script>
-    <!-- Logout button handler: event delegation so it works after View Transitions (slot content may be swapped). -->
-    <script is:inline>
-      (function() {
-        function handleLogoutClick(e) {
-          if (!e.target || !e.target.closest || !e.target.closest('#logout-button')) return;
-          e.preventDefault();
-          var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
-            ? window.__harvousClearSessionBackup()
-            : Promise.resolve();
-          clearPromise.then(function() {
-            if (window.Clerk && window.Clerk.signOut) {
-              return window.Clerk.signOut({ redirectUrl: '/sign-in' });
-            }
-            window.location.href = '/sign-in?from_logout=true';
-          }).catch(function() {
-            window.location.href = '/sign-in?from_logout=true';
-          });
-        }
-        document.body.addEventListener('click', handleLogoutClick);
-      })();
-    </script>
+    <!-- Logout: #logout-button links to /logout, which clears session backup and redirects to sign-in?from_logout=true; sign-in runs forceSignOutIfNeeded when Clerk loads. -->
   </body>
 </html>
 
