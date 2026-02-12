@@ -105,9 +105,11 @@
   overflow: hidden;
 }
 /* No overflow on inner so only .tiptap-content scrolls; toolbar stays on screen */
+/* In-sheet: card-stack__inner only spans visible height above keyboard (--card-stack-inner-max-height set from visual viewport) */
 .bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .card-stack__inner {
   flex: 1 1 0%;
   min-height: 0;
+  max-height: var(--card-stack-inner-max-height, none);
   overflow: hidden !important;
 }
 
