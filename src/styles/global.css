@@ -39,8 +39,8 @@ body {
   color: var(--color-deep-grey);
 }
 
-/* Prevent body scroll when modals/sheets are open */
-body.bottom-sheet-open {
+/* Prevent main content scroll when modals/sheets are open (layout-root only; sheet portal stays outside so inner scroll works on iOS) */
+#layout-root.bottom-sheet-open {
   overflow: hidden;
   position: fixed;
   width: 100%;

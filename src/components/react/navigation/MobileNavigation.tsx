@@ -1162,13 +1162,28 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const topSpaceIsActive = selectedSpaceId ? currentItemId === selectedSpaceId : isDashboard;
 
-  // Prevent background scroll while the sheet is open (same pattern as other sheets)
+  // Prevent background scroll while the sheet is open (lock layout-root, not body, so sheet inner scroll works on iOS)
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (isSheetOpen) document.body.classList.add('bottom-sheet-open');
-    else document.body.classList.remove('bottom-sheet-open');
+    const root = document.getElementById('layout-root');
+    if (!root) return;
+    if (isSheetOpen) {
+      const scrollY = window.scrollY;
+      root.style.top = `-${scrollY}px`;
+      root.classList.add('bottom-sheet-open');
+    } else {
+      const scrollY = root.style.top;
+      root.classList.remove('bottom-sheet-open');
+      root.style.top = '';
+      window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
+    }
     return () => {
-      document.body.classList.remove('bottom-sheet-open');
+      const scrollY = root.style.top;
+      root.classList.remove('bottom-sheet-open');
+      root.style.top = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY, 10) * -1);
+      }
     };
   }, [isSheetOpen]);
 

@@ -385,28 +385,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // Prevent background scrolling when bottom sheet is open
+  // Prevent background scrolling when bottom sheet is open (lock layout-root, not body, so sheet portal is outside fixed container and inner scroll works on iOS)
   useEffect(() => {
+    const root = document.getElementById('layout-root');
+    if (!root) return;
     if (isVisible) {
-      // Save current scroll position
       const scrollY = window.scrollY;
-      document.body.style.top = `-${scrollY}px`;
-      document.body.classList.add('bottom-sheet-open');
+      root.style.top = `-${scrollY}px`;
+      root.classList.add('bottom-sheet-open');
     } else {
-      // Restore scroll position
-      const scrollY = document.body.style.top;
-      document.body.classList.remove('bottom-sheet-open');
-      document.body.style.top = '';
-      window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      const scrollY = root.style.top;
+      root.classList.remove('bottom-sheet-open');
+      root.style.top = '';
+      window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
     }
-    
     return () => {
-      // Cleanup: restore scroll position if component unmounts while open
-      const scrollY = document.body.style.top;
-      document.body.classList.remove('bottom-sheet-open');
-      document.body.style.top = '';
+      const scrollY = root.style.top;
+      root.classList.remove('bottom-sheet-open');
+      root.style.top = '';
       if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY) * -1);
+        window.scrollTo(0, parseInt(scrollY, 10) * -1);
       }
     };
   }, [isVisible]);
