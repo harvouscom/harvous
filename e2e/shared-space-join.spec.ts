@@ -31,17 +31,17 @@ base.describe('Unauthenticated join page', () => {
     // Space title should be visible
     await expect(page.getByText(SPACE_TITLE)).toBeVisible();
 
-    // Should show "Sign in to join" button (it's a <button> with an href attr, not an <a>)
-    await expect(page.getByRole('button', { name: /sign in to join/i })).toBeVisible();
-    // The join button for authenticated users should NOT be visible
+    // Unauthenticated: CTA is a link "Join this space on Harvous" that goes to sign-in
+    await expect(page.getByRole('link', { name: /join this space on harvous/i })).toBeVisible();
+    // The actual join button (for authenticated users) should NOT be visible
     await expect(page.locator('#join-space-btn')).not.toBeVisible();
   });
 
-  base.test('sign-in button links back to join page after auth', async ({ page }) => {
+  base.test('join link points to sign-in with redirect back to join page', async ({ page }) => {
     await page.goto(JOIN_URL);
 
-    const signInBtn = page.getByRole('button', { name: /sign in to join/i });
-    const href = await signInBtn.getAttribute('href');
+    const joinLink = page.getByRole('link', { name: /join this space on harvous/i });
+    const href = await joinLink.getAttribute('href');
 
     // href should point to sign-in with redirect back to this join page
     expect(href).toContain('/sign-in');
@@ -64,10 +64,10 @@ test.describe('Authenticated non-member', () => {
       page.getByRole('button', { name: /join space on harvous/i })
     ).toBeVisible();
 
-    // Sign-in prompt should NOT be visible
+    // Unauthenticated CTA (link to sign-in) should NOT be the primary CTA
     await authExpect(
-      page.getByRole('link', { name: /sign in to join/i })
-    ).not.toBeVisible();
+      page.locator('#join-space-btn')
+    ).toBeVisible();
   });
 });
 

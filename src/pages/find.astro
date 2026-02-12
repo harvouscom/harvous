@@ -547,7 +547,7 @@ if (query.trim()) {
 
     // Format spaces results with relevance scoring
     spacesResults = spacesSearch.map((space) => {
-      const threadCount = space.threadCount || 0;
+      const threadCount = Number(space.threadCount ?? 0);
       const lastUpdatedAt = (space as { lastVisited?: Date | null }).lastVisited ?? space.updatedAt ?? space.createdAt;
       const spaceData: any = {
         id: `space-${space.id}`,

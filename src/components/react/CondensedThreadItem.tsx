@@ -30,7 +30,8 @@ export default function CondensedThreadItem({
   className = ''
 }: CondensedThreadItemProps) {
   const threadAccentColor = color ? `var(--color-${color})` : 'var(--color-light-paper)';
-  const showBadge = count != null && count > 0;
+  // Show badge when count is provided; for spaces (icon === 'cube') always show even when 0
+  const showBadge = count != null && (count > 0 || icon === 'cube');
 
   return (
     <div
