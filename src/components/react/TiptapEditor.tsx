@@ -3796,7 +3796,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Toolbar above scroll area so it is not masked by top-fade; higher z-index than content */}
       {!minimalToolbar && isEditorFocused && (
         <div
-          className="tiptap-toolbar flex gap-1 items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+          className="tiptap-toolbar flex items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
             position: 'sticky',
             top: 0,
