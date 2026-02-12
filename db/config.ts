@@ -9,6 +9,7 @@ const Spaces = defineTable({
     backgroundGradient: column.text({ optional: true }),
     createdAt: column.date(),
     updatedAt: column.date({ optional: true }),
+    lastVisited: column.date({ optional: true }), // Last time the space was opened/visited (for sorting)
     userId: column.text(), // Clerk user id
     isPublic: column.boolean({ default: false }),
     isActive: column.boolean({ default: true }),

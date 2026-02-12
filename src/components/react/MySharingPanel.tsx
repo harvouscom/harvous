@@ -74,10 +74,15 @@ export default function MySharingPanel({
         const spacesData = await spacesRes.json();
         setOwnedSpaces(spacesData.owned ?? []);
       } else {
+        const spacesData = await spacesRes.json().catch(() => ({}));
+        const msg = (spacesData as { error?: string }).error || 'Failed to load shared spaces';
+        toast.error(msg);
         setOwnedSpaces([]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong');
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      setError(message);
+      toast.error(message);
       setThreads([]);
       setNotes([]);
       setOwnedSpaces([]);
@@ -149,9 +154,9 @@ export default function MySharingPanel({
 
   const sharingTabs = [
     { id: 'all', label: 'All', isActive: activeFilter === 'all', count: threads.length + notes.length + spacesCount },
-    { id: 'spaces', label: 'Spaces', isActive: activeFilter === 'spaces', count: spacesCount },
+    { id: 'notes', label: 'Notes', isActive: activeFilter === 'notes', count: notes.length },
     { id: 'threads', label: 'Threads', isActive: activeFilter === 'threads', count: threads.length },
-    { id: 'notes', label: 'Notes', isActive: activeFilter === 'notes', count: notes.length }
+    { id: 'spaces', label: 'Spaces', isActive: activeFilter === 'spaces', count: spacesCount }
   ];
 
   const handleCopySpaceLink = async (space: OwnedSharedSpace) => {
@@ -205,7 +210,7 @@ export default function MySharingPanel({
               {isEmpty && !isLoading && (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Turn on sharing from a thread, a note, or a space to see them here.
+                    Turn on sharing from a note, a thread, or a space to see them here.
                   </p>
                 </div>
               )}

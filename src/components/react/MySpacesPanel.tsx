@@ -6,6 +6,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { error as logError } from '@/utils/logger';
+import { toast } from '@/utils/toast';
 
 interface Space {
   id: string;
@@ -14,6 +15,7 @@ interface Space {
   backgroundGradient?: string;
   totalItemCount: number;
   isPublic?: boolean;
+  lastVisited?: Date | string | null;
   lastUpdated?: Date | string;
   updatedAt?: Date | string;
 }
@@ -68,6 +70,17 @@ function deduplicateSpaces(spaces: Space[]): Space[] {
   return Array.from(spaceMap.values());
 }
 
+// Sort spaces by lastVisited (visited first, newest first), then lastUpdated/updatedAt
+function sortSpacesByLastVisited(spaces: Space[]): Space[] {
+  return [...spaces].sort((a, b) => {
+    const aTime = (a as Space).lastVisited ?? (a as Space).lastUpdated ?? (a as Space).updatedAt;
+    const bTime = (b as Space).lastVisited ?? (b as Space).lastUpdated ?? (b as Space).updatedAt;
+    const aDate = aTime ? new Date(aTime).getTime() : 0;
+    const bDate = bTime ? new Date(bTime).getTime() : 0;
+    return bDate - aDate;
+  });
+}
+
 export default function MySpacesPanel({ 
   onClose,
   inBottomSheet = false,
@@ -77,7 +90,7 @@ export default function MySpacesPanel({
   // Deduplicate initial state to prevent duplicates from SSR
   const [spaces, setSpaces] = useState<Space[]>(() => {
     if (initialSpaces.length === 0) return [];
-    return deduplicateSpaces(initialSpaces);
+    return sortSpacesByLastVisited(deduplicateSpaces(initialSpaces));
   });
   const [isLoading, setIsLoading] = useState(false); // No loading if we have initial data
   const [error, setError] = useState<string | null>(null);
@@ -122,10 +135,10 @@ export default function MySpacesPanel({
       }));
 
       // Always merge with existing spaces to preserve optimistically added spaces
-      // Deduplication will prefer the version with correct counts
+      // Deduplication will prefer the version with correct counts; sort by lastVisited for display order
       setSpaces(prevSpaces => {
         const mergedSpaces = deduplicateSpaces([...prevSpaces, ...spacesWithGradients]);
-        return mergedSpaces;
+        return sortSpacesByLastVisited(mergedSpaces);
       });
 
       if (sharedResponse.ok) {
@@ -140,8 +153,10 @@ export default function MySpacesPanel({
 
       hasFetchedFreshDataRef.current = true; // Mark that we've fetched fresh data
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load spaces';
       logError('Error fetching spaces:', { error: err });
-      setError(err instanceof Error ? err.message : 'Failed to load spaces');
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -181,11 +196,10 @@ export default function MySpacesPanel({
       // Deduplicate by space ID, preferring spaces with correct counts
       // Merge with existing spaces to prefer the version with correct counts
       setSpaces(prevSpaces => {
-        if (prevSpaces.length === 0) {
-          return deduplicateSpaces(initialSpaces);
-        }
-        // Merge initialSpaces with existing, preferring correct counts
-        return deduplicateSpaces([...prevSpaces, ...initialSpaces]);
+        const merged = prevSpaces.length === 0
+          ? deduplicateSpaces(initialSpaces)
+          : deduplicateSpaces([...prevSpaces, ...initialSpaces]);
+        return sortSpacesByLastVisited(merged);
       });
       setIsLoading(false);
     } else if (initialSpaces.length === 0) {

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 export interface CondensedThreadItemProps {
   title: string;
@@ -8,6 +9,8 @@ export interface CondensedThreadItemProps {
   isPublic?: boolean;
   /** Override icon: 'layer-group' stacked-layers; 'cube' cube (spaces); 'bookmark' notes; 'square-check' spaces joined. */
   icon?: 'layer-group' | 'cube' | 'bookmark' | 'square-check';
+  /** Optional count shown in a badge (e.g. thread count for spaces). */
+  count?: number;
   /** Optional right-side action (e.g. remove button). */
   action?: React.ReactNode;
   className?: string;
@@ -22,10 +25,12 @@ export default function CondensedThreadItem({
   color,
   isPublic = false,
   icon,
+  count,
   action,
   className = ''
 }: CondensedThreadItemProps) {
   const threadAccentColor = color ? `var(--color-${color})` : 'var(--color-light-paper)';
+  const showBadge = count != null && count > 0;
 
   return (
     <div
@@ -77,7 +82,7 @@ export default function CondensedThreadItem({
           alignItems: 'center',
           gap: '1.5rem',
           paddingLeft: '0.75rem',
-          paddingRight: action != null ? '0.75rem' : '3rem',
+          paddingRight: action != null || showBadge ? '0.75rem' : '3rem',
           height: '100%',
           overflow: 'hidden',
           position: 'relative',
@@ -200,6 +205,11 @@ export default function CondensedThreadItem({
           </div>
         </div>
 
+        {showBadge && (
+          <div className="badge-count" style={{ flexShrink: 0 }}>
+            <span className="badge-number">{formatBadgeCount(count)}</span>
+          </div>
+        )}
         {action != null && <div style={{ flexShrink: 0 }}>{action}</div>}
       </div>
     </div>

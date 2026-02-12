@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toast } from '@/utils/toast';
 
 interface InviteMemberPanelProps {
   spaceId: string;
@@ -86,7 +87,9 @@ export default function InviteMemberPanel({
       }
 
     } catch (err: any) {
-      setError(err.message || 'Something went wrong');
+      const message = err.message || 'Something went wrong';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

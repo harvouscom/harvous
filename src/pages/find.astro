@@ -7,6 +7,7 @@ import TabNav from "@/components/TabNav.astro";
 import CardNote from "@/components/CardNote.astro";
 import CardThread from "@/components/CardThread.astro";
 import CondensedNoteItem from "@/components/react/CondensedNoteItem";
+import CondensedThreadItem from "@/components/react/CondensedThreadItem";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import SquareButton from "@/components/SquareButton.astro";
 import Avatar from "@/components/Avatar.astro";
@@ -14,7 +15,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
-import { db, Notes, Threads, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne } from "astro:db";
+import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, asc, count, inArray, ne, sql } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount, getSpacesWithCounts, getAllThreadsWithCounts, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
 import { stripHtml } from "@/utils/html-stripper";
@@ -127,6 +128,7 @@ const activeTab = url.searchParams.get('tab') || 'all';
 let searchResults: any[] = [];
 let notesResults: any[] = [];
 let threadsResults: any[] = [];
+let spacesResults: any[] = [];
 
 // Perform search if query exists
 if (query.trim()) {
@@ -297,6 +299,43 @@ if (query.trim()) {
       )
       .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id);
 
+    // Search spaces with thread count (title or description match)
+    // Sort by lastVisited (visited first, newest first) then updatedAt/createdAt
+    const spacesSearch = await db
+      .select({
+        id: Spaces.id,
+        title: Spaces.title,
+        description: Spaces.description,
+        color: Spaces.color,
+        createdAt: Spaces.createdAt,
+        updatedAt: Spaces.updatedAt,
+        lastVisited: Spaces.lastVisited,
+        threadCount: count(Threads.id),
+      })
+      .from(Spaces)
+      .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
+      .where(
+        and(
+          eq(Spaces.userId, userId),
+          or(
+            like(Spaces.title, searchPatterns[0]),
+            like(Spaces.title, searchPatterns[1]),
+            like(Spaces.title, searchPatterns[2]),
+            like(Spaces.description, searchPatterns[0]),
+            like(Spaces.description, searchPatterns[1]),
+            like(Spaces.description, searchPatterns[2])
+          )
+        )
+      )
+      .groupBy(Spaces.id)
+      .orderBy(
+        asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Spaces.lastVisited),
+        desc(Spaces.updatedAt),
+        desc(Spaces.createdAt),
+        Spaces.id
+      );
+
     // Helper function to calculate relevance score
     function calculateRelevanceScore(item: any, query: string): number {
       const queryLower = query.toLowerCase();
@@ -304,7 +343,27 @@ if (query.trim()) {
       const titleLower = (item.title || '').toLowerCase();
       const contentLower = (item.content || '').toLowerCase();
       const tagsLower = (item.tags || []).map((tag: any) => tag.name.toLowerCase()).join(' ');
-      
+
+      // Space: score by title and description only
+      if (item.type === 'space') {
+        let score = 0;
+        const descriptionLower = (item.description || '').toLowerCase();
+        if (titleLower.includes(queryLower)) {
+          score += 100;
+          if (titleLower === queryLower) score += 50;
+          if (titleLower.startsWith(queryLower)) score += 25;
+        }
+        if (descriptionLower.includes(queryLower)) {
+          score += 50;
+          const occurrences = (descriptionLower.match(new RegExp(queryLower, 'g')) || []).length;
+          score += occurrences * 10;
+        }
+        const daysSinceUpdate = Math.floor((Date.now() - new Date(item.updatedAt || item.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceUpdate < 7) score += 10;
+        if (daysSinceUpdate < 30) score += 5;
+        return score;
+      }
+
       let score = 0;
       
       // Note ID matches get highest score (highest priority)
@@ -466,6 +525,7 @@ if (query.trim()) {
         count: noteCount,
         threadId: thread.id,
         spaceId: thread.spaceId,
+        color: thread.color,
         lastUpdated: formatRelativeTime(thread.updatedAt || thread.createdAt),
         updatedAt: thread.updatedAt || thread.createdAt,
         accentColor: getThreadColorCSS(thread.color),
@@ -477,8 +537,30 @@ if (query.trim()) {
       return threadData;
     });
 
+    // Format spaces results with relevance scoring
+    spacesResults = spacesSearch.map((space) => {
+      const threadCount = space.threadCount || 0;
+      const lastUpdatedAt = space.lastVisited || space.updatedAt || space.createdAt;
+      const spaceData: any = {
+        id: `space-${space.id}`,
+        type: "space" as const,
+        title: space.title,
+        description: space.description,
+        subtitle: threadCount === 1 ? "1 thread" : `${threadCount} threads`,
+        spaceId: space.id,
+        color: space.color,
+        threadCount,
+        lastVisited: space.lastVisited,
+        lastUpdated: formatRelativeTime(lastUpdatedAt),
+        updatedAt: lastUpdatedAt,
+        accentColor: getThreadColorCSS(space.color),
+      };
+      spaceData.relevanceScore = calculateRelevanceScore(spaceData, query.trim());
+      return spaceData;
+    });
+
     // Combine all results and sort by relevance score first, then by date
-    searchResults = [...notesResults, ...threadsResults].sort((a, b) => {
+    searchResults = [...notesResults, ...threadsResults, ...spacesResults].sort((a, b) => {
       // First sort by relevance score (higher is better)
       if (a.relevanceScore !== b.relevanceScore) {
         return b.relevanceScore - a.relevanceScore;
@@ -492,6 +574,7 @@ if (query.trim()) {
     searchResults = [];
     notesResults = [];
     threadsResults = [];
+    spacesResults = [];
   }
 }
 
@@ -543,13 +626,18 @@ if (query.trim()) {
                     id: "threads", 
                     label: "Threads", 
                     isActive: activeTab === 'threads' 
+                  },
+                  { 
+                    id: "spaces", 
+                    label: "Spaces", 
+                    isActive: activeTab === 'spaces' 
                   }
                 ]}
                 class="search-tabs"
               />
               
               <!-- All Content -->
-              <div class="search-results flex flex-col" data-tab-content="all">
+              <div class={`search-results flex flex-col ${activeTab !== 'all' ? 'hidden' : ''}`} data-tab-content="all">
                 {searchResults.length > 0 ? (
                   searchResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
@@ -564,7 +652,7 @@ if (query.trim()) {
                         />
                       ) : (
                         <a
-                          href={item.type === 'thread' ? idToUrl(item.threadId) : idToUrl(item.noteId)}
+                          href={item.type === 'thread' ? idToUrl(item.threadId) : item.type === 'space' ? idToUrl(item.spaceId) : idToUrl(item.noteId)}
                           class="block transition-transform duration-200 hover:scale-[1.002]"
                         >
                           {item.type === 'note' ? (
@@ -578,6 +666,14 @@ if (query.trim()) {
                               threadColors={item.threadColors}
                               noteId={item.noteId}
                             />
+                          ) : item.type === 'space' ? (
+                            <CondensedThreadItem
+                              title={item.title}
+                              color={item.color}
+                              icon="cube"
+                              count={item.threadCount}
+                              client:visible
+                            />
                           ) : (
                             <CardThread 
                               title={item.title}
@@ -585,6 +681,7 @@ if (query.trim()) {
                               count={item.count}
                               accentColor={item.accentColor}
                               lastUpdated={item.lastUpdated}
+                              icon="layer-group"
                             />
                           )}
                         </a>
@@ -606,7 +703,7 @@ if (query.trim()) {
               </div>
               
               <!-- Notes Only Content -->
-              <div class="search-results flex flex-col hidden" data-tab-content="notes">
+              <div class={`search-results flex flex-col ${activeTab !== 'notes' ? 'hidden' : ''}`} data-tab-content="notes">
                 {notesResults.length > 0 ? (
                   notesResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
@@ -653,7 +750,7 @@ if (query.trim()) {
               </div>
               
               <!-- Threads Only Content -->
-              <div class="search-results flex flex-col hidden" data-tab-content="threads">
+              <div class={`search-results flex flex-col ${activeTab !== 'threads' ? 'hidden' : ''}`} data-tab-content="threads">
                 {threadsResults.length > 0 ? (
                   threadsResults.map(item => (
                     <div class={`content-item ${item.type}-item mb-3`}>
@@ -667,6 +764,7 @@ if (query.trim()) {
                           count={item.count}
                           accentColor={item.accentColor}
                           lastUpdated={item.lastUpdated}
+                          icon="layer-group"
                         />
                       </a>
                     </div>
@@ -676,6 +774,39 @@ if (query.trim()) {
                     <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: center; justify-content: center;">
                       <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
                         <p>No threads found</p>
+                      </div>
+                      <div style="font-family: var(--font-sans); font-weight: 400; color: #78766f; font-size: 14px; line-height: 1.3; max-width: 250px;">
+                        <p>Try searching for different keywords or check your spelling.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <!-- Spaces Only Content -->
+              <div class={`search-results flex flex-col ${activeTab !== 'spaces' ? 'hidden' : ''}`} data-tab-content="spaces">
+                {spacesResults.length > 0 ? (
+                  spacesResults.map(item => (
+                    <div class={`content-item ${item.type}-item mb-3`}>
+                      <a
+                        href={idToUrl(item.spaceId)}
+                        class="block transition-transform duration-200 hover:scale-[1.002]"
+                      >
+                        <CondensedThreadItem
+                          title={item.title}
+                          color={item.color}
+                          icon="cube"
+                          count={item.threadCount}
+                          client:visible
+                        />
+                      </a>
+                    </div>
+                  ))
+                ) : (
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; width: 100%; text-align: center; padding-top: 64px; padding-bottom: 64px;">
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: center; justify-content: center;">
+                      <div style="font-family: var(--font-sans); font-weight: 600; color: #4a473d; font-size: 18px; line-height: 1.2;">
+                        <p>No spaces found</p>
                       </div>
                       <div style="font-family: var(--font-sans); font-weight: 400; color: #78766f; font-size: 14px; line-height: 1.3; max-width: 250px;">
                         <p>Try searching for different keywords or check your spelling.</p>

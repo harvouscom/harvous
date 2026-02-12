@@ -225,6 +225,7 @@ export async function getAllThreadsWithCounts(userId: string) {
 export async function getSpacesWithCounts(userId: string) {
   try {
     // Get spaces with thread counts in a single query
+    // Sort by lastVisited (visited first, newest first) then updatedAt/createdAt
     const spacesWithThreadCounts = await db.select({
       id: Spaces.id,
       title: Spaces.title,
@@ -235,13 +236,20 @@ export async function getSpacesWithCounts(userId: string) {
       isActive: Spaces.isActive,
       createdAt: Spaces.createdAt,
       updatedAt: Spaces.updatedAt,
+      lastVisited: Spaces.lastVisited,
       threadCount: count(Threads.id),
     })
     .from(Spaces)
     .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
     .where(eq(Spaces.userId, userId))
     .groupBy(Spaces.id)
-    .orderBy(desc(Spaces.isActive), desc(Spaces.updatedAt || Spaces.createdAt))
+    .orderBy(
+      desc(Spaces.isActive),
+      asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Spaces.lastVisited),
+      desc(Spaces.updatedAt),
+      desc(Spaces.createdAt)
+    )
     .all();
 
     // Get standalone note counts for each space in a single query
@@ -288,13 +296,14 @@ export async function getSpacesWithCounts(userId: string) {
       isActive: space.isActive,
       createdAt: space.createdAt,
       updatedAt: space.updatedAt,
+      lastVisited: space.lastVisited,
       threadCount: space.threadCount || 0,
       standaloneNoteCount: standaloneCountMap.get(space.id) || 0,
       // totalItemCount = threads + all notes (including notes in threads)
       // This matches what's displayed in the space "All" tab
       totalItemCount: (space.threadCount || 0) + (totalCountMap.get(space.id) || 0),
       totalNoteCount: totalCountMap.get(space.id) || 0,
-      lastUpdated: space.updatedAt || space.createdAt,
+      lastUpdated: space.lastVisited || space.updatedAt || space.createdAt,
     }));
   } catch (error) {
     console.error("Error fetching spaces:", error);

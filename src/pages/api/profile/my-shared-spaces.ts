@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Spaces, Members, eq } from 'astro:db';
+import { db, Spaces, Members, eq, desc, asc, sql } from 'astro:db';
 import { getSpaceMemberCount } from '@/utils/tier-limits';
 import { jsonResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
@@ -31,10 +31,15 @@ export const GET: APIRoute = async ({ request, locals }) => {
     const origin = new URL(request.url).origin;
 
     // Owned shared spaces: spaces user owns that have a share link (shareToken) and/or at least one member
+    // Order by lastVisited (visited first, newest first) for consistent ordering with nav/MySpacesPanel
     const ownedSpacesRows = await db
       .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color, shareToken: Spaces.shareToken })
       .from(Spaces)
       .where(eq(Spaces.userId, userId))
+      .orderBy(
+        asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Spaces.lastVisited)
+      )
       .all();
 
     const owned: Array<{

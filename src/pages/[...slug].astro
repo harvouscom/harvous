@@ -817,6 +817,25 @@ try {
 
       if (spaceData) {
         spaceRole = 'owner';
+        // Update lastVisited for space (owner only, throttled) so spaces sort correctly
+        const shouldUpdate = shouldUpdateLastVisitedTimestamp(Astro.request, Astro.url.pathname);
+        if (shouldUpdate) {
+          try {
+            const currentSpace = await db.select({ lastVisited: Spaces.lastVisited })
+              .from(Spaces)
+              .where(and(eq(Spaces.id, id!), eq(Spaces.userId, authenticatedUserId)))
+              .get();
+            const now = new Date();
+            const threeSecondsAgo = new Date(now.getTime() - 3 * 1000);
+            if (!currentSpace?.lastVisited || new Date(currentSpace.lastVisited) < threeSecondsAgo) {
+              await db.update(Spaces)
+                .set({ lastVisited: now })
+                .where(and(eq(Spaces.id, id!), eq(Spaces.userId, authenticatedUserId)));
+            }
+          } catch (error) {
+            console.error(`[id].astro] Error updating lastVisited for space ${id}:`, error);
+          }
+        }
         const spaceNotesResult = await getNotesForSpace(id!, authenticatedUserId);
         spaceThreads = await getThreadsForSpace(id!, authenticatedUserId);
         spaceNotes = spaceNotesResult.notes;
