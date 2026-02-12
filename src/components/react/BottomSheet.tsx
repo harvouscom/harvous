@@ -389,36 +389,60 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   useEffect(() => {
     if (!isVisible || !isMobile) return;
     const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
-    const el = sheetContentElRef.current;
-    if (!el || !isNoteOrResource) return;
+    if (!isNoteOrResource) return;
     const vv = window.visualViewport;
     if (!vv) return;
     const RESERVE_CARD_STACK_PX = 200;
     const RESERVE_EDITOR_PX = 280;
-    const setSize = () => {
-      el.style.height = `${vv.height}px`;
-      el.style.maxHeight = `${vv.height}px`;
-      el.style.top = `${vv.offsetTop}px`;
-      el.style.left = `${vv.offsetLeft}px`;
-      el.style.width = `${vv.width}px`;
-      const cardH = Math.max(100, vv.height - RESERVE_CARD_STACK_PX);
-      const editorH = Math.max(120, vv.height - RESERVE_EDITOR_PX);
+
+    const applySize = () => {
+      const el = sheetContentElRef.current;
+      const viewport = window.visualViewport;
+      if (!el || !viewport) return;
+      el.style.height = `${viewport.height}px`;
+      el.style.maxHeight = `${viewport.height}px`;
+      el.style.top = `${viewport.offsetTop}px`;
+      el.style.left = `${viewport.offsetLeft}px`;
+      el.style.width = `${viewport.width}px`;
+      el.style.bottom = 'auto';
+      const cardH = Math.max(100, viewport.height - RESERVE_CARD_STACK_PX);
+      const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
       el.style.setProperty('--card-stack-inner-max-height', `${cardH}px`);
       el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
     };
-    setSize();
-    vv.addEventListener('resize', setSize);
-    vv.addEventListener('scroll', setSize);
+
+    applySize();
+    const raf = requestAnimationFrame(() => applySize());
+    vv.addEventListener('resize', applySize);
+    vv.addEventListener('scroll', applySize);
+
+    const onFocusIn = () => {
+      setTimeout(applySize, 100);
+      setTimeout(applySize, 300);
+    };
+    let focusEl: HTMLDivElement | null = null;
+    const rafFocus = requestAnimationFrame(() => {
+      focusEl = sheetContentElRef.current;
+      if (focusEl) focusEl.addEventListener('focusin', onFocusIn);
+    });
+
     return () => {
-      vv.removeEventListener('resize', setSize);
-      vv.removeEventListener('scroll', setSize);
-      el.style.height = '';
-      el.style.maxHeight = '';
-      el.style.top = '';
-      el.style.left = '';
-      el.style.width = '';
-      el.style.removeProperty('--card-stack-inner-max-height');
-      el.style.removeProperty('--editor-scroll-max-height');
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafFocus);
+      vv.removeEventListener('resize', applySize);
+      vv.removeEventListener('scroll', applySize);
+      if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
+      const el = sheetContentElRef.current;
+      if (el) {
+        el.style.height = '';
+        el.style.maxHeight = '';
+        el.style.top = '';
+        el.style.left = '';
+        el.style.width = '';
+        el.style.bottom = '';
+        el.style.removeProperty('--card-stack-inner-max-height');
+        el.style.removeProperty('--editor-scroll-max-height');
+      }
     };
   }, [isVisible, isMobile, drawerType]);
 
