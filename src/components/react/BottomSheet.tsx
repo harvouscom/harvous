@@ -385,7 +385,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // Constrain editor scroll area to visible height above keyboard so user can scroll to see content (iOS: flex height alone can leave overflow unscrollable)
+  // Constrain editor scroll area to visible height above keyboard so content at the bottom is reachable by scrolling (keyboard overlays otherwise)
   useEffect(() => {
     if (!isVisible || !isMobile) return;
     const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
@@ -393,15 +393,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!el || !isNoteOrResource) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const HEADER_TOOLBAR_FOOTER_PX = 220;
+    const RESERVE_PX = 280;
     const setEditorMaxHeight = () => {
-      const keyboardLikelyOpen = vv.height < window.innerHeight * 0.75;
-      if (keyboardLikelyOpen) {
-        const h = Math.max(120, vv.height - HEADER_TOOLBAR_FOOTER_PX);
-        el.style.setProperty('--editor-scroll-max-height', `${h}px`);
-      } else {
-        el.style.removeProperty('--editor-scroll-max-height');
-      }
+      const h = Math.max(120, vv.height - RESERVE_PX);
+      el.style.setProperty('--editor-scroll-max-height', `${h}px`);
     };
     setEditorMaxHeight();
     vv.addEventListener('resize', setEditorMaxHeight);
