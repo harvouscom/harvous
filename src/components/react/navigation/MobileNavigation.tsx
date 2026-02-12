@@ -269,6 +269,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       } catch {
         // ignore
       }
+
+      // If we navigated to the dashboard, clear selected space so switcher shows "My Home".
+      if (newPath === '' || newPath === 'dashboard') {
+        setSelectedSpaceId(null);
+      }
     };
 
     document.addEventListener('astro:page-load', handlePageLoad);
@@ -284,6 +289,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     const syncFromLocation = () => {
       const path = window.location.pathname || '/';
+      // If we're on the dashboard, clear selected space so switcher shows "My Home".
+      if (path === '/' || path === '/dashboard') {
+        setSelectedSpaceId(null);
+        return;
+      }
       try {
         const params = new URLSearchParams(window.location.search);
         const fromSpace = params.get('space');

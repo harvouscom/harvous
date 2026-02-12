@@ -501,6 +501,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           } catch {
             // ignore
           }
+
+          // If we navigated to the dashboard, clear selected space so switcher shows "My Home".
+          if (newPath === '') {
+            setSelectedSpaceId(null);
+          }
           
           // Force a re-render to ensure component updates after View Transition
           // This helps ensure the navigation column is properly displayed
@@ -527,6 +532,11 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (typeof window === 'undefined') return;
     const syncFromLocation = () => {
       const path = window.location.pathname || '/';
+      // If we're on the dashboard, clear selected space so switcher shows "My Home".
+      if (path === '/' || path === '/dashboard') {
+        setSelectedSpaceId(null);
+        return;
+      }
       try {
         const params = new URLSearchParams(window.location.search);
         const fromSpace = params.get('space');
