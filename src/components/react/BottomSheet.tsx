@@ -400,6 +400,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       el.style.height = `${vv.height}px`;
       el.style.maxHeight = `${vv.height}px`;
       el.style.setProperty('--sheet-viewport-height', `${vv.height}px`);
+      el.setAttribute('data-keyboard-open', vv.height < window.innerHeight * 0.7 ? 'true' : 'false');
     };
     setSize();
     vv.addEventListener('resize', setSize);
@@ -413,6 +414,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       el.style.height = '';
       el.style.maxHeight = '';
       el.style.removeProperty('--sheet-viewport-height');
+      el.removeAttribute('data-keyboard-open');
     };
   }, [isVisible, isMobile, drawerType]);
 

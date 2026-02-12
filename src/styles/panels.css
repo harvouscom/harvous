@@ -108,9 +108,8 @@
   min-height: 0;
 }
 
-/* In-sheet: allow editor content to scroll when content is long */
+/* In-sheet: editor fills parent (chain already constrained by sheet + bottom-sheet__inner); overflow scrolls */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(var(--sheet-viewport-height, 90vh) - 320px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
@@ -135,6 +134,11 @@
 /* In-sheet: keep Create Note footer visible above keyboard – never shrink so it stays in the visible strip */
 .bottom-sheet-content .new-note-panel--in-sheet .panel__footer--buttons {
   flex-shrink: 0;
+}
+
+/* When keyboard is open (visual viewport shrunk), hide footer so editor gets full space above keyboard */
+.bottom-sheet-content[data-keyboard-open="true"] .new-note-panel--in-sheet .panel__footer--buttons {
+  display: none;
 }
 
 /* Bottom sheets use tap-outside / swipe-down to dismiss; hide explicit Close buttons. */
