@@ -8,7 +8,7 @@ import Button from "@/components/Button.astro";
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq, and, desc, asc } from 'astro:db';
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
-import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
+import { type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
 
@@ -112,15 +112,10 @@ if (!shareToken || !isValidShareToken(shareToken)) {
 // Get thread color for styling
 const threadColor = (thread?.color || 'blue') as ThreadColor;
 
-// Thread color must match filename: thread-{color}.png (e.g. blue → thread-blue.png)
-const validThreadColors = new Set(THREAD_COLORS);
-const rawColor = thread?.color?.trim().toLowerCase();
-const safeOgColor = rawColor && validThreadColors.has(rawColor as ThreadColor) ? rawColor : 'paper';
-
-// Construct URLs for Open Graph (thread color name = filename after hyphen, e.g. blue → thread-blue.png)
+// Construct URLs for Open Graph (single default image for all shared threads)
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
-const ogImageUrl = `${siteUrl}/og/thread-${safeOgColor}.png`;
+const ogImageUrl = `${siteUrl}/og/thread-default.png`;
 
 // Prepare meta data
 const ogTitle = thread?.title ? `${thread.title} | Shared Thread` : 'Shared Thread';

@@ -9,7 +9,7 @@ import { db, Spaces, Members, UserMetadata, Notes, Threads, NoteThreads, eq, and
 import { sql } from 'astro:db';
 import { isValidShareToken } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
-import { type ThreadColor } from '@/utils/colors';
+import { THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import { ClientRouter } from "astro:transitions";
 import circleQuestionIconRaw from "@fortawesome/fontawesome-free/svgs/solid/circle-question.svg?raw";
 
@@ -158,9 +158,15 @@ const spaceUrl = space ? idToUrl(space.id) : '';
 // Get space color for styling
 const spaceColor = (space?.color || 'paper') as ThreadColor;
 
+// Space color for OG image must match filename: thread-{color}.png (reuse thread OG images)
+const validThreadColors = new Set(THREAD_COLORS);
+const rawColor = space?.color?.trim().toLowerCase();
+const safeOgColor = rawColor && validThreadColors.has(rawColor as ThreadColor) ? rawColor : 'paper';
+
 // Construct URLs for Open Graph
 const siteUrl = Astro.url.origin;
 const shareUrl = `${siteUrl}${Astro.url.pathname}`;
+const ogImageUrl = `${siteUrl}/og/thread-${safeOgColor}.png`;
 
 // Prepare meta data
 const ogTitle = space?.title ? `${space.title} | Join Space` : 'Join Space';
@@ -174,11 +180,15 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
     <meta property="og:url" content={shareUrl} />
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
 
     {/* Twitter */}
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={ogTitle} />
     <meta name="twitter:description" content={ogDescription} />
+    <meta name="twitter:image" content={ogImageUrl} />
   </HeadSlot>
 
   <div id="shared-space-content" class="auth-page">
