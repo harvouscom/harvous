@@ -1056,10 +1056,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         spacesById.set(currentSpace.id, currentSpace);
       }
     }
+
+    // Ensure the currently selected space is in the dropdown (so label can resolve on find/profile etc.)
+    if (selectedSpaceId && !spacesById.has(selectedSpaceId)) {
+      const fromLocal = localSpaces.find((s) => s.id === selectedSpaceId);
+      if (fromLocal) spacesById.set(selectedSpaceId, fromLocal);
+    }
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, currentSpace]);
+  }, [filteredSpaces, currentSpace, selectedSpaceId, localSpaces]);
 
   // Calculate available spaces that aren't in the dropdown
   const availableSpaces = useMemo(() => {
@@ -1154,7 +1160,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return localSpaces.find((s) => s.id === selectedSpaceId) ?? null;
   }, [selectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
 
-  const selectedSpaceLabel = selectedSpace ? selectedSpace.title : selectedSpaceId ? 'Space' : 'My Home';
+  // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when selectedSpace is null (e.g. find page).
+  const selectedSpaceLabel = selectedSpace ? selectedSpace.title : (selectedSpaceId ? (spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'Space') : 'My Home');
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   

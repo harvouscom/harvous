@@ -166,10 +166,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     return null;
   }, [displaySelectedSpaceId, localSpaces, currentItemId]);
 
-  const topSpaceLabel = displaySelectedSpace ? displaySelectedSpace.title : displaySelectedSpaceId ? 'Space' : 'My Home';
   const topSpaceHref = displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/';
   const topSpaceIsActive = displaySelectedSpaceId ? currentItemId === displaySelectedSpaceId : isDashboard;
-  const topSpaceBackground = displaySelectedSpace?.backgroundGradient || 'var(--color-paper)';
 
   const currentThreadForMismatch = updatedActiveThread || activeThread;
   const isThreadPage = currentItemId.startsWith('thread_');
@@ -325,10 +323,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         }
       }
     }
+
+    // Ensure the currently selected/display space is in the dropdown (so top label can resolve its title on find/profile etc.)
+    const spaceIdToInclude = isDashboard ? null : effectiveSelectedSpaceId;
+    if (spaceIdToInclude && !spacesById.has(spaceIdToInclude)) {
+      const fromLocal = localSpaces.find((s) => s.id === spaceIdToInclude);
+      if (fromLocal) spacesById.set(spaceIdToInclude, fromLocal);
+    }
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, selectedSpace, currentSpace, spaces, localSpaces, isHydrated]);
+  }, [filteredSpaces, selectedSpace, currentSpace, spaces, localSpaces, isHydrated, isDashboard, effectiveSelectedSpaceId]);
+
+  // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when the space is in the dropdown but not in localSpaces (e.g. find page).
+  const displaySpaceForLabel = displaySelectedSpace ?? (displaySelectedSpaceId ? spacesForDropdown.find((s) => s.id === displaySelectedSpaceId) ?? null : null);
+  const resolvedTopSpaceLabel = displaySpaceForLabel ? displaySpaceForLabel.title : displaySelectedSpaceId ? 'Space' : 'My Home';
+  const resolvedTopSpaceBackground = displaySpaceForLabel?.backgroundGradient || 'var(--color-paper)';
 
   // Calculate available spaces that aren't in the dropdown
   const availableSpaces = useMemo(() => {
@@ -909,12 +919,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               <a href={topSpaceHref} className="nav-link">
                 <SpaceButton
                   as="div"
-                  text={topSpaceLabel}
+                  text={resolvedTopSpaceLabel}
                   count={inboxCount}
                   state="WithCount"
                   rightAccessory="none"
                   isActive={topSpaceIsActive}
-                  backgroundGradient={topSpaceBackground}
+                  backgroundGradient={resolvedTopSpaceBackground}
                 />
               </a>
               {/* Native dropdown so it works even without React hydration */}
