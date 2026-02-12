@@ -114,6 +114,7 @@ export default function NewNotePanel({
 
   // Ref to store the TiptapEditor instance for focusing
   const editorRef = useRef<any>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Use extracted form hook
   const form = useNewNoteForm({
@@ -129,6 +130,26 @@ export default function NewNotePanel({
       form.rehydrateFromStorage();
     }
   }, [inBottomSheet, form]);
+
+  // iOS: when an input in the sheet gains focus, Safari scrolls to center it and pushes the toolbar off.
+  // Undo that by resetting window scroll after a short delay so header/toolbar stay visible.
+  useEffect(() => {
+    if (!inBottomSheet) return;
+    const el = formRef.current;
+    if (!el) return;
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    const handler = () => {
+      const t = setTimeout(() => {
+        window.scrollTo(0, 0);
+      }, 100);
+      timeouts.push(t);
+    };
+    el.addEventListener('focusin', handler);
+    return () => {
+      el.removeEventListener('focusin', handler);
+      timeouts.forEach((t) => clearTimeout(t));
+    };
+  }, [inBottomSheet]);
 
   // Use extracted thread selection hook
   const threadSelection = useThreadSelection({
@@ -1148,6 +1169,7 @@ export default function NewNotePanel({
     <>
       <NewNotePanelStyles />
       <form
+        ref={formRef}
         onSubmit={handleFormSubmit}
         className={`new-note-panel h-full flex flex-col w-full${inBottomSheet ? ' new-note-panel--in-sheet' : ''}`}
         style={{
