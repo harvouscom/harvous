@@ -392,7 +392,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!isNoteOrResource) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const RESERVE_EDITOR_PX = 160;
+    const RESERVE_EDITOR_PX = 130;
 
     const clearOverrides = (element: HTMLDivElement) => {
       element.style.removeProperty('--toolbar-bottom');
