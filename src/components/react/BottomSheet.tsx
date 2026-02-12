@@ -396,25 +396,39 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const RESERVE_EDITOR_PX = 280;
     const DISMISS_GAP_PX = 48;
 
+    const clearViewportOverrides = (element: HTMLDivElement) => {
+      element.style.height = '';
+      element.style.maxHeight = '';
+      element.style.top = '';
+      element.style.left = '';
+      element.style.width = '';
+      element.style.bottom = '';
+      element.style.removeProperty('--card-stack-inner-max-height');
+      element.style.removeProperty('--editor-scroll-max-height');
+      element.removeAttribute('data-keyboard-open');
+    };
+
     const applySize = () => {
       const el = sheetContentElRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
-      const sheetH = Math.max(200, viewport.height - DISMISS_GAP_PX);
-      el.style.height = `${sheetH}px`;
-      el.style.maxHeight = `${sheetH}px`;
-      el.style.top = `${viewport.offsetTop}px`;
-      el.style.left = `${viewport.offsetLeft}px`;
-      el.style.width = `${viewport.width}px`;
-      el.style.bottom = 'auto';
-      const cardH = Math.max(100, sheetH - RESERVE_CARD_STACK_PX);
-      const editorH = Math.max(120, sheetH - RESERVE_EDITOR_PX);
-      el.style.setProperty('--card-stack-inner-max-height', `${cardH}px`);
-      el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
-      if (viewport.height < window.innerHeight * 0.75) {
+      const keyboardOpen = viewport.height < window.innerHeight * 0.75;
+
+      if (keyboardOpen) {
+        const sheetH = Math.max(200, viewport.height - DISMISS_GAP_PX);
+        el.style.height = `${sheetH}px`;
+        el.style.maxHeight = `${sheetH}px`;
+        el.style.top = `${viewport.offsetTop}px`;
+        el.style.left = `${viewport.offsetLeft}px`;
+        el.style.width = `${viewport.width}px`;
+        el.style.bottom = 'auto';
+        const cardH = Math.max(100, sheetH - RESERVE_CARD_STACK_PX);
+        const editorH = Math.max(120, sheetH - RESERVE_EDITOR_PX);
+        el.style.setProperty('--card-stack-inner-max-height', `${cardH}px`);
+        el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
         el.setAttribute('data-keyboard-open', '');
       } else {
-        el.removeAttribute('data-keyboard-open');
+        clearViewportOverrides(el);
       }
     };
 
@@ -440,17 +454,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       vv.removeEventListener('scroll', applySize);
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
       const el = sheetContentElRef.current;
-      if (el) {
-        el.style.height = '';
-        el.style.maxHeight = '';
-        el.style.top = '';
-        el.style.left = '';
-        el.style.width = '';
-        el.style.bottom = '';
-        el.style.removeProperty('--card-stack-inner-max-height');
-        el.style.removeProperty('--editor-scroll-max-height');
-        el.removeAttribute('data-keyboard-open');
-      }
+      if (el) clearViewportOverrides(el);
     };
   }, [isVisible, isMobile, drawerType]);
 
