@@ -55,6 +55,7 @@ db/config.ts          # Database schema & relationships
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
 - `docs/REACT_ISLANDS_STRATEGY.md` - Component migration patterns, implementation details
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
+- `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
 
 ## Database
 
