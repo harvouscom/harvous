@@ -394,7 +394,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!vv) return;
     const RESERVE_CARD_STACK_PX = 200;
     const RESERVE_EDITOR_PX = 280;
-    const DISMISS_GAP_PX = 48;
+    const DISMISS_GAP_PX = 24;
 
     const clearViewportOverrides = (element: HTMLDivElement) => {
       element.style.height = '';
@@ -415,12 +415,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       const keyboardOpen = viewport.height < window.innerHeight * 0.75;
 
       if (keyboardOpen) {
-        const sheetH = Math.max(200, viewport.height - DISMISS_GAP_PX);
+        const sheetH = Math.max(200, viewport.offsetTop + viewport.height - DISMISS_GAP_PX);
         el.style.height = `${sheetH}px`;
         el.style.maxHeight = `${sheetH}px`;
-        el.style.top = `${viewport.offsetTop}px`;
-        el.style.left = `${viewport.offsetLeft}px`;
-        el.style.width = `${viewport.width}px`;
+        el.style.top = '0';
+        el.style.left = '0';
+        el.style.width = '100%';
         el.style.bottom = 'auto';
         const cardH = Math.max(100, sheetH - RESERVE_CARD_STACK_PX);
         const editorH = Math.max(120, sheetH - RESERVE_EDITOR_PX);
