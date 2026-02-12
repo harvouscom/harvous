@@ -102,10 +102,13 @@
 .bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .card-stack__content {
   flex: 1 1 0%;
   min-height: 0;
+  overflow: hidden;
 }
+/* No overflow on inner so only .tiptap-content scrolls; toolbar stays on screen */
 .bottom-sheet-content .new-note-panel--in-sheet .new-note-panel__card-stack-wrapper .card-stack__inner {
   flex: 1 1 0%;
   min-height: 0;
+  overflow: hidden !important;
 }
 
 /* In-sheet: editor fills parent (chain already constrained by sheet + bottom-sheet__inner); overflow scrolls */
@@ -134,11 +137,6 @@
 /* In-sheet: keep Create Note footer visible above keyboard – never shrink so it stays in the visible strip */
 .bottom-sheet-content .new-note-panel--in-sheet .panel__footer--buttons {
   flex-shrink: 0;
-}
-
-/* When keyboard is open (visual viewport shrunk), hide footer so editor gets full space above keyboard */
-.bottom-sheet-content[data-keyboard-open="true"] .new-note-panel--in-sheet .panel__footer--buttons {
-  display: none;
 }
 
 /* Bottom sheets use tap-outside / swipe-down to dismiss; hide explicit Close buttons. */
