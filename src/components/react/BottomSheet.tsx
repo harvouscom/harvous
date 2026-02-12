@@ -385,61 +385,46 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // Size and position sheet to visual viewport when note/resource open on mobile so editor and toolbar sit above keyboard
+  // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (90vh)
   useEffect(() => {
     if (!isVisible || !isMobile) return;
     const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
     if (!isNoteOrResource) return;
     const vv = window.visualViewport;
     if (!vv) return;
-    const RESERVE_CARD_STACK_PX = 200;
     const RESERVE_EDITOR_PX = 280;
-    const DISMISS_GAP_PX = 24;
 
-    const clearViewportOverrides = (element: HTMLDivElement) => {
-      element.style.height = '';
-      element.style.maxHeight = '';
-      element.style.top = '';
-      element.style.left = '';
-      element.style.width = '';
-      element.style.bottom = '';
-      element.style.removeProperty('--card-stack-inner-max-height');
+    const clearOverrides = (element: HTMLDivElement) => {
+      element.style.removeProperty('--toolbar-bottom');
       element.style.removeProperty('--editor-scroll-max-height');
       element.removeAttribute('data-keyboard-open');
     };
 
-    const applySize = () => {
+    const apply = () => {
       const el = sheetContentElRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
       const keyboardOpen = viewport.height < window.innerHeight * 0.75;
 
       if (keyboardOpen) {
-        const sheetH = Math.max(200, viewport.offsetTop + viewport.height - DISMISS_GAP_PX);
-        el.style.height = `${sheetH}px`;
-        el.style.maxHeight = `${sheetH}px`;
-        el.style.top = '0';
-        el.style.left = '0';
-        el.style.width = '100%';
-        el.style.bottom = 'auto';
-        const cardH = Math.max(100, sheetH - RESERVE_CARD_STACK_PX);
-        const editorH = Math.max(120, sheetH - RESERVE_EDITOR_PX);
-        el.style.setProperty('--card-stack-inner-max-height', `${cardH}px`);
+        const toolbarBottom = (window.innerHeight - viewport.height) + 12;
+        const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
+        el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
         el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
         el.setAttribute('data-keyboard-open', '');
       } else {
-        clearViewportOverrides(el);
+        clearOverrides(el);
       }
     };
 
-    applySize();
-    const raf = requestAnimationFrame(() => applySize());
-    vv.addEventListener('resize', applySize);
-    vv.addEventListener('scroll', applySize);
+    apply();
+    const raf = requestAnimationFrame(() => apply());
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
 
     const onFocusIn = () => {
-      setTimeout(applySize, 100);
-      setTimeout(applySize, 300);
+      setTimeout(apply, 100);
+      setTimeout(apply, 300);
     };
     let focusEl: HTMLDivElement | null = null;
     const rafFocus = requestAnimationFrame(() => {
@@ -450,11 +435,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(rafFocus);
-      vv.removeEventListener('resize', applySize);
-      vv.removeEventListener('scroll', applySize);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
       const el = sheetContentElRef.current;
-      if (el) clearViewportOverrides(el);
+      if (el) clearOverrides(el);
     };
   }, [isVisible, isMobile, drawerType]);
 

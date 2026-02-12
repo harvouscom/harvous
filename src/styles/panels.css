@@ -123,6 +123,21 @@
   touch-action: pan-y;
 }
 
+/* In-sheet + keyboard open: toolbar fixed 12px above keyboard (--toolbar-bottom set by BottomSheet) */
+.bottom-sheet-content[data-keyboard-open] .tiptap-toolbar--bottom {
+  position: fixed !important;
+  bottom: var(--toolbar-bottom, 12px) !important;
+  left: 12px !important;
+  right: 12px !important;
+  z-index: 21;
+  margin: 0 !important;
+}
+
+/* In-sheet + keyboard open: reserve space at bottom of editor so last line can scroll above fixed toolbar */
+.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-content {
+  padding-bottom: 56px;
+}
+
 /* Bottom-sheet panels should use tighter header gutters */
 .bottom-sheet-content .panel__header {
   padding-left: 12px;
