@@ -142,6 +142,11 @@
   flex-shrink: 0;
 }
 
+/* In-sheet: hide footer (Create button) when keyboard is open to free space for the editor */
+.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .panel__footer--buttons {
+  display: none !important;
+}
+
 /* Bottom sheets use tap-outside / swipe-down to dismiss; hide explicit Close buttons. */
 .bottom-sheet-content .panel__footer--buttons [aria-label="Close"] {
   display: none !important;

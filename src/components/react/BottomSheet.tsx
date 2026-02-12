@@ -394,21 +394,28 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (!vv) return;
     const RESERVE_CARD_STACK_PX = 200;
     const RESERVE_EDITOR_PX = 280;
+    const DISMISS_GAP_PX = 48;
 
     const applySize = () => {
       const el = sheetContentElRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
-      el.style.height = `${viewport.height}px`;
-      el.style.maxHeight = `${viewport.height}px`;
+      const sheetH = Math.max(200, viewport.height - DISMISS_GAP_PX);
+      el.style.height = `${sheetH}px`;
+      el.style.maxHeight = `${sheetH}px`;
       el.style.top = `${viewport.offsetTop}px`;
       el.style.left = `${viewport.offsetLeft}px`;
       el.style.width = `${viewport.width}px`;
       el.style.bottom = 'auto';
-      const cardH = Math.max(100, viewport.height - RESERVE_CARD_STACK_PX);
-      const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
+      const cardH = Math.max(100, sheetH - RESERVE_CARD_STACK_PX);
+      const editorH = Math.max(120, sheetH - RESERVE_EDITOR_PX);
       el.style.setProperty('--card-stack-inner-max-height', `${cardH}px`);
       el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
+      if (viewport.height < window.innerHeight * 0.75) {
+        el.setAttribute('data-keyboard-open', '');
+      } else {
+        el.removeAttribute('data-keyboard-open');
+      }
     };
 
     applySize();
@@ -442,6 +449,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         el.style.bottom = '';
         el.style.removeProperty('--card-stack-inner-max-height');
         el.style.removeProperty('--editor-scroll-max-height');
+        el.removeAttribute('data-keyboard-open');
       }
     };
   }, [isVisible, isMobile, drawerType]);
