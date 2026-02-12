@@ -1186,7 +1186,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} noteSimpleId={isNote && content ? content.noteId : undefined} />
   </div>
 
 </Layout>

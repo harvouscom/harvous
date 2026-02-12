@@ -55,6 +55,10 @@ const renderIcon = (icon: any, action: string) => {
     'unlock': {
       viewBox: '0 0 448 512',
       path: 'M144 144c0-44.2 35.8-80 80-80c31.9 0 59.4 18.6 72.3 45.7c7.6 16 26.7 22.8 42.6 15.2s22.8-26.7 15.2-42.6C331 33.7 281.5 0 224 0C144.5 0 80 64.5 80 144l0 48-16 0c-35.3 0-64 28.7-64 64L0 448c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-192c0-35.3-28.7-64-64-64l-240 0 0-48z'
+    },
+    'hashtag': {
+      viewBox: '0 0 448 512',
+      path: 'M181.3 32.4c17.4 2.9 29.2 19.4 26.3 36.8L197.8 128l95.1 0 11.5-69.3c2.9-17.4 19.4-29.2 36.8-26.3s29.2 19.4 26.3 36.8L357.8 128l58.2 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-68.9 0L325.8 320l58.2 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-68.9 0-11.5 69.3c-2.9 17.4-19.4 29.2-36.8 26.3s-29.2-19.4-26.3-36.8l9.8-58.7-95.1 0-11.5 69.3c-2.9 17.4-19.4 29.2-36.8 26.3s-29.2-19.4-26.3-36.8L90.2 384 32 384c-17.7 0-32-14.3-32-32s14.3-32 32-32l68.9 0 21.3-128L64 192c-17.7 0-32-14.3-32-32s14.3-32 32-32l68.9 0 11.5-69.3c2.9-17.4 19.4-29.2 36.8-26.3zM187.1 192L165.8 320l95.1 0 21.3-128-95.1 0z'
     }
   };
 
@@ -77,6 +81,8 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'unlock';
   } else if (action.includes('lock')) {
     iconKey = 'lock';
+  } else if (action === 'copyNoteId') {
+    iconKey = 'hashtag';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
   } else if (action.includes('seeDetails') || action.includes('Details')) {
@@ -97,6 +103,7 @@ const renderIcon = (icon: any, action: string) => {
     else if (src.includes('note-sticky')) iconKey = 'note-sticky';
     else if (src === 'unlock') iconKey = 'unlock';
     else if (src.includes('lock')) iconKey = 'lock';
+    else if (src.includes('hashtag')) iconKey = 'hashtag';
   }
 
   // If we found a matching icon, render as inline SVG
@@ -242,7 +249,21 @@ export default function Menu({
   };
 
   const executeAction = async (action: string) => {
-    if (action.includes('erase')) {
+    if (action === 'copyNoteId') {
+      const option = options.find((o) => o.action === 'copyNoteId');
+      const textToCopy = option?.label ?? '';
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        if ((window as any).toast?.success) {
+          (window as any).toast.success(`Copied ${textToCopy} to clipboard`);
+        }
+      } catch {
+        if ((window as any).toast?.error) {
+          (window as any).toast.error('Failed to copy note ID');
+        }
+      }
+      closeMenu();
+    } else if (action.includes('erase')) {
       await performErase();
     } else if (action === 'openNoteDetailsThreads') {
       // Handle Threads shortcut action for notes

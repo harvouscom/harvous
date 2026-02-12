@@ -29,9 +29,10 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param noteType Optional note type to determine if scripture-specific options should be shown
  * @param contentEncrypted Optional; when true, note is locked so we show "Remove lock" only
  * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked in session so we show "Remove lock"
+ * @param simpleNoteId Optional; when set for notes, adds a "copy note ID" option with label e.g. N042
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -50,8 +51,13 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       ];
     case "note":
       const options = [];
-      
-      // Add "Notes" option FIRST for scripture notes only
+
+      // Copy note ID (prepend when simpleNoteId is available)
+      if (simpleNoteId != null) {
+        options.push({ action: "copyNoteId", label: `N${String(simpleNoteId).padStart(3, '0')}` });
+      }
+
+      // Add "Notes" option for scripture notes only
       if (noteType === 'scripture') {
         options.push({ action: "openNoteDetailsNotes", label: "Notes" });
       }

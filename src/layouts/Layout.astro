@@ -54,9 +54,10 @@ const {
   founderLetterHtml = ''
 }: Props = Astro.props;
 
-// Extract noteType and contentEncrypted from currentNote for menu options
+// Extract noteType, contentEncrypted, and noteSimpleId from currentNote for menu options
 const noteType = currentNote?.noteType;
 const contentEncrypted = currentNote?.contentEncrypted;
+const noteSimpleId = currentNote?.noteId ?? null;
 
 // Determine if More button should be shown (pass contentId to hide for unorganized thread)
 const showMoreButton = shouldShowMoreButton(contentType, contentId);
@@ -427,7 +428,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
               <!-- SquareButtons (shown when no panel is open) -->
               <div id="square-buttons-container" class={`square-buttons-container ${showMoreButton ? 'square-buttons-container--with-more' : ''}`}>
                 {showMoreButton && (
-                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} />
+                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} />
                 )}
                 {contentType !== 'profile' && (
                   <SquareButton variant="Add" withMenu={true} />

@@ -12,6 +12,7 @@ const CircleInfoIcon = { src: 'circle-info' };
 const TagIcon = { src: 'tag' };
 const LockIcon = { src: 'lock' };
 const UnlockIcon = { src: 'unlock' };
+const HashtagIcon = { src: 'hashtag' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";
@@ -25,6 +26,7 @@ interface SquareButtonProps {
   inBottomSheet?: boolean;
   noteType?: string;
   contentEncrypted?: boolean;
+  noteSimpleId?: number | null;
 }
 
 export default function SquareButton({
@@ -38,7 +40,8 @@ export default function SquareButton({
   currentThreadId, // Add this prop
   inBottomSheet = false,
   noteType,
-  contentEncrypted
+  contentEncrypted,
+  noteSimpleId
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,7 +83,7 @@ export default function SquareButton({
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer);
+      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId);
       return options.map(option => {
         let icon;
         switch (option.action) {
@@ -107,6 +110,9 @@ export default function SquareButton({
             break;
           case "removeLock":
             icon = UnlockIcon;
+            break;
+          case "copyNoteId":
+            icon = HashtagIcon;
             break;
           default:
             icon = EditIcon;

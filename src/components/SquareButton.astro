@@ -12,9 +12,10 @@ export interface Props {
   className?: string;
   noteType?: string;
   contentEncrypted?: boolean;
+  noteSimpleId?: number | null;
 }
 
-const { variant = "More", withMenu = false, type = "button", contentType = "dashboard", contentId, currentThreadId, onClick, className, noteType, contentEncrypted } = Astro.props;
+const { variant = "More", withMenu = false, type = "button", contentType = "dashboard", contentId, currentThreadId, onClick, className, noteType, contentEncrypted, noteSimpleId } = Astro.props;
 
 // For Find variant, wrap in anchor tag (backward compatibility)
 // For all other variants, use React SquareButton directly
@@ -33,6 +34,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
       className={className}
       noteType={noteType}
       contentEncrypted={contentEncrypted}
+      noteSimpleId={noteSimpleId}
       client:load
     />
   </a>
@@ -48,6 +50,7 @@ const { variant = "More", withMenu = false, type = "button", contentType = "dash
     className={className}
     noteType={noteType}
     contentEncrypted={contentEncrypted}
+    noteSimpleId={noteSimpleId}
     client:load
   />
 )}
