@@ -238,13 +238,16 @@ const ogDescription = `You've been invited to join a collaborative Bible study s
 
                     <!-- CTA Button (inside CardStack) -->
                     {requiresAuth ? (
-                      <Button
-                        variant="primary"
-                        href={`/sign-in?redirect=/invitations/${token}`}
-                        class="shared-page__cta-button"
+                      <a
+                        href={`/sign-in?redirect_url=${encodeURIComponent('/invitations/' + token)}`}
+                        class="btn btn--lg btn--primary shared-page__cta-button"
+                        data-astro-reload
                       >
-                        <span class="shared-page__cta-text">Sign in to accept</span>
-                      </Button>
+                        <div class="btn__content">
+                          <span class="shared-page__cta-text">Sign in to accept</span>
+                        </div>
+                        <div class="btn__shadow-overlay" />
+                      </a>
                     ) : canAccept ? (
                       <Button
                         type="button"

@@ -315,13 +315,16 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
 
                     <!-- CTA Button (inside CardStack) -->
                     {requiresAuth ? (
-                      <Button
-                        variant="primary"
-                        href={`/sign-in?redirect=/spaces/join/${token}`}
-                        class="shared-page__cta-button"
+                      <a
+                        href={`/sign-in?redirect_url=${encodeURIComponent('/spaces/join/' + token)}`}
+                        class="btn btn--lg btn--primary shared-page__cta-button"
+                        data-astro-reload
                       >
-                        <span class="shared-page__cta-text">Join this space on Harvous</span>
-                      </Button>
+                        <div class="btn__content">
+                          <span class="shared-page__cta-text">Join this space on Harvous</span>
+                        </div>
+                        <div class="btn__shadow-overlay" />
+                      </a>
                     ) : canJoin ? (
                       <Button
                         type="button"

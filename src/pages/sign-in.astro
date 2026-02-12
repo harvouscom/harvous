@@ -4,6 +4,7 @@ import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { SignIn as ClerkSignIn } from "@clerk/astro/components";
 
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
+const redirectUrl = Astro.url.searchParams.get('redirect_url') ?? '/';
 ---
 
 <EmptyLayout title="Sign In">
@@ -77,8 +78,8 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             colorPrimary: "var(--color-bold-blue)"
           }
         }}
-        signUpUrl="/sign-up"
-        fallbackRedirectUrl="/"
+        signUpUrl={redirectUrl !== '/' ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}` : '/sign-up'}
+        fallbackRedirectUrl={redirectUrl}
       />
         </div>
       </div>
@@ -193,7 +194,6 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
     // Initial setup
     document.addEventListener('DOMContentLoaded', function() {
-      showSignInContent();
       // Try redirect immediately if Clerk already loaded
       setTimeout(redirectIfAlreadySignedIn, 100);
     });

@@ -1110,6 +1110,8 @@ export default function CardFullEditable({
                       placeholder="Add your notes about this resource..."
                       tabindex={3}
                       minimalToolbar={false}
+                      toolbarAtBottom={true}
+                      toolbarBottomMargin={0}
                       onContentChange={handleContentChange}
                       scrollPosition={scrollPosition}
                       enableCreateNoteFromSelection={isContentEditing}
@@ -1320,6 +1322,8 @@ export default function CardFullEditable({
                     placeholder="Start writing your note..."
                     tabindex={3}
                     minimalToolbar={false}
+                    toolbarAtBottom={true}
+                    toolbarBottomMargin={0}
                     onContentChange={handleContentChange}
                     scrollPosition={scrollPosition}
                     enableCreateNoteFromSelection={isContentEditing}

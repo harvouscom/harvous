@@ -35,6 +35,8 @@ interface TiptapEditorProps {
   placeholder?: string;
   minimalToolbar?: boolean;
   toolbarAtBottom?: boolean;
+  /** When toolbarAtBottom, margin below the toolbar in px. Default 12. Use 0 when the parent provides the gap (e.g. Save/Cancel row has top margin). */
+  toolbarBottomMargin?: number;
   tabindex?: number;
   onContentChange?: (content: string) => void;
   scrollPosition?: number;
@@ -2258,6 +2260,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   placeholder = "Write something...",
   minimalToolbar = false,
   toolbarAtBottom = false,
+  toolbarBottomMargin = 12,
   tabindex,
   onContentChange,
   scrollPosition,
@@ -3955,8 +3958,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             position: 'sticky',
             bottom: 0,
             zIndex: 20,
-            marginTop: '8px',
-            marginBottom: '12px',
+            marginBottom: `${toolbarBottomMargin}px`,
             backgroundColor: 'var(--color-snow-white)',
           }}
         >

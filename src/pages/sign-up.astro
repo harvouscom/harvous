@@ -29,6 +29,7 @@ const ogTitle = referrerName
   ? `${referrerName} invited you to Harvous`
   : 'Sign Up | Harvous';
 const ogDescription = 'Join Harvous - a notes app designed for Bible study.';
+const redirectUrl = Astro.url.searchParams.get('redirect_url') ?? '/';
 ---
 
 <EmptyLayout title={ogTitle}>
@@ -118,8 +119,8 @@ const ogDescription = 'Join Harvous - a notes app designed for Bible study.';
                 colorPrimary: "var(--color-bold-blue)"
               }
             }}
-            signInUrl="/sign-in"
-            fallbackRedirectUrl="/"
+            signInUrl={redirectUrl !== '/' ? `/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}` : '/sign-in'}
+            fallbackRedirectUrl={redirectUrl}
           />
         </div>
       </div>
