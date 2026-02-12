@@ -11,6 +11,7 @@ export interface ScriptureNoteFormProps {
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void;
   parentThreadId?: string;
+  toolbarAtBottom?: boolean;
 }
 
 /**
@@ -25,6 +26,7 @@ export default function ScriptureNoteForm({
   onEditorReady,
   parentThreadId,
   onEditorInstanceReady,
+  toolbarAtBottom = false,
 }: ScriptureNoteFormProps) {
   return (
     <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
@@ -55,6 +57,7 @@ export default function ScriptureNoteForm({
             placeholder="Share your thoughts about this scripture..."
             tabindex={2}
             minimalToolbar={false}
+            toolbarAtBottom={toolbarAtBottom}
             onEditorReady={onEditorReady}
             onContentChange={onContentChange}
             parentThreadId={parentThreadId}

@@ -34,6 +34,7 @@ interface TiptapEditorProps {
   name?: string;
   placeholder?: string;
   minimalToolbar?: boolean;
+  toolbarAtBottom?: boolean;
   tabindex?: number;
   onContentChange?: (content: string) => void;
   scrollPosition?: number;
@@ -2256,6 +2257,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   name = "content",
   placeholder = "Write something...",
   minimalToolbar = false,
+  toolbarAtBottom = false,
   tabindex,
   onContentChange,
   scrollPosition,
@@ -3793,15 +3795,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         value={editor.getHTML()}
       />
       
-      {/* Toolbar above scroll area so it is not masked by top-fade; higher z-index than content */}
-      {!minimalToolbar && isEditorFocused && (
+      {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
+      {!minimalToolbar && isEditorFocused && !toolbarAtBottom && (
         <div
           className="tiptap-toolbar flex items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
             position: 'sticky',
             top: 0,
             zIndex: 20,
-            marginBottom: '8px',
+            marginBottom: '12px',
             backgroundColor: 'var(--color-snow-white)',
           }}
         >
@@ -3946,6 +3948,97 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </BubbleMenu>
         )}
       </div>
+      {!minimalToolbar && isEditorFocused && toolbarAtBottom && (
+        <div
+          className="tiptap-toolbar tiptap-toolbar--bottom flex items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 20,
+            marginTop: '8px',
+            marginBottom: '12px',
+            backgroundColor: 'var(--color-snow-white)',
+          }}
+        >
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().toggleBold().run();
+            }}
+            isActive={activeStates.bold}
+            title="bold"
+            ariaLabel="Toggle bold"
+          >
+            <Icon name="bold" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().toggleItalic().run();
+            }}
+            isActive={activeStates.italic}
+            title="italic"
+            ariaLabel="Toggle italic"
+          >
+            <Icon name="italic" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().toggleUnderline().run();
+            }}
+            isActive={activeStates.underline}
+            title="underline"
+            ariaLabel="Toggle underline"
+          >
+            <Icon name="underline" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              handleHeadingCycle();
+            }}
+            isActive={activeStates.headingLevel > 0}
+            title={`heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
+            ariaLabel={`Toggle heading (${activeStates.headingLevel > 0 ? `H${activeStates.headingLevel}` : 'Normal'})`}
+          >
+            <Icon name="heading" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().toggleOrderedList().run();
+            }}
+            isActive={activeStates.orderedList}
+            title="list: ordered"
+            ariaLabel="Toggle ordered list"
+          >
+            <Icon name="list-ol" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().toggleBulletList().run();
+            }}
+            isActive={activeStates.bulletList}
+            title="list: bullet"
+            ariaLabel="Toggle bullet list"
+          >
+            <Icon name="list" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().clearNodes().unsetAllMarks().run();
+            }}
+            isActive={false}
+            title="clean"
+            ariaLabel="Clear formatting"
+          >
+            <Icon name="eraser" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+        </div>
+      )}
     </div>
   );
 };

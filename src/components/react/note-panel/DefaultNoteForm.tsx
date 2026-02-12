@@ -15,6 +15,7 @@ export interface DefaultNoteFormProps {
   onEditorReady?: (editor: any) => void;
   parentThreadId?: string;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready
+  toolbarAtBottom?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export default function DefaultNoteForm({
   onEditorReady,
   parentThreadId,
   onEditorInstanceReady,
+  toolbarAtBottom = false,
 }: DefaultNoteFormProps) {
   // Handle title keydown for auto-capitalize and select all
   const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -108,6 +110,7 @@ export default function DefaultNoteForm({
               placeholder="Type your note..."
               tabindex={2}
               minimalToolbar={false}
+              toolbarAtBottom={toolbarAtBottom}
               onEditorReady={onEditorReady}
               onContentChange={onContentChange}
               parentThreadId={parentThreadId}
