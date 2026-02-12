@@ -102,11 +102,11 @@ export default function ProfileOptionsList() {
     <div className="flex flex-col gap-3">
       {/* Content & Activity (most frequently used) */}
       {renderOption('mySpaces', 'My Spaces', true)}
+      {renderOption('mySharing', 'My Sharing', true)}
       {renderOption('myAchievements', 'My Achievements', true)}
 
       {/* Profile & Account Settings */}
       {renderOption('myChurch', 'My Church', true)}
-      {renderOption('mySharing', 'My Sharing', true)}
       {renderOption('referral', 'Refer My Friends', true)}
       {renderOption('editNameColor', 'Edit Name & Color', true)}
       {renderOption('emailPassword', 'Email & Password', true)}

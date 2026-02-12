@@ -6,7 +6,7 @@
  * - Unlimited tier: 3 shared spaces (10 members each), join unlimited spaces
  */
 
-import { db, Spaces, Members, eq, and } from 'astro:db';
+import { db, Spaces, Members, eq } from 'astro:db';
 import type { Auth } from '@clerk/astro/server';
 
 // Tier limits configuration
@@ -39,6 +39,71 @@ export function getUserTier(auth: Auth): UserTier {
  */
 export function getTierLimits(tier: UserTier) {
   return TIER_LIMITS[tier];
+}
+
+/**
+ * Get tier for a user by ID (e.g. space owner when requester is not the owner).
+ * Uses Clerk backend billing API; defaults to 'free' on error or missing subscription.
+ */
+export async function getTierForUserId(userId: string): Promise<UserTier> {
+  try {
+    const { createClerkClient } = await import('@clerk/backend');
+    const secretKey = import.meta.env.CLERK_SECRET_KEY;
+    if (!secretKey) return 'free';
+    const clerkClient = createClerkClient({ secretKey });
+    const subscription = await clerkClient.billing.getUserBillingSubscription(userId);
+    if (!subscription?.subscriptionItems?.length) return 'free';
+    for (const item of subscription.subscriptionItems) {
+      const plan = item.plan;
+      if (!plan?.features?.length) continue;
+      const hasUnlimited = plan.features.some(
+        (f: { slug?: string }) => f.slug === 'unlimited_notes'
+      );
+      if (hasUnlimited) return 'unlimited';
+    }
+    return 'free';
+  } catch {
+    return 'free';
+  }
+}
+
+/**
+ * Check if the space owner can add one more shared space (i.e. adding the first member to this space).
+ * Use when the requester may not be the owner (e.g. join/accept). When requester is the owner, pass ownerAuth.
+ */
+export async function canOwnerAddOneMoreSharedSpace(
+  ownerUserId: string,
+  spaceId: string,
+  ownerAuth?: Auth
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+  currentCount?: number;
+  limit?: number;
+}> {
+  const currentMemberCount = await getSpaceMemberCount(spaceId);
+  if (currentMemberCount > 0) {
+    return { allowed: true };
+  }
+  const tier = ownerAuth ? getUserTier(ownerAuth) : await getTierForUserId(ownerUserId);
+  const limits = getTierLimits(tier);
+  const currentSharedCount = await getSharedSpacesOwnedCount(ownerUserId);
+  const wouldBeSharedCount = currentSharedCount + 1;
+  if (wouldBeSharedCount > limits.ownedSharedSpaces) {
+    return {
+      allowed: false,
+      reason: tier === 'free'
+        ? 'Free tier limited to 1 shared space. Space owner needs to upgrade to add members.'
+        : `Unlimited tier limited to ${limits.ownedSharedSpaces} shared spaces. Space owner has reached the limit.`,
+      currentCount: currentSharedCount,
+      limit: limits.ownedSharedSpaces
+    };
+  }
+  return {
+    allowed: true,
+    currentCount: currentSharedCount,
+    limit: limits.ownedSharedSpaces
+  };
 }
 
 /**
@@ -166,7 +231,7 @@ export async function canJoinSpace(
 
 /**
  * Check if space owner can add more members to their space
- * Considers space owner's tier
+ * Considers space owner's tier (from owner's auth)
  */
 export async function canAddMemberToSpace(
   spaceId: string,
@@ -179,6 +244,41 @@ export async function canAddMemberToSpace(
   limit?: number;
 }> {
   const tier = getUserTier(ownerAuth);
+  const limits = getTierLimits(tier);
+  const currentCount = await getSpaceMemberCount(spaceId);
+
+  if (currentCount >= limits.membersPerSpace) {
+    return {
+      allowed: false,
+      reason: tier === 'free'
+        ? 'This space has reached the member limit (5 members). Space owner needs to upgrade.'
+        : `This space has reached the member limit (${limits.membersPerSpace} members).`,
+      currentCount,
+      limit: limits.membersPerSpace,
+    };
+  }
+
+  return {
+    allowed: true,
+    currentCount,
+    limit: limits.membersPerSpace,
+  };
+}
+
+/**
+ * Check if space owner can add more members (when owner's auth is not available, e.g. join flow).
+ * Uses getTierForUserId(spaceOwnerId) to resolve owner's tier.
+ */
+export async function canAddMemberToSpaceByOwnerId(
+  spaceId: string,
+  spaceOwnerId: string
+): Promise<{
+  allowed: boolean;
+  reason?: string;
+  currentCount?: number;
+  limit?: number;
+}> {
+  const tier = await getTierForUserId(spaceOwnerId);
   const limits = getTierLimits(tier);
   const currentCount = await getSpaceMemberCount(spaceId);
 

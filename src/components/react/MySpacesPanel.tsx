@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import SquareButton from './SquareButton';
-import SearchInput from './SearchInput';
+import TabNav from './TabNav';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
@@ -17,6 +17,17 @@ interface Space {
   lastUpdated?: Date | string;
   updatedAt?: Date | string;
 }
+
+/** Joined space from API (not owned by user). */
+interface MemberOfSpace {
+  id: string;
+  title: string;
+  color?: string | null;
+  memberCount: number;
+}
+
+/** Normalized for list rendering (Space or joined space with totalItemCount). */
+type DisplaySpace = Pick<Space, 'id' | 'title' | 'color' | 'backgroundGradient' | 'totalItemCount' | 'isPublic'>;
 
 interface MySpacesPanelProps {
   onClose?: () => void;
@@ -70,7 +81,9 @@ export default function MySpacesPanel({
   });
   const [isLoading, setIsLoading] = useState(false); // No loading if we have initial data
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [sharedSpaceIds, setSharedSpaceIds] = useState<Set<string>>(() => new Set());
+  const [memberOfSpaces, setMemberOfSpaces] = useState<MemberOfSpace[]>([]);
+  const [activeFilter, setActiveFilter] = useState<'all' | 'private' | 'shared'>('all');
   const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const hasFetchedRef = useRef<boolean>(false); // Track if we've fetched at least once
@@ -90,17 +103,18 @@ export default function MySpacesPanel({
     try {
       setIsLoading(true);
       setError(null);
-      
-      const response = await fetch('/api/navigation/data', {
-        credentials: 'include',
-      });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch spaces: ${response.status}`);
+      const [navResponse, sharedResponse] = await Promise.all([
+        fetch('/api/navigation/data', { credentials: 'include' }),
+        fetch('/api/profile/my-shared-spaces', { credentials: 'include', cache: 'no-store' })
+      ]);
+
+      if (!navResponse.ok) {
+        throw new Error(`Failed to fetch spaces: ${navResponse.status}`);
       }
 
-      const data = await response.json();
-      
+      const data = await navResponse.json();
+
       // Ensure spaces have backgroundGradient
       const spacesWithGradients = (data.spaces || []).map((space: Space) => ({
         ...space,
@@ -113,6 +127,17 @@ export default function MySpacesPanel({
         const mergedSpaces = deduplicateSpaces([...prevSpaces, ...spacesWithGradients]);
         return mergedSpaces;
       });
+
+      if (sharedResponse.ok) {
+        const sharedData = await sharedResponse.json();
+        const owned = sharedData.owned ?? [];
+        setSharedSpaceIds(new Set(owned.map((s: { id: string }) => s.id)));
+        setMemberOfSpaces(sharedData.memberOf ?? []);
+      } else {
+        setSharedSpaceIds(new Set());
+        setMemberOfSpaces([]);
+      }
+
       hasFetchedFreshDataRef.current = true; // Mark that we've fetched fresh data
     } catch (err) {
       logError('Error fetching spaces:', { error: err });
@@ -126,6 +151,27 @@ export default function MySpacesPanel({
   useEffect(() => {
     fetchSpacesRef.current = fetchSpaces;
   }, [fetchSpaces]);
+
+  // Always load shared space IDs on mount so All/Private/Shared tabs are correct
+  // (when spaces come from initialSpaces we never call fetchSpaces, so we'd otherwise have empty sharedSpaceIds)
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/profile/my-shared-spaces', { credentials: 'include', cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { owned: [], memberOf: [] }))
+      .then((data) => {
+        if (cancelled) return;
+        const owned = data.owned ?? [];
+        setSharedSpaceIds(new Set(owned.map((s: { id: string }) => s.id)));
+        setMemberOfSpaces(data.memberOf ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSharedSpaceIds(new Set());
+          setMemberOfSpaces([]);
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   // Initialize only once on mount - prevent infinite loops from initialSpaces prop changes
   useEffect(() => {
@@ -332,18 +378,32 @@ export default function MySpacesPanel({
     }
   };
 
-  // Filter spaces based on search query
-  const filteredSpaces = useMemo(() => {
-    // Deduplicate by space ID as a safety net, preferring spaces with correct counts
-    const uniqueSpaces = deduplicateSpaces(spaces);
-    
-    if (!searchQuery.trim()) return uniqueSpaces;
-    
-    const query = searchQuery.toLowerCase();
-    return uniqueSpaces.filter(space =>
-      space.title.toLowerCase().includes(query)
-    );
-  }, [spaces, searchQuery]);
+  const uniqueSpaces = useMemo(() => deduplicateSpaces(spaces), [spaces]);
+  const privateSpaces = useMemo(() => uniqueSpaces.filter(s => !sharedSpaceIds.has(s.id)), [uniqueSpaces, sharedSpaceIds]);
+  const ownedSharedSpaces = useMemo(() => uniqueSpaces.filter(s => sharedSpaceIds.has(s.id)), [uniqueSpaces, sharedSpaceIds]);
+  const ownedIds = useMemo(() => new Set(uniqueSpaces.map(s => s.id)), [uniqueSpaces]);
+  const joinedOnlySpaces = useMemo(() => memberOfSpaces.filter(m => !ownedIds.has(m.id)), [memberOfSpaces, ownedIds]);
+  const memberOfAsDisplay = useMemo<DisplaySpace[]>(() => joinedOnlySpaces.map(m => ({
+    id: m.id,
+    title: m.title,
+    color: m.color ?? undefined,
+    backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+    totalItemCount: m.memberCount,
+    isPublic: undefined
+  })), [joinedOnlySpaces]);
+  const allDisplaySpaces = useMemo<DisplaySpace[]>(() => [...uniqueSpaces, ...memberOfAsDisplay], [uniqueSpaces, memberOfAsDisplay]);
+  const sharedDisplaySpaces = useMemo<DisplaySpace[]>(() => [...ownedSharedSpaces, ...memberOfAsDisplay], [ownedSharedSpaces, memberOfAsDisplay]);
+  const filteredSpaces = useMemo<DisplaySpace[]>(() => {
+    if (activeFilter === 'all') return allDisplaySpaces;
+    if (activeFilter === 'private') return privateSpaces;
+    return sharedDisplaySpaces;
+  }, [activeFilter, allDisplaySpaces, privateSpaces, sharedDisplaySpaces]);
+
+  const spaceTabs = [
+    { id: 'all', label: 'All', isActive: activeFilter === 'all', count: uniqueSpaces.length + joinedOnlySpaces.length },
+    { id: 'private', label: 'Private', isActive: activeFilter === 'private', count: privateSpaces.length },
+    { id: 'shared', label: 'Shared', isActive: activeFilter === 'shared', count: ownedSharedSpaces.length + memberOfAsDisplay.length }
+  ];
 
   const handleSpaceClick = (spaceId: string) => {
     const spacePath = idToUrl(spaceId);
@@ -352,8 +412,8 @@ export default function MySpacesPanel({
     safeNavigate(spacePath, { history: 'replace' });
   };
 
-  // Render space item in AddToSpaceSection style
-  const renderSpaceItem = (space: Space) => {
+  // Render space item in AddToSpaceSection style (works for owned Space or normalized joined DisplaySpace)
+  const renderSpaceItem = (space: DisplaySpace) => {
     const spaceAccentColor = space.color ? `var(--color-${space.color})` : "var(--color-paper)";
     
     return (
@@ -438,15 +498,14 @@ export default function MySpacesPanel({
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              
-              {/* Search Input */}
-              <div className="mb-3 w-full">
-                <SearchInput
-                  placeholder="Search spaces..."
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                />
-              </div>
+              {!isLoading && !error && (
+                <div className="mb-3">
+                  <TabNav
+                    tabs={spaceTabs}
+                    onTabChange={(tabId) => setActiveFilter(tabId as 'all' | 'private' | 'shared')}
+                  />
+                </div>
+              )}
 
               {/* Error state */}
               {error && (
@@ -455,52 +514,31 @@ export default function MySpacesPanel({
                 </div>
               )}
 
-              {/* Search Results */}
-              {searchQuery && (
-                <div className="flex flex-col gap-2 w-full">
-                  {filteredSpaces.length === 0 ? (
-                    <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
-                      No spaces found matching "{searchQuery}"
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
-                        {filteredSpaces.length} {filteredSpaces.length === 1 ? 'space' : 'spaces'} found
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {filteredSpaces.map(space => renderSpaceItem(space))}
-                      </div>
-                    </>
-                  )}
+              {/* Empty state - no spaces at all (owned + joined) */}
+              {!isLoading && !error && uniqueSpaces.length === 0 && memberOfSpaces.length === 0 && (
+                <div className="w-full p-8 text-center">
+                  <p className="text-[var(--color-pebble-grey)] text-[16px]">
+                    No spaces yet. Create your first space and you'll see it here.
+                  </p>
                 </div>
               )}
 
-              {/* Show all spaces when no search query */}
-              {!searchQuery && (
-                <>
-                  {/* Empty state */}
-                  {!isLoading && !error && spaces.length === 0 && (
-                    <div className="w-full p-8 text-center">
-                      <p className="text-[var(--color-pebble-grey)] text-[16px]">
-                        No spaces yet. Create your first space and you'll see it here.
-                      </p>
-                    </div>
-                  )}
+              {/* Empty state - tab has no items */}
+              {!isLoading && !error && (uniqueSpaces.length > 0 || memberOfSpaces.length > 0) && filteredSpaces.length === 0 && (
+                <div className="w-full p-8 text-center">
+                  <p className="text-[var(--color-pebble-grey)] text-[16px]">
+                    {activeFilter === 'private' ? 'No private spaces.' : 'No shared spaces.'}
+                  </p>
+                </div>
+              )}
 
-                  {/* Spaces list */}
-                  {!isLoading && !error && spaces.length > 0 && (
-                    <div className="flex flex-col gap-2 w-full">
-                      {spaces.length > 0 && (
-                        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
-                          {spaces.length} {spaces.length === 1 ? 'space' : 'spaces'} available
-                        </div>
-                      )}
-                      <div className="flex flex-col gap-2">
-                        {spaces.map(space => renderSpaceItem(space))}
-                      </div>
-                    </div>
-                  )}
-                </>
+              {/* Spaces list */}
+              {!isLoading && !error && filteredSpaces.length > 0 && (
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="flex flex-col gap-2">
+                    {filteredSpaces.map(space => renderSpaceItem(space))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

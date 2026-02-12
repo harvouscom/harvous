@@ -146,12 +146,30 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     return null;
   }, [effectiveSelectedSpaceId, localSpaces, currentItemId]);
 
-  const topSpaceLabel = selectedSpace ? selectedSpace.title : effectiveSelectedSpaceId ? 'Space' : 'My Home';
-  const topSpaceHref = effectiveSelectedSpaceId ? idToUrl(effectiveSelectedSpaceId) : '/';
-  // The switcher button shouldn't look "active" while viewing a thread/note.
-  // It should only be active when you're actually on the selected space page (or dashboard for Home).
-  const topSpaceIsActive = effectiveSelectedSpaceId ? currentItemId === effectiveSelectedSpaceId : isDashboard;
-  const topSpaceBackground = selectedSpace?.backgroundGradient || 'var(--color-paper)';
+  // Route-aware display: on dashboard show "My Home"; on other pages show stored selected space (so profile/find keep last space).
+  const displaySelectedSpaceId = isDashboard ? null : effectiveSelectedSpaceId;
+  const displaySelectedSpace = useMemo(() => {
+    if (!displaySelectedSpaceId) return null;
+    const fromList = localSpaces.find((s) => s.id === displaySelectedSpaceId) ?? null;
+    if (fromList) return fromList;
+    if (typeof window !== 'undefined' && currentItemId === displaySelectedSpaceId) {
+      const navigationElement = document.querySelector('[slot="navigation"]') as HTMLElement | null;
+      if (navigationElement?.dataset?.spaceTitle) {
+        return {
+          id: displaySelectedSpaceId,
+          title: navigationElement.dataset.spaceTitle,
+          totalItemCount: parseInt(navigationElement.dataset.spaceItemCount || '0'),
+          backgroundGradient: navigationElement.dataset.spaceBackgroundGradient || 'var(--color-paper)',
+        } satisfies Space;
+      }
+    }
+    return null;
+  }, [displaySelectedSpaceId, localSpaces, currentItemId]);
+
+  const topSpaceLabel = displaySelectedSpace ? displaySelectedSpace.title : displaySelectedSpaceId ? 'Space' : 'My Home';
+  const topSpaceHref = displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/';
+  const topSpaceIsActive = displaySelectedSpaceId ? currentItemId === displaySelectedSpaceId : isDashboard;
+  const topSpaceBackground = displaySelectedSpace?.backgroundGradient || 'var(--color-paper)';
 
   const currentThreadForMismatch = updatedActiveThread || activeThread;
   const isThreadPage = currentItemId.startsWith('thread_');
@@ -501,11 +519,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           } catch {
             // ignore
           }
-
-          // If we navigated to the dashboard, clear selected space so switcher shows "My Home".
-          if (newPath === '') {
-            setSelectedSpaceId(null);
-          }
           
           // Force a re-render to ensure component updates after View Transition
           // This helps ensure the navigation column is properly displayed
@@ -532,11 +545,6 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (typeof window === 'undefined') return;
     const syncFromLocation = () => {
       const path = window.location.pathname || '/';
-      // If we're on the dashboard, clear selected space so switcher shows "My Home".
-      if (path === '/' || path === '/dashboard') {
-        setSelectedSpaceId(null);
-        return;
-      }
       try {
         const params = new URLSearchParams(window.location.search);
         const fromSpace = params.get('space');
@@ -920,12 +928,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   <div className="space-switcher-dropdown__scroll">
                   <a
                     href="/"
-                    className={`space-switcher-dropdown__item ${!effectiveSelectedSpaceId ? 'is-active' : ''}`}
+                    className={`space-switcher-dropdown__item ${!displaySelectedSpaceId ? 'is-active' : ''}`}
                     onClick={() => setSelectedSpaceId(null)}
                   >
                     <span className="space-switcher-dropdown__label">My Home</span>
                     <span className="space-switcher-dropdown__icon-slot" aria-hidden="true">
-                      {!effectiveSelectedSpaceId ? (
+                      {!displaySelectedSpaceId ? (
                         <span className="space-switcher-dropdown__check">
                           <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                         </span>
@@ -933,7 +941,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                     </span>
                   </a>
                   {spacesForDropdown.map((s) => {
-                    const isActive = effectiveSelectedSpaceId ? s.id === effectiveSelectedSpaceId : false;
+                    const isActive = displaySelectedSpaceId ? s.id === displaySelectedSpaceId : false;
                     return (
                       <a
                         key={s.id}

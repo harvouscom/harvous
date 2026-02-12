@@ -19,6 +19,13 @@ export default function ManageBillingPanel({
     limit: number | null;
     referralBonusNotes?: number;
   } | null>(null);
+  const [limitsInfo, setLimitsInfo] = useState<{
+    tier: string;
+    limits: {
+      ownedSharedSpaces: { current: number; limit: number; remaining: number };
+      joinableSpaces: { current: number; limit: number | null; remaining: number };
+    };
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load subscription info when component mounts and on View Transitions
@@ -137,19 +144,23 @@ export default function ManageBillingPanel({
   const loadSubscriptionInfo = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/subscription/status', {
-        credentials: 'include',
-        cache: 'no-store'
-      });
+      const [subRes, limitsRes] = await Promise.all([
+        fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/user/limits', { credentials: 'include', cache: 'no-store' })
+      ]);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (subRes.ok) {
+        const data = await subRes.json();
         setSubscriptionInfo({
           hasUnlimited: data.hasUnlimited,
           currentCount: data.currentCount || 0,
           limit: data.limit || null,
           referralBonusNotes: data.referralBonusNotes ?? 0
         });
+      }
+      if (limitsRes.ok) {
+        const data = await limitsRes.json();
+        if (data.limits) setLimitsInfo(data);
       }
     } catch (error) {
       console.error('ManageBillingPanel: Error loading subscription info:', error);
@@ -366,31 +377,87 @@ export default function ManageBillingPanel({
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`} style={{ gap: '12px' }}>
                 
                 {/* Subscription Status Display */}
-                {!isLoading && subscriptionInfo && (
+                {!isLoading && subscriptionInfo && (() => {
+                  const limitRed = 'var(--color-red, #dc2626)';
+                  const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 1000) - subscriptionInfo.currentCount <= 100;
+                  const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+                  const joinedAtLimit = limitsInfo != null && limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
+                  return (
                   <div className="w-full">
-                    <div className="bg-white border border-[var(--color-fog-white)] rounded-2xl p-4 flex items-center gap-3">
-                      {subscriptionInfo.hasUnlimited ? (
-                        <svg className="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 640 512">
-                          <path d="M0 241.1C0 161 65 96 145.1 96c38.5 0 75.4 15.3 102.6 42.5L320 210.7l72.2-72.2C419.5 111.3 456.4 96 494.9 96C575 96 640 161 640 241.1l0 29.7C640 351 575 416 494.9 416c-38.5 0-75.4-15.3-102.6-42.5L320 301.3l-72.2 72.2C220.5 400.7 183.6 416 145.1 416C65 416 0 351 0 270.9l0-29.7zM274.7 256l-72.2-72.2c-15.2-15.2-35.9-23.8-57.4-23.8C100.3 160 64 196.3 64 241.1l0 29.7c0 44.8 36.3 81.1 81.1 81.1c21.5 0 42.2-8.5 57.4-23.8L274.7 256zm90.5 0l72.2 72.2c15.2 15.2 35.9 23.8 57.4 23.8c44.8 0 81.1-36.3 81.1-81.1l0-29.7c0-44.8-36.3-81.1-81.1-81.1c-21.5 0-42.2 8.5-57.4 23.8L365.3 256z"/>
+                    <div
+                      className="font-sans text-center px-4 pt-3 pb-2"
+                      style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance', marginBottom: 12 }}
+                    >
+                      {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
+                    </div>
+                    <div className="grid grid-cols-2" style={{ gap: 12, marginBottom: 12 }}>
+                      {/* Notes - full width */}
+                      <div
+                        className="bg-white rounded-xl p-3 flex items-center gap-3"
+                        style={{
+                          gridColumn: '1 / -1',
+                          border: '1px solid',
+                          borderColor: notesAtLimit ? limitRed : 'var(--color-fog-white)'
+                        }}
+                      >
+                        <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 384 512" aria-hidden="true">
+                          <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
                         </svg>
-                      ) : (
-                        <svg className="w-5 h-5 fill-current text-[var(--color-deep-grey)]" viewBox="0 0 512 512">
-                          <path d="M278.5 215.6L23 471c-9.4 9.4-9.4 24.6 0 33.9s24.6 9.4 33.9 0l57-57 68 0c49.7 0 97.9-14.4 139-41c11.1-7.2 5.5-23-7.8-23c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l81-24.3c2.5-.8 4.8-2.1 6.7-4l22.4-22.4c10.1-10.1 2.9-27.3-11.3-27.3l-32.2 0c-5.1 0-9.2-4.1-9.2-9.2c0-4.1 2.7-7.6 6.5-8.8l112-33.6c4-1.2 7.4-3.9 9.3-7.7C506.4 207.6 512 184.1 512 160c0-41-16.3-80.3-45.3-109.3l-5.5-5.5C432.3 16.3 393 0 352 0s-80.3 16.3-109.3 45.3L139 149C91 197 64 262.1 64 330l0 55.3L253.6 195.8c6.2-6.2 16.4-6.2 22.6 0c5.4 5.4 6.1 13.6 2.2 19.8z"/>
-                        </svg>
-                      )}
-                      <div>
-                        <div className="text-lg font-semibold text-[var(--color-deep-grey)]">
-                          {subscriptionInfo.hasUnlimited ? 'Unlimited' : 'Free'}
-                        </div>
-                        <div className="text-sm text-[var(--color-pebble-grey)]">
-                          {subscriptionInfo.hasUnlimited 
-                            ? 'Active' 
-                            : `You've used ${subscriptionInfo.currentCount.toLocaleString()} out of the ${(subscriptionInfo.limit ?? 1000).toLocaleString()} note limit${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (including ${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                            {subscriptionInfo.hasUnlimited
+                              ? 'Unlimited'
+                              : `${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 1000).toLocaleString()}${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
+                          </div>
+                          <div className="text-xs" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Notes</div>
                         </div>
                       </div>
+                      {/* Shared spaces - same row as Spaces joined */}
+                      {limitsInfo && (
+                        <div
+                          className="bg-white rounded-xl p-3 flex items-center gap-3"
+                          style={{
+                            border: '1px solid',
+                            borderColor: sharedAtLimit ? limitRed : 'var(--color-fog-white)'
+                          }}
+                        >
+                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 512 512" aria-hidden="true">
+                            <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
+                          </svg>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                              {limitsInfo.limits.ownedSharedSpaces.current} of {limitsInfo.limits.ownedSharedSpaces.limit}
+                            </div>
+                            <div className="text-xs" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Spaces shared</div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Spaces joined - same row as Shared spaces */}
+                      {limitsInfo && (
+                        <div
+                          className="bg-white rounded-xl p-3 flex items-center gap-3"
+                          style={{
+                            border: '1px solid',
+                            borderColor: joinedAtLimit ? limitRed : 'var(--color-fog-white)'
+                          }}
+                        >
+                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 448 512" aria-hidden="true">
+                            <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
+                          </svg>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-base font-semibold" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                              {limitsInfo.limits.joinableSpaces.limit == null
+                                ? `${limitsInfo.limits.joinableSpaces.current} (unlimited)`
+                                : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit}`}
+                            </div>
+                            <div className="text-xs" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Spaces joined</div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Upgrade to Unlimited Button - Only show for free plan users */}
                 {!isLoading && subscriptionInfo && !subscriptionInfo.hasUnlimited && (

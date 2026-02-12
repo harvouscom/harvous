@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, SpaceInvitations, eq, and } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
-import { canAddMemberToSpace } from '@/utils/tier-limits';
+import { canAddMemberToSpace, canOwnerAddOneMoreSharedSpace } from '@/utils/tier-limits';
 import { generateShareToken } from '@/utils/ids';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import {
@@ -69,6 +69,12 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const canAdd = await canAddMemberToSpace(spaceId, space.userId, locals.auth());
     if (!canAdd.allowed) {
       return errorResponse(canAdd.reason || 'Cannot add more members to this space', 'MEMBER_LIMIT_REACHED', 403);
+    }
+
+    // Enforce owned shared spaces limit when adding the first member (invitation leads to join)
+    const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, spaceId, locals.auth());
+    if (!canAddShared.allowed) {
+      return errorResponse(canAddShared.reason || 'Shared space limit reached', 'OWNED_SHARED_SPACES_LIMIT_REACHED', 403);
     }
 
     // Check if invitation already exists for this email

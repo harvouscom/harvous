@@ -2,6 +2,7 @@
 export const prerender = false;
 import EmptyLayout from "@/layouts/EmptyLayout.astro";
 import { getSubscriptionInfo } from "@/utils/subscription";
+import { getUserLimitsInfo } from "@/utils/tier-limits";
 import UpgradeCheckoutButton from "@/components/react/UpgradeCheckoutButton";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler";
 import UpgradePageContent from "@/components/react/UpgradePageContent";
@@ -22,6 +23,8 @@ Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-re
 
 // Get subscription info (pass auth object to use has() method)
 const subscriptionInfo = await getSubscriptionInfo(userId, auth);
+// Get tier limits for shared spaces (owned, joinable, members per space)
+const limitsInfo = await getUserLimitsInfo(userId, auth);
 
 // Extract publishable key and plan ID in frontmatter (where import.meta works)
 // Convert to strings to ensure proper serialization
@@ -64,6 +67,7 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
               initialHasUnlimited={subscriptionInfo.hasUnlimited}
               initialCurrentCount={subscriptionInfo.currentCount}
               initialLimit={subscriptionInfo.limit}
+              limitsInfo={limitsInfo}
               publishableKey={publishableKey}
               unlimitedPlanId={unlimitedPlanId}
             />

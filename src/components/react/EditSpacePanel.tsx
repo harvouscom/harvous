@@ -309,6 +309,7 @@ export default function EditSpacePanel({
           },
         })
       );
+      window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
     } catch (err: any) {
       window.dispatchEvent(
         new CustomEvent('toast', {
@@ -846,9 +847,10 @@ export default function EditSpacePanel({
       const data = await response.json();
 
       if (response.ok) {
-        // Success - fetch share link if now public
+        // Success - fetch share link if now public (creates token on first GET)
         if (isPublic) {
-          fetchShareLink();
+          await fetchShareLink();
+          window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
         } else {
           setShareLink(null);
         }

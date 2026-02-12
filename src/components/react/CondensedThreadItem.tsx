@@ -6,8 +6,8 @@ export interface CondensedThreadItemProps {
   color?: string;
   /** When true, show user-group icon; otherwise single user icon. */
   isPublic?: boolean;
-  /** Override icon: 'layer-group' shows the stacked-layers icon (shared space context). */
-  icon?: 'layer-group';
+  /** Override icon: 'layer-group' stacked-layers; 'cube' cube (spaces); 'bookmark' notes; 'square-check' spaces joined. */
+  icon?: 'layer-group' | 'cube' | 'bookmark' | 'square-check';
   /** Optional right-side action (e.g. remove button). */
   action?: React.ReactNode;
   className?: string;
@@ -84,9 +84,41 @@ export default function CondensedThreadItem({
           zIndex: 20
         }}
       >
-        {/* Layer-group (shared space context), user-group (shared), or single-user (private) icon */}
+        {/* Layer-group, cube, bookmark, square-check, user-group (shared), or single-user (private) icon */}
         <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-          {icon === 'layer-group' ? (
+          {icon === 'bookmark' ? (
+            <svg
+              style={{
+                display: 'block',
+                maxWidth: 'none',
+                width: '100%',
+                height: '100%',
+                color: 'var(--color-deep-grey)',
+                opacity: 0.3
+              }}
+              fill="currentColor"
+              viewBox="0 0 384 512"
+              aria-hidden="true"
+            >
+              <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
+            </svg>
+          ) : icon === 'square-check' ? (
+            <svg
+              style={{
+                display: 'block',
+                maxWidth: 'none',
+                width: '100%',
+                height: '100%',
+                color: 'var(--color-deep-grey)',
+                opacity: 0.3
+              }}
+              fill="currentColor"
+              viewBox="0 0 448 512"
+              aria-hidden="true"
+            >
+              <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
+            </svg>
+          ) : icon === 'layer-group' ? (
             <svg
               style={{
                 display: 'block',
@@ -100,6 +132,22 @@ export default function CondensedThreadItem({
               viewBox="0 0 576 512"
             >
               <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
+            </svg>
+          ) : icon === 'cube' ? (
+            <svg
+              style={{
+                display: 'block',
+                maxWidth: 'none',
+                width: '100%',
+                height: '100%',
+                color: 'var(--color-deep-grey)',
+                opacity: 0.3
+              }}
+              fill="currentColor"
+              viewBox="0 0 512 512"
+              aria-hidden="true"
+            >
+              <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
             </svg>
           ) : isPublic ? (
             <svg

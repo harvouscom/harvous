@@ -269,11 +269,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       } catch {
         // ignore
       }
-
-      // If we navigated to the dashboard, clear selected space so switcher shows "My Home".
-      if (newPath === '' || newPath === 'dashboard') {
-        setSelectedSpaceId(null);
-      }
     };
 
     document.addEventListener('astro:page-load', handlePageLoad);
@@ -289,11 +284,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     const syncFromLocation = () => {
       const path = window.location.pathname || '/';
-      // If we're on the dashboard, clear selected space so switcher shows "My Home".
-      if (path === '/' || path === '/dashboard') {
-        setSelectedSpaceId(null);
-        return;
-      }
       try {
         const params = new URLSearchParams(window.location.search);
         const fromSpace = params.get('space');
@@ -1168,9 +1158,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   
+  // Route-aware display: on dashboard show "My Home"; on other pages (profile, find, etc.) show stored selected space.
+  const displaySelectedSpaceId = isDashboard ? null : selectedSpaceId;
+  const displaySelectedSpaceLabel = isDashboard ? 'My Home' : selectedSpaceLabel;
+  const displaySelectedSpaceCount = isDashboard ? inboxCount : selectedSpaceCount;
+  const displaySelectedSpaceBackground = isDashboard ? getThreadGradientCSS('paper') : selectedSpaceBackground;
+
   const spaceButtonKey = `space-button-${selectedSpaceId}-${selectedSpaceLabel}-${selectedSpaceBackground}`;
 
-  const topSpaceIsActive = selectedSpaceId ? currentItemId === selectedSpaceId : isDashboard;
+  const topSpaceIsActive = displaySelectedSpaceId ? currentItemId === displaySelectedSpaceId : isDashboard;
 
   // Prevent background scroll while the sheet is open (lock layout-root, not body, so sheet inner scroll works on iOS)
   useEffect(() => {
@@ -1223,7 +1219,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <SpaceButton
               as="div"
-              text={activeThreadCandidate ? activeThreadCandidate.title : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.title : "My Home"}
+              text={activeThreadCandidate ? activeThreadCandidate.title : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.title : (isDashboard ? "My Home" : selectedSpaceLabel)}
               count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.totalItemCount : inboxCount}
               state="DropdownTrigger"
               rightAccessory="none"
@@ -1287,7 +1283,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   <div className="space-switcher-anchor space-switcher-anchor--mobile">
                     {/* Main button - always navigates to space/home (matches desktop); sort icon opens switch panel */}
                     <a 
-                      href={selectedSpaceId ? idToUrl(selectedSpaceId) : '/'}
+                      href={displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/'}
                       className="nav-link"
                       style={{ display: 'block', width: '100%' }}
                       onClick={() => closeSheet()}
@@ -1295,11 +1291,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <SpaceButton 
                         key={spaceButtonKey}
                         as="div"
-                        text={selectedSpaceLabel}
-                        count={selectedSpaceCount}
+                        text={displaySelectedSpaceLabel}
+                        count={displaySelectedSpaceCount}
                         state="WithCount"
                         rightAccessory="none"
-                        backgroundGradient={selectedSpaceBackground}
+                        backgroundGradient={displaySelectedSpaceBackground}
                         isActive={topSpaceIsActive}
                         hideDropdownIcon={true}
                       />
@@ -1326,7 +1322,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     <div className="mobile-nav__space-panel-scroll">
                     <a
                       href="/"
-                      className={`mobile-nav__space-panel-item ${!selectedSpaceId ? 'is-active' : ''}`}
+                      className={`mobile-nav__space-panel-item ${!displaySelectedSpaceId ? 'is-active' : ''}`}
                       onClick={() => {
                         setSelectedSpaceId(null);
                         closeSheet();
@@ -1334,7 +1330,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     >
                       <span className="mobile-nav__space-panel-label">My Home</span>
                       <span className="mobile-nav__space-panel-actions">
-                        {!selectedSpaceId ? (
+                        {!displaySelectedSpaceId ? (
                           <span className="mobile-nav__space-panel-check" aria-hidden="true">
                             <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                           </span>
@@ -1342,7 +1338,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       </span>
                     </a>
                     {spacesForDropdown.map((s) => {
-                      const isActive = !!selectedSpaceId && s.id === selectedSpaceId;
+                      const isActive = !!displaySelectedSpaceId && s.id === displaySelectedSpaceId;
                       return (
                         <a
                           key={s.id}

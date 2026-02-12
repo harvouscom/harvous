@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, Spaces, Members, eq, and } from 'astro:db';
-import { canAddMemberToSpace } from '@/utils/tier-limits';
+import { canAddMemberToSpaceByOwnerId, canOwnerAddOneMoreSharedSpace } from '@/utils/tier-limits';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import {
   successResponse,
@@ -71,12 +71,22 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       return errorResponse('You are already a member of this space', 'ALREADY_MEMBER', 400);
     }
 
-    // Check tier limits - can space owner add more members?
-    const canAdd = await canAddMemberToSpace(space.id, space.userId, locals.auth());
+    // Check tier limits - can space owner add more members? (use owner's tier, not joiner's)
+    const canAdd = await canAddMemberToSpaceByOwnerId(space.id, space.userId);
     if (!canAdd.allowed) {
       return errorResponse(
         canAdd.reason || 'This space has reached its member limit',
         'MEMBER_LIMIT_REACHED',
+        403
+      );
+    }
+
+    // Enforce owned shared spaces limit when adding the first member
+    const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, space.id);
+    if (!canAddShared.allowed) {
+      return errorResponse(
+        canAddShared.reason || 'Shared space limit reached',
+        'OWNED_SHARED_SPACES_LIMIT_REACHED',
         403
       );
     }

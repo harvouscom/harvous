@@ -2,10 +2,20 @@
 import React, { useState, useEffect } from 'react';
 import UpgradeCheckoutButton from './UpgradeCheckoutButton';
 
+export interface LimitsInfo {
+  tier: 'free' | 'unlimited';
+  limits: {
+    ownedSharedSpaces: { current: number; limit: number; remaining: number };
+    membersPerSpace: { limit: number };
+    joinableSpaces: { current: number; limit: number | null; remaining: number };
+  };
+}
+
 interface UpgradePageContentProps {
   initialHasUnlimited: boolean;
   initialCurrentCount: number;
   initialLimit: number | null;
+  limitsInfo?: LimitsInfo | null;
   publishableKey?: string | null;
   unlimitedPlanId?: string;
 }
@@ -18,26 +28,32 @@ export default function UpgradePageContent({
   initialHasUnlimited,
   initialCurrentCount,
   initialLimit,
+  limitsInfo: initialLimitsInfo = null,
   publishableKey,
   unlimitedPlanId,
 }: UpgradePageContentProps) {
   const [hasUnlimited, setHasUnlimited] = useState(initialHasUnlimited);
   const [currentCount, setCurrentCount] = useState(initialCurrentCount);
   const [limit, setLimit] = useState(initialLimit);
+  const [limitsInfo, setLimitsInfo] = useState<LimitsInfo | null>(initialLimitsInfo);
 
   // Check subscription status via API (simplified)
   const checkStatus = async () => {
     try {
-      const response = await fetch('/api/subscription/status', {
-        credentials: 'include',
-        cache: 'no-store'
-      });
+      const [subRes, limitsRes] = await Promise.all([
+        fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/user/limits', { credentials: 'include', cache: 'no-store' })
+      ]);
 
-      if (response.ok) {
-        const data = await response.json();
+      if (subRes.ok) {
+        const data = await subRes.json();
         setHasUnlimited(data.hasUnlimited);
         setCurrentCount(data.currentCount || 0);
         setLimit(data.limit || null);
+      }
+      if (limitsRes.ok) {
+        const data = await limitsRes.json();
+        if (data.limits) setLimitsInfo(data);
       }
     } catch (error) {
       console.error('[UpgradePageContent] Error checking status:', error);
@@ -78,6 +94,13 @@ export default function UpgradePageContent({
             <p className="clerk-form-header-subtitle">
               You're all set. Create as many notes as you need.
             </p>
+            {limitsInfo && (
+              <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
+                <li>Unlimited notes</li>
+                <li>{limitsInfo.limits.ownedSharedSpaces.limit} spaces shared</li>
+                <li>Join unlimited spaces</li>
+              </ul>
+            )}
           </div>
           <a 
             href="/" 
@@ -93,10 +116,76 @@ export default function UpgradePageContent({
       ) : (
         <div className="upgrade-content">
           <div className="upgrade-content__header">
-            <h1 className="clerk-form-header-title">You've used {currentCount.toLocaleString()} of {limit?.toLocaleString() || 1000} notes</h1>
+            <h1 className="clerk-form-header-title">You're on the free plan</h1>
             <p className="clerk-form-header-subtitle">
-              To keep using Harvous past the {(limit ?? 1000).toLocaleString()} note limit upgrade to get unlimited notes. Either choose to pay monthly or yearly (save 50% at $3 per month).
+              Upgrade for unlimited notes, more spaces shared, and the ability to join more spaces. Pay monthly or yearly (save 50% at $3 per month).
             </p>
+            {limitsInfo && (() => {
+              const limitRed = 'var(--color-red, #dc2626)';
+              const notesAtLimit = (limit ?? 1000) - currentCount <= 100;
+              const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+              const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
+              return (
+                <div className="grid grid-cols-3" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
+                  {/* Notes */}
+                  <div
+                    className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 text-center"
+                    style={{
+                      border: '1px solid',
+                      borderColor: notesAtLimit ? limitRed : 'var(--color-fog-white)'
+                    }}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 384 512" aria-hidden="true">
+                      <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                        {currentCount.toLocaleString()} of {(limit ?? 1000).toLocaleString()}
+                      </div>
+                      <div className="text-xs" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Notes</div>
+                    </div>
+                  </div>
+                  {/* Spaces shared */}
+                  <div
+                    className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 text-center"
+                    style={{
+                      border: '1px solid',
+                      borderColor: sharedAtLimit ? limitRed : 'var(--color-fog-white)'
+                    }}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 512 512" aria-hidden="true">
+                      <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                        {limitsInfo.limits.ownedSharedSpaces.current} of {limitsInfo.limits.ownedSharedSpaces.limit}
+                      </div>
+                      <div className="text-xs" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Spaces shared</div>
+                    </div>
+                  </div>
+                  {/* Spaces joined */}
+                  <div
+                    className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 text-center"
+                    style={{
+                      border: '1px solid',
+                      borderColor: joinedAtLimit ? limitRed : 'var(--color-fog-white)'
+                    }}
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 448 512" aria-hidden="true">
+                      <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <div className="text-base font-semibold" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
+                        {limitsInfo.limits.joinableSpaces.limit == null
+                          ? `${limitsInfo.limits.joinableSpaces.current} (unlimited)`
+                          : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit}`}
+                      </div>
+                      <div className="text-xs" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>Spaces joined</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Checkout button using Clerk's React CheckoutButton component */}

@@ -6,7 +6,7 @@ import CondensedThreadItem from './CondensedThreadItem';
 import ActionButton from './ActionButton';
 import { toast } from '@/utils/toast';
 
-type SharingFilter = 'all' | 'threads' | 'notes';
+type SharingFilter = 'all' | 'threads' | 'notes' | 'spaces';
 
 interface SharedThread {
   id: string;
@@ -23,6 +23,15 @@ interface SharedNote {
   shareUrl: string;
 }
 
+interface OwnedSharedSpace {
+  id: string;
+  title: string;
+  color?: string | null;
+  memberCount: number;
+  shareToken?: string | null;
+  shareUrl?: string;
+}
+
 interface MySharingPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
@@ -34,6 +43,7 @@ export default function MySharingPanel({
 }: MySharingPanelProps) {
   const [threads, setThreads] = useState<SharedThread[]>([]);
   const [notes, setNotes] = useState<SharedNote[]>([]);
+  const [ownedSpaces, setOwnedSpaces] = useState<OwnedSharedSpace[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [disablingId, setDisablingId] = useState<string | null>(null);
@@ -51,18 +61,26 @@ export default function MySharingPanel({
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/profile/my-sharing', {
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to load');
-      setThreads(data.threads ?? []);
-      setNotes(data.notes ?? []);
+      const [sharingRes, spacesRes] = await Promise.all([
+        fetch('/api/profile/my-sharing', { credentials: 'include', cache: 'no-store' }),
+        fetch('/api/profile/my-shared-spaces', { credentials: 'include', cache: 'no-store' })
+      ]);
+      const sharingData = await sharingRes.json();
+      if (!sharingRes.ok) throw new Error(sharingData.error || 'Failed to load');
+      setThreads(sharingData.threads ?? []);
+      setNotes(sharingData.notes ?? []);
+
+      if (spacesRes.ok) {
+        const spacesData = await spacesRes.json();
+        setOwnedSpaces(spacesData.owned ?? []);
+      } else {
+        setOwnedSpaces([]);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setThreads([]);
       setNotes([]);
+      setOwnedSpaces([]);
     } finally {
       setIsLoading(false);
     }
@@ -70,6 +88,13 @@ export default function MySharingPanel({
 
   useEffect(() => {
     fetchShared();
+  }, [fetchShared]);
+
+  // Refetch when sharing is changed elsewhere (e.g. share link generated in EditSpacePanel)
+  useEffect(() => {
+    const handleInvalidate = () => fetchShared();
+    window.addEventListener('mySharingInvalidate', handleInvalidate);
+    return () => window.removeEventListener('mySharingInvalidate', handleInvalidate);
   }, [fetchShared]);
 
   const handleDisableThread = async (thread: SharedThread) => {
@@ -112,18 +137,37 @@ export default function MySharingPanel({
     }
   };
 
-  const isEmpty = !isLoading && !error && threads.length === 0 && notes.length === 0;
+  const spacesCount = ownedSpaces.length;
+  const isEmpty = !isLoading && !error && threads.length === 0 && notes.length === 0 && spacesCount === 0;
   const showThreads = activeFilter === 'all' || activeFilter === 'threads';
   const showNotes = activeFilter === 'all' || activeFilter === 'notes';
+  const showSpaces = activeFilter === 'all' || activeFilter === 'spaces';
   const hasItemsForFilter =
-    activeFilter === 'all' ? threads.length + notes.length > 0 :
-    activeFilter === 'threads' ? threads.length > 0 : notes.length > 0;
+    activeFilter === 'all' ? threads.length + notes.length + spacesCount > 0 :
+    activeFilter === 'threads' ? threads.length > 0 :
+    activeFilter === 'notes' ? notes.length > 0 : spacesCount > 0;
 
   const sharingTabs = [
-    { id: 'all', label: 'All', isActive: activeFilter === 'all', count: threads.length + notes.length },
+    { id: 'all', label: 'All', isActive: activeFilter === 'all', count: threads.length + notes.length + spacesCount },
+    { id: 'spaces', label: 'Spaces', isActive: activeFilter === 'spaces', count: spacesCount },
     { id: 'threads', label: 'Threads', isActive: activeFilter === 'threads', count: threads.length },
     { id: 'notes', label: 'Notes', isActive: activeFilter === 'notes', count: notes.length }
   ];
+
+  const handleCopySpaceLink = async (space: OwnedSharedSpace) => {
+    if (!space.shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(space.shareUrl);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy link');
+    }
+  };
+
+  const handleOpenSpace = (spaceId: string) => {
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    window.location.href = `/?spaceId=${spaceId}`;
+  };
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
@@ -161,7 +205,15 @@ export default function MySharingPanel({
               {isEmpty && !isLoading && (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Turn on sharing from a thread or a note to see them here.
+                    Turn on sharing from a thread, a note, or a space to see them here.
+                  </p>
+                </div>
+              )}
+
+              {!isLoading && !error && activeFilter === 'spaces' && spacesCount === 0 && (
+                <div className="w-full p-8 text-center">
+                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
+                    Spaces you create and invite people to will appear here.
                   </p>
                 </div>
               )}
@@ -206,14 +258,47 @@ export default function MySharingPanel({
                         />
                       </li>
                     ))}
+                    {showSpaces && ownedSpaces.map((space) => (
+                      <li key={`owned-${space.id}`}>
+                        <CondensedThreadItem
+                          title={space.title}
+                          color={space.color ?? undefined}
+                          icon="cube"
+                          action={
+                            <div className="flex items-center gap-1">
+                              {space.shareUrl && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopySpaceLink(space)}
+                                  className="text-sm font-semibold px-2 py-1 rounded-lg"
+                                  style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
+                                  aria-label={`Copy invite link: ${space.title}`}
+                                >
+                                  Copy link
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSpace(space.id)}
+                                className="text-sm font-semibold px-2 py-1 rounded-lg"
+                                style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
+                                aria-label={`Open: ${space.title}`}
+                              >
+                                Open
+                              </button>
+                            </div>
+                          }
+                        />
+                      </li>
+                    ))}
                   </ul>
                 </div>
               )}
 
-              {!isLoading && !isEmpty && !hasItemsForFilter && (
+              {!isLoading && !isEmpty && !hasItemsForFilter && !(activeFilter === 'spaces' && spacesCount === 0) && (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
-                    No {activeFilter === 'threads' ? 'threads' : 'notes'} shared yet.
+                    No {activeFilter === 'threads' ? 'threads' : activeFilter === 'notes' ? 'notes' : 'shared spaces'} yet.
                   </p>
                 </div>
               )}

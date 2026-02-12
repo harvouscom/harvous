@@ -2,7 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, SpaceInvitations, Spaces, Members, eq, and } from 'astro:db';
-import { canJoinSpace } from '@/utils/tier-limits';
+import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '@/utils/tier-limits';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import {
   successResponse,
@@ -111,6 +111,12 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const canJoin = await canJoinSpace(userId, locals.auth());
     if (!canJoin.allowed) {
       return forbiddenResponse(canJoin.reason || 'Cannot join more spaces');
+    }
+
+    // Enforce owned shared spaces limit when adding the first member
+    const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, invitation.spaceId);
+    if (!canAddShared.allowed) {
+      return forbiddenResponse(canAddShared.reason || 'Shared space limit reached');
     }
 
     // All checks passed - add user as member
