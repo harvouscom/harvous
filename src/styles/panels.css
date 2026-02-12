@@ -111,9 +111,10 @@
   overflow: hidden !important;
 }
 
-/* In-sheet: editor fills parent (chain already constrained by sheet + bottom-sheet__inner); overflow scrolls */
+/* In-sheet: editor scroll area constrained by --editor-scroll-max-height (set from visual viewport when keyboard open) so overflow is scrollable on iOS */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
   min-height: 120px;
+  max-height: var(--editor-scroll-max-height, none);
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;

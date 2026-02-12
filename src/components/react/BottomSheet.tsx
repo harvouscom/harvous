@@ -385,6 +385,34 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
+  // Constrain editor scroll area to visible height above keyboard so user can scroll to see content (iOS: flex height alone can leave overflow unscrollable)
+  useEffect(() => {
+    if (!isVisible || !isMobile) return;
+    const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
+    const el = sheetContentElRef.current;
+    if (!el || !isNoteOrResource) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const HEADER_TOOLBAR_FOOTER_PX = 220;
+    const setEditorMaxHeight = () => {
+      const keyboardLikelyOpen = vv.height < window.innerHeight * 0.75;
+      if (keyboardLikelyOpen) {
+        const h = Math.max(120, vv.height - HEADER_TOOLBAR_FOOTER_PX);
+        el.style.setProperty('--editor-scroll-max-height', `${h}px`);
+      } else {
+        el.style.removeProperty('--editor-scroll-max-height');
+      }
+    };
+    setEditorMaxHeight();
+    vv.addEventListener('resize', setEditorMaxHeight);
+    vv.addEventListener('scroll', setEditorMaxHeight);
+    return () => {
+      vv.removeEventListener('resize', setEditorMaxHeight);
+      vv.removeEventListener('scroll', setEditorMaxHeight);
+      el.style.removeProperty('--editor-scroll-max-height');
+    };
+  }, [isVisible, isMobile, drawerType]);
+
   // Prevent background scrolling when bottom sheet is open (lock layout-root, not body, so sheet portal is outside fixed container and inner scroll works on iOS)
   useEffect(() => {
     const root = document.getElementById('layout-root');
