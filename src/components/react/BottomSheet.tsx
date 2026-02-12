@@ -385,6 +385,37 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
+  // Size sheet to visual viewport when note/resource panel is open so content stays above keyboard
+  useEffect(() => {
+    if (!isVisible || !isMobile) return;
+    const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
+    const el = sheetContentElRef.current;
+    if (!el || !isNoteOrResource) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const setSize = () => {
+      el.style.top = `${vv.offsetTop}px`;
+      el.style.left = `${vv.offsetLeft}px`;
+      el.style.width = `${vv.width}px`;
+      el.style.height = `${vv.height}px`;
+      el.style.maxHeight = `${vv.height}px`;
+      el.style.setProperty('--sheet-viewport-height', `${vv.height}px`);
+    };
+    setSize();
+    vv.addEventListener('resize', setSize);
+    vv.addEventListener('scroll', setSize);
+    return () => {
+      vv.removeEventListener('resize', setSize);
+      vv.removeEventListener('scroll', setSize);
+      el.style.top = '';
+      el.style.left = '';
+      el.style.width = '';
+      el.style.height = '';
+      el.style.maxHeight = '';
+      el.style.removeProperty('--sheet-viewport-height');
+    };
+  }, [isVisible, isMobile, drawerType]);
+
   // Prevent background scrolling when bottom sheet is open
   useEffect(() => {
     if (isVisible) {

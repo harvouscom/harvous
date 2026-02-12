@@ -71,11 +71,6 @@
   overflow: hidden;
   height: 90vh;
 }
-@supports (height: 100dvh) {
-  .bottom-sheet-content {
-    height: 90dvh;
-  }
-}
 
 /* Prevent header/focus anchor from shrinking so title and toolbar stay visible every time */
 .bottom-sheet-content > div:first-of-type,
@@ -90,6 +85,7 @@
   min-height: 0;
   flex: 1 1 0%;
   overflow: hidden;
+  max-height: var(--sheet-viewport-height, 90vh);
 }
 
 /* New note panel inside bottom sheet only: strict flex chain so .tiptap-content gets a height and scrolls */
@@ -114,17 +110,12 @@
 
 /* In-sheet: allow editor content to scroll when content is long */
 .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-  max-height: calc(90vh - 320px);
+  max-height: calc(var(--sheet-viewport-height, 90vh) - 320px);
   min-height: 120px;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-}
-@supports (height: 100dvh) {
-  .bottom-sheet-content .new-note-panel--in-sheet .tiptap-content {
-    max-height: calc(100dvh - 320px);
-  }
 }
 
 /* Bottom-sheet panels should use tighter header gutters */
