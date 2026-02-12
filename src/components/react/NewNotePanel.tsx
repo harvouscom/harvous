@@ -1282,7 +1282,7 @@ export default function NewNotePanel({
                         nextNoteId={nextNoteId}
                         onEditorReady={handleEditorReady}
                         parentThreadId={threadSelection.getSelectedThread()?.id}
-                        toolbarAtBottom={inBottomSheet}
+                        toolbarAtBottom={true}
                       />
                     )}
                     {form.noteType === 'scripture' && (
@@ -1294,7 +1294,7 @@ export default function NewNotePanel({
                         nextNoteId={nextNoteId}
                         onEditorReady={handleEditorReady}
                         parentThreadId={threadSelection.getSelectedThread()?.id}
-                        toolbarAtBottom={inBottomSheet}
+                        toolbarAtBottom={true}
                       />
                     )}
                     {form.noteType === 'resource' && (
