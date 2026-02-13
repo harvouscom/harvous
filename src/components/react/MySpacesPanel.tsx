@@ -444,7 +444,7 @@ export default function MySpacesPanel({
   // Render space item in AddToSpaceSection style (works for owned Space or normalized joined DisplaySpace)
   const renderSpaceItem = (space: DisplaySpace) => {
     const spaceAccentColor = space.color ? `var(--color-${space.color})` : "var(--color-paper)";
-    const isShared = sharedSpaceIds.has(space.id) || joinedOnlySpaces.some(m => m.id === space.id);
+    const isShared = sharedSpaceIds.has(space.id) || memberOfSpaces.some(m => m.id === space.id);
 
     return (
       <div
