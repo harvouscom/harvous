@@ -2,11 +2,18 @@
  * Determines if a "More" button should be shown based on content type
  * @param contentType The type of content being displayed
  * @param contentId Optional content ID to check for special cases (e.g., unorganized thread)
+ * @param contentOwnerId Optional; when set with currentUserId, hide More for thread when member viewing another's thread
+ * @param currentUserId Optional; current user id for ownership check
  * @returns boolean indicating if the More button should be shown
  */
-export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string): boolean {
+export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, contentOwnerId?: string | null, currentUserId?: string | null): boolean {
   // Hide more button for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
+    return false;
+  }
+
+  // Hide More for thread when member viewing another's thread (no menu options)
+  if (contentType === "thread" && contentOwnerId != null && currentUserId != null && contentOwnerId !== currentUserId) {
     return false;
   }
   

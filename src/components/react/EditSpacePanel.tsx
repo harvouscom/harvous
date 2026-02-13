@@ -120,12 +120,6 @@ export default function EditSpacePanel({
     }
   }, [formData.selectedType, members.length]);
 
-  // When member view: no Add tab, so if activeTab is 'all' switch to 'added'
-  useEffect(() => {
-    if (!isOwner && activeTab === 'all') {
-      setActiveTab('added');
-    }
-  }, [isOwner, activeTab]);
 
 
   // Fetch all notes and threads (for AddToSpaceSection)
@@ -1441,7 +1435,7 @@ export default function EditSpacePanel({
                   const showPeopleTab = formData.selectedType === 'Shared' && members.length > 1;
                   const tabs = [
                     { id: 'added', label: 'Added', isActive: activeTab === 'added', count: (currentSpaceNotes.length + currentSpaceThreads.length) || undefined },
-                    ...(isOwner ? [{ id: 'search', label: 'Add', isActive: activeTab === 'all' }] : []),
+                    { id: 'search', label: 'Add', isActive: activeTab === 'all' },
                     ...(showPeopleTab ? [{ id: 'people', label: 'People', isActive: activeTab === 'people', count: memberCount }] : []),
                   ];
                   return (
@@ -1577,7 +1571,7 @@ export default function EditSpacePanel({
                               {initials}
                             </div>
                             <span className="space-people-list__name" style={{ paddingLeft: '3.5rem' }}>{displayName}</span>
-                            {member.role === 'owner' && (
+                            {member.userId === userId && (
                               <span className="space-people-list__owner-badge">You</span>
                             )}
                             {canRemove && (

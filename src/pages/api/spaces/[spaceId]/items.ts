@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getNotesForSpace, getThreadsForSpace } from '@/utils/dashboard-data';
+import { getNotesForSpace, getThreadsForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember } from '@/utils/dashboard-data';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { unauthorizedResponse, errorResponse, successResponse } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
@@ -20,17 +20,27 @@ export const GET: APIRoute = async ({ params, locals }) => {
       return errorResponse('Space ID is required', 'INVALID_SPACE_ID');
     }
 
-    // NEW: Verify user has access (owner or member)
-    // This replaces the implicit permission check in getNotesForSpace/getThreadsForSpace
-    await requireSpaceAccess(spaceId, userId);
+    // Verify user has access (owner or member) and get role + space
+    const { role, space } = await requireSpaceAccess(spaceId, userId);
 
-    // Fetch notes and threads currently in the space
-    // getNotesForSpace now returns { notes, hasMore }
-    const [notesResult, threads] = await Promise.all([
-      getNotesForSpace(spaceId, userId, 100), // Get up to 100 notes
-      getThreadsForSpace(spaceId, userId)
-    ]);
-    const notes = notesResult.notes;
+    let notes: any[];
+    let threads: any[];
+
+    if (role === 'owner') {
+      const [notesResult, threadsData] = await Promise.all([
+        getNotesForSpace(spaceId, userId, 100),
+        getThreadsForSpace(spaceId, userId)
+      ]);
+      notes = notesResult.notes;
+      threads = threadsData;
+    } else {
+      const [threadsData, notesResult] = await Promise.all([
+        getThreadsForSpaceBySpaceId(spaceId),
+        getNotesForSpaceForMember(spaceId, space.userId, 100)
+      ]);
+      threads = threadsData;
+      notes = notesResult.notes;
+    }
 
     return successResponse({
       notes,

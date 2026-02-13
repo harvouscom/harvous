@@ -63,8 +63,8 @@ const noteType = currentNote?.noteType;
 const contentEncrypted = currentNote?.contentEncrypted;
 const noteSimpleId = currentNote?.noteId ?? null;
 
-// Determine if More button should be shown (pass contentId to hide for unorganized thread)
-const showMoreButton = shouldShowMoreButton(contentType, contentId);
+// Determine if More button should be shown (pass contentId to hide for unorganized thread; hide for member viewing another's thread)
+const showMoreButton = shouldShowMoreButton(contentType, contentId, contentOwnerId, userId);
 
 // Extract publishable key in frontmatter (where import.meta works)
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;

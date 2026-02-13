@@ -1,7 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getNotesForThread } from '@/utils/dashboard-data';
+import { db, Threads, eq } from 'astro:db';
+import { getNotesForThread, getNotesForThreadForMember } from '@/utils/dashboard-data';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, request, locals }) => {
@@ -27,9 +29,26 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     const offset = parseInt(url.searchParams.get('offset') || '0', 10);
     const limit = parseInt(url.searchParams.get('limit') || '20', 10);
 
-    // getNotesForThread now returns { notes, hasMore }
-    // It fetches limit + offset + 1 items internally to determine hasMore
-    const { notes, hasMore } = await getNotesForThread(threadId, userId, limit, offset);
+    // Owner path: getNotesForThread returns { notes, hasMore } or [] on error
+    let result = await getNotesForThread(threadId, userId, limit, offset);
+    if (Array.isArray(result)) {
+      result = { notes: [], hasMore: false };
+    }
+
+    // If owner path returned no notes and offset is 0, try member path (thread in a space the user is a member of)
+    if (result.notes.length === 0 && offset === 0) {
+      const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      if (thread?.spaceId) {
+        try {
+          const { space } = await requireSpaceAccess(thread.spaceId, userId);
+          result = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
+        } catch {
+          // No access - keep owner result (empty)
+        }
+      }
+    }
+
+    const { notes, hasMore } = result;
 
     return new Response(JSON.stringify({
       notes,

@@ -29,7 +29,7 @@ export default function MobileAdditional({
   contentOwnerId,
   userId
 }: MobileAdditionalProps) {
-  const showMoreButton = shouldShowMoreButton(contentType, contentId);
+  const showMoreButton = shouldShowMoreButton(contentType, contentId, contentOwnerId, userId);
   const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
