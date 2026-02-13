@@ -1350,7 +1350,7 @@ export default function ThreadNotesList({
                 cursor: 'pointer'
               }}
             >
-              {/* Accent bar on left – use thread color when available (e.g. member in shared space) */}
+              {/* Accent bar on left */}
               <div 
                 style={{ 
                   position: 'absolute',
@@ -1361,7 +1361,7 @@ export default function ThreadNotesList({
                   borderTopLeftRadius: '0.75rem',
                   borderBottomLeftRadius: '0.75rem',
                   overflow: 'hidden',
-                  backgroundColor: threadColor ? `var(--color-${threadColor})` : (note.threadColors?.[0]?.color ? `var(--color-${note.threadColors[0].color})` : 'var(--color-light-paper)')
+                  backgroundColor: 'var(--color-light-paper)'
                 }}
               />
               

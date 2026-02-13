@@ -1148,13 +1148,20 @@ export default function NewNotePanel({
     return null;
   }
 
-  // Get selected thread object for header display
+  // Get selected thread object for header display (from threadOptions or currentThread when adding to a thread in a shared space as member)
   const selectedThreadObj = threadSelection.threadOptions.find(
     t => t.title === threadSelection.selectedThread
   );
-  const threadBackgroundGradient = selectedThreadObj?.backgroundGradient || 'var(--color-gradient-gray)';
-  const threadColor = selectedThreadObj?.color || null;
-  const threadNoteCount = selectedThreadObj?.noteCount || 0;
+  const isCurrentThreadSelected = currentThread && currentThread.title === threadSelection.selectedThread;
+  const threadBackgroundGradient = selectedThreadObj?.backgroundGradient
+    ?? (isCurrentThreadSelected ? currentThread?.backgroundGradient : null)
+    ?? 'var(--color-gradient-gray)';
+  const threadColor = selectedThreadObj?.color
+    ?? (isCurrentThreadSelected ? currentThread?.color ?? null : null)
+    ?? null;
+  const threadNoteCount = selectedThreadObj?.noteCount
+    ?? (isCurrentThreadSelected ? currentThread?.noteCount : undefined)
+    ?? 0;
 
   // Handle thread header click - align dropdown top with card-stack__inner content
   const handleThreadHeaderClick = () => {
