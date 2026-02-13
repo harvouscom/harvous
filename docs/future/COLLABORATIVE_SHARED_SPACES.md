@@ -705,7 +705,7 @@ useEffect(() => {
 ## Monetization & Tier Limits
 
 ### Free Tier
-- **Notes:** 300 notes (personal + shared combined)
+- **Notes:** 200 notes (personal + shared combined)
 - **Space Membership:** Join up to 3 Spaces as a member
 - **Owned Spaces:** Create 1 shared Space, 5 members max
 - **Note Templates:** Access to built-in templates only

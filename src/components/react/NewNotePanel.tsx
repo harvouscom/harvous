@@ -100,7 +100,7 @@ export default function NewNotePanel({
   // State for subscription limit check
   const [isLimitReached, setIsLimitReached] = useState(false);
   const [currentCount, setCurrentCount] = useState(0);
-  const [limit, setLimit] = useState(300);
+  const [limit, setLimit] = useState(200);
 
   // Thread dropdown (CardStack header)
   const [isThreadDropdownOpen, setIsThreadDropdownOpen] = useState(false);
@@ -376,8 +376,8 @@ export default function NewNotePanel({
       if (!userId) return;
       try {
         const localCount = await getLocalNoteCount(userId);
-        // Use default limit of 300 if we can't get it from server
-        const defaultLimit = 300;
+        // Use default limit of 200 if we can't get it from server
+        const defaultLimit = 200;
         setCurrentCount(localCount);
         setLimit(defaultLimit);
         // Check if user is close to limit (within 10 notes) to prevent abuse
@@ -407,8 +407,8 @@ export default function NewNotePanel({
       if (response.ok) {
         const data = await response.json();
         setCurrentCount(data.currentCount || 0);
-        setLimit(data.limit || 300);
-        setIsLimitReached(!data.hasUnlimited && (data.currentCount || 0) >= (data.limit || 300));
+        setLimit(data.limit || 200);
+        setIsLimitReached(!data.hasUnlimited && (data.currentCount || 0) >= (data.limit || 200));
       } else {
         // Only log if it's not a 401 (unauthorized) - that's expected if user isn't logged in
         if (response.status !== 401) {
@@ -502,7 +502,7 @@ export default function NewNotePanel({
       pendingTimeoutRef.current = setTimeout(() => {
         pendingTimeoutRef.current = null;
         threadSelection.loadThreads();
-      }, 300);
+      }, 200);
     };
 
     const handleNoteCreated = (event: Event) => {

@@ -22,7 +22,7 @@ export default function NoteFormFooter({
   duplicateInfo,
   isLimitReached = false,
   currentCount = 0,
-  limit = 300,
+  limit = 200,
   showCloseButton = true,
 }: NoteFormFooterProps) {
   const isResource = noteType === 'resource';

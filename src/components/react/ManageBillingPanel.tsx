@@ -67,15 +67,15 @@ export default function ManageBillingPanel({
       if (description) {
         const originalText = description.textContent || '';
         // Check if we've already updated it (avoid infinite loop)
-        if (!originalText.includes('300 notes')) {
+        if (!originalText.includes('200 notes')) {
           // Extract the date part from the original text
           const dateMatch = originalText.match(/until ([^,]+),/);
           if (dateMatch) {
             const date = dateMatch[1];
-            description.textContent = `You can keep using 'Unlimited' features until ${date}, after which you will no longer have access. After canceling, you'll be moved to the free plan, which is limited to 300 notes.`;
+            description.textContent = `You can keep using 'Unlimited' features until ${date}, after which you will no longer have access. After canceling, you'll be moved to the free plan, which is limited to 200 notes.`;
           } else {
             // Fallback if date format is different
-            description.textContent = originalText + " After canceling, you'll be moved to the free plan, which is limited to 300 notes.";
+            description.textContent = originalText + " After canceling, you'll be moved to the free plan, which is limited to 200 notes.";
           }
         }
       }
@@ -381,7 +381,7 @@ export default function ManageBillingPanel({
                 {/* Subscription Status Display */}
                 {!isLoading && subscriptionInfo && (() => {
                   const limitRed = 'var(--color-red, #dc2626)';
-                  const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 300) - subscriptionInfo.currentCount <= 100;
+                  const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 200) - subscriptionInfo.currentCount <= 100;
                   const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
                   const joinedAtLimit = limitsInfo != null && limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
                   return (
@@ -408,7 +408,7 @@ export default function ManageBillingPanel({
                           <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
                             {subscriptionInfo.hasUnlimited
                               ? 'Unlimited notes'
-                              : `${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 300).toLocaleString()} notes${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
+                              : `${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 200).toLocaleString()} notes${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
                           </span>
                           {!subscriptionInfo.hasUnlimited && (
                             <span className="text-xs flex-shrink-0" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>

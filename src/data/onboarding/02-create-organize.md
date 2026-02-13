@@ -24,7 +24,7 @@ When you erase a thread the notes don't get erased (expect for this thread). Any
 ## Notes
 Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the “...” square button to the right or at the bottom):
 
-1. Each note comes with its own # ex: N316 (which by the way you get 300 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
+1. Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
 2. To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.
 3. If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text (NET version only for right now) as another note. Harvous keeps track of where your scripture was captured with what notes and threads. 
 4. Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.

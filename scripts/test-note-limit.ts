@@ -5,8 +5,8 @@
  *   npx tsx scripts/test-note-limit.ts <count>
  * 
  * Examples:
- *   npx tsx scripts/test-note-limit.ts 299  # Set to 299 (can create 1 more)
- *   npx tsx scripts/test-note-limit.ts 300  # Set to 300 (at limit, blocked)
+ *   npx tsx scripts/test-note-limit.ts 199  # Set to 199 (can create 1 more)
+ *   npx tsx scripts/test-note-limit.ts 200  # Set to 200 (at limit, blocked)
  *   npx tsx scripts/test-note-limit.ts 50   # Set to 50 (well under limit)
  */
 
@@ -102,15 +102,15 @@ async function setNoteCount() {
     }
 
     console.log('\n📋 Test Scenarios:');
-    if (targetCount < 300) {
-      const remaining = 300 - targetCount;
+    if (targetCount < 200) {
+      const remaining = 200 - targetCount;
       console.log(`   ✅ You can create ${remaining} more note(s) before hitting the limit`);
       console.log(`   🧪 Try creating a note - it should work!`);
-    } else if (targetCount === 300) {
-      console.log(`   ⚠️  You're at the limit (300 notes)`);
+    } else if (targetCount === 200) {
+      console.log(`   ⚠️  You're at the limit (200 notes)`);
       console.log(`   🧪 Try creating a note - it should be BLOCKED with upgrade prompt`);
     } else {
-      console.log(`   🚫 You're over the limit (${targetCount} > 300)`);
+      console.log(`   🚫 You're over the limit (${targetCount} > 200)`);
       console.log(`   🧪 Try creating a note - it should be BLOCKED`);
     }
 

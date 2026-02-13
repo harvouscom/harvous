@@ -124,7 +124,7 @@ export default function UpgradePageContent({
             </p>
             {limitsInfo && (() => {
               const limitRed = 'var(--color-red, #dc2626)';
-              const notesAtLimit = (limit ?? 300) - currentCount <= 100;
+              const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
               const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
               return (
@@ -142,7 +142,7 @@ export default function UpgradePageContent({
                     </svg>
                     <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                       <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                        {currentCount.toLocaleString()} of {(limit ?? 300).toLocaleString()} notes
+                        {currentCount.toLocaleString()} of {(limit ?? 200).toLocaleString()} notes
                       </span>
                       {!hasUnlimited && (
                         <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
