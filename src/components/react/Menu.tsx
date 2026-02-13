@@ -59,6 +59,10 @@ const renderIcon = (icon: any, action: string) => {
     'hashtag': {
       viewBox: '0 0 448 512',
       path: 'M181.3 32.4c17.4 2.9 29.2 19.4 26.3 36.8L197.8 128l95.1 0 11.5-69.3c2.9-17.4 19.4-29.2 36.8-26.3s29.2 19.4 26.3 36.8L357.8 128l58.2 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-68.9 0L325.8 320l58.2 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-68.9 0-11.5 69.3c-2.9 17.4-19.4 29.2-36.8 26.3s-29.2-19.4-26.3-36.8l9.8-58.7-95.1 0-11.5 69.3c-2.9 17.4-19.4 29.2-36.8 26.3s-29.2-19.4-26.3-36.8L90.2 384 32 384c-17.7 0-32-14.3-32-32s14.3-32 32-32l68.9 0 21.3-128L64 192c-17.7 0-32-14.3-32-32s14.3-32 32-32l68.9 0 11.5-69.3c2.9-17.4 19.4-29.2 36.8-26.3zM187.1 192L165.8 320l95.1 0 21.3-128-95.1 0z'
+    },
+    'right-from-bracket': {
+      viewBox: '0 0 512 512',
+      path: 'M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z'
     }
   };
 
@@ -85,8 +89,10 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'hashtag';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
-  } else if (action.includes('seeDetails') || action.includes('Details')) {
+  } else if (action === 'viewSpace' || action.includes('seeDetails') || action.includes('Details')) {
     iconKey = 'circle-info';
+  } else if (action === 'leaveSpace') {
+    iconKey = 'right-from-bracket';
   } else if (action.includes('Resource')) {
     iconKey = 'newspaper';
   }
@@ -104,6 +110,7 @@ const renderIcon = (icon: any, action: string) => {
     else if (src === 'unlock') iconKey = 'unlock';
     else if (src.includes('lock')) iconKey = 'lock';
     else if (src.includes('hashtag')) iconKey = 'hashtag';
+    else if (src.includes('right-from-bracket')) iconKey = 'right-from-bracket';
   }
 
   // If we found a matching icon, render as inline SVG
@@ -309,6 +316,31 @@ export default function Menu({
         }));
       } catch (error) {
         console.error('Error opening edit space panel:', error);
+      }
+    } else if (action === 'viewSpace') {
+      // Handle Space details (members see People list; same panel as edit)
+      try {
+        window.dispatchEvent(new CustomEvent('openEditSpacePanel', {
+          detail: { contentId, contentType }
+        }));
+      } catch (error) {
+        console.error('Error opening edit space panel:', error);
+      }
+    } else if (action === 'leaveSpace') {
+      // Leave space: confirm, DELETE member, redirect to /
+      if (contentType !== 'space' || !contentId || !userId) return;
+      if (!confirm('Leave this space? You can rejoin later with the same link.')) return;
+      try {
+        const base = typeof window !== 'undefined' ? window.location.origin : '';
+        const res = await fetch(`${base}/api/spaces/${contentId}/members/${userId}`, { method: 'DELETE' });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.message || 'Could not leave space.');
+        }
+      } catch {
+        alert('Could not leave space.');
       }
     } else if (action === 'openNewThreadPanel') {
       // Handle Add Thread action

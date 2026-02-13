@@ -30,9 +30,10 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentEncrypted Optional; when true, note is locked so we show "Remove lock" only
  * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked in session so we show "Remove lock"
  * @param simpleNoteId Optional; when set for notes, adds a "copy note ID" option with label e.g. N042
+ * @param spaceRole Optional; when 'member', space menu shows Space details + Leave space only (no Edit/Erase)
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -81,6 +82,12 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
 
       return options;
     case "space":
+      if (spaceRole === 'member') {
+        return [
+          { action: "viewSpace", label: "Space details" },
+          { action: "leaveSpace", label: "Leave space" }
+        ];
+      }
       return [
         { action: "editSpace", label: "Edit Space" },
         { action: "eraseSpace", label: "Erase Space" }

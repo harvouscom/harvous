@@ -5,9 +5,8 @@ interface SpaceCardStackHeaderProps {
   initialTitle: string;
   initialColor: ThreadColor;
   spaceId: string;
-  /** When 'member', show "Leave space" control. Omit or 'owner' = no control. */
+  /** Passed from slug; Leave space is in the More menu for members, not in header. */
   spaceRole?: 'owner' | 'member' | null;
-  /** Current user id; required for Leave space (DELETE .../members/[userId]). */
   currentUserId?: string;
 }
 
@@ -21,9 +20,7 @@ interface SpaceCardStackHeaderProps {
 export default function SpaceCardStackHeader({
   initialTitle,
   initialColor,
-  spaceId,
-  spaceRole = null,
-  currentUserId
+  spaceId
 }: SpaceCardStackHeaderProps) {
   const [title, setTitle] = useState(initialTitle);
   const [color, setColor] = useState(initialColor);
@@ -69,25 +66,6 @@ export default function SpaceCardStackHeader({
   const backgroundGradient = getThreadGradientCSS(color);
   const textColor = getThreadTextColorCSS(color);
 
-  const handleLeaveSpace = async () => {
-    if (spaceRole !== 'member' || !currentUserId) return;
-    if (!confirm('Leave this space? You can rejoin later with the same link.')) return;
-    try {
-      const base = typeof window !== 'undefined' ? window.location.origin : '';
-      const res = await fetch(`${base}/api/spaces/${spaceId}/members/${currentUserId}`, { method: 'DELETE' });
-      if (res.ok) {
-        window.location.href = '/';
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Could not leave space.');
-      }
-    } catch {
-      alert('Could not leave space.');
-    }
-  };
-
-  const showLeaveSpace = spaceRole === 'member' && currentUserId;
-
   return (
     <div 
       className="card-stack__header"
@@ -102,16 +80,6 @@ export default function SpaceCardStackHeader({
     >
       <div className="page-heading page-heading--center card-stack__header-inner">
         <p>{title}</p>
-        {showLeaveSpace && (
-          <button
-            type="button"
-            className="card-stack__header-leave"
-            onClick={handleLeaveSpace}
-            aria-label="Leave this space"
-          >
-            Leave space
-          </button>
-        )}
       </div>
     </div>
   );

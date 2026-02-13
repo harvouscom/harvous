@@ -9,6 +9,7 @@ const NoteStickyIcon = { src: 'note-sticky' };
 const EditIcon = { src: 'pen-to-square' };
 const EraseIcon = { src: 'eraser' };
 const CircleInfoIcon = { src: 'circle-info' };
+const LeaveSpaceIcon = { src: 'right-from-bracket' };
 const TagIcon = { src: 'tag' };
 const LockIcon = { src: 'lock' };
 const UnlockIcon = { src: 'unlock' };
@@ -27,6 +28,7 @@ interface SquareButtonProps {
   noteType?: string;
   contentEncrypted?: boolean;
   noteSimpleId?: number | null;
+  spaceRole?: 'owner' | 'member' | null;
 }
 
 export default function SquareButton({
@@ -41,7 +43,8 @@ export default function SquareButton({
   inBottomSheet = false,
   noteType,
   contentEncrypted,
-  noteSimpleId
+  noteSimpleId,
+  spaceRole
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,13 +86,19 @@ export default function SquareButton({
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId);
+      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole);
       return options.map(option => {
         let icon;
         switch (option.action) {
           case "editThread":
           case "editSpace":
             icon = EditIcon;
+            break;
+          case "viewSpace":
+            icon = CircleInfoIcon;
+            break;
+          case "leaveSpace":
+            icon = LeaveSpaceIcon;
             break;
           case "eraseThread":
           case "eraseNote":

@@ -929,7 +929,12 @@ try {
     spaces = allSpaces;
     threads = [...allThreads, ...threads]; // Combine with space-specific threads
     inboxCount = inboxCountData;
-    
+
+    // Include current (member) space in nav dropdown when viewing a space the user is a member of but does not own
+    if (currentSpace && !spaces.some((s: { id: string }) => s.id === currentSpace.id)) {
+      spaces = [...spaces, currentSpace];
+    }
+
 } catch (error) {
   // Fallback to empty data
   content = null;
@@ -949,7 +954,7 @@ if (!content) {
 const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefined;
 ---
 
-<Layout title={pageTitle} contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null}>
+<Layout title={pageTitle} contentType={contentType} contentId={id} spaceRole={spaceRole} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null}>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
