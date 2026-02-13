@@ -24,6 +24,14 @@
   to = "/space/:splat"
   status = 301
 
+# PWA URL handling: serve web-app-origin-association at standard path
+# (Astro endpoint lives at /well-known/...; Chrome fetches /.well-known/...)
+[[redirects]]
+  from = "/.well-known/web-app-origin-association"
+  to = "/well-known/web-app-origin-association"
+  status = 200
+  force = true
+
 # Redirect all non-API routes to index.html for SPA
 # API routes are handled by Astro serverless functions and should not be redirected
 # force = false means only redirect if the resource doesn't exist
