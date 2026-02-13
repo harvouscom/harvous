@@ -202,8 +202,8 @@ export default function MySharingPanel({
               )}
 
               {isLoading && (
-                <div className="w-full py-8 text-center">
-                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>Loading...</p>
+                <div className="panel__loading">
+                  Loading...
                 </div>
               )}
 

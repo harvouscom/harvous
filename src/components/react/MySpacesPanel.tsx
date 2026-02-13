@@ -95,6 +95,7 @@ export default function MySpacesPanel({
   const [isLoading, setIsLoading] = useState(false); // No loading if we have initial data
   const [error, setError] = useState<string | null>(null);
   const [sharedSpaceIds, setSharedSpaceIds] = useState<Set<string>>(() => new Set());
+  const [sharedCountsReady, setSharedCountsReady] = useState(false); // true once we know which spaces are shared (so Private/Shared counts are correct)
   const [memberOfSpaces, setMemberOfSpaces] = useState<MemberOfSpace[]>([]);
   const [activeFilter, setActiveFilter] = useState<'all' | 'private' | 'shared'>('all');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -150,6 +151,7 @@ export default function MySpacesPanel({
         setSharedSpaceIds(new Set());
         setMemberOfSpaces([]);
       }
+      setSharedCountsReady(true);
 
       hasFetchedFreshDataRef.current = true; // Mark that we've fetched fresh data
     } catch (err) {
@@ -178,12 +180,14 @@ export default function MySpacesPanel({
         const owned = data.owned ?? [];
         setSharedSpaceIds(new Set(owned.map((s: { id: string }) => s.id)));
         setMemberOfSpaces(data.memberOf ?? []);
+        setSharedCountsReady(true);
       })
       .catch(() => {
         if (!cancelled) {
           setSharedSpaceIds(new Set());
           setMemberOfSpaces([]);
         }
+        if (!cancelled) setSharedCountsReady(true);
       });
     return () => { cancelled = true; };
   }, []);
@@ -413,10 +417,21 @@ export default function MySpacesPanel({
     return sharedDisplaySpaces;
   }, [activeFilter, allDisplaySpaces, privateSpaces, sharedDisplaySpaces]);
 
+  // Don't show Private/Shared counts until sharedSpaceIds has loaded; otherwise Private shows same as All
   const spaceTabs = [
     { id: 'all', label: 'All', isActive: activeFilter === 'all', count: uniqueSpaces.length + joinedOnlySpaces.length },
-    { id: 'private', label: 'Private', isActive: activeFilter === 'private', count: privateSpaces.length },
-    { id: 'shared', label: 'Shared', isActive: activeFilter === 'shared', count: ownedSharedSpaces.length + memberOfAsDisplay.length }
+    {
+      id: 'private',
+      label: 'Private',
+      isActive: activeFilter === 'private',
+      count: sharedCountsReady || uniqueSpaces.length === 0 ? privateSpaces.length : undefined
+    },
+    {
+      id: 'shared',
+      label: 'Shared',
+      isActive: activeFilter === 'shared',
+      count: sharedCountsReady || uniqueSpaces.length === 0 ? ownedSharedSpaces.length + memberOfAsDisplay.length : undefined
+    }
   ];
 
   const handleSpaceClick = (spaceId: string) => {
