@@ -29,6 +29,7 @@ interface Props {
   contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
   contentId?: string;
   spaceRole?: 'owner' | 'member' | null;
+  contentOwnerId?: string;
   currentThread?: any;
   currentSpace?: any;
   currentNote?: any;
@@ -48,6 +49,7 @@ const {
   contentType = 'dashboard', 
   contentId, 
   spaceRole,
+  contentOwnerId,
   currentThread, 
   currentSpace, 
   currentNote,
@@ -445,7 +447,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
               <!-- SquareButtons (shown when no panel is open) -->
               <div id="square-buttons-container" class={`square-buttons-container ${showMoreButton ? 'square-buttons-container--with-more' : ''}`}>
                 {showMoreButton && (
-                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} />
+                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
                 )}
                 {contentType !== 'profile' && (
                   <SquareButton variant="Add" withMenu={true} />

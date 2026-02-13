@@ -29,6 +29,8 @@ interface SquareButtonProps {
   contentEncrypted?: boolean;
   noteSimpleId?: number | null;
   spaceRole?: 'owner' | 'member' | null;
+  contentOwnerId?: string;
+  userId?: string;
 }
 
 export default function SquareButton({
@@ -44,7 +46,9 @@ export default function SquareButton({
   noteType,
   contentEncrypted,
   noteSimpleId,
-  spaceRole
+  spaceRole,
+  contentOwnerId,
+  userId
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,7 +90,7 @@ export default function SquareButton({
         { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole);
+      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId);
       return options.map(option => {
         let icon;
         switch (option.action) {

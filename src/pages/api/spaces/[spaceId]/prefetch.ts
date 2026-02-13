@@ -1,12 +1,16 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getSpacesWithCounts } from '@/utils/dashboard-data';
+import { db, Spaces, eq } from 'astro:db';
+import { getSpacesWithCounts, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember } from '@/utils/dashboard-data';
+import { requireSpaceAccess } from '@/utils/space-permissions';
+import { getThreadGradientCSS } from '@/utils/colors';
 
 /**
  * Prefetch endpoint for space content
  * Returns space metadata
  * Used by EditSpacePanel to fetch fresh data on mount
+ * Supports both owners (via getSpacesWithCounts) and members (via requireSpaceAccess)
  */
 export const GET: APIRoute = async ({ params, locals }) => {
   try {
@@ -26,9 +30,34 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    // Fetch space data
+    // Try owner path first
     const spaces = await getSpacesWithCounts(userId);
-    const space = spaces.find(s => s.id === spaceId);
+    let space = spaces.find(s => s.id === spaceId);
+
+    // If not owner, try member path
+    if (!space) {
+      try {
+        const { space: spaceRow } = await requireSpaceAccess(spaceId, userId);
+        const spaceFromDb = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
+        if (spaceFromDb) {
+          const [threads, notesResult] = await Promise.all([
+            getThreadsForSpaceBySpaceId(spaceId),
+            getNotesForSpaceForMember(spaceId, spaceRow.userId, 100)
+          ]);
+          const totalItemCount = threads.length + (notesResult.notes?.length ?? 0);
+          space = {
+            id: spaceFromDb.id,
+            title: spaceFromDb.title,
+            color: spaceFromDb.color,
+            backgroundGradient: spaceFromDb.backgroundGradient ?? getThreadGradientCSS(spaceFromDb.color || 'paper'),
+            totalItemCount,
+            isPublic: spaceFromDb.isPublic ?? false
+          };
+        }
+      } catch {
+        // No access - leave space null
+      }
+    }
 
     if (!space) {
       return new Response(JSON.stringify({ error: 'Space not found' }), {

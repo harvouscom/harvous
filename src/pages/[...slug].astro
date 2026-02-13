@@ -303,7 +303,8 @@ try {
           color: null,
           spaceId: null,
           noteCount: unorganizedThreadData.noteCount,
-          backgroundGradient: getThreadGradientCSS('paper')
+          backgroundGradient: getThreadGradientCSS('paper'),
+          userId: authenticatedUserId
         };
         
           // Set threadNotes for template rendering
@@ -369,7 +370,8 @@ try {
             color: threadData.color,
             spaceId: threadData.spaceId || null,
             noteCount: threadData.noteCount,
-            backgroundGradient: getThreadGradientCSS(threadData.color)
+            backgroundGradient: getThreadGradientCSS(threadData.color),
+            userId: threadData.userId
           };
           
           // Set threadNotes for template rendering
@@ -446,7 +448,8 @@ try {
               color: thread.color,
               spaceId: thread.spaceId || null,
               noteCount: noteCount,
-              backgroundGradient: getThreadGradientCSS(thread.color)
+              backgroundGradient: getThreadGradientCSS(thread.color),
+              userId: thread.userId
             };
             
             // Set threadNotes for template rendering
@@ -479,7 +482,8 @@ try {
                 color: null,
                 spaceId: null,
                 noteCount: 0,
-                backgroundGradient: getThreadGradientCSS('paper')
+                backgroundGradient: getThreadGradientCSS('paper'),
+                userId: authenticatedUserId
               };
               threadNotes = [];
               noteTypeCounts = { all: 0, default: 0, scripture: 0, resource: 0 };
@@ -520,7 +524,8 @@ try {
                     color: threadBySpace.color,
                     spaceId: threadBySpace.spaceId || null,
                     noteCount,
-                    backgroundGradient: getThreadGradientCSS(threadBySpace.color)
+                    backgroundGradient: getThreadGradientCSS(threadBySpace.color),
+                    userId: threadBySpace.userId
                   };
                   threadNotes = memberNotes;
                   noteTypeCounts = memberNoteTypeCounts;
@@ -646,7 +651,8 @@ try {
           resourceDescription,
           resourceImage,
           resourceUrl,
-          contentEncrypted: note.contentEncrypted ?? false
+          contentEncrypted: note.contentEncrypted ?? false,
+          userId: note.userId
         };
 
         // Set page title for note
@@ -779,7 +785,8 @@ try {
             color: null,
             spaceId: null,
             noteCount: unorganizedThreadData.noteCount,
-            backgroundGradient: getThreadGradientCSS('paper')
+            backgroundGradient: getThreadGradientCSS('paper'),
+            userId: authenticatedUserId
           };
         } else if (selectedThreadId) {
           const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
@@ -801,7 +808,8 @@ try {
               color: thread.color,
               spaceId: thread.spaceId || null,
               noteCount: noteCountResult?.count || 0,
-              backgroundGradient: getThreadGradientCSS(thread.color)
+              backgroundGradient: getThreadGradientCSS(thread.color),
+              userId: thread.userId
             };
           } else {
             // Selected thread doesn't exist (might have been deleted)
@@ -838,7 +846,8 @@ try {
                     color: fallbackThread.color,
                     spaceId: fallbackThread.spaceId || null,
                     noteCount: noteCountResult?.count || 0,
-                    backgroundGradient: getThreadGradientCSS(fallbackThread.color)
+                    backgroundGradient: getThreadGradientCSS(fallbackThread.color),
+                    userId: fallbackThread.userId
                   };
                   break;
                 }
@@ -854,7 +863,8 @@ try {
                 color: null,
                 spaceId: null,
                 noteCount: unorganizedThreadData.noteCount,
-                backgroundGradient: getThreadGradientCSS('paper')
+                backgroundGradient: getThreadGradientCSS('paper'),
+                userId: authenticatedUserId
               };
             }
           }
@@ -867,7 +877,8 @@ try {
             color: null,
             spaceId: null,
             noteCount: unorganizedThreadData.noteCount,
-            backgroundGradient: getThreadGradientCSS('paper')
+            backgroundGradient: getThreadGradientCSS('paper'),
+            userId: authenticatedUserId
           };
         }
 
@@ -1026,7 +1037,7 @@ if (!content) {
 const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefined;
 ---
 
-<Layout title={pageTitle} contentType={contentType} contentId={id} spaceRole={spaceRole} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null}>
+<Layout title={pageTitle} contentType={contentType} contentId={id} spaceRole={spaceRole} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null} userId={authenticatedUserId} contentOwnerId={contentType === 'thread' ? currentThread?.userId : (contentType === 'note' && content ? content.userId : undefined)}>
   <!-- Navigation Column -->
   <NavigationColumnReact 
     slot="navigation"
@@ -1282,7 +1293,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} noteSimpleId={isNote && content ? content.noteId : undefined} spaceRole={spaceRole} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} noteSimpleId={isNote && content ? content.noteId : undefined} spaceRole={spaceRole} contentOwnerId={contentType === 'thread' ? currentThread?.userId : (contentType === 'note' && content ? content.userId : undefined)} userId={authenticatedUserId} />
   </div>
 
 </Layout>

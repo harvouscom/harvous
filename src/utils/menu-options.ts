@@ -31,21 +31,27 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked in session so we show "Remove lock"
  * @param simpleNoteId Optional; when set for notes, adds a "copy note ID" option with label e.g. N042
  * @param spaceRole Optional; when 'member', space menu shows Space details + Leave space only (no Edit/Erase)
+ * @param contentOwnerId Optional; when set, edit/erase/lock only shown when contentOwnerId === currentUserId
+ * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
   }
-  
+
+  const canEditContent = contentOwnerId == null || currentUserId == null || contentOwnerId === currentUserId;
+
   switch (contentType) {
     case "thread":
-      // Onboarding thread: only "Erase Thread & Notes", no Edit Thread
+      // Onboarding thread: only "Erase Thread & Notes", no Edit Thread (only for owner)
       const isOnboardingThread = contentId?.startsWith('thread_onboarding_');
       if (isOnboardingThread) {
+        if (!canEditContent) return [];
         return [{ action: "eraseThreadAndNotes", label: "Erase Thread & Notes" }];
       }
+      if (!canEditContent) return [];
       return [
         { action: "editThread", label: "Edit Thread" },
         { action: "eraseThread", label: "Erase Thread" }
@@ -68,8 +74,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: "openNoteDetailsTags", label: "Tags" }
       );
 
-      // Lock / Remove lock for default notes only (one option: Lock when unlocked, Remove lock when locked)
-      if (noteType === 'default') {
+      // Lock / Remove lock for default notes only (owner only when contentOwnerId is set)
+      if (noteType === 'default' && canEditContent) {
         const isLocked = contentEncrypted || contentEncryptedServer;
         options.push({ action: isLocked ? "removeLock" : "lockNote", label: isLocked ? "Remove lock" : "Lock" });
       }
@@ -78,7 +84,9 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       if (contentEncrypted !== true) {
         options.push({ action: "shareNote", label: "Share" });
       }
-      options.push({ action: "eraseNote", label: "Erase Note" });
+      if (canEditContent) {
+        options.push({ action: "eraseNote", label: "Erase Note" });
+      }
 
       return options;
     case "space":

@@ -93,6 +93,7 @@ export async function getThreadWithCount(threadId: string, userId: string) {
       subtitle: Threads.subtitle,
       color: Threads.color,
       spaceId: Threads.spaceId,
+      userId: Threads.userId,
       isPublic: Threads.isPublic,
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
@@ -775,7 +776,7 @@ export async function getNotesForThreadForMember(
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
     .where(and(
       eq(NoteThreads.threadId, threadId),
-      eq(Notes.contentEncrypted, false)
+      or(eq(Notes.contentEncrypted, false), sql`${Notes.contentEncrypted} = 0`)
     ))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),

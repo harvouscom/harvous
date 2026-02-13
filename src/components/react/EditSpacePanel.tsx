@@ -120,6 +120,13 @@ export default function EditSpacePanel({
     }
   }, [formData.selectedType, members.length]);
 
+  // When member view: no Add tab, so if activeTab is 'all' switch to 'added'
+  useEffect(() => {
+    if (!isOwner && activeTab === 'all') {
+      setActiveTab('added');
+    }
+  }, [isOwner, activeTab]);
+
 
   // Fetch all notes and threads (for AddToSpaceSection)
   const fetchAllItems = async () => {
@@ -1348,7 +1355,7 @@ export default function EditSpacePanel({
               }}
             >
               <div className="panel__title">
-                <p>Edit Space</p>
+                <p>{isOwner ? 'Edit Space' : 'Space details'}</p>
               </div>
             </div>
             
@@ -1356,73 +1363,85 @@ export default function EditSpacePanel({
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 
-                {/* Space Title Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    placeholder={formData.title ? '' : 'Space Title'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
-                  {validationErrors.title && (
-                    <div className="text-red-500 text-sm mt-1 text-center">
-                      {validationErrors.title}
-                    </div>
-                  )}
-                </div>
+                {/* Space Title: editable for owner, read-only for member */}
+                {isOwner ? (
+                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                    <input 
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) => handleInputChange('title', e.target.value)}
+                      placeholder={formData.title ? '' : 'Space Title'}
+                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                    />
+                    {validationErrors.title && (
+                      <div className="text-red-500 text-sm mt-1 text-center">
+                        {validationErrors.title}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-3xl py-5 px-4 min-h-[64px] w-full flex items-center justify-center">
+                    <span className="text-[18px] font-semibold text-[var(--color-deep-grey)] text-center">
+                      {formData.title || 'Space Title'}
+                    </span>
+                  </div>
+                )}
                 
-                {/* Color selection */}
-                <div className="color-selection flex gap-2 items-center justify-start w-full">
-                  {THREAD_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => handleColorSelect(color)}
-                      className={`color-swatch ${formData.selectedColor === color ? 'color-swatch--selected' : ''}`}
-                      style={{ backgroundColor: getThreadColorCSS(color) }}
-                    >
-                      {formData.selectedColor === color && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Icon
-                            name="check"
-                            size={20}
-                            style={{ color: getThreadTextColorCSS(color) }}
-                          />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+                {/* Color selection: owner only */}
+                {isOwner && (
+                  <div className="color-selection flex gap-2 items-center justify-start w-full">
+                    {THREAD_COLORS.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => handleColorSelect(color)}
+                        className={`color-swatch ${formData.selectedColor === color ? 'color-swatch--selected' : ''}`}
+                        style={{ backgroundColor: getThreadColorCSS(color) }}
+                      >
+                        {formData.selectedColor === color && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Icon
+                              name="check"
+                              size={20}
+                              style={{ color: getThreadTextColorCSS(color) }}
+                            />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                {/* Space visibility dropdown */}
-                <ThreadVisibilityDropdown
-                  isShared={formData.selectedType === 'Shared'}
-                  shareUrl={shareLink}
-                  onToggle={async (enabled) => {
-                    if (!enabled && memberCount > 1) {
-                      setShowMakePrivateDialog(true);
-                    } else {
-                      const type = enabled ? 'Shared' : 'Private';
-                      setFormData(prev => ({ ...prev, selectedType: type }));
-                      await saveTypeChange(type);
-                    }
-                  }}
-                  onRefresh={generateNewShareLink}
-                  isLoading={isGeneratingLink}
-                  isEditMode={true}
-                  privateTriggerLabel="Only I can see this space"
-                  sharedTriggerLabel="Shared to anyone with link"
-                  privateOptionLabel="Only I can see this space"
-                  sharedOptionLabel="Share to anyone with link"
-                />
+                {/* Space visibility dropdown: owner only */}
+                {isOwner && (
+                  <ThreadVisibilityDropdown
+                    isShared={formData.selectedType === 'Shared'}
+                    shareUrl={shareLink}
+                    onToggle={async (enabled) => {
+                      if (!enabled && memberCount > 1) {
+                        setShowMakePrivateDialog(true);
+                      } else {
+                        const type = enabled ? 'Shared' : 'Private';
+                        setFormData(prev => ({ ...prev, selectedType: type }));
+                        await saveTypeChange(type);
+                      }
+                    }}
+                    onRefresh={generateNewShareLink}
+                    isLoading={isGeneratingLink}
+                    isEditMode={true}
+                    privateTriggerLabel="Only I can see this space"
+                    sharedTriggerLabel="Shared to anyone with link"
+                    privateOptionLabel="Only I can see this space"
+                    sharedOptionLabel="Share to anyone with link"
+                  />
+                )}
 
-                {/* Tab navigation */}
+                {/* Tab navigation: hide Add tab for members */}
                 {(() => {
                   const showPeopleTab = formData.selectedType === 'Shared' && members.length > 1;
                   const tabs = [
                     { id: 'added', label: 'Added', isActive: activeTab === 'added', count: (currentSpaceNotes.length + currentSpaceThreads.length) || undefined },
-                    { id: 'search', label: 'Add', isActive: activeTab === 'all' },
+                    ...(isOwner ? [{ id: 'search', label: 'Add', isActive: activeTab === 'all' }] : []),
                     ...(showPeopleTab ? [{ id: 'people', label: 'People', isActive: activeTab === 'people', count: memberCount }] : []),
                   ];
                   return (
@@ -1449,17 +1468,18 @@ export default function EditSpacePanel({
                             >
                               {renderCompactThreadItem(thread)}
                             </a>
-                            {/* Remove from space button */}
-                            <ActionButton
-                              variant="Remove"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveFromSpace(thread.id, 'thread');
-                              }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                              disabled={isRemovingItem}
-                            />
+                            {isOwner && (
+                              <ActionButton
+                                variant="Remove"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveFromSpace(thread.id, 'thread');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                disabled={isRemovingItem}
+                              />
+                            )}
                           </div>
                         ))}
 
@@ -1473,17 +1493,18 @@ export default function EditSpacePanel({
                             >
                               {renderCompactNoteItem(note)}
                             </a>
-                            {/* Remove from space button */}
-                            <ActionButton
-                              variant="Remove"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                handleRemoveFromSpace(note.id, 'note');
-                              }}
-                              className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
-                              disabled={isRemovingItem}
-                            />
+                            {isOwner && (
+                              <ActionButton
+                                variant="Remove"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleRemoveFromSpace(note.id, 'note');
+                                }}
+                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                disabled={isRemovingItem}
+                              />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1497,8 +1518,8 @@ export default function EditSpacePanel({
                   </div>
                 )}
 
-                {/* All tab: search/add interface */}
-                {activeTab === 'all' && (
+                {/* All tab: search/add interface (owner only) */}
+                {isOwner && activeTab === 'all' && (
                   <div className="w-full flex-1 min-h-0">
                     {isLoadingItems ? (
                       <div className="text-center py-8 text-[var(--color-stone-grey)]">
