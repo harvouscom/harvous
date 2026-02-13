@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Spaces, Threads, Notes, eq, and } from 'astro:db';
+import { db, Spaces, Threads, Notes, Members, SpaceInvitations, eq, and } from 'astro:db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 
@@ -57,6 +57,10 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
         headers: { 'Content-Type': 'application/json' }
       });
     }
+
+    // Delete Members and SpaceInvitations first (referential cleanup; required for shared spaces)
+    await db.delete(Members).where(eq(Members.spaceId, spaceId));
+    await db.delete(SpaceInvitations).where(eq(SpaceInvitations.spaceId, spaceId));
 
     // Remove threads from space (set spaceId to null) - preserve threads and their notes
     // Don't update updatedAt - only metadata change, not content change

@@ -392,18 +392,22 @@ export default function Menu({
         }
         return;
     }
-    
+
+    let deletedOffline = false;
     try {
-      // OFFLINE-FIRST: Delete from local IndexedDB immediately
-      // Use userId from component closure (set at top level)
+      // OFFLINE-FIRST: Delete from local IndexedDB when offline mode is enabled
+      // When offline mode is off (e.g. private space), we only delete on the server
       if (userId) {
         try {
           if (contentType === 'note') {
             await deleteNoteOffline(userId, contentId);
+            deletedOffline = true;
           } else if (contentType === 'thread') {
             await deleteThreadOffline(userId, contentId);
+            deletedOffline = true;
           } else if (contentType === 'space') {
             await deleteSpaceOffline(userId, contentId);
+            deletedOffline = true;
           }
           console.log(`[Menu] ${contentType} deleted locally in IndexedDB`, { id: contentId });
         } catch (err) {
@@ -411,17 +415,16 @@ export default function Menu({
           // Continue with server API call
         }
       }
-      
-      // Show success message immediately for offline-first experience
-      if ((window as any).toast) {
+
+      // Show success immediately only when we actually deleted offline; otherwise wait for server
+      if (deletedOffline && (window as any).toast) {
         (window as any).toast.success(successMessage);
       }
-      
+
       // Then try to push deletion to server
       let response: Response | null = null;
       let data: any = null;
 
-      // Use safeFetch for automatic retries and timeout handling
       response = await safeFetch(`${apiUrl}?${paramName}=${encodeURIComponent(contentId)}`, {
         method: 'DELETE',
         headers: {
@@ -434,7 +437,13 @@ export default function Menu({
 
       // safeFetch returns null on network/auth failures
       if (response === null) {
-        // Network error but local deletion succeeded - proceed with navigation
+        // Only treat as success if we deleted offline; otherwise the server never got the request
+        if (!deletedOffline) {
+          if ((window as any).toast) {
+            (window as any).toast.error('Couldn\'t erase. Please check your connection and try again.');
+          }
+          return;
+        }
         console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
 
         // Dispatch deletion events for navigation updates
@@ -455,21 +464,21 @@ export default function Menu({
           }));
         }
 
-        // Navigate based on content type
+        // Navigate: omit toast params when we already showed the toast (deletedOffline) to avoid double toast
+        const query = deletedOffline ? '' : `?toast=success&message=${encodeURIComponent(successMessage)}`;
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
           const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
           if (threadPageMatch) {
-            const threadIdFromUrl = threadPageMatch[1];
-            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${threadPageMatch[1]}${query}`;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${currentThreadId}${query}`;
           } else {
-            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+            redirectUrl = `/${query}`;
           }
         } else {
-          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          redirectUrl = query ? `/${query}` : '/';
         }
 
         safeNavigate(redirectUrl, { history: 'replace' });
@@ -484,6 +493,12 @@ export default function Menu({
       }
       
       if (response && response.ok) {
+        // Only show toast here when we won't redirect with toast params (note may stay on thread);
+        // for space/thread we redirect with ?toast=success&message=... so toast-handler will show it once
+        const willRedirectWithToast = contentType === 'space' || contentType === 'thread';
+        if (!deletedOffline && !willRedirectWithToast && (window as any).toast) {
+          (window as any).toast.success(successMessage);
+        }
         // Dispatch appropriate deletion event for navigation updates
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
@@ -516,13 +531,18 @@ export default function Menu({
           }));
         }
       } else if (response) {
-        // Server returned error but local deletion succeeded
         console.error('Delete failed:', data);
         const errorMessage = data?.error || 'Failed to sync deletion with server';
         console.error('[Menu] Server deletion failed:', errorMessage);
-        
+
+        if (!deletedOffline) {
+          if ((window as any).toast) {
+            (window as any).toast.error(errorMessage);
+          }
+          return;
+        }
+
         // Item is already deleted locally, proceed with navigation
-        // Dispatch deletion events
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
             detail: { threadId: contentId }
@@ -539,28 +559,28 @@ export default function Menu({
             detail: { spaceId: contentId }
           }));
         }
-        
-        // Navigate based on content type
+
+        // Omit toast params when we already showed the toast (deletedOffline)
+        const errQuery = deletedOffline ? '' : `?toast=success&message=${encodeURIComponent(successMessage)}`;
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
           const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
           if (threadPageMatch) {
-            const threadIdFromUrl = threadPageMatch[1];
-            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${threadPageMatch[1]}${errQuery}`;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${currentThreadId}${errQuery}`;
           } else {
-            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+            redirectUrl = errQuery ? `/${errQuery}` : '/';
           }
         } else {
-          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          redirectUrl = errQuery ? `/${errQuery}` : '/';
         }
-        
+
         safeNavigate(redirectUrl, { history: 'replace' });
         return;
       }
-        
+
         // Redirect based on content type (only reached if response.ok was true)
         let redirectUrl: string;
         if (contentType === 'note') {
@@ -588,12 +608,10 @@ export default function Menu({
         // Use View Transitions instead of hard redirect to maintain React state
         safeNavigate(redirectUrl, { history: 'replace' });
     } catch (error) {
-      // Check if this is a network error and local deletion succeeded
-      if (isNetworkError(error) && userId) {
-        // Network error but local deletion succeeded - proceed with navigation
+      // Only treat as success if we actually deleted offline; otherwise show error
+      if (isNetworkError(error) && deletedOffline) {
         console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
-        
-        // Dispatch deletion events
+
         if (contentType === 'thread') {
           window.dispatchEvent(new CustomEvent('threadDeleted', {
             detail: { threadId: contentId }
@@ -610,24 +628,24 @@ export default function Menu({
             detail: { spaceId: contentId }
           }));
         }
-        
-        // Navigate based on content type
+
+        // Omit toast params when we already showed the toast (deletedOffline)
+        const catchQuery = deletedOffline ? '' : `?toast=success&message=${encodeURIComponent(successMessage)}`;
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
           const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
           if (threadPageMatch) {
-            const threadIdFromUrl = threadPageMatch[1];
-            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${threadPageMatch[1]}${catchQuery}`;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = `/${currentThreadId}${catchQuery}`;
           } else {
-            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+            redirectUrl = catchQuery ? `/${catchQuery}` : '/';
           }
         } else {
-          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          redirectUrl = catchQuery ? `/${catchQuery}` : '/';
         }
-        
+
         safeNavigate(redirectUrl, { history: 'replace' });
       } else {
         // Real error - log and show error toast
