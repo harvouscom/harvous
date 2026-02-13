@@ -1,6 +1,6 @@
 # Collaborative Shared Spaces Implementation Plan
 
-**v1 complete (February 2026).** The implementation described below has been completed. Future work: performance and quality-of-life improvements.
+**v1 complete (February 2026).** The implementation described below has been completed. Shared spaces are in a good place and complete for v1. For current design, behavior, and implementation details, see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md). Future work: performance and quality-of-life improvements.
 
 ## Implementation status: member UX (current)
 

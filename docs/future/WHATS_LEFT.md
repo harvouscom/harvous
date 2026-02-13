@@ -2,7 +2,7 @@
 
 ## ✅ Shared Spaces v1 — COMPLETE 🎉
 
-**Status (February 2026):** All v1 implementation is done. Next focus: **performance and quality-of-life improvements** across the app.
+**Status (February 2026):** Shared spaces are in a good place and complete for v1. All v1 implementation is done. Next focus: **performance and quality-of-life improvements** across the app. For design and behavior details, see [SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md).
 
 ## ✅ ALL IMPLEMENTATION COMPLETE! 🎉
 

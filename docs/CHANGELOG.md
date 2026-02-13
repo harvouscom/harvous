@@ -336,7 +336,7 @@ ScriptureMetadata {
   - `src/components/react/navigation/NavigationColumn.tsx` - Re-enabled New Space button with link to `/new-space`
   - `src/components/react/navigation/MobileNavigation.tsx` - Re-enabled New Space button with link
   - `src/pages/new-space.astro` - Updated Shared option to be disabled with "Coming Soon" text
-- ✅ **Status**: Private spaces fully functional, shared spaces planned for future release
+- ✅ **Status**: Private spaces fully functional; shared spaces v1 complete (invite via link, join, member view, tier limits — see SHARED_SPACES_DEV_NOTES)
 
 **Navigation System Complete Overhaul - SUCCESS** ✅
 

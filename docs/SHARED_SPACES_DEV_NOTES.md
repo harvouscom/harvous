@@ -1,6 +1,6 @@
 # Shared Spaces — Development Notes & Decisions
 
-**Status: v1 complete (February 2026).** Shared spaces are fully implemented. Future work focuses on performance and quality-of-life improvements.
+**Status: v1 complete (February 2026).** Shared spaces are fully implemented and in a good place. The feature is complete for v1: invite via link, join/leave, member view, tier limits, locked notes excluded. Future work focuses on performance and quality-of-life improvements.
 
 This document captures design decisions, rules, and implementation details for the collaborative shared spaces feature. It is a living reference for continued development.
 
@@ -168,6 +168,8 @@ In `invite.ts`, the existing-invitation check now wraps the three conditions in 
 
 ## Outstanding Work
 
+Shared spaces v1 is complete and in a good place. The items below are future enhancements or quality-of-life improvements, not required for the feature to be considered complete.
+
 ### High Priority
 
 None at this time.
@@ -216,7 +218,7 @@ With the fake member inserted, open that space's `EditSpacePanel` → it should 
 2. Sign into your main account in Profile 1, a test Clerk account in Profile 2
 3. In Profile 1: create a Shared space, open `EditSpacePanel`, copy the share link
 4. In Profile 2: paste the share link → join page appears with preview
-5. Click "Join this space on Harvous" → will join and attempt to redirect to `/spaces/[spaceId]` (currently 404s — expected until member view page is built)
+5. Click "Join this space on Harvous" → will join and redirect to the space URL (same route as owner; member view is implemented)
 6. Back in Profile 1: open `EditSpacePanel` → should now show 2 people and the People tab
 
 ### What's testable without a second account

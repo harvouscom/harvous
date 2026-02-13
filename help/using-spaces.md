@@ -31,7 +31,7 @@ Spaces are the highest level of organization in Harvous. They contain threads an
    - Lovely Lavender
 5. **Select privacy type**:
    - **Private**: Only you can see and edit
-   - **Shared**: Multiple people can collaborate (coming soon)
+   - **Shared**: Invite others via share link; multiple people can view and contribute
 6. **Click "Create Space"** to save
 
 ### Space Features
@@ -55,7 +55,9 @@ Spaces are the highest level of organization in Harvous. They contain threads an
 - **Collaborative environments** where multiple people can contribute
 - Perfect for church small groups, Bible study groups, book clubs, and family devotions
 - All members can create threads and notes within the shared space
-- Future features: Permission levels (view, contribute, moderate) and member management
+- **Invite via share link** — copy the link from Space details and share it; others join from the join page
+- **Member management** — owner can see the people list and remove members; members can leave
+- **Locked notes** are never shown in shared contexts (only you see your locked notes)
 
 ## Organizing Content in Spaces
 

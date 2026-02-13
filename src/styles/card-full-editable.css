@@ -191,3 +191,27 @@
   mask-repeat: no-repeat;
 }
 
+/* ==========================================================================
+   Mobile keyboard open (same as NewNotePanel in sheet: toolbar 12px above
+   keyboard, editor scroll constrained; vars set by CardFullEditable useEffect)
+   ========================================================================== */
+
+.card-full-editable[data-keyboard-open] .tiptap-toolbar--bottom {
+  position: fixed !important;
+  bottom: var(--toolbar-bottom, 12px) !important;
+  left: 12px !important;
+  right: 12px !important;
+  z-index: 21;
+  margin: 0 !important;
+}
+
+.card-full-editable[data-keyboard-open] .tiptap-content {
+  min-height: 120px;
+  max-height: var(--editor-scroll-max-height, none);
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  padding-bottom: 56px;
+}
+

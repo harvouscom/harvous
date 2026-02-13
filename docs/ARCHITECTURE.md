@@ -14,12 +14,13 @@ Harvous uses a hierarchical content organization system to help users structure 
 - Example: A "2024 Prayer Study" space containing threads on different prayer aspects
 - Only visible to the space owner
 
-**Shared Spaces:**
+**Shared Spaces (v1 complete):**
 - Shared environments where multiple people collaborate
 - Church small groups, Bible study groups, book clubs, etc.
 - Members can contribute threads and notes within the shared space
-- Different permission levels (view, contribute, moderate) - future feature
-- Visible to all members of the space
+- Owner and Member roles; invite via share link, join/leave, member view on same route as owner
+- Visible to all members of the space; locked notes never shown in shared contexts
+- See [SHARED_SPACES_DEV_NOTES.md](./SHARED_SPACES_DEV_NOTES.md) for design, permissions, and tier limits
 
 **Space Creation:**
 - Full customization with color selection (same palette as threads)

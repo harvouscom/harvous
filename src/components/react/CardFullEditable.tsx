@@ -49,6 +49,8 @@ interface CardFullEditableProps {
   // Props for shared note CTA footer
   shareToken?: string;
   isAuthenticated?: boolean;
+  /** When true, runs iOS focus scroll fix (window.scrollTo(0,0) on focusin) so toolbar stays visible. Also run on touch devices when false. */
+  inBottomSheet?: boolean;
 }
 
 export default function CardFullEditable({ 
@@ -68,7 +70,8 @@ export default function CardFullEditable({
   onSave,
   footer,
   shareToken,
-  isAuthenticated
+  isAuthenticated,
+  inBottomSheet = false,
 }: CardFullEditableProps) {
   // Override isEditable for scripture notes - they should always be read-only
   const effectiveIsEditable = noteType === 'scripture' ? false : isEditable;
@@ -103,6 +106,84 @@ export default function CardFullEditable({
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
+
+  const cardRootRef = useRef<HTMLDivElement>(null);
+
+  // Mobile keyboard: when keyboard opens (visualViewport shrinks), set CSS vars on card root so toolbar floats 12px above keyboard and editor scrolls (same as NewNotePanel in sheet)
+  const RESERVE_EDITOR_PX = 130;
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+    if (!vv) return;
+
+    const clearOverrides = (element: HTMLDivElement | null) => {
+      if (!element) return;
+      element.style.removeProperty('--toolbar-bottom');
+      element.style.removeProperty('--editor-scroll-max-height');
+      element.removeAttribute('data-keyboard-open');
+    };
+
+    const apply = () => {
+      const el = cardRootRef.current;
+      const viewport = window.visualViewport;
+      if (!el || !viewport) return;
+      const keyboardOpen = viewport.height < window.innerHeight * 0.75;
+
+      if (keyboardOpen) {
+        const toolbarBottom = (window.innerHeight - viewport.height) + 12;
+        const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
+        el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
+        el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
+        el.setAttribute('data-keyboard-open', '');
+      } else {
+        clearOverrides(el);
+      }
+    };
+
+    apply();
+    const raf = requestAnimationFrame(() => apply());
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+
+    const onFocusIn = () => {
+      setTimeout(apply, 100);
+      setTimeout(apply, 300);
+    };
+    let focusEl: HTMLDivElement | null = null;
+    const rafFocus = requestAnimationFrame(() => {
+      focusEl = cardRootRef.current;
+      if (focusEl) focusEl.addEventListener('focusin', onFocusIn);
+    });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(rafFocus);
+      vv.removeEventListener('resize', apply);
+      vv.removeEventListener('scroll', apply);
+      if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
+      clearOverrides(cardRootRef.current);
+    };
+  }, []);
+
+  // iOS focus scroll fix: when in bottom sheet or on touch device, reset window scroll on focusin so Safari doesn't push toolbar off
+  useEffect(() => {
+    const el = cardRootRef.current;
+    if (!el) return;
+    const isTouchDevice = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+    if (!inBottomSheet && !isTouchDevice) return;
+
+    const timeouts: ReturnType<typeof setTimeout>[] = [];
+    const handler = () => {
+      const t = setTimeout(() => {
+        window.scrollTo(0, 0);
+      }, 100);
+      timeouts.push(t);
+    };
+    el.addEventListener('focusin', handler);
+    return () => {
+      el.removeEventListener('focusin', handler);
+      timeouts.forEach((t) => clearTimeout(t));
+    };
+  }, [inBottomSheet]);
 
   // Initialize display content
   useEffect(() => {
@@ -917,6 +998,7 @@ export default function CardFullEditable({
 
     return (
       <div 
+        ref={cardRootRef}
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
@@ -1171,6 +1253,7 @@ export default function CardFullEditable({
         />
       )}
       <div 
+        ref={cardRootRef}
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
