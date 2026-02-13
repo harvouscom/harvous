@@ -316,9 +316,11 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
                     <!-- CTA Button (inside CardStack) -->
                     {requiresAuth ? (
                       <a
-                        href={`/sign-in?redirect_url=${encodeURIComponent('/spaces/join/' + token)}`}
+                        id="join-space-sign-in-link"
+                        href={`/sign-in?redirect_url=${encodeURIComponent(siteUrl + '/spaces/join/' + token)}`}
                         class="btn btn--lg btn--primary shared-page__cta-button"
                         data-astro-reload
+                        data-pending-redirect={siteUrl + '/spaces/join/' + token}
                       >
                         <div class="btn__content">
                           <span class="shared-page__cta-text">Join this space on Harvous</span>
@@ -363,6 +365,19 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
 
 <!-- Enable View Transitions for client-side navigation -->
 <ClientRouter />
+
+<!-- Store pending redirect before leaving for sign-in (fallback if Clerk sends user to /) -->
+<script is:inline>
+  (function() {
+    var signInLink = document.getElementById('join-space-sign-in-link');
+    if (signInLink) {
+      signInLink.addEventListener('click', function() {
+        var url = signInLink.getAttribute('data-pending-redirect');
+        if (url) try { sessionStorage.setItem('harvous_pending_redirect', url); } catch (e) {}
+      });
+    }
+  })();
+</script>
 
 <!-- Client-side script for Join Space functionality -->
 <script is:inline>

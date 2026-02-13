@@ -70,6 +70,10 @@ Playwright tests for **join** and **invite** flows live in `e2e/shared-space-joi
 
 [Astro DB (Turso)](https://docs.astro.build/en/guides/astro-db/) with remote in production. Schema defined in `db/config.ts`. Run `db:push` pre-deploy, `db:check` pre-commit.
 
+## Auth (Clerk)
+
+- **Redirect URLs**: Do not set Clerk **Force redirect URL** to `/` (or app root) in Clerk Dashboard or via env vars (`CLERK_SIGN_IN_FORCE_REDIRECT_URL`, `CLERK_SIGN_UP_FORCE_REDIRECT_URL`). That would override the join/invite return flow; users must be sent back to `/spaces/join/[token]` or `/invitations/[token]` after sign-in when they came from those pages. Use **Fallback** redirect (e.g. `/`) only for when there is no `redirect_url` in the request.
+
 ## Best Practices
 
 **Core Principle**: Follow best practices and avoid "robust" and "bandaid approaches"

@@ -303,6 +303,21 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       });
     </script>
     
+    <!-- Pending redirect fallback: if Clerk sent user to / after sign-in from join/invite, redirect once to intended page -->
+    <script is:inline>
+      (function() {
+        if (typeof window === 'undefined') return;
+        if (window.location.pathname !== '/' && window.location.pathname !== '') return;
+        try {
+          var url = sessionStorage.getItem('harvous_pending_redirect');
+          if (url && url.startsWith('http')) {
+            sessionStorage.removeItem('harvous_pending_redirect');
+            window.location.replace(url);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    
     <!-- Avatar Manager Global Script -->
     <script is:inline src="/scripts/avatar-manager-global.js"></script>
     

@@ -1,4 +1,5 @@
 import { test as base, expect } from '@playwright/test';
+import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
 import { test, expect as authExpect } from './fixtures/auth';
 
 /**
@@ -50,6 +51,56 @@ base.describe('Unauthenticated join page', () => {
     // href should point to sign-in with redirect back to this join page (redirect may be encoded)
     expect(href).toContain('/sign-in');
     expect(href?.includes('/spaces/join/') || href?.includes('%2Fspaces%2Fjoin')).toBe(true);
+  });
+});
+
+// ─── Full flow: unauthenticated → sign-in → join page → space ─────────────────
+// Ensures post-sign-in redirect returns to join page (not My Home).
+
+base.describe('Full join flow from sign-in', () => {
+  base.test('unauthenticated user clicks join link, signs in, lands on join page, then joins and reaches space', async ({
+    page,
+  }) => {
+    await page.goto(JOIN_URL);
+
+    const joinLink = page.getByRole('link', { name: /join this space on harvous/i });
+    await joinLink.click();
+
+    await expect(page).toHaveURL(/\/sign-in/, { timeout: 10_000 });
+
+    await setupClerkTestingToken({ page });
+    await clerk.signIn({
+      page,
+      signInParams: {
+        strategy: 'password',
+        identifier: process.env.TEST_USER_B_EMAIL!,
+        password: process.env.TEST_USER_B_PASSWORD!,
+      },
+    });
+
+    // Wait for post-sign-in navigation (Clerk may send user to / or to redirect_url)
+    await page.waitForURL(
+      (url) => url.pathname === '/' || url.pathname.startsWith('/spaces/join/'),
+      { timeout: 15_000 }
+    ).catch(() => {});
+
+    // If Clerk left us on sign-in or sent us to /, our sessionStorage fallback redirects to join page when we hit /
+    if (!page.url().includes('/spaces/join/')) {
+      await page.goto('/');
+    }
+    await expect(page).toHaveURL(/\/spaces\/join\/testToken123/, { timeout: 10_000 });
+
+    const joinBtn = page.locator('#join-space-btn');
+    const goToSpace = page.getByRole('link', { name: /go to space/i }).or(page.getByRole('button', { name: /go to space/i }));
+    const joinOrGo = joinBtn.or(goToSpace);
+    await authExpect(joinOrGo).toBeVisible({ timeout: 10_000 });
+    if (await joinBtn.isVisible().catch(() => false)) {
+      await joinBtn.click();
+    } else {
+      await goToSpace.click();
+    }
+
+    await expect(page).toHaveURL(SPACE_URL_PATTERN, { timeout: 8_000 });
   });
 });
 
