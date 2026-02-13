@@ -18,7 +18,7 @@ import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
 import SpaceCardStackHeader from "@/components/react/SpaceCardStackHeader";
-import { db, Threads, Notes, Spaces, NoteThreads, Members, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, Members, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne, inArray, isNotNull } from "astro:db";
 import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getMemberOfSpaces, getNotesForThread, getNotesForThreadForMember, getThreadsForSpace, getNotesForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { requireSpaceAccess } from "@/utils/space-permissions";
 import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
@@ -583,67 +583,13 @@ try {
               pageTitle = 'Loading...';
               pageContent = '0 notes';
             } else {
-              // Thread not found as owner - try member view (thread in a space the user is a member of)
-              const threadBySpace = await db.select()
+              // Member path already tried above; thread not found as owner and not offline – log for debugging
+              console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
+              const anyThread = await db.select()
                 .from(Threads)
                 .where(eq(Threads.id, id!))
                 .get();
-              if (threadBySpace?.spaceId) {
-                try {
-                  const access = await requireSpaceAccess(threadBySpace.spaceId, authenticatedUserId);
-                  const { role, space } = access;
-                  spaceRole = role;
-                  const notesResult = await getNotesForThreadForMember(threadBySpace.id, space.userId, 100, 0);
-                  const memberNotes = notesResult.notes;
-                  const noteCount = memberNotes.length;
-                  const memberNoteTypeCounts = {
-                    all: memberNotes.length,
-                    default: memberNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length,
-                    scripture: memberNotes.filter((n: any) => n.noteType === 'scripture').length,
-                    resource: memberNotes.filter((n: any) => n.noteType === 'resource').length
-                  };
-                  content = {
-                    id: threadBySpace.id,
-                    title: threadBySpace.title,
-                    subtitle: threadBySpace.subtitle,
-                    color: threadBySpace.color,
-                    spaceId: threadBySpace.spaceId,
-                    notes: memberNotes,
-                    noteCount
-                  };
-                  currentThread = {
-                    id: threadBySpace.id,
-                    title: threadBySpace.title,
-                    color: threadBySpace.color,
-                    spaceId: threadBySpace.spaceId || null,
-                    noteCount,
-                    backgroundGradient: getThreadGradientCSS(threadBySpace.color),
-                    userId: threadBySpace.userId
-                  };
-                  threadNotes = memberNotes;
-                  noteTypeCounts = memberNoteTypeCounts;
-                  pageTitle = threadBySpace.title;
-                  pageContent = `${noteCount} notes`;
-                  currentSpace = {
-                    id: space.id,
-                    title: space.title,
-                    color: space.color,
-                    isPublic: space.isPublic,
-                    totalItemCount: 0,
-                    backgroundGradient: getThreadGradientCSS(space.color || 'paper')
-                  };
-                } catch {
-                  // No access - leave content null
-                }
-              }
-              if (!content) {
-                console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
-                const anyThread = await db.select()
-                  .from(Threads)
-                  .where(eq(Threads.id, id!))
-                  .get();
-                console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
-              }
+              console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
             }
           }
         }
@@ -689,7 +635,33 @@ try {
             note = undefined;
           }
         } else if (noteRow.userId !== authenticatedUserId) {
-          note = undefined;
+          // Note has no spaceId; resolve space via note's thread(s) so members can open notes in shared-space threads
+          const noteThreadRows = await db.select({ threadId: NoteThreads.threadId })
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, noteRow.id))
+            .all();
+          const threadIds = noteThreadRows.map((r) => r.threadId).filter(Boolean);
+          let hasAccessViaThread = false;
+          if (threadIds.length > 0) {
+            const threadsWithSpace = await db.select({ id: Threads.id, spaceId: Threads.spaceId })
+              .from(Threads)
+              .where(and(inArray(Threads.id, threadIds), isNotNull(Threads.spaceId)))
+              .all();
+            for (const t of threadsWithSpace) {
+              if (t.spaceId) {
+                try {
+                  await requireSpaceAccess(t.spaceId, authenticatedUserId);
+                  hasAccessViaThread = true;
+                  break;
+                } catch {
+                  // No access to this space, try next
+                }
+              }
+            }
+          }
+          if (!hasAccessViaThread) {
+            note = undefined;
+          }
         }
       }
       if (note) {
