@@ -19,7 +19,7 @@ import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
 import SpaceCardStackHeader from "@/components/react/SpaceCardStackHeader";
 import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
-import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getNotesForThread, getThreadsForSpace, getNotesForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getMemberOfSpaces, getNotesForThread, getNotesForThreadForMember, getThreadsForSpace, getNotesForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { requireSpaceAccess } from "@/utils/space-permissions";
 import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
 // Sample data imports removed - using real database data only
@@ -486,14 +486,66 @@ try {
               pageTitle = 'Loading...';
               pageContent = '0 notes';
             } else {
-              // Thread not found and not an offline thread - log for debugging
-              console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
-              // Also check if thread exists at all (without userId check) for debugging
-              const anyThread = await db.select()
+              // Thread not found as owner - try member view (thread in a space the user is a member of)
+              const threadBySpace = await db.select()
                 .from(Threads)
                 .where(eq(Threads.id, id!))
                 .get();
-              console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
+              if (threadBySpace?.spaceId) {
+                try {
+                  const access = await requireSpaceAccess(threadBySpace.spaceId, authenticatedUserId);
+                  const { role, space } = access;
+                  spaceRole = role;
+                  const notesResult = await getNotesForThreadForMember(threadBySpace.id, space.userId, 100, 0);
+                  const memberNotes = notesResult.notes;
+                  const noteCount = memberNotes.length;
+                  const memberNoteTypeCounts = {
+                    all: memberNotes.length,
+                    default: memberNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length,
+                    scripture: memberNotes.filter((n: any) => n.noteType === 'scripture').length,
+                    resource: memberNotes.filter((n: any) => n.noteType === 'resource').length
+                  };
+                  content = {
+                    id: threadBySpace.id,
+                    title: threadBySpace.title,
+                    subtitle: threadBySpace.subtitle,
+                    color: threadBySpace.color,
+                    spaceId: threadBySpace.spaceId,
+                    notes: memberNotes,
+                    noteCount
+                  };
+                  currentThread = {
+                    id: threadBySpace.id,
+                    title: threadBySpace.title,
+                    color: threadBySpace.color,
+                    spaceId: threadBySpace.spaceId || null,
+                    noteCount,
+                    backgroundGradient: getThreadGradientCSS(threadBySpace.color)
+                  };
+                  threadNotes = memberNotes;
+                  noteTypeCounts = memberNoteTypeCounts;
+                  pageTitle = threadBySpace.title;
+                  pageContent = `${noteCount} notes`;
+                  currentSpace = {
+                    id: space.id,
+                    title: space.title,
+                    color: space.color,
+                    isPublic: space.isPublic,
+                    totalItemCount: 0,
+                    backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+                  };
+                } catch {
+                  // No access - leave content null
+                }
+              }
+              if (!content) {
+                console.error(`[id].astro] Thread not found in direct query: ${id} for user: ${authenticatedUserId}`);
+                const anyThread = await db.select()
+                  .from(Threads)
+                  .where(eq(Threads.id, id!))
+                  .get();
+                console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
+              }
             }
           }
         }
@@ -528,8 +580,20 @@ try {
       }
       
       // NOW fetch note from database (with updated lastVisited)
-      const note = await db.select().from(Notes).where(eq(Notes.id, id!)).get();
-      
+      const noteRow = await db.select().from(Notes).where(eq(Notes.id, id!)).get();
+      let note: typeof noteRow = noteRow;
+      if (noteRow) {
+        // Enforce access: note in a space requires space membership; personal note requires ownership
+        if (noteRow.spaceId) {
+          try {
+            await requireSpaceAccess(noteRow.spaceId, authenticatedUserId);
+          } catch {
+            note = undefined;
+          }
+        } else if (noteRow.userId !== authenticatedUserId) {
+          note = undefined;
+        }
+      }
       if (note) {
         // Fetch scripture metadata if this is a scripture note
         let version: string | undefined;
@@ -919,18 +983,26 @@ try {
       }
     }
 
-    // Get navigation data from database
-    const [allThreads, allSpaces, inboxCountData] = await Promise.all([
+    // Get navigation data from database (owned + member-of so dropdown shows all spaces)
+    const [allThreads, allSpaces, memberOfData, inboxCountData] = await Promise.all([
       getAllThreadsWithCounts(authenticatedUserId),
       getSpacesWithCounts(authenticatedUserId),
+      getMemberOfSpaces(authenticatedUserId),
       getInboxDisplayCount(authenticatedUserId)
     ]);
-    
-    spaces = allSpaces;
+
+    const joinedSpaces = (memberOfData || []).map((m: { id: string; title: string | null; color: string | null; memberCount: number }) => ({
+      id: m.id,
+      title: m.title || 'Untitled space',
+      color: m.color,
+      totalItemCount: m.memberCount,
+      backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+    }));
+    spaces = [...allSpaces, ...joinedSpaces];
     threads = [...allThreads, ...threads]; // Combine with space-specific threads
     inboxCount = inboxCountData;
 
-    // Include current (member) space in nav dropdown when viewing a space the user is a member of but does not own
+    // Include current (member) space in nav dropdown when viewing a space the user is a member of but does not own (safety if not already in memberOf)
     if (currentSpace && !spaces.some((s: { id: string }) => s.id === currentSpace.id)) {
       spaces = [...spaces, currentSpace];
     }
@@ -1210,7 +1282,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} noteSimpleId={isNote && content ? content.noteId : undefined} />
+    <MobileAdditional contentType={contentType} contentId={id} currentThread={currentThread} currentSpace={isSpace && content ? content : null} noteType={noteTypeForMenu} contentEncrypted={isNote && content ? content.contentEncrypted : undefined} noteSimpleId={isNote && content ? content.noteId : undefined} spaceRole={spaceRole} />
   </div>
 
 </Layout>

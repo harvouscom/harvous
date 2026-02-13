@@ -5,7 +5,7 @@ import CardStack from "@/components/CardStack.astro";
 import TabNav from "@/components/TabNav.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount, getContentItems } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getMemberOfSpaces, getInboxCount, getContentItems } from "@/utils/dashboard-data";
 import OrganizedContentList from "@/components/react/OrganizedContentList";
 import { getThreadGradientCSS } from "@/utils/colors";
 import MobileAdditional from "@/components/MobileAdditional.astro";
@@ -48,18 +48,35 @@ try {
       userColor: 'paper',
     }));
 
-    // Then fetch threads, spaces, inbox in parallel (onboarding thread now exists for new users)
-    const [threadsData, spacesData, inboxCountData] = await Promise.allSettled([
+    // Then fetch threads, spaces, member-of spaces, inbox in parallel (onboarding thread now exists for new users)
+    const [threadsData, spacesData, memberOfData, inboxCountData] = await Promise.allSettled([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
+      getMemberOfSpaces(userId),
       getInboxCount(userId),
     ]);
 
     // Extract results from Promise.allSettled
     threads = threadsData.status === 'fulfilled' ? threadsData.value : [];
-    spaces = spacesData.status === 'fulfilled' ? spacesData.value : [];
+    const ownedSpaces = spacesData.status === 'fulfilled' ? spacesData.value : [];
+    const memberOfSpaces = memberOfData.status === 'fulfilled' ? memberOfData.value : [];
     inboxCount = inboxCountData.status === 'fulfilled' ? inboxCountData.value : 0;
-    
+
+    const joinedSpaces = (memberOfSpaces || []).map((m: { id: string; title: string | null; color: string | null; memberCount: number }) => ({
+      id: m.id,
+      title: m.title || 'Untitled space',
+      color: m.color,
+      totalItemCount: m.memberCount,
+      backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+    }));
+    spaces = [
+      ...ownedSpaces.map((space: any) => ({
+        ...space,
+        backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue'),
+      })),
+      ...joinedSpaces,
+    ];
+
     // Fetch content items with threads passed in to avoid duplicate query
     try {
       contentItems = await getContentItems(userId, 30, 0, true, threads);
@@ -67,17 +84,11 @@ try {
       console.error("Error fetching content items:", error);
       contentItems = [];
     }
-    
+
     // Ensure threads have backgroundGradient property for consistency
     threads = threads.map(thread => ({
       ...thread,
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
-    }));
-    
-    // Ensure spaces have backgroundGradient property for consistency
-    spaces = spaces.map(space => ({
-      ...space,
-      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
     }));
 } catch (error) {
   console.error("Error fetching dashboard data:", error);

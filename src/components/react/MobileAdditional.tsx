@@ -11,6 +11,7 @@ interface MobileAdditionalProps {
   noteType?: string;
   contentEncrypted?: boolean;
   noteSimpleId?: number | null;
+  spaceRole?: 'owner' | 'member' | null;
 }
 
 export default function MobileAdditional({
@@ -21,7 +22,8 @@ export default function MobileAdditional({
   currentThreadId,
   noteType,
   contentEncrypted,
-  noteSimpleId
+  noteSimpleId,
+  spaceRole
 }: MobileAdditionalProps) {
   const showMoreButton = shouldShowMoreButton(contentType, contentId);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -107,7 +109,7 @@ export default function MobileAdditional({
       {/* Default state: SquareButtons in horizontal layout */}
       <div className={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
         {showMoreButton && (
-          <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThreadId} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} />
+          <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThreadId} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} />
         )}
         {contentType !== 'profile' && (
           <SquareButton variant="Add" withMenu={true} />

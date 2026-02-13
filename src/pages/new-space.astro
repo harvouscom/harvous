@@ -5,7 +5,7 @@ import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import NewSpacePanelReact from "@/components/NewSpacePanelReact.astro";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getMemberOfSpaces, getInboxCount } from "@/utils/dashboard-data";
 import { calculateTotalXP } from "@/utils/xp-system";
 import { getThreadGradientCSS } from "@/utils/colors";
 
@@ -13,10 +13,11 @@ import { getThreadGradientCSS } from "@/utils/colors";
 const auth = Astro.locals.auth();
 const { userId, getToken } = auth;
 
-// Auth redirect is now handled by middleware - no need to check here
-// Pages can still use userId for conditional rendering
+if (!userId) {
+  return Astro.redirect('/sign-in');
+}
 
-// Set cache headers to reduce function invocations on repeat visits
+// Set cache headers to reduce function invocations on repeat visits to reduce function invocations on repeat visits
 Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
 // Try to fetch user data from Clerk API using secret key
@@ -66,28 +67,34 @@ let inboxCount: number = 0;
 let userXP: number = 0;
 
 try {
-  const [spacesData, threadsData, inboxCountData, xpData] = await Promise.all([
+  const [spacesData, memberOfData, threadsData, inboxCountData, xpData] = await Promise.all([
     getSpacesWithCounts(userId),
+    getMemberOfSpaces(userId),
     getAllThreadsWithCounts(userId),
     getInboxCount(userId),
     calculateTotalXP(userId)
   ]);
-  
-  spaces = spacesData;
+
+  const ownedSpaces = spacesData.map((space: any) => ({
+    ...space,
+    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue'),
+  }));
+  const joinedSpaces = (memberOfData || []).map((m: { id: string; title: string | null; color: string | null; memberCount: number }) => ({
+    id: m.id,
+    title: m.title || 'Untitled space',
+    color: m.color,
+    totalItemCount: m.memberCount,
+    backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+  }));
+  spaces = [...ownedSpaces, ...joinedSpaces];
   threads = threadsData;
   inboxCount = inboxCountData;
   userXP = xpData;
-  
+
   // Ensure threads have backgroundGradient property for consistency
   threads = threads.map(thread => ({
     ...thread,
     backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
-  }));
-  
-  // Ensure spaces have backgroundGradient property for consistency
-  spaces = spaces.map(space => ({
-    ...space,
-    backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
   }));
 } catch (error) {
   console.error("Error fetching navigation data:", error);

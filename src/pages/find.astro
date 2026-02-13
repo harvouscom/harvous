@@ -17,7 +17,7 @@ import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
 import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
-import { getInboxCount, getSpacesWithCounts, getAllThreadsWithCounts, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
+import { getInboxCount, getSpacesWithCounts, getMemberOfSpaces, getAllThreadsWithCounts, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
 import { stripHtml } from "@/utils/html-stripper";
 import { idToUrl } from "@/utils/url-helpers";
 
@@ -98,16 +98,25 @@ let inboxCount: number = 0;
 let spaces: any[] = [];
 let threads: any[] = [];
 try {
-  const [inboxCountData, spacesData, threadsData] = await Promise.all([
+  const [inboxCountData, spacesData, memberOfData, threadsData] = await Promise.all([
     getInboxCount(userId),
     getSpacesWithCounts(userId),
+    getMemberOfSpaces(userId),
     getAllThreadsWithCounts(userId),
   ]);
   inboxCount = inboxCountData;
-  spaces = (spacesData || []).map((space: any) => ({
+  const ownedSpaces = (spacesData || []).map((space: any) => ({
     ...space,
     backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue'),
   }));
+  const joinedSpaces = (memberOfData || []).map((m: { id: string; title: string | null; color: string | null; memberCount: number }) => ({
+    id: m.id,
+    title: m.title || 'Untitled space',
+    color: m.color,
+    totalItemCount: m.memberCount,
+    backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+  }));
+  spaces = [...ownedSpaces, ...joinedSpaces];
   threads = (threadsData || []).map((thread: any) => ({
     ...thread,
     backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue'),

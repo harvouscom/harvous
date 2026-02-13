@@ -5,7 +5,7 @@ import CardStack from "@/components/CardStack.astro";
 import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxCount } from "@/utils/dashboard-data";
+import { getAllThreadsWithCounts, getSpacesWithCounts, getMemberOfSpaces, getInboxCount } from "@/utils/dashboard-data";
 import { getSeasonalXP, getLifetimeXP } from "@/utils/xp-system";
 import { getSeasonDisplayName } from "@/utils/season-helpers";
 import { getThreadGradientCSS } from "@/utils/colors";
@@ -77,19 +77,28 @@ let churchData = {
 };
 
 try {
-  const [spacesData, threadsData, inboxCountData, seasonalXPData, lifetimeXPData, userMetadata] = await Promise.all([
+  const [spacesData, memberOfData, threadsData, inboxCountData, seasonalXPData, lifetimeXPData, userMetadata] = await Promise.all([
     getSpacesWithCounts(userId),
+    getMemberOfSpaces(userId),
     getAllThreadsWithCounts(userId),
     getInboxCount(userId),
     getSeasonalXP(userId),
     getLifetimeXP(userId),
     db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get()
   ]);
-  
-  spaces = spacesData.map(space => ({
+
+  const ownedSpaces = spacesData.map(space => ({
     ...space,
     backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'blue')
   }));
+  const joinedSpaces = (memberOfData || []).map((m: { id: string; title: string | null; color: string | null; memberCount: number }) => ({
+    id: m.id,
+    title: m.title || 'Untitled space',
+    color: m.color,
+    totalItemCount: m.memberCount,
+    backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
+  }));
+  spaces = [...ownedSpaces, ...joinedSpaces];
   threads = threadsData.map(thread => ({
     ...thread,
     backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
@@ -98,7 +107,7 @@ try {
   seasonalXP = seasonalXPData;
   lifetimeXP = lifetimeXPData;
   seasonName = getSeasonDisplayName();
-  
+
   // Extract church data from UserMetadata
   if (userMetadata) {
     churchData = {
@@ -107,7 +116,7 @@ try {
       churchState: userMetadata.churchState ?? null
     };
   }
-  
+
 } catch (error) {
   console.error("Error fetching navigation data:", error);
 }

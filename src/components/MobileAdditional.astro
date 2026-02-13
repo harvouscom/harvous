@@ -9,9 +9,10 @@ export interface Props {
   noteType?: string;
   contentEncrypted?: boolean;
   noteSimpleId?: number | null;
+  spaceRole?: 'owner' | 'member' | null;
 }
 
-const { contentType = "dashboard", contentId, currentThread, currentSpace, noteType, contentEncrypted, noteSimpleId } = Astro.props;
+const { contentType = "dashboard", contentId, currentThread, currentSpace, noteType, contentEncrypted, noteSimpleId, spaceRole } = Astro.props;
 ---
 
 <MobileAdditionalReact
@@ -23,5 +24,6 @@ const { contentType = "dashboard", contentId, currentThread, currentSpace, noteT
   noteType={noteType}
   contentEncrypted={contentEncrypted}
   noteSimpleId={noteSimpleId}
+  spaceRole={spaceRole}
   client:load
 />

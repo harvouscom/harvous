@@ -1,5 +1,6 @@
-import { db, Threads, Notes, Spaces, NoteThreads, InboxItemNotes, ResourceMetadata, NoteScriptureReferences, ScriptureMetadata, eq, and, desc, asc, count, or, ne, isNull, isNotNull, inArray, sql } from "astro:db";
+import { db, Threads, Notes, Spaces, Members, NoteThreads, InboxItemNotes, ResourceMetadata, NoteScriptureReferences, ScriptureMetadata, eq, and, desc, asc, count, or, ne, isNull, isNotNull, inArray, sql } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "./colors";
+import { getSpaceMemberCount } from "./tier-limits";
 import { getInboxItems, getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { getRelativeTime } from "./date-formatting";
 import { stripHtml } from "./html-stripper";
@@ -307,6 +308,47 @@ export async function getSpacesWithCounts(userId: string) {
     }));
   } catch (error) {
     console.error("Error fetching spaces:", error);
+    return [];
+  }
+}
+
+/** Spaces the user has joined (member of, not owner). Used to merge with owned spaces on find/profile so nav shows both. */
+export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number }>> {
+  try {
+    const memberships = await db
+      .select({ spaceId: Members.spaceId })
+      .from(Members)
+      .where(eq(Members.userId, userId))
+      .all();
+
+    const ownedSpaceIds = await db
+      .select({ id: Spaces.id })
+      .from(Spaces)
+      .where(eq(Spaces.userId, userId))
+      .all();
+    const ownedSet = new Set(ownedSpaceIds.map((r) => r.id));
+
+    const memberOf: Array<{ id: string; title: string | null; color: string | null; memberCount: number }> = [];
+    for (const m of memberships) {
+      if (ownedSet.has(m.spaceId)) continue;
+      const spaceRow = await db
+        .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
+        .from(Spaces)
+        .where(eq(Spaces.id, m.spaceId))
+        .get();
+      if (spaceRow) {
+        const memberCount = await getSpaceMemberCount(spaceRow.id);
+        memberOf.push({
+          id: spaceRow.id,
+          title: spaceRow.title,
+          color: spaceRow.color,
+          memberCount,
+        });
+      }
+    }
+    return memberOf;
+  } catch (error) {
+    console.error("Error fetching member-of spaces:", error);
     return [];
   }
 }
@@ -698,6 +740,109 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
   } catch (error) {
     console.error("Error fetching notes for thread:", error);
     return [];
+  }
+}
+
+/**
+ * Fetch notes for a thread when viewing as a member (no userId filter on notes).
+ * Used when a member opens a thread in a shared space; notes belong to the space owner.
+ * Excludes locked (contentEncrypted) notes. ownerUserId is used for getThreadColorsForNotesBatch.
+ */
+export async function getNotesForThreadForMember(
+  threadId: string,
+  ownerUserId: string,
+  limit = 100,
+  offset = 0
+): Promise<{ notes: any[]; hasMore: boolean }> {
+  try {
+    const fetchLimit = limit + offset + 1;
+    const junctionNotes = await db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      contentEncrypted: Notes.contentEncrypted,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      simpleNoteId: Notes.simpleNoteId,
+      noteType: Notes.noteType,
+      isPublic: Notes.isPublic,
+      isFeatured: Notes.isFeatured,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt,
+      lastVisited: Notes.lastVisited,
+    })
+    .from(Notes)
+    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+    .where(and(
+      eq(NoteThreads.threadId, threadId),
+      eq(Notes.contentEncrypted, false)
+    ))
+    .orderBy(
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      asc(Notes.id)
+    )
+    .limit(fetchLimit)
+    .all();
+
+    const sortedAllNotes = sortByLastVisited(junctionNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id || ''
+    })));
+    const hasMore = sortedAllNotes.length > offset + limit;
+    const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
+
+    const resourceNoteIds = sortedNotes
+      .filter(note => note.noteType === 'resource')
+      .map(note => note.id);
+    let resourceMetadataMap: Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }> = {};
+    if (resourceNoteIds.length > 0) {
+      const resourceMetadata = await db.select({
+        noteId: ResourceMetadata.noteId,
+        sourceTitle: ResourceMetadata.sourceTitle,
+        sourceDescription: ResourceMetadata.sourceDescription,
+        sourceImage: ResourceMetadata.sourceImage,
+        sourceDomain: ResourceMetadata.sourceDomain,
+        sourceName: ResourceMetadata.sourceName,
+      })
+      .from(ResourceMetadata)
+      .where(inArray(ResourceMetadata.noteId, resourceNoteIds))
+      .all();
+      resourceMetadataMap = resourceMetadata.reduce((acc, meta) => {
+        acc[meta.noteId] = {
+          sourceTitle: meta.sourceTitle,
+          sourceDescription: meta.sourceDescription,
+          sourceImage: meta.sourceImage,
+          sourceDomain: meta.sourceDomain,
+          sourceName: meta.sourceName,
+        };
+        return acc;
+      }, {} as Record<string, { sourceTitle: string | null; sourceDescription: string | null; sourceImage: string | null; sourceDomain: string | null; sourceName: string | null }>);
+    }
+
+    const noteIds = sortedNotes.map(note => note.id).filter((id): id is string => !!id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
+    const notesWithThreadColors = sortedNotes.map((note) => {
+      const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const threadColors = threadColorsMap.get(note.id);
+      return {
+        ...note,
+        lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
+        lastVisited: note.lastVisited,
+        resourceTitle: resourceMeta?.sourceTitle || null,
+        resourceDescription: resourceMeta?.sourceDescription || null,
+        resourceImage: resourceMeta?.sourceImage || null,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+      };
+    });
+
+    return { notes: notesWithThreadColors, hasMore };
+  } catch (error) {
+    console.error("Error fetching notes for thread (member):", error);
+    return { notes: [], hasMore: false };
   }
 }
 
