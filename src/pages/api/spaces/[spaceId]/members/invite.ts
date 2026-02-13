@@ -30,7 +30,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       return unauthorizedResponse();
     }
 
-    // Rate limiting - 10 invites per hour
+    // Rate limiting - 60 invites per minute (higher than generic write for onboarding larger spaces)
     const ip = getClientIP(request);
     const rateLimit = rateLimitMiddleware(userId, '/api/spaces/[spaceId]/members/invite', 'write', ip);
     if (!rateLimit.allowed) {
@@ -68,7 +68,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     // Check tier limits - can space owner add more members?
     const canAdd = await canAddMemberToSpace(spaceId, space.userId, locals.auth());
     if (!canAdd.allowed) {
-      return errorResponse(canAdd.reason || 'Cannot add more members to this space', 'MEMBER_LIMIT_REACHED', 403);
+      return errorResponse(canAdd.reason || 'Cannot add more people to this space', 'MEMBER_LIMIT_REACHED', 403);
     }
 
     // Enforce owned shared spaces limit when adding the first member (invitation leads to join)

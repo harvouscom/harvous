@@ -110,6 +110,11 @@ export const RATE_LIMITS = {
   WRITE: {
     maxRequests: 20,
     windowMs: 60 * 1000 // 1 minute
+  },
+  // Space invite: higher limit so owners can onboard larger spaces (e.g. 100 members)
+  INVITE: {
+    maxRequests: 60,
+    windowMs: 60 * 1000 // 1 minute
   }
 } as const;
 
@@ -122,18 +127,26 @@ export function rateLimitMiddleware(
   type: 'read' | 'write',
   ip?: string
 ): { allowed: boolean; error?: string; remaining?: number; resetTime?: number } {
-  const config = type === 'read' ? RATE_LIMITS.READ : RATE_LIMITS.WRITE;
+  const isInviteEndpoint = endpoint.includes('members/invite');
+  const config = isInviteEndpoint
+    ? RATE_LIMITS.INVITE
+    : type === 'read'
+      ? RATE_LIMITS.READ
+      : RATE_LIMITS.WRITE;
   const result = checkRateLimit(userId, endpoint, config, ip);
-  
+
   if (!result.allowed) {
+    const message = isInviteEndpoint
+      ? `Rate limit exceeded. Maximum ${config.maxRequests} invites per minute.`
+      : `Rate limit exceeded. Maximum ${config.maxRequests} requests per minute.`;
     return {
       allowed: false,
-      error: `Rate limit exceeded. Maximum ${config.maxRequests} requests per minute.`,
+      error: message,
       remaining: result.remaining,
       resetTime: result.resetTime
     };
   }
-  
+
   return {
     allowed: true,
     remaining: result.remaining,

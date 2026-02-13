@@ -2,8 +2,8 @@
  * Tier Limits for Collaborative Shared Spaces
  *
  * Enforces tier-based limits for collaborative features:
- * - Free tier: 1 shared space (5 members max), join up to 3 spaces
- * - Unlimited tier: 3 shared spaces (10 members each), join unlimited spaces
+ * - Free tier: 1 shared space (10 people max), join up to 3 spaces
+ * - Unlimited tier: 3 shared spaces (100 people each), join unlimited spaces
  */
 
 import { db, Spaces, Members, eq } from 'astro:db';
@@ -13,12 +13,12 @@ import type { Auth } from '@clerk/astro/server';
 export const TIER_LIMITS = {
   free: {
     ownedSharedSpaces: 1,
-    membersPerSpace: 5,
+    membersPerSpace: 10,
     joinableSpaces: 3,
   },
   unlimited: {
     ownedSharedSpaces: 3,
-    membersPerSpace: 10,
+    membersPerSpace: 100,
     joinableSpaces: Infinity, // No limit
   }
 } as const;
@@ -251,8 +251,8 @@ export async function canAddMemberToSpace(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'This space has reached the member limit (5 members). Space owner needs to upgrade.'
-        : `This space has reached the member limit (${limits.membersPerSpace} members).`,
+        ? `This space has reached the people limit (${limits.membersPerSpace} people). Space owner needs to upgrade.`
+        : `This space has reached the people limit (${limits.membersPerSpace} people).`,
       currentCount,
       limit: limits.membersPerSpace,
     };
@@ -286,8 +286,8 @@ export async function canAddMemberToSpaceByOwnerId(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'This space has reached the member limit (5 members). Space owner needs to upgrade.'
-        : `This space has reached the member limit (${limits.membersPerSpace} members).`,
+        ? `This space has reached the people limit (${limits.membersPerSpace} people). Space owner needs to upgrade.`
+        : `This space has reached the people limit (${limits.membersPerSpace} people).`,
       currentCount,
       limit: limits.membersPerSpace,
     };
@@ -337,7 +337,7 @@ export async function getUserLimitsInfo(userId: string, auth: Auth) {
 
 /**
  * Get space member count and limit for specific space
- * Useful for displaying "3/5 members" in UI
+ * Useful for displaying "3/10 people" or "50/100 people" in UI
  */
 export async function getSpaceMemberInfo(spaceId: string, spaceOwnerId: string, ownerAuth: Auth) {
   const tier = getUserTier(ownerAuth);

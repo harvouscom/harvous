@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const canAdd = await canAddMemberToSpaceByOwnerId(space.id, space.userId);
     if (!canAdd.allowed) {
       return errorResponse(
-        canAdd.reason || 'This space has reached its member limit',
+        canAdd.reason || 'This space has reached its people limit',
         'MEMBER_LIMIT_REACHED',
         403
       );
