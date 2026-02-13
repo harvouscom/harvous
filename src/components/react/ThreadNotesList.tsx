@@ -33,6 +33,8 @@ interface Note {
   resourceImage?: string | null;
   // Sync status for offline mode
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
+  // Thread colors for note card accent (from getNotesForThread or optimistic threadColor)
+  threadColors?: Array<{ color: string; frequency: number }>;
 }
 
 interface NoteTypeCounts {
@@ -45,6 +47,8 @@ interface NoteTypeCounts {
 interface ThreadNotesListProps {
   initialNotes: Note[];
   threadId: string;
+  /** Current thread color (e.g. from currentThread.color). Used for optimistic notes and note card accent so thread color shows for members in shared spaces. */
+  threadColor?: string | null;
   noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
   noteTypeCounts?: NoteTypeCounts;
   'client:load'?: boolean;
@@ -104,6 +108,7 @@ function sortNotesByTime(notes: Note[], threadId: string): Note[] {
 export default function ThreadNotesList({ 
   initialNotes, 
   threadId,
+  threadColor,
   noteTypeFilter = 'all',
   noteTypeCounts
 }: ThreadNotesListProps) {
@@ -546,6 +551,7 @@ export default function ThreadNotesList({
 
         // IMMEDIATE OPTIMISTIC UPDATE: Add note synchronously before any async operations
         // Create note object from event data, or minimal placeholder if incomplete
+        const threadColorsForNote = threadColor ? [{ color: threadColor, frequency: 1 }] : (note as any)?.threadColors;
         const noteToAdd: Note = note ? {
           id: note.id || noteId,
           title: note.title || null,
@@ -557,6 +563,7 @@ export default function ThreadNotesList({
           resourceTitle: note.resourceTitle || null,
           resourceDescription: note.resourceDescription || null,
           resourceImage: note.resourceImage || null,
+          threadColors: threadColorsForNote,
         } : {
           // Minimal placeholder if note data isn't available
           id: noteId,
@@ -564,6 +571,7 @@ export default function ThreadNotesList({
           content: '',
           noteType: 'default',
           createdAt: new Date(),
+          threadColors: threadColorsForNote,
         };
 
         // Check if note matches current filter
@@ -638,7 +646,7 @@ export default function ThreadNotesList({
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
     };
-  }, [threadId, noteTypeFilter, optimisticUpdates, refreshNotesList]);
+  }, [threadId, threadColor, noteTypeFilter, optimisticUpdates, refreshNotesList]);
 
   // PHASE 4: Check sessionStorage on mount for recently created notes
   // Only remove from sessionStorage after successful verification
@@ -727,13 +735,14 @@ export default function ThreadNotesList({
           // Check if note is already in the list
           const noteExists = notesRef.current.some(n => n.id === relevantNote.noteId);
           if (!noteExists) {
-            // Create minimal note object for optimistic update
+            // Create minimal note object for optimistic update (include threadColors so accent shows for members in shared spaces)
             const optimisticNote: Note = {
               id: relevantNote.noteId,
               title: 'Untitled Note',
               content: '',
               noteType: 'default',
-              createdAt: new Date(relevantNote.timestamp)
+              createdAt: new Date(relevantNote.timestamp),
+              threadColors: threadColor ? [{ color: threadColor, frequency: 1 }] : undefined
             };
             
             debug('[ThreadNotesList] Adding note optimistically from sessionStorage', {
@@ -1341,7 +1350,7 @@ export default function ThreadNotesList({
                 cursor: 'pointer'
               }}
             >
-              {/* Accent bar on left */}
+              {/* Accent bar on left – use thread color when available (e.g. member in shared space) */}
               <div 
                 style={{ 
                   position: 'absolute',
@@ -1352,7 +1361,7 @@ export default function ThreadNotesList({
                   borderTopLeftRadius: '0.75rem',
                   borderBottomLeftRadius: '0.75rem',
                   overflow: 'hidden',
-                  backgroundColor: 'var(--color-light-paper)'
+                  backgroundColor: threadColor ? `var(--color-${threadColor})` : (note.threadColors?.[0]?.color ? `var(--color-${note.threadColors[0].color})` : 'var(--color-light-paper)')
                 }}
               />
               
@@ -1391,7 +1400,7 @@ export default function ThreadNotesList({
               </div>
             </div>
           ) : (
-            // Full CardNote for non-scripture notes
+            // Full CardNote for non-scripture notes – pass threadColors so accent shows (e.g. member in shared space)
             <CardNote 
               title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
               content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : truncatedContent}
@@ -1401,6 +1410,7 @@ export default function ThreadNotesList({
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
               isPendingSync={note.syncStatus === 'pending'}
               contentEncrypted={note.contentEncrypted === true}
+              threadColors={note.threadColors ?? (threadColor ? [{ color: threadColor, frequency: 1 }] : undefined)}
             />
           )}
         </a>

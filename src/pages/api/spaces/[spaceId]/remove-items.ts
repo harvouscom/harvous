@@ -1,8 +1,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Spaces, eq, and } from 'astro:db';
+import { db, Notes, Threads, eq, and } from 'astro:db';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -43,18 +45,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // Verify the space exists and belongs to the user
-    const space = await db.select()
-      .from(Spaces)
-      .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-      .get();
-
-    if (!space) {
-      return new Response(JSON.stringify({ error: 'Space not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Verify user has access to space (owner or member); members can only remove their own items (enforced below)
+    await requireSpaceAccess(spaceId, userId);
 
     const errors: string[] = [];
     const removedNotes: string[] = [];
@@ -81,12 +73,9 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
             continue;
           }
 
-          // Set spaceId to null
-          // Don't update updatedAt - only metadata change, not content change
+          // Set spaceId to null (only for notes owned by current user; members remove only their own)
           await db.update(Notes)
-            .set({ 
-              spaceId: null
-            })
+            .set({ spaceId: null })
             .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
 
           removedNotes.push(noteId);
@@ -150,12 +139,19 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
   } catch (error: any) {
+    if (error instanceof Response) return error;
     console.error('Error removing items from space:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to remove items from space' 
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/remove-items',
+      action: 'remove_items_from_space',
+      spaceId: params?.spaceId,
+    });
+    return new Response(JSON.stringify({
+      error: standardError.message,
+      code: standardError.code,
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 };

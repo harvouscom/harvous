@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Threads, eq } from 'astro:db';
+import { db, Threads, Spaces, Members, eq, and } from 'astro:db';
 import { getNotesForThread, getNotesForThreadForMember } from '@/utils/dashboard-data';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { handleAPIError } from '@/utils/error-handling';
@@ -39,12 +39,19 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     if (result.notes.length === 0 && offset === 0) {
       const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
       if (thread?.spaceId) {
+        let memberNotesResult: { notes: any[]; hasMore: boolean } | null = null;
         try {
           const { space } = await requireSpaceAccess(thread.spaceId, userId);
-          result = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
+          memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
         } catch {
-          // No access - keep owner result (empty)
+          // requireSpaceAccess threw – try direct Members check
+          const spaceRow = await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).get();
+          const memberRow = await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, userId))).get();
+          if (spaceRow && memberRow) {
+            memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
+          }
         }
+        if (memberNotesResult) result = memberNotesResult;
       }
     }
 

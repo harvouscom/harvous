@@ -1454,7 +1454,7 @@ export default function EditSpacePanel({
                             >
                               {renderCompactThreadItem(thread)}
                             </a>
-                            {isOwner && (
+                            {(isOwner || thread.userId === userId) && (
                               <ActionButton
                                 variant="Remove"
                                 onClick={(e) => {
@@ -1479,7 +1479,7 @@ export default function EditSpacePanel({
                             >
                               {renderCompactNoteItem(note)}
                             </a>
-                            {isOwner && (
+                            {(isOwner || note.userId === userId) && (
                               <ActionButton
                                 variant="Remove"
                                 onClick={(e) => {

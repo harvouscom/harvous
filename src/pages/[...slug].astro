@@ -18,7 +18,7 @@ import NavigationColumnReact from "@/components/NavigationColumnReact.astro";
 import OfflineThreadLoader from "@/components/react/OfflineThreadLoader";
 import ThreadCardStackHeader from "@/components/react/ThreadCardStackHeader";
 import SpaceCardStackHeader from "@/components/react/SpaceCardStackHeader";
-import { db, Threads, Notes, Spaces, NoteThreads, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
+import { db, Threads, Notes, Spaces, NoteThreads, Members, ScriptureMetadata, ResourceMetadata, eq, and, desc, count, ne } from "astro:db";
 import { getAllThreadsWithCounts, getThreadWithCount, getSpacesWithCounts, getMemberOfSpaces, getNotesForThread, getNotesForThreadForMember, getThreadsForSpace, getNotesForSpace, getThreadsForSpaceBySpaceId, getNotesForSpaceForMember, getInboxCount, getInboxDisplayCount, getThreadNoteTypeCounts } from "@/utils/dashboard-data";
 import { requireSpaceAccess } from "@/utils/space-permissions";
 import { getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS } from "@/utils/colors";
@@ -387,6 +387,7 @@ try {
             .where(eq(Threads.id, id!))
             .get();
           if (threadBySpace?.spaceId) {
+            let memberPathSucceeded = false;
             try {
               const access = await requireSpaceAccess(threadBySpace.spaceId, authenticatedUserId);
               const { role, space } = access;
@@ -430,8 +431,55 @@ try {
                 totalItemCount: 0,
                 backgroundGradient: getThreadGradientCSS(space.color || 'paper')
               };
+              memberPathSucceeded = true;
             } catch {
-              // No access – continue to fallback
+              // requireSpaceAccess threw – try direct Members check (avoids any throw from requireSpaceAccess)
+            }
+            if (!memberPathSucceeded) {
+              const spaceRow = await db.select().from(Spaces).where(eq(Spaces.id, threadBySpace.spaceId)).get();
+              const memberRow = await db.select().from(Members).where(and(eq(Members.spaceId, threadBySpace.spaceId), eq(Members.userId, authenticatedUserId))).get();
+              if (spaceRow && memberRow) {
+                spaceRole = 'member';
+                const notesResult = await getNotesForThreadForMember(threadBySpace.id, spaceRow.userId, 100, 0);
+                const memberNotes = notesResult.notes;
+                const noteCount = memberNotes.length;
+                const memberNoteTypeCounts = {
+                  all: memberNotes.length,
+                  default: memberNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length,
+                  scripture: memberNotes.filter((n: any) => n.noteType === 'scripture').length,
+                  resource: memberNotes.filter((n: any) => n.noteType === 'resource').length
+                };
+                content = {
+                  id: threadBySpace.id,
+                  title: threadBySpace.title,
+                  subtitle: threadBySpace.subtitle,
+                  color: threadBySpace.color,
+                  spaceId: threadBySpace.spaceId,
+                  notes: memberNotes,
+                  noteCount
+                };
+                currentThread = {
+                  id: threadBySpace.id,
+                  title: threadBySpace.title,
+                  color: threadBySpace.color,
+                  spaceId: threadBySpace.spaceId || null,
+                  noteCount,
+                  backgroundGradient: getThreadGradientCSS(threadBySpace.color),
+                  userId: threadBySpace.userId
+                };
+                threadNotes = memberNotes;
+                noteTypeCounts = memberNoteTypeCounts;
+                pageTitle = threadBySpace.title;
+                pageContent = `${noteCount} notes`;
+                currentSpace = {
+                  id: spaceRow.id,
+                  title: spaceRow.title,
+                  color: spaceRow.color,
+                  isPublic: spaceRow.isPublic,
+                  totalItemCount: 0,
+                  backgroundGradient: getThreadGradientCSS(spaceRow.color || 'paper')
+                };
+              }
             }
           }
           if (!content) {
@@ -1233,6 +1281,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                       <ThreadNotesList 
                         initialNotes={threadNotes}
                         threadId={id!}
+                        threadColor={currentThread?.color ?? undefined}
                         noteTypeFilter="all"
                         noteTypeCounts={noteTypeCounts || undefined}
                         client:load
@@ -1244,6 +1293,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                       <ThreadNotesList 
                         initialNotes={threadNotes}
                         threadId={id!}
+                        threadColor={currentThread?.color ?? undefined}
                         noteTypeFilter="default"
                         noteTypeCounts={noteTypeCounts || undefined}
                         client:visible
@@ -1255,6 +1305,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                       <ThreadNotesList 
                         initialNotes={threadNotes}
                         threadId={id!}
+                        threadColor={currentThread?.color ?? undefined}
                         noteTypeFilter="scripture"
                         noteTypeCounts={noteTypeCounts || undefined}
                         client:load

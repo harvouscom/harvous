@@ -774,10 +774,7 @@ export async function getNotesForThreadForMember(
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(and(
-      eq(NoteThreads.threadId, threadId),
-      or(isNull(Notes.contentEncrypted), eq(Notes.contentEncrypted, false), sql`${Notes.contentEncrypted} = 0`)
-    ))
+    .where(eq(NoteThreads.threadId, threadId))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
@@ -1047,6 +1044,7 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
       subtitle: Threads.subtitle,
       color: Threads.color,
       spaceId: Threads.spaceId,
+      userId: Threads.userId,
       isPublic: Threads.isPublic,
       isPinned: Threads.isPinned,
       createdAt: Threads.createdAt,
@@ -1090,6 +1088,7 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
       subtitle: thread.subtitle,
       color: thread.color,
       spaceId: thread.spaceId,
+      userId: thread.userId,
       isPublic: thread.isPublic,
       isPinned: thread.isPinned,
       createdAt: thread.createdAt,
@@ -1124,6 +1123,7 @@ export async function getNotesForSpaceForMember(
       content: Notes.content,
       threadId: Notes.threadId,
       spaceId: Notes.spaceId,
+      userId: Notes.userId,
       simpleNoteId: Notes.simpleNoteId,
       noteType: Notes.noteType,
       isPublic: Notes.isPublic,
