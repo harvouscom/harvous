@@ -1349,7 +1349,7 @@ export default function EditSpacePanel({
               }}
             >
               <div className="panel__title">
-                <p>{isOwner ? 'Edit Space' : 'Space details'}</p>
+                <p>{isOwner ? 'Edit Space' : 'About Space'}</p>
               </div>
             </div>
             
@@ -1563,8 +1563,8 @@ export default function EditSpacePanel({
                               {initials}
                             </div>
                             <span className="space-people-list__name" style={{ paddingLeft: '3.5rem' }}>{displayName}</span>
-                            {member.userId === userId && (
-                              <span className="space-people-list__owner-badge">You</span>
+                            {member.role === 'owner' && (
+                              <span className="space-people-list__owner-badge">Creator</span>
                             )}
                             {canRemove && (
                               <ActionButton

@@ -382,6 +382,60 @@ try {
           pageTitle = threadData.title;
           pageContent = `${threadData.noteCount} notes`;
         } else {
+          // Thread not found as owner – try member path first (thread in a joined space)
+          const threadBySpace = await db.select()
+            .from(Threads)
+            .where(eq(Threads.id, id!))
+            .get();
+          if (threadBySpace?.spaceId) {
+            try {
+              const access = await requireSpaceAccess(threadBySpace.spaceId, authenticatedUserId);
+              const { role, space } = access;
+              spaceRole = role;
+              const notesResult = await getNotesForThreadForMember(threadBySpace.id, space.userId, 100, 0);
+              const memberNotes = notesResult.notes;
+              const noteCount = memberNotes.length;
+              const memberNoteTypeCounts = {
+                all: memberNotes.length,
+                default: memberNotes.filter((n: any) => !n.noteType || n.noteType === 'default').length,
+                scripture: memberNotes.filter((n: any) => n.noteType === 'scripture').length,
+                resource: memberNotes.filter((n: any) => n.noteType === 'resource').length
+              };
+              content = {
+                id: threadBySpace.id,
+                title: threadBySpace.title,
+                subtitle: threadBySpace.subtitle,
+                color: threadBySpace.color,
+                spaceId: threadBySpace.spaceId,
+                notes: memberNotes,
+                noteCount
+              };
+              currentThread = {
+                id: threadBySpace.id,
+                title: threadBySpace.title,
+                color: threadBySpace.color,
+                spaceId: threadBySpace.spaceId || null,
+                noteCount,
+                backgroundGradient: getThreadGradientCSS(threadBySpace.color),
+                userId: threadBySpace.userId
+              };
+              threadNotes = memberNotes;
+              noteTypeCounts = memberNoteTypeCounts;
+              pageTitle = threadBySpace.title;
+              pageContent = `${noteCount} notes`;
+              currentSpace = {
+                id: space.id,
+                title: space.title,
+                color: space.color,
+                isPublic: space.isPublic,
+                totalItemCount: 0,
+                backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+              };
+            } catch {
+              // No access – continue to fallback
+            }
+          }
+          if (!content) {
           // Fallback: Query thread directly by ID if not found in getAllThreadsWithCounts
           // This can happen for newly created threads that haven't been indexed yet
           debug(`[id].astro] Fallback: Querying thread directly`, { id });
@@ -552,6 +606,7 @@ try {
                 console.error(`[id].astro] Thread exists in DB (any user):`, !!anyThread, anyThread ? `userId: ${anyThread.userId}` : 'N/A');
               }
             }
+          }
           }
         }
       }

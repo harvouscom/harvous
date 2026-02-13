@@ -42,7 +42,7 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param contentEncrypted Optional; when true, note is locked so we show "Remove lock" only
  * @param contentEncryptedServer Optional; when true and contentEncrypted is false, note is unlocked in session so we show "Remove lock"
  * @param simpleNoteId Optional; when set for notes, adds a "copy note ID" option with label e.g. N042
- * @param spaceRole Optional; when 'member', space menu shows Space details + Leave space only (no Edit/Erase)
+ * @param spaceRole Optional; when 'member', space menu shows About Space + Leave Space only (no Edit/Erase)
  * @param contentOwnerId Optional; when set, edit/erase/lock only shown when contentOwnerId === currentUserId
  * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
@@ -104,8 +104,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
     case "space":
       if (spaceRole === 'member') {
         return [
-          { action: "viewSpace", label: "Space details" },
-          { action: "leaveSpace", label: "Leave space" }
+          { action: "viewSpace", label: "About Space" },
+          { action: "leaveSpace", label: "Leave Space" }
         ];
       }
       return [
