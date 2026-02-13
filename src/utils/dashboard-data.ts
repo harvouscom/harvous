@@ -776,7 +776,7 @@ export async function getNotesForThreadForMember(
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
     .where(and(
       eq(NoteThreads.threadId, threadId),
-      or(eq(Notes.contentEncrypted, false), sql`${Notes.contentEncrypted} = 0`)
+      or(isNull(Notes.contentEncrypted), eq(Notes.contentEncrypted, false), sql`${Notes.contentEncrypted} = 0`)
     ))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
