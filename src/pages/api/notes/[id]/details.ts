@@ -2,6 +2,8 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray } from 'astro:db';
+import { requireSpaceAccess } from '@/utils/space-permissions';
+import { getThreadsForSpaceBySpaceId } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
@@ -24,17 +26,39 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    // First, verify the note belongs to the user
-    const note = await db.select()
+    // Owner path: note belongs to the user
+    let note = await db.select()
       .from(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
       .get();
 
+    let isMemberView = false;
     if (!note) {
-      return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      // Member path: note in a shared space the user can access
+      const noteById = await db.select()
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .get();
+      if (!noteById) {
+        return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      if (!noteById.spaceId) {
+        return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      try {
+        await requireSpaceAccess(noteById.spaceId, userId);
+      } catch (err) {
+        if (err instanceof Response) return err;
+        throw err;
+      }
+      note = noteById;
+      isMemberView = true;
     }
 
     // Fetch scripture metadata if this is a scripture note
@@ -67,6 +91,86 @@ export const GET: APIRoute = async ({ params, locals }) => {
       } catch (error: any) {
         // Resource metadata not found or error - use null values
       }
+    }
+
+    // Member view: space-scoped threads and allUserThreads; empty comments/tags/referencingNotes
+    if (isMemberView && note.spaceId) {
+      const spaceThreadsRaw = await db
+        .select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          color: Threads.color,
+          isPublic: Threads.isPublic,
+          isPinned: Threads.isPinned,
+          createdAt: Threads.createdAt,
+          updatedAt: Threads.updatedAt,
+        })
+        .from(NoteThreads)
+        .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.spaceId, note.spaceId)))
+        .all();
+      const memberThreads = await Promise.all(
+        spaceThreadsRaw.map(async (thread) => {
+          const junctionCountResult = await db.select({ count: count() })
+            .from(NoteThreads)
+            .where(eq(NoteThreads.threadId, thread.id))
+            .get();
+          const noteCount = junctionCountResult?.count ?? 0;
+          return {
+            id: thread.id,
+            title: thread.title,
+            subtitle: thread.subtitle ?? 'Thread',
+            color: thread.color,
+            isPublic: thread.isPublic,
+            isPinned: thread.isPinned,
+            createdAt: thread.createdAt,
+            updatedAt: thread.updatedAt,
+            count: noteCount,
+          };
+        })
+      );
+      const spaceAllThreads = await getThreadsForSpaceBySpaceId(note.spaceId);
+      const memberAllUserThreads = spaceAllThreads.map((t) => ({
+        id: t.id,
+        title: t.title,
+        color: t.color,
+        isPublic: t.isPublic,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }));
+      const memberResponse = {
+        success: true,
+        note: {
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          contentEncrypted: note.contentEncrypted || false,
+          threadId: note.threadId,
+          spaceId: note.spaceId,
+          simpleNoteId: note.simpleNoteId,
+          noteType: note.noteType || 'default',
+          isPublic: note.isPublic,
+          isFeatured: note.isFeatured,
+          addedBy: note.addedBy || 'user',
+          createdAt: note.createdAt,
+          updatedAt: note.updatedAt,
+          lastVisited: note.lastVisited,
+          version: version,
+          resourceTitle: resourceTitle,
+          resourceDescription: resourceDescription,
+          resourceImage: resourceImage,
+        },
+        threads: memberThreads,
+        allUserThreads: memberAllUserThreads,
+        comments: [],
+        tags: [],
+        referencingNotes: [],
+      };
+      return new Response(JSON.stringify(memberResponse), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     // Get all user threads first

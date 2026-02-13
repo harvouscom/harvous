@@ -2,6 +2,18 @@
 
 **v1 complete (February 2026).** The implementation described below has been completed. Future work: performance and quality-of-life improvements.
 
+## Implementation status: member UX (current)
+
+- **Member-added content in My Home**  
+  When a member adds a thread or note to a shared space (Space details → Add tab, or add-thread/add-note APIs), the item stays **owned by the member** (`userId` unchanged; only `spaceId` is set). It appears in the space and in the member’s **My Home** (dashboard).  
+  - `POST /api/spaces/[spaceId]/add-items` uses `requireSpaceAccess(spaceId, userId)` so both owners and members can add items; it only updates notes/threads that belong to the current user.  
+  - `add-thread` and `add-note` already used `requireSpaceAccess` and the same ownership rules.
+
+- **Edit name and space color: owners only; members see tab nav only**  
+  In **EditSpacePanel**:  
+  - **Owners** see: header “Edit Space”, editable space name, space color swatches, visibility dropdown (Private/Shared), tab nav (Added, Add, People), and tab content.  
+  - **Members** see: header “Space details” (with space color from props), **only** the tab nav (Added, Add, People) and tab content—no space title block and no color/visibility controls.
+
 ## Overview
 Implement collaborative shared spaces where users can invite specific members (via email or shareable link) to view and contribute content together. Built on existing Members table and Clerk authentication.
 

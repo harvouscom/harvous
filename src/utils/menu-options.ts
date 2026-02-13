@@ -16,7 +16,12 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
   if (contentType === "thread" && contentOwnerId != null && currentUserId != null && contentOwnerId !== currentUserId) {
     return false;
   }
-  
+
+  // Hide More for note when member viewing another's note (same rule as threads)
+  if (contentType === "note" && contentOwnerId != null && currentUserId != null && contentOwnerId !== currentUserId) {
+    return false;
+  }
+
   switch (contentType) {
     case "thread":
     case "note":

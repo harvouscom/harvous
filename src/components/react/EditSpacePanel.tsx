@@ -1357,53 +1357,45 @@ export default function EditSpacePanel({
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 
-                {/* Space Title: editable for owner, read-only for member */}
-                {isOwner ? (
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                    <input 
-                      type="text"
-                      value={formData.title}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
-                      placeholder={formData.title ? '' : 'Space Title'}
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                    />
-                    {validationErrors.title && (
-                      <div className="text-red-500 text-sm mt-1 text-center">
-                        {validationErrors.title}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="rounded-3xl py-5 px-4 min-h-[64px] w-full flex items-center justify-center">
-                    <span className="text-[18px] font-semibold text-[var(--color-deep-grey)] text-center">
-                      {formData.title || 'Space Title'}
-                    </span>
-                  </div>
-                )}
-                
-                {/* Color selection: owner only */}
+                {/* Space title and color: owner only; members only see tab nav below */}
                 {isOwner && (
-                  <div className="color-selection flex gap-2 items-center justify-start w-full">
-                    {THREAD_COLORS.map((color) => (
-                      <button
-                        key={color}
-                        type="button"
-                        onClick={() => handleColorSelect(color)}
-                        className={`color-swatch ${formData.selectedColor === color ? 'color-swatch--selected' : ''}`}
-                        style={{ backgroundColor: getThreadColorCSS(color) }}
-                      >
-                        {formData.selectedColor === color && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Icon
-                              name="check"
-                              size={20}
-                              style={{ color: getThreadTextColorCSS(color) }}
-                            />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                  <>
+                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                      <input
+                        type="text"
+                        value={formData.title}
+                        onChange={(e) => handleInputChange('title', e.target.value)}
+                        placeholder={formData.title ? '' : 'Space Title'}
+                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      />
+                      {validationErrors.title && (
+                        <div className="text-red-500 text-sm mt-1 text-center">
+                          {validationErrors.title}
+                        </div>
+                      )}
+                    </div>
+                    <div className="color-selection flex gap-2 items-center justify-start w-full">
+                      {THREAD_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => handleColorSelect(color)}
+                          className={`color-swatch ${formData.selectedColor === color ? 'color-swatch--selected' : ''}`}
+                          style={{ backgroundColor: getThreadColorCSS(color) }}
+                        >
+                          {formData.selectedColor === color && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <Icon
+                                name="check"
+                                size={20}
+                                style={{ color: getThreadTextColorCSS(color) }}
+                              />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </>
                 )}
 
                 {/* Space visibility dropdown: owner only */}
@@ -1430,7 +1422,7 @@ export default function EditSpacePanel({
                   />
                 )}
 
-                {/* Tab navigation: hide Add tab for members */}
+                {/* Tab navigation */}
                 {(() => {
                   const showPeopleTab = formData.selectedType === 'Shared' && members.length > 1;
                   const tabs = [
@@ -1512,8 +1504,8 @@ export default function EditSpacePanel({
                   </div>
                 )}
 
-                {/* All tab: search/add interface (owner only) */}
-                {isOwner && activeTab === 'all' && (
+                {/* Add tab: search/add interface (owner and member see their own items) */}
+                {activeTab === 'all' && (
                   <div className="w-full flex-1 min-h-0">
                     {isLoadingItems ? (
                       <div className="text-center py-8 text-[var(--color-stone-grey)]">

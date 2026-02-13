@@ -1,8 +1,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Spaces, eq, and } from 'astro:db';
+import { db, Notes, Threads, eq, and } from 'astro:db';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { handleAPIError } from '@/utils/error-handling';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -43,18 +45,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // Verify the space exists and belongs to the user
-    const space = await db.select()
-      .from(Spaces)
-      .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-      .get();
-
-    if (!space) {
-      return new Response(JSON.stringify({ error: 'Space not found' }), {
-        status: 404,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
+    // Verify user has access to space (owner or member)
+    await requireSpaceAccess(spaceId, userId);
 
     const errors: string[] = [];
     const updatedNotes: string[] = [];
@@ -138,12 +130,22 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     });
 
   } catch (error: any) {
+    // Handle permission errors from requireSpaceAccess
+    if (error instanceof Response) {
+      return error;
+    }
     console.error('Error adding items to space:', error);
-    return new Response(JSON.stringify({ 
-      error: error.message || 'Failed to add items to space' 
+    const standardError = handleAPIError(error, {
+      endpoint: '/api/spaces/[spaceId]/add-items',
+      action: 'add_items_to_space',
+      spaceId: params?.spaceId,
+    });
+    return new Response(JSON.stringify({
+      error: standardError.message,
+      code: standardError.code,
     }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 };
