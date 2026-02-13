@@ -77,6 +77,7 @@ export default function EditSpacePanel({
 
   // Member management state
   const [memberCount, setMemberCount] = useState(1); // Default to 1 (owner)
+  const [memberLimit, setMemberLimit] = useState<number | null>(null); // Plan limit (owners only)
   const [isOwner, setIsOwner] = useState(false);
   const [sharedTab, setSharedTab] = useState('invite');
   const [members, setMembers] = useState<any[]>([]);
@@ -198,6 +199,7 @@ export default function EditSpacePanel({
         const data = await response.json();
         setMemberCount(data.totalMembers || data.members?.length || 1);
         setIsOwner(data.isOwner || false);
+        setMemberLimit(data.isOwner ? (data.memberLimit ?? null) : null);
         setMembers(data.members || []);
         setPendingInvitations(data.pendingInvitations || []);
       }
@@ -1420,6 +1422,40 @@ export default function EditSpacePanel({
                     privateOptionLabel="Only I can see this space"
                     sharedOptionLabel="Share to anyone with link"
                   />
+                )}
+
+                {/* People limit for this space: owner only */}
+                {!isLoadingMembers && isOwner && memberLimit != null && (
+                  <div
+                    className="bg-white rounded-xl p-3 flex items-center gap-3"
+                    style={{
+                      border: '1px solid',
+                      borderColor: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-fog-white)'
+                    }}
+                  >
+                    <Icon
+                      name="user-group"
+                      size={16}
+                      className="flex-shrink-0"
+                      style={{ color: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-deep-grey)' }}
+                    />
+                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
+                      <span
+                        className="text-base font-semibold"
+                        style={{ color: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-deep-grey)' }}
+                      >
+                        {memberCount} of {memberLimit} people
+                      </span>
+                      {memberCount >= memberLimit && memberLimit === 10 && (
+                        <span
+                          className="text-xs flex-shrink-0"
+                          style={{ color: 'var(--color-red, #dc2626)' }}
+                        >
+                          Upgrade for 100 people
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 )}
 
                 {/* Tab navigation */}

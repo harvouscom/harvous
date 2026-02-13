@@ -33,7 +33,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       return unauthorizedResponse();
     }
 
-        // Check note limit before allowing creation
+        // Check note limit before allowing creation. We check once here only; scripture notes
+        // created from this note (via processScriptureReferences) are not re-checked, so a user
+        // with 1 note left (e.g. 299/300) can create one note that contains multiple refs and end up over the limit.
         const auth = locals.auth();
         const noteLimitCheck = await canCreateNote(userId, auth);
     if (!noteLimitCheck.allowed) {

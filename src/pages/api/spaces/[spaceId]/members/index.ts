@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, Members, SpaceInvitations, UserMetadata, eq, and, inArray } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
+import { getUserTier, getTierLimits } from '@/utils/tier-limits';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
@@ -118,12 +119,23 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       }));
     }
 
-    return successResponse({
+    const payload: {
+      members: typeof members;
+      pendingInvitations: typeof pendingInvitations;
+      totalMembers: number;
+      isOwner: boolean;
+      memberLimit?: number;
+    } = {
       members,
       pendingInvitations,
       totalMembers: members.length,
       isOwner: role === 'owner',
-    });
+    };
+    if (role === 'owner') {
+      const tier = getUserTier(locals.auth());
+      payload.memberLimit = getTierLimits(tier).membersPerSpace;
+    }
+    return successResponse(payload);
 
   } catch (error: any) {
     // Handle permission errors from requireSpaceAccess
