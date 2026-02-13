@@ -411,7 +411,7 @@ export default function ManageBillingPanel({
                               : `${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 300).toLocaleString()} notes${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
                           </span>
                           {!subscriptionInfo.hasUnlimited && (
-                            <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
+                            <span className="text-xs flex-shrink-0" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                               Upgrade for unlimited
                             </span>
                           )}
@@ -434,7 +434,7 @@ export default function ManageBillingPanel({
                               {limitsInfo.limits.ownedSharedSpaces.current} of {limitsInfo.limits.ownedSharedSpaces.limit} spaces shared
                             </span>
                             {!subscriptionInfo.hasUnlimited && (
-                              <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
+                              <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                                 Upgrade for 3 spaces
                               </span>
                             )}
@@ -460,7 +460,7 @@ export default function ManageBillingPanel({
                                 : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
                             </span>
                             {!subscriptionInfo.hasUnlimited && (
-                              <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
+                              <span className="text-xs flex-shrink-0" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                                 Upgrade for unlimited
                               </span>
                             )}
