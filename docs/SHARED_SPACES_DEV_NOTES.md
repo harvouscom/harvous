@@ -73,9 +73,12 @@ There are two effective roles:
 | Generate / refresh share link | ✅ | ❌ |
 | Invite via link | ✅ | ❌ |
 | Remove any member | ✅ | ❌ |
+| Remove any thread/note from space | ✅ (via remove-items API) | Only own items |
 | Leave space (remove self) | ❌ (blocked) | ✅ |
 | Add/remove own notes & threads | ✅ | ✅ |
 | Delete the space | ✅ | ❌ |
+
+When a member leaves, an in-app confirmation dialog explains that anything they added to the space will remain in the space unless they remove it; they can rejoin later with the same link.
 
 ### Access enforcement
 

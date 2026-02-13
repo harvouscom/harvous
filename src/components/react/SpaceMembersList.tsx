@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import ConfirmDialog from './dialogs/ConfirmDialog';
 
 interface Member {
   userId: string;
@@ -41,6 +42,8 @@ export default function SpaceMembersList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [showLeaveConfirmDialog, setShowLeaveConfirmDialog] = useState(false);
+  const [pendingLeaveUserId, setPendingLeaveUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMembers();
@@ -69,11 +72,14 @@ export default function SpaceMembersList({
 
   const handleRemoveMember = async (userId: string, memberName: string) => {
     const isSelf = members.find(m => m.userId === userId && m.role !== 'owner');
-    const confirmMessage = isSelf
-      ? `Are you sure you want to leave "${spaceName}"?`
-      : `Remove ${memberName} from "${spaceName}"?`;
 
-    if (!confirm(confirmMessage)) {
+    if (isSelf) {
+      setPendingLeaveUserId(userId);
+      setShowLeaveConfirmDialog(true);
+      return;
+    }
+
+    if (!confirm(`Remove ${memberName} from "${spaceName}"?`)) {
       return;
     }
 
@@ -90,7 +96,6 @@ export default function SpaceMembersList({
         throw new Error(data.error || 'Failed to remove person');
       }
 
-      // Show success toast
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: {
@@ -100,20 +105,57 @@ export default function SpaceMembersList({
         })
       );
 
-      // If removing self, close panel and trigger parent callback
-      if (isSelf) {
-        if (onMemberRemoved) onMemberRemoved();
-        onClose();
-      } else {
-        // Refresh member list
-        await fetchMembers();
-        if (onMemberRemoved) onMemberRemoved();
-      }
+      await fetchMembers();
+      if (onMemberRemoved) onMemberRemoved();
     } catch (err: any) {
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: {
             message: err.message || 'Failed to remove person',
+            type: 'error',
+          },
+        })
+      );
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
+  const handleConfirmLeave = async () => {
+    if (!pendingLeaveUserId) return;
+    const userIdToRemove = pendingLeaveUserId;
+    setShowLeaveConfirmDialog(false);
+    setPendingLeaveUserId(null);
+
+    try {
+      setRemovingUserId(userIdToRemove);
+
+      const response = await fetch(`/api/spaces/${spaceId}/members/${userIdToRemove}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to leave space');
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: data.message || 'You have left the space',
+            type: 'success',
+          },
+        })
+      );
+
+      if (onMemberRemoved) onMemberRemoved();
+      onClose();
+    } catch (err: any) {
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: {
+            message: err.message || 'Failed to leave space',
             type: 'error',
           },
         })
@@ -143,7 +185,9 @@ export default function SpaceMembersList({
     });
   };
 
-  return createPortal(
+  return (
+    <>
+      {createPortal(
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
       onClick={(e) => {
@@ -289,5 +333,21 @@ export default function SpaceMembersList({
       </div>
     </div>,
     document.body
+      )}
+      {showLeaveConfirmDialog && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Leave this space?"
+          message="Anything you've added to this space will remain in the space unless you remove it. You can rejoin later with the same link."
+          confirmLabel="Leave space"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmLeave}
+          onCancel={() => {
+            setShowLeaveConfirmDialog(false);
+            setPendingLeaveUserId(null);
+          }}
+        />
+      )}
+    </>
   );
 }

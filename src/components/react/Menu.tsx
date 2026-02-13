@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
+import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
 
@@ -247,6 +248,14 @@ export default function Menu({
       setShowConfirmDialog(true);
       return;
     }
+
+    // Handle leave space - show confirmation dialog first
+    if (action === 'leaveSpace') {
+      if (contentType !== 'space' || !contentId || !userId) return;
+      setPendingAction('leaveSpace');
+      setShowConfirmDialog(true);
+      return;
+    }
     
     // Close the menu for non-erase actions
     closeMenu();
@@ -327,9 +336,8 @@ export default function Menu({
         console.error('Error opening edit space panel:', error);
       }
     } else if (action === 'leaveSpace') {
-      // Leave space: confirm, DELETE member, redirect to /
+      // Leave space: DELETE member, redirect to / (confirmation handled by dialog)
       if (contentType !== 'space' || !contentId || !userId) return;
-      if (!confirm('Leave this space? You can rejoin later with the same link.')) return;
       try {
         const base = typeof window !== 'undefined' ? window.location.origin : '';
         const res = await fetch(`${base}/api/spaces/${contentId}/members/${userId}`, { method: 'DELETE' });
@@ -796,23 +804,36 @@ export default function Menu({
               color: 'var(--color-deep-grey)',
               marginBottom: '0.5rem'
             }}>
-              Are you sure?
+              {pendingAction === 'leaveSpace' ? 'Leave this space?' : 'Are you sure?'}
             </h3>
             <p style={{
               color: 'var(--color-pebble-grey)',
               marginBottom: '1.5rem'
             }}>
-              {contentType === 'space' ? (
+              {pendingAction === 'leaveSpace' ? (
+                <>Anything you&apos;ve added to this space will remain in the space unless you remove it. You can rejoin later with the same link.</>
+              ) : contentType === 'space' ? (
                 <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
               ) : (
                 <>Are you sure you want to erase this {contentType}?</>
               )}
             </p>
-            <EraseConfirmDialog
-              contentType={contentType}
-              onCancel={handleCancelErase}
-              onConfirm={handleConfirmErase}
-            />
+            {pendingAction === 'leaveSpace' ? (
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                <ButtonSmall type="button" onClick={handleCancelErase} state="Secondary">
+                  Cancel
+                </ButtonSmall>
+                <ButtonSmall type="button" onClick={handleConfirmErase} state="Default">
+                  Leave space
+                </ButtonSmall>
+              </div>
+            ) : (
+              <EraseConfirmDialog
+                contentType={contentType!}
+                onCancel={handleCancelErase}
+                onConfirm={handleConfirmErase}
+              />
+            )}
           </div>
         </div>,
         document.body

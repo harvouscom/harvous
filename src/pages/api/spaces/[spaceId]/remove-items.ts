@@ -45,8 +45,8 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // Verify user has access to space (owner or member); members can only remove their own items (enforced below)
-    await requireSpaceAccess(spaceId, userId);
+    // Verify user has access to space (owner or member); owner can remove any item; members only their own
+    const { role } = await requireSpaceAccess(spaceId, userId);
 
     const errors: string[] = [];
     const removedNotes: string[] = [];
@@ -56,27 +56,35 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
         try {
-          // Verify the note exists and belongs to the user
-          const note = await db.select()
-            .from(Notes)
-            .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
-            .get();
+          const note = role === 'owner'
+            ? await db.select()
+                .from(Notes)
+                .where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId)))
+                .get()
+            : await db.select()
+                .from(Notes)
+                .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId), eq(Notes.spaceId, spaceId)))
+                .get();
 
           if (!note) {
             errors.push(`Note ${noteId} not found`);
             continue;
           }
 
-          // Verify the note is actually in this space
           if (note.spaceId !== spaceId) {
             errors.push(`Note ${noteId} is not in this space`);
             continue;
           }
 
-          // Set spaceId to null (only for notes owned by current user; members remove only their own)
-          await db.update(Notes)
-            .set({ spaceId: null })
-            .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+          if (role === 'owner') {
+            await db.update(Notes)
+              .set({ spaceId: null })
+              .where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId)));
+          } else {
+            await db.update(Notes)
+              .set({ spaceId: null })
+              .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+          }
 
           removedNotes.push(noteId);
         } catch (error: any) {
@@ -89,36 +97,40 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     if (threadIds.length > 0) {
       for (const threadId of threadIds) {
         try {
-          // Don't allow removing unorganized thread
           if (threadId === 'thread_unorganized') {
             errors.push('Cannot remove unorganized thread');
             continue;
           }
 
-          // Verify the thread exists and belongs to the user
-          const thread = await db.select()
-            .from(Threads)
-            .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)))
-            .get();
+          const thread = role === 'owner'
+            ? await db.select()
+                .from(Threads)
+                .where(and(eq(Threads.id, threadId), eq(Threads.spaceId, spaceId)))
+                .get()
+            : await db.select()
+                .from(Threads)
+                .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId), eq(Threads.spaceId, spaceId)))
+                .get();
 
           if (!thread) {
             errors.push(`Thread ${threadId} not found`);
             continue;
           }
 
-          // Verify the thread is actually in this space
           if (thread.spaceId !== spaceId) {
             errors.push(`Thread ${threadId} is not in this space`);
             continue;
           }
 
-          // Set spaceId to null
-          // Don't update updatedAt - only metadata change, not content change
-          await db.update(Threads)
-            .set({ 
-              spaceId: null
-            })
-            .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
+          if (role === 'owner') {
+            await db.update(Threads)
+              .set({ spaceId: null })
+              .where(and(eq(Threads.id, threadId), eq(Threads.spaceId, spaceId)));
+          } else {
+            await db.update(Threads)
+              .set({ spaceId: null })
+              .where(and(eq(Threads.id, threadId), eq(Threads.userId, userId)));
+          }
 
           removedThreads.push(threadId);
         } catch (error: any) {
