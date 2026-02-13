@@ -1,7 +1,7 @@
 import { db, UserMetadata, eq } from 'astro:db';
 import type { Auth } from '@clerk/astro/server';
 
-const FREE_TIER_LIMIT = 1000;
+const FREE_TIER_LIMIT = 300;
 // Clerk Billing plan ID for unlimited notes
 // Use environment variable for production, fallback to dev plan ID for development
 export const UNLIMITED_PLAN_ID = import.meta.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';

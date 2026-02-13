@@ -11,6 +11,8 @@ There two places to find spaces:
 
 You create spaces by finding the “New Space” button within where you can find your spaces (mentioned above).
 
+Spaces can be **private** (just you) or **shared**. With a shared space you get a link to invite others—great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. On the free plan you can have one shared space (up to 10 people) and join up to 3 spaces that others share; upgrade for more.
+
 When you erase a space, your notes and threads stay safe—you're just removing the grouping.
 
 ## Threads
@@ -22,7 +24,7 @@ When you erase a thread the notes don't get erased (expect for this thread). Any
 ## Notes
 Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the “...” square button to the right or at the bottom):
 
-1. Each note comes with its own # ex: N316 (which by the way you get 1000 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
+1. Each note comes with its own # ex: N316 (which by the way you get 300 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
 2. To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.
 3. If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text (NET version only for right now) as another note. Harvous keeps track of where your scripture was captured with what notes and threads. 
 4. Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.
