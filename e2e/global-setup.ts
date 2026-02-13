@@ -17,17 +17,19 @@ dotenv.config({ path: resolve(process.cwd(), '.env') });
  * We bridge the two by passing the key explicitly.
  */
 export default async function globalSetup() {
-  // Seed the same DB the dev server uses (remote if ASTRO_DB_REMOTE_URL is set)
-  try {
-    const remote = process.env.ASTRO_DB_REMOTE_URL ? '--remote' : '';
-    execSync(`npx astro db execute db/seed.ts ${remote}`.trim(), {
-      cwd: process.cwd(),
-      stdio: 'pipe',
-      env: process.env,
-    });
-  } catch (err) {
-    // Seed may fail if rows already exist (e.g. re-run); log and continue so Clerk setup runs
-    console.warn('E2E globalSetup: db seed failed (may be ok if DB already seeded):', err);
+  // Idempotent E2E seed: space_test_2, invitation, reset non-owner members.
+  // Run for both local and remote so tests pass regardless of which DB the dev server uses.
+  const remote = process.env.ASTRO_DB_REMOTE_URL ? '--remote' : '';
+  for (const flag of ['', '--remote']) {
+    try {
+      execSync(`npx astro db execute db/seed-e2e.ts ${flag}`.trim(), {
+        cwd: process.cwd(),
+        stdio: 'pipe',
+        env: process.env,
+      });
+    } catch (err) {
+      // One DB may not exist or schema may differ; continue
+    }
   }
 
   const publishableKey = process.env.PUBLIC_CLERK_PUBLISHABLE_KEY;

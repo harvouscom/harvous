@@ -1,4 +1,4 @@
-import { db, Spaces, Threads, Notes, NoteThreads } from 'astro:db';
+import { db, Spaces, Threads, Notes, NoteThreads, SpaceInvitations } from 'astro:db';
 
 export default async function() {
   // Create a test user ID (this would normally come from Clerk)
@@ -37,6 +37,22 @@ export default async function() {
       shareTokenCreatedAt: new Date(),
     }
   ]);
+
+  // Invitation for space_test_2 (for e2e invite-page flow). Invite URL: /invitations/inviteToken12
+  await db.insert(SpaceInvitations).values({
+    id: 'invite_e2e_1',
+    spaceId: 'space_test_2',
+    invitedBy: spaceOwnerId,
+    invitedEmail: null,
+    invitedUserId: null,
+    inviteToken: 'inviteToken12',
+    role: 'member',
+    status: 'pending',
+    message: null,
+    expiresAt: null,
+    createdAt: new Date(),
+    acceptedAt: null,
+  });
 
   // Create test threads
   await db.insert(Threads).values([

@@ -8,6 +8,8 @@ npm run build            # Production build
 npm run db:sync          # Sync database schema
 npm run db:push          # Push schema to remote
 npm run db:check         # Pre-commit schema check
+npm run test:e2e         # Playwright e2e (join/invite flows)
+npm run test:e2e:setup   # Seed e2e data (local + remote) then run e2e
 ```
 
 ## Architecture Overview
@@ -56,6 +58,13 @@ db/config.ts          # Database schema & relationships
 - `docs/REACT_ISLANDS_STRATEGY.md` - Component migration patterns, implementation details
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
+
+## E2E Testing
+
+Playwright tests for **join** and **invite** flows live in `e2e/shared-space-join.spec.ts` and `e2e/invitation-accept.spec.ts`. Before each run, global setup runs **idempotent** `db/seed-e2e.ts` for both local and remote DB so tests pass whether the dev server uses local or remote.
+
+- **Prerequisites**: `.env` (or `.env.local`) with `TEST_USER_A_EMAIL`, `TEST_USER_A_PASSWORD`, `TEST_USER_B_EMAIL`, `TEST_USER_B_PASSWORD`, and `TEST_USER_A_CLERK_ID` (Clerk user ID of User A, so space_test_2 is owned by the right account). `PUBLIC_CLERK_PUBLISHABLE_KEY` required.
+- **Run**: `npm run test:e2e` (all e2e) or `npm run test:e2e:join` (join/invite only, 1 worker for order). For a fresh data state: `npm run test:e2e:setup` (seeds both DBs then runs join/invite tests). Some tests skip when the dev server’s DB doesn’t have the seeded data or TEST_USER_A_CLERK_ID doesn’t match User A.
 
 ## Database
 

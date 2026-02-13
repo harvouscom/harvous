@@ -30,7 +30,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:setup": "astro db execute db/seed.ts --remote && npm run test:e2e"
+    "test:e2e:join": "playwright test e2e/shared-space-join.spec.ts e2e/invitation-accept.spec.ts --workers=1",
+    "test:e2e:setup": "astro db execute db/seed-e2e.ts && astro db execute db/seed-e2e.ts --remote && npm run test:e2e:join"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.6",
