@@ -400,7 +400,10 @@ export default function MySpacesPanel({
   };
 
   const uniqueSpaces = useMemo(() => deduplicateSpaces(spaces), [spaces]);
-  const privateSpaces = useMemo(() => uniqueSpaces.filter(s => !sharedSpaceIds.has(s.id)), [uniqueSpaces, sharedSpaceIds]);
+  const joinedSpaceIds = useMemo(
+    () => new Set([...memberOfSpaces.map(m => m.id), ...initialMemberOfIds]),
+    [memberOfSpaces, initialMemberOfIds]
+  );
   const ownedSharedSpaces = useMemo(() => uniqueSpaces.filter(s => sharedSpaceIds.has(s.id)), [uniqueSpaces, sharedSpaceIds]);
   const ownedIds = useMemo(() => new Set(uniqueSpaces.map(s => s.id)), [uniqueSpaces]);
   const joinedOnlySpaces = useMemo(() => memberOfSpaces.filter(m => !ownedIds.has(m.id)), [memberOfSpaces, ownedIds]);
@@ -412,8 +415,21 @@ export default function MySpacesPanel({
     totalItemCount: m.memberCount,
     isPublic: undefined
   })), [joinedOnlySpaces]);
+  // Private = owned spaces that are not shared (exclude joined spaces; they belong in Shared)
+  const privateSpaces = useMemo(
+    () => uniqueSpaces.filter(s => !sharedSpaceIds.has(s.id) && !joinedSpaceIds.has(s.id)),
+    [uniqueSpaces, sharedSpaceIds, joinedSpaceIds]
+  );
+  // Shared = owned shared + joined (joined can appear in uniqueSpaces from initialSpaces or in memberOfAsDisplay)
+  const joinedFromUniqueSpaces = useMemo(
+    () => uniqueSpaces.filter(s => joinedSpaceIds.has(s.id)),
+    [uniqueSpaces, joinedSpaceIds]
+  );
+  const sharedDisplaySpaces = useMemo<DisplaySpace[]>(
+    () => [...ownedSharedSpaces, ...joinedFromUniqueSpaces, ...memberOfAsDisplay],
+    [ownedSharedSpaces, joinedFromUniqueSpaces, memberOfAsDisplay]
+  );
   const allDisplaySpaces = useMemo<DisplaySpace[]>(() => [...uniqueSpaces, ...memberOfAsDisplay], [uniqueSpaces, memberOfAsDisplay]);
-  const sharedDisplaySpaces = useMemo<DisplaySpace[]>(() => [...ownedSharedSpaces, ...memberOfAsDisplay], [ownedSharedSpaces, memberOfAsDisplay]);
   const filteredSpaces = useMemo<DisplaySpace[]>(() => {
     if (activeFilter === 'all') return allDisplaySpaces;
     if (activeFilter === 'private') return privateSpaces;
@@ -433,7 +449,7 @@ export default function MySpacesPanel({
       id: 'shared',
       label: 'Shared',
       isActive: activeFilter === 'shared',
-      count: sharedCountsReady || uniqueSpaces.length === 0 ? ownedSharedSpaces.length + memberOfAsDisplay.length : undefined
+      count: sharedCountsReady || uniqueSpaces.length === 0 ? sharedDisplaySpaces.length : undefined
     }
   ];
 
@@ -447,10 +463,7 @@ export default function MySpacesPanel({
   // Render space item in AddToSpaceSection style (works for owned Space or normalized joined DisplaySpace)
   const renderSpaceItem = (space: DisplaySpace) => {
     const spaceAccentColor = space.color ? `var(--color-${space.color})` : "var(--color-paper)";
-    const isShared =
-      sharedSpaceIds.has(space.id) ||
-      memberOfSpaces.some(m => m.id === space.id) ||
-      initialMemberOfIds.includes(space.id);
+    const isShared = sharedSpaceIds.has(space.id) || joinedSpaceIds.has(space.id);
 
     return (
       <div
