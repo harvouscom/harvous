@@ -1425,7 +1425,38 @@ export default function EditSpacePanel({
                 )}
 
                 {/* People limit for this space: owner only */}
-                {!isLoadingMembers && isOwner && memberLimit != null && (
+                {!isLoadingMembers && isOwner && memberLimit != null && (memberCount >= memberLimit && memberLimit === 10 ? (
+                  <a
+                    href="/upgrade"
+                    className="billing-limit-link bg-white rounded-xl p-3 flex items-center gap-3"
+                    style={{
+                      border: '1px solid',
+                      borderColor: 'var(--color-red, #dc2626)',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <Icon
+                      name="user-group"
+                      size={16}
+                      className="flex-shrink-0"
+                      style={{ color: 'var(--color-red, #dc2626)' }}
+                    />
+                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
+                      <span
+                        className="text-base font-semibold"
+                        style={{ color: 'var(--color-red, #dc2626)' }}
+                      >
+                        {memberCount} of {memberLimit} people
+                      </span>
+                      <span
+                        className="text-xs flex-shrink-0"
+                        style={{ color: 'var(--color-red, #dc2626)' }}
+                      >
+                        Upgrade for 100 people
+                      </span>
+                    </div>
+                  </a>
+                ) : (
                   <div
                     className="bg-white rounded-xl p-3 flex items-center gap-3"
                     style={{
@@ -1446,17 +1477,9 @@ export default function EditSpacePanel({
                       >
                         {memberCount} of {memberLimit} people
                       </span>
-                      {memberCount >= memberLimit && memberLimit === 10 && (
-                        <span
-                          className="text-xs flex-shrink-0"
-                          style={{ color: 'var(--color-red, #dc2626)' }}
-                        >
-                          Upgrade for 100 people
-                        </span>
-                      )}
                     </div>
                   </div>
-                )}
+                ))}
 
                 {/* Tab navigation */}
                 {(() => {
@@ -1688,6 +1711,17 @@ export default function EditSpacePanel({
         .space-people-list__remove {
           flex-shrink: 0;
           margin-left: auto;
+        }
+
+        /* Billing limit upgrade link - same hover/active as condensed items */
+        .billing-limit-link {
+          transition: transform 200ms ease;
+        }
+        .billing-limit-link:hover {
+          transform: scale(1.002);
+        }
+        .billing-limit-link:active {
+          transform: scale(0.99);
         }
       `}</style>
 

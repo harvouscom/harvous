@@ -126,7 +126,7 @@ export default function UpgradePageContent({
               const limitRed = 'var(--color-red, #dc2626)';
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
-              const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
+              const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 2;
               return (
                 <div className="flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
                   {/* Notes - horizontal, one line, left-aligned */}
@@ -170,7 +170,7 @@ export default function UpgradePageContent({
                       </span>
                       {!hasUnlimited && (
                         <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                          Upgrade for unlimited spaces
+                          Upgrade for unlimited
                         </span>
                       )}
                     </div>
@@ -193,7 +193,7 @@ export default function UpgradePageContent({
                           : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
                       </span>
                       {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
+                        <span className="text-xs flex-shrink-0" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                           Upgrade for unlimited
                         </span>
                       )}
