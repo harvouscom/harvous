@@ -14,9 +14,11 @@ export interface Props {
   resourceUrl?: string;
   contentEncrypted?: boolean;
   className?: string;
+  /** When false, note is view-only (e.g. member viewing another user's note in a shared space). Default true. */
+  isEditable?: boolean;
 }
 
-const { title, content, date, noteId, noteType = 'default', version, resourceTitle, resourceDescription, resourceImage, resourceUrl, contentEncrypted, className } = Astro.props;
+const { title, content, date, noteId, noteType = 'default', version, resourceTitle, resourceDescription, resourceImage, resourceUrl, contentEncrypted, className, isEditable = true } = Astro.props;
 ---
 
 <!-- React version of CardFullEditable -->
@@ -33,5 +35,6 @@ const { title, content, date, noteId, noteType = 'default', version, resourceTit
   resourceUrl={resourceUrl}
   contentEncrypted={contentEncrypted}
   className={className}
+  isEditable={isEditable}
   client:load 
 />

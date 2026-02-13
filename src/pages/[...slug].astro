@@ -1163,6 +1163,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                 resourceUrl={content.resourceUrl}
                 contentEncrypted={content.contentEncrypted}
                 className="h-full flex-1 min-h-0"
+                isEditable={content.userId === authenticatedUserId}
               />
             </div>
           ) : !content ? (
