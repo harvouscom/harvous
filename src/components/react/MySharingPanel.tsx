@@ -4,6 +4,8 @@ import TabNav from './TabNav';
 import CondensedNoteItem from './CondensedNoteItem';
 import CondensedThreadItem from './CondensedThreadItem';
 import ActionButton from './ActionButton';
+import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl } from '@/utils/url-helpers';
 import { toast } from '@/utils/toast';
 
 type SharingFilter = 'all' | 'threads' | 'notes' | 'spaces';
@@ -171,7 +173,7 @@ export default function MySharingPanel({
 
   const handleOpenSpace = (spaceId: string) => {
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-    window.location.href = `/?spaceId=${spaceId}`;
+    safeNavigate(idToUrl(spaceId), { history: 'replace' });
   };
 
   return (
