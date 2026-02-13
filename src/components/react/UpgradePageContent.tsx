@@ -98,7 +98,7 @@ export default function UpgradePageContent({
             {limitsInfo && (
               <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
                 <li>Unlimited notes</li>
-                <li>{limitsInfo.limits.ownedSharedSpaces.limit} spaces shared</li>
+                <li>{limitsInfo.limits.ownedSharedSpaces.limit != null ? `${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared` : 'Unlimited spaces shared'}</li>
                 <li>{limitsInfo.limits.membersPerSpace.limit} people per space</li>
                 <li>Join unlimited spaces</li>
               </ul>
@@ -125,7 +125,7 @@ export default function UpgradePageContent({
             {limitsInfo && (() => {
               const limitRed = 'var(--color-red, #dc2626)';
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
-              const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+              const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
               const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
               return (
                 <div className="flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
@@ -164,11 +164,13 @@ export default function UpgradePageContent({
                     </svg>
                     <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                       <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                        {limitsInfo.limits.ownedSharedSpaces.current} of {limitsInfo.limits.ownedSharedSpaces.limit} spaces shared
+                        {limitsInfo.limits.ownedSharedSpaces.limit != null
+                          ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
+                          : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
                       </span>
                       {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
-                          Upgrade for 3 spaces
+                        <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
+                          Upgrade for unlimited spaces
                         </span>
                       )}
                     </div>

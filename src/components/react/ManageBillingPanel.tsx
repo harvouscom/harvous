@@ -382,7 +382,7 @@ export default function ManageBillingPanel({
                 {!isLoading && subscriptionInfo && (() => {
                   const limitRed = 'var(--color-red, #dc2626)';
                   const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 200) - subscriptionInfo.currentCount <= 100;
-                  const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+                  const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
                   const joinedAtLimit = limitsInfo != null && limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 1;
                   return (
                   <div className="w-full">
@@ -431,11 +431,13 @@ export default function ManageBillingPanel({
                           </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.ownedSharedSpaces.current} of {limitsInfo.limits.ownedSharedSpaces.limit} spaces shared
+                              {limitsInfo.limits.ownedSharedSpaces.limit != null
+                                ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
+                                : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
                             </span>
                             {!subscriptionInfo.hasUnlimited && (
                               <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                                Upgrade for 3 spaces
+                                Upgrade for unlimited spaces
                               </span>
                             )}
                           </div>

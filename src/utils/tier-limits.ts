@@ -2,8 +2,8 @@
  * Tier Limits for Collaborative Shared Spaces
  *
  * Enforces tier-based limits for collaborative features:
- * - Free tier: 1 shared space (10 people max), join up to 3 spaces
- * - Unlimited tier: 3 shared spaces (100 people each), join unlimited spaces
+ * - Free tier: 3 shared spaces (10 people max), join up to 10 spaces
+ * - Unlimited tier: unlimited shared spaces (100 people each), join unlimited spaces
  */
 
 import { db, Spaces, Members, eq } from 'astro:db';
@@ -12,12 +12,12 @@ import type { Auth } from '@clerk/astro/server';
 // Tier limits configuration
 export const TIER_LIMITS = {
   free: {
-    ownedSharedSpaces: 1,
+    ownedSharedSpaces: 3,
     membersPerSpace: 10,
-    joinableSpaces: 3,
+    joinableSpaces: 10,
   },
   unlimited: {
-    ownedSharedSpaces: 3,
+    ownedSharedSpaces: Infinity, // No limit
     membersPerSpace: 100,
     joinableSpaces: Infinity, // No limit
   }
@@ -93,8 +93,8 @@ export async function canOwnerAddOneMoreSharedSpace(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'Free tier limited to 1 shared space. Space owner needs to upgrade to add members.'
-        : `Unlimited tier limited to ${limits.ownedSharedSpaces} shared spaces. Space owner has reached the limit.`,
+        ? 'Free tier limited to 3 shared spaces. Space owner needs to upgrade to add members.'
+        : 'Unlimited tier shared spaces limit reached.',
       currentCount: currentSharedCount,
       limit: limits.ownedSharedSpaces
     };
@@ -177,8 +177,8 @@ export async function canCreateSharedSpace(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'Free tier limited to 1 shared space. Upgrade to create more.'
-        : `Unlimited tier limited to ${limits.ownedSharedSpaces} shared spaces.`,
+        ? 'Free tier limited to 3 shared spaces. Upgrade to create more.'
+        : 'Unlimited tier shared spaces limit reached.',
       currentCount,
       limit: limits.ownedSharedSpaces,
     };

@@ -11,7 +11,7 @@ There two places to find spaces:
 
 You create spaces by finding the “New Space” button within where you can find your spaces (mentioned above).
 
-Spaces can be **private** (just you) or **shared**. With a shared space you get a link to invite others—great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. On the free plan you can have one shared space (up to 10 people) and join up to 3 spaces that others share; upgrade for more.
+Spaces can be **private** (just you) or **shared**. With a shared space you get a link to invite others—great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. On the free plan you can have three shared spaces (up to 10 people each) and join up to 10 spaces that others share; upgrade for more.
 
 When you erase a space, your notes and threads stay safe—you're just removing the grouping.
 
