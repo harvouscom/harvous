@@ -463,7 +463,9 @@ export default function MySpacesPanel({
   // Render space item in AddToSpaceSection style (works for owned Space or normalized joined DisplaySpace)
   const renderSpaceItem = (space: DisplaySpace) => {
     const spaceAccentColor = space.color ? `var(--color-${space.color})` : "var(--color-paper)";
-    const isShared = sharedSpaceIds.has(space.id) || joinedSpaceIds.has(space.id);
+    const isJoined = joinedSpaceIds.has(space.id);
+    const isOwnedShared = sharedSpaceIds.has(space.id);
+    const iconClass = "block max-w-none size-full text-[var(--color-deep-grey)] opacity-30";
 
     return (
       <div
@@ -489,14 +491,18 @@ export default function MySpacesPanel({
           
           {/* Content */}
           <div className="flex items-center gap-6 pl-3 pr-4 h-full">
-            {/* User icon (Private) or User group icon (Shared) */}
+            {/* Private: single user. Owned shared: group. Joined (member): user-check (Font Awesome solid) */}
             <div className="relative shrink-0 size-5">
-              {isShared ? (
-                <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 640 640">
+              {isJoined ? (
+                <svg className={iconClass} fill="currentColor" viewBox="0 0 640 512" aria-hidden="true">
+                  <path d="M352 128c0 70.7-57.3 128-128 128s-128-57.3-128-128S153.3 0 224 0s128 57.3 128 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7H29.7C13.3 512 0 498.7 0 482.3zM625 177L497 305c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L591 143c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z"/>
+                </svg>
+              ) : isOwnedShared ? (
+                <svg className={iconClass} fill="currentColor" viewBox="0 0 640 640" aria-hidden="true">
                   <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
                 </svg>
               ) : (
-                <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+                <svg className={iconClass} fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
               )}
