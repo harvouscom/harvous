@@ -65,6 +65,7 @@ if (createdAt) {
 
 // Fetch navigation data and church data
 let spaces: any[] = [];
+let initialMemberOfIds: string[] = [];
 let threads: any[] = [];
 let inboxCount: number = 0;
 let seasonalXP: number = 0;
@@ -99,6 +100,7 @@ try {
     backgroundGradient: getThreadGradientCSS(m.color || 'paper'),
   }));
   spaces = [...ownedSpaces, ...joinedSpaces];
+  initialMemberOfIds = (memberOfData || []).map((m: { id: string }) => m.id);
   threads = threadsData.map(thread => ({
     ...thread,
     backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue')
@@ -205,6 +207,7 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
     firstName={firstName}
     lastName={lastName}
     spaces={spaces}
+    initialMemberOfIds={initialMemberOfIds}
     churchData={churchData}
     publishableKey={publishableKey}
     founderLetterHtml={founderLetterHtml}

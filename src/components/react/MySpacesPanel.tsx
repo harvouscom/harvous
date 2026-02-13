@@ -35,6 +35,8 @@ interface MySpacesPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
   initialSpaces?: Space[]; // Spaces fetched in Astro, passed as props
+  /** Space IDs the user is a member of (joined). Used so joined spaces show shared icon before client API loads. */
+  initialMemberOfIds?: string[];
 }
 
 // Smart deduplication: prefers spaces with higher counts, or more recent updatedAt
@@ -84,7 +86,8 @@ function sortSpacesByLastVisited(spaces: Space[]): Space[] {
 export default function MySpacesPanel({ 
   onClose,
   inBottomSheet = false,
-  initialSpaces = []
+  initialSpaces = [],
+  initialMemberOfIds = []
 }: MySpacesPanelProps) {
   // Use initialSpaces if provided (from Astro), otherwise start empty
   // Deduplicate initial state to prevent duplicates from SSR
@@ -444,7 +447,10 @@ export default function MySpacesPanel({
   // Render space item in AddToSpaceSection style (works for owned Space or normalized joined DisplaySpace)
   const renderSpaceItem = (space: DisplaySpace) => {
     const spaceAccentColor = space.color ? `var(--color-${space.color})` : "var(--color-paper)";
-    const isShared = sharedSpaceIds.has(space.id) || memberOfSpaces.some(m => m.id === space.id);
+    const isShared =
+      sharedSpaceIds.has(space.id) ||
+      memberOfSpaces.some(m => m.id === space.id) ||
+      initialMemberOfIds.includes(space.id);
 
     return (
       <div

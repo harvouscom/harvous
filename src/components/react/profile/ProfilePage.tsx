@@ -38,6 +38,8 @@ export interface ProfilePageProps {
     totalItemCount: number;
     isPublic?: boolean;
   }>;
+  /** Space IDs the user is a member of (joined, not owned). Used so joined spaces show shared icon before client API loads. */
+  initialMemberOfIds?: string[];
   churchData?: {
     churchName: string | null;
     churchCity: string | null;
@@ -58,6 +60,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   lastName,
   version,
   spaces = [],
+  initialMemberOfIds = [],
   churchData,
   publishableKey = null,
   founderLetterHtml = '',
@@ -346,7 +349,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       case 'mySharing':
         return <MySharingPanel />;
       case 'mySpaces':
-        return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} />;
+        return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} initialMemberOfIds={initialMemberOfIds} />;
       case 'myData':
         return <MyDataPanel />;
       case 'myAchievements':
