@@ -1100,6 +1100,8 @@ if (!content) {
 
 // Extract noteType for menu options
 const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefined;
+// Onboarding notes are view-only (not editable)
+const isOnboardingNote = isNote && typeof currentThread?.id === 'string' && currentThread.id.startsWith('thread_onboarding_');
 ---
 
 <Layout title={pageTitle} contentType={contentType} contentId={id} spaceRole={spaceRole} currentThread={currentThread} currentSpace={currentSpace} currentNote={isNote ? content : null} userId={authenticatedUserId} contentOwnerId={contentType === 'thread' ? currentThread?.userId : (contentType === 'note' && content ? content.userId : undefined)}>
@@ -1163,7 +1165,7 @@ const noteTypeForMenu = isNote && content?.noteType ? content.noteType : undefin
                 resourceUrl={content.resourceUrl}
                 contentEncrypted={content.contentEncrypted}
                 className="h-full flex-1 min-h-0"
-                isEditable={content.userId === authenticatedUserId}
+                isEditable={content.userId === authenticatedUserId && !isOnboardingNote}
               />
             </div>
           ) : !content ? (

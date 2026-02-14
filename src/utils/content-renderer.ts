@@ -23,8 +23,12 @@ export function safeRenderHtml(content: unknown): string {
     if (content.trim() === '') {
       return '';
     }
-    // Return as-is to preserve HTML structure
-    return content;
+    // Make links open in new tab (target="_blank" rel="noopener noreferrer")
+    const withExternalLinks = content.replace(/<a\s+([^>]*)>/gi, (match, attrs) => {
+      if (/target\s*=/i.test(attrs)) return match;
+      return `<a target="_blank" rel="noopener noreferrer" ${attrs.trim()}>`;
+    });
+    return withExternalLinks;
   }
 
   // If it's a number, convert to string
