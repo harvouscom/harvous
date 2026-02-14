@@ -754,9 +754,14 @@ export default function NewThreadPanel({
       {/* Form */}
       <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="form-layout--expand">
+        <div className="form-layout--expand" style={{ position: 'relative' }}>
+          {isLoadingItems && (
+            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+              <div className="panel__progress-fill" />
+            </div>
+          )}
           {/* Panel container */}
-          <div className="panel panel--bottom-sheet">
+          <div className={`panel panel--bottom-sheet ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section with thread name input */}
             <div 
               className="panel__header"

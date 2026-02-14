@@ -483,9 +483,14 @@ export default function NoteDetailsPanel({
       `}</style>
       <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area that expands to fill available space */}
-      <div className="form-layout--expand w-full">
+      <div className="form-layout--expand w-full" style={{ position: 'relative' }}>
+        {isLoading && (
+          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+            <div className="panel__progress-fill" />
+          </div>
+        )}
         {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">

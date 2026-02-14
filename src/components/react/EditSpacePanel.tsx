@@ -1391,13 +1391,19 @@ export default function EditSpacePanel({
     );
   };
 
+  const isPanelLoading = isLoadingItems || isLoadingCurrentItems;
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       <div className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="form-layout--expand">
+        <div className="form-layout--expand" style={{ position: 'relative' }}>
+          {isPanelLoading && (
+            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+              <div className="panel__progress-fill" />
+            </div>
+          )}
           {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isPanelLoading ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section with dynamic background */}
             <div 
               className="panel__header"
