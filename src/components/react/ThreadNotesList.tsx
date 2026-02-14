@@ -826,9 +826,9 @@ export default function ThreadNotesList({
           const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
           if (recentNotesStr) {
             const recentNotes = JSON.parse(recentNotesStr);
-            const fiveSecondsAgo = Date.now() - 5000;
+            const thirtySecondsAgo = Date.now() - 30000;
             const hasRecentNote = recentNotes.some((n: any) => 
-              n.threadId === threadId && n.timestamp > fiveSecondsAgo
+              n.threadId === threadId && n.timestamp > thirtySecondsAgo
             );
             if (hasRecentNote) {
               shouldForceRefresh = true;
@@ -871,7 +871,8 @@ export default function ThreadNotesList({
       
       const referrer = document.referrer;
       const currentPath = window.location.pathname;
-      const currentThreadId = currentPath.substring(1);
+      // Use extractIdFromPath so /thread/abc123 → thread_abc123 (matches threadId prop)
+      const currentThreadId = extractIdFromPath(currentPath);
       
       // Only refresh if we're on the correct thread page (including unorganized)
       if (currentThreadId !== threadId) {
@@ -890,16 +891,16 @@ export default function ThreadNotesList({
       // Also check if previous pathname was a note (for View Transitions scenarios)
       const previousWasNote = previousPathnameRef.current.startsWith('/note/');
       
-      // Check sessionStorage for recently created notes
+      // Check sessionStorage for recently created notes (30s window to match sessionStorage-on-mount effect)
       let hasRecentNote = false;
       let relevantNote: any = null;
       try {
         const recentNotesStr = sessionStorage.getItem('recentlyCreatedNotes');
         if (recentNotesStr) {
           const recentNotes = JSON.parse(recentNotesStr);
-          const fiveSecondsAgo = Date.now() - 5000;
+          const thirtySecondsAgo = Date.now() - 30000;
           relevantNote = recentNotes.find((n: any) => 
-            n.threadId === threadId && n.timestamp > fiveSecondsAgo
+            n.threadId === threadId && n.timestamp > thirtySecondsAgo
           );
           hasRecentNote = !!relevantNote;
         }
@@ -963,7 +964,8 @@ export default function ThreadNotesList({
       } else {
         // App came to foreground
         const currentPath = window.location.pathname;
-        const currentThreadId = currentPath.substring(1);
+        // Use extractIdFromPath so /thread/abc123 → thread_abc123 (matches threadId prop)
+        const currentThreadId = extractIdFromPath(currentPath);
         
         // Only refresh if we're on the correct thread page (including unorganized)
         if (currentThreadId !== threadId) return;

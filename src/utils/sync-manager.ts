@@ -17,6 +17,7 @@ import {
 import { cacheHighestSimpleNoteId } from './offline-mutations';
 import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
+import { extractIdFromPath, idToUrl } from './url-helpers';
 
 export interface SyncResult {
   success: boolean;
@@ -982,11 +983,11 @@ async function updateEntityId(entityType: string, oldId: string, newId: string, 
     // Update navigation state if we're in the browser
     if (typeof window !== 'undefined') {
       const currentPath = window.location.pathname;
-      const currentItemId = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+      const currentItemId = extractIdFromPath(currentPath);
       
-      // If user is currently viewing this item, update the URL
+      // If user is currently viewing this item, update the URL (both DB ids)
       if (currentItemId === oldId) {
-        const newUrl = `/${newId}`;
+        const newUrl = idToUrl(newId);
         // Use replace to avoid adding to history
         window.history.replaceState({}, '', newUrl);
         

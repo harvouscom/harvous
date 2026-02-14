@@ -123,16 +123,23 @@ export default function NewNotePanel({
   });
 
   // When mobile panel opens, rehydrate form from localStorage (desktop draft) once on mount.
-  // On desktop, rehydrate on every open so selection data (pre-filled content, source note) is loaded.
+  // On desktop, rehydrate once per open so selection data (pre-filled content, source note) is loaded.
+  // Delay showing form on desktop until after rehydrate to avoid title/content flash from stale context.
+  // Important: run desktop rehydrate only once per mount (use ref); do NOT include `form` in deps or
+  // the effect re-runs every render (form is a new object each time) and overwrites user input.
   const hasRehydratedRef = useRef(false);
+  const hasDesktopRehydratedRef = useRef(false);
+  const [desktopRehydrated, setDesktopRehydrated] = useState(false);
   useEffect(() => {
     if (inBottomSheet && !hasRehydratedRef.current) {
       hasRehydratedRef.current = true;
       form.rehydrateFromStorage();
-    } else if (!inBottomSheet) {
+    } else if (!inBottomSheet && !hasDesktopRehydratedRef.current) {
+      hasDesktopRehydratedRef.current = true;
       form.rehydrateFromStorage();
+      setDesktopRehydrated(true);
     }
-  }, [inBottomSheet, form]);
+  }, [inBottomSheet, form.rehydrateFromStorage]);
 
   // iOS: when an input in the sheet gains focus, Safari scrolls to center it and pushes the toolbar off.
   // Undo that by resetting window scroll after a short delay so header/toolbar stay visible.
@@ -1277,6 +1284,12 @@ export default function NewNotePanel({
                     />
                   )}
                   <div className="card-stack__inner-content">
+                    {!inBottomSheet && !desktopRehydrated ? (
+                      <div className="flex items-center justify-center py-8 text-[var(--color-pebble-grey)] text-[14px]">
+                        Loading...
+                      </div>
+                    ) : (
+                      <>
                     {form.noteType === 'default' && (
                       <TemplateSelector
                         selectedTemplateId={form.selectedTemplateId}
@@ -1317,6 +1330,8 @@ export default function NewNotePanel({
                         onScriptureCountChange={setScriptureCount}
                         onDuplicateDetected={setDuplicateInfo}
                       />
+                    )}
+                      </>
                     )}
                   </div>
                 </div>

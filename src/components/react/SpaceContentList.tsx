@@ -8,7 +8,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 import { setSelectedSpaceId } from './navigation/selectedSpace';
-import { idToUrl } from '@/utils/url-helpers';
+import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 
 interface SpaceItem {
   id: string;
@@ -246,34 +246,14 @@ export default function SpaceContentList({
   }, [sortItemsByLastVisited]);
 
 
-  // Extract item ID from pathname (thread_xxx or note_xxx)
-  // Extract item ID from pathname (thread_xxx or note_xxx)
-  // Handles edge cases like query params and hash
+  // Extract item ID and type from pathname (handles both /thread/abc and /thread_abc formats)
   const extractItemIdFromPath = useCallback((pathname: string): { id: string; type: 'thread' | 'note' } | null => {
-    // Remove query params and hash for clean pathname
     const cleanPath = pathname.split('?')[0].split('#')[0];
-    
-    // Remove leading slash
-    const pathWithoutSlash = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
-    
-    // Check for thread_ prefix first (more specific)
-    if (pathWithoutSlash.startsWith('thread_')) {
-      const id = pathWithoutSlash; // Keep the full ID including prefix
-      // Validate it's a valid thread ID format
-      if (id.length > 7) { // thread_ is 7 chars, so valid ID should be longer
-        return { id, type: 'thread' as const };
-      }
-    } 
-    // Check for note_ prefix
-    else if (pathWithoutSlash.startsWith('note_')) {
-      const id = pathWithoutSlash; // Keep the full ID including prefix
-      // Validate it's a valid note ID format
-      if (id.length > 5) { // note_ is 5 chars, so valid ID should be longer
-        return { id, type: 'note' as const };
-      }
+    const id = extractIdFromPath(cleanPath);
+    const entityType = detectEntityTypeFromPath(cleanPath);
+    if (id && (entityType === 'thread' || entityType === 'note')) {
+      return { id, type: entityType };
     }
-    
-    // If no match, return null
     return null;
   }, []);
 

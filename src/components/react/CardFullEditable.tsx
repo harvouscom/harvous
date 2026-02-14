@@ -436,8 +436,16 @@ export default function CardFullEditable({
         
         if (sourceSelectionPlainText && sourceSelectionPlainText.trim().length > 0 && noteId) {
           try {
-            // Get current content (use displayContent which is the displayed content)
-            const currentContent = displayContent || content;
+            // Get current content: when editor is available (edit mode) use its HTML so we wrap the latest content
+            let currentContent = displayContent || content;
+            if (editorInstanceRef.current && !editorInstanceRef.current.isDestroyed) {
+              try {
+                const editorHtml = editorInstanceRef.current.getHTML();
+                if (editorHtml) currentContent = editorHtml;
+              } catch {
+                // Keep displayContent/content
+              }
+            }
             
             // Try to wrap the text with noteLink in HTML
             const updatedContent = wrapTextWithNoteLink(currentContent, sourceSelectionPlainText, newNoteId);
@@ -494,6 +502,7 @@ export default function CardFullEditable({
                   type: 'warning'
                 }
               }));
+              window.dispatchEvent(new CustomEvent('highlightSaved'));
             }
           } catch (e) {
             console.error('[CardFullEditable] Error during HTML manipulation fallback:', e);
@@ -503,6 +512,7 @@ export default function CardFullEditable({
                 type: 'warning'
               }
             }));
+            window.dispatchEvent(new CustomEvent('highlightSaved'));
           }
         } else {
           console.error('[CardFullEditable] Failed to create hyperlink - no plainText available');
@@ -512,6 +522,7 @@ export default function CardFullEditable({
               type: 'warning'
             }
           }));
+          window.dispatchEvent(new CustomEvent('highlightSaved'));
         }
     };
 
