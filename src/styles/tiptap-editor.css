@@ -207,6 +207,16 @@
   color: white !important;
 }
 
+/* Rich text link styling - primary blue with underline */
+.tiptap-content .ProseMirror a {
+  color: var(--color-bold-blue) !important;
+  text-decoration: underline !important;
+}
+
+.tiptap-content .ProseMirror a:hover {
+  text-decoration-thickness: 2px !important;
+}
+
 /* Note link styling - highlighted text that looks like selection */
 .tiptap-content .ProseMirror .note-link {
   background-color: rgba(255, 235, 59, 0.4) !important;

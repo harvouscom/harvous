@@ -118,9 +118,10 @@ New users automatically get the onboarding thread when they first sign up. To te
 
 ## Current Files
 
-- `01-welcome.md` - Welcome message and introduction
-- `02-organize.md` - How to organize notes with threads
-- `03-scripture.md` - How scripture references work
+- `01-welcome.md` - Note from the founder and welcome
+- `02-create-organize.md` - Notes, threads, and spaces
+- `03-find.md` - Finding your way around
+- `04-add-to-homescreen.md` - Use Harvous like an app on your phone (Add to Home Screen)
 
 ## Tips
 

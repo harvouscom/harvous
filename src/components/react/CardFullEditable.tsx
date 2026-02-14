@@ -1173,7 +1173,7 @@ export default function CardFullEditable({
                 >
                   {effectiveContent && effectiveContent.trim() ? (
                     <div 
-                      className="card-image-link__content-text"
+                      className="card-full-editable__content-html card-image-link__content-text"
                       dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
                     />
                   ) : (
@@ -1377,7 +1377,7 @@ export default function CardFullEditable({
                 ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                    className={`card-full-editable__content-html flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
