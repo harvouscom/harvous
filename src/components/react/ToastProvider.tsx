@@ -93,6 +93,10 @@ export default function ToastProvider() {
           align-items: center !important;
           gap: 0.5rem 0.75rem !important;
         }
+        [data-sonner-toast]:has(button[data-cancel]) > *,
+        [data-sonner-toast]:has(button[data-cancel]) *:has(button[data-action]) {
+          justify-content: center !important;
+        }
         [data-sonner-toast]:has(button[data-cancel]) > *:first-child {
           width: 100% !important;
           flex: 0 0 100% !important;
