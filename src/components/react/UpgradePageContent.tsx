@@ -127,98 +127,83 @@ export default function UpgradePageContent({
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
               const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 2;
+              const anyAtLimit = notesAtLimit || sharedAtLimit || joinedAtLimit;
+              if (!anyAtLimit) return null;
               return (
-                <div className="flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
-                  {/* Notes - horizontal, one line, left-aligned */}
-                  <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: notesAtLimit ? limitRed : 'var(--color-fog-white)'
-                    }}
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 384 512" aria-hidden="true">
-                      <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
-                    </svg>
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                        {currentCount.toLocaleString()} of {(limit ?? 200).toLocaleString()} notes
-                      </span>
-                      {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
-                          Upgrade for unlimited
+                <div className="upgrade-content__limits flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
+                  {notesAtLimit && (
+                    <div
+                      className="upgrade-content__limit-row bg-white rounded-xl p-3 flex items-center gap-3"
+                      style={{
+                        border: '1px solid',
+                        borderColor: limitRed
+                      }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: limitRed }} viewBox="0 0 384 512" aria-hidden="true">
+                        <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
+                      </svg>
+                      <div className="min-w-0 flex-1 flex justify-between items-center text-left">
+                        <span className="text-base font-semibold" style={{ color: limitRed }}>
+                          {currentCount.toLocaleString()} of {(limit ?? 200).toLocaleString()} notes
                         </span>
-                      )}
+                        {!hasUnlimited && (
+                          <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
+                            Upgrade for unlimited
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {/* Spaces shared - horizontal, one line, left-aligned */}
-                  <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: sharedAtLimit ? limitRed : 'var(--color-fog-white)'
-                    }}
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 512 512" aria-hidden="true">
-                      <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
-                    </svg>
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                        {limitsInfo.limits.ownedSharedSpaces.limit != null
-                          ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
-                          : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
-                      </span>
-                      {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                          Upgrade for unlimited
+                  )}
+                  {sharedAtLimit && (
+                    <div
+                      className="upgrade-content__limit-row bg-white rounded-xl p-3 flex items-center gap-3"
+                      style={{
+                        border: '1px solid',
+                        borderColor: limitRed
+                      }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: limitRed }} viewBox="0 0 512 512" aria-hidden="true">
+                        <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
+                      </svg>
+                      <div className="min-w-0 flex-1 flex justify-between items-center text-left">
+                        <span className="text-base font-semibold" style={{ color: limitRed }}>
+                          {limitsInfo.limits.ownedSharedSpaces.limit != null
+                            ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
+                            : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
                         </span>
-                      )}
+                        {!hasUnlimited && (
+                          <span className="text-xs flex-shrink-0" style={{ color: limitRed }}>
+                            Upgrade for unlimited
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {/* Spaces joined - horizontal, one line, left-aligned */}
-                  <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: joinedAtLimit ? limitRed : 'var(--color-fog-white)'
-                    }}
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 448 512" aria-hidden="true">
-                      <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
-                    </svg>
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span className="text-base font-semibold" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                        {limitsInfo.limits.joinableSpaces.limit == null
-                          ? `${limitsInfo.limits.joinableSpaces.current} (unlimited) spaces joined`
-                          : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
-                      </span>
-                      {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                          Upgrade for unlimited
+                  )}
+                  {joinedAtLimit && (
+                    <div
+                      className="upgrade-content__limit-row bg-white rounded-xl p-3 flex items-center gap-3"
+                      style={{
+                        border: '1px solid',
+                        borderColor: limitRed
+                      }}
+                    >
+                      <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: limitRed }} viewBox="0 0 448 512" aria-hidden="true">
+                        <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
+                      </svg>
+                      <div className="min-w-0 flex-1 flex justify-between items-center text-left">
+                        <span className="text-base font-semibold" style={{ color: limitRed }}>
+                          {limitsInfo.limits.joinableSpaces.limit == null
+                            ? `${limitsInfo.limits.joinableSpaces.current} (unlimited) spaces joined`
+                            : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
                         </span>
-                      )}
+                        {!hasUnlimited && (
+                          <span className="text-xs flex-shrink-0" style={{ color: limitRed }}>
+                            Upgrade for unlimited
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  {/* People per space - horizontal, one line, left-aligned */}
-                  <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: 'var(--color-fog-white)'
-                    }}
-                  >
-                    <Icon name="user-group" size={16} className="flex-shrink-0" style={{ color: 'var(--color-deep-grey)' }} />
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                        {limitsInfo.limits.membersPerSpace.limit} people per space
-                      </span>
-                      {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
-                          Upgrade for 100 people
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
