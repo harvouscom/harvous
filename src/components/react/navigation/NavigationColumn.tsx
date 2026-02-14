@@ -175,8 +175,20 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
   const currentThreadForMismatch = updatedActiveThread || activeThread;
   const isThreadPage = currentItemId.startsWith('thread_');
-  const selectedSpaceForMismatch = effectiveSelectedSpaceId;
   const threadSpaceId = currentThreadForMismatch?.spaceId ?? null;
+  // Prefer URL ?space= for add-to-space prompt so it shows when viewing thread in a space via URL (reliable after client nav).
+  const spaceForMismatch =
+    (typeof window !== 'undefined' &&
+      (() => {
+        try {
+          const s = new URLSearchParams(window.location.search).get('space');
+          return s && s.startsWith('space_') ? s : null;
+        } catch {
+          return null;
+        }
+      })()) ??
+    effectiveSelectedSpaceId;
+  const selectedSpaceForMismatch = spaceForMismatch;
   const mismatchKey = currentThreadForMismatch?.id && selectedSpaceForMismatch
     ? `${currentThreadForMismatch.id}|${selectedSpaceForMismatch}`
     : null;
@@ -184,7 +196,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     !!selectedSpaceForMismatch && isThreadPage && currentThreadForMismatch?.id && threadSpaceId !== selectedSpaceForMismatch;
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
-  const selectedSpaceTitleForMismatch = selectedSpace?.title ?? 'this space';
+  const selectedSpaceTitleForMismatch = selectedSpaceForMismatch
+    ? (localSpaces.find((s) => s.id === selectedSpaceForMismatch)?.title ?? selectedSpace?.title ?? 'this space')
+    : 'this space';
   const threadSpaceTitleForMismatch = threadSpaceId
     ? localSpaces.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
