@@ -1039,6 +1039,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
   }, []);
 
+  // Remove deleted space from dropdown when user erases a space
+  useEffect(() => {
+    const handleSpaceDeleted = (event: CustomEvent) => {
+      const spaceId = event.detail?.spaceId;
+      if (!spaceId) return;
+      setLocalSpaces(prev => prev.filter(s => s.id !== spaceId));
+      forceUpdate(prev => prev + 1);
+    };
+    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+    return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+  }, []);
+
   // Calculate spaces to show in dropdown - include current space even if not in history yet
   const spacesForDropdown = useMemo(() => {
     // Start with filtered spaces (from navigation history)

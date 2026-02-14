@@ -244,6 +244,10 @@ const handleCreateNoteFromSelection = () => {
 - **Export functionality**: Export selected text to external tools
 - **Sharing**: Share selected text directly to social media
 
+#### Possible Future Features
+- **Linked-from notes in Note Details Panel**: Notes created from selected text get a hyperlink back in the source note. Today, only scripture notes show a "Notes" tab in NoteDetailsPanel (notes that reference this scripture via scripture pills). A possible enhancement: for any note, show a "Linked from" or "Referenced by" section in NoteDetailsPanel that lists notes that link to this note via hyperlink (e.g. notes created from selection that point here), similar to how scripture pills show up.
+- **Select text and link an existing note**: Today, the flow is "select text → create new note" (with optional hyperlink back). A possible enhancement: "select text → link to existing note" — let the user select text and choose to attach/link an existing note to that span (insert the hyperlink) without creating a new note. This would support connecting existing notes to specific passages in another note.
+
 ## Benefits
 
 ### For Users

@@ -277,3 +277,21 @@ export function wrapTextWithNoteLink(
   return updatedContent;
 }
 
+/**
+ * Strip note-link spans that point to a specific note ID from HTML content.
+ * Used when a note is deleted so source notes no longer show the link/highlight.
+ * Replaces each matching span with its inner text only.
+ */
+export function stripNoteLinksToNoteId(htmlContent: string, targetNoteId: string): string {
+  if (!htmlContent || !targetNoteId) {
+    return htmlContent;
+  }
+  const escaped = targetNoteId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Match span that has data-note-id="targetNoteId" in opening tag; replace with inner text only
+  const pattern = new RegExp(
+    `<span[^>]*data-note-id\\s*=\\s*["']${escaped}["'][^>]*>([\\s\\S]*?)</span>`,
+    'gi'
+  );
+  return htmlContent.replace(pattern, (_, inner) => (inner ?? ''));
+}
+

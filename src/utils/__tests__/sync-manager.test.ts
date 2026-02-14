@@ -24,11 +24,15 @@ Object.defineProperty(navigator, 'onLine', {
 
 // Helper to create proper mock fetch responses
 function createMockResponse(data: any, ok = true, status = 200) {
+  const headers = new Headers();
+  if (ok && status === 200) {
+    headers.set('Content-Type', 'application/json');
+  }
   return {
     ok,
     status,
     statusText: ok ? 'OK' : 'Error',
-    headers: new Headers(),
+    headers,
     json: async () => data,
     text: async () => typeof data === 'string' ? data : JSON.stringify(data),
   };

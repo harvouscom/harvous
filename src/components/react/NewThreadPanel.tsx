@@ -339,12 +339,10 @@ export default function NewThreadPanel({
           if (networkError && offlineThreadId) {
             // Offline save succeeded - treat as success
             console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
-            
-            // Show "Saved offline" toast
+            // Show toast here - we stay on page (replaceState only), so toast-handler won't run
             if (window.toast) {
               window.toast.success('Thread saved offline. It will sync when you\'re back online.');
             }
-            
             // Dispatch threadCreated event with offline thread data
             const offlineThreadEvent = new CustomEvent('threadCreated', {
               detail: {
@@ -572,11 +570,7 @@ export default function NewThreadPanel({
       if (isNetworkError(error) && offlineThreadId) {
         // Network error but offline save succeeded - treat as success
         console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
-        
-        if (window.toast) {
-          window.toast.success('Thread saved offline. It will sync when you\'re back online.');
-        }
-        
+        // Don't show toast here - we redirect with ?toast= so toast-handler shows once
         const offlineThreadEvent = new CustomEvent('threadCreated', {
           detail: {
             thread: {

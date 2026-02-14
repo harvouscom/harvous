@@ -79,7 +79,11 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (typeof window === 'undefined') return;
     
     const savedTitle = localStorage.getItem('newNoteTitle') || '';
-    const savedContent = localStorage.getItem('newNoteContent') || '';
+    let savedContent = localStorage.getItem('newNoteContent') || '';
+    if (localStorage.getItem('newNoteContentEmptyFromSelection') === 'true') {
+      savedContent = '';
+      localStorage.removeItem('newNoteContentEmptyFromSelection');
+    }
     const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
     const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
@@ -300,6 +304,7 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (typeof window === 'undefined') return;
     localStorage.removeItem('newNoteTitle');
     localStorage.removeItem('newNoteContent');
+    localStorage.removeItem('newNoteContentEmptyFromSelection');
     localStorage.removeItem('newNoteResourceUrl');
     localStorage.removeItem('newNoteTemplateId');
     // Don't clear newNoteThread - preserve thread selection for next time
@@ -308,8 +313,13 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
   // Rehydrate form state from localStorage (used when mobile panel opens to sync desktop draft)
   const rehydrateFromStorage = useCallback(() => {
     if (typeof window === 'undefined') return;
-    const savedTitle = localStorage.getItem('newNoteTitle') || '';
-    const savedContent = localStorage.getItem('newNoteContent') || '';
+    const contentEmptyFromSelection = localStorage.getItem('newNoteContentEmptyFromSelection') === 'true';
+    let savedTitle = localStorage.getItem('newNoteTitle') || '';
+    let savedContent = localStorage.getItem('newNoteContent') || '';
+    if (contentEmptyFromSelection) {
+      savedContent = '';
+      localStorage.removeItem('newNoteContentEmptyFromSelection');
+    }
     const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
     const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';

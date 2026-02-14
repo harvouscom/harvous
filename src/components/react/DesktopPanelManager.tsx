@@ -368,7 +368,8 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
         };
       } else if (savedNotePanel === 'true') {
         // Check if there's new content from text selection - if so, increment panelKey to force remount
-        const hasNewContent = !!(localStorage.getItem('newNoteContent') || 
+        const hasNewContent = !!(localStorage.getItem('newNoteContent') ||
+                                 localStorage.getItem('newNoteTitle') ||
                                  localStorage.getItem('newNoteType') ||
                                  localStorage.getItem('newNoteScriptureReference'));
         // Increment panelKey if there's new content to force remount and read from localStorage

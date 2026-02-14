@@ -1,10 +1,11 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, eq, and } from 'astro:db';
+import { db, Notes, eq, and, like, not } from 'astro:db';
 import { revokeXPOnDeletion, revokeAllXPForItem } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 
 export const DELETE: APIRoute = async ({ request, locals }) => {
   try {
@@ -66,6 +67,31 @@ export const DELETE: APIRoute = async ({ request, locals }) => {
     // Delete the note first (critical operation)
     await db.delete(Notes)
       .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+
+    // Strip links to this note from any other notes (so source notes don't keep a dead link/highlight)
+    try {
+      const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content })
+        .from(Notes)
+        .where(
+          and(
+            eq(Notes.userId, userId),
+            not(eq(Notes.contentEncrypted, true)),
+            like(Notes.content, '%data-note-id=%')
+          )
+        )
+        .all();
+      for (const note of notesWithLinks) {
+        if (!note.content || !note.content.includes('data-note-id')) continue;
+        const stripped = stripNoteLinksToNoteId(note.content, noteId);
+        if (stripped !== note.content) {
+          await db.update(Notes)
+            .set({ content: stripped, updatedAt: new Date() })
+            .where(and(eq(Notes.id, note.id), eq(Notes.userId, userId)));
+        }
+      }
+    } catch (stripError) {
+      console.error('[api/notes/delete] Strip links from source notes failed:', stripError);
+    }
 
     // Revoke XP (async, fire-and-forget)
     const revokeXPAsync = async () => {

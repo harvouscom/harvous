@@ -8,6 +8,7 @@ import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
 import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId, getOfflineErrorMessage, type OfflineOperationResult } from '@/utils/offline-mutations';
 import { usePersistedUserId, getPersistedUserId, getPersistedUserIdWithIndexedDB } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -177,18 +178,24 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     // Get content - prioritize React state
     let editorContent = content;
 
-    // Fallback to DOM queries if React state is empty/invalid
+    // Fallback to DOM only within the new-note editor (never use document.querySelector('.ProseMirror') globally -
+    // that can return the source note's editor when creating from selection with empty content)
     if (!editorContent || editorContent.trim() === '' || editorContent === '<p></p>' || editorContent === '<p><br></p>') {
-      const hiddenInput = document.querySelector('#new-note-content') as HTMLInputElement;
-      if (hiddenInput && hiddenInput.value && hiddenInput.value.trim() !== '' && hiddenInput.value !== '<p></p>') {
-        editorContent = hiddenInput.value;
-      }
-      
-      if (!editorContent || editorContent.trim() === '') {
-        const tiptapEditor = document.querySelector('.ProseMirror');
-        if (tiptapEditor) {
-          editorContent = tiptapEditor.innerHTML;
+      const newNoteInput = document.getElementById('new-note-content') as HTMLInputElement | null;
+      if (newNoteInput) {
+        const container = newNoteInput.closest('.tiptap-editor-container');
+        if (container) {
+          const proseMirror = container.querySelector('.ProseMirror');
+          if (proseMirror && (proseMirror as HTMLElement).innerHTML.trim()) {
+            editorContent = (proseMirror as HTMLElement).innerHTML;
+          }
         }
+        if (!editorContent?.trim() && newNoteInput.value?.trim() && newNoteInput.value !== '<p></p>') {
+          editorContent = newNoteInput.value;
+        }
+      }
+      if (!editorContent || editorContent.trim() === '') {
+        editorContent = content ?? '';
       }
     }
 
@@ -793,63 +800,41 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
         }
 
-        // Create hyperlink in source note
+        // Update source note with link in submission flow so server is always updated before navigation.
+        // This ensures when the user later visits the source note they see the link (no manual refresh).
         if (sourceNoteId && result.note && result.note.id) {
-          const from = localStorage.getItem('newNoteSourceSelectionFrom');
-          const to = localStorage.getItem('newNoteSourceSelectionTo');
           const plainText = localStorage.getItem('newNoteSourceSelectionPlainText');
-
-          // Dispatch event if we have either positions (for editor mode) or plainText (for view mode)
-          // The handler will use editor positions if available, or fall back to HTML text matching
-          if ((from && to) || plainText) {
-              debug('[useNoteSubmission] Setting up highlight save wait');
-            // Create a promise that resolves when the highlight is saved
-            const highlightSavedPromise = new Promise<void>((resolve) => {
-              let resolved = false;
-              
-              const handleHighlightSaved = () => {
-                if (resolved) return;
-                resolved = true;
-                debug('[useNoteSubmission] Highlight saved event received');
-                window.removeEventListener('highlightSaved', handleHighlightSaved);
-                resolve();
-              };
-              
-              // Set up listener BEFORE dispatching event to avoid race condition
-              window.addEventListener('highlightSaved', handleHighlightSaved);
-              
-              // Small delay to ensure listener is registered
-              setTimeout(() => {
-                // Dispatch the createHyperlink event
-                debug('[useNoteSubmission] Dispatching createHyperlink event');
-                window.dispatchEvent(new CustomEvent('createHyperlink', {
-                  detail: {
-                    sourceNoteId,
-                    newNoteId: result.note.id,
-                    from: from ? parseInt(from, 10) : undefined,
-                    to: to ? parseInt(to, 10) : undefined,
-                    plainText: plainText || null, // Include plainText for fallback text matching
+          if (plainText?.trim()) {
+            try {
+              const detailsRes = await fetch(`/api/notes/${sourceNoteId}/details`, { credentials: 'include' });
+              if (detailsRes.ok) {
+                const data = await detailsRes.json();
+                const note = data?.note ?? data;
+                const content = note?.content;
+                if (typeof content === 'string' && note?.contentEncrypted !== true) {
+                  const updatedContent = wrapTextWithNoteLink(content, plainText.trim(), result.note.id);
+                  if (updatedContent && updatedContent !== content) {
+                    const updateRes = await fetch(`/api/notes/${sourceNoteId}/update-content`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      credentials: 'include',
+                      body: JSON.stringify({ content: updatedContent }),
+                    });
+                    if (updateRes.ok) {
+                      try {
+                        sessionStorage.setItem('harvous-source-note-content-' + sourceNoteId, updatedContent);
+                        sessionStorage.setItem('harvous-source-note-content-at-' + sourceNoteId, String(Date.now()));
+                      } catch { /* ignore */ }
+                      window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId: sourceNoteId, content: updatedContent } }));
+                    }
                   }
-                }));
-              }, 10);
-              
-              // Timeout after 3 seconds to prevent hanging if highlight save fails
-              setTimeout(() => {
-                if (!resolved) {
-                  console.warn('[useNoteSubmission] Highlight save timeout - proceeding anyway');
-                  resolved = true;
-                  window.removeEventListener('highlightSaved', handleHighlightSaved);
-                  resolve();
                 }
-              }, 3000);
-            });
-            
-            // Wait for highlight to be saved before continuing
-            debug('[useNoteSubmission] Waiting for highlight to be saved');
-            await highlightSavedPromise;
-            debug('[useNoteSubmission] Highlight save complete');
+              }
+            } catch (e) {
+              debug('[useNoteSubmission] Source note link update failed', e);
+            }
           }
-          
+          window.dispatchEvent(new CustomEvent('highlightSaved'));
           localStorage.removeItem('newNoteSourceNoteId');
           localStorage.removeItem('newNoteSourceSelectionFrom');
           localStorage.removeItem('newNoteSourceSelectionTo');

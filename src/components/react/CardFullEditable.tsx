@@ -3,7 +3,7 @@ import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
-import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
+import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -185,7 +185,16 @@ export default function CardFullEditable({
     };
   }, [inBottomSheet]);
 
-  // Initialize display content
+  // Reset local-content flag when note changes so we accept new content from props
+  useEffect(() => {
+    hasLocalContentUpdate.current = false;
+  }, [noteId]);
+
+  const SOURCE_NOTE_CONTENT_KEY = 'harvous-source-note-content';
+  const SOURCE_NOTE_CONTENT_AT_KEY = 'harvous-source-note-content-at';
+  const SOURCE_NOTE_CONTENT_TTL_MS = 30000;
+
+  // Initialize display content (and apply any pending sessionStorage update from createHyperlink when card wasn't mounted)
   useEffect(() => {
     setDisplayTitle(title);
     if (skipNextContentSyncRef.current) {
@@ -194,12 +203,35 @@ export default function CardFullEditable({
     }
     // Don't overwrite displayContent with encrypted prop when note is unlocked in session
     if (contentEncrypted && lockStateOverride === false) return;
+
+    if (noteId != null && typeof window !== 'undefined') {
+      try {
+        const pendingContent = sessionStorage.getItem(`${SOURCE_NOTE_CONTENT_KEY}-${noteId}`);
+        const pendingAt = sessionStorage.getItem(`${SOURCE_NOTE_CONTENT_AT_KEY}-${noteId}`);
+        if (pendingContent != null && pendingAt != null) {
+          const at = parseInt(pendingAt, 10);
+          if (!isNaN(at) && Date.now() - at < SOURCE_NOTE_CONTENT_TTL_MS) {
+            hasLocalContentUpdate.current = true;
+            setDisplayContent(pendingContent);
+            setEditContent(pendingContent);
+            sessionStorage.removeItem(`${SOURCE_NOTE_CONTENT_KEY}-${noteId}`);
+            sessionStorage.removeItem(`${SOURCE_NOTE_CONTENT_AT_KEY}-${noteId}`);
+            return;
+          }
+          sessionStorage.removeItem(`${SOURCE_NOTE_CONTENT_KEY}-${noteId}`);
+          sessionStorage.removeItem(`${SOURCE_NOTE_CONTENT_AT_KEY}-${noteId}`);
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Only reset displayContent if we haven't updated it locally
     // This prevents the highlight from disappearing when content prop updates
     if (!hasLocalContentUpdate.current) {
       setDisplayContent(content);
     }
-  }, [title, content, contentEncrypted, lockStateOverride]);
+  }, [title, content, contentEncrypted, lockStateOverride, noteId]);
 
   // Reset lock state override when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
@@ -368,6 +400,12 @@ export default function CardFullEditable({
 
                     // Notify that highlight has been saved (so navigation can proceed)
                     window.dispatchEvent(new CustomEvent('highlightSaved'));
+                    // Drive immediate UI update and persist for sessionStorage fallback if card remounts
+                    try {
+                      sessionStorage.setItem('harvous-source-note-content-' + noteId, updatedContent);
+                      sessionStorage.setItem('harvous-source-note-content-at-' + noteId, String(Date.now()));
+                    } catch { /* ignore */ }
+                    window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId, content: updatedContent } }));
 
                     // Show a temporary confirmation
                     window.dispatchEvent(new CustomEvent('toast', {
@@ -476,7 +514,13 @@ export default function CardFullEditable({
                 // Notify that highlight has been saved (so navigation can proceed)
                 debug('[CardFullEditable] Dispatching highlightSaved event');
                 window.dispatchEvent(new CustomEvent('highlightSaved'));
-                
+                // Drive immediate UI update and persist for sessionStorage fallback if card remounts
+                try {
+                  sessionStorage.setItem('harvous-source-note-content-' + noteId, updatedContent);
+                  sessionStorage.setItem('harvous-source-note-content-at-' + noteId, String(Date.now()));
+                } catch { /* ignore */ }
+                window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId, content: updatedContent } }));
+
                 // Show success message
                 window.dispatchEvent(new CustomEvent('toast', {
                   detail: {
@@ -532,6 +576,134 @@ export default function CardFullEditable({
         window.removeEventListener('createHyperlink', handleCreateHyperlink as EventListener);
     };
 }, [noteId, onSave, editTitle]); // Dependencies
+
+  // Listen for content-updated events so UI updates immediately (highlight added or link stripped) without refresh
+  useEffect(() => {
+    const handleSourceNoteContentUpdated = (event: Event) => {
+      const { noteId: updatedNoteId, content: updatedContent } = (event as CustomEvent).detail || {};
+      if (updatedNoteId != null && String(updatedNoteId) === String(noteId) && typeof updatedContent === 'string') {
+        hasLocalContentUpdate.current = true;
+        setDisplayContent(updatedContent);
+        setEditContent(updatedContent);
+      }
+    };
+    window.addEventListener('sourceNoteContentUpdated', handleSourceNoteContentUpdated as EventListener);
+    return () => window.removeEventListener('sourceNoteContentUpdated', handleSourceNoteContentUpdated as EventListener);
+  }, [noteId]);
+
+  // When new-note panel closes, apply any pending source-note content from sessionStorage (handles case where card stayed mounted but missed the event)
+  useEffect(() => {
+    const applyPendingSourceContent = () => {
+      if (noteId == null || typeof window === 'undefined') return;
+      try {
+        const pendingContent = sessionStorage.getItem('harvous-source-note-content-' + noteId);
+        const pendingAt = sessionStorage.getItem('harvous-source-note-content-at-' + noteId);
+        if (pendingContent != null && pendingAt != null) {
+          const at = parseInt(pendingAt, 10);
+          if (!isNaN(at) && Date.now() - at < SOURCE_NOTE_CONTENT_TTL_MS) {
+            hasLocalContentUpdate.current = true;
+            setDisplayContent(pendingContent);
+            setEditContent(pendingContent);
+          }
+          sessionStorage.removeItem('harvous-source-note-content-' + noteId);
+          sessionStorage.removeItem('harvous-source-note-content-at-' + noteId);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('closeNewNotePanel', applyPendingSourceContent);
+    return () => window.removeEventListener('closeNewNotePanel', applyPendingSourceContent);
+  }, [noteId]);
+
+  const DELETED_NOTE_IDS_KEY = 'harvous-deleted-note-ids';
+  const MAX_DELETED_IDS = 50;
+
+  // When a note is deleted, record it so we can strip links when the source note is opened later
+  useEffect(() => {
+    const handleNoteDeleted = (event: CustomEvent) => {
+      const deletedNoteId = event.detail?.noteId;
+      if (!deletedNoteId) return;
+      try {
+        const raw = sessionStorage.getItem(DELETED_NOTE_IDS_KEY);
+        const list: string[] = raw ? JSON.parse(raw) : [];
+        if (!list.includes(deletedNoteId)) {
+          list.push(deletedNoteId);
+          sessionStorage.setItem(DELETED_NOTE_IDS_KEY, JSON.stringify(list.slice(-MAX_DELETED_IDS)));
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    return () => window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+  }, []);
+
+  // When a note is deleted, strip any link/highlight to that note from this note's content (if this note is currently mounted)
+  useEffect(() => {
+    const handleNoteDeleted = (event: CustomEvent) => {
+      const deletedNoteId = event.detail?.noteId;
+      if (!deletedNoteId || !noteId || deletedNoteId === noteId) return;
+      const currentContent = editorInstanceRef.current && !editorInstanceRef.current.isDestroyed
+        ? (() => { try { return editorInstanceRef.current!.getHTML(); } catch { return null; } })()
+        : (displayContent || content);
+      if (!currentContent || !currentContent.includes('data-note-id')) return;
+      const stripped = stripNoteLinksToNoteId(currentContent, deletedNoteId);
+      if (stripped === currentContent) return;
+      hasLocalContentUpdate.current = true;
+      setDisplayContent(stripped);
+      setEditContent(stripped);
+      if (onSave) {
+        onSave(editTitle, stripped).catch(() => {});
+      } else {
+        const globalCallback = (window as any).noteSaveCallback;
+        if (globalCallback) globalCallback(editTitle, stripped);
+      }
+      // Drive immediate UI update and persist for sessionStorage fallback if card remounts
+      try {
+        sessionStorage.setItem('harvous-source-note-content-' + noteId, stripped);
+        sessionStorage.setItem('harvous-source-note-content-at-' + noteId, String(Date.now()));
+      } catch { /* ignore */ }
+      window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId, content: stripped } }));
+    };
+    window.addEventListener('noteDeleted', handleNoteDeleted as EventListener);
+    return () => window.removeEventListener('noteDeleted', handleNoteDeleted as EventListener);
+  }, [noteId, displayContent, content, editTitle, onSave]);
+
+  // When this note loads, strip links to any recently deleted notes (handles case where source note wasn't mounted when target was deleted)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !noteId) return;
+    const currentContent = displayContent || content;
+    if (!currentContent || !currentContent.includes('data-note-id')) return;
+    try {
+      const raw = sessionStorage.getItem(DELETED_NOTE_IDS_KEY);
+      const deletedIds: string[] = raw ? JSON.parse(raw) : [];
+      if (deletedIds.length === 0) return;
+      let result = currentContent;
+      const strippedIds: string[] = [];
+      for (const id of deletedIds) {
+        const next = stripNoteLinksToNoteId(result, id);
+        if (next !== result) {
+          result = next;
+          strippedIds.push(id);
+        }
+      }
+      if (strippedIds.length === 0) return;
+      hasLocalContentUpdate.current = true;
+      setDisplayContent(result);
+      setEditContent(result);
+      if (onSave) {
+        onSave(editTitle, result).catch(() => {});
+      } else {
+        const globalCallback = (window as any).noteSaveCallback;
+        if (globalCallback) globalCallback(editTitle, result);
+      }
+      const remaining = deletedIds.filter(id => !strippedIds.includes(id));
+      sessionStorage.setItem(DELETED_NOTE_IDS_KEY, JSON.stringify(remaining));
+    } catch {
+      // ignore
+    }
+  }, [noteId, content, displayContent, editTitle, onSave]);
 
   // Detect parent thread ID from DOM when editing starts
   useEffect(() => {

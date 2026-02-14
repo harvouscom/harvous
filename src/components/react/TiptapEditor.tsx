@@ -3222,10 +3222,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       extractedContent = editor.state.doc.textBetween(from, to);
     }
     
+    const plainText = extractedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const MAX_SELECTION_LENGTH_FOR_TITLE = 20;
+    const putSelectionInTitle = plainText.length > 0 && plainText.length < MAX_SELECTION_LENGTH_FOR_TITLE;
+
     // Detect if this is scripture
     try {
-      const plainText = extractedContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      
       if (plainText.length >= 5) {
         const detectResponse = await fetch('/api/scripture/detect', {
           method: 'POST',
@@ -3401,16 +3403,34 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             localStorage.removeItem('newNoteScriptureReference');
             localStorage.removeItem('newNoteScriptureVersion');
             localStorage.removeItem('newNoteScriptureText');
-            localStorage.setItem('newNoteContent', extractedContent);
+            if (putSelectionInTitle) {
+              localStorage.setItem('newNoteTitle', plainText);
+              localStorage.setItem('newNoteContent', '');
+              localStorage.setItem('newNoteContentEmptyFromSelection', 'true');
+            } else {
+              localStorage.setItem('newNoteContent', extractedContent);
+            }
           }
         }
       } else {
-        // Too short to check - just store content
-        localStorage.setItem('newNoteContent', extractedContent);
+        // Too short to check - store in title if short, else content
+        if (putSelectionInTitle) {
+          localStorage.setItem('newNoteTitle', plainText);
+          localStorage.setItem('newNoteContent', '');
+          localStorage.setItem('newNoteContentEmptyFromSelection', 'true');
+        } else {
+          localStorage.setItem('newNoteContent', extractedContent);
+        }
       }
     } catch (error) {
       // Continue anyway - don't block note creation
-      localStorage.setItem('newNoteContent', extractedContent);
+      if (putSelectionInTitle) {
+        localStorage.setItem('newNoteTitle', plainText);
+        localStorage.setItem('newNoteContent', '');
+        localStorage.setItem('newNoteContentEmptyFromSelection', 'true');
+      } else {
+        localStorage.setItem('newNoteContent', extractedContent);
+      }
     }
     
     // Store parent thread ID if provided

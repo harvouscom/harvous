@@ -87,6 +87,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Top gradient: show only when scrolled down (same as Tiptap editor)
   const [navScrollHasScrolledDown, setNavScrollHasScrolledDown] = useState(false);
   const navColumnScrollRef = useRef<HTMLDivElement>(null);
+  // IDs of spaces deleted this session so dropdown and "Add Existing Space" don't show them until refresh
+  const deletedSpaceIdsRef = useRef<Set<string>>(new Set());
 
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
@@ -305,7 +307,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         backgroundGradient: item.backgroundGradient || 'var(--color-paper)',
       } satisfies Space));
     
-    return [...fromLocal, ...fromRaw];
+    const combined = [...fromLocal, ...fromRaw];
+    const deleted = deletedSpaceIdsRef.current;
+    return deleted.size === 0 ? combined : combined.filter(s => !deleted.has(s.id));
   }, [localSpaces, forceUpdate, isHydrated]);
 
   // Calculate spaces to show in dropdown - include current space even if not in history yet
@@ -357,11 +361,12 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const resolvedTopSpaceLabel = displaySpaceForLabel ? displaySpaceForLabel.title : displaySelectedSpaceId ? 'Space' : 'My Home';
   const resolvedTopSpaceBackground = displaySpaceForLabel?.backgroundGradient || 'var(--color-paper)';
 
-  // Calculate available spaces that aren't in the dropdown
+  // Calculate available spaces that aren't in the dropdown (exclude deleted so they disappear without refresh)
   const availableSpaces = useMemo(() => {
     const dropdownSpaceIds = new Set(spacesForDropdown.map(s => s.id));
+    const deleted = deletedSpaceIdsRef.current;
     return spaces
-      .filter(space => !dropdownSpaceIds.has(space.id))
+      .filter(space => !dropdownSpaceIds.has(space.id) && !deleted.has(space.id))
       .sort((a, b) => {
         const titleA = (a.title || "").toLowerCase();
         const titleB = (b.title || "").toLowerCase();
@@ -369,16 +374,32 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       });
   }, [spaces, spacesForDropdown]);
 
-  // Keep local spaces in sync with server-rendered props (but preserve locally-added ones)
+  // Keep local spaces in sync with server-rendered props (but preserve locally-added ones; never re-add deleted)
   useEffect(() => {
+    const deleted = deletedSpaceIdsRef.current;
     setLocalSpaces(prev => {
       const byId = new Map<string, Space>();
-      for (const s of [...spaces, ...prev]) {
-        byId.set(s.id, s);
+      for (const s of spaces) {
+        if (!deleted.has(s.id)) byId.set(s.id, s);
+      }
+      for (const s of prev) {
+        if (!deleted.has(s.id)) byId.set(s.id, s);
       }
       return Array.from(byId.values());
     });
   }, [spaces]);
+
+  // Remove deleted space from dropdown and "Add Existing Space" when user erases a space
+  useEffect(() => {
+    const handleSpaceDeleted = (event: CustomEvent) => {
+      const spaceId = event.detail?.spaceId;
+      if (!spaceId) return;
+      deletedSpaceIdsRef.current.add(spaceId);
+      setLocalSpaces(prev => prev.filter(s => s.id !== spaceId));
+    };
+    window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+    return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
+  }, []);
 
   // Update dropdown immediately when a new space is created
   useEffect(() => {

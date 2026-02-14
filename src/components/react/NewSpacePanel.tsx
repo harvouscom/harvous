@@ -467,11 +467,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         if (offlineSpaceId) {
           // Offline save succeeded - treat as success
           console.log('[NewSpacePanel] Server error but space saved offline, treating as success', { offlineSpaceId });
-          
-          if (window.toast) {
-            window.toast.success('Space saved offline. It will sync when you\'re back online.');
-          }
-          
+          // Don't show toast here - we redirect with ?toast= so toast-handler shows once
           const offlineSpaceEvent = new CustomEvent('spaceCreated', {
             detail: {
               space: {
@@ -513,11 +509,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       if (isNetworkError(error) && offlineSpaceId) {
         // Network error but offline save succeeded - treat as success
         console.log('[NewSpacePanel] Network error but space saved offline, treating as success', { offlineSpaceId });
-        
-        if (window.toast) {
-          window.toast.success('Space saved offline. It will sync when you\'re back online.');
-        }
-        
+        // Don't show toast here - we redirect with ?toast= so toast-handler shows once
         const offlineSpaceEvent = new CustomEvent('spaceCreated', {
           detail: {
             space: {

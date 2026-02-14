@@ -533,10 +533,11 @@ export default function Menu({
       }
       
       if (response && response.ok) {
-        // Only show toast here when we won't redirect with toast params (note may stay on thread);
-        // for space/thread we redirect with ?toast=success&message=... so toast-handler will show it once
+        // Don't show toast here when we'll redirect with ?toast= params (avoids double toast).
+        // For space/thread we always redirect with params. For note we redirect with params unless
+        // NavigationContext already navigated; show toast only when we're not redirecting.
         const willRedirectWithToast = contentType === 'space' || contentType === 'thread';
-        if (!deletedOffline && !willRedirectWithToast && (window as any).toast) {
+        if (!deletedOffline && !willRedirectWithToast && contentType !== 'note' && (window as any).toast) {
           (window as any).toast.success(successMessage);
         }
         // Dispatch appropriate deletion event for navigation updates
@@ -560,9 +561,11 @@ export default function Menu({
           await new Promise(resolve => setTimeout(resolve, 100));
           
           // Check if NavigationContext navigated away (page changed)
-          // If so, don't proceed with our redirect
+          // If so, show toast here (we're not redirecting) and we're done
           if (window.location.pathname !== pathBeforeEvent) {
-            // NavigationContext already navigated, we're done
+            if (!deletedOffline && (window as any).toast) {
+              (window as any).toast.success(successMessage);
+            }
             return;
           }
         } else if (contentType === 'space') {
