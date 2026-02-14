@@ -325,6 +325,49 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       return true;
     });
 
+    // Dev-only: append sample threads so the nav column scroll/gradient can be tested
+    if (import.meta.env.DEV) {
+      const sampleTitles = [
+        'Salvation',
+        'Generosity',
+        'Stories of Hope',
+        "O' Holy Night",
+        'Prayer & Fasting',
+        'Faith in Action',
+        'Parables',
+        'Proverbs',
+        'Psalms',
+        'Romans Study',
+        'Fruit of the Spirit',
+        'Armor of God',
+        'Sermon Notes',
+        'Daily Devotionals',
+        'Small Group',
+        'Youth Ministry',
+        'Worship Songs',
+        'Testimonies',
+      ];
+      const existingSampleIds = new Set(
+        persistentItems.filter((i) => i.id.startsWith('thread_sample_')).map((i) => i.id)
+      );
+      const sampleCount = 18;
+      const samples = [];
+      for (let i = 0; i < sampleCount; i++) {
+        const id = `thread_sample_${i}`;
+        if (existingSampleIds.has(id)) continue;
+        samples.push({
+          id,
+          title: sampleTitles[i % sampleTitles.length],
+          count: (i % 10) + 1,
+          backgroundGradient: 'var(--color-gradient-gray)',
+          spaceId: null as string | null,
+        });
+      }
+      if (samples.length > 0) {
+        persistentItems = [...persistentItems, ...samples];
+      }
+    }
+
     return persistentItems;
   };
 

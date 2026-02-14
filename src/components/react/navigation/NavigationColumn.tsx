@@ -1050,12 +1050,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               </div>
             ) : null}
             
-            {/* Persistent Navigation - shows recently accessed items */}
-            <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
+            {/* Persistent Navigation - scrollable thread list (desktop) */}
+            <div className="nav-column-scroll">
+              <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
+            </div>
           </div>
         </div>
-        
-        {/* Bottom Section with New Space Button, Search, and Avatar/Back Button */}
+
+        {/* Bottom gradient overlay (desktop) - indicates more content above */}
+        <div className="nav-column-bottom-gradient" aria-hidden="true" />
+
+        {/* Bottom Section with Search and Avatar/Back Button - stays pinned */}
         <div className="nav-column-bottom">
           <div className="nav-flex-grow">
             <a href="/find" aria-label="Search" className="nav-link">

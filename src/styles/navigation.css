@@ -290,6 +290,58 @@
   min-width: 0;
 }
 
+/* Desktop: scrollable thread list, bottom gradient, bottom bar always visible */
+@media (min-width: 1160px) {
+  .nav-column-wrapper {
+    overflow: hidden;
+  }
+
+  .nav-column-layout {
+    overflow: hidden;
+  }
+
+  .nav-column-top {
+    overflow: hidden;
+  }
+
+  .nav-column-buttons {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .nav-column-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .nav-column-bottom-gradient {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 64px;
+    height: 48px;
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      var(--color-light-paper, #F3F2EC)
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .nav-column-bottom {
+    position: relative;
+    z-index: 2;
+    background-color: var(--color-light-paper, #F3F2EC);
+  }
+}
+
 .nav-link {
   display: block;
   width: 100%;
