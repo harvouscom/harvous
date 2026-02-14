@@ -113,14 +113,17 @@ export default function SpaceContentList({
     return sorted.map(({ updatedAt, ...item }) => item);
   }, []);
 
-  // Sort initial items on mount
+  // Sync state from initialItems when props change (e.g. after View Transition or re-render)
   useEffect(() => {
     if (initialItems && initialItems.length > 0) {
       const sorted = sortItemsByLastVisited(initialItems);
       setItems(sorted);
       itemsRef.current = sorted;
+    } else {
+      setItems([]);
+      itemsRef.current = [];
     }
-  }, [sortItemsByLastVisited]); // Include sortItemsByLastVisited in deps
+  }, [initialItems, spaceId, sortItemsByLastVisited]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -843,6 +846,16 @@ export default function SpaceContentList({
       const isSpacePage = currentPath === `/${spaceId}`;
       
       if (!isSpacePage) return;
+
+      // Always refresh once on mount when on the space page (fixes navigate-away-and-back showing stale list)
+      if (!hasRefreshedOnMountRef.current) {
+        hasRefreshedOnMountRef.current = true;
+        if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          refreshSpaceContent().then((success) => {
+            debug('[SpaceContentList] Mount refresh completed (always on space page)', { success });
+          });
+        }
+      }
 
       // Check if running in PWA context - always refresh to get fresh data
       const inPWA = isPWA();
