@@ -848,8 +848,11 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           }
         } catch (e0) {}
 
-        // Fallback: if we're on a space page, use the stable navigation wrapper's data-space-id.
-        // NOTE: `slot="navigation"` is not reliable at runtime with Astro View Transitions.
+        // Fallback: only when we're on a space route, use the nav's data-space-id.
+        // On thread/note pages the nav has data-space-id from currentSpace (thread's space); we must
+        // NOT persist that when the user opened from My Home (no ?space=), or we'd overwrite "My Home" with the thread's space.
+        var path = window.location.pathname || '';
+        if (path.indexOf('/space/') !== 0) return;
         var navEl = document.querySelector('[data-navigation-active=\"true\"][data-space-id]');
         if (!navEl) return;
         var spaceId = normalizeSpaceId(navEl.getAttribute('data-space-id'));
