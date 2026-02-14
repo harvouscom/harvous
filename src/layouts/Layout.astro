@@ -780,8 +780,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
 
 <!-- Custom Toast event listener (showToast and toast events) -->
 <script>
-  function handleToastEvent(event: CustomEvent<{ message?: string; type?: string }>) {
-    const { message, type } = event.detail || {};
+  function handleToastEvent(event: CustomEvent<{ message?: string; type?: string; code?: string; upgradeUrl?: string }>) {
+    const { message, type, code, upgradeUrl } = event.detail || {};
+    const toastWithUpgrade = window.toast as { upgradePrompt?: (message: string, upgradeUrl?: string) => void };
+    if (toastWithUpgrade?.upgradePrompt && (code === 'SHARED_SPACE_LIMIT_EXCEEDED' || code === 'NOTE_LIMIT_EXCEEDED')) {
+      toastWithUpgrade.upgradePrompt(message ?? '', upgradeUrl);
+      return;
+    }
     if (window.toast && typeof type === 'string' && type in window.toast) {
       const toastMethod = (window.toast as Record<string, (m: string) => void>)[type];
       if (typeof toastMethod === 'function') {

@@ -445,14 +445,18 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           console.error('NewSpacePanel: Could not parse error response');
         }
 
-        // Shared space limit exceeded: show upgrade message, do not close panel or navigate
+        // Shared space limit exceeded: show upgrade toast (Upgrade / Not now), do not close panel or navigate
         if (response.status === 403 && errorJson.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
-          const message = errorJson.upgradeUrl ? `${errorJson.error} Upgrade for more.` : (errorJson.error || errorMessage);
-          if (window.toast) {
-            window.toast.error(message);
-          } else {
-            window.dispatchEvent(new CustomEvent('toast', { detail: { message, type: 'error' } }));
-          }
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: errorJson.error || errorMessage,
+                type: 'error',
+                code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+                upgradeUrl: errorJson.upgradeUrl || '/upgrade',
+              },
+            })
+          );
           return;
         }
 

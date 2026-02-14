@@ -980,9 +980,17 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           } catch (saveError) {
             console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
           }
-          
-          // Limit reached UI is shown in footer, so just stop submission
-          // No toast notification needed - the footer already shows the limit reached state
+
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: error.error || 'Note limit reached',
+                type: 'error',
+                code: 'NOTE_LIMIT_EXCEEDED',
+                upgradeUrl: error.upgradeUrl || '/upgrade',
+              },
+            })
+          );
         } else {
           // Check if this is a network error
           if (isNetworkError(error) && offlineNoteId) {
@@ -1301,9 +1309,17 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           } catch (saveError) {
             console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
           }
-          
-          // Limit reached UI is shown in footer, so just stop submission
-          // No toast notification needed - the footer already shows the limit reached state
+
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: error.error || 'Note limit reached',
+                type: 'error',
+                code: 'NOTE_LIMIT_EXCEEDED',
+                upgradeUrl: error.upgradeUrl || '/upgrade',
+              },
+            })
+          );
         } else {
           showToast(error.error || 'Error creating note', 'error');
         }

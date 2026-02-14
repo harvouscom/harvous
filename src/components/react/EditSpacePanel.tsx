@@ -286,8 +286,10 @@ export default function EditSpacePanel({
           window.dispatchEvent(
             new CustomEvent('toast', {
               detail: {
-                message: data.upgradeUrl ? `${data.error} Upgrade for more.` : data.error,
+                message: data.error,
                 type: 'error',
+                code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+                upgradeUrl: data.upgradeUrl || '/upgrade',
               },
             })
           );
@@ -908,8 +910,10 @@ export default function EditSpacePanel({
           window.dispatchEvent(
             new CustomEvent('toast', {
               detail: {
-                message: data.upgradeUrl ? `${data.error} Upgrade for more.` : data.error,
+                message: data.error,
                 type: 'error',
+                code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+                upgradeUrl: data.upgradeUrl || '/upgrade',
               },
             })
           );

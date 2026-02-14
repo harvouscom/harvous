@@ -75,7 +75,7 @@ export default function ToastProvider() {
       <Toaster
         position={isMobile ? "bottom-center" : "bottom-right"}
         toastOptions={{
-          duration: 1600,
+          duration: 4000,
           style: toastStyle,
           classNames: {
             toast: 'rounded-xl toast-center-text',
@@ -84,10 +84,20 @@ export default function ToastProvider() {
         }}
       />
       <style>{`
-        /* Style Sonner action buttons to match btn btn--sm btn--primary design */
-        [data-sonner-toaster] button[data-button],
-        [data-sonner-toaster] [data-button],
-        [data-sonner-toast] button[data-button],
+        /* Upgrade toast: flex so order works; show Upgrade (action) first, then Not now (cancel) */
+        [data-sonner-toast]:has(button[data-cancel]) {
+          display: flex !important;
+          flex-direction: column !important;
+        }
+        [data-sonner-toast]:has(button[data-cancel]) button[data-action] {
+          order: 1 !important;
+        }
+        [data-sonner-toast]:has(button[data-action]) button[data-cancel] {
+          order: 2 !important;
+        }
+
+        /* Primary button (Upgrade): btn--sm btn--primary */
+        [data-sonner-toaster] button[data-action],
         [data-sonner-toast] button[data-action] {
           position: relative !important;
           display: flex !important;
@@ -112,27 +122,108 @@ export default function ToastProvider() {
             0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
           margin-top: 8px !important;
         }
-        
-        [data-sonner-toaster] button[data-button] *,
-        [data-sonner-toaster] [data-button] *,
-        [data-sonner-toast] button[data-button] *,
+        [data-sonner-toast] button[data-action] + button[data-cancel],
+        [data-sonner-toast] button[data-cancel] + button[data-action] {
+          margin-left: 8px !important;
+        }
+        [data-sonner-toaster] button[data-action] *,
         [data-sonner-toast] button[data-action] * {
           color: white !important;
           font-family: var(--font-sans) !important;
           font-weight: 600 !important;
         }
-        
-        [data-sonner-toaster] button[data-button]:hover,
-        [data-sonner-toaster] [data-button]:hover,
-        [data-sonner-toast] button[data-button]:hover,
         [data-sonner-toast] button[data-action]:hover {
           background-color: var(--color-bold-blue) !important;
         }
-        
-        [data-sonner-toaster] button[data-button]:active,
-        [data-sonner-toaster] [data-button]:active,
-        [data-sonner-toast] button[data-button]:active,
         [data-sonner-toast] button[data-action]:active {
+          transform: scale(0.98) !important;
+          background-color: var(--color-navy) !important;
+          box-shadow:
+            0px -2px 0px 0px #0000001a inset,
+            0px 0px 2px 0px #00000040,
+            0px 2px 0px 0px #00000040 inset !important;
+        }
+
+        /* Secondary button (Not now): btn--sm btn--secondary */
+        [data-sonner-toast] button[data-cancel] {
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background-color: var(--color-stone-grey) !important;
+          color: white !important;
+          border-radius: 1rem !important;
+          padding: 0.75rem 1rem 1rem !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          line-height: 0 !important;
+          min-height: 39px !important;
+          border: none !important;
+          cursor: pointer !important;
+          white-space: nowrap !important;
+          transition: transform 0.3s, box-shadow 0.3s !important;
+          box-shadow:
+            0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+            0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
+          margin-top: 8px !important;
+        }
+        [data-sonner-toast] button[data-cancel] * {
+          color: white !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+        }
+        [data-sonner-toast] button[data-cancel]:hover {
+          background-color: var(--color-stone-grey) !important;
+        }
+        [data-sonner-toast] button[data-cancel]:active {
+          transform: scale(0.98) !important;
+          background-color: var(--color-deep-grey) !important;
+          box-shadow:
+            0px -2px 0px 0px #0000001a inset,
+            0px 0px 2px 0px #00000040,
+            0px 2px 0px 0px #00000040 inset !important;
+        }
+
+        /* Legacy: single action button (no cancel) still primary */
+        [data-sonner-toaster] button[data-button]:not([data-cancel]),
+        [data-sonner-toaster] [data-button]:not([data-cancel]),
+        [data-sonner-toast] button[data-button]:not([data-cancel]) {
+          position: relative !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background-color: var(--color-bold-blue) !important;
+          color: white !important;
+          border-radius: 1rem !important;
+          padding: 0.75rem 1rem 1rem !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          line-height: 0 !important;
+          min-height: 39px !important;
+          border: none !important;
+          cursor: pointer !important;
+          white-space: nowrap !important;
+          transition: transform 0.3s, box-shadow 0.3s !important;
+          will-change: transform, box-shadow !important;
+          box-shadow:
+            0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+            0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
+          margin-top: 8px !important;
+        }
+        [data-sonner-toaster] button[data-button]:not([data-cancel]) *,
+        [data-sonner-toast] button[data-button]:not([data-cancel]) * {
+          color: white !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+        }
+        [data-sonner-toaster] button[data-button]:not([data-cancel]):hover,
+        [data-sonner-toast] button[data-button]:not([data-cancel]):hover {
+          background-color: var(--color-bold-blue) !important;
+        }
+        [data-sonner-toaster] button[data-button]:not([data-cancel]):active,
+        [data-sonner-toast] button[data-button]:not([data-cancel]):active {
           transform: scale(0.98) !important;
           background-color: var(--color-navy) !important;
           box-shadow:

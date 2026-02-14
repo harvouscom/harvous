@@ -64,6 +64,13 @@ These were designed here and are now live. The stub files in this folder point t
   - Database schema for churches
   - Connection request flow
 
+- **`CHURCH_ORG_AND_CURRICULUM.md`** - Church org accounts & education curriculum vision
+  - Vision: churches have org accounts for curriculum management; share threads/notes to attendees
+  - Two layers: individual shared spaces (current) vs church-org distribution (future)
+  - MyChurchPanel evolution: sync with available church organizations (Clerk), user links to church → receives curriculum
+  - How curriculum flows (publish to org → inbox / “From your church” for org members)
+  - References CHURCH_CONNECTION_SYSTEM, SHARING_AND_GROUPS_INFRASTRUCTURE
+
 ### Sharing & Collaboration
 
 - **`SHARING_SYSTEM_DESIGN.md`** - Complete sharing system design

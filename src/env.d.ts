@@ -35,6 +35,7 @@ declare global {
       info: (message: string) => void;
       warning: (message: string) => void;
       show: (message: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+      upgradePrompt: (message: string, upgradeUrl?: string) => void;
     };
     testToast: () => void;
     updateAllAvatars?: (color: string, initials: string) => Promise<{ updatedCount: number; errors: string[] }>;
