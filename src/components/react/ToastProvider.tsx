@@ -84,15 +84,23 @@ export default function ToastProvider() {
         }}
       />
       <style>{`
-        /* Upgrade toast: flex so order works; show Upgrade (action) first, then Not now (cancel) */
+        /* Upgrade toast: message full width, then cancel + action in a row with primary (action) on the right */
         [data-sonner-toast]:has(button[data-cancel]) {
           display: flex !important;
-          flex-direction: column !important;
+          flex-direction: row !important;
+          flex-wrap: wrap !important;
+          justify-content: flex-end !important;
+          align-items: center !important;
+          gap: 0.5rem 0.75rem !important;
         }
-        [data-sonner-toast]:has(button[data-cancel]) button[data-action] {
+        [data-sonner-toast]:has(button[data-cancel]) > *:first-child {
+          width: 100% !important;
+          flex: 0 0 100% !important;
+        }
+        [data-sonner-toast]:has(button[data-cancel]) button[data-cancel] {
           order: 1 !important;
         }
-        [data-sonner-toast]:has(button[data-action]) button[data-cancel] {
+        [data-sonner-toast]:has(button[data-cancel]) button[data-action] {
           order: 2 !important;
         }
 
@@ -122,9 +130,13 @@ export default function ToastProvider() {
             0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
           margin-top: 8px !important;
         }
+        [data-sonner-toast]:has(button[data-cancel]) button[data-action],
+        [data-sonner-toast]:has(button[data-cancel]) button[data-cancel] {
+          margin-top: 0.5rem !important;
+        }
         [data-sonner-toast] button[data-action] + button[data-cancel],
         [data-sonner-toast] button[data-cancel] + button[data-action] {
-          margin-left: 8px !important;
+          margin-left: 0 !important;
         }
         [data-sonner-toaster] button[data-action] *,
         [data-sonner-toast] button[data-action] * {
