@@ -877,22 +877,38 @@ try {
           const thread = await db.select().from(Threads).where(eq(Threads.id, selectedThreadId)).get();
           
           if (thread) {
-            // Get actual note count from database using junction table
-            const noteCountResult = await db.select({ count: count() })
-              .from(Notes)
-              .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-              .where(and(
-                eq(NoteThreads.threadId, selectedThreadId),
-                eq(Notes.userId, authenticatedUserId)
-              ))
-              .get();
+            let noteCount = 0;
+            // Shared space thread: count notes in thread (same as thread page for members)
+            if (thread.spaceId) {
+              try {
+                await requireSpaceAccess(thread.spaceId, authenticatedUserId);
+                const spaceThreadCountResult = await db.select({ count: count() })
+                  .from(NoteThreads)
+                  .where(eq(NoteThreads.threadId, selectedThreadId))
+                  .get();
+                noteCount = spaceThreadCountResult?.count || 0;
+              } catch {
+                // No access – leave noteCount 0
+              }
+            } else {
+              // Owned thread: count only notes belonging to current user
+              const noteCountResult = await db.select({ count: count() })
+                .from(Notes)
+                .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+                .where(and(
+                  eq(NoteThreads.threadId, selectedThreadId),
+                  eq(Notes.userId, authenticatedUserId)
+                ))
+                .get();
+              noteCount = noteCountResult?.count || 0;
+            }
             
             currentThread = {
               id: thread.id,
               title: thread.title,
               color: thread.color,
               spaceId: thread.spaceId || null,
-              noteCount: noteCountResult?.count || 0,
+              noteCount,
               backgroundGradient: getThreadGradientCSS(thread.color),
               userId: thread.userId
             };
