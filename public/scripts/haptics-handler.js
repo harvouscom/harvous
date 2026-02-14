@@ -17,12 +17,35 @@
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }
 
-  // Simple vibrate wrapper with error suppression
-  // Only calls navigator.vibrate() on mobile devices to prevent desktop console errors
+  // Check if running in a Capacitor native shell (iOS/Android)
+  function isNative() {
+    return !!(window.Capacitor && window.Capacitor.isNative);
+  }
+
+  // Map duration buckets to Capacitor ImpactStyle values
+  // Light=10ms, Medium=20ms, Strong=30ms
+  function impactStyleForDuration(duration) {
+    var ms = Array.isArray(duration) ? duration[0] : duration;
+    if (ms <= 10) return 'LIGHT';
+    if (ms <= 20) return 'MEDIUM';
+    return 'HEAVY';
+  }
+
+  // Simple vibrate wrapper - uses Capacitor Haptics on native, navigator.vibrate as fallback
   function vibrate(duration) {
-    // Only attempt vibration on mobile devices
     if (!isMobileDevice()) return;
-    
+
+    // Native: use Capacitor Haptics plugin (works on iOS where navigator.vibrate is blocked)
+    if (isNative() && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
+      try {
+        window.Capacitor.Plugins.Haptics.impact({ style: impactStyleForDuration(duration) });
+      } catch (e) {
+        // Silently fail
+      }
+      return;
+    }
+
+    // Web/PWA fallback: navigator.vibrate (Android, no-op on iOS)
     try {
       if (navigator.vibrate) {
         navigator.vibrate(duration);

@@ -1,0 +1,54 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+// Vite config for the SPA build (Capacitor + web client)
+// The Astro build (astro.config.mjs) handles the API/server side.
+// This builds src/spa/ → dist-spa/ which Capacitor bundles into the native app.
+export default defineConfig({
+  plugins: [react()],
+  root: 'spa',
+  build: {
+    outDir: '../dist-spa',
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'clerk': ['@clerk/clerk-react'],
+          'router': ['@tanstack/react-router'],
+          'query': ['@tanstack/react-query'],
+          'tiptap': [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/extension-bullet-list',
+            '@tiptap/extension-highlight',
+            '@tiptap/extension-list-item',
+            '@tiptap/extension-ordered-list',
+            '@tiptap/extension-placeholder',
+            '@tiptap/extension-underline',
+          ],
+        },
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, 'src'),
+      // Shim Astro-only modules so shared React components build cleanly in Vite
+      'astro:transitions/client': path.resolve(__dirname, 'spa/src/shims/astro-transitions.ts'),
+    },
+    dedupe: ['react', 'react-dom'],
+  },
+  server: {
+    port: 4322,
+    proxy: {
+      // Proxy API calls to the Astro dev server during development
+      '/api': {
+        target: 'http://localhost:4321',
+        changeOrigin: true,
+      },
+    },
+  },
+});

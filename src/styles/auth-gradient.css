@@ -1,0 +1,88 @@
+/* ==========================================================================
+   Auth Page Animated Mesh Gradient
+   Shared between Astro sign-in.astro and the SPA SignInPage/SignUpPage.
+   ========================================================================== */
+
+.thread-colors-mesh-gradient {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-paper);
+}
+
+.thread-colors-mesh-gradient::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background:
+    radial-gradient(circle at 20% 30%, var(--color-blue) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, var(--color-purple) 0%, transparent 50%),
+    radial-gradient(circle at 40% 70%, var(--color-pink) 0%, transparent 50%),
+    radial-gradient(circle at 60% 80%, var(--color-orange) 0%, transparent 50%),
+    radial-gradient(circle at 10% 60%, var(--color-yellow) 0%, transparent 50%),
+    radial-gradient(circle at 90% 50%, var(--color-green) 0%, transparent 50%);
+  background-size: 100% 100%;
+  animation: mesh-movement 6s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+.thread-colors-mesh-gradient::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background:
+    radial-gradient(circle at 70% 40%, var(--color-pink) 0%, transparent 40%),
+    radial-gradient(circle at 30% 90%, var(--color-yellow) 0%, transparent 40%),
+    radial-gradient(circle at 50% 10%, var(--color-blue) 0%, transparent 40%),
+    radial-gradient(circle at 15% 50%, var(--color-green) 0%, transparent 40%),
+    radial-gradient(circle at 85% 70%, var(--color-purple) 0%, transparent 40%),
+    radial-gradient(circle at 60% 30%, var(--color-orange) 0%, transparent 40%);
+  background-size: 100% 100%;
+  animation: mesh-movement-reverse 7.5s ease-in-out infinite;
+  opacity: 0.6;
+}
+
+/* Mobile: simpler left-to-right gradient */
+@media (max-width: 1159px) {
+  .thread-colors-mesh-gradient::before {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to right, var(--color-blue), var(--color-pink));
+    background-size: 200% 100%;
+    animation: mesh-gradient-slide 6s ease-in-out infinite;
+    opacity: 0.9;
+  }
+  .thread-colors-mesh-gradient::after {
+    opacity: 0;
+  }
+}
+
+@keyframes mesh-gradient-slide {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes mesh-movement {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  16.66%   { transform: translate(4%, 3%) scale(1.06); }
+  33.33%   { transform: translate(-3%, 4%) scale(1.08); }
+  50%      { transform: translate(-4%, -2%) scale(1.07); }
+  66.66%   { transform: translate(3%, -4%) scale(1.09); }
+  83.33%   { transform: translate(3%, 2%) scale(1.05); }
+}
+
+@keyframes mesh-movement-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  16.66%   { transform: translate(-4%, -3%) scale(1.07); }
+  33.33%   { transform: translate(4%, -4%) scale(1.09); }
+  50%      { transform: translate(3%, 4%) scale(1.08); }
+  66.66%   { transform: translate(-3%, 3%) scale(1.06); }
+  83.33%   { transform: translate(-2%, -3%) scale(1.05); }
+}
