@@ -824,7 +824,7 @@ export default function Menu({
                   Cancel
                 </ButtonSmall>
                 <ButtonSmall type="button" onClick={handleConfirmErase} state="Default">
-                  Leave space
+                  Leave Space
                 </ButtonSmall>
               </div>
             ) : (

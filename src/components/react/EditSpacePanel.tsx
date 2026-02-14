@@ -218,9 +218,9 @@ export default function EditSpacePanel({
   };
 
   // Handle remove member: show ConfirmDialog (actual delete in handleConfirmRemoveMember)
-  const handleRemoveMember = (userId: string, memberName: string) => {
-    const isSelf = members.find(m => m.userId === userId && m.role !== 'owner');
-    setPendingRemoveMember({ userId, memberName, isSelf });
+  const handleRemoveMember = (memberUserId: string, memberName: string) => {
+    const isSelf = memberUserId === userId; // current user leaving vs owner removing someone else
+    setPendingRemoveMember({ userId: memberUserId, memberName, isSelf });
   };
 
   const handleConfirmRemoveMember = async () => {
