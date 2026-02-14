@@ -1165,8 +1165,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }, 500); // 500ms debounce
   }, [refreshNavigationCounts]);
 
-  // Validation cache to prevent redundant API calls
-  const validationCache = useRef<{ timestamp: number; threadIds: Set<string> } | null>(null);
+  // Validation cache to prevent redundant API calls (threads + spaces for stale-item cleanup)
+  const validationCache = useRef<{ timestamp: number; threadIds: Set<string>; spaceIds: Set<string> } | null>(null);
   const VALIDATION_CACHE_DURATION = 60 * 1000; // 1 minute cache
   const VALIDATION_DEBOUNCE_DELAY = 2000; // 2 seconds debounce
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1176,24 +1176,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // We shouldn't decrement unorganized if the note was never actually in unorganized
   const recentlyCreatedNotes = useRef<Set<string>>(new Set());
 
-  // Function to validate navigation history and remove deleted threads
+  // Function to validate navigation history and remove deleted threads and spaces
   const validateNavigationHistory = async (force = false) => {
     try {
       // Check cache first - skip if recent validation exists and not forced
       const now = Date.now();
       if (!force && validationCache.current && (now - validationCache.current.timestamp) < VALIDATION_CACHE_DURATION) {
-        // Use cached thread IDs; work with raw history to preserve spaces
         const threadIds = validationCache.current.threadIds;
+        const spaceIds = validationCache.current.spaceIds ?? new Set<string>();
         const rawHistory = getRawNavigationHistory();
         const thirtySecondsAgo = Date.now() - 30000;
 
         const validatedHistory = rawHistory.filter((item: any) => {
           if (item.firstAccessed > thirtySecondsAgo) return true;
-          if (item.id.startsWith('space_')) return true;
+          if (item.id.startsWith('space_')) return spaceIds.size === 0 || spaceIds.has(item.id);
           if (item.id === 'thread_unorganized') return true;
-          if (item.id.startsWith('thread_')) {
-            return threadIds.has(item.id);
-          }
+          if (item.id.startsWith('thread_')) return threadIds.has(item.id);
           return true;
         });
 
@@ -1216,52 +1214,36 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return;
       }
 
-      // Fetch current threads from API with safe fetch
-      const response = await safeFetch('/api/threads/list');
+      // Fetch current threads and spaces in one call (used for dropdown + nav; validates both)
+      const response = await safeFetch('/api/navigation/data');
       
       if (!response || !response.ok) {
-        // Silently fail if auth not ready or error occurred
         return;
       }
       
-      const threads = await response.json();
+      const data = await response.json();
+      const threads = data.threads ?? [];
+      const spaces = data.spaces ?? [];
       const threadIds = new Set<string>(threads.map((t: any) => t.id as string));
+      const spaceIds = new Set<string>(spaces.map((s: any) => s.id as string));
       
-      // Update cache
       validationCache.current = {
         timestamp: now,
-        threadIds
+        threadIds,
+        spaceIds
       };
       
-      // Get current history from localStorage (source of truth); use raw to preserve spaces
       const rawHistory = getRawNavigationHistory();
-      
-      // Add a 30-second grace period for newly created threads
       const thirtySecondsAgo = Date.now() - 30000;
 
-      // Filter out deleted threads (keep spaces and thread_unorganized)
       const validatedHistory = rawHistory.filter((item: any) => {
-        // Always keep items created in the last 30 seconds to prevent race conditions
-        if (item.firstAccessed > thirtySecondsAgo) {
-          return true;
-        }
-
-        // Keep spaces (they're not validated against threads API)
-        if (item.id.startsWith('space_')) return true;
-        
-        // Keep special unorganized thread
+        if (item.firstAccessed > thirtySecondsAgo) return true;
+        if (item.id.startsWith('space_')) return spaceIds.has(item.id);
         if (item.id === 'thread_unorganized') return true;
-        
-        // For regular threads, check if they still exist
-        if (item.id.startsWith('thread_')) {
-          return threadIds.has(item.id);
-        }
-        
-        // Keep other items by default
+        if (item.id.startsWith('thread_')) return threadIds.has(item.id);
         return true;
       });
       
-      // Only update if something was removed
       if (validatedHistory.length < rawHistory.length) {
         saveNavigationHistory(validatedHistory);
         setNavigationHistory(getNavigationHistory());
@@ -1335,17 +1317,27 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     backfillThreadSpaceIds();
     
+    // Run forced validation once after auth is likely ready (e.g. fresh sign-in on another browser).
+    // This clears stale spaces/threads from localStorage so dropdown and nav don't show deleted items.
+    const runInitialValidation = () => {
+      const delay = 1500;
+      setTimeout(() => {
+        if (isAuthReady() && navigator.onLine) {
+          validateNavigationHistory(true);
+        } else {
+          debouncedValidate();
+        }
+      }, delay);
+    };
+
     // Delay validation to avoid blocking initial render
-    // Use requestIdleCallback if available, otherwise setTimeout
     const scheduleValidation = () => {
       if ('requestIdleCallback' in window) {
         (window as any).requestIdleCallback(() => {
-          debouncedValidate();
+          runInitialValidation();
         }, { timeout: 3000 });
       } else {
-        setTimeout(() => {
-          debouncedValidate();
-        }, 2000);
+        setTimeout(runInitialValidation, 2000);
       }
     };
     
