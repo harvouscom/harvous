@@ -112,25 +112,29 @@ export async function canOwnerAddOneMoreSharedSpace(
 }
 
 /**
- * Count how many shared spaces user owns
- * (Shared spaces have members beyond just the owner)
+ * Count how many shared spaces user owns.
+ * Matches UI definition: shared = has share link (shareToken) OR has at least one member.
+ * Same logic as /api/profile/my-shared-spaces so the limit count matches what users see.
  */
 export async function getSharedSpacesOwnedCount(userId: string): Promise<number> {
-  // Get spaces owned by user
-  const ownedSpaces = await db.select()
+  const ownedSpaces = await db
+    .select({ id: Spaces.id, shareToken: Spaces.shareToken })
     .from(Spaces)
     .where(eq(Spaces.userId, userId))
     .all();
 
-  // Count how many have members (making them "shared")
   let sharedCount = 0;
   for (const space of ownedSpaces) {
-    const memberCount = await db.select()
+    const hasShareLink = space.shareToken != null && space.shareToken.length > 0;
+    if (hasShareLink) {
+      sharedCount++;
+      continue;
+    }
+    const memberRows = await db.select()
       .from(Members)
       .where(eq(Members.spaceId, space.id))
       .all();
-
-    if (memberCount.length > 0) {
+    if (memberRows.length > 0) {
       sharedCount++;
     }
   }

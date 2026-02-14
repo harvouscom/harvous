@@ -3,7 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { getUserLimitsInfo } from '@/utils/tier-limits';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
-import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
+import { jsonResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
 
 /**
@@ -35,7 +35,9 @@ export const GET: APIRoute = async ({ request, locals }) => {
     // Get comprehensive limits info
     const limitsInfo = await getUserLimitsInfo(userId, locals.auth());
 
-    return successResponse(limitsInfo);
+    return jsonResponse(limitsInfo, 200, {
+      'Cache-Control': 'private, max-age=0, no-store'
+    });
 
   } catch (error: any) {
     const standardError = handleAPIError(error, {
