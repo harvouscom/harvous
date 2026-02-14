@@ -1711,13 +1711,13 @@ export default function EditSpacePanel({
       {pendingRemoveMember && (
         <ConfirmDialog
           isOpen={true}
-          title={pendingRemoveMember.isSelf ? 'Leave this space?' : 'Remove member?'}
+          title={pendingRemoveMember.isSelf ? 'Leave This Space?' : `Remove ${pendingRemoveMember.memberName}?`}
           message={
             pendingRemoveMember.isSelf
               ? `Are you sure you want to leave "${formData.title}"?`
-              : `Remove ${pendingRemoveMember.memberName} from "${formData.title}"?`
+              : `${pendingRemoveMember.memberName} will be removed from "${formData.title}" and will no longer have access to this space.`
           }
-          confirmLabel={pendingRemoveMember.isSelf ? 'Leave space' : 'Remove'}
+          confirmLabel={pendingRemoveMember.isSelf ? 'Leave Space' : 'Remove'}
           cancelLabel="Cancel"
           confirmDestructive={true}
           onConfirm={handleConfirmRemoveMember}

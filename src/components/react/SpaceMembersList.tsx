@@ -350,7 +350,7 @@ export default function SpaceMembersList({
           isOpen={true}
           title="Leave this space?"
           message="Anything you've added to this space will remain in the space unless you remove it. You can rejoin later with the same link."
-          confirmLabel="Leave space"
+          confirmLabel="Leave Space"
           cancelLabel="Cancel"
           onConfirm={handleConfirmLeave}
           onCancel={() => {
@@ -362,8 +362,8 @@ export default function SpaceMembersList({
       {showRemoveMemberDialog && pendingRemoveMemberName && (
         <ConfirmDialog
           isOpen={true}
-          title="Remove member?"
-          message={`Remove ${pendingRemoveMemberName} from "${spaceName}"?`}
+          title={`Remove ${pendingRemoveMemberName}?`}
+          message={`${pendingRemoveMemberName} will be removed from "${spaceName}" and will no longer have access to this space.`}
           confirmLabel="Remove"
           cancelLabel="Cancel"
           confirmDestructive={true}

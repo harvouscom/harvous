@@ -61,25 +61,29 @@ export default function UpgradePageContent({
     }
   };
 
-  // Check on mount and listen for upgrade events
+  // Check on mount and listen for upgrade / sharing events
   useEffect(() => {
     // Check status on initial mount
     checkStatus();
-    
+
     const handleUpgrade = () => checkStatus();
     window.addEventListener('subscriptionUpgraded', handleUpgrade);
-    
+
+    // Refresh when sharing changes so "spaces shared" count is accurate (including at red limit)
+    const handleSharingInvalidate = () => checkStatus();
+    window.addEventListener('mySharingInvalidate', handleSharingInvalidate);
+
     // Also check status on View Transitions (for subsequent visits)
     const handlePageLoad = () => {
-      // Only check if we're on the upgrade page
       if (window.location.pathname === '/upgrade') {
         checkStatus();
       }
     };
     document.addEventListener('astro:page-load', handlePageLoad);
-    
+
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleUpgrade);
+      window.removeEventListener('mySharingInvalidate', handleSharingInvalidate);
       document.removeEventListener('astro:page-load', handlePageLoad);
     };
   }, []);
@@ -124,6 +128,11 @@ export default function UpgradePageContent({
               const limitRed = 'var(--color-red, #dc2626)';
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+              // When at/over limit, cap displayed current to limit so we never show e.g. "4 of 3"
+              const sharedCurrent = limitsInfo.limits.ownedSharedSpaces.limit != null && sharedAtLimit
+                ? Math.min(limitsInfo.limits.ownedSharedSpaces.current, limitsInfo.limits.ownedSharedSpaces.limit)
+                : limitsInfo.limits.ownedSharedSpaces.current;
+              const sharedLimit = limitsInfo.limits.ownedSharedSpaces.limit;
               const anyAtLimit = notesAtLimit || sharedAtLimit;
               if (!anyAtLimit) return null;
               return (
@@ -164,9 +173,9 @@ export default function UpgradePageContent({
                       </svg>
                       <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                         <span className="text-base font-semibold" style={{ color: limitRed }}>
-                          {limitsInfo.limits.ownedSharedSpaces.limit != null
-                            ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
-                            : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
+                          {sharedLimit != null
+                            ? `${sharedCurrent} of ${sharedLimit} spaces shared`
+                            : `${sharedCurrent} (unlimited) spaces shared`}
                         </span>
                         {!hasUnlimited && (
                           <span className="text-xs flex-shrink-0" style={{ color: limitRed }}>

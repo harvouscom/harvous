@@ -410,6 +410,11 @@ export default function ManageBillingPanel({
                   const limitRed = 'var(--color-red, #dc2626)';
                   const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 200) - subscriptionInfo.currentCount <= 100;
                   const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
+                  // When at/over limit, cap displayed current to limit so we never show e.g. "4 of 3"
+                  const sharedCurrent = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && sharedAtLimit
+                    ? Math.min(limitsInfo.limits.ownedSharedSpaces.current, limitsInfo.limits.ownedSharedSpaces.limit)
+                    : limitsInfo?.limits.ownedSharedSpaces.current ?? 0;
+                  const sharedLimit = limitsInfo?.limits.ownedSharedSpaces.limit;
                   return (
                   <div className="w-full">
                     <div
@@ -476,9 +481,9 @@ export default function ManageBillingPanel({
                           </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.ownedSharedSpaces.limit != null
-                                ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
-                                : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
+                              {sharedLimit != null
+                                ? `${sharedCurrent} of ${sharedLimit} spaces shared`
+                                : `${sharedCurrent} (unlimited) spaces shared`}
                             </span>
                             <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                               Upgrade for unlimited
@@ -498,9 +503,9 @@ export default function ManageBillingPanel({
                           </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.ownedSharedSpaces.limit != null
-                                ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
-                                : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
+                              {sharedLimit != null
+                                ? `${sharedCurrent} of ${sharedLimit} spaces shared`
+                                : `${sharedCurrent} (unlimited) spaces shared`}
                             </span>
                           </div>
                         </div>
