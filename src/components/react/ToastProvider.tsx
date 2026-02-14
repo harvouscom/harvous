@@ -87,12 +87,19 @@ export default function ToastProvider() {
         /* Upgrade toast: message full width, then cancel + action in a row, centered */
         .harvous-upgrade-toast,
         [data-sonner-toast]:has(button[data-cancel]) {
+          --toast-button-margin-start: 0 !important;
+          --toast-button-margin-end: 0 !important;
           display: flex !important;
           flex-direction: row !important;
           flex-wrap: wrap !important;
           justify-content: center !important;
           align-items: center !important;
           gap: 0.5rem 0.75rem !important;
+        }
+        .harvous-upgrade-toast [data-button],
+        [data-sonner-toast]:has(button[data-cancel]) [data-button] {
+          margin-left: 0 !important;
+          margin-right: 0 !important;
         }
         .harvous-upgrade-toast *,
         [data-sonner-toast]:has(button[data-cancel]) > *,
