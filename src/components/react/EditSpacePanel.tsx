@@ -265,9 +265,9 @@ export default function EditSpacePanel({
     }
   };
 
-  // Fetch share link for public spaces
-  const fetchShareLink = async () => {
-    if (!spaceId) return;
+  // Fetch share link for public spaces. Returns { ok, limitExceeded } so callers can revert UI when limit exceeded.
+  const fetchShareLink = async (): Promise<{ ok: boolean; limitExceeded?: boolean }> => {
+    if (!spaceId) return { ok: false };
 
     try {
       const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
@@ -277,9 +277,27 @@ export default function EditSpacePanel({
       if (response.ok) {
         const data = await response.json();
         setShareLink(data.shareUrl || null);
+        return { ok: true };
       }
+
+      if (response.status === 403) {
+        const data = await response.json().catch(() => ({}));
+        if (data.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: data.upgradeUrl ? `${data.error} Upgrade for more.` : data.error,
+                type: 'error',
+              },
+            })
+          );
+          return { ok: false, limitExceeded: true };
+        }
+      }
+      return { ok: false };
     } catch (error) {
       console.error('[EditSpacePanel] Error fetching share link:', error);
+      return { ok: false };
     }
   };
 
@@ -857,7 +875,23 @@ export default function EditSpacePanel({
       if (response.ok) {
         // Success - fetch share link if now public (creates token on first GET)
         if (isPublic) {
-          await fetchShareLink();
+          const linkResult = await fetchShareLink();
+          if (linkResult && !linkResult.ok && linkResult.limitExceeded) {
+            // Revert: server rejected creating share link due to limit; set space back to private
+            const revertFormData = new FormData();
+            revertFormData.append('title', formData.title.trim());
+            revertFormData.append('color', formData.selectedColor);
+            revertFormData.append('isPublic', 'false');
+            await fetch(`/api/spaces/${spaceId}/update`, {
+              method: 'POST',
+              body: revertFormData,
+              credentials: 'include',
+            });
+            setFormData(prev => ({ ...prev, selectedType: 'Private' }));
+            setShareLink(null);
+            window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
+            return;
+          }
           window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
         } else {
           setShareLink(null);
@@ -870,6 +904,19 @@ export default function EditSpacePanel({
           }
         }));
       } else {
+        if (response.status === 403 && data.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: data.upgradeUrl ? `${data.error} Upgrade for more.` : data.error,
+                type: 'error',
+              },
+            })
+          );
+          setFormData(prev => ({ ...prev, selectedType: 'Private' }));
+          setShareLink(null);
+          return;
+        }
         throw new Error(data.error || 'Failed to update space type');
       }
     } catch (error) {

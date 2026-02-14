@@ -9,8 +9,10 @@ import {
   successResponse,
   errorResponse,
   unauthorizedResponse,
+  jsonResponse,
 } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
+import { canCreateSharedSpace, getSpaceMemberCount } from '@/utils/tier-limits';
 
 /**
  * GET /api/spaces/[spaceId]/share-link
@@ -43,9 +45,23 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
       });
     }
 
-    // If no share token exists, generate one
+    // If no share token exists, generate one (this makes the space "shared" for limit counting)
     let shareToken = space.shareToken;
     if (!shareToken) {
+      const memberCount = await getSpaceMemberCount(spaceId);
+      if (memberCount === 0) {
+        const canCreate = await canCreateSharedSpace(space.userId, locals.auth());
+        if (!canCreate.allowed) {
+          return jsonResponse({
+            error: canCreate.reason || 'Shared space limit reached',
+            code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+            currentCount: canCreate.currentCount,
+            limit: canCreate.limit,
+            upgradeUrl: '/upgrade'
+          }, 403);
+        }
+      }
+
       shareToken = generateShareToken();
 
       await db.update(Spaces)

@@ -7,6 +7,8 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { awardCreationBonusXP } from '@/utils/xp-system';
+import { canCreateSharedSpace } from '@/utils/tier-limits';
+import { jsonResponse } from '@/utils/api-responses';
 
 export const POST: APIRoute = async ({ request, locals }) => {
   try {
@@ -133,10 +135,24 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
-    
+
+    // Enforce shared space limit when creating a public (shared) space
+    if (isPublic) {
+      const canCreate = await canCreateSharedSpace(userId, locals.auth());
+      if (!canCreate.allowed) {
+        return jsonResponse({
+          error: canCreate.reason || 'Shared space limit reached',
+          code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+          currentCount: canCreate.currentCount,
+          limit: canCreate.limit,
+          upgradeUrl: '/upgrade'
+        }, 403);
+      }
+    }
+
     // Generate background gradient based on color
     const backgroundGradient = getThreadGradientCSS(color);
-    
+
     const newSpace = await db.insert(Spaces)
       .values({
         id: generateSpaceId(),

@@ -436,14 +436,26 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
         // Check if this is a network error
         const errorText = await response.text();
         let errorMessage = `Failed to create space: ${response.status}`;
-        
+        let errorJson: { error?: string; code?: string; upgradeUrl?: string } = {};
+
         try {
-          const errorJson = JSON.parse(errorText);
+          errorJson = JSON.parse(errorText);
           errorMessage = errorJson.error || errorMessage;
         } catch (e) {
           console.error('NewSpacePanel: Could not parse error response');
         }
-        
+
+        // Shared space limit exceeded: show upgrade message, do not close panel or navigate
+        if (response.status === 403 && errorJson.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
+          const message = errorJson.upgradeUrl ? `${errorJson.error} Upgrade for more.` : (errorJson.error || errorMessage);
+          if (window.toast) {
+            window.toast.error(message);
+          } else {
+            window.dispatchEvent(new CustomEvent('toast', { detail: { message, type: 'error' } }));
+          }
+          return;
+        }
+
         // Check if offline save succeeded
         if (offlineSpaceId) {
           // Offline save succeeded - treat as success

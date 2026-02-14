@@ -5,8 +5,9 @@ import { db, Spaces, eq, and } from 'astro:db';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
-import { successResponse, errorResponse, unauthorizedResponse } from '@/utils/api-responses';
+import { successResponse, errorResponse, unauthorizedResponse, jsonResponse } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
+import { canCreateSharedSpace, getSpaceMemberCount } from '@/utils/tier-limits';
 
 export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
@@ -53,7 +54,23 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
     // Update isPublic if provided
     if (isPublicStr !== null) {
-      updateData.isPublic = isPublicStr === 'true';
+      const newIsPublic = isPublicStr === 'true';
+      if (newIsPublic && !space.shareToken) {
+        const memberCount = await getSpaceMemberCount(spaceId);
+        if (memberCount === 0) {
+          const canCreate = await canCreateSharedSpace(space.userId, locals.auth());
+          if (!canCreate.allowed) {
+            return jsonResponse({
+              error: canCreate.reason || 'Shared space limit reached',
+              code: 'SHARED_SPACE_LIMIT_EXCEEDED',
+              currentCount: canCreate.currentCount,
+              limit: canCreate.limit,
+              upgradeUrl: '/upgrade'
+            }, 403);
+          }
+        }
+      }
+      updateData.isPublic = newIsPublic;
     }
 
     // Update the space
