@@ -15,7 +15,7 @@ import MobileNavigation from "@/components/MobileNavigation.astro";
 import MobileAdditional from "@/components/MobileAdditional.astro";
 import RecentSearches from "@/components/react/RecentSearches";
 import FindSearchInput from "@/components/react/FindSearchInput";
-import { db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne } from "astro:db";
+import { db, Notes, Threads, Spaces, Members, Tags, NoteTags, NoteThreads, ResourceMetadata, eq, and, or, like, desc, count, inArray, ne, isNotNull } from "astro:db";
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount, getSpacesWithCounts, getMemberOfSpaces, getAllThreadsWithCounts, getThreadColorsForNotesAsRecord } from "@/utils/dashboard-data";
 import { stripHtml } from "@/utils/html-stripper";
@@ -315,27 +315,33 @@ if (query.trim()) {
       title: string | null;
       description: string | null;
       color: string | null;
+      userId: string;
+      isPublic: boolean | null;
       createdAt: Date;
       updatedAt: Date | null;
       lastVisited?: Date | null;
       threadCount: number;
     }> = [];
     try {
+      // Include owned spaces (Spaces.userId) and joined spaces (Members for this user)
       spacesSearch = await db
         .select({
           id: Spaces.id,
           title: Spaces.title,
           description: Spaces.description,
           color: Spaces.color,
+          userId: Spaces.userId,
+          isPublic: Spaces.isPublic,
           createdAt: Spaces.createdAt,
           updatedAt: Spaces.updatedAt,
           threadCount: count(Threads.id),
         })
         .from(Spaces)
         .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
+        .leftJoin(Members, and(eq(Spaces.id, Members.spaceId), eq(Members.userId, userId)))
         .where(
           and(
-            eq(Spaces.userId, userId),
+            or(eq(Spaces.userId, userId), isNotNull(Members.id)),
             or(
               like(Spaces.title, searchPatterns[0]),
               like(Spaces.title, searchPatterns[1]),
@@ -554,10 +560,12 @@ if (query.trim()) {
       return threadData;
     });
 
-    // Format spaces results with relevance scoring
+    // Format spaces results with relevance scoring (icon follows MySpacesPanel: joined = user-check, owned shared = group, private = single user)
     spacesResults = spacesSearch.map((space) => {
       const threadCount = Number(space.threadCount ?? 0);
       const lastUpdatedAt = (space as { lastVisited?: Date | null }).lastVisited ?? space.updatedAt ?? space.createdAt;
+      const isJoined = space.userId !== userId;
+      const isOwnedShared = !isJoined && (space.isPublic === true);
       const spaceData: any = {
         id: `space-${space.id}`,
         type: "space" as const,
@@ -567,6 +575,8 @@ if (query.trim()) {
         spaceId: space.id,
         color: space.color,
         threadCount,
+        isJoined,
+        isPublic: isOwnedShared,
         lastVisited: (space as { lastVisited?: Date | null }).lastVisited,
         lastUpdated: formatRelativeTime(lastUpdatedAt),
         updatedAt: lastUpdatedAt,
@@ -812,7 +822,8 @@ if (query.trim()) {
                         <CondensedThreadItem
                           title={item.title}
                           color={item.color}
-                          icon="cube"
+                          icon={item.isJoined ? 'user-check' : undefined}
+                          isPublic={item.isJoined ? false : item.isPublic}
                           count={item.threadCount}
                           client:visible
                         />

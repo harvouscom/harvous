@@ -7,8 +7,8 @@ export interface CondensedThreadItemProps {
   color?: string;
   /** When true, show user-group icon; otherwise single user icon. */
   isPublic?: boolean;
-  /** Override icon: 'layer-group' stacked-layers; 'cube' cube (spaces); 'bookmark' notes; 'square-check' spaces joined. */
-  icon?: 'layer-group' | 'cube' | 'bookmark' | 'square-check';
+  /** Override icon: 'layer-group' stacked-layers; 'cube' cube (spaces); 'bookmark' notes; 'square-check' checkbox; 'user-check' space joined (member). */
+  icon?: 'layer-group' | 'cube' | 'bookmark' | 'square-check' | 'user-check';
   /** Optional count shown in a badge (e.g. thread count for spaces). */
   count?: number;
   /** Optional right-side action (e.g. remove button). */
@@ -30,8 +30,8 @@ export default function CondensedThreadItem({
   className = ''
 }: CondensedThreadItemProps) {
   const threadAccentColor = color ? `var(--color-${color})` : 'var(--color-light-paper)';
-  // Show badge when count is provided; for spaces (icon === 'cube') always show even when 0
-  const showBadge = count != null && (count > 0 || icon === 'cube');
+  // Show badge when count is provided; for spaces (cube or user-check) always show even when 0
+  const showBadge = count != null && (count > 0 || icon === 'cube' || icon === 'user-check');
 
   return (
     <div
@@ -90,9 +90,25 @@ export default function CondensedThreadItem({
           zIndex: 20
         }}
       >
-        {/* Layer-group, cube, bookmark, square-check, user-group (shared), or single-user (private) icon */}
+        {/* Layer-group, cube, bookmark, square-check, user-check (joined), user-group (shared), or single-user (private) icon */}
         <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-          {icon === 'bookmark' ? (
+          {icon === 'user-check' ? (
+            <svg
+              style={{
+                display: 'block',
+                maxWidth: 'none',
+                width: '100%',
+                height: '100%',
+                color: 'var(--color-deep-grey)',
+                opacity: 0.3
+              }}
+              fill="currentColor"
+              viewBox="0 0 640 512"
+              aria-hidden="true"
+            >
+              <path d="M352 128c0 70.7-57.3 128-128 128s-128-57.3-128-128S153.3 0 224 0s128 57.3 128 128zM0 482.3C0 383.8 79.8 304 178.3 304h91.4C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7H29.7C13.3 512 0 498.7 0 482.3zM625 177L497 305c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L591 143c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
+            </svg>
+          ) : icon === 'bookmark' ? (
             <svg
               style={{
                 display: 'block',
