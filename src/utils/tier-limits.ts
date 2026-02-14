@@ -98,7 +98,7 @@ export async function canOwnerAddOneMoreSharedSpace(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'Free tier limited to 3 shared spaces. Space owner needs to upgrade to add members.'
+        ? `You've used all ${limits.ownedSharedSpaces} shared spaces. Upgrade for unlimited.`
         : 'Unlimited tier shared spaces limit reached.',
       currentCount: currentSharedCount,
       limit: limits.ownedSharedSpaces
@@ -186,7 +186,7 @@ export async function canCreateSharedSpace(
     return {
       allowed: false,
       reason: tier === 'free'
-        ? 'Free tier limited to 3 shared spaces. Upgrade to create more.'
+        ? `You've used all ${limits.ownedSharedSpaces} shared spaces. Upgrade for unlimited.`
         : 'Unlimited tier shared spaces limit reached.',
       currentCount,
       limit: limits.ownedSharedSpaces,

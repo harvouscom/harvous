@@ -40,7 +40,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         const noteLimitCheck = await canCreateNote(userId, auth);
     if (!noteLimitCheck.allowed) {
       return jsonResponse({
-        error: noteLimitCheck.reason || 'Note limit reached',
+        error: noteLimitCheck.reason || "You've used all your notes. Upgrade for unlimited.",
         code: 'NOTE_LIMIT_EXCEEDED',
         currentCount: noteLimitCheck.currentCount,
         limit: noteLimitCheck.limit,

@@ -74,7 +74,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     // Enforce owned shared spaces limit when adding the first member (invitation leads to join)
     const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, spaceId, locals.auth());
     if (!canAddShared.allowed) {
-      return errorResponse(canAddShared.reason || 'Shared space limit reached', 'OWNED_SHARED_SPACES_LIMIT_REACHED', 403);
+      return errorResponse(canAddShared.reason || "You've used all your shared spaces. Upgrade for unlimited.", 'OWNED_SHARED_SPACES_LIMIT_REACHED', 403);
     }
 
     // Check if invitation already exists for this email

@@ -84,12 +84,12 @@ export default function ToastProvider() {
         }}
       />
       <style>{`
-        /* Upgrade toast: message full width, then cancel + action in a row with primary (action) on the right */
+        /* Upgrade toast: message full width, then cancel + action in a row, centered */
         [data-sonner-toast]:has(button[data-cancel]) {
           display: flex !important;
           flex-direction: row !important;
           flex-wrap: wrap !important;
-          justify-content: flex-end !important;
+          justify-content: center !important;
           align-items: center !important;
           gap: 0.5rem 0.75rem !important;
         }

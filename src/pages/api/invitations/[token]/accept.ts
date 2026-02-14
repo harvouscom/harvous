@@ -116,7 +116,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     // Enforce owned shared spaces limit when adding the first member
     const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, invitation.spaceId);
     if (!canAddShared.allowed) {
-      return forbiddenResponse(canAddShared.reason || 'Shared space limit reached');
+      return forbiddenResponse(canAddShared.reason || "You've used all your shared spaces. Upgrade for unlimited.");
     }
 
     // All checks passed - add user as member

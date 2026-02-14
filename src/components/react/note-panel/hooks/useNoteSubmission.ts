@@ -984,7 +984,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           window.dispatchEvent(
             new CustomEvent('toast', {
               detail: {
-                message: error.error || 'Note limit reached',
+                message: error.error || "You've used all your notes. Upgrade for unlimited.",
                 type: 'error',
                 code: 'NOTE_LIMIT_EXCEEDED',
                 upgradeUrl: error.upgradeUrl || '/upgrade',
@@ -1313,7 +1313,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           window.dispatchEvent(
             new CustomEvent('toast', {
               detail: {
-                message: error.error || 'Note limit reached',
+                message: error.error || "You've used all your notes. Upgrade for unlimited.",
                 type: 'error',
                 code: 'NOTE_LIMIT_EXCEEDED',
                 upgradeUrl: error.upgradeUrl || '/upgrade',

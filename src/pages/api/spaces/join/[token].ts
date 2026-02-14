@@ -85,7 +85,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
     const canAddShared = await canOwnerAddOneMoreSharedSpace(space.userId, space.id);
     if (!canAddShared.allowed) {
       return errorResponse(
-        canAddShared.reason || 'Shared space limit reached',
+        canAddShared.reason || "You've used all your shared spaces. Upgrade for unlimited.",
         'OWNED_SHARED_SPACES_LIMIT_REACHED',
         403
       );

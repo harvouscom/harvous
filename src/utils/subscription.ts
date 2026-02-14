@@ -82,7 +82,7 @@ export async function canCreateNote(
     if (noteCount >= effectiveLimit) {
       return {
         allowed: false,
-        reason: 'Note limit reached',
+        reason: `You've used all ${effectiveLimit} notes. Upgrade for unlimited.`,
         currentCount: noteCount,
         limit: effectiveLimit,
         upgradeUrl: '/upgrade'

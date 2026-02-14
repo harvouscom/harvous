@@ -64,7 +64,7 @@ export default function NoteFormFooter({
             margin: 0,
             lineHeight: '1.2',
           }}>
-            You've reached the {limit.toLocaleString()} note limit.
+            You've used all {limit.toLocaleString()} notes. Upgrade for unlimited.
           </p>
           <button
             type="button"

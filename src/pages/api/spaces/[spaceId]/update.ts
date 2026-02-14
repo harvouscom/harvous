@@ -61,7 +61,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
           const canCreate = await canCreateSharedSpace(space.userId, locals.auth());
           if (!canCreate.allowed) {
             return jsonResponse({
-              error: canCreate.reason || 'Shared space limit reached',
+              error: canCreate.reason || "You've used all your shared spaces. Upgrade for unlimited.",
               code: 'SHARED_SPACE_LIMIT_EXCEEDED',
               currentCount: canCreate.currentCount,
               limit: canCreate.limit,
