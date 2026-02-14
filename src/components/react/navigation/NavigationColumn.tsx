@@ -119,7 +119,17 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   });
   const [updatedActiveThread, setUpdatedActiveThread] = useState<ActiveThread | null>(activeThread);
   const [isMovingThreadToSpace, setIsMovingThreadToSpace] = useState(false);
-  
+  // Space from current URL (?space=) — updated on page load so add-to-space prompt sees it after client nav.
+  const [urlSpaceId, setUrlSpaceId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const s = new URLSearchParams(window.location.search).get('space');
+      return s && s.startsWith('space_') ? s : null;
+    } catch {
+      return null;
+    }
+  });
+
   // Determine if we're on the dashboard page
   // Use pathname prop which is available on both server and client (from Astro.url.pathname)
   // This ensures SSR and client render the same value, preventing hydration mismatches
@@ -176,19 +186,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const currentThreadForMismatch = updatedActiveThread || activeThread;
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = currentThreadForMismatch?.spaceId ?? null;
-  // Prefer URL ?space= for add-to-space prompt so it shows when viewing thread in a space via URL (reliable after client nav).
-  const spaceForMismatch =
-    (typeof window !== 'undefined' &&
-      (() => {
-        try {
-          const s = new URLSearchParams(window.location.search).get('space');
-          return s && s.startsWith('space_') ? s : null;
-        } catch {
-          return null;
-        }
-      })()) ??
-    effectiveSelectedSpaceId;
-  const selectedSpaceForMismatch = spaceForMismatch;
+  // Prefer URL ?space= (from urlSpaceId, updated on page load) for add-to-space prompt so it shows after client nav.
+  const selectedSpaceForMismatch = urlSpaceId ?? effectiveSelectedSpaceId;
   const mismatchKey = currentThreadForMismatch?.id && selectedSpaceForMismatch
     ? `${currentThreadForMismatch.id}|${selectedSpaceForMismatch}`
     : null;
@@ -567,7 +566,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, activeThread]);
 
-  // If user navigates to a space route or thread/note with ?space=, sync the selected space.
+  // If user navigates to a space route or thread/note with ?space=, sync the selected space and urlSpaceId for mismatch prompt.
   // Re-run when pathname/search change so view transitions that update props also persist URL space to storage.
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -577,12 +576,14 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         const params = new URLSearchParams(window.location.search);
         const fromSpace = params.get('space');
         if (fromSpace && fromSpace.startsWith('space_')) {
+          setUrlSpaceId(fromSpace);
           setSelectedSpaceId(fromSpace);
           return;
         }
       } catch {
         // ignore
       }
+      setUrlSpaceId(null);
       if (path.startsWith('/space/')) {
         const id = extractIdFromPath(path);
         if (id) setSelectedSpaceId(id);
