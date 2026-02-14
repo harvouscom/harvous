@@ -122,11 +122,14 @@ export default function NewNotePanel({
     initialNoteType,
   });
 
-  // When mobile panel opens, rehydrate form from localStorage (desktop draft) once on mount
+  // When mobile panel opens, rehydrate form from localStorage (desktop draft) once on mount.
+  // On desktop, rehydrate on every open so selection data (pre-filled content, source note) is loaded.
   const hasRehydratedRef = useRef(false);
   useEffect(() => {
     if (inBottomSheet && !hasRehydratedRef.current) {
       hasRehydratedRef.current = true;
+      form.rehydrateFromStorage();
+    } else if (!inBottomSheet) {
       form.rehydrateFromStorage();
     }
   }, [inBottomSheet, form]);
