@@ -460,10 +460,18 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         }
 
         const getThreadHrefWithSpace = () => {
-          // Keep the space switcher pinned to the *current* selected space.
-          // (Visibility is controlled by opened-in scopes.)
-          const hasSpace = typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_');
-          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(selectedSpaceId)}` : idToUrl(item.id);
+          // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
+          let spaceForLink = selectedSpaceId;
+          if (typeof window !== 'undefined') {
+            try {
+              const fromUrl = new URLSearchParams(window.location.search).get('space');
+              if (fromUrl && fromUrl.startsWith('space_')) spaceForLink = fromUrl;
+            } catch {
+              // ignore
+            }
+          }
+          const hasSpace = typeof spaceForLink === 'string' && spaceForLink.startsWith('space_');
+          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(spaceForLink)}` : idToUrl(item.id);
         };
 
         // CRITICAL: Ensure href is always valid - never set to /undefined

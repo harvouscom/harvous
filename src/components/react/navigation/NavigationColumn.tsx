@@ -107,7 +107,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
   // Selected space from storage (hydrated after mount). Seed with route value for SSR consistency.
   const selectedSpaceId = useSelectedSpaceId(routeSelectedSpaceId);
-  const effectiveSelectedSpaceId = selectedSpaceId ?? routeSelectedSpaceId;
+  // Prefer URL (?space= or /space/xxx) over storage so "current space" is where the user is now.
+  const effectiveSelectedSpaceId = routeSelectedSpaceId ?? selectedSpaceId;
   const [profileData, setProfileData] = useState({
     initials: initials,
     userColor: userColor,
@@ -552,8 +553,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, activeThread]);
 
-  // If user navigates to a space route, sync the selected space.
-  // IMPORTANT: Use window.location, not props, because View Transitions can reuse islands with stale props.
+  // If user navigates to a space route or thread/note with ?space=, sync the selected space.
+  // Re-run when pathname/search change so view transitions that update props also persist URL space to storage.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const syncFromLocation = () => {
@@ -581,7 +582,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       document.removeEventListener('astro:page-load', syncFromLocation);
       document.removeEventListener('astro:after-swap', syncFromLocation);
     };
-  }, []);
+  }, [pathname, search]);
 
   useEffect(() => {
     const handleNavigationUpdate = () => {

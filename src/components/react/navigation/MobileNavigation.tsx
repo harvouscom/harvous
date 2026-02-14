@@ -1468,9 +1468,19 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
                       // Use updated thread data for active thread to show live updates
                       const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;
+                      // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
+                      let spaceForLink = selectedSpaceId;
+                      if (typeof window !== 'undefined') {
+                        try {
+                          const fromUrl = new URLSearchParams(window.location.search).get('space');
+                          if (fromUrl && fromUrl.startsWith('space_')) spaceForLink = fromUrl;
+                        } catch {
+                          // ignore
+                        }
+                      }
                       const threadHref =
-                        typeof selectedSpaceId === 'string' && selectedSpaceId.startsWith('space_')
-                          ? `${idToUrl(thread.id)}?space=${encodeURIComponent(selectedSpaceId)}`
+                        typeof spaceForLink === 'string' && spaceForLink.startsWith('space_')
+                          ? `${idToUrl(thread.id)}?space=${encodeURIComponent(spaceForLink)}`
                           : idToUrl(thread.id);
                       return (
                         <div key={thread.id} className="nav-item-container group w-full">
