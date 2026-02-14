@@ -274,6 +274,25 @@ let inboxCount: number = 0;
 /** Minimal space shape used when building content/currentSpace (owner list or requireSpaceAccess fallback). */
 type SpaceDataForView = { id: string; title: string; color: string | null; isPublic: boolean; totalItemCount: number; backgroundGradient?: string | null };
 
+// Prefer URL ?space= for currentSpace when opening thread/note in a specific space (so thread opens in that space, not the thread's DB space).
+let urlSpaceForView: SpaceDataForView | null = null;
+const urlSpaceParam = Astro.url.searchParams.get('space');
+if (urlSpaceParam && urlSpaceParam.startsWith('space_')) {
+  try {
+    const { space } = await requireSpaceAccess(urlSpaceParam, authenticatedUserId);
+    urlSpaceForView = {
+      id: space.id,
+      title: space.title,
+      color: space.color,
+      isPublic: space.isPublic,
+      totalItemCount: 0,
+      backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+    };
+  } catch {
+    urlSpaceForView = null;
+  }
+}
+
 // Always use real database data
 try {
     if (isThread) {
@@ -384,7 +403,7 @@ try {
             noteTypeCounts = memberNoteTypeCounts;
             pageTitle = threadBySpace.title;
             pageContent = `${noteCount} notes`;
-            currentSpace = {
+            currentSpace = urlSpaceForView ?? {
               id: space.id,
               title: space.title,
               color: space.color,
@@ -432,7 +451,7 @@ try {
               noteTypeCounts = memberNoteTypeCounts;
               pageTitle = threadBySpace.title;
               pageContent = `${noteCount} notes`;
-              currentSpace = {
+              currentSpace = urlSpaceForView ?? {
                 id: spaceRow.id,
                 title: spaceRow.title,
                 color: spaceRow.color,
@@ -593,6 +612,7 @@ try {
             }
           }
         }
+        if (urlSpaceForView) currentSpace = urlSpaceForView;
       }
     } else if (isNote) {
       // Update lastVisited timestamp FIRST, before fetching data
@@ -948,6 +968,7 @@ try {
         }
 
         // Removed: NoteThreadAccess tracking (complexity reduction)
+        if (urlSpaceForView) currentSpace = urlSpaceForView;
       }
     } else if (isSpace) {
       // Try owner's spaces first; if not found, check member access (requireSpaceAccess)

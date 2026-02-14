@@ -8,6 +8,7 @@ import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 import { setSelectedSpaceId } from './navigation/selectedSpace';
+import { idToUrl } from '@/utils/url-helpers';
 
 interface SpaceItem {
   id: string;
@@ -59,8 +60,8 @@ export default function SpaceContentList({
   filter = 'all',
   spaceIsShared = false
 }: SpaceContentListProps) {
-  const noteHref = (noteId: string) => `/${noteId}?space=${encodeURIComponent(spaceId)}`;
-  const threadHref = (threadId: string) => `/${threadId}?space=${encodeURIComponent(spaceId)}`;
+  const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
+  const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
   const handleSelectSpace = () => setSelectedSpaceId(spaceId);
   // Sort initial items by lastVisited on mount
   // Use inline sorting logic in initializers (can't use useCallback here)
