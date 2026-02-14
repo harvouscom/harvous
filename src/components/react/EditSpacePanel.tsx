@@ -92,6 +92,13 @@ export default function EditSpacePanel({
   // Make-private confirmation dialog
   const [showMakePrivateDialog, setShowMakePrivateDialog] = useState(false);
 
+  // Remove-member confirmation dialog (remove other or leave self)
+  const [pendingRemoveMember, setPendingRemoveMember] = useState<{
+    userId: string;
+    memberName: string;
+    isSelf: boolean;
+  } | null>(null);
+
   // Tab navigation
   const [activeTab, setActiveTab] = useState<'added' | 'all' | 'people'>('added');
   
@@ -210,21 +217,21 @@ export default function EditSpacePanel({
     }
   };
 
-  // Handle remove member
-  const handleRemoveMember = async (userId: string, memberName: string) => {
+  // Handle remove member: show ConfirmDialog (actual delete in handleConfirmRemoveMember)
+  const handleRemoveMember = (userId: string, memberName: string) => {
     const isSelf = members.find(m => m.userId === userId && m.role !== 'owner');
-    const confirmMessage = isSelf
-      ? `Are you sure you want to leave "${formData.title}"?`
-      : `Remove ${memberName} from "${formData.title}"?`;
+    setPendingRemoveMember({ userId, memberName, isSelf });
+  };
 
-    if (!confirm(confirmMessage)) {
-      return;
-    }
+  const handleConfirmRemoveMember = async () => {
+    if (!pendingRemoveMember) return;
+    const { userId: userIdToRemove, isSelf } = pendingRemoveMember;
+    setPendingRemoveMember(null);
 
     try {
-      setRemovingUserId(userId);
+      setRemovingUserId(userIdToRemove);
 
-      const response = await fetch(`/api/spaces/${spaceId}/members/${userId}`, {
+      const response = await fetch(`/api/spaces/${spaceId}/members/${userIdToRemove}`, {
         method: 'DELETE',
       });
 
@@ -234,17 +241,15 @@ export default function EditSpacePanel({
         throw new Error(data.error || 'Failed to remove member');
       }
 
-      // Show success toast
       window.dispatchEvent(
         new CustomEvent('toast', {
           detail: {
-            message: data.message || 'Member removed successfully',
+            message: data.message || (isSelf ? 'You have left the space' : 'Member removed successfully'),
             type: 'success',
           },
         })
       );
 
-      // Refresh member list
       await fetchMemberInfo();
     } catch (err: any) {
       window.dispatchEvent(
@@ -1739,6 +1744,22 @@ export default function EditSpacePanel({
         }}
         onCancel={() => setShowMakePrivateDialog(false)}
       />
+      {pendingRemoveMember && (
+        <ConfirmDialog
+          isOpen={true}
+          title={pendingRemoveMember.isSelf ? 'Leave this space?' : 'Remove member?'}
+          message={
+            pendingRemoveMember.isSelf
+              ? `Are you sure you want to leave "${formData.title}"?`
+              : `Remove ${pendingRemoveMember.memberName} from "${formData.title}"?`
+          }
+          confirmLabel={pendingRemoveMember.isSelf ? 'Leave space' : 'Remove'}
+          cancelLabel="Cancel"
+          confirmDestructive={true}
+          onConfirm={handleConfirmRemoveMember}
+          onCancel={() => setPendingRemoveMember(null)}
+        />
+      )}
     </div>
   );
 }

@@ -44,6 +44,9 @@ export default function SpaceMembersList({
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [showLeaveConfirmDialog, setShowLeaveConfirmDialog] = useState(false);
   const [pendingLeaveUserId, setPendingLeaveUserId] = useState<string | null>(null);
+  const [showRemoveMemberDialog, setShowRemoveMemberDialog] = useState(false);
+  const [pendingRemoveMemberUserId, setPendingRemoveMemberUserId] = useState<string | null>(null);
+  const [pendingRemoveMemberName, setPendingRemoveMemberName] = useState<string | null>(null);
 
   useEffect(() => {
     fetchMembers();
@@ -70,7 +73,7 @@ export default function SpaceMembersList({
     }
   };
 
-  const handleRemoveMember = async (userId: string, memberName: string) => {
+  const handleRemoveMember = (userId: string, memberName: string) => {
     const isSelf = members.find(m => m.userId === userId && m.role !== 'owner');
 
     if (isSelf) {
@@ -79,14 +82,22 @@ export default function SpaceMembersList({
       return;
     }
 
-    if (!confirm(`Remove ${memberName} from "${spaceName}"?`)) {
-      return;
-    }
+    setPendingRemoveMemberUserId(userId);
+    setPendingRemoveMemberName(memberName);
+    setShowRemoveMemberDialog(true);
+  };
+
+  const handleConfirmRemoveMember = async () => {
+    if (!pendingRemoveMemberUserId || !pendingRemoveMemberName) return;
+    const userIdToRemove = pendingRemoveMemberUserId;
+    setShowRemoveMemberDialog(false);
+    setPendingRemoveMemberUserId(null);
+    setPendingRemoveMemberName(null);
 
     try {
-      setRemovingUserId(userId);
+      setRemovingUserId(userIdToRemove);
 
-      const response = await fetch(`/api/spaces/${spaceId}/members/${userId}`, {
+      const response = await fetch(`/api/spaces/${spaceId}/members/${userIdToRemove}`, {
         method: 'DELETE',
       });
 
@@ -345,6 +356,22 @@ export default function SpaceMembersList({
           onCancel={() => {
             setShowLeaveConfirmDialog(false);
             setPendingLeaveUserId(null);
+          }}
+        />
+      )}
+      {showRemoveMemberDialog && pendingRemoveMemberName && (
+        <ConfirmDialog
+          isOpen={true}
+          title="Remove member?"
+          message={`Remove ${pendingRemoveMemberName} from "${spaceName}"?`}
+          confirmLabel="Remove"
+          cancelLabel="Cancel"
+          confirmDestructive={true}
+          onConfirm={handleConfirmRemoveMember}
+          onCancel={() => {
+            setShowRemoveMemberDialog(false);
+            setPendingRemoveMemberUserId(null);
+            setPendingRemoveMemberName(null);
           }}
         />
       )}
