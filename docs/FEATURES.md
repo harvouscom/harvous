@@ -105,7 +105,7 @@ N004: Prayer Request - Healing for Sarah
 - Perfect for church small groups, Bible study groups, book clubs, and family devotions
 - All members can create threads and notes within the shared space
 - **Invitations:** Shareable invite link (link-based joining); owner copies link from Space details; join page and accept flow
-- **Member management:** Owner can invite (via link), remove members; members can leave; tier limits (e.g. free: 3 spaces shared, 10 people per space, join up to 10 spaces)
+- **Member management:** Owner can invite (via link), remove members; members can leave; tier limits (free: 3 shared spaces; paid: unlimited)
 - **Visibility:** Join page, member view (same route as owner), shared space indicator; locked notes never shown in shared contexts
 
 ### Example Use Cases:

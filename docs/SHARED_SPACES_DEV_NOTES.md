@@ -88,6 +88,14 @@ All space API routes use `requireSpaceAccess(spaceId, userId, requireOwner?)` fr
 
 Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 
+### Tier limits (simplified)
+
+**User-facing:** One metric only. Free: 3 shared spaces (spaces you create and invite people to). Paid: unlimited shared spaces. No join limit; users can join as many spaces as they like on both tiers.
+
+**Invisible cap:** 150 people per space (both tiers), not shown in UI—like YouVersion. Enforced in `canAddMemberToSpace` / `canAddMemberToSpaceByOwnerId`; when hit, user sees "This space has reached its people limit."
+
+Implementation: `src/utils/tier-limits.ts` (`TIER_LIMITS`, `canCreateSharedSpace`, `canOwnerAddOneMoreSharedSpace`, `canAddMemberToSpace`, etc.).
+
 ---
 
 ## Current Architecture
@@ -127,7 +135,7 @@ Owner-only endpoints: `update`, `share-link` (POST), `members/invite`, `delete`.
 | `src/components/react/EditSpacePanel.tsx` | Owner UI: edit space, manage members, share link, tab nav |
 | `src/components/react/SpaceMembersList.tsx` | Standalone panel: view/remove members |
 | `src/utils/space-permissions.ts` | `requireSpaceAccess()` — enforces owner/member access |
-| `src/utils/tier-limits.ts` | `canAddMemberToSpace()` — enforces member count limits |
+| `src/utils/tier-limits.ts` | Shared-space count (3 / unlimited) and invisible 150 people/space cap |
 
 ### Join Flow (Permanent Share Link — current approach)
 

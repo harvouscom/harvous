@@ -1429,15 +1429,13 @@ export default function EditSpacePanel({
                   />
                 )}
 
-                {/* People limit for this space: owner only */}
-                {!isLoadingMembers && isOwner && memberLimit != null && (memberCount >= memberLimit && memberLimit === 10 ? (
-                  <a
-                    href="/upgrade"
-                    className="billing-limit-link bg-white rounded-xl p-3 flex items-center gap-3"
+                {/* Only show when at invisible people cap (no number shown) */}
+                {!isLoadingMembers && isOwner && memberLimit != null && memberCount >= memberLimit && (
+                  <div
+                    className="bg-white rounded-xl p-3 flex items-center gap-3"
                     style={{
                       border: '1px solid',
-                      borderColor: 'var(--color-red, #dc2626)',
-                      textDecoration: 'none'
+                      borderColor: 'var(--color-red, #dc2626)'
                     }}
                   >
                     <Icon
@@ -1446,45 +1444,11 @@ export default function EditSpacePanel({
                       className="flex-shrink-0"
                       style={{ color: 'var(--color-red, #dc2626)' }}
                     />
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span
-                        className="text-base font-semibold"
-                        style={{ color: 'var(--color-red, #dc2626)' }}
-                      >
-                        {memberCount} of {memberLimit} people
-                      </span>
-                      <span
-                        className="text-xs flex-shrink-0"
-                        style={{ color: 'var(--color-red, #dc2626)' }}
-                      >
-                        Upgrade for 100 people
-                      </span>
-                    </div>
-                  </a>
-                ) : (
-                  <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-fog-white)'
-                    }}
-                  >
-                    <Icon
-                      name="user-group"
-                      size={16}
-                      className="flex-shrink-0"
-                      style={{ color: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-deep-grey)' }}
-                    />
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span
-                        className="text-base font-semibold"
-                        style={{ color: memberCount >= memberLimit ? 'var(--color-red, #dc2626)' : 'var(--color-deep-grey)' }}
-                      >
-                        {memberCount} of {memberLimit} people
-                      </span>
-                    </div>
+                    <span className="text-base font-semibold" style={{ color: 'var(--color-red, #dc2626)' }}>
+                      This space has reached its people limit.
+                    </span>
                   </div>
-                ))}
+                )}
 
                 {/* Tab navigation */}
                 {(() => {

@@ -98,9 +98,7 @@ export default function UpgradePageContent({
             {limitsInfo && (
               <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
                 <li>Unlimited notes</li>
-                <li>{limitsInfo.limits.ownedSharedSpaces.limit != null ? `${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared` : 'Unlimited spaces shared'}</li>
-                <li>{limitsInfo.limits.membersPerSpace.limit} people per space</li>
-                <li>Join unlimited spaces</li>
+                <li>{limitsInfo.limits.ownedSharedSpaces.limit != null ? `${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared` : 'Unlimited shared spaces'}</li>
               </ul>
             )}
           </div>
@@ -120,14 +118,13 @@ export default function UpgradePageContent({
           <div className="upgrade-content__header">
             <h1 className="clerk-form-header-title">You're on the free plan</h1>
             <p className="clerk-form-header-subtitle" style={{ textWrap: 'balance' }}>
-              Get unlimited notes, bigger shared spaces (up to 100 people each), and the ability to join unlimited spaces. Pay monthly or yearly—save 50% at $3 per month.
+              Get unlimited notes and unlimited shared spaces. Pay monthly or yearly—save 50% at $3 per month.
             </p>
             {limitsInfo && (() => {
               const limitRed = 'var(--color-red, #dc2626)';
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               const sharedAtLimit = limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
-              const joinedAtLimit = limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 2;
-              const anyAtLimit = notesAtLimit || sharedAtLimit || joinedAtLimit;
+              const anyAtLimit = notesAtLimit || sharedAtLimit;
               if (!anyAtLimit) return null;
               return (
                 <div className="upgrade-content__limits flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
@@ -170,31 +167,6 @@ export default function UpgradePageContent({
                           {limitsInfo.limits.ownedSharedSpaces.limit != null
                             ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
                             : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
-                        </span>
-                        {!hasUnlimited && (
-                          <span className="text-xs flex-shrink-0" style={{ color: limitRed }}>
-                            Upgrade for unlimited
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {joinedAtLimit && (
-                    <div
-                      className="upgrade-content__limit-row bg-white rounded-xl p-3 flex items-center gap-3"
-                      style={{
-                        border: '1px solid',
-                        borderColor: limitRed
-                      }}
-                    >
-                      <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: limitRed }} viewBox="0 0 448 512" aria-hidden="true">
-                        <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
-                      </svg>
-                      <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                        <span className="text-base font-semibold" style={{ color: limitRed }}>
-                          {limitsInfo.limits.joinableSpaces.limit == null
-                            ? `${limitsInfo.limits.joinableSpaces.current} (unlimited) spaces joined`
-                            : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
                         </span>
                         {!hasUnlimited && (
                           <span className="text-xs flex-shrink-0" style={{ color: limitRed }}>

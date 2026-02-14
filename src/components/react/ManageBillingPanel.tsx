@@ -394,7 +394,6 @@ export default function ManageBillingPanel({
                   const limitRed = 'var(--color-red, #dc2626)';
                   const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 200) - subscriptionInfo.currentCount <= 100;
                   const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
-                  const joinedAtLimit = limitsInfo != null && limitsInfo.limits.joinableSpaces.limit != null && limitsInfo.limits.joinableSpaces.remaining <= 2;
                   return (
                   <div className="w-full">
                     <div
@@ -486,88 +485,6 @@ export default function ManageBillingPanel({
                               {limitsInfo.limits.ownedSharedSpaces.limit != null
                                 ? `${limitsInfo.limits.ownedSharedSpaces.current} of ${limitsInfo.limits.ownedSharedSpaces.limit} spaces shared`
                                 : `${limitsInfo.limits.ownedSharedSpaces.current} (unlimited) spaces shared`}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                      {/* Spaces joined - horizontal, one line, left-aligned */}
-                      {limitsInfo && (!subscriptionInfo.hasUnlimited ? (
-                        <a
-                          href="/upgrade"
-                          className="billing-limit-link bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: joinedAtLimit ? limitRed : 'var(--color-fog-white)',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 448 512" aria-hidden="true">
-                            <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
-                          </svg>
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: joinedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.joinableSpaces.limit == null
-                                ? `${limitsInfo.limits.joinableSpaces.current} (unlimited) spaces joined`
-                                : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
-                            </span>
-                            <span className="text-xs flex-shrink-0" style={{ color: joinedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                              Upgrade for unlimited
-                            </span>
-                          </div>
-                        </a>
-                      ) : (
-                        <div
-                          className="bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: 'var(--color-fog-white)'
-                          }}
-                        >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 448 512" aria-hidden="true">
-                            <path d="M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-320c0-35.3-28.7-64-64-64L64 32zM337 209L209 337c-9.4 9.4-24.6 9.4-33.9 0l-64-64c-9.4-9.4-9.4-24.6 0-33.9s24.6-9.4 33.9 0l47 47L303 175c9.4-9.4 24.6-9.4 33.9 0s9.4 24.6 0 33.9z" />
-                          </svg>
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.joinableSpaces.limit == null
-                                ? `${limitsInfo.limits.joinableSpaces.current} (unlimited) spaces joined`
-                                : `${limitsInfo.limits.joinableSpaces.current} of ${limitsInfo.limits.joinableSpaces.limit} spaces joined`}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                      {/* People per space - horizontal, one line, left-aligned */}
-                      {limitsInfo && limitsInfo.limits.membersPerSpace != null && (!subscriptionInfo.hasUnlimited ? (
-                        <a
-                          href="/upgrade"
-                          className="billing-limit-link bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: 'var(--color-fog-white)',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          <Icon name="user-group" size={16} className="flex-shrink-0" style={{ color: 'var(--color-deep-grey)' }} />
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.membersPerSpace.limit} people per space
-                            </span>
-                            <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
-                              Upgrade for 100 people
-                            </span>
-                          </div>
-                        </a>
-                      ) : (
-                        <div
-                          className="bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: 'var(--color-fog-white)'
-                          }}
-                        >
-                          <Icon name="user-group" size={16} className="flex-shrink-0" style={{ color: 'var(--color-deep-grey)' }} />
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              {limitsInfo.limits.membersPerSpace.limit} people per space
                             </span>
                           </div>
                         </div>

@@ -1,24 +1,29 @@
 /**
  * Tier Limits for Collaborative Shared Spaces
  *
- * Enforces tier-based limits for collaborative features:
- * - Free tier: 3 shared spaces (10 people max), join up to 10 spaces
- * - Unlimited tier: unlimited shared spaces (100 people each), join unlimited spaces
+ * User-facing: Free = 3 shared spaces, paid = unlimited. One simple metric.
+ * Invisible cap: 150 people per space (both tiers), like YouVersion. No join limit.
+ *
+ * - Free tier: 3 shared spaces, unlimited join, 150 people/space (invisible)
+ * - Unlimited tier: unlimited shared spaces, unlimited join, 150 people/space (invisible)
  */
 
 import { db, Spaces, Members, eq } from 'astro:db';
 import type { Auth } from '@clerk/astro/server';
 
+/** Invisible cap per space (not shown in UI). Same for both tiers. */
+const MEMBERS_PER_SPACE_CAP = 150;
+
 // Tier limits configuration
 export const TIER_LIMITS = {
   free: {
     ownedSharedSpaces: 3,
-    membersPerSpace: 10,
-    joinableSpaces: 10,
+    membersPerSpace: MEMBERS_PER_SPACE_CAP,
+    joinableSpaces: Infinity, // No join limit
   },
   unlimited: {
     ownedSharedSpaces: Infinity, // No limit
-    membersPerSpace: 100,
+    membersPerSpace: MEMBERS_PER_SPACE_CAP,
     joinableSpaces: Infinity, // No limit
   }
 } as const;
@@ -250,9 +255,7 @@ export async function canAddMemberToSpace(
   if (currentCount >= limits.membersPerSpace) {
     return {
       allowed: false,
-      reason: tier === 'free'
-        ? `This space has reached the people limit (${limits.membersPerSpace} people). Space owner needs to upgrade.`
-        : `This space has reached the people limit (${limits.membersPerSpace} people).`,
+      reason: 'This space has reached its people limit.',
       currentCount,
       limit: limits.membersPerSpace,
     };
@@ -285,9 +288,7 @@ export async function canAddMemberToSpaceByOwnerId(
   if (currentCount >= limits.membersPerSpace) {
     return {
       allowed: false,
-      reason: tier === 'free'
-        ? `This space has reached the people limit (${limits.membersPerSpace} people). Space owner needs to upgrade.`
-        : `This space has reached the people limit (${limits.membersPerSpace} people).`,
+      reason: 'This space has reached its people limit.',
       currentCount,
       limit: limits.membersPerSpace,
     };
@@ -337,7 +338,7 @@ export async function getUserLimitsInfo(userId: string, auth: Auth) {
 
 /**
  * Get space member count and limit for specific space
- * Useful for displaying "3/10 people" or "50/100 people" in UI
+ * Limit is invisible cap (150); UI typically does not show "X/150 people"
  */
 export async function getSpaceMemberInfo(spaceId: string, spaceOwnerId: string, ownerAuth: Auth) {
   const tier = getUserTier(ownerAuth);
