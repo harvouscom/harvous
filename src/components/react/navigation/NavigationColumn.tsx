@@ -84,7 +84,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const { navigationHistory, refreshNavigation, removeFromNavigationHistory } = useNavigation();
   // Track hydration state to prevent SSR/client mismatch in dropdown
   const [isHydrated, setIsHydrated] = useState(false);
-  
+  // Top gradient: show only when scrolled down (same as Tiptap editor)
+  const [navScrollHasScrolledDown, setNavScrollHasScrolledDown] = useState(false);
+  const navColumnScrollRef = useRef<HTMLDivElement>(null);
+
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
   const routeSelectedSpaceId = useMemo(() => {
@@ -907,6 +910,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     removeFromNavigationHistory(spaceId);
   };
 
+  // Top gradient: show only when thread list is scrolled down (same as Tiptap)
+  const SCROLL_TOP_THRESHOLD = 3; // px; avoid subpixel/flicker at exact top
+  useEffect(() => {
+    const el = navColumnScrollRef.current;
+    if (!el) return;
+    const update = () => setNavScrollHasScrolledDown(el.scrollTop > SCROLL_TOP_THRESHOLD);
+    el.addEventListener('scroll', update);
+    // Run after layout so initial scrollTop is correct
+    const raf = requestAnimationFrame(() => update());
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', update);
+    };
+  }, []);
+
   return (
     <>
       <div className="nav-column-wrapper">
@@ -1050,14 +1068,23 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               </div>
             ) : null}
             
-            {/* Persistent Navigation - scrollable thread list (desktop) */}
-            <div className="nav-column-scroll">
-              <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
+            {/* Persistent Navigation - scrollable thread list (desktop); gradient overlays top of list only */}
+            <div className="nav-column-scroll-wrapper">
+              <div
+                className={`nav-column-top-gradient-band ${navScrollHasScrolledDown ? 'is-visible' : ''}`}
+                aria-hidden="true"
+              />
+              <div
+                ref={navColumnScrollRef}
+                className={`nav-column-scroll ${navScrollHasScrolledDown ? 'nav-column-scroll--top-fade' : ''}`}
+              >
+                <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Bottom gradient overlay (desktop) - indicates more content above */}
+        {/* Bottom gradient overlay (desktop) - indicates more content below */}
         <div className="nav-column-bottom-gradient" aria-hidden="true" />
 
         {/* Bottom Section with Search and Avatar/Back Button - stays pinned */}

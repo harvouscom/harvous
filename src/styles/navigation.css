@@ -303,6 +303,7 @@
 
   .nav-column-top {
     overflow: hidden;
+    gap: 0;
   }
 
   .nav-column-buttons {
@@ -313,14 +314,61 @@
     overflow: hidden;
   }
 
-  .nav-column-scroll {
+  .nav-column-scroll-wrapper {
+    position: relative;
     flex: 1;
     min-height: 0;
     min-width: 0;
     width: 100%;
+  }
+
+  /* Top gradient: only when scrolled down (same as Tiptap); overlays top of thread list only */
+  .nav-column-top-gradient-band {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 24px;
+    background: linear-gradient(
+      to bottom,
+      var(--color-light-paper, #F3F2EC) 0%,
+      transparent 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  .nav-column-top-gradient-band.is-visible {
+    opacity: 1;
+  }
+
+  .nav-column-scroll {
+    height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* Top fade: mask so thread list content fades in below space dropdown (meets space switcher gradient) */
+  .nav-column-scroll.nav-column-scroll--top-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 56px,
+      black 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      black 56px,
+      black 100%
+    );
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
   }
 
   .nav-column-bottom-gradient {
