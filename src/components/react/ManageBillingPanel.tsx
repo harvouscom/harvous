@@ -34,22 +34,38 @@ export default function ManageBillingPanel({
   useEffect(() => {
     // Load on initial mount
     loadSubscriptionInfo();
-    
+
     // Listen for subscription upgrade events to refresh
     const handleSubscriptionUpgraded = () => {
       loadSubscriptionInfo();
     };
     window.addEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
-    
+
     // Also refresh on View Transitions (for subsequent visits)
     const handlePageLoad = () => {
       loadSubscriptionInfo();
     };
     document.addEventListener('astro:page-load', handlePageLoad);
-    
+
+    // Refresh when Manage Billing panel is opened (so shared spaces count is up to date)
+    const handlePanelOpened = (event: CustomEvent) => {
+      if (event.detail?.panelName === 'manageBilling') {
+        loadSubscriptionInfo();
+      }
+    };
+    window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
+
+    // Refresh when sharing changes (e.g. space made public/private) so "spaces shared" count updates
+    const handleSharingInvalidate = () => {
+      loadSubscriptionInfo();
+    };
+    window.addEventListener('mySharingInvalidate', handleSharingInvalidate);
+
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
       document.removeEventListener('astro:page-load', handlePageLoad);
+      window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
+      window.removeEventListener('mySharingInvalidate', handleSharingInvalidate);
     };
   }, []);
 

@@ -195,13 +195,10 @@ export default function MySpacesPanel({
     return () => { cancelled = true; };
   }, []);
 
-  // Initialize only once on mount - prevent infinite loops from initialSpaces prop changes
+  // Initialize on mount and always fetch fresh data (fixes stale list when opening panel after creating/editing spaces)
   useEffect(() => {
-    // Only run once on mount
     if (initialSpaces.length > 0 && !hasFetchedFreshDataRef.current) {
-      // We have initial data from Astro, use it (only on mount)
-      // Deduplicate by space ID, preferring spaces with correct counts
-      // Merge with existing spaces to prefer the version with correct counts
+      // Use initial data for first paint, then fetch will replace with fresh data
       setSpaces(prevSpaces => {
         const merged = prevSpaces.length === 0
           ? deduplicateSpaces(initialSpaces)
@@ -209,11 +206,9 @@ export default function MySpacesPanel({
         return sortSpacesByLastVisited(merged);
       });
       setIsLoading(false);
-    } else if (initialSpaces.length === 0) {
-      // No initial data, fetch on mount (works for both desktop and mobile)
-      // For bottom sheets, the event listener will handle refreshes when panel opens
-      fetchSpaces(true);
     }
+    // Always fetch on mount so we see updated list (new spaces, shared/private changes) without manual refresh
+    fetchSpaces(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 

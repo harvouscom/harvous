@@ -104,6 +104,17 @@ export default function MySharingPanel({
     return () => window.removeEventListener('mySharingInvalidate', handleInvalidate);
   }, [fetchShared]);
 
+  // Refetch when My Sharing panel is opened (so list is fresh without manual refresh)
+  useEffect(() => {
+    const handlePanelOpened = (event: CustomEvent) => {
+      if (event.detail?.panelName === 'mySharing') {
+        fetchShared();
+      }
+    };
+    window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
+    return () => window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
+  }, [fetchShared]);
+
   const handleDisableThread = async (thread: SharedThread) => {
     setDisablingId(thread.id);
     try {
