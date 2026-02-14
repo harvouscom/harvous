@@ -85,7 +85,7 @@ const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.
 <script is:inline>
   (function() {
     if (typeof window === 'undefined') return;
-    
+    try { sessionStorage.removeItem('harvousSkipBeforeUnload'); } catch (_) {}
     // Comprehensive function to hide all navigation elements
     function hideNavigation() {
       // Get all possible navigation selectors

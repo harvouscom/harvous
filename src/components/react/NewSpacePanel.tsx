@@ -208,6 +208,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Handle browser navigation (back button, closing tab, etc.)
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('harvousSkipBeforeUnload') === 'upgrade') {
+        return;
+      }
       if (hasUnsavedChanges()) {
         e.preventDefault();
         e.returnValue = ''; // Required for Chrome

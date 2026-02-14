@@ -85,6 +85,7 @@ export default function ToastProvider() {
       />
       <style>{`
         /* Upgrade toast: message full width, then cancel + action in a row, centered */
+        .harvous-upgrade-toast,
         [data-sonner-toast]:has(button[data-cancel]) {
           display: flex !important;
           flex-direction: row !important;
@@ -93,17 +94,21 @@ export default function ToastProvider() {
           align-items: center !important;
           gap: 0.5rem 0.75rem !important;
         }
+        .harvous-upgrade-toast *,
         [data-sonner-toast]:has(button[data-cancel]) > *,
         [data-sonner-toast]:has(button[data-cancel]) *:has(button[data-action]) {
           justify-content: center !important;
         }
+        .harvous-upgrade-toast > *:first-child,
         [data-sonner-toast]:has(button[data-cancel]) > *:first-child {
           width: 100% !important;
           flex: 0 0 100% !important;
         }
+        .harvous-upgrade-toast button[data-cancel],
         [data-sonner-toast]:has(button[data-cancel]) button[data-cancel] {
           order: 1 !important;
         }
+        .harvous-upgrade-toast button[data-action],
         [data-sonner-toast]:has(button[data-cancel]) button[data-action] {
           order: 2 !important;
         }
@@ -134,6 +139,8 @@ export default function ToastProvider() {
             0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
           margin-top: 8px !important;
         }
+        .harvous-upgrade-toast button[data-action],
+        .harvous-upgrade-toast button[data-cancel],
         [data-sonner-toast]:has(button[data-cancel]) button[data-action],
         [data-sonner-toast]:has(button[data-cancel]) button[data-cancel] {
           margin-top: 0.5rem !important;

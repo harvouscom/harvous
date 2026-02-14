@@ -89,9 +89,13 @@ export const toast = {
     safeToast(() => sonnerToast.error(message, {
       icon: null,
       duration: Infinity,
+      className: 'harvous-upgrade-toast',
       action: {
         label: 'Upgrade',
         onClick: () => {
+          try {
+            sessionStorage.setItem('harvousSkipBeforeUnload', 'upgrade');
+          } catch (_) {}
           window.location.href = url;
         },
       },
