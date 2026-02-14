@@ -592,9 +592,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         console.error('Error storing closed item:', error);
       }
       
-      // Navigate to next item or dashboard (unless caller will navigate, e.g. Erase Space → Menu goes to /)
+      // Navigate to next item, current space, or dashboard (unless caller will navigate, e.g. Erase Space → Menu goes to /)
       if (navigateIfActive) {
-        const targetUrl = nextItem ? `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}` : '/';
+        let targetUrl: string;
+        if (nextItem) {
+          targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}`;
+        } else {
+          const selectedSpaceId = getSelectedSpaceId();
+          targetUrl = selectedSpaceId && selectedSpaceId.startsWith('space_') ? idToUrl(selectedSpaceId) : '/';
+        }
         if (document.hidden) {
           window.location.href = targetUrl;
           return;

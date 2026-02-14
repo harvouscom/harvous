@@ -175,7 +175,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
   const currentThreadForMismatch = updatedActiveThread || activeThread;
   const isThreadPage = currentItemId.startsWith('thread_');
-  const selectedSpaceForMismatch = selectedSpaceId;
+  const selectedSpaceForMismatch = effectiveSelectedSpaceId;
   const threadSpaceId = currentThreadForMismatch?.spaceId ?? null;
   const mismatchKey = currentThreadForMismatch?.id && selectedSpaceForMismatch
     ? `${currentThreadForMismatch.id}|${selectedSpaceForMismatch}`

@@ -1082,13 +1082,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
   const mismatchThreadId = (updatedCurrentThread || currentThread)?.id ?? null;
-  const mismatchKey = mismatchThreadId && selectedSpaceId ? `${mismatchThreadId}|${selectedSpaceId}` : null;
+  // Prefer URL ?space= for add-to-space prompt so it shows when viewing thread in a space via URL.
+  const spaceForMismatch =
+    (typeof window !== 'undefined' &&
+      (() => {
+        try {
+          const s = new URLSearchParams(window.location.search).get('space');
+          return s && s.startsWith('space_') ? s : null;
+        } catch {
+          return null;
+        }
+      })()) ??
+    selectedSpaceId;
+  const mismatchKey = mismatchThreadId && spaceForMismatch ? `${mismatchThreadId}|${spaceForMismatch}` : null;
   const baseSpaceMismatchPrompt =
-    !!selectedSpaceId && isThreadPage && !!(updatedCurrentThread || currentThread)?.id && threadSpaceId !== selectedSpaceId;
+    !!spaceForMismatch && isThreadPage && !!(updatedCurrentThread || currentThread)?.id && threadSpaceId !== spaceForMismatch;
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch =
-    selectedSpaceId ? spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'this space' : 'My Home';
+    spaceForMismatch ? spacesForDropdown.find((s) => s.id === spaceForMismatch)?.title ?? 'this space' : 'My Home';
   const threadSpaceTitleForMismatch = threadSpaceId
     ? spacesForDropdown.find((s) => s.id === threadSpaceId)?.title ?? 'its current space'
     : 'My Home';
@@ -1099,10 +1111,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const moveThreadToSelectedSpace = async () => {
     const thread = updatedCurrentThread || currentThread;
-    if (!selectedSpaceId || !thread?.id) return;
+    if (!spaceForMismatch || !thread?.id) return;
     if (thread.id === 'thread_unorganized') return;
     try {
-      const response = await fetch(`/api/spaces/${selectedSpaceId}/add-thread`, {
+      const response = await fetch(`/api/spaces/${spaceForMismatch}/add-thread`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1114,7 +1126,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         if ((window as any).toast?.error) (window as any).toast.error(message);
         return;
       }
-      setUpdatedCurrentThread((prev) => (prev ? { ...prev, spaceId: selectedSpaceId } : prev));
+      setUpdatedCurrentThread((prev) => (prev ? { ...prev, spaceId: spaceForMismatch } : prev));
       window.dispatchEvent(new CustomEvent('threadUpdated', { detail: { threadId: thread.id } }));
       if ((window as any).toast?.success) (window as any).toast.success(`Added to ${selectedSpaceTitleForMismatch}`);
       closeSheet();
