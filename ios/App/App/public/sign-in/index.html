@@ -1,0 +1,135 @@
+<!DOCTYPE html><html lang="en" class="bg-[var(--color-light-paper)]" data-astro-cid-djv3lwmt> <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="manifest" href="/manifest.json"><meta name="theme-color" content="#F3F2EC"><!-- Apple specific tags for homescreen icons --><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Harvous"><link rel="apple-touch-icon" href="/favicon.png"><meta name="generator" content="Astro v5.17.1"><title>Sign In</title><!-- PWA startup optimization script - inlined for faster execution --><script src="/scripts/pwa-startup.js"></script><!-- Special tab interaction handler for first-touch optimization --><script src="/scripts/tab-interaction-handler.js"></script> <link rel="preconnect" href="https://clerk.harvous.com" crossorigin> <link rel="dns-prefetch" href="https://clerk.harvous.com"> <link rel="stylesheet" href="/_astro/_token_.Br2DTFXh.css">
+<link rel="stylesheet" href="/_astro/_token_.COq4IMhC.css">
+<link rel="stylesheet" href="/_astro/sign-in.BixlsR24.css"><script type="module" src="/_astro/page.BDhTFpcg.js"></script></head> <body class="font-sans bg-[var(--color-light-paper)] min-h-screen " data-astro-cid-djv3lwmt>   <div id="sign-in-content" class="auth-page" data-astro-cid-4d26bl7g> <div class="auth-page__container" data-astro-cid-4d26bl7g> <!-- Top Row (Mobile) / Left Column (Desktop): Animated Gradient Background --> <div class="auth-page__video-section thread-colors-mesh-gradient" data-astro-cid-4d26bl7g> <div class="auth-page__video-overlay" data-astro-cid-4d26bl7g> <!-- Harvous logo --> <a href="https://harvous.com" class="auth-page__logo-container" data-astro-cid-4d26bl7g> <svg width="28" height="40" viewBox="0 0 45 64" fill="none" xmlns="http://www.w3.org/2000/svg" class="auth-page__logo sign-in-logo" aria-label="Harvous" data-astro-cid-4d26bl7g> <path d="M44.8037 63.9941H0.0078125V0H44.8037V63.9941ZM34.5645 31.168C25.6988 34.2637 18.5024 41.2949 15.3711 50.543L14.2842 53.752H34.5645V31.168ZM10.2471 37.8643C15.8921 29.2487 24.5827 23.0353 34.5645 20.4824V10.2393H10.2471V37.8643Z" fill="#fff" data-astro-cid-4d26bl7g></path> </svg> </a> </div> </div> <!-- Bottom Row (Mobile) / Right Column (Desktop): Sign In Form --> <div class="auth-page__form-section" data-astro-cid-4d26bl7g> <div class="auth-page__form-wrapper" data-astro-cid-4d26bl7g> <div data-clerk-id="clerk-sign-in-r6cqO9EBtP"></div> <script>(function(){const props = {"appearance":{"elements":{"rootBox":"clerk-form-root","card":{"className":"clerk-form-card","style":{"border":"none","borderWidth":"0","overflowX":"hidden"}},"headerTitle":"clerk-form-header-title","headerSubtitle":"clerk-form-header-subtitle","formField":"","formButtonPrimary":"clerk-form-button-primary primary-button","formFieldInput":"clerk-form-input","formFieldLabel":"hidden","formFieldError":{"className":"clerk-form-error"},"formFieldAlert":{"className":"clerk-form-alert","style":{"maxWidth":"100%","width":"100%","boxSizing":"border-box","overflowWrap":"break-word","wordWrap":"break-word","whiteSpace":"normal"}},"footerActionLink":"clerk-form-link","dividerLine":"clerk-form-divider-line","dividerText":"clerk-form-divider-text"},"variables":{"colorPrimary":"var(--color-bold-blue)"}},"signUpUrl":"/sign-up","fallbackRedirectUrl":"/","data-astro-cid-4d26bl7g":true};
+const component = "sign-in";
+const safeId = "r6cqO9EBtP";
+
+  /**
+   * Store the id and the props for the Astro component in order to mount the correct UI component once clerk is loaded.
+   * The above is handled by `mountAllClerkAstroJSComponents`.
+   */
+  const setOrCreatePropMap = ({ category, id, props }) => {
+    if (!window.__astro_clerk_component_props) {
+      window.__astro_clerk_component_props = new Map();
+    }
+
+    if (!window.__astro_clerk_component_props.has(category)) {
+      const _ = new Map();
+      _.set(id, props);
+      window.__astro_clerk_component_props.set(category, _);
+    }
+
+    window.__astro_clerk_component_props.get(category)?.set(id, props);
+  };
+
+  setOrCreatePropMap({
+    category: component,
+    id: `clerk-${component}-${safeId}`,
+    props,
+  });
+})();</script> </div> </div> </div> </div>  </body></html> <!-- Clerk publishable key (EmptyLayout does not set it; required for Clerk to initialize) --> <script>(function(){const publishableKey = "pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5kZXYk";
+
+  (function() {
+    if (typeof window !== 'undefined') {
+      window.CLERK_PUBLISHABLE_KEY = publishableKey || null;
+    }
+  })();
+})();</script> <!-- Session backup only after sign-in (no PWA auth init so Clerk can register device) --> <script type="module">
+  import { setupClerkSessionBackupListener } from '@/scripts/auth-pwa-init';
+  import { clearSessionBackup } from '@/utils/clerk-session-backup';
+
+  if (typeof window !== 'undefined') {
+    window['__harvousClearSessionBackup'] = clearSessionBackup;
+  }
+
+  setupClerkSessionBackupListener();
+</script> <!-- Clerk Client-Side Initialization Script (Optimized) --> <script>
+  (function() {
+    if (typeof window === 'undefined') return;
+
+    // Only hide if user is already authenticated
+    function checkAndShowSignIn() {
+      if (window.Clerk && window.Clerk.user) {
+        var content = document.getElementById('sign-in-content');
+        if (content) content.classList.add('auth-page__hidden');
+      }
+    }
+    setTimeout(checkAndShowSignIn, 100);
+
+    // Check if coming from logout
+    var urlParams = new URLSearchParams(window.location.search);
+    var fromLogout = urlParams.get('from_logout') === 'true';
+
+    // Client-side redirect when already signed in
+    function redirectIfAlreadySignedIn() {
+      if (fromLogout) return;
+      if (window.Clerk && window.Clerk.user) {
+        var redirectUrl = urlParams.get('redirect_url') || '/';
+        window.location.replace(redirectUrl);
+      }
+    }
+
+    // Force sign-out when coming from logout. Must run after Clerk has restored session from cookies
+    // (clerk:loaded can fire before that), so we use addListener: when Clerk reports a session we sign out.
+    function runSignOutAfterRestore() {
+      if (!fromLogout || !window.Clerk || !window.Clerk.signOut) return;
+
+      var signOutDone = false;
+      function doSignOut() {
+        if (signOutDone) return;
+        signOutDone = true;
+        var clearPromise = typeof window.__harvousClearSessionBackup === 'function'
+          ? window.__harvousClearSessionBackup()
+          : Promise.resolve();
+        clearPromise.then(function() {
+          return window.Clerk.signOut({ redirectUrl: '/sign-in' });
+        }).then(function() {
+          try {
+            sessionStorage.clear();
+            localStorage.removeItem('userProfileData');
+            localStorage.removeItem('profileData');
+          } catch (error) {
+            console.error('Storage clear error:', error);
+          }
+          var newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('from_logout');
+          window.history.replaceState({}, '', newUrl);
+        }).catch(function() {
+          var newUrl = new URL(window.location.href);
+          newUrl.searchParams.delete('from_logout');
+          window.history.replaceState({}, '', newUrl);
+        });
+      }
+
+      if (window.Clerk.user) {
+        doSignOut();
+        return;
+      }
+      if (typeof window.Clerk.addListener === 'function') {
+        var once = function(session) {
+          if (session && session.id) {
+            doSignOut();
+          }
+        };
+        window.Clerk.addListener(once);
+      } else {
+        setTimeout(doSignOut, 800);
+      }
+    }
+
+    // Set up clerk:loaded listener
+    window.addEventListener('clerk:loaded', function() {
+      if (typeof window.mountAllClerkAstroJSComponents === 'function') {
+        window.mountAllClerkAstroJSComponents();
+      }
+      runSignOutAfterRestore();
+      redirectIfAlreadySignedIn();
+    });
+
+    // Initial setup
+    document.addEventListener('DOMContentLoaded', function() {
+      // Try redirect immediately if Clerk already loaded
+      setTimeout(redirectIfAlreadySignedIn, 100);
+    });
+  })();
+</script> 

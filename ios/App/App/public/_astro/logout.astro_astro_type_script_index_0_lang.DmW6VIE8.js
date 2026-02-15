@@ -1,0 +1,1 @@
+import{c as o}from"./clerk-session-backup.BDnkNFug.js";import"./content-list-helpers.z0gtbiag.js";import"./sorting.BWk5PPsa.js";o().then(()=>{window.location.replace("/sign-in?from_logout=true")}).catch(()=>{window.location.replace("/sign-in?from_logout=true")});

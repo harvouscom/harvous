@@ -1,0 +1,1 @@
+const n=new Map,t=new Map;function c(e){return n.has(e)}function l(e,o,i){n.set(e,o),t.set(e,i)}function d(e){n.delete(e),t.delete(e)}function s(){n.clear(),t.clear()}typeof window<"u"&&(window.addEventListener("beforeunload",()=>{s()}),document.addEventListener("visibilitychange",()=>{}));export{c as i,d as l,l as s};

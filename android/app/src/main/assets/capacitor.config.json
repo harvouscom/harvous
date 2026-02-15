@@ -1,0 +1,35 @@
+{
+	"appId": "com.harvous.app",
+	"appName": "Harvous",
+	"webDir": "dist",
+	"server": {
+		"url": "https://app.harvous.com",
+		"cleartext": false,
+		"androidScheme": "https",
+		"backgroundColor": "#F7F7F6"
+	},
+	"ios": {
+		"backgroundColor": "#F7F7F6",
+		"contentInset": "automatic",
+		"allowsLinkPreview": false,
+		"scrollEnabled": true
+	},
+	"android": {
+		"backgroundColor": "#F7F7F6",
+		"allowMixedContent": false,
+		"captureInput": true
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 1000,
+			"launchAutoHide": true,
+			"backgroundColor": "#F7F7F6",
+			"androidSplashResourceName": "splash",
+			"showSpinner": false
+		},
+		"StatusBar": {
+			"style": "default",
+			"backgroundColor": "#F7F7F6"
+		}
+	}
+}

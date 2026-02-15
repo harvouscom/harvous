@@ -1,0 +1,11 @@
+{
+  "web_apps": [
+    {
+      "manifest": "https://app.harvous.com/manifest.json",
+      "details": {
+        "paths": ["/*"],
+        "exclude_paths": []
+      }
+    }
+  ]
+}
