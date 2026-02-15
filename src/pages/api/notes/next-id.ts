@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, Notes, UserMetadata, eq, and, desc, isNotNull } from 'astro:db';
+import { getCurrentSeason } from '@/utils/season-helpers';
 
 export const GET: APIRoute = async ({ locals }) => {
   try {
@@ -39,13 +40,15 @@ export const GET: APIRoute = async ({ locals }) => {
       const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
       
       // Create user metadata record with the highest existing ID
+      const season = getCurrentSeason();
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
+        currentSeason: season,
         createdAt: new Date()
       });
-      userMetadata = { 
+      userMetadata = {
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
@@ -59,7 +62,7 @@ export const GET: APIRoute = async ({ locals }) => {
         churchCity: null,
         churchState: null,
         churchCountry: null,
-        currentSeason: null,
+        currentSeason: season,
         lastMonthlyVisit: null,
         churchAddedAt: null,
         createdAt: new Date(),

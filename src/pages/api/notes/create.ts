@@ -14,6 +14,7 @@ import { getNextUntitledNoteName } from '@/utils/untitled-naming';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { debug } from '@/utils/logger';
 import { canCreateNote } from '@/utils/subscription';
+import { getCurrentSeason } from '@/utils/season-helpers';
 
 // Title character limits
 const TITLE_HARD_LIMIT = 50;  // Maximum allowed
@@ -171,14 +172,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
       const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
       
       // Create user metadata record with the highest existing ID
+      const season = getCurrentSeason();
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
         userColor: 'paper', // Default color
+        currentSeason: season,
         createdAt: new Date()
       });
-      userMetadata = { 
+      userMetadata = {
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
@@ -192,7 +195,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         churchCity: null,
         churchState: null,
         churchCountry: null,
-        currentSeason: null,
+        currentSeason: season,
         lastMonthlyVisit: null,
         churchAddedAt: null,
         createdAt: new Date(),

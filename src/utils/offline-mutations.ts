@@ -11,6 +11,7 @@ import {
   ensureUserPartition 
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
+import { getCurrentSeason } from './season-helpers';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
 import { isOfflineModeEnabled } from './posthog';
 
@@ -415,7 +416,7 @@ export async function createNoteOffline(userId: string, data: {
       churchCity: null,
       churchState: null,
       churchCountry: null,
-      currentSeason: null,
+      currentSeason: getCurrentSeason(),
       lastMonthlyVisit: null,
       churchAddedAt: null,
       syncStatus: 'pending',

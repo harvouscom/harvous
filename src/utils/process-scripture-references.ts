@@ -8,6 +8,7 @@ import { detectScriptureReferences, normalizeScriptureReference } from '@/utils/
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { generateAutoTags, applyAutoTags } from '@/utils/auto-tag-generator';
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
@@ -369,15 +370,17 @@ export async function processScriptureReferences(
             .limit(1);
             
             const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
-            
+
+            const season = getCurrentSeason();
             await db.insert(UserMetadata).values({
               id: `user_metadata_${userId}`,
               userId: userId,
               highestSimpleNoteId: highestExistingId,
               userColor: 'paper',
+              currentSeason: season,
               createdAt: new Date()
             });
-            userMetadata = { 
+            userMetadata = {
               id: `user_metadata_${userId}`,
               userId: userId,
               highestSimpleNoteId: highestExistingId,
@@ -391,14 +394,14 @@ export async function processScriptureReferences(
               churchCity: null,
               churchState: null,
               churchCountry: null,
-              currentSeason: null,
+              currentSeason: season,
               lastMonthlyVisit: null,
               churchAddedAt: null,
               createdAt: new Date(),
               updatedAt: null
             };
           }
-          
+
           const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
@@ -826,15 +829,17 @@ export async function processScriptureReferences(
               .limit(1);
               
               const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
-              
+
+              const season = getCurrentSeason();
               await db.insert(UserMetadata).values({
                 id: `user_metadata_${userId}`,
                 userId: userId,
                 highestSimpleNoteId: highestExistingId,
                 userColor: 'paper',
+                currentSeason: season,
                 createdAt: new Date()
               });
-              userMetadata = { 
+              userMetadata = {
                 id: `user_metadata_${userId}`,
                 userId: userId,
                 highestSimpleNoteId: highestExistingId,
@@ -848,14 +853,14 @@ export async function processScriptureReferences(
                 churchCity: null,
                 churchState: null,
                 churchCountry: null,
-                currentSeason: null,
+                currentSeason: season,
                 lastMonthlyVisit: null,
                 churchAddedAt: null,
                 createdAt: new Date(),
                 updatedAt: null
               };
             }
-            
+
             const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);

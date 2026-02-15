@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, InboxItems, InboxItemNotes, UserInboxItems, Notes, Threads, UserMetadata, NoteThreads, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, generateThreadId } from '@/utils/ids';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '@/utils/xp-system';
 import { getInboxItemWithNotes } from '@/utils/inbox-data';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
@@ -121,14 +122,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .limit(1);
         
         const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
-        
+
+        const season = getCurrentSeason();
         await db.insert(UserMetadata).values({
           id: `user_metadata_${userId}`,
           userId: userId,
           highestSimpleNoteId: highestExistingId,
+          currentSeason: season,
           createdAt: new Date()
         });
-        userMetadata = { 
+        userMetadata = {
           id: `user_metadata_${userId}`,
           userId: userId,
           highestSimpleNoteId: highestExistingId,
@@ -142,16 +145,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
           churchCity: null,
           churchState: null,
           churchCountry: null,
-          currentSeason: null,
+          currentSeason: season,
           lastMonthlyVisit: null,
           churchAddedAt: null,
           createdAt: new Date(),
           updatedAt: null
         };
       }
-      
+
       const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
-      
+
       // Use targetThreadId if provided, otherwise use unorganized
       const finalThreadId = targetThreadId || 'thread_unorganized';
 
@@ -235,14 +238,16 @@ export const POST: APIRoute = async ({ request, locals }) => {
         .limit(1);
         
         const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
-        
+
+        const season = getCurrentSeason();
         await db.insert(UserMetadata).values({
           id: `user_metadata_${userId}`,
           userId: userId,
           highestSimpleNoteId: highestExistingId,
+          currentSeason: season,
           createdAt: new Date()
         });
-        userMetadata = { 
+        userMetadata = {
           id: `user_metadata_${userId}`,
           userId: userId,
           highestSimpleNoteId: highestExistingId,
@@ -256,7 +261,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
           churchCity: null,
           churchState: null,
           churchCountry: null,
-          currentSeason: null,
+          currentSeason: season,
           lastMonthlyVisit: null,
           churchAddedAt: null,
           createdAt: new Date(),

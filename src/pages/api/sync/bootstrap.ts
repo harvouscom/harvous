@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq } from 'astro:db';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
 
@@ -160,6 +161,14 @@ export const GET: APIRoute = async ({ request, locals }) => {
       end: highestSimpleNoteId + 200,
     };
 
+    // Backfill currentSeason so users never have null (fixes existing rows)
+    let userMetaForResponse = userMetadata;
+    if (userMetadata?.currentSeason == null) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: new Date() }).where(eq(UserMetadata.userId, userId));
+      userMetaForResponse = { ...userMetadata, currentSeason: season };
+    }
+
     // Format response with timestamps as ISO strings for JSON serialization
     const bootstrapData = {
       timestamp: new Date().toISOString(),
@@ -194,8 +203,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
         ...nt,
         createdAt: nt.createdAt.toISOString(),
       })),
-      userMetadata: userMetadata ? (() => {
-        const { lockPinHash, ...rest } = userMetadata;
+      userMetadata: userMetaForResponse ? (() => {
+        const { lockPinHash, ...rest } = userMetaForResponse;
         return {
           ...rest,
           hasLockPinSet: !!lockPinHash,

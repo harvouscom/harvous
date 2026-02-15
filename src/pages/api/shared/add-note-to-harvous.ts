@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, Notes, UserMetadata, ScriptureMetadata, ResourceMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, isValidShareToken } from '@/utils/ids';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from '@/utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 
@@ -91,10 +92,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
 
+      const season = getCurrentSeason();
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
+        currentSeason: season,
         createdAt: new Date()
       });
       userMetadata = {
@@ -111,7 +114,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         churchCity: null,
         churchState: null,
         churchCountry: null,
-        currentSeason: null,
+        currentSeason: season,
         lastMonthlyVisit: null,
         churchAddedAt: null,
         createdAt: new Date(),

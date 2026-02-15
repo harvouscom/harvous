@@ -23,6 +23,7 @@
 
 import { db, UserMetadata, eq } from 'astro:db';
 import { generateReferralCode } from '@/utils/referral-code';
+import { getCurrentSeason } from '@/utils/season-helpers';
 
 export interface CachedUserData {
   firstName: string;
@@ -183,6 +184,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       profileImageUrl,
       userColor,  // From Clerk's public_metadata
       highestSimpleNoteId: 0,
+      currentSeason: getCurrentSeason(),
       // Church fields default to null for new users
       churchName: null,
       churchCity: null,

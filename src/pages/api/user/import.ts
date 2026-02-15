@@ -3,6 +3,7 @@ export const prerender = false;
 import type { APIRoute } from 'astro';
 import { db, Notes, Threads, UserMetadata, Tags, NoteTags, NoteThreads, ScriptureMetadata, eq, and, desc, isNotNull } from 'astro:db';
 import { generateNoteId, generateThreadId } from '@/utils/ids';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
 import { parseCSV, type ParsedCSVNote } from '@/utils/csv-parser';
@@ -318,11 +319,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
 
       const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
 
+      const season = getCurrentSeason();
       await db.insert(UserMetadata).values({
         id: `user_metadata_${userId}`,
         userId: userId,
         highestSimpleNoteId: highestExistingId,
         userColor: 'paper',
+        currentSeason: season,
         createdAt: new Date()
       });
 
@@ -340,7 +343,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         churchCity: null,
         churchState: null,
         churchCountry: null,
-        currentSeason: null,
+        currentSeason: season,
         lastMonthlyVisit: null,
         churchAddedAt: null,
         createdAt: new Date(),

@@ -15,6 +15,7 @@ import {
   retryIndexedDBOperation
 } from './offline-db';
 import { cacheHighestSimpleNoteId } from './offline-mutations';
+import { getCurrentSeason } from './season-helpers';
 import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';
 import { extractIdFromPath, idToUrl } from './url-helpers';
@@ -293,7 +294,7 @@ export async function applyBootstrapData(userId: string, bootstrapData: any): Pr
         churchCity: um.churchCity,
         churchState: um.churchState,
         churchCountry: um.churchCountry,
-        currentSeason: um.currentSeason,
+        currentSeason: um.currentSeason ?? getCurrentSeason(),
         lastMonthlyVisit: um.lastMonthlyVisit ? new Date(um.lastMonthlyVisit) : null,
         churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
         syncStatus: 'synced',
@@ -527,7 +528,7 @@ export async function applyIncrementalChanges(userId: string, changes: any): Pro
           churchCity: um.churchCity,
           churchState: um.churchState,
           churchCountry: um.churchCountry,
-          currentSeason: um.currentSeason,
+          currentSeason: um.currentSeason ?? getCurrentSeason(),
           lastMonthlyVisit: um.lastMonthlyVisit ? new Date(um.lastMonthlyVisit) : null,
           churchAddedAt: um.churchAddedAt ? new Date(um.churchAddedAt) : null,
           syncStatus: 'synced',

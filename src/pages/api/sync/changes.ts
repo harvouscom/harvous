@@ -2,6 +2,7 @@ export const prerender = false;
 
 import type { APIRoute } from 'astro';
 import { db, Spaces, Threads, Notes, NoteThreads, Tags, NoteTags, UserMetadata, eq, gt, and, or } from 'astro:db';
+import { getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
 import { unauthorizedResponse, serverErrorResponse, errorResponse } from '@/utils/api-responses';
 
@@ -211,13 +212,21 @@ export const GET: APIRoute = async ({ request, locals }) => {
       .get(),
     ]);
 
+    // Backfill currentSeason so users never have null (fixes existing rows)
+    let userMetaForResponse = changedUserMetadata;
+    if (changedUserMetadata?.currentSeason == null && changedUserMetadata?.userId) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: new Date() }).where(eq(UserMetadata.userId, changedUserMetadata.userId));
+      userMetaForResponse = { ...changedUserMetadata, currentSeason: season };
+    }
+
     // Format response
     const changes = {
       timestamp: new Date().toISOString(),
       cursor: `timestamp_${Date.now()}`,
-      hasChanges: changedSpaces.length > 0 || 
-                   changedThreads.length > 0 || 
-                   changedNotes.length > 0 || 
+      hasChanges: changedSpaces.length > 0 ||
+                   changedThreads.length > 0 ||
+                   changedNotes.length > 0 ||
                    changedNoteThreads.length > 0 ||
                    changedTags.length > 0 ||
                    changedNoteTags.length > 0 ||
@@ -252,8 +261,8 @@ export const GET: APIRoute = async ({ request, locals }) => {
         ...nt,
         createdAt: nt.createdAt.toISOString(),
       })),
-      userMetadata: changedUserMetadata ? (() => {
-        const { lockPinHash, ...rest } = changedUserMetadata;
+      userMetadata: userMetaForResponse ? (() => {
+        const { lockPinHash, ...rest } = userMetaForResponse;
         return {
           ...rest,
           hasLockPinSet: !!lockPinHash,

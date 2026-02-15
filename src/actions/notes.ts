@@ -2,6 +2,7 @@ import { defineAction } from "astro:actions";
 import { z } from "astro:schema";
 import { db, Notes, Threads, UserMetadata, eq, and, desc, isNotNull } from "astro:db";
 import { generateNoteId } from "@/utils/ids";
+import { getCurrentSeason } from "@/utils/season-helpers";
 import { awardNoteCreatedXP, revokeXPOnDeletion, revokeAllXPForItem } from "@/utils/xp-system";
 
 export const notes = {
@@ -75,13 +76,15 @@ export const notes = {
           const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
           
           // Create user metadata record with the highest existing ID
+          const season = getCurrentSeason();
           await db.insert(UserMetadata).values({
             id: `user_metadata_${userId}`,
             userId: userId,
             highestSimpleNoteId: highestExistingId,
+            currentSeason: season,
             createdAt: new Date()
           });
-          userMetadata = { 
+          userMetadata = {
             id: `user_metadata_${userId}`,
             userId: userId,
             highestSimpleNoteId: highestExistingId,
@@ -95,7 +98,7 @@ export const notes = {
             churchCity: null,
             churchState: null,
             churchCountry: null,
-            currentSeason: null,
+            currentSeason: season,
             lastMonthlyVisit: null,
             churchAddedAt: null,
             createdAt: new Date(),
