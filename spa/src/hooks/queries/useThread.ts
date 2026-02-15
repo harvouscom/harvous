@@ -33,7 +33,10 @@ interface NotesPage {
 export function useThread(threadId: string) {
   return useQuery({
     queryKey: ['thread', threadId],
-    queryFn: () => api.get<ThreadDetail>(`/api/threads/${threadId}/prefetch`),
+    // Prefetch endpoint returns { thread: ThreadDetail, notes, noteTypeCounts }
+    queryFn: () =>
+      api.get<{ thread: ThreadDetail }>(`/api/threads/${threadId}/prefetch`)
+        .then(res => res.thread),
     enabled: !!threadId,
   });
 }

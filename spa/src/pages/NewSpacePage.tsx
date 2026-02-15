@@ -5,7 +5,7 @@ export default function NewSpacePage() {
   const navigate = useNavigate();
 
   return (
-    <div className="new-space-page">
+    <div style={{ width: '100%', height: '100%', flex: 1, minHeight: 0 }}>
       <NewSpacePanel
         onClose={() => navigate({ to: '/dashboard' })}
         onSpaceCreated={() => navigate({ to: '/dashboard' })}

@@ -9,7 +9,13 @@
    ========================================================================== */
 .app-layout {
   height: 100svh;
+  max-height: 100svh;
+  overflow: hidden;
   padding: 0.75rem;
+  box-sizing: border-box;
+  /* Flex so children (desktop-layout / mobile-layout) fill the height correctly */
+  display: flex;
+  flex-direction: column;
 }
 
 @media (min-width: 1160px) {
@@ -30,7 +36,7 @@
     display: grid;
     grid-template-columns: 310px minmax(380px, 640px) minmax(380px, 640px);
     gap: 1.5rem;
-    height: 100%;
+    flex: 1;
     min-height: 0;
   }
 }
@@ -39,6 +45,8 @@
    Layout Column
    ========================================================================== */
 .layout-column {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
 }
@@ -57,7 +65,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  height: 100%;
+  flex: 1;
   min-height: 0;
   width: 100%;
 }
@@ -84,17 +92,44 @@
   min-height: 0;
   overflow: hidden;
   width: 100%;
+  /* Flex container so card-stack height: 100% resolves correctly in all browsers */
+  display: flex;
+  flex-direction: column;
 }
 
-.mobile-additional {
+/* Use .mobile-layout parent for higher specificity than .square-buttons-container */
+.mobile-layout .mobile-additional {
   padding-left: 0.75rem;
   padding-right: 0.75rem;
   flex-shrink: 0;
+  /* Row layout with button(s) pinned to the right */
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  align-items: center;
+  height: auto;
 }
 
 /* When footer is dismissed (e.g. edit mode), collapse so the 12px gap is removed */
 .mobile-layout.mobile-layout--no-footer .mobile-additional {
-  display: none;
+  display: none !important;
+}
+
+/* ==========================================================================
+   Page wrapper — fills parent height with vertical flex layout
+   Used on pages that have content below the card (e.g. ProfilePage logout btn)
+   ========================================================================== */
+.page-flex-column {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.page-flex-column__main {
+  flex: 1;
+  min-height: 0;
 }
 
 .mobile-bottom-sheet {
@@ -120,12 +155,17 @@
   width: 100%;
 }
 
+/* Base: no height (mobile uses auto; desktop scoped below) */
 .square-buttons-container {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  height: 100%;
   justify-content: flex-end;
+}
+
+/* Desktop only: fill the panel container column */
+.desktop-panel-container .square-buttons-container {
+  height: 100%;
 }
 
 .square-buttons-container--with-more {

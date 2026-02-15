@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
 import TabNav from '../../../src/components/react/TabNav';
+import CardStack from '../components/CardStack';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -19,19 +20,18 @@ export default function DashboardPage() {
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
   return (
-    <div className="dashboard-page">
+    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle>
       <TabNav
         tabs={tabs}
         onTabChange={(id) => setFilter(id as DashboardFilter)}
         className="dashboard-tab-nav"
       />
       <OrganizedContentList
-        // Empty initial items — component fetches from /api/content/load-more on mount
         initialItems={[]}
         filter={filter}
         userId={user?.id}
-        dataGeneratedAt={Date.now()}
+        dataGeneratedAt={1}
       />
-    </div>
+    </CardStack>
   );
 }

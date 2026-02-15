@@ -86,7 +86,7 @@ const upgradeRoute = createRoute({
 // Space / thread / note content routes
 const spaceRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
-  path: '/s/$spaceId',
+  path: '/space/$spaceId',
   component: SpacePage,
 });
 

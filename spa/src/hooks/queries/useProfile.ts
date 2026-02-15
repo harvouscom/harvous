@@ -24,7 +24,15 @@ export interface XPData {
 export function useProfile() {
   return useQuery({
     queryKey: ['profile'],
-    queryFn: () => api.get<UserProfile>('/api/user/get-profile'),
+    queryFn: () =>
+      api.get<Omit<UserProfile, 'displayName'> & { displayName?: string }>('/api/user/get-profile')
+        .then(data => ({
+          ...data,
+          // API doesn't return displayName — compute it from firstName + lastName
+          displayName: (data.displayName
+            ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()
+            ) || 'User',
+        } as UserProfile)),
     staleTime: 5 * 60_000,
   });
 }

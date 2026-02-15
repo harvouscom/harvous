@@ -660,7 +660,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: 0;
-  padding: 0.25rem 0.25rem 0 0.25rem;  /* pt-1 px-1 pb-0 */
+  padding: 0.25rem 0.25rem 0.75rem 0.25rem;  /* pt-1 px-1 pb-3 */
   position: relative;
   width: 100%;
   overflow-x: auto;

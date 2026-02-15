@@ -27,6 +27,18 @@ interface SpaceItemsPage {
   limit: number;
 }
 
+export function useSpace(spaceId: string) {
+  return useQuery({
+    queryKey: ['space', spaceId],
+    // Prefetch endpoint returns { space: SpaceDetail }
+    queryFn: () =>
+      api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`)
+        .then(res => res.space),
+    enabled: !!spaceId,
+    staleTime: 30_000,
+  });
+}
+
 export function useSpaceNotes(spaceId: string, limit = 20) {
   return useInfiniteQuery({
     queryKey: ['space', spaceId, 'notes'],

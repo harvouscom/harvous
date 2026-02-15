@@ -49,7 +49,7 @@ interface ThreadNotesListProps {
   threadId: string;
   /** Current thread color (e.g. from currentThread.color). Used for optimistic notes and note card accent so thread color shows for members in shared spaces. */
   threadColor?: string | null;
-  noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
+  noteTypeFilter?: 'all' | 'default' | 'notes' | 'scripture' | 'resource';
   noteTypeCounts?: NoteTypeCounts;
   'client:load'?: boolean;
   'client:visible'?: boolean;
@@ -60,11 +60,11 @@ interface ThreadNotesListProps {
 
 // Helper function to filter notes by type
 // Matches OrganizedContentList.tsx line 307: item.noteType === 'default' || !item.noteType
-function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scripture' | 'resource'): Note[] {
+function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'notes' | 'scripture' | 'resource'): Note[] {
   if (!filter || filter === 'all') {
     return notes;
   }
-  if (filter === 'default') {
+  if (filter === 'default' || filter === 'notes') {
     return notes.filter(note => note.noteType === 'default' || !note.noteType);
   }
   if (filter === 'scripture') {
@@ -117,6 +117,10 @@ export default function ThreadNotesList({
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
+  // Holds the full unfiltered set of notes from the last API fetch.
+  // Used as the source when the noteTypeFilter changes, so tab switching
+  // never loses notes (notesRef.current reflects the *filtered* view).
+  const allFetchedNotesRef = useRef<Note[]>(initialNotes);
   const deletedNoteIdsRef = useRef<Set<string>>(new Set());
   
   // State for delete confirmation dialog
@@ -162,12 +166,13 @@ export default function ThreadNotesList({
     const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
     const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
     
-    // Determine source: 
-    // - If initialNotes changed → use initialNotes (new data from server)
-    // - If filter changed → use initialNotes (re-filter from original source)
-    // - Otherwise → use notesRef.current (preserve optimistic updates when neither changed)
-    // This ensures we always filter from the full, unfiltered list when the filter changes
-    let sourceNotes = (initialNotesChanged || filterChanged) ? initialNotes : notesRef.current;
+    // Determine source:
+    // - If initialNotes changed AND has data → use initialNotes (new data from SSR)
+    // - Otherwise → use allFetchedNotesRef.current (full unfiltered set from last API fetch)
+    // allFetchedNotesRef always holds the complete unfiltered API result, so tab switching
+    // correctly re-slices from the full set rather than the already-filtered notesRef.current.
+    const hasFreshServerData = initialNotesChanged && initialNotes.length > 0;
+    let sourceNotes = hasFreshServerData ? initialNotes : allFetchedNotesRef.current;
     
     // Merge optimistic notes with sourceNotes to preserve optimistic updates
     // Optimistic notes are notes that were added optimistically but haven't been confirmed by API yet
@@ -266,12 +271,15 @@ export default function ThreadNotesList({
           syncStatus: note.syncStatus || 'synced' // Preserve syncStatus from IndexedDB
         }));
 
+        // Store full unfiltered result
+        allFetchedNotesRef.current = normalized;
+
         // Filter out deleted notes
         const filtered = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
 
         // Apply note type filter
-        const typeFiltered = noteTypeFilter === 'all' 
-          ? filtered 
+        const typeFiltered = noteTypeFilter === 'all'
+          ? filtered
           : filterNotesByType(filtered, noteTypeFilter);
 
         // Deduplicate and sort
@@ -350,6 +358,9 @@ export default function ThreadNotesList({
             }
           }
 
+          // Store the full unfiltered API result so filter changes can re-slice without re-fetching
+          allFetchedNotesRef.current = freshNotes;
+
           // Filter out deleted notes
           const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
           
@@ -363,7 +374,7 @@ export default function ThreadNotesList({
               const matchesFilter = noteTypeFilter === 'all' || 
                                    (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
                                    (noteTypeFilter === 'resources' && note.noteType === 'resource') ||
-                                   (noteTypeFilter === 'default' && (note.noteType === 'default' || !note.noteType));
+                                   ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (note.noteType === 'default' || !note.noteType));
               return matchesFilter && !deletedNoteIdsRef.current.has(note.id);
             }
           );
@@ -481,8 +492,8 @@ export default function ThreadNotesList({
               }
               
               // Check if note matches the current filter
-              const matchesFilter = noteTypeFilter === 'all' 
-                || (noteTypeFilter === 'default' && (newNote.noteType === 'default' || !newNote.noteType))
+              const matchesFilter = noteTypeFilter === 'all'
+                || ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (newNote.noteType === 'default' || !newNote.noteType))
                 || (noteTypeFilter === 'scripture' && newNote.noteType === 'scripture')
                 || (noteTypeFilter === 'resource' && newNote.noteType === 'resource');
               
@@ -578,7 +589,7 @@ export default function ThreadNotesList({
         const matchesFilter = noteTypeFilter === 'all' ||
                              (noteTypeFilter === 'scripture' && noteToAdd.noteType === 'scripture') ||
                              (noteTypeFilter === 'resources' && noteToAdd.noteType === 'resource') ||
-                             (noteTypeFilter === 'default' && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
+                             ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
 
         if (matchesFilter) {
           debug('[ThreadNotesList] Adding note optimistically', { noteId, title: noteToAdd.title });
@@ -796,6 +807,13 @@ export default function ThreadNotesList({
   }, [threadId, refreshNotesList]);
 
 
+  // SPA context: when no initial notes are provided (no SSR pre-fetch), load immediately on mount
+  useEffect(() => {
+    if (initialNotes.length > 0) return; // Already have data, skip
+    refreshNotesList();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId]); // Only re-run when threadId changes, not on every refreshNotesList recreation
+
   // Refresh notes on View Transitions navigation
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -908,8 +926,11 @@ export default function ThreadNotesList({
         console.error('[ThreadNotesList] Error checking sessionStorage in checkAndRefreshOnMount:', error);
       }
       
-      // Refresh if: PWA context, stale data, coming from note page, or has recent note
-      if (inPWA || dataIsStale || cameFromNotePage || previousWasNote || hasRecentNote) {
+      // Also refresh if initialNotes is empty (SPA context - no SSR pre-fetch)
+      const hasNoInitialData = initialNotes.length === 0;
+
+      // Refresh if: PWA context, stale data, coming from note page, has recent note, or no initial data
+      if (inPWA || dataIsStale || cameFromNotePage || previousWasNote || hasRecentNote || hasNoInitialData) {
         hasRefreshedOnMountRef.current = true;
         // If we have a recent note, use verification-based refresh with noteId
         // Otherwise, use regular refresh

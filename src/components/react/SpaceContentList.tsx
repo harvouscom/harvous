@@ -32,7 +32,7 @@ interface SpaceItem {
 interface SpaceContentListProps {
   initialItems: SpaceItem[];
   spaceId: string;
-  filter?: 'all' | 'threads' | 'notes';
+  filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
   spaceIsShared?: boolean;
 }
 
@@ -57,7 +57,7 @@ function stripHtml(html: string): string {
 export default function SpaceContentList({
   initialItems,
   spaceId,
-  filter = 'all',
+  filter = 'all' as 'all' | 'threads' | 'notes' | 'scripture' | 'resources',
   spaceIsShared = false
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
@@ -333,9 +333,11 @@ export default function SpaceContentList({
             5000, // 5 seconds
             (item) => {
               // Check if item matches current filter
-              const matchesFilter = filter === 'all' || 
+              const matchesFilter = filter === 'all' ||
                                    (filter === 'threads' && item.itemType === 'thread') ||
-                                   (filter === 'notes' && item.itemType === 'note');
+                                   (filter === 'notes' && item.itemType === 'note' && (item.noteType === 'default' || !item.noteType)) ||
+                                   (filter === 'scripture' && item.itemType === 'note' && item.noteType === 'scripture') ||
+                                   (filter === 'resources' && item.itemType === 'note' && item.noteType === 'resource');
               return matchesFilter && !deletedItemIdsRef.current.has(item.id);
             }
           );
@@ -399,11 +401,15 @@ export default function SpaceContentList({
           const combinedItems = combinedItemsRaw;
 
           // Apply filter
-          let filteredItemsRaw = filter === 'all' 
-            ? combinedItems 
+          let filteredItemsRaw = filter === 'all'
+            ? combinedItems
             : filter === 'threads'
             ? combinedItems.filter(item => item.itemType === 'thread')
-            : combinedItems.filter(item => item.itemType === 'note');
+            : filter === 'scripture'
+            ? combinedItems.filter(item => item.itemType === 'note' && item.noteType === 'scripture')
+            : filter === 'resources'
+            ? combinedItems.filter(item => item.itemType === 'note' && item.noteType === 'resource')
+            : combinedItems.filter(item => item.itemType === 'note' && (item.noteType === 'default' || !item.noteType));
 
           // Ensure items are sorted by lastVisited after filtering
           // Ensure all dates are normalized before sorting
@@ -455,6 +461,15 @@ export default function SpaceContentList({
       return await verifyAndRefresh(3);
     }
   }, [spaceId, filter]);
+
+  // Re-fetch and re-filter when filter changes (tab switching)
+  const prevFilterRef = useRef<string>(filter);
+  useEffect(() => {
+    const filterChanged = prevFilterRef.current !== filter;
+    prevFilterRef.current = filter;
+    if (!filterChanged) return;
+    refreshSpaceContent();
+  }, [filter, refreshSpaceContent]);
 
   // Check sessionStorage on mount for recently created items
   useEffect(() => {
@@ -1004,6 +1019,8 @@ export default function SpaceContentList({
           <p style={{ margin: 0 }}>
             {filter === 'threads' ? 'No threads yet.' :
              filter === 'notes' ? 'No notes yet.' :
+             filter === 'scripture' ? 'No scripture yet.' :
+             filter === 'resources' ? 'No resources yet.' :
              'Nothing here yet.'}
           </p>
         </div>
@@ -1011,6 +1028,8 @@ export default function SpaceContentList({
           <p style={{ margin: 0 }}>
             {filter === 'threads' ? 'Add a thread to get started.' :
              filter === 'notes' ? 'Add a note to get started.' :
+             filter === 'scripture' ? 'Add a scripture note to get started.' :
+             filter === 'resources' ? 'Add a resource to get started.' :
              'Add something to get started.'}
           </p>
         </div>

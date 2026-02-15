@@ -8,6 +8,10 @@ import path from 'path';
 export default defineConfig({
   plugins: [react()],
   root: 'spa',
+  // Serve public assets (fonts, icons, manifest, sw.js) from the project root's public/
+  publicDir: path.resolve(__dirname, 'public'),
+  // Load .env from the project root (not spa/) where all env vars live
+  envDir: path.resolve(__dirname),
   build: {
     outDir: '../dist-spa',
     emptyOutDir: true,

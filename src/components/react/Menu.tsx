@@ -6,6 +6,7 @@ import EraseConfirmDialog from './EraseConfirmDialog';
 import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
+import { idToUrl } from '@/utils/url-helpers';
 
 export interface MenuOption {
   action: string;
@@ -336,13 +337,13 @@ export default function Menu({
         console.error('Error opening edit space panel:', error);
       }
     } else if (action === 'leaveSpace') {
-      // Leave space: DELETE member, redirect to / (confirmation handled by dialog)
+      // Leave space: DELETE member, redirect to dashboard (confirmation handled by dialog)
       if (contentType !== 'space' || !contentId || !userId) return;
       try {
         const base = typeof window !== 'undefined' ? window.location.origin : '';
         const res = await fetch(`${base}/api/spaces/${contentId}/members/${userId}`, { method: 'DELETE' });
         if (res.ok) {
-          window.location.href = '/';
+          window.location.href = '/dashboard';
         } else {
           const data = await res.json().catch(() => ({}));
           alert(data.message || 'Could not leave space.');
@@ -509,16 +510,19 @@ export default function Menu({
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
-          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
-          if (threadPageMatch) {
-            redirectUrl = `/${threadPageMatch[1]}${query}`;
+          // Match both SPA format (/thread/xxx) and old format (/thread_xxx)
+          const spaMatch = currentPath.match(/^\/thread\/([a-zA-Z0-9_-]+)$/);
+          const oldMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          const threadIdFromUrl = spaMatch ? `thread_${spaMatch[1]}` : oldMatch ? oldMatch[1] : null;
+          if (threadIdFromUrl) {
+            redirectUrl = idToUrl(threadIdFromUrl) + query;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}${query}`;
+            redirectUrl = idToUrl(currentThreadId) + query;
           } else {
-            redirectUrl = `/${query}`;
+            redirectUrl = query ? `/dashboard${query}` : '/dashboard';
           }
         } else {
-          redirectUrl = query ? `/${query}` : '/';
+          redirectUrl = query ? `/dashboard${query}` : '/dashboard';
         }
 
         safeNavigate(redirectUrl, { history: 'replace' });
@@ -608,16 +612,19 @@ export default function Menu({
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
-          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
-          if (threadPageMatch) {
-            redirectUrl = `/${threadPageMatch[1]}${errQuery}`;
+          // Match both SPA format (/thread/xxx) and old format (/thread_xxx)
+          const spaMatch = currentPath.match(/^\/thread\/([a-zA-Z0-9_-]+)$/);
+          const oldMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          const threadIdFromUrl = spaMatch ? `thread_${spaMatch[1]}` : oldMatch ? oldMatch[1] : null;
+          if (threadIdFromUrl) {
+            redirectUrl = idToUrl(threadIdFromUrl) + errQuery;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}${errQuery}`;
+            redirectUrl = idToUrl(currentThreadId) + errQuery;
           } else {
-            redirectUrl = errQuery ? `/${errQuery}` : '/';
+            redirectUrl = errQuery ? `/dashboard${errQuery}` : '/dashboard';
           }
         } else {
-          redirectUrl = errQuery ? `/${errQuery}` : '/';
+          redirectUrl = errQuery ? `/dashboard${errQuery}` : '/dashboard';
         }
 
         safeNavigate(redirectUrl, { history: 'replace' });
@@ -626,27 +633,30 @@ export default function Menu({
 
         // Redirect based on content type (only reached if response.ok was true)
         let redirectUrl: string;
+        const toastQuery = `?toast=success&message=${encodeURIComponent(successMessage)}`;
         if (contentType === 'note') {
           // Priority 1: If we're on a thread page, always redirect back to that thread
           // This ensures deleting a note from a thread page keeps us on that thread
           const currentPath = window.location.pathname;
-          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
-          if (threadPageMatch) {
-            const threadIdFromUrl = threadPageMatch[1];
-            redirectUrl = `/${threadIdFromUrl}?toast=success&message=` + encodeURIComponent(successMessage);
+          // Match both SPA format (/thread/xxx) and old format (/thread_xxx)
+          const spaMatch = currentPath.match(/^\/thread\/([a-zA-Z0-9_-]+)$/);
+          const oldMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          const threadIdFromUrl = spaMatch ? `thread_${spaMatch[1]}` : oldMatch ? oldMatch[1] : null;
+          if (threadIdFromUrl) {
+            redirectUrl = idToUrl(threadIdFromUrl) + toastQuery;
           } else if (currentThreadId) {
             // Priority 2: Use the explicitly passed currentThreadId if available
-            redirectUrl = `/${currentThreadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = idToUrl(currentThreadId) + toastQuery;
           } else if (data.threadId && data.threadId !== 'thread_unorganized') {
             // Priority 3: Fallback to the threadId from the API response
-            redirectUrl = `/${data.threadId}?toast=success&message=` + encodeURIComponent(successMessage);
+            redirectUrl = idToUrl(data.threadId) + toastQuery;
           } else {
             // Priority 4: Fallback to dashboard
-            redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+            redirectUrl = '/dashboard' + toastQuery;
           }
         } else {
           // For threads and spaces, redirect to dashboard
-          redirectUrl = '/?toast=success&message=' + encodeURIComponent(successMessage);
+          redirectUrl = '/dashboard' + toastQuery;
         }
         // Use View Transitions instead of hard redirect to maintain React state
         safeNavigate(redirectUrl, { history: 'replace' });
@@ -677,16 +687,19 @@ export default function Menu({
         let redirectUrl: string;
         if (contentType === 'note') {
           const currentPath = window.location.pathname;
-          const threadPageMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
-          if (threadPageMatch) {
-            redirectUrl = `/${threadPageMatch[1]}${catchQuery}`;
+          // Match both SPA format (/thread/xxx) and old format (/thread_xxx)
+          const spaMatch = currentPath.match(/^\/thread\/([a-zA-Z0-9_-]+)$/);
+          const oldMatch = currentPath.match(/^\/(thread_[a-zA-Z0-9_-]+)$/);
+          const threadIdFromUrl = spaMatch ? `thread_${spaMatch[1]}` : oldMatch ? oldMatch[1] : null;
+          if (threadIdFromUrl) {
+            redirectUrl = idToUrl(threadIdFromUrl) + catchQuery;
           } else if (currentThreadId) {
-            redirectUrl = `/${currentThreadId}${catchQuery}`;
+            redirectUrl = idToUrl(currentThreadId) + catchQuery;
           } else {
-            redirectUrl = catchQuery ? `/${catchQuery}` : '/';
+            redirectUrl = catchQuery ? `/dashboard${catchQuery}` : '/dashboard';
           }
         } else {
-          redirectUrl = catchQuery ? `/${catchQuery}` : '/';
+          redirectUrl = catchQuery ? `/dashboard${catchQuery}` : '/dashboard';
         }
 
         safeNavigate(redirectUrl, { history: 'replace' });
