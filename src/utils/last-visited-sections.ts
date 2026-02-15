@@ -7,6 +7,7 @@ import { normalizeDate } from '@/utils/sorting';
 
 export const SECTION_KEYS = {
   recent: 'recent',
+  moreThan3Days: 'moreThan3Days',
   moreThan1Week: 'moreThan1Week',
   moreThan2Weeks: 'moreThan2Weeks',
   moreThan1Month: 'moreThan1Month',
@@ -19,6 +20,7 @@ export type SectionKey = (typeof SECTION_KEYS)[keyof typeof SECTION_KEYS];
 /** Display order (newest first). First group has no label in UI by default. */
 export const SECTION_ORDER: SectionKey[] = [
   SECTION_KEYS.recent,
+  SECTION_KEYS.moreThan3Days,
   SECTION_KEYS.moreThan1Week,
   SECTION_KEYS.moreThan2Weeks,
   SECTION_KEYS.moreThan1Month,
@@ -28,6 +30,7 @@ export const SECTION_ORDER: SectionKey[] = [
 
 export const SECTION_LABELS: Record<SectionKey, string> = {
   [SECTION_KEYS.recent]: '', // No label for first group
+  [SECTION_KEYS.moreThan3Days]: 'More than 3 days ago',
   [SECTION_KEYS.moreThan1Week]: 'More than a week ago',
   [SECTION_KEYS.moreThan2Weeks]: 'More than 2 weeks ago',
   [SECTION_KEYS.moreThan1Month]: 'More than a month ago',
@@ -36,6 +39,7 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const THREE_DAYS_MS = 3 * MS_PER_DAY;
 const ONE_WEEK_MS = 7 * MS_PER_DAY;
 const TWO_WEEKS_MS = 14 * MS_PER_DAY;
 const ONE_MONTH_MS = 30 * MS_PER_DAY;
@@ -56,7 +60,8 @@ export function getLastVisitedSectionKey(
   const t = date.getTime();
   const age = now - t;
 
-  if (age < ONE_WEEK_MS) return SECTION_KEYS.recent;
+  if (age < THREE_DAYS_MS) return SECTION_KEYS.recent;
+  if (age < ONE_WEEK_MS) return SECTION_KEYS.moreThan3Days;
   if (age < TWO_WEEKS_MS) return SECTION_KEYS.moreThan1Week;
   if (age < ONE_MONTH_MS) return SECTION_KEYS.moreThan2Weeks;
   if (age < SIX_MONTHS_MS) return SECTION_KEYS.moreThan1Month;
