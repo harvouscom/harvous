@@ -139,7 +139,8 @@ export const POST: APIRoute = async ({ locals }) => {
         userId: userId,
         isPublic: false,
         addedBy: 'system',
-        createdAt: new Date(),
+        createdAt: now,
+        lastVisited: now, // Match account-creation time so section breaks show "Recent" not "More than a year ago"
         contentEncrypted: false,
       });
       

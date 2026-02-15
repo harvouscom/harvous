@@ -9,6 +9,12 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 import { setSelectedSpaceId } from './navigation/selectedSpace';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
+import {
+  getSectionKeyForItem,
+  SECTION_ORDER,
+  SECTION_LABELS,
+  type SectionKey
+} from '@/utils/last-visited-sections';
 
 interface SpaceItem {
   id: string;
@@ -27,6 +33,8 @@ interface SpaceItem {
   threadColors?: Array<{ color: string; frequency: number }>;
   createdAt?: Date | string;
   lastVisited?: Date | string;
+  /** Set for notes (thread they belong to); for threads use id. Used for onboarding section fallback. */
+  threadId?: string | null;
 }
 
 interface SpaceContentListProps {
@@ -1025,69 +1033,94 @@ export default function SpaceContentList({
     );
   }
 
+  const bySection = new Map<SectionKey, typeof filteredItems>();
+  for (const key of SECTION_ORDER) bySection.set(key, []);
+  for (const item of filteredItems) {
+    const key = getSectionKeyForItem({
+      lastVisited: item.lastVisited,
+      createdAt: item.createdAt,
+      threadId: item.itemType === 'thread' ? item.id : item.threadId
+    });
+    bySection.get(key)!.push(item);
+  }
+
+  const renderItem = (item: (typeof filteredItems)[number], index: number) => (
+    <div
+      key={item.id}
+      className={`content-item ${item.itemType}-item mb-3 card-enter`}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      {item.itemType === 'thread' ? (
+        <a
+          href={threadHref(item.id)}
+          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          onClick={handleSelectSpace}
+        >
+          <CardThread
+            thread={{
+              id: item.id,
+              title: item.title,
+              subtitle: item.subtitle || `${item.noteCount || 0} notes`,
+              count: item.noteCount,
+              accentColor: item.accentColor,
+              lastUpdated: item.lastUpdated,
+              isPrivate: !item.isPublic,
+              icon: spaceIsShared ? 'layer-group' : undefined
+            }}
+          />
+        </a>
+      ) : item.noteType === 'scripture' ? (
+        <CondensedNoteItem
+          title={item.title || "Untitled Note"}
+          noteType={item.noteType || 'default'}
+          href={noteHref(item.id)}
+          onClick={handleSelectSpace}
+          threadColors={item.threadColors}
+          noteId={item.id}
+        />
+      ) : (
+        <a
+          href={noteHref(item.id)}
+          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          onClick={handleSelectSpace}
+        >
+          <CardNote
+            title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
+            content={(() => {
+              if (item.noteType === 'resource' && item.resourceDescription) {
+                return item.resourceDescription;
+              }
+              const cleanContent = stripHtml(item.content || '');
+              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+            })()}
+            noteType={item.noteType || 'default'}
+            imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
+            resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+            resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+            resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+            threadColors={item.threadColors}
+            noteId={item.id}
+          />
+        </a>
+      )}
+    </div>
+  );
+
   return (
     <div className="flex flex-col">
-      {filteredItems.map((item, index) => (
-        <div 
-          key={item.id} 
-          className={`content-item ${item.itemType}-item mb-3 card-enter`}
-          style={{ animationDelay: `${index * 50}ms` }}
-        >
-          {item.itemType === 'thread' ? (
-            <a 
-              href={threadHref(item.id)}
-              className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-              onClick={handleSelectSpace}
-            >
-              <CardThread
-                thread={{
-                  id: item.id,
-                  title: item.title,
-                  subtitle: item.subtitle || `${item.noteCount || 0} notes`,
-                  count: item.noteCount,
-                  accentColor: item.accentColor,
-                  lastUpdated: item.lastUpdated,
-                  isPrivate: !item.isPublic,
-                  icon: spaceIsShared ? 'layer-group' : undefined
-                }}
-              />
-            </a>
-          ) : item.noteType === 'scripture' ? (
-            <CondensedNoteItem 
-              title={item.title || "Untitled Note"}
-              noteType={item.noteType || 'default'}
-              href={noteHref(item.id)}
-              onClick={handleSelectSpace}
-              threadColors={item.threadColors}
-              noteId={item.id}
-            />
-          ) : (
-            <a 
-              href={noteHref(item.id)}
-              className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-              onClick={handleSelectSpace}
-            >
-              <CardNote 
-                title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
-                content={(() => {
-                  if (item.noteType === 'resource' && item.resourceDescription) {
-                    return item.resourceDescription;
-                  }
-                  const cleanContent = stripHtml(item.content || '');
-                  return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-                })()}
-                noteType={item.noteType || 'default'}
-                imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
-                resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
-                resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
-                resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
-                threadColors={item.threadColors}
-                noteId={item.id}
-              />
-            </a>
-          )}
-        </div>
-      ))}
+      {SECTION_ORDER.flatMap((sectionKey) => {
+        const itemsInSection = bySection.get(sectionKey)!;
+        if (itemsInSection.length === 0) return [];
+        const label = SECTION_LABELS[sectionKey];
+        return [
+          label ? (
+            <div key={`section-${sectionKey}`} className="organized-content__section-header">
+              {label}
+            </div>
+          ) : null,
+          ...itemsInSection.map((item, index) => renderItem(item, index))
+        ];
+      })}
     </div>
   );
 }
