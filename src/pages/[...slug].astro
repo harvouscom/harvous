@@ -1322,7 +1322,8 @@ const isOnboardingNote = isNote && typeof currentThread?.id === 'string' && curr
                       tabs={[
                         { id: "all", label: "All", isActive: true },
                         { id: "threads", label: "Threads", isActive: false },
-                        { id: "notes", label: "Notes", isActive: false }
+                        { id: "notes", label: "Notes", isActive: false },
+                        { id: "scripture", label: "Scripture", isActive: false }
                       ]}
                       class="content-tabs"
                     />
@@ -1355,6 +1356,17 @@ const isOnboardingNote = isNote && typeof currentThread?.id === 'string' && curr
                         initialItems={content.notes?.map((n: any) => ({ ...n, itemType: 'note' })) || []}
                         spaceId={id!}
                         filter="notes"
+                        spaceIsShared={content.isPublic === true}
+                        client:load
+                      />
+                    </div>
+
+                    {/* Scripture Only Content */}
+                    <div class="organized-content flex flex-col hidden" data-tab-content="scripture">
+                      <SpaceContentList
+                        initialItems={(content.notes || []).filter((n: any) => n.noteType === 'scripture').map((n: any) => ({ ...n, itemType: 'note' }))}
+                        spaceId={id!}
+                        filter="scripture"
                         spaceIsShared={content.isPublic === true}
                         client:load
                       />

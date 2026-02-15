@@ -32,7 +32,7 @@ interface SpaceItem {
 interface SpaceContentListProps {
   initialItems: SpaceItem[];
   spaceId: string;
-  filter?: 'all' | 'threads' | 'notes';
+  filter?: 'all' | 'threads' | 'notes' | 'scripture';
   spaceIsShared?: boolean;
 }
 
@@ -333,9 +333,10 @@ export default function SpaceContentList({
             5000, // 5 seconds
             (item) => {
               // Check if item matches current filter
-              const matchesFilter = filter === 'all' || 
+              const matchesFilter = filter === 'all' ||
                                    (filter === 'threads' && item.itemType === 'thread') ||
-                                   (filter === 'notes' && item.itemType === 'note');
+                                   (filter === 'notes' && item.itemType === 'note') ||
+                                   (filter === 'scripture' && item.itemType === 'note' && item.noteType === 'scripture');
               return matchesFilter && !deletedItemIdsRef.current.has(item.id);
             }
           );
@@ -399,10 +400,12 @@ export default function SpaceContentList({
           const combinedItems = combinedItemsRaw;
 
           // Apply filter
-          let filteredItemsRaw = filter === 'all' 
-            ? combinedItems 
+          let filteredItemsRaw = filter === 'all'
+            ? combinedItems
             : filter === 'threads'
             ? combinedItems.filter(item => item.itemType === 'thread')
+            : filter === 'scripture'
+            ? combinedItems.filter(item => item.itemType === 'note' && item.noteType === 'scripture')
             : combinedItems.filter(item => item.itemType === 'note');
 
           // Ensure items are sorted by lastVisited after filtering
@@ -532,7 +535,7 @@ export default function SpaceContentList({
       // Check if note was created in current space
       if (noteSpaceId === spaceId && noteId) {
         // Optimistic update - add note to list immediately
-        if (note && (filter === 'all' || filter === 'notes')) {
+        if (note && (filter === 'all' || filter === 'notes' || (filter === 'scripture' && note.noteType === 'scripture'))) {
           const newItem: SpaceItem = {
             id: note.id,
             itemType: 'note',
@@ -991,10 +994,12 @@ export default function SpaceContentList({
   }, [spaceId, refreshSpaceContent]);
 
   // Filter items based on current filter
-  const filteredItems = filter === 'all' 
-    ? items 
+  const filteredItems = filter === 'all'
+    ? items
     : filter === 'threads'
     ? items.filter(item => item.itemType === 'thread')
+    : filter === 'scripture'
+    ? items.filter(item => item.itemType === 'note' && item.noteType === 'scripture')
     : items.filter(item => item.itemType === 'note');
 
   if (filteredItems.length === 0) {
@@ -1004,6 +1009,7 @@ export default function SpaceContentList({
           <p style={{ margin: 0 }}>
             {filter === 'threads' ? 'No threads yet.' :
              filter === 'notes' ? 'No notes yet.' :
+             filter === 'scripture' ? 'No scripture notes yet.' :
              'Nothing here yet.'}
           </p>
         </div>
@@ -1011,6 +1017,7 @@ export default function SpaceContentList({
           <p style={{ margin: 0 }}>
             {filter === 'threads' ? 'Add a thread to get started.' :
              filter === 'notes' ? 'Add a note to get started.' :
+             filter === 'scripture' ? 'Reference Bible verses in your notes to see them here.' :
              'Add something to get started.'}
           </p>
         </div>

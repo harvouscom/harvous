@@ -1314,8 +1314,25 @@ export default function EditSpacePanel({
     );
   };
 
+  // Helper function to get note type icon (matches EditThreadPanel)
+  const getNoteTypeIcon = (noteType: string = 'default') => {
+    if (noteType === 'scripture') {
+      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else if (noteType === 'resource') {
+      return <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
+    } else {
+      // Default note - use bookmark icon
+      return (
+        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+        </svg>
+      );
+    }
+  };
+
   // Render compact note item (similar to EditThreadPanel)
   const renderCompactNoteItem = (note: Note) => {
+    const noteType = (note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default';
     return (
       <div
         className="relative cursor-pointer"
@@ -1364,11 +1381,9 @@ export default function EditSpacePanel({
             overflow: 'hidden'
           }}
         >
-          {/* Note type icon - default bookmark */}
+          {/* Note type icon - scroll for scripture, newspaper for resource, bookmark for default */}
           <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
-              <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-            </svg>
+            {getNoteTypeIcon(noteType)}
           </div>
           
           {/* Text content - only title */}
