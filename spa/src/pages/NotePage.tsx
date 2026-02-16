@@ -13,7 +13,8 @@ export default function NotePage() {
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
 
   // The parent thread is the first thread this note belongs to (if any)
-  const parentThreadId = note?.threads?.[0]?.id ?? undefined;
+  const parentThread = note?.threads?.[0];
+  const parentThreadId = parentThread?.id ?? undefined;
 
   // Set up the global save callback that CardFullEditable relies on
   useEffect(() => {
@@ -76,17 +77,27 @@ export default function NotePage() {
     // Wrapper div provides data attributes that CardFullEditable reads from the DOM
     <div
       data-note-id={noteId}
-      {...(parentThreadId ? { 'data-parent-thread-id': parentThreadId } : {})}
+      {...(parentThreadId ? {
+        'data-parent-thread-id': parentThreadId,
+        'data-parent-thread-title': parentThread?.title ?? '',
+        'data-parent-thread-background-gradient': parentThread?.backgroundGradient ?? '',
+      } : {})}
       style={{ display: 'contents' }}
     >
       <CardFullEditable
-        title={note.title ?? ''}
+        title={note.title || 'Untitled Note'}
         content={note.content ?? ''}
         date={formattedDate}
         noteId={noteId}
-        noteType={note.type as 'default' | 'scripture' | 'resource'}
+        noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
+        version={note.version}
+        resourceTitle={note.resourceTitle ?? undefined}
+        resourceDescription={note.resourceDescription ?? undefined}
+        resourceImage={note.resourceImage ?? undefined}
+        resourceUrl={note.resourceUrl ?? undefined}
         isEditable={true}
-        contentEncrypted={false}
+        contentEncrypted={note.contentEncrypted ?? false}
+        className="h-full flex-1 min-h-0"
       />
     </div>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../lib/api';
+import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface SpacePreview {
   id: string;
@@ -43,7 +44,7 @@ export default function JoinSpacePage() {
         {}
       );
       if (result.success) {
-        navigate({ to: `/app/s/${result.spaceId}` });
+        navigate({ to: idToUrl(result.spaceId) as any });
       }
     } catch {
       setError('Failed to join space. Please try again.');
@@ -77,7 +78,7 @@ export default function JoinSpacePage() {
           {space.isAlreadyMember ? (
             <button
               className="btn btn-primary"
-              onClick={() => navigate({ to: `/app/s/${space.id}` })}
+              onClick={() => navigate({ to: idToUrl(space.id) as any })}
             >
               Open Space
             </button>

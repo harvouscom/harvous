@@ -736,6 +736,12 @@ export default function SpaceContentList({
       previousPathnameRef.current = window.location.pathname;
     }
 
+    // Match both Astro URL format (/{spaceId}) and SPA URL format (/space/{id-without-prefix})
+    const isOnCurrentSpacePage = (path: string) => {
+      const spaPath = `/space/${spaceId.replace('space_', '')}`;
+      return path === `/${spaceId}` || path === spaPath;
+    };
+
     const handleBeforeNavigation = () => {
       isNavigatingRef.current = true;
       // Store current pathname before navigation
@@ -747,8 +753,8 @@ export default function SpaceContentList({
       isNavigatingRef.current = false;
 
       const currentPath = window.location.pathname;
-      const isSpacePage = currentPath === `/${spaceId}`;
-      const navigatedToSpace = isSpacePage && previousPathnameRef.current !== `/${spaceId}`;
+      const isSpacePage = isOnCurrentSpacePage(currentPath);
+      const navigatedToSpace = isSpacePage && !isOnCurrentSpacePage(previousPathnameRef.current);
 
       // Only refresh if we're on the space page
       if (isSpacePage && isMountedRef.current) {
@@ -806,7 +812,7 @@ export default function SpaceContentList({
           });
 
           // Background API refresh (optimistic update already handled visual feedback, retry logic handles transient failures)
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             debug('[SpaceContentList] Refreshing space content for verification');
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Refresh completed', { success, itemCount: itemsRef.current.length });
@@ -839,14 +845,14 @@ export default function SpaceContentList({
     // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       const currentPath = window.location.pathname;
-      const isSpacePage = currentPath === `/${spaceId}`;
-      
+      const isSpacePage = isOnCurrentSpacePage(currentPath);
+
       if (!isSpacePage) return;
 
       // Always refresh once on mount when on the space page (fixes navigate-away-and-back showing stale list)
       if (!hasRefreshedOnMountRef.current) {
         hasRefreshedOnMountRef.current = true;
-        if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+        if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
           refreshSpaceContent().then((success) => {
             debug('[SpaceContentList] Mount refresh completed (always on space page)', { success });
           });
@@ -911,14 +917,14 @@ export default function SpaceContentList({
         // If PWA or stale data, refresh immediately (retry logic handles transient failures)
         // Otherwise, use optimistic update for navigation scenarios
         if (inPWA || dataIsStale) {
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
             });
           }
         } else {
           // Background API refresh for navigation scenarios (retry logic handles transient failures)
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Mount refresh completed', { success });
             });
@@ -955,8 +961,8 @@ export default function SpaceContentList({
       } else {
         // App came to foreground
         const currentPath = window.location.pathname;
-        const isSpacePage = currentPath === `/${spaceId}`;
-        
+        const isSpacePage = isOnCurrentSpacePage(currentPath);
+
         if (!isSpacePage) return;
 
         const timeInBackground = lastBackgroundTimeRef.current > 0 

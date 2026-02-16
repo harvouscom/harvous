@@ -914,11 +914,24 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { threads: persistentThreads } = organizePersistentItems();
 
+  // Merge nav-API threads for the selected space with history threads so users
+  // see all threads in a space — not just ones they've previously visited.
+  const displayThreads = useMemo(() => {
+    const persistentIds = new Set(persistentThreads.map((t) => t.id));
+    const apiThreadsForSpace = threads.filter((t) => {
+      if (selectedSpaceId) return t.spaceId === selectedSpaceId;
+      // My Home: show threads without a space (or unorganized)
+      return !t.spaceId || t.id === 'thread_unorganized';
+    });
+    const extraFromApi = apiThreadsForSpace.filter((t) => !persistentIds.has(t.id));
+    return [...persistentThreads, ...extraFromApi];
+  }, [persistentThreads, threads, selectedSpaceId]);
+
   const openSheet = () => {
     setIsSheetOpen(true);
     // If there are no threads to show, auto-open the space picker panel.
-    // This helps first-run / “only spaces exist” states.
-    setIsSpacePanelOpen(persistentThreads.length === 0);
+    // This helps first-run / "only spaces exist" states.
+    setIsSpacePanelOpen(displayThreads.length === 0);
   };
 
   const closeSheet = useCallback(() => {
@@ -1486,9 +1499,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     </div>
                   </div>
                 ) : null}
-                {persistentItems.length > 0 ? (
+                {displayThreads.length > 0 ? (
                   <>
-                    {persistentThreads.map((thread) => {
+                    {displayThreads.map((thread) => {
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
                       // Use updated thread data for active thread to show live updates
                       const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;

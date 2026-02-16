@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { api } from '../lib/api';
+import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface InvitationInfo {
   spaceTitle: string;
@@ -41,7 +42,7 @@ export default function InvitationPage() {
         {}
       );
       if (result.success) {
-        navigate({ to: `/app/s/${result.space.id}` });
+        navigate({ to: idToUrl(result.space.id) as any });
       }
     } catch {
       setError('Failed to accept invitation. It may have already been used or expired.');

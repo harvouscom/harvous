@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpace } from '../hooks/queries/useSpace';
+import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
@@ -23,6 +24,28 @@ export default function SpacePage() {
   const { user } = useUser();
   const { data: space, isLoading } = useSpace(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
+
+  // Track this space visit in navigation history so NavigationColumn shows it in the dropdown.
+  // (NavigationContext isn't mounted in the SPA, so trackNavigationAccess() never runs.)
+  useEffect(() => {
+    if (!space) return;
+    try {
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const history: any[] = stored ? JSON.parse(stored) : [];
+      const existingIndex = history.findIndex((item: any) => item.id === spaceId);
+      const now = Date.now();
+      if (existingIndex !== -1) {
+        history[existingIndex] = { ...history[existingIndex], title: space.title, lastAccessed: now };
+      } else {
+        history.push({ id: spaceId, title: space.title, backgroundGradient: space.backgroundGradient, firstAccessed: now, lastAccessed: now });
+      }
+      safeSetItem('harvous-navigation-history-v2', JSON.stringify(history));
+      // Notify NavigationColumn to re-read history
+      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+    } catch {
+      // ignore storage errors
+    }
+  }, [spaceId, space]);
 
   const headerBgColor = space?.color
     ? `var(--color-${space.color})`

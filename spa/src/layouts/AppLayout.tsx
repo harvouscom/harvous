@@ -6,9 +6,9 @@ import MobileNavigation from '../../../src/components/react/navigation/MobileNav
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
 import MobileBottomSheetWithContext from '../../../src/components/react/MobileBottomSheetWithContext';
 import SquareButton from '../../../src/components/react/SquareButton';
-import { useNavigation } from '../hooks/queries/useNavigation';
-import { useProfile } from '../hooks/queries/useProfile';
-import { useNote } from '../hooks/queries/useNote';
+import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
+import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
+import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
 
 export default function AppLayout() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -17,6 +17,7 @@ export default function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const { data: nav } = useNavigation();
+  const refreshNavigation = useRefreshNavigation();
   const { data: profile } = useProfile();
 
   // Derive current IDs from path before hooks (hooks must be called unconditionally)
@@ -36,6 +37,50 @@ export default function AppLayout() {
       router.navigate({ to: '/sign-in' });
     }
   }, [isLoaded, isSignedIn, router]);
+
+  // Close any open desktop panel when the route changes (panel manager stays mounted across routes).
+  // Also clear localStorage panel keys so LOAD_FROM_STORAGE doesn't reopen them on next mount.
+  useEffect(() => {
+    localStorage.removeItem('showNewNotePanel');
+    localStorage.removeItem('showNewThreadPanel');
+    localStorage.removeItem('showNewResourcePanel');
+    localStorage.removeItem('showProfilePanel');
+    window.dispatchEvent(new CustomEvent('closeAllPanels'));
+  }, [pathname]);
+
+  // Invalidate navigation cache when spaces/threads are created or deleted
+  useEffect(() => {
+    const refresh = () => refreshNavigation();
+
+    const handleSpaceDeleted = (e: Event) => {
+      const deletedId = (e as CustomEvent).detail?.spaceId;
+      if (deletedId) {
+        // Remove from navigation history in localStorage so it doesn't reappear after refresh
+        try {
+          const stored = localStorage.getItem('harvous-navigation-history-v2');
+          if (stored) {
+            const history = JSON.parse(stored).filter((item: any) => item.id !== deletedId);
+            localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+          }
+        } catch {
+          // ignore
+        }
+      }
+      refreshNavigation();
+    };
+
+    window.addEventListener('spaceCreated', refresh);
+    window.addEventListener('threadCreated', refresh);
+    window.addEventListener('spaceDeleted', handleSpaceDeleted);
+    window.addEventListener('threadDeleted', refresh);
+    return () => {
+      window.removeEventListener('spaceCreated', refresh);
+      window.removeEventListener('threadCreated', refresh);
+      window.removeEventListener('spaceDeleted', handleSpaceDeleted);
+      window.removeEventListener('threadDeleted', refresh);
+    };
+  }, [refreshNavigation]);
 
   if (!isLoaded) {
     return (
@@ -63,32 +108,7 @@ export default function AppLayout() {
 
   const spaceId = isSpace ? `space_${pathSlug}` : undefined;
 
-  // For note pages, the "active thread" in the nav is the note's parent thread
-  const noteParentThreadId = currentNote?.threads?.[0]?.id ?? null;
-
-  // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
-  const activeThread = isThread
-    ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
-    : isNote
-    ? (noteParentThreadId ? (nav?.threads.find(t => t.id === noteParentThreadId) ?? null) : null)
-    : null;
-
-  const currentSpace = spaceId
-    ? { id: spaceId }
-    : (activeThread?.spaceId ? { id: activeThread.spaceId } : null);
-
-  // Note-specific data for SquareButton menu
-  const noteType = isNote ? (currentNote?.type ?? 'default') : undefined;
-  const noteCurrentThreadId = noteParentThreadId ?? undefined;
-
-  const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' =
-    isNote ? 'note' :
-    isThread ? 'thread' :
-    isSpace ? 'space' :
-    pathname === '/profile' ? 'profile' :
-    'dashboard';
-
-  // Build spaces list (owned + member)
+  // Build spaces list (owned + member) — must come before currentSpace derivation
   const allSpaces = [
     ...(nav?.spaces ?? []),
     ...(nav?.memberOfSpaces ?? []),
@@ -100,6 +120,39 @@ export default function AppLayout() {
   }));
 
   const allThreads = nav?.threads ?? [];
+
+  // For note pages, the "active thread" in the nav is the note's parent thread.
+  // Fall back to the localStorage-cached value so the thread is highlighted immediately
+  // on first render before useNote finishes loading.
+  const noteParentThreadId = currentNote?.threads?.[0]?.id
+    ?? (isNote ? getCachedNoteParentThreadId(noteIdForHook) : null);
+
+  // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
+  const activeThread = isThread
+    ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
+    : isNote
+    ? (noteParentThreadId
+        ? (nav?.threads.find(t => t.id === noteParentThreadId)
+            ?? getCachedNoteParentThread(noteIdForHook))
+        : null)
+    : null;
+
+  // Enrich currentSpace with title/gradient from nav so navigation components can display it
+  const currentSpace = spaceId
+    ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
+    : (activeThread?.spaceId ? (allSpaces.find(s => s.id === activeThread.spaceId) ?? { id: activeThread.spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
+
+  // Note-specific data for SquareButton menu
+  const noteType = isNote ? (currentNote?.noteType ?? 'default') : undefined;
+  const noteCurrentThreadId = noteParentThreadId ?? undefined;
+  const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
+
+  const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' =
+    isNote ? 'note' :
+    isThread ? 'thread' :
+    isSpace ? 'space' :
+    pathname === '/profile' ? 'profile' :
+    'dashboard';
 
   return (
     <div className="app-layout">
@@ -118,7 +171,7 @@ export default function AppLayout() {
             currentId={currentId}
             showProfile={isNote}
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
-            userColor={profile?.userColor ?? 'blue'}
+            userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
           />
         </section>
@@ -144,6 +197,7 @@ export default function AppLayout() {
                   contentId={currentId}
                   noteType={noteType}
                   currentThreadId={noteCurrentThreadId}
+                  noteSimpleId={noteSimpleId}
                 />
               )}
               {contentType !== 'profile' && (
@@ -173,7 +227,7 @@ export default function AppLayout() {
             currentSpace={currentSpace}
             currentThread={activeThread}
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
-            userColor={profile?.userColor ?? 'blue'}
+            userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             initialPath={pathname}
           />
         </div>

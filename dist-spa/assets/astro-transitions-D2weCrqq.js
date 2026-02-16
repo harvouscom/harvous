@@ -1,0 +1,1 @@
+import{r as t}from"./index-EkNiUKNX.js";import"./router-C7UBWqAK.js";import"./clerk-DKRTF3nS.js";import"./react-vendor-uS-d4TUT.js";import"./query-VpYulq9z.js";import"./tiptap-BFBKwJJw.js";function l(e,r){return t.navigate({to:e,replace:(r==null?void 0:r.history)==="replace"}),Promise.resolve()}export{l as navigate};

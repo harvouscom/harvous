@@ -143,7 +143,8 @@ type PanelAction =
   | { type: 'CLOSE_NOTE_SHARE' }
   | { type: 'OPEN_PIN_ENTRY' }
   | { type: 'CLOSE_PIN_ENTRY' }
-  | { type: 'LOAD_FROM_STORAGE' };
+  | { type: 'LOAD_FROM_STORAGE' }
+  | { type: 'CLOSE_ALL' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
   switch (action.type) {
@@ -381,6 +382,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       }
       return { activePanel: null, panelKey: 0 };
     
+    case 'CLOSE_ALL':
+      // Close whatever panel is open (used by SPA route changes)
+      localStorage.removeItem('showNewNotePanel');
+      localStorage.removeItem('showNewThreadPanel');
+      localStorage.removeItem('showNewResourcePanel');
+      return { activePanel: null, panelKey: state.panelKey };
+
     default:
       return state;
   }
@@ -608,6 +616,10 @@ export default function DesktopPanelManager({
     window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
     window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
 
+    // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
+    const handleCloseAllPanels = () => dispatch({ type: 'CLOSE_ALL' });
+    window.addEventListener('closeAllPanels', handleCloseAllPanels);
+
     // Cleanup
     return () => {
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
@@ -630,6 +642,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleClosePinEntryPanel);
+      window.removeEventListener('closeAllPanels', handleCloseAllPanels);
     };
   }, []);
 

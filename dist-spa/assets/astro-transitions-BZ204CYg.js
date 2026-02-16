@@ -1,1 +1,0 @@
-function a(t,e){return(e==null?void 0:e.history)==="replace"?window.history.replaceState(null,"",t):window.history.pushState(null,"",t),window.dispatchEvent(new PopStateEvent("popstate",{state:null})),Promise.resolve()}export{a as navigate};

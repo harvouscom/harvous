@@ -33,7 +33,9 @@ export const navigationQueryKey = ['navigation'] as const;
 export function useNavigation() {
   return useQuery({
     queryKey: navigationQueryKey,
-    queryFn: () => api.get<NavigationData>('/api/navigation/data'),
+    queryFn: () =>
+      fetch('/api/navigation/data', { credentials: 'include', cache: 'no-store' })
+        .then(r => r.json() as Promise<NavigationData>),
     staleTime: 30_000,
   });
 }
