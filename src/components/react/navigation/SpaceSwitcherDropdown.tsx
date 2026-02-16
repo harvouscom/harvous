@@ -56,7 +56,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
       }
     };
 
-    const handlePointerDown = (event: MouseEvent) => {
+    const handlePointerDown = (event: Event) => {
       const target = event.target as Node | null;
       if (!target) return;
       // Ignore clicks on the space switcher toggle button itself
@@ -68,7 +68,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('touchstart', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown, { passive: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousedown', handlePointerDown);

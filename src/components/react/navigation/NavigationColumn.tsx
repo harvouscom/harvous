@@ -487,8 +487,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       }
     };
 
-    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
-      const target = (event as MouseEvent).target as Node | null;
+    const handlePointerDown = (event: Event) => {
+      const target = event.target as Node | null;
       if (!target) return;
       if (detailsEl.open && !detailsEl.contains(target)) {
         detailsEl.removeAttribute('open');
@@ -497,7 +497,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('touchstart', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown, { passive: true });
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousedown', handlePointerDown);

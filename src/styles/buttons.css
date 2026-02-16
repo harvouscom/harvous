@@ -17,7 +17,7 @@
   font-weight: 600 !important;
   white-space: nowrap;
   color: var(--color-fog-white);
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   will-change: transform, box-shadow;
 
   &:active {
@@ -288,7 +288,7 @@
   height: 64px;
   padding: 1.5rem 1.5rem 1.75rem;
   box-shadow: 0px 4px 4px 0px rgba(0, 0, 0, 0.25);
-  transition: transform 0.3s, box-shadow 0.3s, opacity 0.2s;
+  transition: transform 0.15s, box-shadow 0.15s, opacity 0.2s;
 }
 
 .btn-cta:disabled,
@@ -345,7 +345,7 @@
   border-radius: 1.5rem;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   padding-left: 1rem;
   padding-right: 0;
   width: 100%;
@@ -417,7 +417,7 @@
   border-radius: 1.5rem;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   will-change: transform;
   padding-left: 1rem;
   padding-right: 1rem;
@@ -538,7 +538,7 @@
   width: 64px;
   height: 64px;
   cursor: pointer;
-  transition: scale 0.3s, box-shadow 0.3s;
+  transition: scale 0.15s, box-shadow 0.15s;
 }
 
 .square-button__icon {
