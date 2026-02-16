@@ -34,9 +34,11 @@ export default function AppLayout() {
   // Redirect to sign-in if not authenticated
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
-      router.navigate({ to: '/sign-in' });
+      // Pass current path as redirectUrl so after sign-in the user lands back here
+      const redirectUrl = encodeURIComponent(pathname);
+      router.navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
     }
-  }, [isLoaded, isSignedIn, router]);
+  }, [isLoaded, isSignedIn, router, pathname]);
 
   // Close any open desktop panel when the route changes (panel manager stays mounted across routes).
   // Also clear localStorage panel keys so LOAD_FROM_STORAGE doesn't reopen them on next mount.
@@ -154,6 +156,9 @@ export default function AppLayout() {
     pathname === '/profile' ? 'profile' :
     'dashboard';
 
+  // Unorganized thread is virtual — it has no editable options, so hide the More button
+  const isUnorganized = isThread && currentId === 'thread_unorganized';
+
   return (
     <div className="app-layout">
 
@@ -169,7 +174,7 @@ export default function AppLayout() {
             currentSpace={currentSpace}
             isNote={isNote}
             currentId={currentId}
-            showProfile={isNote}
+            showProfile={false}
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
@@ -187,9 +192,9 @@ export default function AppLayout() {
             {/* DesktopPanelManager hides this by id when a panel opens */}
             <div
               id="square-buttons-container"
-              className={`square-buttons-container ${contentType !== 'dashboard' ? 'square-buttons-container--with-more' : ''}`}
+              className={`square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}
             >
-              {contentType !== 'dashboard' && contentType !== 'profile' && (
+              {contentType !== 'dashboard' && contentType !== 'profile' && !isUnorganized && (
                 <SquareButton
                   variant="More"
                   withMenu={true}
@@ -207,6 +212,7 @@ export default function AppLayout() {
             <PanelManagerWithContext
               currentThread={activeThread}
               currentSpace={currentSpace}
+              currentNote={currentNote ?? undefined}
               contentType={contentType}
               publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
             />
@@ -239,8 +245,8 @@ export default function AppLayout() {
 
         {/* Bottom additional slot — More/Add buttons */}
         {contentType !== 'profile' && (
-          <div className={`mobile-additional square-buttons-container ${contentType !== 'dashboard' ? 'square-buttons-container--with-more' : ''}`}>
-            {contentType !== 'dashboard' && (
+          <div className={`mobile-additional square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}>
+            {contentType !== 'dashboard' && !isUnorganized && (
               <SquareButton
                 variant="More"
                 withMenu={true}
@@ -258,6 +264,7 @@ export default function AppLayout() {
         <MobileBottomSheetWithContext
           currentThread={activeThread}
           currentSpace={currentSpace}
+          currentNote={currentNote ?? undefined}
           contentType={contentType}
           publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY}
         />

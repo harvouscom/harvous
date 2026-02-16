@@ -11,6 +11,12 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
 import { idToUrl } from '@/utils/url-helpers';
+import {
+  getSectionKeyForItem,
+  SECTION_ORDER,
+  SECTION_LABELS,
+  type SectionKey
+} from '@/utils/last-visited-sections';
 
 // SPA-compatible dashboard path check — Astro uses '/', SPA uses '/dashboard'
 const isDashboardPath = () =>
@@ -718,7 +724,7 @@ export default function OrganizedContentList({
 
         // Update state with the master list
         const refreshedKey = sorted.map(item => item.id).join(',') + `|${sorted.length}`;
-        if (isMountedRef.current && isDashboardPath() && 
+        if (isMountedRef.current && isDashboardPath() &&
             !refreshStateRef.current.isNavigating && filterRef.current === currentFilter) {
           if (refreshedKey !== refreshStateRef.current.lastRefreshKey || options?.expectedItemId) {
             refreshStateRef.current.lastRefreshKey = refreshedKey;
@@ -835,7 +841,7 @@ export default function OrganizedContentList({
   }, []);
 
   // Handle filter changes - fetch fresh data for every tab switch.
-  // In SPA context (initialItems=[]) this also handles the initial load.
+  // In SPA context (initialItems=[]) this also handles all tab loads.
   // On SSR, only re-fetch when the filter actually changes (not on first mount
   // with fresh SSR data), so we don't wipe server-rendered content.
   const prevFilterRef2 = useRef<string>(filter);
@@ -847,9 +853,6 @@ export default function OrganizedContentList({
     const hasFreshSSRData = (initialItems || []).length > 0 && !isDataFromStaleCache;
     if (!filterChanged && hasFreshSSRData) return;
     // Sync filterRef immediately so refreshContent captures the correct filter value.
-    // Without this, filterRef.current may still hold the old filter when refreshContent
-    // runs (the separate filterRef useEffect hasn't fired yet), causing the post-fetch
-    // guard `filterRef.current === currentFilter` to reject state updates.
     filterRef.current = filter;
     // Reset isRefreshing and lastRefreshKey so a new fetch always goes through.
     refreshStateRef.current.isRefreshing = false;
@@ -1247,7 +1250,10 @@ export default function OrganizedContentList({
       const ssrAge = dataGeneratedAt ? Date.now() - dataGeneratedAt : 0;
       const isFromStaleCache = ssrAge > 30000; // 30 seconds - trigger refresh sooner than the 60s render skip
 
-      if (inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
+      // In SPA context, initialItems is always empty — always refresh on mount
+      const hasNoInitialData = !initialItems || initialItems.length === 0;
+
+      if (hasNoInitialData || inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
         // Set loading state if data is from stale cache
         if (isFromStaleCache) {
           debug('[OrganizedContentList] checkAndRefreshOnMount: SSR data from stale cache (age: ' + Math.round(ssrAge / 1000) + 's), refreshing');
@@ -1586,10 +1592,36 @@ export default function OrganizedContentList({
 
   const displayItems = (currentItems || []).filter((item: OrganizedContentItem) => {
     if (!item || !item.id) return false;
-    return !deletedItemIds.has(normalizeId(item.id)) && 
-           !deletedItemIds.has(normalizeId(item.threadId)) && 
+    return !deletedItemIds.has(normalizeId(item.id)) &&
+           !deletedItemIds.has(normalizeId(item.threadId)) &&
            !deletedItemIds.has(normalizeId(item.noteId));
   });
+
+  type VirtualEntry =
+    | { type: 'section'; sectionKey: SectionKey; label: string }
+    | { type: 'item'; item: OrganizedContentItem };
+
+  const virtualList: VirtualEntry[] = (() => {
+    const bySection = new Map<SectionKey, OrganizedContentItem[]>();
+    for (const key of SECTION_ORDER) bySection.set(key, []);
+    for (const item of displayItems) {
+      const key = getSectionKeyForItem({
+        lastVisited: item.lastVisited,
+        createdAt: item.createdAt,
+        threadId: item.threadId
+      });
+      bySection.get(key)!.push(item);
+    }
+    const out: VirtualEntry[] = [];
+    for (const sectionKey of SECTION_ORDER) {
+      const items = bySection.get(sectionKey)!;
+      if (items.length === 0) continue;
+      const label = SECTION_LABELS[sectionKey];
+      if (label) out.push({ type: 'section', sectionKey, label });
+      for (const item of items) out.push({ type: 'item', item });
+    }
+    return out;
+  })();
 
   // Placeholder used before hydration so server and client render identical HTML (avoids hydration mismatch from client-only state like isWaitingForFreshData, deletedItemIds, stale cache).
   const placeholderStyle = {
@@ -1625,12 +1657,18 @@ export default function OrganizedContentList({
           </div>
         </div>
       ) : displayItems.length > 0 ? (
-        <InfiniteScrollList
-          initialItems={displayItems}
-          items={displayItems}
+        <InfiniteScrollList<VirtualEntry>
+          initialItems={virtualList}
+          items={virtualList}
           loadMore={loadMore}
-          renderItem={renderItem}
-          itemKey={(item) => item.id}
+          renderItem={(entry, index) =>
+            entry.type === 'section' ? (
+              <div className="organized-content__section-header">{entry.label}</div>
+            ) : (
+              renderItem(entry.item, index)
+            )
+          }
+          itemKey={(entry) => (entry.type === 'section' ? `section-${entry.sectionKey}` : entry.item.id)}
           limit={20}
           className="flex flex-col"
           initialHasMore={hasMore}

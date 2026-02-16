@@ -49,6 +49,8 @@ const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'Refe
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const MySharingPanel = createLazyComponent(() => import('./MySharingPanel'), 'MySharingPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
+const LockPinPanel = createLazyComponent(() => import('./LockPinPanel'), 'LockPinPanel');
+const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'), 'AboutHarvousPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
@@ -79,6 +81,8 @@ type PanelType =
   | 'referral'
   | 'myData'
   | 'getSupport'
+  | 'lockPin'
+  | 'aboutHarvous'
   | 'noteShare'
   | 'pinEntry'
   | null;
@@ -139,6 +143,10 @@ type PanelAction =
   | { type: 'CLOSE_MY_DATA' }
   | { type: 'OPEN_GET_SUPPORT' }
   | { type: 'CLOSE_GET_SUPPORT' }
+  | { type: 'OPEN_LOCK_PIN' }
+  | { type: 'CLOSE_LOCK_PIN' }
+  | { type: 'OPEN_ABOUT_HARVOUS' }
+  | { type: 'CLOSE_ABOUT_HARVOUS' }
   | { type: 'OPEN_NOTE_SHARE' }
   | { type: 'CLOSE_NOTE_SHARE' }
   | { type: 'OPEN_PIN_ENTRY' }
@@ -322,6 +330,22 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_LOCK_PIN':
+      localStorage.setItem('showProfilePanel', 'lockPin');
+      return { activePanel: 'lockPin', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_LOCK_PIN':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_ABOUT_HARVOUS':
+      localStorage.setItem('showProfilePanel', 'aboutHarvous');
+      return { activePanel: 'aboutHarvous', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_ABOUT_HARVOUS':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_NOTE_SHARE':
       return { activePanel: 'noteShare', panelKey: state.panelKey + 1 };
 
@@ -352,7 +376,9 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'manageBilling' ||
           savedProfilePanel === 'referral' ||
           savedProfilePanel === 'myData' ||
-          savedProfilePanel === 'getSupport'
+          savedProfilePanel === 'getSupport' ||
+          savedProfilePanel === 'lockPin' ||
+          savedProfilePanel === 'aboutHarvous'
         ) {
           return { activePanel: savedProfilePanel as PanelType, panelKey: 0 };
         }
@@ -561,6 +587,8 @@ export default function DesktopPanelManager({
       else if (panelName === 'referral') dispatch({ type: 'OPEN_REFERRAL' });
       else if (panelName === 'myData') dispatch({ type: 'OPEN_MY_DATA' });
       else if (panelName === 'getSupport') dispatch({ type: 'OPEN_GET_SUPPORT' });
+      else if (panelName === 'lockPin') dispatch({ type: 'OPEN_LOCK_PIN' });
+      else if (panelName === 'aboutHarvous') dispatch({ type: 'OPEN_ABOUT_HARVOUS' });
 
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
@@ -728,6 +756,16 @@ export default function DesktopPanelManager({
 
   const handleCloseGetSupport = useCallback(() => {
     dispatch({ type: 'CLOSE_GET_SUPPORT' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseLockPin = useCallback(() => {
+    dispatch({ type: 'CLOSE_LOCK_PIN' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseAboutHarvous = useCallback(() => {
+    dispatch({ type: 'CLOSE_ABOUT_HARVOUS' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -1039,6 +1077,26 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'lockPin' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <LockPinPanel key={`lock-pin-${state.panelKey}`} onClose={handleCloseLockPin} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'aboutHarvous' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <AboutHarvousPanel key={`about-harvous-${state.panelKey}`} onClose={handleCloseAboutHarvous} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

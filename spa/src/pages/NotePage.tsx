@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useParams } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNote } from '../hooks/queries/useNote';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { useNavigation } from '../hooks/queries/useNavigation';
@@ -11,6 +12,20 @@ export default function NotePage() {
   const noteId = noteSlug.startsWith('note_') ? noteSlug : `note_${noteSlug}`;
   const { data: note, isLoading } = useNote(noteId);
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
+  const queryClient = useQueryClient();
+
+  // Invalidate the note query when lock state changes (e.g. after removeLock)
+  // so the fresh contentEncrypted value is fetched and CardFullEditable doesn't loop.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.noteId && String(detail.noteId) === String(noteId)) {
+        queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+      }
+    };
+    window.addEventListener('noteLockStateChanged', handler);
+    return () => window.removeEventListener('noteLockStateChanged', handler);
+  }, [noteId, queryClient]);
 
   // The parent thread is the first thread this note belongs to (if any)
   const parentThread = note?.threads?.[0];

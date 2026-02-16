@@ -838,6 +838,11 @@
   flex-shrink: 0;
 }
 
+/* Center tab nav on My Home and space content (All/Threads/Notes/Scripture) */
+.tab-nav-container.content-tabs .tab-nav {
+  justify-content: center;
+}
+
 .tab-nav__button {
   display: flex;
   gap: 8px;

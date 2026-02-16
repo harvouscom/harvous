@@ -34,9 +34,25 @@ const signInRoute = createRoute({
   component: SignInPage,
 });
 
+// Clerk's multi-step sign-in flow pushes sub-routes like /sign-in/factor-one,
+// /sign-in/continue, etc. — TanStack Router must handle them with the same component.
+const signInSplatRoute = createRoute({
+  getParentRoute: () => signInRoute,
+  path: '$',
+  component: SignInPage,
+});
+
 const signUpRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/sign-up',
+  component: SignUpPage,
+});
+
+// Clerk's multi-step sign-up flow pushes sub-routes like /sign-up/continue,
+// /sign-up/verify-email-address, etc.
+const signUpSplatRoute = createRoute({
+  getParentRoute: () => signUpRoute,
+  path: '$',
   component: SignUpPage,
 });
 
@@ -50,18 +66,19 @@ const appLayoutRoute = createRoute({
 const indexRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/',
-  beforeLoad: () => { throw redirect({ to: '/dashboard' }); },
+  component: DashboardPage,
 });
 
+// Keep /dashboard working as an alias — redirect to / (same as Astro where / is home)
 const dashboardRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/dashboard',
-  component: DashboardPage,
+  beforeLoad: () => { throw redirect({ to: '/' }); },
 });
 
 const findRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
-  path: '/find',
+  path: '/search',
   component: FindPage,
 });
 
@@ -78,7 +95,7 @@ const newSpaceRoute = createRoute({
 });
 
 const upgradeRoute = createRoute({
-  getParentRoute: () => appLayoutRoute,
+  getParentRoute: () => rootRoute,
   path: '/upgrade',
   component: UpgradePage,
 });
@@ -130,8 +147,8 @@ const invitationRoute = createRoute({
 // Route tree
 const routeTree = rootRoute.addChildren([
   authLayoutRoute.addChildren([
-    signInRoute,
-    signUpRoute,
+    signInRoute.addChildren([signInSplatRoute]),
+    signUpRoute.addChildren([signUpSplatRoute]),
   ]),
   appLayoutRoute.addChildren([
     indexRoute,
@@ -139,11 +156,11 @@ const routeTree = rootRoute.addChildren([
     findRoute,
     profileRoute,
     newSpaceRoute,
-    upgradeRoute,
     spaceRoute,
     threadRoute,
     noteRoute,
   ]),
+  upgradeRoute,
   joinSpaceRoute,
   sharedNoteRoute,
   sharedThreadRoute,

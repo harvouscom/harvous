@@ -24,7 +24,7 @@ export default function DashboardPage() {
       <TabNav
         tabs={tabs}
         onTabChange={(id) => setFilter(id as DashboardFilter)}
-        className="dashboard-tab-nav"
+        className="dashboard-tab-nav content-tabs"
       />
       <OrganizedContentList
         initialItems={[]}

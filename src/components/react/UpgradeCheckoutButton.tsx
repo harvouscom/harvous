@@ -466,16 +466,20 @@ export default function UpgradeCheckoutButton({
     };
   }, [publishableKey]);
 
-  // If no publishable key, render disabled button
-  if (!effectiveKey) {
+  // In the SPA, ClerkProvider is already provided by App.tsx — publishableKey === null
+  // is the sentinel for SPA mode. Skip the effectiveKey check entirely.
+  // (The actual SPA render happens further below after the hooks.)
+
+  // If no publishable key AND not in SPA mode, render disabled button
+  if (!effectiveKey && publishableKey !== null) {
     return (
       <div className={className}>
         <button
           type="button"
           disabled
           className="btn-cta flex-1 group"
-          style={{ 
-            width: '100%', 
+          style={{
+            width: '100%',
             marginTop: '1.5rem',
             opacity: 0.5,
             cursor: 'not-allowed'
@@ -580,9 +584,25 @@ export default function UpgradeCheckoutButton({
     }
   }, [effectiveKey, clerkConfig, pathname, unlimitedPlanId]);
 
+  // In the SPA, ClerkProvider is already provided by App.tsx — skip creating a nested one.
+  if (publishableKey === null) {
+    return (
+      <div ref={containerRef}>
+        <SignedIn>
+          <UpgradeCheckoutButtonInner
+            key={`checkout-inner-${remountKey}`}
+            className={className}
+            unlimitedPlanId={unlimitedPlanId}
+            remountKey={remountKey}
+          />
+        </SignedIn>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef}>
-      <ClerkProvider 
+      <ClerkProvider
         key={`clerk-provider-${pathname}-${remountKey}`}
         publishableKey={clerkConfig.publishableKey!}
         domain={clerkConfig.domain}
@@ -590,9 +610,9 @@ export default function UpgradeCheckoutButton({
         afterSignUpUrl={clerkConfig.afterSignUpUrl}
       >
         <SignedIn>
-          <UpgradeCheckoutButtonInner 
+          <UpgradeCheckoutButtonInner
             key={`checkout-inner-${remountKey}`}
-            className={className} 
+            className={className}
             unlimitedPlanId={unlimitedPlanId}
             remountKey={remountKey}
           />

@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
+import CardNote from '../../../src/components/react/CardNote';
+import CardThread from '../../../src/components/react/CardThread';
+import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface SearchResult {
@@ -104,59 +107,53 @@ function SearchResults({ query }: { query: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-2" style={{ padding: '8px 0' }}>
-      <div style={{ fontSize: '12px', color: 'var(--color-pebble-grey)', fontFamily: 'var(--font-sans)', padding: '0 4px 4px' }}>
+    <div className="flex flex-col gap-3">
+      <div style={{ fontSize: '12px', color: 'var(--color-pebble-grey)', fontFamily: 'var(--font-sans)', textAlign: 'center' }}>
         {results.length} result{results.length !== 1 ? 's' : ''}
       </div>
-      {results.map(result => (
-        <a
-          key={result.id}
-          href={idToUrl(result.id)}
-          className="block"
-          style={{
-            padding: '12px 14px',
-            borderRadius: '10px',
-            background: 'var(--color-white)',
-            border: '1px solid var(--color-border)',
-            textDecoration: 'none',
-          }}
-        >
-          <div style={{
-            fontSize: '13px',
-            fontWeight: 500,
-            color: 'var(--color-pebble-grey)',
-            fontFamily: 'var(--font-sans)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
-            marginBottom: '4px',
-          }}>
-            {result.type === 'thread' ? 'Thread' : 'Note'}
-          </div>
-          <div style={{
-            fontSize: '16px',
-            fontWeight: 600,
-            color: 'var(--color-deep-grey)',
-            fontFamily: 'var(--font-sans)',
-            marginBottom: result.content ? '6px' : 0,
-          }}>
-            {result.title || 'Untitled'}
-          </div>
-          {result.content && (
-            <div style={{
-              fontSize: '14px',
-              color: 'var(--color-pebble-grey)',
-              fontFamily: 'var(--font-sans)',
-              lineHeight: '1.4',
-              overflow: 'hidden',
-              display: '-webkit-box',
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: 'vertical',
-            }}>
-              {result.content.replace(/<[^>]*>/g, '')}
-            </div>
-          )}
-        </a>
-      ))}
+      {results.map(result =>
+        result.type === 'thread' ? (
+          <a
+            key={result.id}
+            href={idToUrl(result.id)}
+            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+            style={{ textDecoration: 'none' }}
+          >
+            <CardThread
+              thread={{
+                id: result.id,
+                title: result.title || 'Untitled',
+                subtitle: result.subtitle,
+                color: result.color,
+                accentColor: result.color ? `var(--color-${result.color})` : undefined,
+                lastUpdated: result.lastUpdated,
+              }}
+            />
+          </a>
+        ) : result.noteType === 'scripture' ? (
+          <CondensedNoteItem
+            key={result.id}
+            title={result.title || 'Untitled'}
+            noteType="scripture"
+            noteId={result.id}
+            href={idToUrl(result.id)}
+          />
+        ) : (
+          <a
+            key={result.id}
+            href={idToUrl(result.id)}
+            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+            style={{ textDecoration: 'none' }}
+          >
+            <CardNote
+              title={result.title || 'Untitled'}
+              content={result.content}
+              noteType={(result.noteType as 'default' | 'scripture' | 'resource') || 'default'}
+              noteId={result.id}
+            />
+          </a>
+        )
+      )}
     </div>
   );
 }
@@ -196,12 +193,14 @@ export default function FindPage() {
 
   return (
     <CardStack title="Search" headerBgColor="var(--color-paper)" centerTitle>
-      <FindSearchInput initialQuery={query} />
-      {query ? (
-        <SearchResults query={query} />
-      ) : (
-        <RecentSearches />
-      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <FindSearchInput initialQuery={query} />
+        {query ? (
+          <SearchResults query={query} />
+        ) : (
+          <RecentSearches />
+        )}
+      </div>
     </CardStack>
   );
 }

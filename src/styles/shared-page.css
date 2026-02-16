@@ -1,0 +1,608 @@
+/* ==========================================================================
+   Shared Page Styles
+   Used by shared note, shared thread, join space, and invitation pages.
+   These styles are shared between the Astro pages (via <style is:global>)
+   and the SPA (via direct import in main.tsx).
+   ========================================================================== */
+
+/* Desktop: lock page to viewport height */
+@media (min-width: 1160px) {
+  #shared-note-content,
+  #shared-thread-content,
+  #shared-space-content,
+  #invitation-content {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  #shared-note-content .auth-page__container,
+  #shared-thread-content .auth-page__container,
+  #shared-space-content .auth-page__container,
+  #invitation-content .auth-page__container {
+    height: 100%;
+    max-height: 100vh;
+  }
+
+  #shared-note-content .auth-page__form-section,
+  #shared-thread-content .auth-page__form-section,
+  #shared-space-content .auth-page__form-section,
+  #invitation-content .auth-page__form-section {
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  #shared-note-content .shared-page__content-section,
+  #shared-thread-content .shared-page__content-section,
+  #shared-space-content .shared-page__content-section,
+  #invitation-content .shared-page__content-section {
+    padding-top: 12px !important;
+  }
+
+  #shared-note-content .auth-page__video-overlay,
+  #shared-thread-content .auth-page__video-overlay,
+  #shared-space-content .auth-page__video-overlay,
+  #invitation-content .auth-page__video-overlay {
+    padding: 24px;
+  }
+}
+
+/* Mobile: lock page to viewport height, no scrolling */
+@media (max-width: 1159px) {
+  #shared-note-content,
+  #shared-thread-content,
+  #shared-space-content,
+  #invitation-content {
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  #shared-note-content .auth-page__container,
+  #shared-thread-content .auth-page__container,
+  #shared-space-content .auth-page__container,
+  #invitation-content .auth-page__container {
+    height: 100%;
+    max-height: 100vh;
+  }
+
+  #shared-note-content .auth-page__form-section.shared-page__content-section,
+  #shared-thread-content .auth-page__form-section.shared-page__content-section,
+  #shared-space-content .auth-page__form-section.shared-page__content-section,
+  #invitation-content .auth-page__form-section.shared-page__content-section {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+}
+
+/* Shared page content section */
+.shared-page__content-section {
+  background-color: var(--color-light-paper) !important;
+  padding: 0 !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+}
+
+/* Content container */
+.shared-page__content {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 0;
+  min-height: 100%;
+}
+
+/* Mobile: constrain content to viewport height */
+@media (max-width: 1159px) {
+  .shared-page__content {
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+    justify-content: flex-start;
+  }
+}
+
+/* Desktop: constrain content to viewport height */
+@media (min-width: 1160px) {
+  .shared-page__content {
+    height: 100%;
+    max-height: 100vh;
+    overflow: hidden;
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+}
+
+/* Creator / inviter info above card */
+.shared-page__creator {
+  padding: 12px 0;
+  text-align: center;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.shared-page__creator p {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-stone-grey);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Card/CardStack container */
+.shared-page__card-container {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+}
+
+/* Mobile: constrain card container to fit within viewport */
+@media (max-width: 1159px) {
+  .shared-page__card-container {
+    min-height: 0;
+    overflow: hidden;
+    max-height: calc(100vh - 120px);
+  }
+}
+
+/* Desktop: allow card to shrink to fit available space */
+@media (min-width: 1160px) {
+  .shared-page__card-container {
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+/* Make CardFullEditable fill container */
+.shared-page__card-container .card-full-editable {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 100vh;
+}
+
+@media (min-width: 1160px) {
+  .shared-page__card-container .card-full-editable {
+    max-height: calc(100vh - 200px);
+  }
+}
+
+/* Scrollable content area */
+.shared-page__card-container .card-full-editable .overflow-auto {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile: add padding-bottom to account for fixed button */
+@media (max-width: 1159px) {
+  .shared-page__card-container .card-full-editable .overflow-auto {
+    padding-bottom: 72px !important;
+  }
+}
+
+@media (min-width: 1160px) {
+  .shared-page__card-container .card-full-editable .overflow-auto {
+    max-height: none;
+  }
+}
+
+/* Make CardStack fill container */
+.shared-page__card-container .card-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shared-page__card-container .card-stack__container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.shared-page__card-container .card-stack__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shared-page__card-container .card-stack__inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.shared-page__card-container .card-stack__inner-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Scrollable notes container */
+.shared-page__notes-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Mobile: add padding-bottom to account for fixed button */
+@media (max-width: 1159px) {
+  .shared-page__notes-scroll {
+    padding-bottom: 72px;
+  }
+}
+
+@media (min-width: 1160px) {
+  .shared-page__notes-scroll {
+    max-height: none;
+  }
+}
+
+/* Notes inside CardStack */
+.shared-page__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shared-page__notes-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: var(--color-stone-grey);
+  text-align: center;
+}
+
+.shared-page__notes-empty p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* People count inside content area (join space page) */
+.shared-page__people-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px 12px;
+  text-align: center;
+}
+
+.shared-page__people-count span {
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-pebble-grey);
+}
+
+/* Expiry notice and member status (invitation page) */
+.shared-page__expiry-notice {
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--color-pebble-grey);
+  padding: 4px 24px 12px;
+}
+
+.shared-page__member-status {
+  text-align: center;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-stone-grey);
+  padding: 8px 24px;
+}
+
+/* Note/thread items */
+.shared-page__note-item {
+  cursor: default;
+}
+
+.shared-page__note-item * {
+  cursor: default !important;
+}
+
+.shared-page__thread-item {
+  cursor: default;
+}
+
+/* Toast notification - absolutely positioned 12px above button */
+.shared-page__toast {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 20px;
+  background: linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%);
+  border-radius: 12px;
+  box-shadow: 0px 7px 16px 0px rgba(0, 0, 0, 0.1), 0px 30px 30px 0px rgba(0, 0, 0, 0.09), 0px 67px 40px 0px rgba(0, 0, 0, 0.05);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  text-align: center;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  visibility: hidden;
+  z-index: 10;
+}
+
+.shared-page__toast--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.shared-page__toast--success {
+  color: var(--color-deep-grey);
+}
+
+.shared-page__toast--error {
+  color: var(--color-red);
+}
+
+/* CTA Button wrapper — relative positioning for toast */
+/* Mobile: fixed button at bottom of viewport */
+@media (max-width: 1159px) {
+  .shared-page__cta-wrapper {
+    position: fixed;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    padding: 0 12px;
+    z-index: 100;
+    margin-top: 0;
+  }
+}
+
+/* Desktop: keep button inside card/CardStack */
+@media (min-width: 1160px) {
+  .shared-page__cta-wrapper {
+    position: relative;
+    flex-shrink: 0;
+    margin-top: 12px;
+  }
+}
+
+/* CTA Button */
+.shared-page__cta-button {
+  margin-top: 0;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Footer */
+.shared-page__footer {
+  padding: 12px 0;
+  text-align: center;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.shared-page__footer p {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-stone-grey);
+  margin: 0 0 4px 0;
+  line-height: 1.5;
+}
+
+.shared-page__footer a {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-stone-grey);
+  text-decoration: underline;
+  text-decoration-skip-ink: none;
+}
+
+.shared-page__footer a:hover {
+  color: var(--color-deep-grey);
+}
+
+/* Error state */
+.shared-page__error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 24px;
+  flex: 1;
+}
+
+.shared-page__error-icon {
+  color: var(--color-pebble-grey);
+  margin-bottom: 24px;
+  font-size: 48px;
+}
+
+.shared-page__error-title {
+  font-family: var(--font-roundo);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  margin: 0 0 12px 0;
+}
+
+.shared-page__error-message {
+  font-size: 16px;
+  color: var(--color-stone-grey);
+  margin: 0 0 32px 0;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+.shared-page__error-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 32px;
+  background: var(--color-bold-blue);
+  color: white;
+  text-decoration: none;
+  border-radius: 24px;
+  font-weight: 600;
+  font-size: 16px;
+  transition: background-color 0.15s ease;
+  box-shadow: inset 0px -4px 0px 0px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  border: none;
+}
+
+.shared-page__error-link:hover {
+  background: var(--color-navy);
+}
+
+/* ==========================================================================
+   Page Load Animations
+   ========================================================================== */
+
+@keyframes sharedPageFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sharedPageSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.shared-page__fade-in {
+  animation: sharedPageFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.shared-page__slide-up {
+  animation: sharedPageSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Disable scripture pill interactions on shared note page */
+#shared-note-content .scripture-pill,
+#shared-note-content .scripture-pill-clickable {
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+#shared-note-content .scripture-pill-clickable:hover {
+  opacity: 1 !important;
+}
+
+/* ==========================================================================
+   Condensed Thread Item (join space page)
+   ========================================================================== */
+
+.condensed-thread-item {
+  position: relative;
+  border-radius: 0.75rem;
+  height: 48px;
+  width: 100%;
+  background-color: white;
+  overflow: hidden;
+}
+
+.condensed-thread-item__accent {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2.75rem;
+  border-top-left-radius: 0.75rem;
+  border-bottom-left-radius: 0.75rem;
+}
+
+.condensed-thread-item__content {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding-left: 0.75rem;
+  padding-right: 1rem;
+  height: 100%;
+  overflow: hidden;
+}
+
+.condensed-thread-item__icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--color-deep-grey);
+  opacity: 0.3;
+}
+
+.condensed-thread-item__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.condensed-thread-item__title {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--color-deep-grey);
+  font-size: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.condensed-thread-item .badge-count {
+  width: auto;
+  min-width: 24px;
+  padding: 0 6px;
+  opacity: 1 !important;
+}
+
+.condensed-thread-item .badge-number {
+  opacity: 1 !important;
+}
+
+.shared-page__thread-item .condensed-thread-item {
+  transition: transform 200ms ease;
+}
+
+.shared-page__thread-item:hover .condensed-thread-item {
+  transform: scale(1.002);
+}
+
+.shared-page__thread-item:active .condensed-thread-item {
+  transform: scale(0.99);
+}

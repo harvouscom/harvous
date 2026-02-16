@@ -1,4 +1,4 @@
-import { useUser } from '@clerk/clerk-react';
+import { useUser, useClerk } from '@clerk/clerk-react';
 import { useProfile, useXP } from '../hooks/queries/useProfile';
 import CardStack from '../components/CardStack';
 import ProfileCardStackHeader from '../../../src/components/react/ProfileCardStackHeader';
@@ -12,6 +12,7 @@ function formatJoinDate(date: Date | null | undefined): string {
 
 export default function ProfilePageWrapper() {
   const { user } = useUser();
+  const { signOut } = useClerk();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: xp } = useXP();
   // Build initials display: "Derek J" format (first name + last initial)
@@ -32,7 +33,7 @@ export default function ProfilePageWrapper() {
   }
 
   const handleLogout = () => {
-    window.location.href = '/logout';
+    signOut({ redirectUrl: '/sign-in' });
   };
 
   return (

@@ -77,6 +77,7 @@ export default function SpacePage() {
       <TabNav
         tabs={tabs}
         onTabChange={(id) => setFilter(id as SpaceFilter)}
+        className="content-tabs"
       />
       <SpaceContentList
         initialItems={[]}

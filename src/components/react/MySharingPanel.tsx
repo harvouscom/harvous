@@ -205,12 +205,10 @@ export default function MySharingPanel({
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               {!isLoading && !error && !isEmpty && (
-                <div className="mb-3">
-                  <TabNav
-                    tabs={sharingTabs}
-                    onTabChange={(tabId) => setActiveFilter(tabId as SharingFilter)}
-                  />
-                </div>
+                <TabNav
+                  tabs={sharingTabs}
+                  onTabChange={(tabId) => setActiveFilter(tabId as SharingFilter)}
+                />
               )}
 
               {error && (

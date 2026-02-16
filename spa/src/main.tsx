@@ -17,6 +17,7 @@ import '../../src/styles/global.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';
+import '../../src/styles/shared-page.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <App />

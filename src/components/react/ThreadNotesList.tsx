@@ -49,7 +49,7 @@ interface ThreadNotesListProps {
   threadId: string;
   /** Current thread color (e.g. from currentThread.color). Used for optimistic notes and note card accent so thread color shows for members in shared spaces. */
   threadColor?: string | null;
-  noteTypeFilter?: 'all' | 'default' | 'notes' | 'scripture' | 'resource';
+  noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
   noteTypeCounts?: NoteTypeCounts;
   'client:load'?: boolean;
   'client:visible'?: boolean;
@@ -60,11 +60,11 @@ interface ThreadNotesListProps {
 
 // Helper function to filter notes by type
 // Matches OrganizedContentList.tsx line 307: item.noteType === 'default' || !item.noteType
-function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'notes' | 'scripture' | 'resource'): Note[] {
+function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scripture' | 'resource'): Note[] {
   if (!filter || filter === 'all') {
     return notes;
   }
-  if (filter === 'default' || filter === 'notes') {
+  if (filter === 'default') {
     return notes.filter(note => note.noteType === 'default' || !note.noteType);
   }
   if (filter === 'scripture') {
@@ -117,11 +117,11 @@ export default function ThreadNotesList({
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
+  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
   // Holds the full unfiltered set of notes from the last API fetch.
   // Used as the source when the noteTypeFilter changes, so tab switching
   // never loses notes (notesRef.current reflects the *filtered* view).
   const allFetchedNotesRef = useRef<Note[]>(initialNotes);
-  const deletedNoteIdsRef = useRef<Set<string>>(new Set());
   
   // State for delete confirmation dialog
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -166,11 +166,9 @@ export default function ThreadNotesList({
     const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
     const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
     
-    // Determine source:
-    // - If initialNotes changed AND has data → use initialNotes (new data from SSR)
-    // - Otherwise → use allFetchedNotesRef.current (full unfiltered set from last API fetch)
-    // allFetchedNotesRef always holds the complete unfiltered API result, so tab switching
-    // correctly re-slices from the full set rather than the already-filtered notesRef.current.
+    // Use initialNotes when it has fresh server data; for filter-only changes
+    // use allFetchedNotesRef (full unfiltered API result) so tab switching
+    // correctly re-slices from the full set.
     const hasFreshServerData = initialNotesChanged && initialNotes.length > 0;
     let sourceNotes = hasFreshServerData ? initialNotes : allFetchedNotesRef.current;
     
@@ -271,11 +269,11 @@ export default function ThreadNotesList({
           syncStatus: note.syncStatus || 'synced' // Preserve syncStatus from IndexedDB
         }));
 
-        // Store full unfiltered result
-        allFetchedNotesRef.current = normalized;
-
         // Filter out deleted notes
         const filtered = normalized.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
+
+        // Store full unfiltered result for tab switching
+        allFetchedNotesRef.current = filtered;
 
         // Apply note type filter
         const typeFiltered = noteTypeFilter === 'all'
@@ -358,9 +356,6 @@ export default function ThreadNotesList({
             }
           }
 
-          // Store the full unfiltered API result so filter changes can re-slice without re-fetching
-          allFetchedNotesRef.current = freshNotes;
-
           // Filter out deleted notes
           const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
           
@@ -379,12 +374,15 @@ export default function ThreadNotesList({
             }
           );
 
+          // Store full unfiltered result for tab switching
+          allFetchedNotesRef.current = filtered;
+
           // Combine API notes with optimistic notes
           const combinedNotes = [...filtered, ...optimisticNotesToKeep];
-          
+
           // Apply note type filter
-          const typeFiltered = noteTypeFilter === 'all' 
-            ? combinedNotes 
+          const typeFiltered = noteTypeFilter === 'all'
+            ? combinedNotes
             : filterNotesByType(combinedNotes, noteTypeFilter);
 
           // Deduplicate by note ID

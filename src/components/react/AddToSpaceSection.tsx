@@ -481,7 +481,11 @@ export default function AddToSpaceSection({
             content: note.content,
             updatedAt: note.updatedAt,
             createdAt: note.createdAt,
-            lastAccessed: undefined
+            lastAccessed: undefined,
+            noteType: note.noteType || 'default',
+            resourceImage: (note as any).resourceImage || null,
+            resourceTitle: (note as any).resourceTitle || null,
+            resourceDescription: (note as any).resourceDescription || null
           });
         }
       }

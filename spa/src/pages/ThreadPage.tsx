@@ -8,13 +8,12 @@ import TabNav from '../../../src/components/react/TabNav';
 import CardStack from '../components/CardStack';
 import { getThreadGradientCSS } from '../../../src/utils/colors';
 
-type NoteTypeFilter = 'all' | 'notes' | 'scripture' | 'resource';
+type NoteTypeFilter = 'all' | 'notes' | 'scripture';
 
 const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
   { id: 'all',       label: 'All' },
   { id: 'notes',     label: 'Notes' },
   { id: 'scripture', label: 'Scripture' },
-  { id: 'resource',  label: 'Resources' },
 ];
 
 export default function ThreadPage() {
@@ -81,12 +80,13 @@ export default function ThreadPage() {
         tabs={tabs}
         onTabChange={(id) => setNoteTypeFilter(id as NoteTypeFilter)}
         threadId={threadId}
+        className="content-tabs"
       />
       <ThreadNotesList
         initialNotes={[]}
         threadId={threadId}
         threadColor={thread?.color ?? undefined}
-        noteTypeFilter={noteTypeFilter}
+        noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
       />
     </CardStack>
   );

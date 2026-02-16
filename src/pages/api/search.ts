@@ -52,6 +52,7 @@ export const GET: APIRoute = async ({ request, locals }) => {
         title: note.title || 'Untitled Note',
         content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
         contentEncrypted: false, // Always false since we excluded encrypted notes
+        noteType: note.noteType || 'default',
         threadId: note.threadId,
         spaceId: note.spaceId,
         lastUpdated: note.updatedAt || note.createdAt,

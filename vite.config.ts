@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
 
 // Vite config for the SPA build (Capacitor + web client)
 // The Astro build (astro.config.mjs) handles the API/server side.
@@ -36,6 +39,9 @@ export default defineConfig({
         },
       },
     },
+  },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
     alias: {

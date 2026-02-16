@@ -15,6 +15,19 @@ export default function SignInPage() {
     }
   }, [isLoaded, isSignedIn, navigate]);
 
+  // Patch subtitle text after Clerk renders (Clerk CDN text varies by environment)
+  useEffect(() => {
+    const target = "Enter your email and we'll get you signed in.";
+    const patch = () => {
+      const el = document.querySelector('.cl-headerSubtitle');
+      if (el && el.textContent !== target) el.textContent = target;
+    };
+    const observer = new MutationObserver(patch);
+    observer.observe(document.body, { childList: true, subtree: true });
+    patch();
+    return () => observer.disconnect();
+  }, []);
+
   const params = new URLSearchParams(window.location.search);
   const redirectUrl = params.get('redirect_url') ?? '/dashboard';
 
@@ -82,6 +95,7 @@ export default function SignInPage() {
                   footerActionLink: 'clerk-form-link',
                   dividerLine: 'clerk-form-divider-line',
                   dividerText: 'clerk-form-divider-text',
+                  buttonArrowIcon: 'hidden',
                 },
                 variables: {
                   colorPrimary: 'var(--color-bold-blue)',

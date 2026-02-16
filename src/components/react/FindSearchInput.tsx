@@ -88,16 +88,16 @@ export default function FindSearchInput({
     window.dispatchEvent(new CustomEvent('recent-searches-updated'));
     
     // Navigate to search results
-    safeNavigate(`/find?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
+    safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
   };
 
   const handleClear = () => {
     setSearchQuery('');
-    safeNavigate('/find', { history: 'replace' });
+    safeNavigate('/search', { history: 'replace' });
   };
 
   return (
-    <form method="GET" action="/find" className="w-full relative" onSubmit={handleSubmit}>
+    <form method="GET" action="/search" className="w-full relative" onSubmit={handleSubmit}>
       <div className={`search-input ${className}`}>
         {/* Search Icon */}
         <svg width="20" height="20" className="search-input__icon" viewBox="0 0 512 512">
