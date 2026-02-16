@@ -1,0 +1,6 @@
+# API routes — forward to Astro SSR function with full path preserved
+# This must be in _redirects (not netlify.toml) to support /.netlify/ targets
+/api/*  /.netlify/functions/ssr/api/:splat  200!
+
+# SPA catch-all — all non-API, non-static routes load the SPA shell
+/*  /index.html  200
