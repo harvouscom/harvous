@@ -195,7 +195,7 @@ export default function MySharingPanel({
             <div className="panel__progress-fill" />
           </div>
         )}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
           <div className="panel__header">
             <div className="panel__title">
               <p>My Sharing</p>
@@ -214,12 +214,6 @@ export default function MySharingPanel({
               {error && (
                 <div className="w-full p-4 rounded-xl mb-3" style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}>
                   <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>{error}</p>
-                </div>
-              )}
-
-              {isLoading && (
-                <div className="panel__loading">
-                  Loading...
                 </div>
               )}
 

@@ -53,6 +53,10 @@ export default defineConfig({
   },
   server: {
     port: 4322,
+    watch: {
+      // Also watch shared src/ components (outside the spa/ root) for HMR
+      ignored: ['!**/src/**'],
+    },
     proxy: {
       // Proxy API calls to the Astro dev server during development
       '/api': {

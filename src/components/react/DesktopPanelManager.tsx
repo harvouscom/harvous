@@ -965,7 +965,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MySpacesPanel key={`my-spaces-${state.panelKey}`} onClose={handleCloseMySpaces} inBottomSheet={false} />
+              <MySpacesPanel key="my-spaces" onClose={handleCloseMySpaces} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -976,7 +976,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <MyAchievementsPanel
-                key={`my-achievements-${state.panelKey}`}
+                key="my-achievements"
                 onClose={handleCloseMyAchievements}
                 inBottomSheet={false}
               />
@@ -989,7 +989,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MyChurchPanel key={`my-church-${state.panelKey}`} onClose={handleCloseMyChurch} inBottomSheet={false} />
+              <MyChurchPanel key="my-church" onClose={handleCloseMyChurch} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -999,7 +999,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MySharingPanel key={`my-sharing-${state.panelKey}`} onClose={handleCloseMySharing} inBottomSheet={false} />
+              <MySharingPanel key="my-sharing" onClose={handleCloseMySharing} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -1010,7 +1010,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <EditNameColorPanel
-                key={`edit-name-color-${state.panelKey}`}
+                key="edit-name-color"
                 onClose={handleCloseEditNameColor}
                 inBottomSheet={false}
               />
@@ -1024,7 +1024,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <EmailPasswordPanel
-                key={`email-password-${state.panelKey}`}
+                key="email-password"
                 onClose={handleCloseEmailPassword}
                 inBottomSheet={false}
               />
@@ -1038,7 +1038,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <ManageBillingPanel
-                key={`manage-billing-${state.panelKey}`}
+                key="manage-billing"
                 onClose={handleCloseManageBilling}
                 inBottomSheet={false}
                 publishableKey={publishableKey}
@@ -1053,7 +1053,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <ReferralPanel
-                key={`referral-${state.panelKey}`}
+                key="referral"
                 onClose={handleCloseReferral}
                 inBottomSheet={false}
               />
@@ -1066,7 +1066,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MyDataPanel key={`my-data-${state.panelKey}`} onClose={handleCloseMyData} inBottomSheet={false} />
+              <MyDataPanel key="my-data" onClose={handleCloseMyData} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -1076,7 +1076,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
+              <GetSupportPanel key="get-support" onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -1086,7 +1086,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <LockPinPanel key={`lock-pin-${state.panelKey}`} onClose={handleCloseLockPin} inBottomSheet={false} />
+              <LockPinPanel key="lock-pin" onClose={handleCloseLockPin} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -1096,7 +1096,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <AboutHarvousPanel key={`about-harvous-${state.panelKey}`} onClose={handleCloseAboutHarvous} inBottomSheet={false} />
+              <AboutHarvousPanel key="about-harvous" onClose={handleCloseAboutHarvous} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

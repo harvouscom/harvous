@@ -6,7 +6,6 @@ import ThreadNotesList from '../../../src/components/react/ThreadNotesList';
 import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
 import CardStack from '../components/CardStack';
-import { getThreadGradientCSS } from '../../../src/utils/colors';
 
 type NoteTypeFilter = 'all' | 'notes' | 'scripture';
 
@@ -45,22 +44,20 @@ export default function ThreadPage() {
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === noteTypeFilter }));
 
+  // Use nav data as an instant fallback while thread detail loads — avoids a hard
+  // loading skeleton swap. Nav query is already warm from app startup.
+  const navThread = nav?.threads.find(t => t.id === threadId);
+
   // For the unorganized thread, use hardcoded values since it's a virtual thread
-  const resolvedTitle = isUnorganized ? 'Unorganized' : (thread?.title ?? 'Untitled');
-  const resolvedColor = isUnorganized ? 'paper' : (thread?.color ?? 'paper');
+  const resolvedTitle = isUnorganized ? 'Unorganized'
+    : (thread?.title ?? navThread?.title ?? '');
+  const resolvedColor = isUnorganized ? 'paper'
+    : (thread?.color ?? navThread?.color ?? 'paper');
 
   const headerBgColor = `var(--color-${resolvedColor})`;
 
-  const backgroundGradient = thread?.backgroundGradient
-    ?? getThreadGradientCSS(resolvedColor);
-
-  if (!isUnorganized && isLoading) {
-    return (
-      <CardStack title="Loading..." headerBgColor="var(--color-paper)" centerTitle>
-        <div className="page-loading" />
-      </CardStack>
-    );
-  }
+  // Content is ready once thread detail has loaded (or this is the unorganized thread)
+  const contentReady = isUnorganized || !isLoading;
 
   return (
     <CardStack
@@ -76,18 +73,20 @@ export default function ThreadPage() {
         />
       ) : undefined}
     >
-      <TabNav
-        tabs={tabs}
-        onTabChange={(id) => setNoteTypeFilter(id as NoteTypeFilter)}
-        threadId={threadId}
-        className="content-tabs"
-      />
-      <ThreadNotesList
-        initialNotes={[]}
-        threadId={threadId}
-        threadColor={thread?.color ?? undefined}
-        noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
-      />
+      <div className={contentReady ? 'content-fade-in' : undefined}>
+        <TabNav
+          tabs={tabs}
+          onTabChange={(id) => setNoteTypeFilter(id as NoteTypeFilter)}
+          threadId={threadId}
+          className="content-tabs"
+        />
+        <ThreadNotesList
+          initialNotes={[]}
+          threadId={threadId}
+          threadColor={thread?.color ?? undefined}
+          noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
+        />
+      </div>
     </CardStack>
   );
 }

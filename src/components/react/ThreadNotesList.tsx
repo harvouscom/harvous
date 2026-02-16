@@ -117,6 +117,10 @@ export default function ThreadNotesList({
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [deletedNoteIds, setDeletedNoteIds] = useState<Set<string>>(new Set());
+  // Tracks which filter the current `notes` state was computed for.
+  // Only advances to match noteTypeFilter after setNotes() runs — both updates
+  // happen in the same React batch so the empty state never flashes between them.
+  const [committedFilter, setCommittedFilter] = useState<string>(noteTypeFilter);
   const deletedNoteIdsRef = useRef<Set<string>>(new Set());
   // Holds the full unfiltered set of notes from the last API fetch.
   // Used as the source when the noteTypeFilter changes, so tab switching
@@ -159,12 +163,14 @@ export default function ThreadNotesList({
       isMountedRef.current = false;
     };
   }, []);
+
   
   // Handle both initialNotes changes and noteTypeFilter changes in a single useEffect
   // This ensures proper initialization and preserves optimistic updates when switching tabs
   useEffect(() => {
     const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
     const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
+
     
     // Use initialNotes when it has fresh server data; for filter-only changes
     // use allFetchedNotesRef (full unfiltered API result) so tab switching
@@ -219,15 +225,19 @@ export default function ThreadNotesList({
     // For onboarding thread, uses chronological sorting by createdAt
     const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
     
+    // Batch both state updates together — React 18 automatically batches these so
+    // committedFilter and notes are always in sync on the same render. The empty state
+    // only shows when committedFilter === noteTypeFilter, preventing any flash.
     setNotes(sortedNotes);
+    setCommittedFilter(noteTypeFilter);
     // Initialize accumulatedFilteredCountRef immediately with the filtered count
     accumulatedFilteredCountRef.current = sortedNotes.length;
-    
+
     // Update database offset only when initialNotes change
     if (initialNotesChanged) {
       databaseOffsetRef.current = initialNotes.length;
     }
-    
+
     // Update previous refs
     prevNoteTypeFilterRef.current = noteTypeFilter;
     prevInitialNotesRef.current = initialNotes;
@@ -1477,7 +1487,7 @@ export default function ThreadNotesList({
             initialHasMore={initialHasMore}
             minimumExpectedCount={totalCountForFilter}
           />
-        ) : (
+        ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
               No notes found in this thread.

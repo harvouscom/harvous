@@ -87,7 +87,7 @@ export default function ReferralPanel({
             <div className="panel__progress-fill" />
           </div>
         )}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
           <div className="panel__header">
             <div className="panel__title">
               <p>Refer My Friends</p>
@@ -100,11 +100,7 @@ export default function ReferralPanel({
                 When friends sign up with your link, you get 100 extra notes on top of your 200 free notes, so {totalNotesBeforeUnlimited.toLocaleString()} before you need unlimited.
               </div>
 
-              {isLoading ? (
-                <div className="referral-panel__placeholder">
-                  <span>Loading your link...</span>
-                </div>
-              ) : referralUrl ? (
+              {!isLoading && referralUrl ? (
                 <>
                   <div className="referral-panel__link-container">
                     <input

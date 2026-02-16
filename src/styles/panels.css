@@ -623,7 +623,7 @@
   }
 }
 
-/* Mobile only: dialogs as bottom sheets (match SpaceSwitcher sheet: flush bottom, no overlay, subtle shadow) */
+/* Mobile only: dialogs as bottom sheets (flush bottom, slide up, dark overlay matches bottom sheet) */
 @media (max-width: 1159px) {
   .modal-overlay-enter,
   .modal-overlay,
@@ -631,7 +631,6 @@
     align-items: flex-end !important;
     justify-content: flex-end !important;
     padding: 0 !important;
-    background-color: transparent !important;
   }
 
   .modal-content-enter,

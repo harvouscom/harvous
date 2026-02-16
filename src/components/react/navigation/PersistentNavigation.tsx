@@ -390,7 +390,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
   }
 
   return (
-    <div id="persistent-navigation" key={renderKey} className="persistent-nav">
+    <div id="persistent-navigation" className="persistent-nav">
       {persistentItems.map((item) => {
         const isActive = item.id === effectiveActiveItemId;
         const isSpaceItem = item.id.startsWith('space_');

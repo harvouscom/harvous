@@ -72,7 +72,8 @@ export default function NotePage() {
   }, [noteId]);
 
   if (isLoading) {
-    return <div className="page-loading" />;
+    // Skeleton that matches card-full shape so there's no layout jump when note loads
+    return <div className="card-full h-full flex-1 min-h-0" />;
   }
 
   if (!note) {
@@ -90,6 +91,7 @@ export default function NotePage() {
 
   return (
     // Wrapper div provides data attributes that CardFullEditable reads from the DOM
+    // content-fade-in smoothly bridges the skeleton → content transition
     <div
       data-note-id={noteId}
       {...(parentThreadId ? {
@@ -97,6 +99,7 @@ export default function NotePage() {
         'data-parent-thread-title': parentThread?.title ?? '',
         'data-parent-thread-background-gradient': parentThread?.backgroundGradient ?? '',
       } : {})}
+      className="content-fade-in"
       style={{ display: 'contents' }}
     >
       <CardFullEditable
