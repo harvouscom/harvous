@@ -35,16 +35,6 @@
   status = 200
   force = true
 
-# API routes are handled by the Astro SSR Netlify function — do not redirect them.
-# The /.netlify/functions/ssr function matches /api/* automatically via the
-# @astrojs/netlify adapter's function routing; this explicit rule ensures no
-# catch-all below accidentally intercepts API requests in edge cases.
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/ssr"
-  status = 200
-  force = true
-
 # SPA catch-all: serve index.html for all other routes so TanStack Router
 # can handle client-side navigation (dashboard, note, thread, space, etc.)
 [[redirects]]
