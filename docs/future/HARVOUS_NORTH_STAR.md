@@ -91,6 +91,8 @@ If YouVersion could add a "Save to Harvous" button, every serious Bible student 
 
 The more integrations exist, the more Harvous becomes the default place Bible study data lives — which makes every other feature (remember, learn, compete) more powerful.
 
+The apps are **feeders**. The people are **Harvesters**.
+
 ---
 
 ## What Harvous Deliberately Does Not Do
