@@ -21,7 +21,7 @@ export default function ProfilePageWrapper() {
   const initials = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
   const userColor = profile?.userColor ?? 'blue';
   const joinDate = formatJoinDate(user?.createdAt);
-  const seasonalXP = xp?.seasonXP ?? 0;
+  const seasonalXP = xp?.seasonalXP ?? 0;
   const seasonName = getSeasonDisplayName();
 
   if (profileLoading || !user) {

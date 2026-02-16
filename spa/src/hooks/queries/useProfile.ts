@@ -23,12 +23,13 @@ export interface UserProfile {
 }
 
 export interface XPData {
-  currentXP: number;
-  seasonXP: number;
-  season: number;
-  level: number;
-  nextLevelXP: number;
+  seasonalXP: number;   // current season XP (matches /api/user/xp response)
   lifetimeXP: number;
+  totalXP: number;      // legacy alias for lifetimeXP
+  season: string;
+  seasonName: string;
+  breakdown?: Record<string, number>;
+  backfilled?: boolean;
 }
 
 export function useProfile() {

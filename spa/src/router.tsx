@@ -17,6 +17,7 @@ import JoinSpacePage from './pages/JoinSpacePage';
 import SharedNotePage from './pages/SharedNotePage';
 import SharedThreadPage from './pages/SharedThreadPage';
 import InvitationPage from './pages/InvitationPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -144,6 +145,13 @@ const invitationRoute = createRoute({
   component: InvitationPage,
 });
 
+// 404 catch-all — must be last
+const notFoundRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '*',
+  component: NotFoundPage,
+});
+
 // Route tree
 const routeTree = rootRoute.addChildren([
   authLayoutRoute.addChildren([
@@ -165,6 +173,7 @@ const routeTree = rootRoute.addChildren([
   sharedNoteRoute,
   sharedThreadRoute,
   invitationRoute,
+  notFoundRoute,
 ]);
 
 export const router = createRouter({ routeTree });
