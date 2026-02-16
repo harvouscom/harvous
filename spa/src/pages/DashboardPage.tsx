@@ -30,7 +30,6 @@ export default function DashboardPage() {
         initialItems={[]}
         filter={filter}
         userId={user?.id}
-        dataGeneratedAt={1}
       />
     </CardStack>
   );
