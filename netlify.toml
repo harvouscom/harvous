@@ -35,13 +35,6 @@
   status = 200
   force = true
 
-# API routes: proxy to the Astro SSR function, preserving the full path via :splat
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/ssr/api/:splat"
-  status = 200
-  force = true
-
 # SPA catch-all: serve index.html for all other routes so TanStack Router
 # can handle client-side navigation (dashboard, note, thread, space, etc.)
 [[redirects]]
