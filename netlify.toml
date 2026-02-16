@@ -50,6 +50,12 @@
   status = 200
   force = false
 
+# API routes must never be cached at the edge
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store, no-cache, must-revalidate"
+
 # Security Headers
 [[headers]]
   for = "/*"
