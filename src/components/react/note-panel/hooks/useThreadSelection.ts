@@ -186,9 +186,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         const filteredThreads = formattedThreads.filter((t: Thread) => !t.id.startsWith('thread_onboarding_'));
         setThreadOptions(filteredThreads);
         
-        // After threads are loaded, check if we have a saved thread ID to match
+        // After threads are loaded, check if we have a saved thread ID to match.
+        // Skip if we already initialized from currentThread — that takes priority.
         const savedThreadId = localStorage.getItem('newNoteThread');
-        if (savedThreadId && !hasSetThreadFromSaved) {
+        if (savedThreadId && !hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
           let matchedThread = 'Unorganized';
           
           if (savedThreadId === 'thread_unorganized') {
@@ -212,7 +213,9 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     }
   }, [hasSetThreadFromSaved, suggestedThreadIds, suggestedDomain, suggestionReasons]);
 
-  // Separate effect to handle currentThread when it becomes available
+  // Separate effect to handle currentThread when it becomes available.
+  // This runs whenever currentThread or threadOptions changes, and always
+  // wins over Priority 3 (saved thread) as long as no manual selection was made.
   useEffect(() => {
     if (hasManualSelection.current) {
       return;
@@ -221,22 +224,21 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     if (currentThread?.id?.startsWith('thread_onboarding_')) {
       return;
     }
-    
-    if (currentThread && currentThread.id) {
-      if (!hasInitializedFromCurrentThread.current || 
-          (selectedThread === 'Unorganized' && currentThread.id !== 'thread_unorganized')) {
-        const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
-        
-        if (matchingThread && matchingThread.title !== selectedThread) {
-          setSelectedThread(matchingThread.title);
-          setHasSetThreadFromSaved(true);
-          hasInitializedFromCurrentThread.current = true;
-        } else if (currentThread.title && currentThread.title !== selectedThread && 
-                   (!hasInitializedFromCurrentThread.current || selectedThread === 'Unorganized')) {
-          setSelectedThread(currentThread.title);
-          setHasSetThreadFromSaved(true);
-          hasInitializedFromCurrentThread.current = true;
-        }
+
+    if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
+      const matchingThread = threadOptions.find(thread => thread.id === currentThread.id);
+
+      if (matchingThread && matchingThread.title !== selectedThread) {
+        // Thread is in the loaded list — use its title from the list
+        setSelectedThread(matchingThread.title);
+        setHasSetThreadFromSaved(true);
+        hasInitializedFromCurrentThread.current = true;
+      } else if (!matchingThread && currentThread.title && currentThread.title !== selectedThread) {
+        // Thread not in list yet (e.g. newly created, nav hasn't refreshed) —
+        // use the title from the prop directly so newly created threads are selected
+        setSelectedThread(currentThread.title);
+        setHasSetThreadFromSaved(true);
+        hasInitializedFromCurrentThread.current = true;
       }
     }
   }, [currentThread, threadOptions, selectedThread]);
@@ -330,10 +332,15 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     hasManualSelection.current = false;
   }, [currentThread?.id]);
 
-  // Save to localStorage when selectedThread changes (if not from saved)
+  // Save to localStorage when selectedThread changes (if not from saved).
+  // Don't save the default "Unorganized" until we've actually initialized —
+  // otherwise the uninitialized default overwrites a previously saved thread
+  // and gets picked up as Priority 3 before currentThread arrives.
   useEffect(() => {
     if (!hasSetThreadFromSaved) {
-      localStorage.setItem('newNoteThread', selectedThread);
+      if (selectedThread !== 'Unorganized' || hasInitializedFromCurrentThread.current) {
+        localStorage.setItem('newNoteThread', selectedThread);
+      }
     }
   }, [selectedThread, hasSetThreadFromSaved]);
 
