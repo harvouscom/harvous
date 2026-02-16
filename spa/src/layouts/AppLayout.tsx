@@ -1,4 +1,5 @@
 import { useAuth, useUser } from '@clerk/clerk-react';
+import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
@@ -161,6 +162,7 @@ export default function AppLayout() {
 
   return (
     <div className="app-layout">
+      <ReferralCreditInit userId={user?.id} />
 
       {/* ── Desktop: three-column grid (hidden on mobile) ── */}
       <div className="desktop-layout">

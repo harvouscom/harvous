@@ -1,10 +1,25 @@
 import { SignUp, useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+
+/** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
+ *  ReferralCreditInit can credit the referrer after the user signs up. */
+function useReferralCookie() {
+  const applied = useRef(false);
+  useEffect(() => {
+    if (applied.current) return;
+    applied.current = true;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (!ref?.trim()) return;
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toUTCString();
+    document.cookie = `harvous_referrer=${encodeURIComponent(ref.trim())}; path=/; expires=${expires}; SameSite=Lax`;
+  }, []);
+}
 
 export default function SignUpPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
+  useReferralCookie();
 
   // Redirect if already signed in
   useEffect(() => {
