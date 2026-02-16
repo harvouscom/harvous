@@ -2,35 +2,29 @@ import React, { useState, useEffect } from 'react';
 
 interface ProfileCardStackHeaderProps {
   initialColor: string;
-  initialDisplayName: string;
 }
 
 /**
  * ProfileCardStackHeader - React component that manages the profile CardStack header
- * 
- * This component uses React state to manage the header color and display name,
- * ensuring updates persist across View Transitions and work reliably on both
- * desktop and mobile without timing issues.
+ *
+ * Shows "My Profile" as the header title. Uses React state for color so updates
+ * (e.g. from Edit Name & Color) persist across View Transitions.
  */
 export default function ProfileCardStackHeader({
-  initialColor,
-  initialDisplayName
+  initialColor
 }: ProfileCardStackHeaderProps) {
   const [color, setColor] = useState(initialColor);
-  const [displayName, setDisplayName] = useState(initialDisplayName);
 
   useEffect(() => {
     const handleProfileUpdate = (event: CustomEvent) => {
-      const { firstName, lastName, selectedColor } = event.detail;
-      if (firstName && lastName && selectedColor) {
-        const newDisplayName = `${firstName} ${lastName.charAt(0)}`.trim();
+      const { selectedColor } = event.detail;
+      if (selectedColor) {
         setColor(selectedColor);
-        setDisplayName(newDisplayName);
       }
     };
 
     window.addEventListener('updateProfile', handleProfileUpdate as EventListener);
-    
+
     return () => {
       window.removeEventListener('updateProfile', handleProfileUpdate as EventListener);
     };
@@ -45,7 +39,7 @@ export default function ProfileCardStackHeader({
       }}
     >
       <div className="page-heading page-heading--center">
-        <p>{displayName}</p>
+        <p>My Profile</p>
       </div>
     </div>
   );
