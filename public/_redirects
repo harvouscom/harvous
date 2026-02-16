@@ -1,2 +1,0 @@
-# API routes — forward to the Astro SSR function with full path preserved
-/api/*  /.netlify/functions/ssr/api/:splat  200!

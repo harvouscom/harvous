@@ -2,7 +2,7 @@
   # 1. astro build — compiles API routes + SSR function into dist/ and .netlify/
   # 2. vite build — compiles the SPA into dist-spa/
   # 3. cp — copy SPA assets into dist/ so Netlify serves them alongside Astro's SSR
-  command = "npm ci && npm run build && node_modules/.bin/vite build && cp -r dist-spa/. dist/"
+  command = "npm ci && npm run build && node_modules/.bin/vite build && cp -r dist-spa/. dist/ && mv dist/index.html dist/app.html"
   publish = "dist"
   # Skip build when only doc paths change (exit 0 = skip). See scripts/netlify-skip-build.sh.
   ignore = "bash scripts/netlify-skip-build.sh"
@@ -35,11 +35,12 @@
   status = 200
   force = true
 
-# SPA catch-all: serve index.html for all other routes so TanStack Router
+# SPA catch-all: serve app.html for all other routes so TanStack Router
 # can handle client-side navigation (dashboard, note, thread, space, etc.)
+# index.html is renamed to app.html so /api/* is not intercepted by a static file
 [[redirects]]
   from = "/*"
-  to = "/index.html"
+  to = "/app.html"
   status = 200
   force = false
 
