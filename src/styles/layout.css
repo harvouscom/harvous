@@ -12,8 +12,7 @@
   max-height: 100svh;
   overflow: hidden;
   padding: 0.75rem;
-  /* Account for iPhone notch / Dynamic Island safe area */
-  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-top: 0;
   box-sizing: border-box;
   /* Flex so children (desktop-layout / mobile-layout) fill the height correctly */
   display: flex;
