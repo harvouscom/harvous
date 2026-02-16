@@ -54,6 +54,8 @@ interface OrganizedContentListProps {
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
   userId?: string;
   dataGeneratedAt?: number; // Timestamp when SSR data was generated - used to detect stale cached pages
+  /** Optional SPA navigation handler — when provided, item clicks use client-side navigation instead of full page reload */
+  onNavigate?: (href: string) => void;
 }
 
 // Helper to normalize dates once at API boundary
@@ -131,7 +133,8 @@ export default function OrganizedContentList({
   initialItems,
   filter = 'all',
   userId,
-  dataGeneratedAt
+  dataGeneratedAt,
+  onNavigate,
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -1545,11 +1548,13 @@ export default function OrganizedContentList({
             href={href}
             threadColors={item.threadColors || undefined}
             noteId={item.noteId}
+            onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
           />
         ) : item.type === 'note' ? (
           <a
             href={href}
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+            onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
           >
             <CardNote
               title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
@@ -1567,11 +1572,12 @@ export default function OrganizedContentList({
             />
           </a>
         ) : (
-          <a 
+          <a
             href={href}
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+            onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
           >
-            <CardThread 
+            <CardThread
               thread={{
                 id: item.threadId || '',
                 title: item.title,

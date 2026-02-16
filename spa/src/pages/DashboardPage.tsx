@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
+import { useNavigate } from '@tanstack/react-router';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
 import TabNav from '../../../src/components/react/TabNav';
 import CardStack from '../components/CardStack';
@@ -15,6 +16,7 @@ const TABS: Array<{ id: DashboardFilter; label: string }> = [
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<DashboardFilter>('all');
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
@@ -30,6 +32,7 @@ export default function DashboardPage() {
         initialItems={[]}
         filter={filter}
         userId={user?.id}
+        onNavigate={(href) => navigate({ to: href as any })}
       />
     </CardStack>
   );

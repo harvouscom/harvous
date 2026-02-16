@@ -237,6 +237,7 @@ export default function AppLayout() {
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             initialPath={pathname}
+            onNavigate={(href) => router.navigate({ to: href as any })}
           />
         </div>
 

@@ -57,6 +57,8 @@ interface MobileNavigationProps {
   userColor?: string;
   /** Server-provided path (e.g. 'note_xxx') to ensure SSR/client match */
   initialPath?: string;
+  /** Optional SPA navigation handler for client-side routing */
+  onNavigate?: (href: string) => void;
 }
 
 const MobileNavigation: React.FC<MobileNavigationProps> = ({
@@ -67,7 +69,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   currentThread = null,
   initials = 'U',
   userColor = 'paper',
-  initialPath = ''
+  initialPath = '',
+  onNavigate,
 }) => {
   const selectedSpaceId = useSelectedSpaceId();
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
@@ -1242,7 +1245,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="mobile-nav__col">
-        <a href="/search" className="nav-link">
+        <a href="/search" className="nav-link" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate('/search'); } : undefined}>
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">
@@ -1261,6 +1264,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             href={isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/')}
             className="nav-link"
             style={{ display: 'block', width: '100%' }}
+            onClick={onNavigate && !isNote && !selectedSpaceId ? (e) => { e.preventDefault(); onNavigate('/'); } : undefined}
           >
             <SpaceButton
               as="div"
