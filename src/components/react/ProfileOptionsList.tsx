@@ -17,18 +17,12 @@ import React, { useState, useEffect } from 'react';
  * - Get Support (no API calls)
  */
 export default function ProfileOptionsList() {
-  // Initialize with false (online) during SSR, then check actual state on client
-  const [isOffline, setIsOffline] = useState(() => {
-    if (typeof navigator === 'undefined') return false;
-    return !navigator.onLine;
-  });
+  // Use browser offline event only — navigator.onLine is unreliable in PWAs
+  // (service workers can intercept requests making the browser think it's offline).
+  // Default to online (false = not offline) and only go offline on the 'offline' event.
+  const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
-    // Set initial state on client mount
-    if (typeof navigator !== 'undefined') {
-      setIsOffline(!navigator.onLine);
-    }
-
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
 
