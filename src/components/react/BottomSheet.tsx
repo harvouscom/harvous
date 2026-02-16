@@ -115,6 +115,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
+  const [noteDetailsNote, setNoteDetailsNote] = useState<any | null>(null);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -145,8 +146,16 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
     setDrawerType(type);
     setIsVisible(true);
-    // Increment panelKey to force remount and re-read localStorage
-    setPanelKey(prev => prev + 1);
+    // Only increment panelKey for create/edit panels that need fresh state on each open.
+    // Profile panels (mySpaces, myAchievements, etc.) preserve state across re-opens
+    // to avoid the loading flash caused by a full remount on every open.
+    const needsFreshState: DrawerType[] = [
+      'note', 'thread', 'resource', 'noteDetails',
+      'editThread', 'editSpace', 'inboxPreview', 'noteShare', 'pinEntry',
+    ];
+    if (needsFreshState.includes(type)) {
+      setPanelKey(prev => prev + 1);
+    }
   }, [isMobile]);
   
   // Check mobile on mount and resize
@@ -220,9 +229,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         setInboxPreviewData(event.detail.item);
       }
       
-      // Handle note details with tab
-      if (type === 'noteDetails' && event.detail?.tab) {
-        setNoteDetailsTab(event.detail.tab);
+      // Handle note details — capture current note and optional tab at open time
+      if (type === 'noteDetails') {
+        if (event.detail?.tab) setNoteDetailsTab(event.detail.tab);
+        // Snapshot currentNote into state so the panel has it even if the prop updates later
+        setNoteDetailsNote(currentNote ?? null);
       }
       
       openBottomSheet(type as DrawerType);
@@ -257,15 +268,25 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         openBottomSheet('editThread');
       }
     };
-    
+
     const handleOpenEditSpacePanel = () => {
       if (isMobile) {
         openBottomSheet('editSpace');
       }
     };
-    
+
+    // Direct listener for openNoteDetailsPanel (no MobileAdditional middleman in the SPA)
+    const handleOpenNoteDetailsPanel = (event: CustomEvent) => {
+      if (isMobile) {
+        if (event.detail?.tab) setNoteDetailsTab(event.detail.tab);
+        setNoteDetailsNote(currentNote ?? null);
+        openBottomSheet('noteDetails');
+      }
+    };
+
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+    window.addEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
     
     // Listen for profile panel events (for mobile bottom sheet)
     const handleOpenProfilePanel = (event: CustomEvent) => {
@@ -354,6 +375,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+      window.removeEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
       window.removeEventListener('openNewThreadPanel', handleOpenNewThread);
@@ -606,10 +628,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* Note Details Panel */}
           {drawerType === 'noteDetails' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              {contentType === 'note' && currentNote && (
+              {noteDetailsNote && (
                 <NoteDetailsPanel
-                  noteId={currentNote.id}
-                  noteTitle={currentNote.title || "Note Details"}
+                  key={`mobile-note-details-${panelKey}`}
+                  noteId={noteDetailsNote.id}
+                  noteTitle={noteDetailsNote.title || "Note Details"}
                   threads={[]}
                   comments={[]}
                   tags={[]}
@@ -712,8 +735,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* My Church Panel */}
           {drawerType === 'myChurch' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <MyChurchPanel 
-                key={`mobile-church-${panelKey}`}
+              <MyChurchPanel
+                key="mobile-church"
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}
@@ -737,8 +760,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* My Spaces Panel */}
           {drawerType === 'mySpaces' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <MySpacesPanel 
-                key={`mobile-spaces-${panelKey}`}
+              <MySpacesPanel
+                key="mobile-spaces"
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
                 }}

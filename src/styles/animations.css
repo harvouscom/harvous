@@ -176,10 +176,10 @@
 /* Modal Animations */
 @keyframes modalOverlayFadeIn {
   from {
-    opacity: 0;
+    background-color: rgba(0, 0, 0, 0);
   }
   to {
-    opacity: 1;
+    background-color: rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -207,6 +207,8 @@
 
 .modal-overlay-enter {
   animation: modalOverlayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* Must sit above all nav chrome (space-switcher: 1000002, sheet: 1000021) */
+  z-index: 1000025 !important;
 }
 
 .modal-content-enter {
@@ -324,6 +326,16 @@
 
 .close-icon-enter {
   animation: closeIconFadeIn 0.2s ease-out both;
+}
+
+/* Content Fade-In — for loading → loaded transitions (panels, pages) */
+@keyframes contentFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.content-fade-in {
+  animation: contentFadeIn 0.15s ease-out both;
 }
 
 /* Dropdown Animations */

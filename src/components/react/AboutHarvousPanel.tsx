@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import SquareButton from './SquareButton';
 
 interface AboutHarvousPanelProps {
@@ -7,11 +7,24 @@ interface AboutHarvousPanelProps {
   inBottomSheet?: boolean;
 }
 
-export default function AboutHarvousPanel({ 
+export default function AboutHarvousPanel({
   onClose,
   letterHtml = '',
   inBottomSheet = false
 }: AboutHarvousPanelProps) {
+  const [resolvedHtml, setResolvedHtml] = useState(letterHtml);
+
+  useEffect(() => {
+    if (letterHtml) {
+      setResolvedHtml(letterHtml);
+      return;
+    }
+    fetch('/api/about/founder-letter')
+      .then(r => r.json())
+      .then(d => { if (d.html) setResolvedHtml(d.html); })
+      .catch(() => {});
+  }, [letterHtml]);
+
   // Handle close
   const handleClose = () => {
     if (onClose) {
@@ -42,7 +55,7 @@ export default function AboutHarvousPanel({
                 <div className="about-harvous-paper-stack">
                   <div className="about-harvous-paper-stack__paper about-harvous-paper--drop-in">
                     {/* Letter content (markdown -> HTML) */}
-                    <div className="about-harvous-letter" dangerouslySetInnerHTML={{ __html: letterHtml }} />
+                    <div className="about-harvous-letter" dangerouslySetInnerHTML={{ __html: resolvedHtml }} />
 
                     {/* Signature image */}
                     <div className="about-harvous-signature">

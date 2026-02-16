@@ -1127,7 +1127,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         {/* Bottom Section with Search and Avatar/Back Button - stays pinned */}
         <div className="nav-column-bottom">
           <div className="nav-flex-grow">
-            <a href="/find" aria-label="Search" className="nav-link">
+            <a href="/search" aria-label="Search" className="nav-link">
               <div
                 className="space-button nav-search-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pr-0 w-full"
                 style={{ backgroundImage: 'var(--color-gradient-gray)' }}

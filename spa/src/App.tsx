@@ -1,0 +1,271 @@
+import { ClerkProvider } from '@clerk/clerk-react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Toaster, toast as sonnerToast } from 'sonner';
+import { router } from './router';
+
+declare const __APP_VERSION__: string;
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,           // 1 minute
+      gcTime: 5 * 60_000,          // 5 minutes
+      retry: 2,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!clerkPublishableKey) {
+  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY env var');
+}
+
+// Build window.toast from the same sonner instance used by <Toaster>
+function stripPunctuation(msg: string) { return msg.replace(/[.!]/g, ''); }
+
+const windowToast = {
+  success: (message: string) => sonnerToast.success(stripPunctuation(message), { icon: null }),
+  error: (message: string) => sonnerToast.error(stripPunctuation(message), { icon: null }),
+  info: (message: string) => sonnerToast.info(stripPunctuation(message), { icon: null }),
+  warning: (message: string) => sonnerToast.warning(stripPunctuation(message), { icon: null }),
+  show: (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'success') => {
+    windowToast[type](message);
+  },
+  errorWithAction: (message: string, action: { label: string; onClick: () => void }) => {
+    sonnerToast.error(stripPunctuation(message), { icon: null, duration: Infinity, action });
+  },
+  upgradePrompt: (message: string, upgradeUrl?: string) => {
+    const url = upgradeUrl || '/upgrade';
+    sonnerToast.error(message, {
+      icon: null,
+      duration: Infinity,
+      className: 'harvous-upgrade-toast',
+      action: {
+        label: 'Upgrade',
+        onClick: () => {
+          try { sessionStorage.setItem('harvousSkipBeforeUnload', 'upgrade'); } catch (_) {}
+          window.location.href = url;
+        },
+      },
+      cancel: { label: 'Not now', onClick: () => {} },
+    });
+  },
+};
+
+function ToastSetup() {
+  useEffect(() => {
+    // Make toast available globally (same as Layout.astro)
+    window.toast = windowToast;
+
+    // Expose app version globally so GetSupportPanel can read it
+    (window as any).__APP_VERSION__ = __APP_VERSION__;
+
+    // Handle ?toast=success&message=... URL params (same as public/scripts/toast-handler.js in Astro)
+    function handleUrlToast() {
+      const params = new URLSearchParams(window.location.search);
+      const toastType = params.get('toast');
+      const message = params.get('message');
+      if (!toastType || !message) return;
+
+      // Clean params from URL immediately
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('toast');
+      newUrl.searchParams.delete('message');
+      window.history.replaceState({}, '', newUrl.toString());
+
+      const decoded = decodeURIComponent(message);
+      if (toastType in windowToast) {
+        (windowToast as any)[toastType](decoded);
+      } else {
+        windowToast.success(decoded);
+      }
+    }
+    handleUrlToast();
+
+    // Handle 'toast' and 'showToast' custom events dispatched by components
+    function handleToastEvent(event: Event) {
+      const { message, type, code, upgradeUrl } = (event as CustomEvent).detail || {};
+      if (code === 'SHARED_SPACE_LIMIT_EXCEEDED' || code === 'NOTE_LIMIT_EXCEEDED') {
+        windowToast.upgradePrompt(message ?? '', upgradeUrl);
+        return;
+      }
+      if (typeof type === 'string' && type in windowToast) {
+        (windowToast as any)[type](message ?? '');
+      } else if (message) {
+        windowToast.info(message);
+      }
+    }
+
+    window.addEventListener('toast', handleToastEvent);
+    window.addEventListener('showToast', handleToastEvent);
+    return () => {
+      window.removeEventListener('toast', handleToastEvent);
+      window.removeEventListener('showToast', handleToastEvent);
+    };
+  }, []);
+
+  return null;
+}
+
+function SpaToaster() {
+  const [isMobile, setIsMobile] = useState(false);
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+
+  const checkViewport = useCallback(() => {
+    const width = window.innerWidth;
+    setIsMobile(width < 1160);
+    setIsSmallScreen(width < 800);
+  }, []);
+
+  useEffect(() => {
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
+  }, [checkViewport]);
+
+  const baseStyle: React.CSSProperties = {
+    backgroundColor: 'rgb(255, 255, 255)',
+    background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
+    color: 'var(--color-deep-grey)',
+    fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
+    fontSize: '16px',
+    fontWeight: '600',
+    borderRadius: '24px',
+    boxShadow: '0px 7px 16px 0px rgba(0,0,0,0.1), 0px 30px 30px 0px rgba(0,0,0,0.09), 0px 67px 40px 0px rgba(0,0,0,0.05), 0px 119px 47px 0px rgba(0,0,0,0.01)',
+    padding: '16px 20px',
+    textAlign: 'center',
+    minWidth: '280px',
+  };
+
+  const toastStyle: React.CSSProperties = isSmallScreen
+    ? { ...baseStyle, width: '90vw', minWidth: undefined }
+    : baseStyle;
+
+  return (
+    <>
+      <Toaster
+        position={isMobile ? 'bottom-center' : 'bottom-right'}
+        toastOptions={{
+          duration: 4000,
+          style: toastStyle,
+          classNames: {
+            toast: 'rounded-xl toast-center-text',
+            title: 'font-semibold text-[16px] text-center',
+          },
+        }}
+      />
+      <style>{`
+        /* ── Upgrade toast layout: message top full-width, buttons side-by-side centered below ── */
+        /* Sonner renders: [data-content] then button[data-cancel] then button[data-action] as direct children */
+        [data-sonner-toast].harvous-upgrade-toast,
+        [data-sonner-toast]:has(button[data-cancel]) {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 0.5rem !important;
+          padding-bottom: 16px !important;
+        }
+
+        /* Message: full width on its own row */
+        [data-sonner-toast].harvous-upgrade-toast > [data-content],
+        [data-sonner-toast]:has(button[data-cancel]) > [data-content] {
+          flex: 0 0 100% !important;
+          width: 100% !important;
+          text-align: center !important;
+        }
+
+        /* Both buttons: equal width, share the row */
+        [data-sonner-toast].harvous-upgrade-toast > button,
+        [data-sonner-toast]:has(button[data-cancel]) > button[data-cancel],
+        [data-sonner-toast]:has(button[data-cancel]) > button[data-action] {
+          flex: 1 1 auto !important;
+        }
+
+        /* ── Shared button base (btn--sm) ── */
+        [data-sonner-toast] button[data-action],
+        [data-sonner-toast] button[data-cancel],
+        [data-sonner-toast] button[data-button] {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          border: none !important;
+          border-radius: 1rem !important;
+          padding: 0.75rem 1.25rem 1rem !important;
+          font-family: var(--font-sans) !important;
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          line-height: 0 !important;
+          min-height: 40px !important;
+          cursor: pointer !important;
+          white-space: nowrap !important;
+          transition: transform 0.15s, box-shadow 0.15s !important;
+          margin: 0 !important;
+          flex: 1 !important;
+          max-width: 160px !important;
+          box-shadow:
+            0px -4px 0px 0px hsla(0, 0%, 0%, 0.1) inset,
+            0px 2px 2px 0px hsla(0, 0%, 0%, 0.25) !important;
+        }
+
+        /* ── Primary (Upgrade / single action): btn--sm btn--primary ── */
+        [data-sonner-toast] button[data-action],
+        [data-sonner-toast] button[data-button]:not([data-cancel]) {
+          background-color: var(--color-bold-blue) !important;
+          color: white !important;
+        }
+        [data-sonner-toast] button[data-action] *,
+        [data-sonner-toast] button[data-button]:not([data-cancel]) * {
+          color: white !important;
+        }
+        [data-sonner-toast] button[data-action]:hover,
+        [data-sonner-toast] button[data-button]:not([data-cancel]):hover {
+          background-color: var(--color-bold-blue) !important;
+        }
+        [data-sonner-toast] button[data-action]:active,
+        [data-sonner-toast] button[data-button]:not([data-cancel]):active {
+          background-color: var(--color-navy) !important;
+          box-shadow:
+            0px -2px 0px 0px #0000001a inset,
+            0px 0px 2px 0px #00000040,
+            0px 2px 0px 0px #00000040 inset !important;
+        }
+
+        /* ── Secondary (Not now): btn--sm btn--secondary ── */
+        [data-sonner-toast] button[data-cancel] {
+          background-color: var(--color-stone-grey) !important;
+          color: white !important;
+        }
+        [data-sonner-toast] button[data-cancel] * {
+          color: white !important;
+        }
+        [data-sonner-toast] button[data-cancel]:hover {
+          background-color: var(--color-stone-grey) !important;
+        }
+        [data-sonner-toast] button[data-cancel]:active {
+          background-color: var(--color-deep-grey) !important;
+          box-shadow:
+            0px -2px 0px 0px #0000001a inset,
+            0px 0px 2px 0px #00000040,
+            0px 2px 0px 0px #00000040 inset !important;
+        }
+      `}</style>
+    </>
+  );
+}
+
+export default function App() {
+  return (
+    <ClerkProvider publishableKey={clerkPublishableKey}>
+      <QueryClientProvider client={queryClient}>
+        <ToastSetup />
+        <SpaToaster />
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ClerkProvider>
+  );
+}

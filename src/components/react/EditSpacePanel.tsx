@@ -1355,8 +1355,8 @@ export default function EditSpacePanel({
         }}
       >
         {/* Accent bar on left */}
-        <div 
-          style={{ 
+        <div
+          style={{
             position: 'absolute',
             top: 0,
             bottom: 0,
@@ -1368,9 +1368,9 @@ export default function EditSpacePanel({
             backgroundColor: 'var(--color-light-paper)'
           }}
         />
-        
+
         {/* Content */}
-        <div 
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',

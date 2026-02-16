@@ -1,11 +1,13 @@
 [build]
-  command = "npm ci && npm run build"
-  publish = "dist"
+  # 1. astro build — compiles API routes into Netlify functions (.netlify/v1/functions/ssr)
+  # 2. vite build — compiles the SPA into dist-spa/ (served as static HTML)
+  command = "npm ci && npm run build && node_modules/.bin/vite build"
+  publish = "dist-spa"
   # Skip build when only doc paths change (exit 0 = skip). See scripts/netlify-skip-build.sh.
   ignore = "bash scripts/netlify-skip-build.sh"
 
 [build.environment]
-  NODE_VERSION = "20.18.0"
+  NODE_VERSION = "22"
   NPM_FLAGS = "--prefer-offline --no-audit"
 
 # Redirect old URL format (/thread_ID) to new format (/thread/ID)
@@ -32,10 +34,18 @@
   status = 200
   force = true
 
-# Redirect all non-API routes to index.html for SPA
-# API routes are handled by Astro serverless functions and should not be redirected
-# force = false means only redirect if the resource doesn't exist
-# Since API routes exist as serverless functions, they won't be redirected
+# API routes are handled by the Astro SSR Netlify function — do not redirect them.
+# The /.netlify/functions/ssr function matches /api/* automatically via the
+# @astrojs/netlify adapter's function routing; this explicit rule ensures no
+# catch-all below accidentally intercepts API requests in edge cases.
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/ssr"
+  status = 200
+  force = true
+
+# SPA catch-all: serve index.html for all other routes so TanStack Router
+# can handle client-side navigation (dashboard, note, thread, space, etc.)
 [[redirects]]
   from = "/*"
   to = "/index.html"

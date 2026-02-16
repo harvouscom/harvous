@@ -79,10 +79,7 @@ const RecentSearches: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="font-sans font-semibold text-[#4a473d] text-[16px] leading-[1.2]">
-        <p>Recent searches</p>
-      </div>
-      <div className="flex flex-col gap-2">
+<div className="flex flex-col gap-2">
         {recentSearches.map((search) => (
           <div key={search.term} className="recent-search-item">
             <div className="relative nav-item-container">
@@ -98,7 +95,7 @@ const RecentSearches: React.FC = () => {
                     return;
                   }
                   // Navigate to search results
-                  safeNavigate(`/find?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
+                  safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
                 <div className="flex items-center">

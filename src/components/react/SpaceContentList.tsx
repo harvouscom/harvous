@@ -40,7 +40,7 @@ interface SpaceItem {
 interface SpaceContentListProps {
   initialItems: SpaceItem[];
   spaceId: string;
-  filter?: 'all' | 'threads' | 'notes' | 'scripture';
+  filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
   spaceIsShared?: boolean;
 }
 
@@ -65,7 +65,7 @@ function stripHtml(html: string): string {
 export default function SpaceContentList({
   initialItems,
   spaceId,
-  filter = 'all',
+  filter = 'all' as 'all' | 'threads' | 'notes' | 'scripture' | 'resources',
   spaceIsShared = false
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
@@ -343,8 +343,9 @@ export default function SpaceContentList({
               // Check if item matches current filter
               const matchesFilter = filter === 'all' ||
                                    (filter === 'threads' && item.itemType === 'thread') ||
-                                   (filter === 'notes' && item.itemType === 'note') ||
-                                   (filter === 'scripture' && item.itemType === 'note' && item.noteType === 'scripture');
+                                   (filter === 'notes' && item.itemType === 'note' && (item.noteType === 'default' || !item.noteType)) ||
+                                   (filter === 'scripture' && item.itemType === 'note' && item.noteType === 'scripture') ||
+                                   (filter === 'resources' && item.itemType === 'note' && item.noteType === 'resource');
               return matchesFilter && !deletedItemIdsRef.current.has(item.id);
             }
           );
@@ -414,7 +415,9 @@ export default function SpaceContentList({
             ? combinedItems.filter(item => item.itemType === 'thread')
             : filter === 'scripture'
             ? combinedItems.filter(item => item.itemType === 'note' && item.noteType === 'scripture')
-            : combinedItems.filter(item => item.itemType === 'note');
+            : filter === 'resources'
+            ? combinedItems.filter(item => item.itemType === 'note' && item.noteType === 'resource')
+            : combinedItems.filter(item => item.itemType === 'note' && (item.noteType === 'default' || !item.noteType));
 
           // Ensure items are sorted by lastVisited after filtering
           // Ensure all dates are normalized before sorting
@@ -466,6 +469,15 @@ export default function SpaceContentList({
       return await verifyAndRefresh(3);
     }
   }, [spaceId, filter]);
+
+  // Re-fetch and re-filter when filter changes (tab switching)
+  const prevFilterRef = useRef<string>(filter);
+  useEffect(() => {
+    const filterChanged = prevFilterRef.current !== filter;
+    prevFilterRef.current = filter;
+    if (!filterChanged) return;
+    refreshSpaceContent();
+  }, [filter, refreshSpaceContent]);
 
   // Check sessionStorage on mount for recently created items
   useEffect(() => {
@@ -543,7 +555,7 @@ export default function SpaceContentList({
       // Check if note was created in current space
       if (noteSpaceId === spaceId && noteId) {
         // Optimistic update - add note to list immediately
-        if (note && (filter === 'all' || filter === 'notes' || (filter === 'scripture' && note.noteType === 'scripture'))) {
+        if (note && (filter === 'all' || filter === 'notes')) {
           const newItem: SpaceItem = {
             id: note.id,
             itemType: 'note',
@@ -732,6 +744,12 @@ export default function SpaceContentList({
       previousPathnameRef.current = window.location.pathname;
     }
 
+    // Match both Astro URL format (/{spaceId}) and SPA URL format (/space/{id-without-prefix})
+    const isOnCurrentSpacePage = (path: string) => {
+      const spaPath = `/space/${spaceId.replace('space_', '')}`;
+      return path === `/${spaceId}` || path === spaPath;
+    };
+
     const handleBeforeNavigation = () => {
       isNavigatingRef.current = true;
       // Store current pathname before navigation
@@ -743,8 +761,8 @@ export default function SpaceContentList({
       isNavigatingRef.current = false;
 
       const currentPath = window.location.pathname;
-      const isSpacePage = currentPath === `/${spaceId}`;
-      const navigatedToSpace = isSpacePage && previousPathnameRef.current !== `/${spaceId}`;
+      const isSpacePage = isOnCurrentSpacePage(currentPath);
+      const navigatedToSpace = isSpacePage && !isOnCurrentSpacePage(previousPathnameRef.current);
 
       // Only refresh if we're on the space page
       if (isSpacePage && isMountedRef.current) {
@@ -802,7 +820,7 @@ export default function SpaceContentList({
           });
 
           // Background API refresh (optimistic update already handled visual feedback, retry logic handles transient failures)
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             debug('[SpaceContentList] Refreshing space content for verification');
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Refresh completed', { success, itemCount: itemsRef.current.length });
@@ -835,14 +853,14 @@ export default function SpaceContentList({
     // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       const currentPath = window.location.pathname;
-      const isSpacePage = currentPath === `/${spaceId}`;
-      
+      const isSpacePage = isOnCurrentSpacePage(currentPath);
+
       if (!isSpacePage) return;
 
       // Always refresh once on mount when on the space page (fixes navigate-away-and-back showing stale list)
       if (!hasRefreshedOnMountRef.current) {
         hasRefreshedOnMountRef.current = true;
-        if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+        if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
           refreshSpaceContent().then((success) => {
             debug('[SpaceContentList] Mount refresh completed (always on space page)', { success });
           });
@@ -907,14 +925,14 @@ export default function SpaceContentList({
         // If PWA or stale data, refresh immediately (retry logic handles transient failures)
         // Otherwise, use optimistic update for navigation scenarios
         if (inPWA || dataIsStale) {
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Mount refresh completed (PWA/stale)', { success });
             });
           }
         } else {
           // Background API refresh for navigation scenarios (retry logic handles transient failures)
-          if (isMountedRef.current && window.location.pathname === `/${spaceId}` && !isNavigatingRef.current) {
+          if (isMountedRef.current && isOnCurrentSpacePage(window.location.pathname) && !isNavigatingRef.current) {
             refreshSpaceContent().then((success) => {
               debug('[SpaceContentList] Mount refresh completed', { success });
             });
@@ -952,7 +970,7 @@ export default function SpaceContentList({
         // App came to foreground
         const currentPath = window.location.pathname;
         const isSpacePage = currentPath === `/${spaceId}`;
-        
+
         if (!isSpacePage) return;
 
         const timeInBackground = lastBackgroundTimeRef.current > 0 

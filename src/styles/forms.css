@@ -695,8 +695,10 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   padding-left: 1rem;  /* 16px / px-4 */
   padding-right: 1rem;
   min-height: 64px;
-  background: transparent;
-  border: none;
+  background: var(--color-gradient-gray) !important;
+  border: none !important;
+  box-shadow: var(--shadow-small) !important;
+  outline: none !important;
   font-size: 18px;
   font-weight: 600;  /* font-semibold */
   color: var(--color-deep-grey);
@@ -705,11 +707,25 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 
 .clerk-form-input::placeholder {
   color: var(--color-pebble-grey);
+  opacity: 0.5;
 }
 
 .clerk-form-input:focus {
-  outline: none;
-  box-shadow: none;
+  outline: none !important;
+  box-shadow: var(--shadow-small) !important;
+}
+
+/* Reduce gaps to match design */
+.cl-form {
+  gap: 12px !important;
+}
+
+.cl-main {
+  gap: 12px !important;
+}
+
+.cl-card {
+  gap: 12px !important;
 }
 
 .clerk-form-error {

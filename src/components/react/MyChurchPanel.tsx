@@ -544,7 +544,7 @@ export default function MyChurchPanel({
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
             {/* Header section */}
             <div className="panel__header">
               <div className="panel__title">
@@ -634,7 +634,7 @@ export default function MyChurchPanel({
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
             {/* Header section */}
             <div className="panel__header">
               <div className="panel__title">

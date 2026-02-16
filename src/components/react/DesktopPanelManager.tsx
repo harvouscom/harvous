@@ -49,6 +49,8 @@ const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'Refe
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const MySharingPanel = createLazyComponent(() => import('./MySharingPanel'), 'MySharingPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
+const LockPinPanel = createLazyComponent(() => import('./LockPinPanel'), 'LockPinPanel');
+const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'), 'AboutHarvousPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
@@ -79,6 +81,8 @@ type PanelType =
   | 'referral'
   | 'myData'
   | 'getSupport'
+  | 'lockPin'
+  | 'aboutHarvous'
   | 'noteShare'
   | 'pinEntry'
   | null;
@@ -139,11 +143,16 @@ type PanelAction =
   | { type: 'CLOSE_MY_DATA' }
   | { type: 'OPEN_GET_SUPPORT' }
   | { type: 'CLOSE_GET_SUPPORT' }
+  | { type: 'OPEN_LOCK_PIN' }
+  | { type: 'CLOSE_LOCK_PIN' }
+  | { type: 'OPEN_ABOUT_HARVOUS' }
+  | { type: 'CLOSE_ABOUT_HARVOUS' }
   | { type: 'OPEN_NOTE_SHARE' }
   | { type: 'CLOSE_NOTE_SHARE' }
   | { type: 'OPEN_PIN_ENTRY' }
   | { type: 'CLOSE_PIN_ENTRY' }
-  | { type: 'LOAD_FROM_STORAGE' };
+  | { type: 'LOAD_FROM_STORAGE' }
+  | { type: 'CLOSE_ALL' };
 
 function panelReducer(state: PanelState, action: PanelAction): PanelState {
   switch (action.type) {
@@ -321,6 +330,22 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_LOCK_PIN':
+      localStorage.setItem('showProfilePanel', 'lockPin');
+      return { activePanel: 'lockPin', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_LOCK_PIN':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_ABOUT_HARVOUS':
+      localStorage.setItem('showProfilePanel', 'aboutHarvous');
+      return { activePanel: 'aboutHarvous', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_ABOUT_HARVOUS':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_NOTE_SHARE':
       return { activePanel: 'noteShare', panelKey: state.panelKey + 1 };
 
@@ -351,7 +376,9 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'manageBilling' ||
           savedProfilePanel === 'referral' ||
           savedProfilePanel === 'myData' ||
-          savedProfilePanel === 'getSupport'
+          savedProfilePanel === 'getSupport' ||
+          savedProfilePanel === 'lockPin' ||
+          savedProfilePanel === 'aboutHarvous'
         ) {
           return { activePanel: savedProfilePanel as PanelType, panelKey: 0 };
         }
@@ -381,6 +408,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       }
       return { activePanel: null, panelKey: 0 };
     
+    case 'CLOSE_ALL':
+      // Close whatever panel is open (used by SPA route changes)
+      localStorage.removeItem('showNewNotePanel');
+      localStorage.removeItem('showNewThreadPanel');
+      localStorage.removeItem('showNewResourcePanel');
+      return { activePanel: null, panelKey: state.panelKey };
+
     default:
       return state;
   }
@@ -553,6 +587,8 @@ export default function DesktopPanelManager({
       else if (panelName === 'referral') dispatch({ type: 'OPEN_REFERRAL' });
       else if (panelName === 'myData') dispatch({ type: 'OPEN_MY_DATA' });
       else if (panelName === 'getSupport') dispatch({ type: 'OPEN_GET_SUPPORT' });
+      else if (panelName === 'lockPin') dispatch({ type: 'OPEN_LOCK_PIN' });
+      else if (panelName === 'aboutHarvous') dispatch({ type: 'OPEN_ABOUT_HARVOUS' });
 
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
@@ -608,6 +644,10 @@ export default function DesktopPanelManager({
     window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
     window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
 
+    // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
+    const handleCloseAllPanels = () => dispatch({ type: 'CLOSE_ALL' });
+    window.addEventListener('closeAllPanels', handleCloseAllPanels);
+
     // Cleanup
     return () => {
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
@@ -630,6 +670,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleClosePinEntryPanel);
+      window.removeEventListener('closeAllPanels', handleCloseAllPanels);
     };
   }, []);
 
@@ -715,6 +756,16 @@ export default function DesktopPanelManager({
 
   const handleCloseGetSupport = useCallback(() => {
     dispatch({ type: 'CLOSE_GET_SUPPORT' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseLockPin = useCallback(() => {
+    dispatch({ type: 'CLOSE_LOCK_PIN' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseAboutHarvous = useCallback(() => {
+    dispatch({ type: 'CLOSE_ABOUT_HARVOUS' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -914,7 +965,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MySpacesPanel key={`my-spaces-${state.panelKey}`} onClose={handleCloseMySpaces} inBottomSheet={false} />
+              <MySpacesPanel key="my-spaces" onClose={handleCloseMySpaces} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -925,7 +976,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <MyAchievementsPanel
-                key={`my-achievements-${state.panelKey}`}
+                key="my-achievements"
                 onClose={handleCloseMyAchievements}
                 inBottomSheet={false}
               />
@@ -938,7 +989,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MyChurchPanel key={`my-church-${state.panelKey}`} onClose={handleCloseMyChurch} inBottomSheet={false} />
+              <MyChurchPanel key="my-church" onClose={handleCloseMyChurch} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -948,7 +999,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MySharingPanel key={`my-sharing-${state.panelKey}`} onClose={handleCloseMySharing} inBottomSheet={false} />
+              <MySharingPanel key="my-sharing" onClose={handleCloseMySharing} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -959,7 +1010,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <EditNameColorPanel
-                key={`edit-name-color-${state.panelKey}`}
+                key="edit-name-color"
                 onClose={handleCloseEditNameColor}
                 inBottomSheet={false}
               />
@@ -973,7 +1024,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <EmailPasswordPanel
-                key={`email-password-${state.panelKey}`}
+                key="email-password"
                 onClose={handleCloseEmailPassword}
                 inBottomSheet={false}
               />
@@ -987,7 +1038,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <ManageBillingPanel
-                key={`manage-billing-${state.panelKey}`}
+                key="manage-billing"
                 onClose={handleCloseManageBilling}
                 inBottomSheet={false}
                 publishableKey={publishableKey}
@@ -1002,7 +1053,7 @@ export default function DesktopPanelManager({
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
               <ReferralPanel
-                key={`referral-${state.panelKey}`}
+                key="referral"
                 onClose={handleCloseReferral}
                 inBottomSheet={false}
               />
@@ -1015,7 +1066,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <MyDataPanel key={`my-data-${state.panelKey}`} onClose={handleCloseMyData} inBottomSheet={false} />
+              <MyDataPanel key="my-data" onClose={handleCloseMyData} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>
@@ -1025,7 +1076,27 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
             <div className="h-full hidden min-[1160px]:block">
-              <GetSupportPanel key={`get-support-${state.panelKey}`} onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
+              <GetSupportPanel key="get-support" onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'lockPin' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <LockPinPanel key="lock-pin" onClose={handleCloseLockPin} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'aboutHarvous' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <AboutHarvousPanel key="about-harvous" onClose={handleCloseAboutHarvous} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

@@ -791,7 +791,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
 
     // Skip pages that don't have navigation data (profile, find, etc.)
-    const pagesWithoutNavigationData = ['profile', 'find', 'new-space', 'new-thread'];
+    const pagesWithoutNavigationData = ['profile', 'search', 'new-space', 'new-thread'];
     if (pagesWithoutNavigationData.includes(currentItemId)) {
       return;
     }

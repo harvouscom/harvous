@@ -7,8 +7,9 @@ interface ProfileCardStackHeaderProps {
 /**
  * ProfileCardStackHeader - React component that manages the profile CardStack header
  *
- * Shows "My Profile" as the header title. Uses React state for color so updates
- * (e.g. from Edit Name & Color) persist across View Transitions.
+ * This component uses React state to manage the header color and display name,
+ * ensuring updates persist across View Transitions and work reliably on both
+ * desktop and mobile without timing issues.
  */
 export default function ProfileCardStackHeader({
   initialColor
@@ -31,7 +32,7 @@ export default function ProfileCardStackHeader({
   }, []);
 
   return (
-    <div 
+    <div
       className="box-border content-stretch flex gap-3 items-center justify-center leading-[0] mb-[-24px] not-italic pb-12 pt-6 px-6 relative shrink-0 w-full"
       style={{
         backgroundColor: `var(--color-${color})`,

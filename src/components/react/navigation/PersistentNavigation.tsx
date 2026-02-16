@@ -296,6 +296,17 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       persistentItems = persistentItems.filter(
         (i) => !(i.title === activeParentThread.title && i.id !== activeParentThread.id)
       );
+      // If the thread is already in the list but with a stale/missing gradient, update it
+      const GRAY_FALLBACK = 'var(--color-gradient-gray)';
+      const hasRealGradient = activeParentThread.backgroundGradient &&
+        activeParentThread.backgroundGradient !== GRAY_FALLBACK;
+      if (hasRealGradient) {
+        persistentItems = persistentItems.map((i) =>
+          i.id === activeParentThread.id && (!i.backgroundGradient || i.backgroundGradient === GRAY_FALLBACK)
+            ? { ...i, backgroundGradient: activeParentThread.backgroundGradient }
+            : i
+        );
+      }
     }
     // Ensure the active parent thread is visible even if it doesn't match scoping yet.
     if (activeParentThread && !persistentItems.some((i) => i.id === activeParentThread.id)) {
@@ -379,7 +390,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
   }
 
   return (
-    <div id="persistent-navigation" key={renderKey} className="persistent-nav">
+    <div id="persistent-navigation" className="persistent-nav">
       {persistentItems.map((item) => {
         const isActive = item.id === effectiveActiveItemId;
         const isSpaceItem = item.id.startsWith('space_');

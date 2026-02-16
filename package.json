@@ -1,13 +1,13 @@
 {
   "name": "harvous",
   "type": "module",
-  "version": "1.127.1",
+  "version": "1.125.4",
   "repository": {
     "type": "git",
     "url": "https://github.com/harvouscom/harvous.git"
   },
   "engines": {
-    "node": ">=20.6.1"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "dev": "astro dev",
@@ -20,6 +20,13 @@
     "db:check": "node scripts/db-sync.js",
     "predeploy": "npm run db:push",
     "deploy": "npm run build",
+    "dev:spa": "vite",
+    "build:spa": "vite build",
+    "preview:spa": "vite preview --port 4322",
+    "build:native": "npm run build:spa && node_modules/.bin/cap sync",
+    "cap:sync": "npm run build:spa && node_modules/.bin/cap sync",
+    "cap:ios": "npm run cap:sync && node_modules/.bin/cap open ios",
+    "cap:android": "npm run cap:sync && node_modules/.bin/cap open android",
     "precommit": "npm run db:check",
     "version:bump": "node scripts/bump-version.js",
     "version:check": "node -e \"console.log(require('./package.json').version)\"",
@@ -38,6 +45,13 @@
     "@astrojs/db": "^0.19.0",
     "@astrojs/netlify": "^6.6.4",
     "@astrojs/react": "^4.4.2",
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/haptics": "^8.0.0",
+    "@capacitor/ios": "^8.1.0",
+    "@capacitor/splash-screen": "^8.0.1",
+    "@capacitor/status-bar": "^8.0.1",
     "@clerk/astro": "^2.17.1",
     "@clerk/backend": "^2.19.3",
     "@clerk/clerk-react": "^5.59.2",
@@ -51,6 +65,8 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-toggle": "^1.1.10",
+    "@tanstack/react-query": "^5.90.21",
+    "@tanstack/react-router": "^1.159.10",
     "@tiptap/extension-bullet-list": "^3.6.5",
     "@tiptap/extension-highlight": "^3.10.8",
     "@tiptap/extension-list-item": "^3.6.5",
@@ -64,6 +80,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vercel/og": "^0.6.2",
+    "@vitejs/plugin-react": "^5.1.4",
     "astro": "^5.17.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",

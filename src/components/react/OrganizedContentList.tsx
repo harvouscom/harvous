@@ -18,6 +18,10 @@ import {
   type SectionKey
 } from '@/utils/last-visited-sections';
 
+// SPA-compatible dashboard path check — Astro uses '/', SPA uses '/dashboard'
+const isDashboardPath = () =>
+  window.location.pathname === '/' || window.location.pathname === '/dashboard';
+
 // Content cache removed - server is the single source of truth
 // This simplification eliminates cache staleness and duplication issues
 
@@ -402,7 +406,7 @@ export default function OrganizedContentList({
   }): Promise<boolean> => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return false;
     if (!isMountedRef.current) return false;
-    if (window.location.pathname !== '/') return false;
+    if (!isDashboardPath()) return false;
     if (refreshStateRef.current.isNavigating) return false;
 
     const currentFilter = filterRef.current;
@@ -720,7 +724,7 @@ export default function OrganizedContentList({
 
         // Update state with the master list
         const refreshedKey = sorted.map(item => item.id).join(',') + `|${sorted.length}`;
-        if (isMountedRef.current && window.location.pathname === '/' && 
+        if (isMountedRef.current && isDashboardPath() &&
             !refreshStateRef.current.isNavigating && filterRef.current === currentFilter) {
           if (refreshedKey !== refreshStateRef.current.lastRefreshKey || options?.expectedItemId) {
             refreshStateRef.current.lastRefreshKey = refreshedKey;
@@ -836,24 +840,36 @@ export default function OrganizedContentList({
     return null;
   }, []);
 
-  // Handle filter changes - simple fetch for scripture tab
+  // Handle filter changes - fetch fresh data for every tab switch.
+  // In SPA context (initialItems=[]) this also handles all tab loads.
+  // On SSR, only re-fetch when the filter actually changes (not on first mount
+  // with fresh SSR data), so we don't wipe server-rendered content.
+  const prevFilterRef2 = useRef<string>(filter);
   useEffect(() => {
-    if (filter === 'scripture' && isMountedRef.current) {
-      setCurrentItems([]);
-      currentItemsRef.current = [];
-      // Set hasMore to false initially to prevent InfiniteScrollList from auto-loading
-      // until the refresh completes
-      setHasMore(false);
-      hasMoreRef.current = false;
-      // Trigger refresh which will update hasMore based on actual data
-      refreshContent()
-        .then((ok) => {
-          setRefreshError(ok ? null : 'Couldn\'t load content');
-        })
-        .catch(() => {
-          setRefreshError('Couldn\'t load content');
-        });
-    }
+    if (!isMountedRef.current) return;
+    const filterChanged = prevFilterRef2.current !== filter;
+    prevFilterRef2.current = filter;
+    // On first mount with fresh SSR data, skip — the initialItems handler covers it
+    const hasFreshSSRData = (initialItems || []).length > 0 && !isDataFromStaleCache;
+    if (!filterChanged && hasFreshSSRData) return;
+    // Sync filterRef immediately so refreshContent captures the correct filter value.
+    filterRef.current = filter;
+    // Reset isRefreshing and lastRefreshKey so a new fetch always goes through.
+    refreshStateRef.current.isRefreshing = false;
+    refreshStateRef.current.lastRefreshKey = '';
+    // Bypass the 2s debounce for explicit tab-switch fetches.
+    refreshStateRef.current.shouldBypassDebounce = true;
+    setCurrentItems([]);
+    currentItemsRef.current = [];
+    setHasMore(false);
+    hasMoreRef.current = false;
+    refreshContent()
+      .then((ok) => {
+        setRefreshError(ok ? null : 'Couldn\'t load content');
+      })
+      .catch(() => {
+        setRefreshError('Couldn\'t load content');
+      });
   }, [filter, refreshContent]);
 
   // Removed mount refresh to prevent race conditions with initialItems updates
@@ -957,7 +973,7 @@ export default function OrganizedContentList({
         // If a scripture note is deleted and we're on the 'all' filter, refresh content
         // to update scripture references in CardNote components
         const currentFilter = filterRef.current;
-        if (currentFilter === 'all' && window.location.pathname === '/') {
+        if (currentFilter === 'all' && isDashboardPath()) {
           // Check if the deleted note is a scripture note by looking it up in currentItems
           const deletedNote = currentItemsRef.current.find(
             item => item.type === 'note' && normalizeId(item.noteId || item.id) === normId
@@ -1025,7 +1041,7 @@ export default function OrganizedContentList({
         return;
       }
 
-      if (window.location.pathname === '/') {
+      if (isDashboardPath()) {
         if (currentFilter === 'scripture') {
           refreshContent();
         } else {
@@ -1069,7 +1085,7 @@ export default function OrganizedContentList({
         return;
       }
 
-      if (window.location.pathname === '/') {
+      if (isDashboardPath()) {
         if (currentFilter === 'all' || currentFilter === 'threads') {
           const threadItem: OrganizedContentItem = {
             id: thread.id, // Use thread.id directly (already in thread_ format)
@@ -1091,7 +1107,7 @@ export default function OrganizedContentList({
     };
 
     const handleNoteUpdated = () => {
-      if (window.location.pathname === '/') {
+      if (isDashboardPath()) {
         if (filterRef.current === 'scripture') {
           refreshContent();
         } else {
@@ -1101,13 +1117,13 @@ export default function OrganizedContentList({
     };
 
     const handleThreadUpdated = () => {
-      if (window.location.pathname === '/') {
+      if (isDashboardPath()) {
         refreshContent();
       }
     };
 
     const handleSpaceDeleted = () => {
-      if (window.location.pathname === '/') {
+      if (isDashboardPath()) {
         refreshContent();
       }
     };
@@ -1148,7 +1164,7 @@ export default function OrganizedContentList({
     const handlePageLoad = () => {
       refreshStateRef.current.isNavigating = false;
 
-      const isDashboard = window.location.pathname === '/';
+      const isDashboard = isDashboardPath();
       const navigatedToDashboard = isDashboard && previousPathnameRef.current !== '/';
       const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread/') || 
                                       previousPathnameRef.current.startsWith('/note/');
@@ -1190,7 +1206,7 @@ export default function OrganizedContentList({
             }
             refreshStateRef.current.pendingTimeout = setTimeout(() => {
               refreshStateRef.current.pendingTimeout = null;
-              if (isMountedRef.current && window.location.pathname === '/' &&
+              if (isMountedRef.current && isDashboardPath() &&
                   !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
                 refreshContent();
               }
@@ -1209,7 +1225,7 @@ export default function OrganizedContentList({
           }
           refreshStateRef.current.pendingTimeout = setTimeout(() => {
             refreshStateRef.current.pendingTimeout = null;
-            if (isMountedRef.current && window.location.pathname === '/' && !refreshStateRef.current.isNavigating) {
+            if (isMountedRef.current && isDashboardPath() && !refreshStateRef.current.isNavigating) {
               if (!refreshStateRef.current.isRefreshing) {
                 refreshContent();
               }
@@ -1222,7 +1238,7 @@ export default function OrganizedContentList({
     };
 
     const checkAndRefreshOnMount = () => {
-      const isDashboard = window.location.pathname === '/';
+      const isDashboard = isDashboardPath();
       if (!isDashboard) return;
 
       const inPWA = isPWA();
@@ -1234,14 +1250,17 @@ export default function OrganizedContentList({
       const ssrAge = dataGeneratedAt ? Date.now() - dataGeneratedAt : 0;
       const isFromStaleCache = ssrAge > 30000; // 30 seconds - trigger refresh sooner than the 60s render skip
 
-      if (inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
+      // In SPA context, initialItems is always empty — always refresh on mount
+      const hasNoInitialData = !initialItems || initialItems.length === 0;
+
+      if (hasNoInitialData || inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
         // Set loading state if data is from stale cache
         if (isFromStaleCache) {
           debug('[OrganizedContentList] checkAndRefreshOnMount: SSR data from stale cache (age: ' + Math.round(ssrAge / 1000) + 's), refreshing');
           setIsWaitingForFreshData(true);
         }
         // Removed delays for instant refresh
-        if (isMountedRef.current && window.location.pathname === '/' &&
+        if (isMountedRef.current && isDashboardPath() &&
             !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
           refreshContent()
             .then((ok) => {
@@ -1283,7 +1302,7 @@ export default function OrganizedContentList({
       if (document.hidden) {
         lastBackgroundTimeRef.current = Date.now();
       } else {
-        const isDashboard = window.location.pathname === '/';
+        const isDashboard = isDashboardPath();
         if (!isDashboard) return;
 
         const timeInBackground = lastBackgroundTimeRef.current > 0 
@@ -1303,7 +1322,7 @@ export default function OrganizedContentList({
           refreshStateRef.current.isRefreshing = true;
 
           // Removed PWA delay for instant refresh
-          if (isMountedRef.current && window.location.pathname === '/' &&
+          if (isMountedRef.current && isDashboardPath() &&
               !refreshStateRef.current.isNavigating && refreshStateRef.current.isRefreshing) {
             refreshContent()
               .then((ok) => {

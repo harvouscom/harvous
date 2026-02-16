@@ -914,11 +914,25 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { threads: persistentThreads } = organizePersistentItems();
 
+  // Merge nav-API threads with history threads so users see all threads —
+  // not just ones they've previously visited. Exclude unorganized thread from
+  // the list (it's not meaningful in the space switcher context).
+  // Also filter extraFromApi by selectedSpaceId so only threads belonging to
+  // the current space appear in the dropdown.
+  const displayThreads = useMemo(() => {
+    const persistentIds = new Set(persistentThreads.map((t) => t.id));
+    const extraFromApi = threads.filter(
+      (t) => !persistentIds.has(t.id) && t.id !== 'thread_unorganized' &&
+        (!selectedSpaceId || t.spaceId === selectedSpaceId)
+    );
+    return [...persistentThreads, ...extraFromApi];
+  }, [persistentThreads, threads, selectedSpaceId]);
+
   const openSheet = () => {
     setIsSheetOpen(true);
     // If there are no threads to show, auto-open the space picker panel.
-    // This helps first-run / “only spaces exist” states.
-    setIsSpacePanelOpen(persistentThreads.length === 0);
+    // This helps first-run / "only spaces exist" states.
+    setIsSpacePanelOpen(displayThreads.length === 0);
   };
 
   const closeSheet = useCallback(() => {
@@ -1228,7 +1242,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="mobile-nav__col">
-        <a href="/find" className="nav-link">
+        <a href="/search" className="nav-link">
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">
@@ -1486,9 +1500,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     </div>
                   </div>
                 ) : null}
-                {persistentItems.length > 0 ? (
+                {displayThreads.length > 0 ? (
                   <>
-                    {persistentThreads.map((thread) => {
+                    {displayThreads.map((thread) => {
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
                       // Use updated thread data for active thread to show live updates
                       const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;

@@ -623,7 +623,7 @@
   }
 }
 
-/* Mobile only: dialogs as bottom sheets (match SpaceSwitcher sheet: flush bottom, no overlay, subtle shadow) */
+/* Mobile only: dialogs as bottom sheets (flush bottom, slide up, dark overlay matches bottom sheet) */
 @media (max-width: 1159px) {
   .modal-overlay-enter,
   .modal-overlay,
@@ -631,7 +631,6 @@
     align-items: flex-end !important;
     justify-content: flex-end !important;
     padding: 0 !important;
-    background-color: transparent !important;
   }
 
   .modal-content-enter,
@@ -660,7 +659,7 @@
   align-items: center;
   justify-content: flex-start;
   gap: 0;
-  padding: 0.25rem 0.25rem 0 0.25rem;  /* pt-1 px-1 pb-0 */
+  padding: 0.25rem 0.25rem 0.75rem 0.25rem;  /* pt-1 px-1 pb-3 */
   position: relative;
   width: 100%;
   overflow-x: auto;

@@ -1335,9 +1335,6 @@ export default function CardFullEditable({
             </div>
           </div>
           
-          {/* Save/Cancel buttons when only title is being edited */}
-          {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
-          
           {/* Editable content area with TiptapEditor */}
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
@@ -1395,7 +1392,7 @@ export default function CardFullEditable({
           
           {/* Source bar with hostname and external link icon */}
           {resourceUrl && (
-            <button 
+            <button
               type="button"
               className="card-image-link__source"
               style={{ textDecoration: 'none', border: 'none', textAlign: 'left', flexShrink: 0 }}
@@ -1415,6 +1412,9 @@ export default function CardFullEditable({
               </div>
             </button>
           )}
+
+          {/* Save/Cancel buttons when only title is being edited - shown at bottom */}
+          {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
         </div>
       </div>
     );
@@ -1533,9 +1533,6 @@ export default function CardFullEditable({
         )}
       </div>
       
-      {/* Save/Cancel buttons when only title is being edited */}
-      {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
-      
       {/* Content */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginTop: '12px' }}>
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
@@ -1605,7 +1602,10 @@ export default function CardFullEditable({
             </div>
           )}
         </div>
-        
+
+        {/* Save/Cancel buttons when only title is being edited - shown at bottom like content editing */}
+        {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
+
         {/* NET Bible Attribution - visible at bottom for scripture notes */}
         {noteType === 'scripture' && version === 'NET' && (
           <div 

@@ -118,7 +118,9 @@ export default function MySpacesPanel({
     hasFetchedRef.current = true;
 
     try {
-      setIsLoading(true);
+      // Only show loading state on first load (no fresh data yet) — prevents
+      // re-open flicker when refreshing in the background with existing spaces visible
+      if (!hasFetchedFreshDataRef.current) setIsLoading(true);
       setError(null);
 
       const [navResponse, sharedResponse] = await Promise.all([
@@ -537,7 +539,7 @@ export default function MySpacesPanel({
       {/* Content area - expands on mobile, fits content on desktop */}
       <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
         {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
@@ -548,13 +550,11 @@ export default function MySpacesPanel({
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              {!isLoading && !error && (
-                <div className="mb-3">
-                  <TabNav
-                    tabs={spaceTabs}
-                    onTabChange={(tabId) => setActiveFilter(tabId as 'all' | 'private' | 'shared')}
-                  />
-                </div>
+              {!error && (
+                <TabNav
+                  tabs={spaceTabs}
+                  onTabChange={(tabId) => setActiveFilter(tabId as 'all' | 'private' | 'shared')}
+                />
               )}
 
               {/* Error state */}
