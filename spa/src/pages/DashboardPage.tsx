@@ -20,7 +20,7 @@ export default function DashboardPage() {
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
   return (
-    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle>
+    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle className="dashboard">
       <TabNav
         tabs={tabs}
         onTabChange={(id) => setFilter(id as DashboardFilter)}
