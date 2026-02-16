@@ -12,7 +12,6 @@
   max-height: 100svh;
   overflow: hidden;
   padding: 0.75rem;
-  padding-top: 0;
   box-sizing: border-box;
   /* Flex so children (desktop-layout / mobile-layout) fill the height correctly */
   display: flex;
@@ -22,6 +21,13 @@
 @media (min-width: 1160px) {
   .app-layout {
     padding: 1.5rem;
+  }
+}
+
+/* PWA standalone: remove top padding — the system status bar sits flush above the layout */
+@media (display-mode: standalone) {
+  .app-layout {
+    padding-top: 0;
   }
 }
 
