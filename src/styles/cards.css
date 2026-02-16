@@ -687,11 +687,6 @@
   width: 100%;
 }
 
-/* Dashboard card has no colored header — reduce top padding so it doesn't look like dead space */
-.card-stack.dashboard .card-stack__header {
-  padding-top: 0.75rem;
-}
-
 /* Clickable header (with data-thread-id or data-space-id) - shows pointer cursor and hover effect */
 .card-stack__header[data-thread-id],
 .card-stack__header[data-space-id] {
