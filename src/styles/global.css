@@ -40,6 +40,11 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Eliminate iOS 300ms double-tap delay on all interactive elements */
+a, button {
+  touch-action: manipulation;
+}
+
 /* Prevent main content scroll when modals/sheets are open (layout-root only; sheet portal stays outside so inner scroll works on iOS) */
 #layout-root.bottom-sheet-open {
   overflow: hidden;
