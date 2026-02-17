@@ -1409,14 +1409,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               type="button"
                               className="mobile-nav__space-panel-check"
                               aria-label={`Close ${s.title}`}
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              onTouchStart={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();

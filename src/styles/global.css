@@ -223,12 +223,41 @@ sup {
 }
 
 /* ==========================================================================
-   Touch Optimization
+   Touch Optimization — eliminate 300ms tap delay on all interactive elements
    ========================================================================== */
 a[href^="/"],
 .space-button,
+.nav-item-container,
 .nav-item-container a,
-nav a {
+nav a,
+.card-note-container,
+.card-note,
+.card-thread,
+.card-thread-container,
+.card-feat-container,
+.nav-link,
+.mobile-nav__space-panel-item,
+.mobile-nav-item,
+.space-btn,
+.space-btn-lg,
+.square-button,
+.menu-item,
+.btn,
+.btn-action,
+.btn-cta,
+.btn-chonk,
+.tab-btn,
+.tab-nav__button,
+.badge-count,
+.toggle,
+.close-icon,
+.dropdown-icon,
+.checkbox,
+.card-stack__header[data-thread-id],
+.card-stack__header[data-space-id],
+.card-image-link__source,
+[role="button"],
+[data-close-item] {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
