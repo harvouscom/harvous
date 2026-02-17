@@ -1406,14 +1406,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                               </span>
                               {/* Transparent overlay: catches the tap before anything else.
-                                  Extends 10px on every side → 44×44 effective touch target.
-                                  onPointerDown fires immediately on touch (no 300ms delay). */}
+                                  inset: 0 = flush with the 24×24 parent — no overflow into the row.
+                                  onPointerDown fires immediately on touch (no 300ms delay).
+                                  We do NOT call closeSheet() here — space disappears from list
+                                  and the sheet stays open so the user can see the result. */}
                               <div
                                 role="button"
                                 aria-label={`Close ${s.title}`}
                                 style={{
                                   position: 'absolute',
-                                  inset: '-10px',
+                                  inset: 0,
                                   cursor: 'pointer',
                                   touchAction: 'manipulation',
                                   WebkitTapHighlightColor: 'transparent',
@@ -1427,7 +1429,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   if (selectedSpaceId === s.id) {
                                     setSelectedSpaceId(null);
                                   }
-                                  closeSheet();
+                                  // Sheet stays open — user sees the space vanish from the list.
                                 }}
                               />
                             </div>
@@ -1597,7 +1599,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                       closeButtonTappedRef.current = true;
                                       setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
                                       if (itemsInCloseMode.has(thread.id)) {
+                                        // removeFromNavigationHistory navigates away when the removed
+                                        // thread is the currently-active one. Close the sheet first
+                                        // so that navigation happens cleanly. For non-active threads
+                                        // the thread just disappears and the sheet stays open.
+                                        const isCurrentlyActive = thread.id === currentActiveItemId;
                                         handleCloseClick(thread.id, e as any);
+                                        if (isCurrentlyActive) {
+                                          closeSheet();
+                                        }
                                       } else {
                                         toggleCloseMode(thread.id);
                                       }
