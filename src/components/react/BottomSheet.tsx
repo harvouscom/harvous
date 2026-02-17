@@ -561,9 +561,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         }}
         tabIndex={-1}
       >
-        {/* Drag handle for pull-down-to-dismiss */}
-        <div className="sheet-drag-handle" />
-
         {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
         <SheetHeader>
           <SheetTitle className="sr-only">

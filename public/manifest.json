@@ -7,8 +7,8 @@
   ],
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#F7F7F6",
-  "theme_color": "#F7F7F6",
+  "background_color": "#F3F2EC",
+  "theme_color": "#F3F2EC",
   "scope": "/",
   "description": "Harvous",
   "url_handlers": [

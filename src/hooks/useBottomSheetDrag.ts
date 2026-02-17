@@ -207,11 +207,9 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
         setTimeout(() => {
           el.style.removeProperty('transform');
           el.style.transition = '';
-          // Clear inline overlay styles so Radix's data-state CSS takes over cleanly
-          if (overlay) {
-            overlay.style.opacity = '';
-            overlay.style.transition = '';
-          }
+          // Don't clear overlay inline styles here — Radix unmounts the overlay
+          // element entirely on close, which naturally removes all inline styles.
+          // Clearing them before Radix transitions causes a flash of full opacity.
           onDismissRef.current();
         }, 200);
       } else {

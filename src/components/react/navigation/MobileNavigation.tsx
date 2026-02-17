@@ -87,6 +87,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [activeThreadFromDom, setActiveThreadFromDom] = useState<Thread | null>(null);
   // Track recent event updates to prevent sync effect and DOM reads from overwriting them
   const lastEventUpdateRef = useRef<{ spaceId: string; timestamp: number } | null>(null);
+  // Click guard: when a close button's onTouchEnd fires, this flag prevents the
+  // iOS-synthesized click from navigating via the parent <a>. stopPropagation on
+  // touchend does NOT prevent the subsequent click event on a different element.
+  const closeButtonTappedRef = useRef(false);
   // Local state for spaces that gets updated when spaces are modified
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   // Track which items are in "close mode" (showing close icon instead of badge)
@@ -962,6 +966,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
+    // Always prevent default anchor navigation — use SPA router instead
+    e.preventDefault();
+
+    // If a close button's onTouchEnd just fired, skip navigation —
+    // iOS synthesizes a click event from the same touch that reaches the parent <a>.
+    if (closeButtonTappedRef.current) {
+      closeButtonTappedRef.current = false;
+      return;
+    }
+
     // Check if we're currently on a note page
     const isOnNotePage = currentItemId.startsWith('note_');
 
@@ -969,9 +983,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     const isActiveItem = itemId === undefined || itemId === ''
       ? isDashboard // "My Home" is active
       : itemId === currentActiveItemId; // Other items match active id
-
-    // Always prevent default anchor navigation — use SPA router instead
-    e.preventDefault();
 
     handleItemClick(itemId);
 
@@ -1296,6 +1307,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             type="button"
             className="space-btn__badge-wrapper space-switcher-anchor__toggle"
             aria-label="Switch space"
+            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openSheet();
+            }}
             onClick={(e) => {
               e.stopPropagation();
               openSheet();
@@ -1330,9 +1347,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
           >
-            {/* Drag handle for pull-down-to-dismiss */}
-            <div className="sheet-drag-handle" />
-
             {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
             <SheetHeader>
               <SheetTitle className="sr-only">Navigation</SheetTitle>
@@ -1420,6 +1434,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
                           onClick={(e) => {
                             e.preventDefault();
+                            if (closeButtonTappedRef.current) { closeButtonTappedRef.current = false; return; }
                             setSelectedSpaceId(s.id);
                             closeSheet();
                             if (onNavigate) onNavigate(idToUrl(s.id));
@@ -1439,6 +1454,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               onTouchEnd={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
+                                closeButtonTappedRef.current = true;
+                                setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
                                 removeFromNavigationHistory(s.id);
                                 if (selectedSpaceId === s.id) {
                                   setSelectedSpaceId(null);
@@ -1598,6 +1615,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                       e.preventDefault();
                                       e.stopPropagation();
                                       e.nativeEvent.stopImmediatePropagation();
+                                      closeButtonTappedRef.current = true;
+                                      setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
                                       if (itemsInCloseMode.has(thread.id)) {
                                         handleCloseClick(thread.id, e);
                                       } else {
