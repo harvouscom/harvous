@@ -53,10 +53,10 @@
     // Show touch feedback instantly
     button.style.opacity = '0.7';
     
-    // Add a fast touch response that will execute regardless of UI thread load
-    setTimeout(() => {
+    // Add a fast touch response using rAF for minimal delay
+    requestAnimationFrame(() => {
       button.style.opacity = '1';
-      
+
       // Execute action directly from data attribute if possible
       if (button.dataset.action) {
         try {
@@ -71,7 +71,7 @@
         // Fallback to normal click
         button.click();
       }
-    }, 50);
+    });
   }
   
   /**

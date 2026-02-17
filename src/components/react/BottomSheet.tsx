@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import {
   Sheet,
   SheetContent,
@@ -218,6 +219,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     },
     []
   );
+
+  // Pull-down-to-dismiss: reuse the existing drag hook (goes through same close flow as overlay click)
+  const dragDismiss = useCallback(async () => {
+    isHandlingDismissRef.current = true;
+    const ok = await requestClose('dismiss');
+    if (ok) closeBottomSheet();
+  }, [requestClose, closeBottomSheet]);
+
+  const dragRef = useBottomSheetDrag({ onDismiss: dragDismiss, enabled: isVisible && isMobile });
+
+  // Merge the drag ref with the existing sheetContentElRef (used for keyboard viewport logic)
+  const mergedSheetRef = useCallback((el: HTMLDivElement | null) => {
+    sheetContentElRef.current = el;
+    dragRef(el);
+  }, [dragRef]);
 
   // Set up event listeners
   useEffect(() => {
@@ -509,7 +525,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
     >
       <SheetContent
-        ref={sheetContentElRef}
+        ref={mergedSheetRef}
         side="bottom"
         className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
         style={{
@@ -545,6 +561,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         }}
         tabIndex={-1}
       >
+        {/* Drag handle for pull-down-to-dismiss */}
+        <div className="sheet-drag-handle" />
+
         {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
         <SheetHeader>
           <SheetTitle className="sr-only">

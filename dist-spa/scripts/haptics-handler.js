@@ -1,21 +1,27 @@
 /**
  * Global Haptics Handler for All Interactive Elements
- * 
+ *
  * Provides haptic feedback for all tappable elements based on shadow depth.
  * Intensity levels correspond to visual depth:
  * - Light (10ms): Elements with no/minimal shadows
  * - Medium (20ms): Elements with medium shadows (-4px inset)
  * - Strong (30ms): Elements with heavy shadows (-6px to -8px inset + outer)
+ *
+ * Uses touchstart in capture phase to fire BEFORE React's synthetic event
+ * system can intercept or stopPropagation on events.
  */
 
 (function() {
   'use strict';
-  
+
   // Check if device is mobile (iOS/Android) to prevent console errors on desktop
   function isMobileDevice() {
     if (typeof navigator === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }
+
+  // Early bail on desktop — don't register any listeners
+  if (!isMobileDevice()) return;
 
   // Check if running in a Capacitor native shell (iOS/Android)
   function isNative() {
@@ -33,8 +39,6 @@
 
   // Simple vibrate wrapper - uses Capacitor Haptics on native, navigator.vibrate as fallback
   function vibrate(duration) {
-    if (!isMobileDevice()) return;
-
     // Native: use Capacitor Haptics plugin (works on iOS where navigator.vibrate is blocked)
     if (isNative() && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
       try {
@@ -55,114 +59,94 @@
     }
   }
 
-  // Handler function that processes touch end events
-  function handleInteraction(e) {
-    var target = e.target;
-    
-    // Strong haptic: Elements with heavy shadows (-6px to -8px + outer)
-    // CardThread, CTA buttons, SquareButton with outer shadow
+  // Classify an element and return the haptic intensity (0 = no haptic)
+  function classifyTarget(target) {
+    if (!target || !target.closest) return 0;
+
+    // Strong haptic (30ms): Heavy shadow elements
     if (target.closest('.card-thread, .card-thread-container, button.btn--lg, button.btn-cta, button[data-outer-shadow], .btn-chonk')) {
-      vibrate(30);
-      return;
+      return 30;
     }
 
-    // Medium haptic: Elements with medium shadows (-4px)
-    // ButtonSmall, card-feat, space switcher toggle button
+    // Medium haptic (20ms): Medium shadow elements
     if (target.closest('button.btn--sm, .card-feat-container, .space-switcher-anchor__toggle')) {
-      vibrate(20);
-      return;
+      return 20;
     }
 
-    // Mobile nav specific: Check if inside mobile dropdown wrapper AND space-switcher-anchor
-    // This MUST run before general nav-link check to catch the main button that opens bottom sheet
-    // The main button is a nav-link inside space-switcher-anchor inside mobile-nav__dropdown-wrapper
-    // First, check if we're touching on or inside a nav-link that's in mobile nav dropdown
+    // Mobile nav space-switcher main button (medium)
     var navLink = target.closest('.nav-link');
     if (navLink) {
-      var mobileDropdownWrapper = navLink.closest('.mobile-nav__dropdown-wrapper');
-      if (mobileDropdownWrapper) {
-        var spaceSwitcherAnchor = navLink.closest('.space-switcher-anchor');
-        if (spaceSwitcherAnchor) {
-          // Make sure we're not touching the toggle button
-          var toggleButton = target.closest('.space-switcher-anchor__toggle');
-          if (!toggleButton) {
-            // We're ending touch on the nav-link inside mobile dropdown + space-switcher-anchor
-            // This is the main button that opens the bottom sheet - trigger medium haptic
-            vibrate(20);
-            return;
-          }
-        }
-      }
-    }
-    // Fallback: Check if inside mobile dropdown wrapper AND space-switcher-anchor (any element)
-    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
-    if (mobileDropdownWrapper) {
-      var spaceSwitcherAnchor = target.closest('.space-switcher-anchor');
-      if (spaceSwitcherAnchor) {
-        var toggleButton = target.closest('.space-switcher-anchor__toggle');
-        if (!toggleButton) {
-          // We're inside mobile dropdown + space-switcher-anchor, but not the toggle
-          vibrate(20);
-          return;
-        }
+      var inMobileDropdown = navLink.closest('.mobile-nav__dropdown-wrapper');
+      if (inMobileDropdown && navLink.closest('.space-switcher-anchor') && !target.closest('.space-switcher-anchor__toggle')) {
+        return 20;
       }
     }
 
-    // SpaceButton in space-switcher-anchor context has shadow (medium haptic)
-    // Check if target is a space-button/space-btn AND inside space-switcher-anchor
+    // Fallback space-switcher anchor check
+    var mobileDropdownWrapper = target.closest('.mobile-nav__dropdown-wrapper');
+    if (mobileDropdownWrapper && target.closest('.space-switcher-anchor') && !target.closest('.space-switcher-anchor__toggle')) {
+      return 20;
+    }
+
+    // SpaceButton in space-switcher-anchor context (medium)
     var spaceButton = target.closest('.space-button, .space-btn');
     if (spaceButton && spaceButton.closest('.space-switcher-anchor')) {
-      vibrate(20);
-      return;
+      return 20;
     }
-    // Also check if ending touch on nav-link that's inside space-switcher-anchor (desktop nav case)
-    // nav-link wraps SpaceButton, so touches ending on nav-link or its children should trigger medium haptic
-    var navLink = target.closest('.nav-link');
+    // nav-link inside space-switcher-anchor (desktop, medium)
     if (navLink && navLink.closest('.space-switcher-anchor')) {
-      vibrate(20);
-      return;
+      return 20;
     }
 
-    // Light haptic: Elements with no/minimal shadows
-    // CardNote, general space buttons (outside switcher), menu items
+    // Light haptic (10ms): Minimal shadow elements
     if (target.closest('.card-note-container, .card-note, button.btn-action, button.btn-animate-squish, .menu-item, .tab-nav__button')) {
-      vibrate(10);
-      return;
-    }
-    
-    // Space buttons outside of space-switcher get light haptic
-    if (target.closest('.space-button, .space-btn') && !target.closest('.space-switcher-anchor')) {
-      vibrate(10);
-      return;
-    }
-    
-    // Space switcher dropdown items (light - no shadow)
-    if (target.closest('.space-switcher-dropdown__item, .space-switcher-dropdown__close-btn')) {
-      vibrate(10);
-      return;
-    }
-    
-    // Navigation elements (desktop and mobile)
-    // Note: This runs AFTER space-switcher-anchor space-button check to avoid catching it
-    if (target.closest('.nav-link, .nav-link--shrink, .nav-item-container, .mobile-nav__search-btn, .mobile-nav__space-panel-item')) {
-      vibrate(10);
-      return;
-    }
-    
-    // Internal links (fallback for any navigation)
-    if (target.closest('a[href^="/"]') && !target.closest('a[href^="//"]')) {
-      vibrate(10);
-      return;
+      return 10;
     }
 
-    // Fallback: Any button gets light haptic
-    if (target.closest('button') && !target.closest('button').disabled) {
-      vibrate(10);
+    // Space buttons outside switcher (light)
+    if (spaceButton && !spaceButton.closest('.space-switcher-anchor')) {
+      return 10;
+    }
+
+    // Space switcher dropdown items (light)
+    if (target.closest('.space-switcher-dropdown__item, .space-switcher-dropdown__close-btn')) {
+      return 10;
+    }
+
+    // Navigation elements (light)
+    if (target.closest('.nav-link, .nav-link--shrink, .nav-item-container, .mobile-nav__search-btn, .mobile-nav__space-panel-item')) {
+      return 10;
+    }
+
+    // Internal links (light)
+    if (target.closest('a[href^="/"]') && !target.closest('a[href^="//"]')) {
+      return 10;
+    }
+
+    // Fallback: any non-disabled button (light)
+    var btn = target.closest('button');
+    if (btn && !btn.disabled) {
+      return 10;
+    }
+
+    return 0;
+  }
+
+  // Handler: fires on touchstart in capture phase.
+  // This runs BEFORE React's synthetic event system processes the event,
+  // so stopPropagation() in React handlers cannot block it.
+  function handleTouchStart(e) {
+    var touch = e.touches && e.touches[0];
+    if (!touch) return;
+    var target = document.elementFromPoint(touch.clientX, touch.clientY) || e.target;
+    var intensity = classifyTarget(target);
+    if (intensity > 0) {
+      vibrate(intensity);
     }
   }
 
-  // Listen to touchend for mobile devices (haptics are mobile-only)
-  // touchend fires when user lifts finger, providing better timing than touchstart
-  document.addEventListener('touchend', handleInteraction, { passive: true, capture: true });
+  // Register on document in capture phase — this fires before any React handler
+  // passive: true so we never block scrolling
+  document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
 
 })();

@@ -10,6 +10,7 @@ import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { safeGetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 
 /**
  * Check if Clerk authentication is ready
@@ -945,6 +946,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setItemsInCloseMode(new Set());
   }, []);
 
+  // Pull-down-to-dismiss for the navigation bottom sheet
+  const navDragRef = useBottomSheetDrag({ onDismiss: closeSheet, enabled: isSheetOpen });
+
   const handleItemClick = (itemId?: string) => {
     closeSheet();
     // If clicking on a specific item, exit its close mode
@@ -960,20 +964,27 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
     // Check if we're currently on a note page
     const isOnNotePage = currentItemId.startsWith('note_');
-    
+
     // Check if the clicked item is the currently active item
     const isActiveItem = itemId === undefined || itemId === ''
       ? isDashboard // "My Home" is active
       : itemId === currentActiveItemId; // Other items match active id
-    
-    // If it's the active item AND we're not on a note page, prevent navigation and just close the dropdown
-    // (If we're on a note page, allow navigation to the parent thread/space)
-    if (isActiveItem && !isOnNotePage) {
-      e.preventDefault();
-    }
-    
+
+    // Always prevent default anchor navigation — use SPA router instead
+    e.preventDefault();
+
     handleItemClick(itemId);
-    // If not active, or if on note page, let the link navigate naturally via href
+
+    // If it's the active item AND we're not on a note page, just close the dropdown (no navigation)
+    if (isActiveItem && !isOnNotePage) {
+      return;
+    }
+
+    // Navigate via SPA router
+    const href = e.currentTarget.getAttribute('href');
+    if (onNavigate && href) {
+      onNavigate(href);
+    }
   };
 
   // Toggle close mode for an item (show close icon instead of badge)
@@ -1303,6 +1314,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           }}
         >
           <SheetContent
+            ref={navDragRef}
             side="bottom"
             className="mobile-nav__sheet"
             style={{
@@ -1318,6 +1330,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
           >
+            {/* Drag handle for pull-down-to-dismiss */}
+            <div className="sheet-drag-handle" />
+
             {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
             <SheetHeader>
               <SheetTitle className="sr-only">Navigation</SheetTitle>
@@ -1335,11 +1350,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 <div className="mobile-nav__dropdown-header-row">
                   <div className="space-switcher-anchor space-switcher-anchor--mobile">
                     {/* Main button - always navigates to space/home (matches desktop); sort icon opens switch panel */}
-                    <a 
+                    <a
                       href={displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/'}
                       className="nav-link"
                       style={{ display: 'block', width: '100%' }}
-                      onClick={() => closeSheet()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        closeSheet();
+                        if (onNavigate) onNavigate(displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/');
+                      }}
                     >
                       <SpaceButton 
                         key={spaceButtonKey}
@@ -1376,9 +1395,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     <a
                       href="/"
                       className={`mobile-nav__space-panel-item ${!displaySelectedSpaceId ? 'is-active' : ''}`}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
                         setSelectedSpaceId(null);
                         closeSheet();
+                        if (onNavigate) onNavigate('/');
                       }}
                     >
                       <span className="mobile-nav__space-panel-label">My Home</span>
@@ -1397,9 +1418,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           key={s.id}
                           href={idToUrl(s.id)}
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.preventDefault();
                             setSelectedSpaceId(s.id);
                             closeSheet();
+                            if (onNavigate) onNavigate(idToUrl(s.id));
                           }}
                         >
                           <span className="mobile-nav__space-panel-label">{s.title}</span>
@@ -1457,10 +1480,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               key={s.id}
                               href={idToUrl(s.id)}
                               className="mobile-nav__space-panel-item"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.preventDefault();
                                 setSelectedSpaceId(s.id);
                                 setIsShowingExistingSpaces(false);
                                 closeSheet();
+                                if (onNavigate) onNavigate(idToUrl(s.id));
                               }}
                             >
                               <span className="mobile-nav__space-panel-label">{s.title}</span>
@@ -1474,7 +1499,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     <a
                       href="/new-space"
                       className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
-                      onClick={() => closeSheet()}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        closeSheet();
+                        if (onNavigate) onNavigate('/new-space');
+                      }}
                     >
                       <span className="mobile-nav__space-panel-label">New Space</span>
                       <span className="mobile-nav__space-panel-check" aria-hidden="true">
@@ -1554,12 +1583,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   </span>
                                 </div>
                                 <div className="space-btn__badge-wrapper">
-                                  <div
+                                  <button
+                                    type="button"
                                     className="badge-count cursor-pointer"
                                     data-close-item={thread.id}
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      padding: 0,
+                                      touchAction: 'manipulation',
+                                      WebkitTapHighlightColor: 'transparent',
+                                    }}
                                     onTouchEnd={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
+                                      e.nativeEvent.stopImmediatePropagation();
                                       if (itemsInCloseMode.has(thread.id)) {
                                         handleCloseClick(thread.id, e);
                                       } else {
@@ -1583,7 +1621,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                         {formatBadgeCount(displayThread.noteCount)}
                                       </span>
                                     )}
-                                  </div>
+                                  </button>
                                 </div>
                               </div>
                               {isActive && <div className="space-btn__shadow" />}

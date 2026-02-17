@@ -1443,11 +1443,13 @@ button .menu-item__label {
 
 .sheet-overlay[data-state="open"] {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .sheet-overlay[data-state="closed"] {
   opacity: 0;
   transition: opacity 0.2s ease-in;
+  pointer-events: none;
 }
 
 /* Drag handle indicator for bottom sheets */

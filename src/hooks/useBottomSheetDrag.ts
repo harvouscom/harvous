@@ -191,17 +191,15 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       // Reset transform and will-change
       el.style.removeProperty('will-change');
 
-      // Reset overlay opacity with smooth transition
       const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
-      if (overlay) {
-        overlay.style.transition = 'opacity 0.3s ease-out';
-        overlay.style.opacity = '1'; // Full opacity when snapped back
-        setTimeout(() => {
-          overlay.style.transition = '';
-        }, 300);
-      }
 
       if (shouldDismiss) {
+        // Fade overlay out alongside the sheet slide-out
+        if (overlay) {
+          overlay.style.transition = 'opacity 0.2s ease-out';
+          overlay.style.opacity = '0';
+        }
+
         // Animate out and dismiss
         el.style.transition = 'transform 0.2s ease-out';
         el.style.setProperty('transform', 'translateY(100%)', 'important');
@@ -209,10 +207,25 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
         setTimeout(() => {
           el.style.removeProperty('transform');
           el.style.transition = '';
+          // Clear inline overlay styles so Radix's data-state CSS takes over cleanly
+          if (overlay) {
+            overlay.style.opacity = '';
+            overlay.style.transition = '';
+          }
           onDismissRef.current();
         }, 200);
       } else {
-        // Snap back
+        // Snap back: restore overlay to full opacity
+        if (overlay) {
+          overlay.style.transition = 'opacity 0.3s ease-out';
+          overlay.style.opacity = '1';
+          setTimeout(() => {
+            overlay.style.transition = '';
+            overlay.style.opacity = '';
+          }, 300);
+        }
+
+        // Snap back sheet
         el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
         el.style.removeProperty('transform');
 

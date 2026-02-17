@@ -2,10 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#F7F7F6" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Harvous" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />
     <title>Harvous</title>
@@ -14,27 +16,47 @@
       html {
         height: 100%;
         overflow: hidden;
+        background-color: #F3F2EC;
       }
       body {
         height: 100%;
         overflow: hidden;
+        background-color: #F3F2EC;
       }
       #root {
         height: 100%;
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        background-color: #F3F2EC;
       }
     </style>
-    <script type="module" crossorigin src="/assets/index-C9CYP2Wz.js"></script>
+    <script type="module" crossorigin src="/assets/index-C1PzM2u8.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/react-vendor-uS-d4TUT.js">
     <link rel="modulepreload" crossorigin href="/assets/clerk-yPzBWKsx.js">
     <link rel="modulepreload" crossorigin href="/assets/router-CmoG5L12.js">
     <link rel="modulepreload" crossorigin href="/assets/query-B0Q_QWoq.js">
     <link rel="modulepreload" crossorigin href="/assets/tiptap-DRzJwQUd.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-BhfwFOUW.css">
+    <link rel="stylesheet" crossorigin href="/assets/index--4ETx2n8.css">
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Inline touch-action: manipulation on body as early as possible.
+      This eliminates the 300ms iOS double-tap delay before any CSS loads,
+      making the very first interaction on PWA cold start feel instant.
+    -->
+    <script>
+      document.body.style.touchAction = 'manipulation';
+      // Pre-warm iOS touch handling — registering a passive listener early
+      // causes the browser to pre-allocate the touch fast path.
+      document.addEventListener('touchstart', function warmup() {
+        document.removeEventListener('touchstart', warmup);
+      }, { passive: true, capture: true });
+    </script>
+    <script src="/scripts/pwa-startup.js"></script>
+    <script src="/scripts/haptics-handler.js"></script>
+    <script src="/scripts/tab-interaction-handler.js"></script>
+    <script src="/scripts/service-worker-manager.js"></script>
   </body>
 </html>
