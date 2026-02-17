@@ -257,7 +257,8 @@ nav a,
 .card-stack__header[data-space-id],
 .card-image-link__source,
 [role="button"],
-[data-close-item] {
+[data-close-item],
+.avatar {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }

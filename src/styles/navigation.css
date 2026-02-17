@@ -19,7 +19,7 @@
   width: 64px;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   will-change: transform, box-shadow;
   box-shadow: 0px -3px 0px 0px rgba(176, 176, 176, 0.25) inset;
 
@@ -638,7 +638,7 @@
   border-radius: 24px;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   padding-left: 16px;
   padding-right: 0;
   display: flex;
@@ -717,7 +717,7 @@
   width: 64px;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   background-image: var(--color-gradient-gray);
   box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
 
@@ -920,7 +920,7 @@ button.tab-nav__button .tab-nav__label,
   border-radius: 24px;
   height: 64px;
   cursor: pointer;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: transform 0.15s, box-shadow 0.15s;
   will-change: transform, box-shadow;
   width: 100%;
 }
