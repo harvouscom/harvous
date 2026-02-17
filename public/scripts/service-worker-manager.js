@@ -73,6 +73,34 @@
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
 
+    // --- iOS PWA silent-update detection ---
+    // On iOS, when the PWA is killed and relaunched, the new service worker is
+    // already the controller before this script runs, so 'controllerchange' is
+    // never fired. We compare the current SW cache version to the version stored
+    // during the last session. If they differ, the app updated while dormant.
+    const SW_VERSION_KEY = 'harvous-sw-version';
+    async function getCurrentCacheVersion() {
+      try {
+        const keys = await caches.keys();
+        const harvousCache = keys.find(k => k.startsWith('harvous-cache-v'));
+        return harvousCache || null;
+      } catch (_) { return null; }
+    }
+    async function checkSilentUpdate() {
+      const currentVersion = await getCurrentCacheVersion();
+      if (!currentVersion) return;
+      const lastVersion = localStorage.getItem(SW_VERSION_KEY);
+      // Always persist the current version for next comparison
+      localStorage.setItem(SW_VERSION_KEY, currentVersion);
+      if (lastVersion && lastVersion !== currentVersion) {
+        // App updated silently (iOS killed + relaunch scenario).
+        // Don't reload — the page is already running the new code.
+        // Just show the "updated" toast so the user knows.
+        if (window.toast && typeof window.toast.info === 'function') {
+          window.toast.info('Harvous has been updated');
+        }
+      }
+    }
 
     // Set up controller change listener once
     // Only reload if this isn't a fresh page load (performance.navigation.type check)
@@ -146,8 +174,11 @@
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
           registrationRef = registration;
-          
-          // Check for updates immediately
+
+          // Check for iOS silent-update (app was killed & relaunched with a new SW already active)
+          checkSilentUpdate();
+
+          // Check for updates immediately (handles waiting/installing workers)
           checkForUpdates(registration);
           
           // Listen for new updates

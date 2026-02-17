@@ -13,9 +13,10 @@ export function getRelativeTime(date: Date): string {
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
   if (diffInDays > 30) {
-    const month = date.toLocaleDateString('en-US', { month: 'long' });
-    const year = date.getFullYear();
-    return `${month} ${year}`;
+    // Use hard-coded month names instead of toLocaleDateString to avoid iOS PWA
+    // ignoring the 'en-US' locale hint and returning unexpected formats.
+    const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
   } else if (diffInDays > 0) {
     return diffInDays === 1 ? "1 day ago" : `${diffInDays} days ago`;
   } else if (diffInHours > 0) {

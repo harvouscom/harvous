@@ -80,13 +80,11 @@ export default function NotePage() {
     return <div className="page-error">Note not found.</div>;
   }
 
-  // Format date for display (CardFullEditable expects a readable string)
+  // Format date for display (CardFullEditable expects a readable string).
+  // Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
+  const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const formattedDate = note.createdAt
-    ? new Date(note.createdAt).toLocaleDateString('en-US', {
-        month: 'long',
-        day: 'numeric',
-        year: 'numeric',
-      })
+    ? (() => { const d = new Date(note.createdAt!); return `${MONTHS_LONG[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; })()
     : '';
 
   return (

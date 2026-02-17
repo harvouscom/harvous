@@ -1396,33 +1396,41 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                               </span>
                             ) : null}
-                            <button
-                              type="button"
-                              className="mobile-nav__space-panel-check"
-                              aria-label={`Close ${s.title}`}
-                              onTouchEnd={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                closeButtonTappedRef.current = true;
-                                setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
-                                removeFromNavigationHistory(s.id);
-                                if (selectedSpaceId === s.id) {
-                                  setSelectedSpaceId(null);
-                                }
-                                closeSheet();
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                removeFromNavigationHistory(s.id);
-                                if (selectedSpaceId === s.id) {
-                                  setSelectedSpaceId(null);
-                                }
-                                closeSheet();
-                              }}
-                            >
-                              <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                            </button>
+                            {/* Relative wrapper so the touch-target overlay can expand beyond the 24×24 icon */}
+                            <div style={{ position: 'relative', width: 24, height: 24, flexShrink: 0 }}>
+                              <span
+                                className="mobile-nav__space-panel-check"
+                                aria-hidden="true"
+                                style={{ pointerEvents: 'none' }}
+                              >
+                                <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                              </span>
+                              {/* Transparent overlay: catches the tap before anything else.
+                                  Extends 10px on every side → 44×44 effective touch target.
+                                  onPointerDown fires immediately on touch (no 300ms delay). */}
+                              <div
+                                role="button"
+                                aria-label={`Close ${s.title}`}
+                                style={{
+                                  position: 'absolute',
+                                  inset: '-10px',
+                                  cursor: 'pointer',
+                                  touchAction: 'manipulation',
+                                  WebkitTapHighlightColor: 'transparent',
+                                }}
+                                onPointerDown={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  closeButtonTappedRef.current = true;
+                                  setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
+                                  removeFromNavigationHistory(s.id);
+                                  if (selectedSpaceId === s.id) {
+                                    setSelectedSpaceId(null);
+                                  }
+                                  closeSheet();
+                                }}
+                              />
+                            </div>
                           </span>
                         </div>
                       );
@@ -1553,43 +1561,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     {displayThread.title}
                                   </span>
                                 </div>
-                                <div className="space-btn__badge-wrapper">
-                                  <button
-                                    type="button"
-                                    className="badge-count cursor-pointer"
-                                    data-close-item={thread.id}
-                                    style={{
-                                      border: 'none',
-                                      // Expand hit area to 44×44 while keeping the badge background
-                                      // visually at 24×24. padding adds to the tappable area;
-                                      // backgroundClip:content-box limits the grey pill to the
-                                      // content region only. The wrapper (padding:20px) gives space.
-                                      padding: '10px',
-                                      boxSizing: 'content-box',
-                                      backgroundClip: 'content-box',
-                                      touchAction: 'manipulation',
-                                      WebkitTapHighlightColor: 'transparent',
-                                    }}
-                                    onTouchEnd={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      closeButtonTappedRef.current = true;
-                                      setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
-                                      if (itemsInCloseMode.has(thread.id)) {
-                                        handleCloseClick(thread.id, e);
-                                      } else {
-                                        toggleCloseMode(thread.id);
-                                      }
-                                    }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      if (itemsInCloseMode.has(thread.id)) {
-                                        handleCloseClick(thread.id, e);
-                                      } else {
-                                        toggleCloseMode(thread.id);
-                                      }
-                                    }}
+                                {/* Relative wrapper: the badge wrapper's padding:20px provides visual spacing;
+                                    the inner relative div keeps the badge at 24×24 with an overlay on top. */}
+                                <div className="space-btn__badge-wrapper" style={{ position: 'relative' }}>
+                                  {/* Visual badge — pointer-events:none so the overlay above catches all taps */}
+                                  <div
+                                    className="badge-count"
+                                    style={{ pointerEvents: 'none' }}
                                   >
                                     {itemsInCloseMode.has(thread.id) ? (
                                       <Icon name="xmark" size={14} style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }} />
@@ -1598,7 +1576,33 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                         {formatBadgeCount(displayThread.noteCount)}
                                       </span>
                                     )}
-                                  </button>
+                                  </div>
+                                  {/* Transparent overlay: sits on top of the visual badge and its 20px wrapper padding.
+                                      inset:0 fills the entire wrapper (including padding) = ~64×64 touch target.
+                                      onPointerDown fires immediately — no 300ms delay, no passive-listener issues. */}
+                                  <div
+                                    role="button"
+                                    aria-label={itemsInCloseMode.has(thread.id) ? `Remove ${displayThread.title}` : `Close options for ${displayThread.title}`}
+                                    data-close-item={thread.id}
+                                    style={{
+                                      position: 'absolute',
+                                      inset: 0,
+                                      cursor: 'pointer',
+                                      touchAction: 'manipulation',
+                                      WebkitTapHighlightColor: 'transparent',
+                                    }}
+                                    onPointerDown={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      closeButtonTappedRef.current = true;
+                                      setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
+                                      if (itemsInCloseMode.has(thread.id)) {
+                                        handleCloseClick(thread.id, e as any);
+                                      } else {
+                                        toggleCloseMode(thread.id);
+                                      }
+                                    }}
+                                  />
                                 </div>
                               </div>
                               {isActive && <div className="space-btn__shadow" />}

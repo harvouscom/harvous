@@ -5,9 +5,11 @@ import ProfileCardStackHeader from '../../../src/components/react/ProfileCardSta
 import ProfileOptionsList from '../../../src/components/react/ProfileOptionsList';
 import { getSeasonDisplayName } from '../../../src/utils/season-helpers';
 
+// Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function formatJoinDate(date: Date | null | undefined): string {
   if (!date) return '';
-  return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return `${MONTHS_LONG[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export default function ProfilePageWrapper() {

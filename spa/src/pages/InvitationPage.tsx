@@ -206,11 +206,7 @@ export default function InvitationPage() {
 
                       {invitation.expiresAt && (
                         <div className="shared-page__expiry-notice">
-                          Expires {new Date(invitation.expiresAt).toLocaleDateString('en-US', {
-                            month: 'long',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
+                          Expires {(() => { const d = new Date(invitation.expiresAt!); const M = ['January','February','March','April','May','June','July','August','September','October','November','December']; return `${M[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; })()}
                         </div>
                       )}
 

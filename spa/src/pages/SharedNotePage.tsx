@@ -108,7 +108,7 @@ export default function SharedNotePage() {
                     title={note.title ?? ''}
                     content={note.content ?? ''}
                     date={note.createdAt
-                      ? new Date(note.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                      ? (() => { const d = new Date(note.createdAt!); const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return `${M[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`; })()
                       : ''}
                     noteId={note.id}
                     noteType={note.noteType}

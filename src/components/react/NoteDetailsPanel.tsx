@@ -528,7 +528,8 @@ export default function NoteDetailsPanel({
                     <div className="panel__metadata-row__right">
                       {noteCreatedAt && (
                         <span className="leading-[normal] text-nowrap">
-                          {noteCreatedAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {/* Hard-coded month names avoid iOS PWA locale issues */}
+                          {(['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'])[noteCreatedAt.getMonth()]} {noteCreatedAt.getDate()}, {noteCreatedAt.getFullYear()}
                         </span>
                       )}
                       {noteCreatedAt && noteAddedBy && (

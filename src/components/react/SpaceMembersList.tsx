@@ -189,11 +189,10 @@ export default function SpaceMembersList({
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    // Use hard-coded month abbreviations instead of toLocaleDateString to avoid
+    // iOS PWA ignoring the 'en-US' locale hint and returning full month names.
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   return (

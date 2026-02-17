@@ -87,21 +87,23 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   }, [isMounted, userId]);
 
   // Format sync timestamp
+  // Use hard-coded arrays instead of toLocaleString to avoid iOS PWA ignoring 'en-US' locale.
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const formatSyncTimestamp = (): string => {
+    const formatTs = (date: Date) => {
+      const month = MONTHS_SHORT[date.getMonth()];
+      const day = date.getDate();
+      const year = date.getFullYear();
+      let hours = date.getHours();
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12 || 12;
+      return `${month} ${day}, ${year} ${hours}:${minutes} ${ampm}`;
+    };
     if (syncState?.lastSyncTimestamp) {
-      const date = new Date(syncState.lastSyncTimestamp);
-      const month = date.toLocaleString('en-US', { month: 'short' });
-      const day = date.getDate();
-      const year = date.getFullYear();
-      const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      return `${month} ${day}, ${year} ${time}`;
+      return formatTs(new Date(syncState.lastSyncTimestamp));
     } else if (syncState?.lastBootstrapTimestamp) {
-      const date = new Date(syncState.lastBootstrapTimestamp);
-      const month = date.toLocaleString('en-US', { month: 'short' });
-      const day = date.getDate();
-      const year = date.getFullYear();
-      const time = date.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      return `${month} ${day}, ${year} ${time}`;
+      return formatTs(new Date(syncState.lastBootstrapTimestamp));
     }
     return '';
   };

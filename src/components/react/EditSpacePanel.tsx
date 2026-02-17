@@ -360,14 +360,12 @@ export default function EditSpacePanel({
     return member.email || 'Unknown User';
   };
 
-  // Helper to format dates
+  // Helper to format dates.
+  // Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
+  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   // Fetch member info on mount and when spaceId changes
