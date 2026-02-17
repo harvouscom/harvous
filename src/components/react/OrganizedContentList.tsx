@@ -149,6 +149,9 @@ export default function OrganizedContentList({
   const MAX_SSR_AGE = 60000; // 60 seconds
   const isDataFromStaleCache = dataGeneratedAt && typeof window !== 'undefined' && (Date.now() - dataGeneratedAt > MAX_SSR_AGE);
   const [isWaitingForFreshData, setIsWaitingForFreshData] = useState<boolean>(() => !!isDataFromStaleCache);
+  // True while a filter-change or initial-mount fetch is in flight. Prevents the
+  // empty state from flashing before content loads (SPA always passes initialItems=[]).
+  const [isLoadingFilter, setIsLoadingFilter] = useState(true);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(() => {
@@ -854,7 +857,10 @@ export default function OrganizedContentList({
     prevFilterRef2.current = filter;
     // On first mount with fresh SSR data, skip — the initialItems handler covers it
     const hasFreshSSRData = (initialItems || []).length > 0 && !isDataFromStaleCache;
-    if (!filterChanged && hasFreshSSRData) return;
+    if (!filterChanged && hasFreshSSRData) {
+      setIsLoadingFilter(false); // SSR data is already loaded, no fetch needed
+      return;
+    }
     // Sync filterRef immediately so refreshContent captures the correct filter value.
     filterRef.current = filter;
     // Reset isRefreshing and lastRefreshKey so a new fetch always goes through.
@@ -862,15 +868,18 @@ export default function OrganizedContentList({
     refreshStateRef.current.lastRefreshKey = '';
     // Bypass the 2s debounce for explicit tab-switch fetches.
     refreshStateRef.current.shouldBypassDebounce = true;
+    setIsLoadingFilter(true);
     setCurrentItems([]);
     currentItemsRef.current = [];
     setHasMore(false);
     hasMoreRef.current = false;
     refreshContent()
       .then((ok) => {
+        setIsLoadingFilter(false);
         setRefreshError(ok ? null : 'Couldn\'t load content');
       })
       .catch(() => {
+        setIsLoadingFilter(false);
         setRefreshError('Couldn\'t load content');
       });
   }, [filter, refreshContent]);
@@ -1655,8 +1664,8 @@ export default function OrganizedContentList({
 
   return (
     <div className="flex flex-col">
-      {isWaitingForFreshData && displayItems.length === 0 ? (
-        // Show loading state when waiting for fresh data from stale cache
+      {(isWaitingForFreshData || isLoadingFilter) && displayItems.length === 0 ? (
+        // Show loading state when waiting for fresh data from stale cache OR during filter/initial fetch
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
           <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
             Loading...

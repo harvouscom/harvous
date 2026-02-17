@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount } from '@/utils/dashboard-data';
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
@@ -19,11 +19,12 @@ export const GET: APIRoute = async ({ locals }) => {
     }
     
     // Fetch navigation data in parallel
-    const [threads, spaces, inboxCount, unorganizedThreadData] = await Promise.all([
+    const [threads, spaces, inboxCount, unorganizedThreadData, memberSpaces] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxDisplayCount(userId),
-      ensureUnorganizedThread(userId)
+      ensureUnorganizedThread(userId),
+      getMemberOfSpaces(userId),
     ]);
     
     // Ensure threads and spaces have backgroundGradient property
@@ -55,10 +56,17 @@ export const GET: APIRoute = async ({ locals }) => {
       ...space,
       backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper')
     }));
-    
+
+    const memberSpacesWithGradients = memberSpaces.map(space => ({
+      ...space,
+      totalItemCount: 0,
+      backgroundGradient: getThreadGradientCSS(space.color || 'paper')
+    }));
+
     return new Response(JSON.stringify({
       threads: threadsWithGradients,
       spaces: spacesWithGradients,
+      memberOfSpaces: memberSpacesWithGradients,
       inboxCount
     }), {
       status: 200,

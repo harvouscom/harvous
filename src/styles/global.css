@@ -45,13 +45,9 @@ a, button {
   touch-action: manipulation;
 }
 
-/* Prevent main content scroll when modals/sheets are open (layout-root only; sheet portal stays outside so inner scroll works on iOS) */
+/* SPA: html/body/#root already have overflow:hidden, so no scroll-lock needed.
+   Kept as empty rule in case other code checks for this class. */
 #layout-root.bottom-sheet-open {
-  overflow: hidden;
-  position: fixed;
-  width: 100%;
-  touch-action: pan-y pinch-zoom;
-  overscroll-behavior: none;
 }
 
 /* Remove default button styles */

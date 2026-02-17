@@ -1208,30 +1208,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const topSpaceIsActive = displaySelectedSpaceId ? currentItemId === displaySelectedSpaceId : isDashboard;
 
-  // Prevent background scroll while the sheet is open (lock layout-root, not body, so sheet inner scroll works on iOS)
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const root = document.getElementById('layout-root');
-    if (!root) return;
-    if (isSheetOpen) {
-      const scrollY = window.scrollY;
-      root.style.top = `-${scrollY}px`;
-      root.classList.add('bottom-sheet-open');
-    } else {
-      const scrollY = root.style.top;
-      root.classList.remove('bottom-sheet-open');
-      root.style.top = '';
-      window.scrollTo(0, parseInt(scrollY || '0', 10) * -1);
-    }
-    return () => {
-      const scrollY = root.style.top;
-      root.classList.remove('bottom-sheet-open');
-      root.style.top = '';
-      if (scrollY) {
-        window.scrollTo(0, parseInt(scrollY, 10) * -1);
-      }
-    };
-  }, [isSheetOpen]);
+  // SPA note: html/body/#root already have overflow:hidden so there's nothing to scroll-lock.
+  // The old position:fixed approach (Astro SSR era) caused touch coordinate displacement on mobile —
+  // the visual position and hit targets diverged after the sheet opened. Removed entirely.
 
   return (
     <div className="mobile-nav">
