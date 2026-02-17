@@ -123,24 +123,26 @@ Imagine Harvous as a house with three main rooms:
 - They don't compete with content for attention
 - They provide enough variety without being overwhelming
 
-### Decision 4: React Islands Architecture
+### Decision 4: React SPA (Single-Page Application) Architecture
 
-**Why:** We needed the best of both worlds - fast page loads (like a static website) and rich interactivity (like a modern web app).
+**Why:** As the authenticated app grew more complex, the React Islands + Astro SSR model added friction. Every navigation required a full server round-trip. Moving to a full React SPA gives instant client-side navigation, persistent state across route changes, and a more native app-like feel — especially on mobile PWA.
 
-**The Problem We Solved:** Traditional web apps either load slowly (React apps) or lack interactivity (static sites). We wanted both.
+**The Problem We Solved:** Astro SSR required server rendering for every page navigation, which introduced latency and made smooth route transitions difficult. The mobile PWA experience also needed faster response to touch inputs.
 
-**How It Works:**
-- **Astro** renders most of the page as static HTML (super fast)
-- **React** only "hydrates" (activates) the interactive parts
-- Think of it like a book where most pages are printed, but some pages have interactive elements
+**How It Works (Dual-App Architecture):**
+- **Astro layer** still handles API routes (all `/api/*`), the database, and public/unauthenticated pages (sign-in, shared notes, invitations)
+- **React SPA** (`/spa`) handles all authenticated routes as a client-side single-page application
+- TanStack Router manages client-side routing — navigating between dashboard, threads, notes, and spaces never triggers a full page reload
+- TanStack Query caches server data so navigating back to a page you've already visited is instant
 
-**Example:** The navigation column is a React component (interactive), but the note cards are static Astro components (fast loading). This gives you instant page loads with smooth interactions.
+**Think of it like:** The Astro layer is the building's plumbing and electrical (essential but invisible). The React SPA is the app you actually live in — always loaded, always ready, just updating what's on screen as you navigate.
 
 **Benefits:**
-- Pages load in milliseconds (not seconds)
-- Interactive features work smoothly
-- Mobile performance is excellent
-- Same code works on desktop and mobile
+- Navigation is instant (client-side, no server round-trip)
+- No empty-state flash when revisiting pages (data cached by TanStack Query)
+- Smooth route transition animations (fade + slide)
+- Mobile PWA feels like a native app
+- Shared components (`src/components/react/`) still used by both the SPA and Astro public pages
 
 ### Decision 5: Many-to-Many Note-Thread Relationships
 
@@ -362,38 +364,39 @@ Imagine Harvous as a house with three main rooms:
 
 ## The Technology Choices and Why They Matter
 
-### Astro: The Foundation
+### Astro: The API and Public Page Layer
 
-**What It Is:** A modern web framework that renders pages on the server (Server-Side Rendering).
+**What It Is:** A web framework that handles server-side logic, API routes, and public/unauthenticated pages.
+
+**Why We Use It:**
+- **Database access:** All database queries run through Astro API endpoints — they stay on the server, never in the browser
+- **Security:** Auth middleware (Clerk) runs server-side, so every API call is verified
+- **Public pages:** Sign-in, shared notes, invitations — pages that don't need authentication still get server-rendered HTML
+
+**How It Works:**
+- Astro handles every request to `/api/*`
+- The React SPA calls these API endpoints to fetch/create/update data
+- Public pages like sign-in and shared note views are Astro pages with fast server-side rendering
+
+**The Benefit:** The database and authentication stay safely on the server. The React SPA only ever sees JSON responses, never raw database access.
+
+### React SPA: The Authenticated App
+
+**What It Is:** A full single-page application (React + Vite + TanStack Router) that runs the entire authenticated experience.
 
 **Why We Chose It:**
-- **Fast page loads:** Pages are pre-rendered as HTML, so they load instantly
-- **SEO friendly:** Search engines can index the content
-- **Simple for static content:** Most of our pages are just displaying data
+- **Instant navigation:** Moving between threads, notes, and spaces never reloads the page
+- **Persistent state:** Navigation, panels, and data stay loaded as you move around
+- **Mobile PWA feel:** Behaves like a native app — fast, responsive, smooth
+- **Component reusability:** All the shared React components (`src/components/react/`) work in both the SPA and any Astro pages
 
-**How It Works:** When you visit a page, Astro:
-1. Fetches data from the database
-2. Renders the HTML on the server
-3. Sends the complete HTML to your browser
-4. Your browser displays it immediately (no waiting for JavaScript)
+**How It Works:**
+- When you visit the app, `spa/index.html` loads once
+- TanStack Router updates the URL and swaps in the correct page component — no full reload
+- TanStack Query caches your spaces, threads, and notes — navigating back to a page you've already visited is instant (no loading spinner)
+- Route transitions animate with a subtle fade + slide so navigation feels fluid
 
-**The Benefit:** You see content in milliseconds, not seconds.
-
-### React: The Interactive Layer
-
-**What It Is:** A JavaScript library for building interactive user interfaces.
-
-**Why We Chose It:**
-- **Rich interactions:** Complex components (editors, panels, navigation) need React
-- **State management:** React handles complex state (form data, UI state) elegantly
-- **Component reusability:** Same components work on desktop and mobile
-- **Future-proof:** Can migrate to React Native for mobile apps
-
-**How It Works:** React components are "islands" that activate only when needed:
-- Static content (note cards, headers) = Astro (fast)
-- Interactive content (editors, panels) = React (smooth)
-
-**The Benefit:** You get fast page loads AND smooth interactions.
+**The Benefit:** You get a fast, app-like experience on both desktop and mobile.
 
 ### Turso Database: The Memory
 

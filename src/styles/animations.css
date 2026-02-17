@@ -338,6 +338,16 @@
   animation: contentFadeIn 0.15s ease-out both;
 }
 
+/* Route Transition — replaces Astro View Transitions for the SPA */
+@keyframes routeFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.route-fade-in {
+  animation: routeFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Dropdown Animations */
 @keyframes dropdownSlideDown {
   from {

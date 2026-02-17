@@ -289,7 +289,75 @@ function stripHtml(html: string): string {
 - Seamless form submission integration
 - Consistent styling with app theme
 
-## Alpine.js Integration
+## React SPA Architecture
+
+Harvous runs as a **dual-app monorepo**. The authenticated user experience is a full React SPA; Astro handles API routes and public pages.
+
+### App Structure
+
+```
+harvous/
+├── src/                       # Astro SSR layer
+│   ├── pages/api/             # All API endpoints (shared by SPA + Astro)
+│   ├── pages/*.astro          # Public/unauthenticated pages (sign-in, shared views)
+│   └── components/react/      # Shared React components (used by both SPA and Astro)
+│
+└── spa/                       # React SPA (authenticated app)
+    └── src/
+        ├── main.tsx           # Vite entry point
+        ├── App.tsx            # ClerkProvider + RouterProvider root
+        ├── router.tsx         # TanStack Router route tree
+        ├── layouts/
+        │   ├── AppLayout.tsx  # Authenticated shell (nav, panels, route transitions)
+        │   └── AuthLayout.tsx # Unauthenticated shell (sign-in/up)
+        ├── pages/             # Page components (DashboardPage, ThreadPage, NotePage, etc.)
+        └── hooks/queries/     # TanStack Query hooks (useThread, useNote, useNavigation, etc.)
+```
+
+### Routing
+
+TanStack Router (`spa/src/router.tsx`) defines all client-side routes:
+
+| Route | Page | Notes |
+|-------|------|-------|
+| `/` | DashboardPage | Home / organized content |
+| `/thread/:threadId` | ThreadPage | URL uses bare IDs; DB uses `thread_` prefix |
+| `/note/:noteId` | NotePage | URL uses bare IDs; DB uses `note_` prefix |
+| `/space/:spaceId` | SpacePage | URL uses bare IDs; DB uses `space_` prefix |
+| `/search` | FindPage | |
+| `/profile` | ProfilePage | |
+| `/sign-in`, `/sign-up` | Auth pages | No nav shell (AuthLayout) |
+
+**ID prefix convention:** URL slugs are bare (e.g. `/thread/abc123`), but all DB and API calls use prefixed IDs (`thread_abc123`). The SPA prepends the prefix when constructing API calls.
+
+### Route Transitions
+
+The SPA replaces Astro's View Transitions with a CSS animation system:
+
+- `AppLayout` tracks pathname changes via `useRouterState`
+- On route change, the `.route-fade-in` class is removed + re-added on content containers (forcing animation restart via `void el.offsetWidth` reflow)
+- CSS `@keyframes routeFadeIn` in `src/styles/animations.css`: 150ms fade-in + 4px translateY
+- `document.dispatchEvent(new Event('astro:page-load'))` is fired on every route change so shared components that relied on Astro View Transition lifecycle events continue to work
+
+### Data Fetching & Caching
+
+All data fetching uses TanStack Query (`@tanstack/react-query`):
+
+- **staleTime tuning** prevents empty-state flash on navigation:
+  - Thread queries: `staleTime: 60_000`
+  - Note type count queries: `staleTime: 30_000`
+- **Cache hits**: Prefetch endpoints load thread/note detail data that is cached immediately; subsequent navigation to the same resource is instant
+- **Cache invalidation**: `window.dispatchEvent(new CustomEvent('spaceCreated'))` etc. → `AppLayout` calls `refreshNavigation()`
+
+### Backward Compatibility
+
+Several shared components (`src/components/react/`) listen for `astro:page-load` events that previously came from Astro's View Transitions. The SPA dispatches this event on every route change to keep these components working without modification.
+
+---
+
+## Alpine.js Integration (Legacy)
+
+> **Note:** Alpine.js is no longer used in the SPA. The sections below describe the Alpine.js patterns used in Astro pages only. No new Alpine.js code should be written; new interactivity should use React components in the SPA or within Astro pages via `client:` hydration.
 
 ### Development Rules for Alpine.js
 

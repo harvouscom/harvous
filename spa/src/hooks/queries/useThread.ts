@@ -38,6 +38,7 @@ export function useThread(threadId: string) {
       api.get<{ thread: ThreadDetail }>(`/api/threads/${threadId}/prefetch`)
         .then(res => res.thread),
     enabled: !!threadId,
+    staleTime: 60_000,
   });
 }
 
@@ -62,5 +63,6 @@ export function useThreadNoteTypeCounts(threadId: string) {
         `/api/threads/${threadId}/note-type-counts`
       ),
     enabled: !!threadId,
+    staleTime: 30_000,
   });
 }

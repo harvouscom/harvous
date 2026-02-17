@@ -29,7 +29,7 @@ npm install
 Create `.env` file in the root directory:
 
 ```env
-# Clerk Authentication
+# Clerk Authentication (Astro layer)
 PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 PUBLIC_CLERK_SIGN_IN_URL=/sign-in
@@ -43,6 +43,13 @@ ASTRO_DB_APP_TOKEN=...
 BIBLE_API_KEY=...
 ```
 
+Create `spa/.env` file for the SPA (Vite build):
+
+```env
+# Clerk Authentication (SPA/Vite layer)
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+```
+
 ### 4. Initialize database
 
 ```bash
@@ -50,13 +57,22 @@ npm run db:sync     # Sync schema
 npm run db:push     # Push to remote
 ```
 
-### 5. Start development server
+### 5. Start development servers
 
+The app has two dev servers — run both simultaneously:
+
+**Terminal 1 — Astro (API layer, port 4321):**
 ```bash
 npm run dev
 ```
 
-Visit `http://localhost:4321`
+**Terminal 2 — React SPA (authenticated app, port 5173):**
+```bash
+cd spa && npm run dev
+```
+
+- Astro dev server: `http://localhost:4321` — API routes, sign-in, shared pages
+- SPA dev server: `http://localhost:5173` — authenticated app (dashboard, threads, notes, spaces)
 
 ---
 
@@ -64,17 +80,27 @@ Visit `http://localhost:4321`
 
 ### Available Scripts
 
+**Root (Astro SSR layer):**
+
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Start dev server (port 4321) |
-| `npm run build` | Build for production |
-| `npm run preview` | Preview production build |
+| `npm run dev` | Start Astro dev server (port 4321) |
+| `npm run build` | Build Astro SSR output for production |
+| `npm run preview` | Preview Astro production build |
 | `npm run db:sync` | Sync database schema |
 | `npm run db:push` | Push schema to remote |
 | `npm run db:check` | Verify database state |
 | `npm run predeploy` | Pre-deployment checks |
 | `npm run deploy` | Build and deploy |
 | `npm run version:bump` | Manually bump version |
+
+**`spa/` (React SPA):**
+
+| Script | Purpose |
+|--------|---------|
+| `npm run dev` | Start Vite dev server (port 5173) |
+| `npm run build` | Build SPA to `spa/dist/` |
+| `npm run preview` | Preview Vite production build |
 
 ### Development Workflow
 
@@ -84,14 +110,21 @@ Visit `http://localhost:4321`
    ```
 
 2. **Make changes**
-   - Astro pages for routes: `src/pages/*.astro`
-   - React components for interactivity: `src/components/react/*.tsx`
-   - API endpoints: `src/pages/api/*/*.ts`
-   - Utilities: `src/utils/*.ts`
+   - **SPA pages** (authenticated routes): `spa/src/pages/*.tsx`
+   - **SPA routing**: `spa/src/router.tsx`
+   - **SPA layout/shell**: `spa/src/layouts/AppLayout.tsx`
+   - **Shared React components** (used by both SPA and Astro): `src/components/react/*.tsx`
+   - **API endpoints**: `src/pages/api/*/*.ts`
+   - **Astro public pages** (sign-in, shared views): `src/pages/*.astro`
+   - **Utilities**: `src/utils/*.ts`
+   - **Styles**: `src/styles/*.css`
 
 3. **Test locally**
    ```bash
+   # Terminal 1: Astro API layer
    npm run dev
+   # Terminal 2: SPA
+   cd spa && npm run dev
    ```
 
 4. **Commit with conventional commits**
@@ -118,17 +151,19 @@ Visit `http://localhost:4321`
 
 ### Architecture Decisions
 
-- **React Islands Pattern**: SSR pages (Astro) for fast initial load, React islands for interactive components
-- **Database-First Design**: Source of truth is database, fresh queries on every page load
-- **Event-Driven Communication**: CustomEvents for cross-component updates
-- **Alpine → React Migration**: Migration 90% complete, React Islands pattern established as primary architecture
+- **Dual-app monorepo**: Astro SSR handles API routes and public pages; React SPA handles the authenticated app shell
+- **Client-side routing**: TanStack Router in the SPA replaces Astro's file-based routing for authenticated routes
+- **Server state caching**: TanStack Query with tuned `staleTime` values prevents empty-state flashes on navigation
+- **Shared components**: `src/components/react/` is shared between the SPA and Astro pages — changes there affect both
+- **Event-Driven Communication**: CustomEvents (`astro:page-load`, `spaceCreated`, `threadCreated`, etc.) keep components in sync; the SPA dispatches `astro:page-load` on route changes for backward compatibility
+- **Database-First Design**: Source of truth is always the database; TanStack Query manages cache invalidation
 
-### Development Server
+### Development Servers
 
-- **ALWAYS use port 4321** for the development server
-- If port 4321 is busy, kill the process using: `lsof -ti:4321 | xargs kill -9`
-- Then restart with: `npm run dev`
-- Never use other ports (4322, 4323, etc.) - always force port 4321
+Two servers run simultaneously in development:
+
+- **Astro (port 4321)**: API routes (`/api/*`), sign-in/sign-up pages, shared/public pages. If port 4321 is busy: `lsof -ti:4321 | xargs kill -9`
+- **SPA (port 5173)**: Authenticated app shell (dashboard, threads, notes, spaces). Standard Vite dev server with HMR.
 
 ## Related Documentation
 

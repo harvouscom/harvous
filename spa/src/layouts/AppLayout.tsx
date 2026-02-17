@@ -1,7 +1,7 @@
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useEffect } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
@@ -49,6 +49,31 @@ export default function AppLayout() {
     localStorage.removeItem('showNewResourcePanel');
     localStorage.removeItem('showProfilePanel');
     window.dispatchEvent(new CustomEvent('closeAllPanels'));
+  }, [pathname]);
+
+  // Smooth fade-in on route transitions (replaces Astro View Transitions)
+  const desktopContentRef = useRef<HTMLElement>(null);
+  const mobileContentRef = useRef<HTMLDivElement>(null);
+  const prevPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    if (prevPathnameRef.current === pathname) return;
+    prevPathnameRef.current = pathname;
+
+    // Restart the fade-in animation on both content containers
+    const targets = [desktopContentRef.current, mobileContentRef.current];
+    for (const el of targets) {
+      if (!el) continue;
+      el.classList.remove('route-fade-in');
+      // Force reflow so removing + re-adding the class restarts the animation
+      void el.offsetWidth;
+      el.classList.add('route-fade-in');
+    }
+
+    // Emit astro:page-load so shared components (content lists, navigation,
+    // etc.) that relied on Astro View Transitions still get notified of route
+    // changes in the SPA.
+    document.dispatchEvent(new Event('astro:page-load'));
   }, [pathname]);
 
   // Invalidate navigation cache when spaces/threads are created or deleted
@@ -184,7 +209,7 @@ export default function AppLayout() {
         </section>
 
         {/* Column 2: Main content */}
-        <section className="layout-column">
+        <section className="layout-column route-fade-in" ref={desktopContentRef}>
           <Outlet />
         </section>
 
@@ -242,7 +267,7 @@ export default function AppLayout() {
         </div>
 
         {/* Main content */}
-        <div className="mobile-main">
+        <div className="mobile-main route-fade-in" ref={mobileContentRef}>
           <Outlet />
         </div>
 

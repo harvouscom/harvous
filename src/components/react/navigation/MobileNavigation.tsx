@@ -1087,7 +1087,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
 
     // Ensure the currently selected space is in the dropdown (so label can resolve on find/profile etc.)
-    if (selectedSpaceId && !spacesById.has(selectedSpaceId)) {
+    // Only do this when NOT on the dashboard — on dashboard, selectedSpaceId is the last-used space
+    // but displaySelectedSpaceId is null ("My Home"), so we must not pin that space into the dropdown
+    // or it will incorrectly disappear from "Add Existing Spaces".
+    const pinSelectedSpace = !isDashboard;
+    if (pinSelectedSpace && selectedSpaceId && !spacesById.has(selectedSpaceId)) {
       const fromLocal = localSpaces.find((s) => s.id === selectedSpaceId);
       if (fromLocal) spacesById.set(selectedSpaceId, fromLocal);
     }
