@@ -175,6 +175,10 @@ export default function AppLayout() {
   const noteCurrentThreadId = noteParentThreadId ?? undefined;
   const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
 
+  // Space role — used by SquareButton "More" menu to show owner vs member options
+  const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
+  const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
+
   const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' =
     isNote ? 'note' :
     isThread ? 'thread' :
@@ -230,6 +234,7 @@ export default function AppLayout() {
                   noteType={noteType}
                   currentThreadId={noteCurrentThreadId}
                   noteSimpleId={noteSimpleId}
+                  spaceRole={spaceRole ?? undefined}
                 />
               )}
               {contentType !== 'profile' && (
@@ -282,6 +287,8 @@ export default function AppLayout() {
                 contentId={currentId}
                 noteType={noteType}
                 currentThreadId={noteCurrentThreadId}
+                noteSimpleId={noteSimpleId}
+                spaceRole={spaceRole ?? undefined}
               />
             )}
             <SquareButton variant="Add" withMenu={true} />

@@ -1393,45 +1393,45 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     {spacesForDropdown.map((s) => {
                       const isActive = !!displaySelectedSpaceId && s.id === displaySelectedSpaceId;
                       return (
-                        <a
+                        // Outer div so the close button is a sibling of the link, not nested inside it.
+                        // Nested <button> inside <a> is unreliable on iOS — the anchor intercepts
+                        // the touch and stopPropagation doesn't prevent native navigation.
+                        <div
                           key={s.id}
-                          href={idToUrl(s.id)}
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
-                          onClick={() => {
-                            setSelectedSpaceId(s.id);
-                            closeSheet();
-                          }}
+                          style={{ display: 'flex', alignItems: 'center', padding: 0 }}
                         >
-                          <span className="mobile-nav__space-panel-label">{s.title}</span>
-                          <span className="mobile-nav__space-panel-actions">
+                          <a
+                            href={idToUrl(s.id)}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', minWidth: 0, padding: '12px 0 12px 16px', textDecoration: 'none' }}
+                            onClick={() => {
+                              setSelectedSpaceId(s.id);
+                              closeSheet();
+                            }}
+                          >
+                            <span className="mobile-nav__space-panel-label">{s.title}</span>
                             {isActive ? (
                               <span className="mobile-nav__space-panel-check" aria-hidden="true">
                                 <Icon name="check" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                               </span>
                             ) : null}
-                            <button
-                              type="button"
-                              className="mobile-nav__space-panel-check"
-                              aria-label={`Close ${s.title}`}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                
-                                // Remove from navigation history using context function
-                                removeFromNavigationHistory(s.id);
-
-                                // If the user just closed the selected space, switch to Home
-                                if (selectedSpaceId === s.id) {
-                                  setSelectedSpaceId(null);
-                                }
-
-                                closeSheet();
-                              }}
-                            >
-                              <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
-                            </button>
-                          </span>
-                        </a>
+                          </a>
+                          <button
+                            type="button"
+                            className="mobile-nav__space-panel-check"
+                            aria-label={`Close ${s.title}`}
+                            style={{ flexShrink: 0, padding: '12px 16px 12px 8px', touchAction: 'manipulation' }}
+                            onClick={() => {
+                              removeFromNavigationHistory(s.id);
+                              if (selectedSpaceId === s.id) {
+                                setSelectedSpaceId(null);
+                              }
+                              closeSheet();
+                            }}
+                          >
+                            <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                          </button>
+                        </div>
                       );
                     })}
                     {availableSpaces.length > 0 && (
@@ -1521,7 +1521,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           ? `${idToUrl(thread.id)}?space=${encodeURIComponent(spaceForLink)}`
                           : idToUrl(thread.id);
                       return (
-                        <div key={thread.id} className="nav-item-container group w-full">
+                        // Outer div so the badge/close button is a sibling of the link, not nested inside it.
+                        // A clickable div inside an <a> is unreliable on iOS — the anchor intercepts
+                        // the touch and stopPropagation doesn't prevent native navigation.
+                        <div key={thread.id} className="nav-item-container group w-full" style={{ position: 'relative' }}>
                           <a
                             href={threadHref}
                             className="block w-full"
@@ -1549,33 +1552,51 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     {displayThread.title}
                                   </span>
                                 </div>
-                                <div className="space-btn__badge-wrapper">
-                                  <div
-                                    className="badge-count cursor-pointer"
-                                    data-close-item={thread.id}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      if (itemsInCloseMode.has(thread.id)) {
-                                        handleCloseClick(thread.id, e);
-                                      } else {
-                                        toggleCloseMode(thread.id);
-                                      }
-                                    }}
-                                  >
-                                    {itemsInCloseMode.has(thread.id) ? (
-                                      <Icon name="xmark" size={14} style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }} />
-                                    ) : (
-                                      <span className="badge-number" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
-                                        {formatBadgeCount(displayThread.noteCount)}
-                                      </span>
-                                    )}
+                                {/* Spacer so the badge button has room without overlapping text */}
+                                <div className="space-btn__badge-wrapper" style={{ visibility: 'hidden', pointerEvents: 'none' }}>
+                                  <div className="badge-count">
+                                    <span className="badge-number">
+                                      {formatBadgeCount(displayThread.noteCount)}
+                                    </span>
                                   </div>
                                 </div>
                               </div>
                               {isActive && <div className="space-btn__shadow" />}
                             </div>
                           </a>
+                          {/* Badge/close button lives outside the <a> to avoid iOS anchor interception */}
+                          <button
+                            type="button"
+                            className="badge-count cursor-pointer"
+                            data-close-item={thread.id}
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              padding: '8px 16px 8px 8px',
+                              touchAction: 'manipulation',
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (itemsInCloseMode.has(thread.id)) {
+                                handleCloseClick(thread.id, e);
+                              } else {
+                                toggleCloseMode(thread.id);
+                              }
+                            }}
+                          >
+                            {itemsInCloseMode.has(thread.id) ? (
+                              <Icon name="xmark" size={14} style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }} />
+                            ) : (
+                              <span className="badge-number" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
+                                {formatBadgeCount(displayThread.noteCount)}
+                              </span>
+                            )}
+                          </button>
                         </div>
                       );
                     })}

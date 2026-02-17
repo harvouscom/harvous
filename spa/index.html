@@ -31,9 +31,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Inline touch-action: manipulation on body as early as possible.
+      This eliminates the 300ms iOS double-tap delay before any CSS loads,
+      making the very first interaction on PWA cold start feel instant.
+    -->
+    <script>
+      document.body.style.touchAction = 'manipulation';
+      // Pre-warm iOS touch handling — registering a passive listener early
+      // causes the browser to pre-allocate the touch fast path.
+      document.addEventListener('touchstart', function warmup() {
+        document.removeEventListener('touchstart', warmup);
+      }, { passive: true, capture: true });
+    </script>
     <script src="/scripts/pwa-startup.js"></script>
     <script src="/scripts/haptics-handler.js"></script>
     <script src="/scripts/tab-interaction-handler.js"></script>
+    <script src="/scripts/service-worker-manager.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

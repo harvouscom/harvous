@@ -2,6 +2,33 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
+// ── Vite chunk load error recovery ──────────────────────────────────────────
+// After a new deployment, old hashed JS chunk URLs no longer exist on the CDN.
+// Vite fires a "vite:preloadError" event when a dynamic import fails (404).
+// Without this handler the SPA goes blank. We reload once to pick up the
+// fresh index.html + new chunk URLs. A sessionStorage flag prevents
+// infinite reload loops in case the reload itself still fails.
+window.addEventListener('vite:preloadError', () => {
+  const KEY = 'vite_preload_reload_attempted';
+  if (!sessionStorage.getItem(KEY)) {
+    sessionStorage.setItem(KEY, '1');
+    window.location.reload();
+  } else {
+    // Second failure — show a simple recovery UI rather than staying blank
+    sessionStorage.removeItem(KEY);
+    const root = document.getElementById('root');
+    if (root) {
+      root.innerHTML = `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#F7F7F6;padding:16px">
+          <div style="text-align:center;padding:32px;max-width:400px;background:#fff;border-radius:20px;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+            <p style="color:#4a473d;font-size:17px;margin:0 0 20px">Harvous was updated. Please reload to continue.</p>
+            <button onclick="sessionStorage.clear();window.location.reload()" style="background:#4a473d;color:#fff;border:none;padding:14px 28px;border-radius:12px;font-size:16px;cursor:pointer;font-family:inherit">Reload App</button>
+          </div>
+        </div>`;
+    }
+  }
+});
+
 // Fonts — import directly from installed npm packages so they bundle correctly
 import '@fontsource/reddit-sans/400.css';
 import '@fontsource/reddit-sans/500.css';
