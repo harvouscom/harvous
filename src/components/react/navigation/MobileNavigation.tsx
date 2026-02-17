@@ -88,8 +88,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   // Track recent event updates to prevent sync effect and DOM reads from overwriting them
   const lastEventUpdateRef = useRef<{ spaceId: string; timestamp: number } | null>(null);
   // Click guard: when a close button's onTouchEnd fires, this flag prevents the
-  // iOS-synthesized click from navigating via the parent <a>. stopPropagation on
-  // touchend does NOT prevent the subsequent click event on a different element.
+  // parent div's onClick from also triggering navigation.
   const closeButtonTappedRef = useRef(false);
   // Local state for spaces that gets updated when spaces are modified
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
@@ -965,39 +964,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
   };
 
-  const handleItemClickWrapper = (e: React.MouseEvent<HTMLAnchorElement>, itemId?: string) => {
-    // Always prevent default anchor navigation — use SPA router instead
-    e.preventDefault();
-
-    // If a close button's onTouchEnd just fired, skip navigation —
-    // iOS synthesizes a click event from the same touch that reaches the parent <a>.
-    if (closeButtonTappedRef.current) {
-      closeButtonTappedRef.current = false;
-      return;
-    }
-
-    // Check if we're currently on a note page
-    const isOnNotePage = currentItemId.startsWith('note_');
-
-    // Check if the clicked item is the currently active item
-    const isActiveItem = itemId === undefined || itemId === ''
-      ? isDashboard // "My Home" is active
-      : itemId === currentActiveItemId; // Other items match active id
-
-    handleItemClick(itemId);
-
-    // If it's the active item AND we're not on a note page, just close the dropdown (no navigation)
-    if (isActiveItem && !isOnNotePage) {
-      return;
-    }
-
-    // Navigate via SPA router
-    const href = e.currentTarget.getAttribute('href');
-    if (onNavigate && href) {
-      onNavigate(href);
-    }
-  };
-
   // Toggle close mode for an item (show close icon instead of badge)
   const toggleCloseMode = (itemId: string) => {
     setItemsInCloseMode(prev => {
@@ -1271,7 +1237,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="mobile-nav__col">
-        <a href="/search" className="nav-link" onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate('/search'); } : undefined}>
+        <div className="nav-link" style={{ cursor: 'pointer' }} onClick={() => { if (onNavigate) onNavigate('/search'); }}>
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">
@@ -1279,18 +1245,20 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               </svg>
             </div>
           </button>
-        </a>
+        </div>
       </div>
 
       {/* Spaces Dropdown (Column 2: 1fr) */}
       <div className="mobile-nav__dropdown-wrapper">
         <div className="space-switcher-anchor space-switcher-anchor--mobile">
           {/* Main button - navigates to thread when on note, else to space/home (no need to open sheet) */}
-          <a
-            href={isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/')}
+          <div
             className="nav-link"
-            style={{ display: 'block', width: '100%' }}
-            onClick={onNavigate && !isNote && !selectedSpaceId ? (e) => { e.preventDefault(); onNavigate('/'); } : undefined}
+            style={{ display: 'block', width: '100%', cursor: 'pointer' }}
+            onClick={() => {
+              const href = isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/');
+              if (onNavigate) onNavigate(href);
+            }}
           >
             <SpaceButton
               as="div"
@@ -1301,7 +1269,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               backgroundGradient={activeThreadCandidate?.backgroundGradient || (updatedCurrentSpace || currentSpace)?.backgroundGradient || getThreadGradientCSS('paper')}
               hideDropdownIcon={true}
             />
-          </a>
+          </div>
           {/* Toggle button - always opens bottom sheet */}
           <button
             type="button"
@@ -1364,17 +1332,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 <div className="mobile-nav__dropdown-header-row">
                   <div className="space-switcher-anchor space-switcher-anchor--mobile">
                     {/* Main button - always navigates to space/home (matches desktop); sort icon opens switch panel */}
-                    <a
-                      href={displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/'}
+                    <div
                       className="nav-link"
-                      style={{ display: 'block', width: '100%' }}
-                      onClick={(e) => {
-                        e.preventDefault();
+                      style={{ display: 'block', width: '100%', cursor: 'pointer' }}
+                      onClick={() => {
                         closeSheet();
                         if (onNavigate) onNavigate(displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/');
                       }}
                     >
-                      <SpaceButton 
+                      <SpaceButton
                         key={spaceButtonKey}
                         as="div"
                         text={displaySelectedSpaceLabel}
@@ -1385,12 +1351,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         isActive={topSpaceIsActive}
                         hideDropdownIcon={true}
                       />
-                    </a>
+                    </div>
                     {/* Toggle button - opens/closes space picker panel */}
                     <button
                       type="button"
                       className="space-btn__badge-wrapper space-switcher-anchor__toggle"
                       aria-label="Switch space"
+                      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                      onTouchEnd={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsSpacePanelOpen((v) => !v);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
                         setIsSpacePanelOpen((v) => !v);
@@ -1406,11 +1378,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 {isSpacePanelOpen && (
                   <div className="mobile-nav__space-panel" role="dialog" aria-label="Switch space">
                     <div className="mobile-nav__space-panel-scroll">
-                    <a
-                      href="/"
+                    <div
                       className={`mobile-nav__space-panel-item ${!displaySelectedSpaceId ? 'is-active' : ''}`}
-                      onClick={(e) => {
-                        e.preventDefault();
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
                         setSelectedSpaceId(null);
                         closeSheet();
                         if (onNavigate) onNavigate('/');
@@ -1424,16 +1395,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           </span>
                         ) : null}
                       </span>
-                    </a>
+                    </div>
                     {spacesForDropdown.map((s) => {
                       const isActive = !!displaySelectedSpaceId && s.id === displaySelectedSpaceId;
                       return (
-                        <a
+                        <div
                           key={s.id}
-                          href={idToUrl(s.id)}
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
-                          onClick={(e) => {
-                            e.preventDefault();
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => {
                             if (closeButtonTappedRef.current) { closeButtonTappedRef.current = false; return; }
                             setSelectedSpaceId(s.id);
                             closeSheet();
@@ -1475,7 +1445,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               <Icon name="xmark" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                             </button>
                           </span>
-                        </a>
+                        </div>
                       );
                     })}
                     {availableSpaces.length > 0 && (
@@ -1493,12 +1463,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         </button>
                         {isShowingExistingSpaces && availableSpaces.map((s) => {
                           return (
-                            <a
+                            <div
                               key={s.id}
-                              href={idToUrl(s.id)}
                               className="mobile-nav__space-panel-item"
-                              onClick={(e) => {
-                                e.preventDefault();
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => {
                                 setSelectedSpaceId(s.id);
                                 setIsShowingExistingSpaces(false);
                                 closeSheet();
@@ -1506,18 +1475,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               }}
                             >
                               <span className="mobile-nav__space-panel-label">{s.title}</span>
-                            </a>
+                            </div>
                           );
                         })}
                       </>
                     )}
                     </div>
                     <div className="mobile-nav__space-panel-divider" />
-                    <a
-                      href="/new-space"
+                    <div
                       className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
-                      onClick={(e) => {
-                        e.preventDefault();
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => {
                         closeSheet();
                         if (onNavigate) onNavigate('/new-space');
                       }}
@@ -1526,7 +1494,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       <span className="mobile-nav__space-panel-check" aria-hidden="true">
                         <Icon name="plus" size={20} style={{ color: 'var(--color-deep-grey)' }} />
                       </span>
-                    </a>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1572,11 +1540,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           : idToUrl(thread.id);
                       return (
                         <div key={thread.id} className="nav-item-container group w-full">
-                          <a
-                            href={threadHref}
+                          <div
                             className="block w-full"
-                            onClick={(e) => handleItemClickWrapper(e, thread.id)}
-                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
+                            onClick={() => {
+                              if (closeButtonTappedRef.current) { closeButtonTappedRef.current = false; return; }
+                              const isActiveItem = thread.id === currentActiveItemId;
+                              const isOnNotePage = currentItemId.startsWith('note_');
+                              handleItemClick(thread.id);
+                              if (!isActiveItem || isOnNotePage) {
+                                if (onNavigate) onNavigate(threadHref);
+                              }
+                            }}
                           >
                             <div
                               className="space-btn pl-4"
@@ -1614,7 +1589,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     onTouchEnd={(e) => {
                                       e.preventDefault();
                                       e.stopPropagation();
-                                      e.nativeEvent.stopImmediatePropagation();
                                       closeButtonTappedRef.current = true;
                                       setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
                                       if (itemsInCloseMode.has(thread.id)) {
@@ -1645,7 +1619,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               </div>
                               {isActive && <div className="space-btn__shadow" />}
                             </div>
-                          </a>
+                          </div>
                         </div>
                       );
                     })}
@@ -1659,9 +1633,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Avatar (Column 3: auto) */}
       <div className="mobile-nav__col">
-        <a href="/profile">
+        <div style={{ cursor: 'pointer' }} onClick={() => { if (onNavigate) onNavigate('/profile'); }}>
           <Avatar initials={profileData.initials} color={profileData.userColor} />
-        </a>
+        </div>
       </div>
 
     </div>
