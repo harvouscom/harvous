@@ -297,6 +297,13 @@ export default function TabNav({
               data-tab-id={tab.id}
               data-active={isActive ? "true" : "false"}
               data-tab-button
+              onTouchEnd={(e) => {
+                // Fire immediately on touch without waiting for the synthesized click.
+                // Prevents the 300ms focus→click delay that makes the first tap appear
+                // to only darken the text without switching tabs on mobile PWA.
+                e.preventDefault();
+                handleTabClick(tab.id);
+              }}
               onClick={() => handleTabClick(tab.id)}
               suppressHydrationWarning
             >

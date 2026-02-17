@@ -619,6 +619,18 @@
   flex-shrink: 0;
 }
 
+/* Expand close button touch target to 44×44 minimum.
+   The parent item is min-height:52px so the taller button fits without
+   changing the row height. width/height on the element is overridden here
+   so the hit area is large while the icon stays centered inside. */
+button.mobile-nav__space-panel-check {
+  width: 44px;
+  height: 44px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 .mobile-nav__dropdown-scroll {
   flex: 1;
   min-height: 0;

@@ -1559,9 +1559,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     className="badge-count cursor-pointer"
                                     data-close-item={thread.id}
                                     style={{
-                                      background: 'none',
                                       border: 'none',
-                                      padding: 0,
+                                      // Expand hit area to 44×44 while keeping the badge background
+                                      // visually at 24×24. padding adds to the tappable area;
+                                      // backgroundClip:content-box limits the grey pill to the
+                                      // content region only. The wrapper (padding:20px) gives space.
+                                      padding: '10px',
+                                      boxSizing: 'content-box',
+                                      backgroundClip: 'content-box',
                                       touchAction: 'manipulation',
                                       WebkitTapHighlightColor: 'transparent',
                                     }}

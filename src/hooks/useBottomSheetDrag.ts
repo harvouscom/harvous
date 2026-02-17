@@ -60,8 +60,24 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       startX: 0,
     };
 
+    // Clear any stale inline overlay styles so the sheet always opens fully opaque.
+    // These can be left behind when a drag is interrupted or the sheet closes normally.
+    const clearOverlayInlineStyles = () => {
+      const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+      if (overlay) {
+        overlay.style.opacity = '';
+        overlay.style.transition = '';
+      }
+    };
+
+    // Clear on attach so a freshly-opened sheet always starts with clean overlay.
+    clearOverlayInlineStyles();
+
     const handleTouchStart = (e: TouchEvent) => {
       if (!enabledRef.current) return;
+
+      // Clear any stale overlay inline styles at the start of each touch.
+      clearOverlayInlineStyles();
 
       // Don't interfere with interactive elements
       const target = e.target as HTMLElement;
