@@ -1,10 +1,14 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from '@astrojs/db';
 import clerk from '@clerk/astro';
 import react from '@astrojs/react';
 
 import netlify from '@astrojs/netlify';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://astro.build/config
 export default defineConfig({
@@ -21,6 +25,9 @@ export default defineConfig({
   vite: {
     // Fix React bundling - ensure single React instance (CRITICAL for Invalid Hook Call errors)
     resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src')
+      },
       dedupe: ['react', 'react-dom']
     },
     server: {

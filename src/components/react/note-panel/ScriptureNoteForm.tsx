@@ -1,6 +1,7 @@
-import React from 'react';
-import TiptapEditor from '../TiptapEditor';
+import React, { lazy, Suspense } from 'react';
 import Icon from '../Icon';
+
+const TiptapEditor = lazy(() => import('../TiptapEditor'));
 
 export interface ScriptureNoteFormProps {
   scriptureReference: string;
@@ -50,19 +51,21 @@ export default function ScriptureNoteForm({
       {/* Editor */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
         <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-          <TiptapEditor
-            content={content}
-            id="new-note-content"
-            name="content"
-            placeholder="Share your thoughts about this scripture..."
-            tabindex={2}
-            minimalToolbar={false}
-            toolbarAtBottom={toolbarAtBottom}
-            onEditorReady={onEditorReady}
-            onContentChange={onContentChange}
-            parentThreadId={parentThreadId}
-            onEditorInstanceReady={onEditorInstanceReady}
-          />
+          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)] text-sm">Loading editor…</div>}>
+            <TiptapEditor
+              content={content}
+              id="new-note-content"
+              name="content"
+              placeholder="Share your thoughts about this scripture..."
+              tabindex={2}
+              minimalToolbar={false}
+              toolbarAtBottom={toolbarAtBottom}
+              onEditorReady={onEditorReady}
+              onContentChange={onContentChange}
+              parentThreadId={parentThreadId}
+              onEditorInstanceReady={onEditorInstanceReady}
+            />
+          </Suspense>
         </div>
       </div>
 

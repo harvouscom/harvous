@@ -1,6 +1,8 @@
 // Bible Study Keywords for Auto-Tag Generation
 // Organized by categories for better tag management
 
+import { buildKeywordTrie, findWordBoundMatches } from './keyword-trie';
+
 export interface BibleStudyKeyword {
   name: string;
   category: 'spiritual' | 'biblical' | 'character' | 'place' | 'book' | 'theme' | 'life';
@@ -203,205 +205,119 @@ export const BIBLE_STUDY_KEYWORDS: BibleStudyKeyword[] = [
   { name: 'Hope', category: 'life', synonyms: ['optimism', 'expectation'], confidence: 0.7 },
 ];
 
+let keywordTrie: ReturnType<typeof buildKeywordTrie> | null = null;
+function getKeywordTrie() {
+  if (!keywordTrie) keywordTrie = buildKeywordTrie(BIBLE_STUDY_KEYWORDS);
+  return keywordTrie;
+}
+
 // Helper function to find keywords in text
 export function findKeywordsInText(text: string): Array<{ keyword: BibleStudyKeyword; confidence: number }> {
   const foundKeywords: Array<{ keyword: BibleStudyKeyword; confidence: number }> = [];
   const textLower = text.toLowerCase();
-  
+
+  // Word-bound matches (book/character) via trie
+  const trie = getKeywordTrie();
+  const wordBoundMatches = findWordBoundMatches(trie, '', text);
+  for (const [keyword, stats] of wordBoundMatches) {
+    const titleBoost = 0; // findKeywordsInText has no title/content split
+    const frequencyBoost = stats.frequency > 1 ? Math.min(0.5, (stats.frequency - 1) * 0.1) : 0;
+    foundKeywords.push({
+      keyword,
+      confidence: Math.min(1.0, stats.confidence + titleBoost + frequencyBoost)
+    });
+  }
+
+  // Other categories: simple includes
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
+    if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
     let confidence = keyword.confidence;
-    
-    // Check main name with word boundaries for book names and character names to prevent false positives
     const keywordLower = keyword.name.toLowerCase();
-    if (keyword.category === 'book' || keyword.category === 'character') {
-      // For book names and character names, use word boundaries to prevent partial matches
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-      if (regex.test(textLower)) {
-        found = true;
-        confidence = keyword.confidence;
-        // Keyword found with word boundaries
-      }
-    } else {
-      // For other keywords (spiritual themes), use simple includes
-      if (textLower.includes(keywordLower)) {
-        found = true;
-        confidence = keyword.confidence;
-      }
+    if (textLower.includes(keywordLower)) {
+      found = true;
+      confidence = keyword.confidence;
     }
-    
-    // Check synonyms with word boundaries for book names and character names
     for (const synonym of keyword.synonyms) {
-      if (keyword.category === 'book' || keyword.category === 'character') {
-        // For book and character synonyms, use word boundaries to prevent false positives
-        const synonymRegex = new RegExp(`\\b${synonym.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-        if (synonymRegex.test(textLower)) {
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-          // Keyword found via synonym
-        }
-      } else {
-        // For other keywords, use simple includes
-        if (textLower.includes(synonym.toLowerCase())) {
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-        }
+      if (textLower.includes(synonym.toLowerCase())) {
+        found = true;
+        confidence = Math.max(confidence, keyword.confidence * 0.8);
       }
     }
-    
-    if (found) {
-      foundKeywords.push({ keyword, confidence });
-    }
+    if (found) foundKeywords.push({ keyword, confidence });
   }
-  
-  // Sort by confidence (highest first)
+
   return foundKeywords.sort((a, b) => b.confidence - a.confidence);
 }
 
 // Enhanced function to find keywords with priority boosts for title and frequency
 export function findKeywordsInTextWithPriority(
-  fullText: string, 
-  title: string, 
+  fullText: string,
+  title: string,
   content: string
 ): Array<{ keyword: BibleStudyKeyword; confidence: number }> {
   const foundKeywords: Array<{ keyword: BibleStudyKeyword; confidence: number }> = [];
-  const fullTextLower = fullText.toLowerCase();
   const titleLower = title.toLowerCase();
   const contentLower = content.toLowerCase();
-  
+
+  // Word-bound matches (book/character) via trie
+  const trie = getKeywordTrie();
+  const wordBoundMatches = findWordBoundMatches(trie, title, content);
+  for (const [keyword, stats] of wordBoundMatches) {
+    const titleBoost = stats.inTitle ? 0.2 : 0;
+    const frequencyBoost = stats.frequency > 1 ? Math.min(0.5, (stats.frequency - 1) * 0.1) : 0;
+    foundKeywords.push({
+      keyword,
+      confidence: Math.min(1.0, stats.confidence + titleBoost + frequencyBoost)
+    });
+  }
+
+  // Other categories (spiritual, biblical, theme, life, place): simple includes
   for (const keyword of BIBLE_STUDY_KEYWORDS) {
+    if (keyword.category === 'book' || keyword.category === 'character') continue;
     let found = false;
     let confidence = keyword.confidence;
-    let titleBoost = 0;
-    let frequencyBoost = 0;
-    
-    // Check main name with word boundaries for book names and character names to prevent false positives
-    const keywordLower = keyword.name.toLowerCase();
     let foundInTitle = false;
     let foundInContent = false;
     let frequency = 0;
-    
-    if (keyword.category === 'book' || keyword.category === 'character') {
-      // For book names and character names, use word boundaries to prevent partial matches
-      const regex = new RegExp(`\\b${keywordLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-      
-      // Check in title
-      if (titleLower && regex.test(titleLower)) {
-        foundInTitle = true;
-        found = true;
-        confidence = keyword.confidence;
-        // Count frequency in title
-        const titleMatches = titleLower.match(regex);
-        frequency += titleMatches ? titleMatches.length : 0;
-      }
-      
-      // Check in content
-      if (contentLower && regex.test(contentLower)) {
-        foundInContent = true;
-        found = true;
-        confidence = keyword.confidence;
-        // Count frequency in content
-        const contentMatches = contentLower.match(regex);
-        frequency += contentMatches ? contentMatches.length : 0;
-      }
-    } else {
-      // For other keywords (spiritual themes), use simple includes
-      if (titleLower && titleLower.includes(keywordLower)) {
-        foundInTitle = true;
-        found = true;
-        confidence = keyword.confidence;
-        // Count frequency in title
-        const titleMatches = titleLower.split(keywordLower).length - 1;
-        frequency += titleMatches;
-      }
-      
-      if (contentLower && contentLower.includes(keywordLower)) {
-        foundInContent = true;
-        found = true;
-        confidence = keyword.confidence;
-        // Count frequency in content
-        const contentMatches = contentLower.split(keywordLower).length - 1;
-        frequency += contentMatches;
-      }
+    const keywordLower = keyword.name.toLowerCase();
+    if (titleLower?.includes(keywordLower)) {
+      foundInTitle = true;
+      found = true;
+      confidence = keyword.confidence;
+      frequency += titleLower.split(keywordLower).length - 1;
     }
-    
-    // Check synonyms with word boundaries for book names and character names
+    if (contentLower?.includes(keywordLower)) {
+      foundInContent = true;
+      found = true;
+      confidence = keyword.confidence;
+      frequency += contentLower.split(keywordLower).length - 1;
+    }
     for (const synonym of keyword.synonyms) {
       const synonymLower = synonym.toLowerCase();
-      let synonymFoundInTitle = false;
-      let synonymFoundInContent = false;
-      let synonymFrequency = 0;
-      
-      if (keyword.category === 'book' || keyword.category === 'character') {
-        // For book and character synonyms, use word boundaries to prevent false positives
-        const synonymRegex = new RegExp(`\\b${synonymLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'g');
-        
-        // Check in title
-        if (titleLower && synonymRegex.test(titleLower)) {
-          synonymFoundInTitle = true;
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-          const titleMatches = titleLower.match(synonymRegex);
-          synonymFrequency += titleMatches ? titleMatches.length : 0;
-        }
-        
-        // Check in content
-        if (contentLower && synonymRegex.test(contentLower)) {
-          synonymFoundInContent = true;
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-          const contentMatches = contentLower.match(synonymRegex);
-          synonymFrequency += contentMatches ? contentMatches.length : 0;
-        }
-      } else {
-        // For other keywords, use simple includes
-        if (titleLower && titleLower.includes(synonymLower)) {
-          synonymFoundInTitle = true;
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-          const titleMatches = titleLower.split(synonymLower).length - 1;
-          synonymFrequency += titleMatches;
-        }
-        
-        if (contentLower && contentLower.includes(synonymLower)) {
-          synonymFoundInContent = true;
-          found = true;
-          confidence = Math.max(confidence, keyword.confidence * 0.8);
-          const contentMatches = contentLower.split(synonymLower).length - 1;
-          synonymFrequency += contentMatches;
-        }
+      if (titleLower?.includes(synonymLower)) {
+        foundInTitle = true;
+        found = true;
+        confidence = Math.max(confidence, keyword.confidence * 0.8);
+        frequency += titleLower.split(synonymLower).length - 1;
       }
-      
-      if (synonymFoundInTitle || synonymFoundInContent) {
-        foundInTitle = foundInTitle || synonymFoundInTitle;
-        foundInContent = foundInContent || synonymFoundInContent;
-        frequency += synonymFrequency;
+      if (contentLower?.includes(synonymLower)) {
+        foundInContent = true;
+        found = true;
+        confidence = Math.max(confidence, keyword.confidence * 0.8);
+        frequency += contentLower.split(synonymLower).length - 1;
       }
     }
-    
     if (found) {
-      // Apply priority boosts
-      if (foundInTitle) {
-        // Title boost: +0.2 for any keyword found in title
-        titleBoost = 0.2;
-      }
-      
-      if (frequency > 1) {
-        // Frequency boost: +0.1 for each occurrence beyond the first (max +0.5)
-        frequencyBoost = Math.min(0.5, (frequency - 1) * 0.1);
-      }
-      
-      // Apply boosts to confidence
-      const finalConfidence = Math.min(1.0, confidence + titleBoost + frequencyBoost);
-      
-      foundKeywords.push({ 
-        keyword, 
-        confidence: finalConfidence 
+      const titleBoost = foundInTitle ? 0.2 : 0;
+      const frequencyBoost = frequency > 1 ? Math.min(0.5, (frequency - 1) * 0.1) : 0;
+      foundKeywords.push({
+        keyword,
+        confidence: Math.min(1.0, confidence + titleBoost + frequencyBoost)
       });
     }
   }
-  
-  // Sort by confidence (highest first)
+
   return foundKeywords.sort((a, b) => b.confidence - a.confidence);
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import {
   Sheet,
@@ -7,9 +7,6 @@ import {
   SheetTitle,
   SheetDescription,
 } from '@/components/ui/sheet';
-import NewNotePanel from './NewNotePanel';
-import NewThreadPanel from './NewThreadPanel';
-import NoteDetailsPanel from './NoteDetailsPanel';
 import EditNameColorPanel from './EditNameColorPanel';
 import EditThreadPanel from './EditThreadPanel';
 import EditSpacePanel from './EditSpacePanel';
@@ -27,6 +24,16 @@ import AboutHarvousPanel from './AboutHarvousPanel';
 import NoteSharePanel from './NoteSharePanel';
 import PinEntryPanel from './PinEntryPanel';
 import LockPinPanel from './LockPinPanel';
+
+const createLazyPanel = (importFn: () => Promise<{ default: React.ComponentType<any> }>, name: string) =>
+  lazy(() => importFn().catch((err) => {
+    console.error(`Failed to load ${name}:`, err);
+    return { default: () => <div className="p-6 text-center text-[var(--color-pebble-grey)]">Failed to load panel. <button type="button" onClick={() => window.location.reload()}>Reload</button></div> };
+  }));
+
+const NewNotePanel = createLazyPanel(() => import('./NewNotePanel'), 'NewNotePanel');
+const NewThreadPanel = createLazyPanel(() => import('./NewThreadPanel'), 'NewThreadPanel');
+const NoteDetailsPanel = createLazyPanel(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
 
 // Extend the Window interface to include custom functions
 declare global {
@@ -581,83 +588,91 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
-              <NewNotePanel
-                key={`mobile-note-${panelKey}`}
-                currentThread={currentThread}
-                currentSpace={currentSpace}
-                inBottomSheet={true}
-                registerSheetCloseHandler={registerActiveCloseHandler}
-                onClose={() => {
-                  window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-                }}
-                onPanelReady={() => {
-                  if (typeof window.setupCreateNoteButton === 'function') {
-                    window.setupCreateNoteButton();
-                  }
-                }}
-              />
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+                <NewNotePanel
+                  key={`mobile-note-${panelKey}`}
+                  currentThread={currentThread}
+                  currentSpace={currentSpace}
+                  inBottomSheet={true}
+                  registerSheetCloseHandler={registerActiveCloseHandler}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+                  }}
+                  onPanelReady={() => {
+                    if (typeof window.setupCreateNoteButton === 'function') {
+                      window.setupCreateNoteButton();
+                    }
+                  }}
+                />
+              </Suspense>
             </div>
           )}
-          
+
           {/* New Thread Panel */}
           {drawerType === 'thread' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <NewThreadPanel
-                key={`mobile-thread-${panelKey}`}
-                currentSpace={currentSpace}
-                inBottomSheet={true}
-                registerSheetCloseHandler={registerActiveCloseHandler}
-                onClose={() => {
-                  window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-                }}
-                onPanelReady={() => {
-                  if (typeof window.initThreadCreation === 'function') {
-                    window.initThreadCreation();
-                  }
-                }}
-              />
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+                <NewThreadPanel
+                  key={`mobile-thread-${panelKey}`}
+                  currentSpace={currentSpace}
+                  inBottomSheet={true}
+                  registerSheetCloseHandler={registerActiveCloseHandler}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+                  }}
+                  onPanelReady={() => {
+                    if (typeof window.initThreadCreation === 'function') {
+                      window.initThreadCreation();
+                    }
+                  }}
+                />
+              </Suspense>
             </div>
           )}
 
           {/* New Resource Panel */}
           {drawerType === 'resource' && (
             <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
-              <NewNotePanel
-                key={`mobile-resource-${panelKey}`}
-                currentThread={currentThread}
-                currentSpace={currentSpace}
-                initialNoteType="resource"
-                inBottomSheet={true}
-                registerSheetCloseHandler={registerActiveCloseHandler}
-                onClose={() => {
-                  window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
-                }}
-                onPanelReady={() => {
-                  if (typeof window.setupCreateNoteButton === 'function') {
-                    window.setupCreateNoteButton();
-                  }
-                }}
-              />
+              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+                <NewNotePanel
+                  key={`mobile-resource-${panelKey}`}
+                  currentThread={currentThread}
+                  currentSpace={currentSpace}
+                  initialNoteType="resource"
+                  inBottomSheet={true}
+                  registerSheetCloseHandler={registerActiveCloseHandler}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
+                  }}
+                  onPanelReady={() => {
+                    if (typeof window.setupCreateNoteButton === 'function') {
+                      window.setupCreateNoteButton();
+                    }
+                  }}
+                />
+              </Suspense>
             </div>
           )}
-          
+
           {/* Note Details Panel */}
           {drawerType === 'noteDetails' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {noteDetailsNote && (
-                <NoteDetailsPanel
-                  key={`mobile-note-details-${panelKey}`}
-                  noteId={noteDetailsNote.id}
-                  noteTitle={noteDetailsNote.title || "Note Details"}
-                  threads={[]}
-                  comments={[]}
-                  tags={[]}
-                  onClose={() => {
-                    window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
-                  }}
-                  inBottomSheet={true}
-                  initialTab={noteDetailsTab}
-                />
+                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+                  <NoteDetailsPanel
+                    key={`mobile-note-details-${panelKey}`}
+                    noteId={noteDetailsNote.id}
+                    noteTitle={noteDetailsNote.title || "Note Details"}
+                    threads={[]}
+                    comments={[]}
+                    tags={[]}
+                    onClose={() => {
+                      window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+                    }}
+                    inBottomSheet={true}
+                    initialTab={noteDetailsTab}
+                  />
+                </Suspense>
               )}
             </div>
           )}

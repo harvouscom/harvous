@@ -38,6 +38,16 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') ?? '/';
       <div class="auth-page__form-section">
         <div class="auth-page__form-wrapper">
 
+      {!publishableKey ? (
+        <div class="clerk-form-card clerk-form-root" role="alert">
+          <p class="clerk-form-header-title">Sign-in not configured</p>
+          <p class="clerk-form-header-subtitle">
+            Add <code>PUBLIC_CLERK_PUBLISHABLE_KEY</code> to your <code>.env</code> (use a test key from
+            <a href="https://dashboard.clerk.com" target="_blank" rel="noopener">Clerk Dashboard</a> → API Keys).
+            Restart the dev server after changing .env.
+          </p>
+        </div>
+      ) : (
       <ClerkSignIn
         appearance={{
             elements: {
@@ -81,6 +91,7 @@ const redirectUrl = Astro.url.searchParams.get('redirect_url') ?? '/';
         signUpUrl={redirectUrl !== '/' ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}` : '/sign-up'}
         fallbackRedirectUrl={redirectUrl}
       />
+      )}
         </div>
       </div>
     </div>
