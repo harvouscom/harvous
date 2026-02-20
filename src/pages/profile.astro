@@ -49,18 +49,18 @@ try {
 
 const { firstName, lastName, email, initials, displayName, userColor, createdAt } = userData;
 
-// Format join date
+// Format join date in UTC so it is consistent across server timezones and PWA vs browser (avoids cache/timezone mismatches)
 let joinDate: string;
 if (createdAt) {
   const joinDateObj = new Date(createdAt);
-  const month = joinDateObj.toLocaleDateString('en-US', { month: 'short' });
-  const year = joinDateObj.getFullYear();
+  const month = joinDateObj.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  const year = joinDateObj.getUTCFullYear();
   joinDate = `${month} ${year}`;
 } else {
   const currentDate = new Date();
-  const currentMonth = currentDate.toLocaleDateString('en-US', { month: 'short' });
-  const currentYear = currentDate.getFullYear();
-  joinDate = `${currentMonth} ${currentYear}`;
+  const month = currentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
+  const year = currentDate.getUTCFullYear();
+  joinDate = `${month} ${year}`;
 }
 
 // Fetch navigation data and church data

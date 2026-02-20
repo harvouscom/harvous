@@ -109,9 +109,9 @@ export default function MobileAdditional({
   }
 
   return (
-    <div className="flex items-center justify-center gap-4">
-      {/* Default state: SquareButtons in horizontal layout */}
-      <div className={`w-full flex ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
+    <div className="flex items-center justify-start w-full">
+      {/* When More is shown: More left, Add right. When only Add: Add on the right (like desktop) */}
+      <div className={`w-full flex items-center ${showMoreButton ? 'justify-between' : 'justify-end'}`}>
         {showMoreButton && (
           <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThreadId} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
         )}

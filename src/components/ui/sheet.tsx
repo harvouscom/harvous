@@ -47,14 +47,17 @@ const sheetVariants = cva("fixed z-50 bg-background shadow-lg", {
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  /** Called when the overlay (backdrop) is clicked; use to close the sheet when Radix outside-close is disabled */
+  onOverlayClick?: () => void;
+}
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => (
+>(({ side = "right", className, children, onOverlayClick, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    <SheetOverlay onClick={onOverlayClick} />
     <DialogPrimitive.Content
       ref={ref}
       data-side={side}

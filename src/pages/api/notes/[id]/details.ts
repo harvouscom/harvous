@@ -404,6 +404,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         isPublic: note.isPublic,
         isFeatured: note.isFeatured,
         addedBy: note.addedBy || 'user',
+        userId: note.userId,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
         lastVisited: note.lastVisited,

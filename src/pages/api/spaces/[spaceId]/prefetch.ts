@@ -33,6 +33,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     // Try owner path first
     const spaces = await getSpacesWithCounts(userId);
     let space = spaces.find(s => s.id === spaceId);
+    let ownerId: string = userId;
 
     // If not owner, try member path
     if (!space) {
@@ -40,6 +41,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         const { space: spaceRow } = await requireSpaceAccess(spaceId, userId);
         const spaceFromDb = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
         if (spaceFromDb) {
+          ownerId = spaceFromDb.userId;
           const [threads, notesResult] = await Promise.all([
             getThreadsForSpaceBySpaceId(spaceId),
             getNotesForSpaceForMember(spaceId, spaceRow.userId, 100)
@@ -74,7 +76,9 @@ export const GET: APIRoute = async ({ params, locals }) => {
         color: space.color,
         backgroundGradient: space.backgroundGradient,
         totalItemCount: space.totalItemCount,
-        isPublic: space.isPublic
+        isPublic: space.isPublic,
+        ownerId,
+        memberCount: 0
       }
     }), {
       status: 200,

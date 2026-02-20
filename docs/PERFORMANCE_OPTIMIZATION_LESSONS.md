@@ -264,16 +264,18 @@ useEffect(() => {
 
 **Bad:**
 ```javascript
-initNavigationCache(data);
+// After seeding cache from server data...
 // Immediately refresh even though data is fresh
 refreshNavigationCache();
 ```
 
 **Good:**
 ```javascript
-initNavigationCache(data);
-// Don't refresh - server data is fresh
-// Background refresh will happen automatically when cache expires
+// Nav cache is filled when the navigation API is used (getNavigationDataWithCache)
+// or by React Query in the SPA. Optional: call initNavigationCache(threads, spaces, inboxCount)
+// from Astro layout when server nav data is available to avoid an extra request on first load.
+// Don't refresh immediately after init — server data is fresh. Background refresh
+// will happen automatically when cache expires.
 ```
 
 ### ❌ Not Handling View Transitions for React Islands

@@ -50,7 +50,8 @@ export const GET: APIRoute = async ({ params, locals }) => {
         subtitle: thread.subtitle,
         color: thread.color,
         noteCount: thread.noteCount,
-        backgroundGradient: thread.backgroundGradient
+        backgroundGradient: thread.backgroundGradient,
+        userId: thread.userId
       },
       notes,
       noteTypeCounts

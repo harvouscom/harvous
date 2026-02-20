@@ -574,6 +574,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       saveNavigationHistory(filteredRawHistory);
       // Use spread operator to create new array reference for React (filtered, no spaces)
       setNavigationHistory([...filteredHistory]);
+
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        }, 0);
+      }
       
       // Store closed item in sessionStorage to prevent lastVisited update
       // This helps the server-side logic know this navigation is due to closing, not visiting
@@ -661,6 +667,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     saveNavigationHistory(filteredRawHistory);
     // Use spread operator to create new array reference for React (filtered, no spaces)
     setNavigationHistory([...filteredHistory]);
+
+    if (typeof window !== 'undefined') {
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+      }, 0);
+    }
   };
 
   // Extract item data from page

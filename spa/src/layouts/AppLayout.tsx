@@ -10,12 +10,15 @@ import SquareButton from '../../../src/components/react/SquareButton';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
+import { useThread } from '../hooks/queries/useThread';
+import { useSpace } from '../hooks/queries/useSpace';
 
 export default function AppLayout() {
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
   const { data: nav } = useNavigation();
   const refreshNavigation = useRefreshNavigation();
@@ -24,13 +27,23 @@ export default function AppLayout() {
   // Derive current IDs from path before hooks (hooks must be called unconditionally)
   const pathSlugEarly = pathname.split('/').pop() || '';
   const isNoteEarly = pathname.startsWith('/note/');
+  const isThreadEarly = pathname.startsWith('/thread/');
+  const isSpaceEarly = pathname.startsWith('/space/');
   const noteIdForHook = isNoteEarly
     ? (pathSlugEarly.startsWith('note_') ? pathSlugEarly : `note_${pathSlugEarly}`)
+    : '';
+  const threadIdForHook = isThreadEarly
+    ? (pathSlugEarly.startsWith('thread_') ? pathSlugEarly : `thread_${pathSlugEarly}`)
+    : '';
+  const spaceIdForHook = isSpaceEarly
+    ? (pathSlugEarly.startsWith('space_') ? pathSlugEarly : `space_${pathSlugEarly}`)
     : '';
 
   // When viewing a note page, fetch note details to get parent thread/type
   // This will be a cache hit (NotePage already fetched it) — no extra network request
   const { data: currentNote } = useNote(noteIdForHook);
+  const { data: currentThread } = useThread(threadIdForHook);
+  const { data: currentSpaceDetail } = useSpace(spaceIdForHook);
 
   // Redirect to sign-in if not authenticated
   useEffect(() => {
@@ -175,6 +188,13 @@ export default function AppLayout() {
   const noteCurrentThreadId = noteParentThreadId ?? undefined;
   const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
 
+  // contentOwnerId and userId for SquareButton — hide More / restrict options when member views another's content
+  const contentOwnerId =
+    isNote ? (currentNote?.userId ?? undefined)
+    : isThread ? (currentThread?.userId ?? undefined)
+    : isSpace ? (currentSpaceDetail?.ownerId ?? undefined)
+    : undefined;
+
   // Space role — used by SquareButton "More" menu to show owner vs member options
   const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
   const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
@@ -209,6 +229,7 @@ export default function AppLayout() {
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
+            search={search}
           />
         </section>
 
@@ -235,6 +256,8 @@ export default function AppLayout() {
                   currentThreadId={noteCurrentThreadId}
                   noteSimpleId={noteSimpleId}
                   spaceRole={spaceRole ?? undefined}
+                  contentOwnerId={contentOwnerId}
+                  userId={user?.id}
                 />
               )}
               {contentType !== 'profile' && (
@@ -289,6 +312,8 @@ export default function AppLayout() {
                 currentThreadId={noteCurrentThreadId}
                 noteSimpleId={noteSimpleId}
                 spaceRole={spaceRole ?? undefined}
+                contentOwnerId={contentOwnerId}
+                userId={user?.id}
               />
             )}
             <SquareButton variant="Add" withMenu={true} />

@@ -24,7 +24,7 @@ export default function DashboardPage() {
   // staleTime=30s means navigating back to dashboard within 30s uses cached items
   // instantly — no empty-state flash. OrganizedContentList still does its own
   // authoritative fetch to stay fresh; this just provides an immediate first render.
-  const { data: cachedContent } = useDashboardContent(filter, 100);
+  const { data: cachedContent, dataUpdatedAt } = useDashboardContent(filter, 100);
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
@@ -40,6 +40,7 @@ export default function DashboardPage() {
         initialItems={cachedItems as any}
         filter={filter}
         userId={user?.id}
+        dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
         onNavigate={(href) => navigate({ to: href as any })}
       />
     </CardStack>

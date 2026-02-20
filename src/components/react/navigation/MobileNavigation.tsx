@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { safeGetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
+import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 
 /**
  * Check if Clerk authentication is ready
@@ -73,6 +74,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   initialPath = '',
   onNavigate,
 }) => {
+  const navigate = onNavigate || safeNavigateSync;
   const selectedSpaceId = useSelectedSpaceId();
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -87,13 +89,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [activeThreadFromDom, setActiveThreadFromDom] = useState<Thread | null>(null);
   // Track recent event updates to prevent sync effect and DOM reads from overwriting them
   const lastEventUpdateRef = useRef<{ spaceId: string; timestamp: number } | null>(null);
-  // Click guard: when a close button's onTouchEnd fires, this flag prevents the
-  // parent div's onClick from also triggering navigation.
-  const closeButtonTappedRef = useRef(false);
   // Local state for spaces that gets updated when spaces are modified
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   // Track which items are in "close mode" (showing close icon instead of badge)
   const [itemsInCloseMode, setItemsInCloseMode] = useState<Set<string>>(new Set());
+  // Track items explicitly closed this session so they stay hidden until nav history propagates
+  const [closedItemIds, setClosedItemIds] = useState<Set<string>>(new Set());
   // Profile data state for avatar updates
   const [profileData, setProfileData] = useState({
     initials: initials,
@@ -926,16 +927,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   // the list (it's not meaningful in the space switcher context).
   // Also filter extraFromApi by selectedSpaceId so only threads belonging to
   // the current space appear in the dropdown.
+  // Filter out closedItemIds so closed threads disappear immediately.
   const displayThreads = useMemo(() => {
     const persistentIds = new Set(persistentThreads.map((t) => t.id));
     const extraFromApi = threads.filter(
-      (t) => !persistentIds.has(t.id) && t.id !== 'thread_unorganized' &&
+      (t) => !persistentIds.has(t.id) && !closedItemIds.has(t.id) && t.id !== 'thread_unorganized' &&
         (!selectedSpaceId || t.spaceId === selectedSpaceId)
     );
-    return [...persistentThreads, ...extraFromApi];
-  }, [persistentThreads, threads, selectedSpaceId]);
+    return [
+      ...persistentThreads.filter((t) => !closedItemIds.has(t.id)),
+      ...extraFromApi
+    ];
+  }, [persistentThreads, threads, selectedSpaceId, closedItemIds]);
 
   const openSheet = () => {
+    preloadSafeNavigate();
     setIsSheetOpen(true);
     // If there are no threads to show, auto-open the space picker panel.
     // This helps first-run / "only spaces exist" states.
@@ -981,6 +987,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const handleCloseClick = (itemId: string, e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     e.preventDefault();
+    setClosedItemIds((prev) => {
+      const next = new Set(prev);
+      next.add(itemId);
+      return next;
+    });
     removeFromNavigationHistory(itemId);
     // Exit close mode after closing
     setItemsInCloseMode(prev => {
@@ -1216,7 +1227,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     <div className="mobile-nav">
       {/* Search Icon Button (Column 1: auto) */}
       <div className="mobile-nav__col">
-        <div className="nav-link" style={{ cursor: 'pointer' }} onClick={() => { if (onNavigate) onNavigate('/search'); }}>
+        <div className="nav-link" style={{ cursor: 'pointer' }} onClick={() => navigate('/search')}>
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">
@@ -1236,7 +1247,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             style={{ display: 'block', width: '100%', cursor: 'pointer' }}
             onClick={() => {
               const href = isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/');
-              if (onNavigate) onNavigate(href);
+              navigate(href);
             }}
           >
             <SpaceButton
@@ -1287,6 +1298,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               border: 'none',
               borderTop: 'none',
             }}
+            onPointerDownOutside={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+            onOverlayClick={closeSheet}
             onOpenAutoFocus={(e) => {
               // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
               e.preventDefault();
@@ -1315,8 +1329,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       className="nav-link"
                       style={{ display: 'block', width: '100%', cursor: 'pointer' }}
                       onClick={() => {
+                        navigate(displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/');
                         closeSheet();
-                        if (onNavigate) onNavigate(displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/');
                       }}
                     >
                       <SpaceButton
@@ -1361,9 +1375,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       className={`mobile-nav__space-panel-item ${!displaySelectedSpaceId ? 'is-active' : ''}`}
                       style={{ cursor: 'pointer' }}
                       onClick={() => {
+                        navigate('/');
                         setSelectedSpaceId(null);
                         closeSheet();
-                        if (onNavigate) onNavigate('/');
                       }}
                     >
                       <span className="mobile-nav__space-panel-label">My Home</span>
@@ -1383,10 +1397,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           className={`mobile-nav__space-panel-item ${isActive ? 'is-active' : ''}`}
                           style={{ cursor: 'pointer' }}
                           onClick={() => {
-                            if (closeButtonTappedRef.current) { closeButtonTappedRef.current = false; return; }
+                            navigate(idToUrl(s.id));
                             setSelectedSpaceId(s.id);
                             closeSheet();
-                            if (onNavigate) onNavigate(idToUrl(s.id));
                           }}
                         >
                           <span className="mobile-nav__space-panel-label">{s.title}</span>
@@ -1420,11 +1433,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   touchAction: 'manipulation',
                                   WebkitTapHighlightColor: 'transparent',
                                 }}
-                                onPointerDown={(e) => {
+                                onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
-                                  closeButtonTappedRef.current = true;
-                                  setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
+                                  setLocalSpaces((prev) => prev.filter((s2) => s2.id !== s.id));
                                   removeFromNavigationHistory(s.id);
                                   if (selectedSpaceId === s.id) {
                                     setSelectedSpaceId(null);
@@ -1457,10 +1469,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               className="mobile-nav__space-panel-item"
                               style={{ cursor: 'pointer' }}
                               onClick={() => {
+                                navigate(idToUrl(s.id));
                                 setSelectedSpaceId(s.id);
                                 setIsShowingExistingSpaces(false);
                                 closeSheet();
-                                if (onNavigate) onNavigate(idToUrl(s.id));
                               }}
                             >
                               <span className="mobile-nav__space-panel-label">{s.title}</span>
@@ -1475,8 +1487,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
                       style={{ cursor: 'pointer' }}
                       onClick={() => {
+                        navigate('/new-space');
                         closeSheet();
-                        if (onNavigate) onNavigate('/new-space');
                       }}
                     >
                       <span className="mobile-nav__space-panel-label">New Space</span>
@@ -1533,13 +1545,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             className="block w-full"
                             style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
                             onClick={() => {
-                              if (closeButtonTappedRef.current) { closeButtonTappedRef.current = false; return; }
                               const isActiveItem = thread.id === currentActiveItemId;
                               const isOnNotePage = currentItemId.startsWith('note_');
-                              handleItemClick(thread.id);
                               if (!isActiveItem || isOnNotePage) {
-                                if (onNavigate) onNavigate(threadHref);
+                                navigate(threadHref);
                               }
+                              handleItemClick(thread.id);
                             }}
                           >
                             <div
@@ -1593,11 +1604,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                       touchAction: 'manipulation',
                                       WebkitTapHighlightColor: 'transparent',
                                     }}
-                                    onPointerDown={(e) => {
+                                    onClick={(e) => {
                                       e.stopPropagation();
                                       e.preventDefault();
-                                      closeButtonTappedRef.current = true;
-                                      setTimeout(() => { closeButtonTappedRef.current = false; }, 400);
                                       if (itemsInCloseMode.has(thread.id)) {
                                         // removeFromNavigationHistory navigates away when the removed
                                         // thread is the currently-active one. Close the sheet first
@@ -1631,7 +1640,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Avatar (Column 3: auto) */}
       <div className="mobile-nav__col">
-        <div style={{ cursor: 'pointer' }} onClick={() => { if (onNavigate) onNavigate('/profile'); }}>
+        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/profile')}>
           <Avatar initials={profileData.initials} color={profileData.userColor} />
         </div>
       </div>

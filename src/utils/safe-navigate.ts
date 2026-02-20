@@ -70,6 +70,21 @@ if (typeof window !== 'undefined') {
 }
 
 /**
+ * Start loading the View Transitions module if not already loading/loaded.
+ * Call when the user is likely to navigate soon (e.g. when opening the nav sheet) to reduce delay on first tap.
+ */
+export function preloadSafeNavigate(): void {
+  if (navigateFunction) return;
+  if (!navigatePromise) {
+    navigatePromise = import('astro:transitions/client').catch((err) => {
+      if (import.meta.env.DEV) console.warn('[safe-navigate] preload failed:', err);
+      return null;
+    });
+    navigatePromise.then((m) => { if (m) navigateFunction = m.navigate; }).catch(() => {});
+  }
+}
+
+/**
  * Safely navigate using Astro's View Transitions
  * Falls back to window.location if astro:transitions/client fails
  */

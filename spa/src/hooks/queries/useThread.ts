@@ -21,6 +21,7 @@ export interface ThreadDetail {
   noteCount: number;
   spaceId: string | null;
   isPublic: boolean;
+  userId?: string;
 }
 
 interface NotesPage {

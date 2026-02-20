@@ -12,7 +12,7 @@ import {
   jsonResponse,
 } from '@/utils/api-responses';
 import { handleAPIError } from '@/utils/error-handling';
-import { canCreateSharedSpace, getSpaceMemberCount } from '@/utils/tier-limits';
+import { canOwnerAddOneMoreSharedSpace, getSpaceMemberCount } from '@/utils/tier-limits';
 
 /**
  * GET /api/spaces/[spaceId]/share-link
@@ -50,7 +50,12 @@ export const GET: APIRoute = async ({ params, request, locals }) => {
     if (!shareToken) {
       const memberCount = await getSpaceMemberCount(spaceId);
       if (memberCount === 0) {
-        const canCreate = await canCreateSharedSpace(space.userId, locals.auth());
+        // Use owner's limit (requester may be a member; owner's tier from auth if same user else Clerk API)
+        const canCreate = await canOwnerAddOneMoreSharedSpace(
+          space.userId,
+          spaceId,
+          userId === space.userId ? locals.auth() : undefined
+        );
         if (!canCreate.allowed) {
           return jsonResponse({
             error: canCreate.reason || "You've used all your shared spaces. Upgrade for unlimited.",

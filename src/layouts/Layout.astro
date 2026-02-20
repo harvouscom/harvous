@@ -483,7 +483,9 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         
         <!-- Additional Column (Bottom) -->
         <div class="mobile-additional">
-          <slot name="mobile-additional" />
+          <div class="mobile-additional__inner">
+            <slot name="mobile-additional" />
+          </div>
         </div>
 
         <!-- Mobile Bottom Sheet (mounted here because .desktop-layout is display:none on mobile) -->

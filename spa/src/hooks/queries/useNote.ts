@@ -15,6 +15,7 @@ export interface NoteDetail {
   simpleNoteId?: number | null;
   isPublic: boolean;
   shareToken?: string | null;
+  userId?: string;
   createdAt: string;
   updatedAt: string;
   threads: { id: string; title: string; color: string | null; backgroundGradient?: string }[];
