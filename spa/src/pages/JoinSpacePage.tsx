@@ -71,6 +71,9 @@ export default function JoinSpacePage() {
         {}
       );
       if (result.success) {
+        try {
+          sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
+        } catch (_) {}
         const path = result.redirectUrl || idToUrl(result.spaceId);
         navigate({ to: path as any });
       }

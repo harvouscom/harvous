@@ -410,6 +410,9 @@ const ogDescription = `Join a collaborative Bible study space${notes.length > 0 
           if (response.ok && data.success) {
             const path = data.redirectUrl || (spaceId.startsWith('space_') ? '/space/' + spaceId.slice(6) : '/spaces/' + spaceId);
             if (btnTextEl) btnTextEl.textContent = 'Joined! Redirecting...';
+            try {
+              sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
+            } catch (_) {}
             const absoluteUrl = window.location.origin + path;
             setTimeout(() => {
               window.location.replace(absoluteUrl);

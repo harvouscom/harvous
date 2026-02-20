@@ -7,11 +7,14 @@ import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
+import { toast } from '@/utils/toast';
 
 export interface MenuOption {
   action: string;
   label: string;
   icon: any;
+  disabled?: boolean;
+  limit?: number;
 }
 
 // Helper function to render icon as inline SVG with proper fill color
@@ -359,7 +362,13 @@ export default function Menu({
         console.error('Error dispatching openNewThreadPanel event:', error);
       }
     } else if (action === 'openNewNotePanel') {
-      // Handle Add Note action
+      // Handle Add Note action (show upgrade toast if at limit, do not open panel)
+      const addNoteOption = options.find((o) => o.action === 'openNewNotePanel');
+      if (addNoteOption?.disabled) {
+        const limit = addNoteOption.limit ?? 200;
+        toast.warning(`You've used all ${limit.toLocaleString()} notes. Upgrade for unlimited.`);
+        return;
+      }
       try {
         window.dispatchEvent(new CustomEvent('openNewNotePanel'));
       } catch (error) {
@@ -759,8 +768,9 @@ export default function Menu({
             <button
               ref={index === 0 ? firstItemRef : null}
               role="menuitem"
+              aria-disabled={option.disabled === true}
               onClick={() => handleAction(option.action, option.label)}
-              className="menu-item"
+              className={`menu-item${option.disabled ? ' menu-item--disabled' : ''}`}
             >
               <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
                 {renderIcon(option.icon, option.action)}

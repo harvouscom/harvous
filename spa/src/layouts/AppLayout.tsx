@@ -1,3 +1,8 @@
+import {
+  clearPwaPromptFromJoinFlag,
+  shouldShowPwaPrompt,
+} from '../../../src/utils/pwa-prompt';
+import { isPWA } from '../../../src/utils/content-list-helpers';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
@@ -53,6 +58,21 @@ export default function AppLayout() {
       router.navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
     }
   }, [isLoaded, isSignedIn, router, pathname]);
+
+  // PWA install prompt: show once per app load when in browser (not PWA), on first visit, after join/invite, or every 30 days after "Not now"
+  const pwaPromptCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || pwaPromptCheckedRef.current || isPWA()) return;
+    const { show, reason } = shouldShowPwaPrompt();
+    if (!show || !window.toast?.pwaPrompt) return;
+    pwaPromptCheckedRef.current = true;
+    clearPwaPromptFromJoinFlag();
+    const message =
+      reason === 'from_join'
+        ? "You just joined a space — get the app for a better experience."
+        : "Install Harvous for a better experience on your phone.";
+    window.toast.pwaPrompt(message);
+  }, [isLoaded, isSignedIn]);
 
   // Close any open desktop panel when the route changes (panel manager stays mounted across routes).
   // Also clear localStorage panel keys so LOAD_FROM_STORAGE doesn't reopen them on next mount.

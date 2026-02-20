@@ -1358,6 +1358,16 @@ button .menu-item__label {
   background-color: oklch(var(--lch-snow-white) / 0.5);
 }
 
+.menu-item--disabled {
+  opacity: 0.6;
+  color: var(--color-pebble-grey);
+  cursor: not-allowed;
+}
+
+.menu-item--disabled:hover {
+  background-color: transparent;
+}
+
 .menu-separator {
   height: 1px;
   background-color: var(--color-soft-gray);
@@ -1446,6 +1456,19 @@ button .menu-item__label {
   opacity: 0;
   transition: opacity 0.2s ease-in;
   pointer-events: none;
+}
+
+/* PWA standalone: robust overlay size/position so it does not get stuck or disappear (iOS viewport/fixed quirks) */
+@media (display-mode: standalone) {
+  .sheet-overlay {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    isolation: isolate;
+  }
 }
 
 /* Drag handle indicator for bottom sheets */

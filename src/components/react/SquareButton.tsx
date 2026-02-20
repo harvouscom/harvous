@@ -55,6 +55,9 @@ export default function SquareButton({
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
   // After remove lock / lock, server state is known from event until page refetches; used so menu updates without refresh
   const [contentEncryptedServerOverride, setContentEncryptedServerOverride] = useState<boolean | null>(null);
+  // Add menu: note limit for free tier (disable "Add Note" when at limit)
+  const [noteLimitReached, setNoteLimitReached] = useState(false);
+  const [noteLimit, setNoteLimit] = useState(200);
 
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveContentEncryptedServer = contentEncryptedServerOverride ?? contentEncrypted;
@@ -82,12 +85,42 @@ export default function SquareButton({
     return () => window.removeEventListener('noteLockStateChanged', handler);
   }, [contentId]);
 
+  // Fetch subscription status for Add menu (to disable "Add Note" when at limit)
+  useEffect(() => {
+    if (variant !== "Add" || !isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const limit = data.limit ?? 200;
+        const atLimit = !data.hasUnlimited && (data.currentCount ?? 0) >= limit;
+        setNoteLimit(limit);
+        setNoteLimitReached(atLimit);
+      } catch {
+        if (!cancelled) {
+          setNoteLimitReached(false);
+          setNoteLimit(200);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [variant, isOpen]);
+
   // Get menu options based on variant
   const getMenuOptionsData = () => {
     if (variant === "Add") {
       return [
         { action: "openNewThreadPanel", label: "Add Thread", icon: ThreadIcon },
-        { action: "openNewNotePanel", label: "Add Note", icon: NoteStickyIcon }
+        {
+          action: "openNewNotePanel",
+          label: "Add Note",
+          icon: NoteStickyIcon,
+          disabled: noteLimitReached,
+          limit: noteLimit,
+        },
       ];
     } else if (variant === "More" && contentType) {
       const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId);

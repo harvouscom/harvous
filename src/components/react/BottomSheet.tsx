@@ -512,6 +512,25 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
+  // Reset overlay inline styles when sheet opens so PWA edge cases (e.g. backgrounded, Radix state out of sync) don't leave overlay stuck invisible from drag hook
+  useEffect(() => {
+    if (!isVisible) return;
+    const clearOverlayInlineStyles = () => {
+      const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+      if (overlay) {
+        overlay.style.opacity = '';
+        overlay.style.transition = '';
+      }
+    };
+    clearOverlayInlineStyles();
+    const raf = requestAnimationFrame(clearOverlayInlineStyles);
+    const t = window.setTimeout(clearOverlayInlineStyles, 50);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t);
+    };
+  }, [isVisible]);
+
   // Don't render on desktop
   if (!isMobile) {
     return null;

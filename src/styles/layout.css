@@ -128,6 +128,16 @@
   min-width: 0;
 }
 
+/* SPA mobile bar: same element has .mobile-additional.square-buttons-container — full width, Add right when only Add; More left / Add right when both */
+.mobile-layout .mobile-additional.square-buttons-container {
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.mobile-layout .mobile-additional.square-buttons-container.square-buttons-container--with-more {
+  justify-content: space-between;
+}
+
 /* When footer is dismissed (e.g. edit mode), collapse so the 12px gap is removed */
 .mobile-layout.mobile-layout--no-footer .mobile-additional {
   display: none !important;

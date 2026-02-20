@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "astro dev",
     "dev:clean": "node -e \"require('fs').rmSync('node_modules/.vite', { recursive: true, force: true })\" && astro dev",
+    "prebuild": "node scripts/inject-sw-cache-version.js",
     "build": "astro build --remote",
     "preview": "astro preview",
     "astro": "astro",

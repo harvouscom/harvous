@@ -4,7 +4,7 @@
 
 ```bash
 npm run dev              # Dev server on port 4321
-npm run build            # Production build
+npm run build            # Production build (prebuild injects package version into public/sw.js so PWA cache invalidates on deploy)
 npm run db:sync          # Sync database schema
 npm run db:push          # Push schema to remote
 npm run db:check         # Pre-commit schema check

@@ -1,9 +1,13 @@
+import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import React, { useEffect, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { router } from './router';
+
+const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
 declare const __APP_VERSION__: string;
 
@@ -52,6 +56,23 @@ const windowToast = {
         },
       },
       cancel: { label: 'Not now', onClick: () => {} },
+    });
+  },
+  pwaPrompt: (message: string) => {
+    sonnerToast.info(message, {
+      icon: null,
+      duration: Infinity,
+      className: 'harvous-pwa-toast',
+      action: {
+        label: 'How to install',
+        onClick: () => {
+          window.dispatchEvent(new CustomEvent(PWA_INSTALL_INSTRUCTIONS_EVENT));
+        },
+      },
+      cancel: {
+        label: 'Not now',
+        onClick: () => setPwaPromptLastDismissed(),
+      },
     });
   },
 };
@@ -111,9 +132,54 @@ function ToastSetup() {
   return null;
 }
 
+function PwaInstallInstructionsModal({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <div
+      className="pwa-install-modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pwa-install-modal-title"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+    >
+      <div className="pwa-install-modal" onClick={(e) => e.stopPropagation()}>
+        <h2 id="pwa-install-modal-title" className="pwa-install-modal__title">
+          Add Harvous to your home screen
+        </h2>
+        <div className="pwa-install-modal__section">
+          <strong>iPhone (Safari)</strong>
+          <p>Tap the Share icon (square with arrow), then <strong>Add to Home Screen</strong>. Name it and tap <strong>Add</strong>.</p>
+        </div>
+        <div className="pwa-install-modal__section">
+          <strong>Android (Chrome)</strong>
+          <p>Tap the menu (⋮), then <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</p>
+        </div>
+        <p className="pwa-install-modal__footer">
+          Then open Harvous from your home screen for a faster, app-like experience.
+        </p>
+        <button
+          type="button"
+          className="pwa-install-modal__close"
+          onClick={onClose}
+        >
+          Close
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function SpaToaster() {
   const [isMobile, setIsMobile] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [showPwaInstructions, setShowPwaInstructions] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setShowPwaInstructions(true);
+    window.addEventListener(PWA_INSTALL_INSTRUCTIONS_EVENT, handler);
+    return () => window.removeEventListener(PWA_INSTALL_INSTRUCTIONS_EVENT, handler);
+  }, []);
 
   const checkViewport = useCallback(() => {
     const width = window.innerWidth;
@@ -147,6 +213,9 @@ function SpaToaster() {
 
   return (
     <>
+      {showPwaInstructions && (
+        <PwaInstallInstructionsModal onClose={() => setShowPwaInstructions(false)} />
+      )}
       <Toaster
         position={isMobile ? 'bottom-center' : 'bottom-right'}
         toastOptions={{
@@ -162,6 +231,7 @@ function SpaToaster() {
         /* ── Upgrade toast layout: message top full-width, buttons side-by-side centered below ── */
         /* Sonner renders: [data-content] then button[data-cancel] then button[data-action] as direct children */
         [data-sonner-toast].harvous-upgrade-toast,
+        [data-sonner-toast].harvous-pwa-toast,
         [data-sonner-toast]:has(button[data-cancel]) {
           display: flex !important;
           flex-wrap: wrap !important;
@@ -173,6 +243,7 @@ function SpaToaster() {
 
         /* Message: full width on its own row */
         [data-sonner-toast].harvous-upgrade-toast > [data-content],
+        [data-sonner-toast].harvous-pwa-toast > [data-content],
         [data-sonner-toast]:has(button[data-cancel]) > [data-content] {
           flex: 0 0 100% !important;
           width: 100% !important;
@@ -181,6 +252,7 @@ function SpaToaster() {
 
         /* Both buttons: equal width, share the row */
         [data-sonner-toast].harvous-upgrade-toast > button,
+        [data-sonner-toast].harvous-pwa-toast > button,
         [data-sonner-toast]:has(button[data-cancel]) > button[data-cancel],
         [data-sonner-toast]:has(button[data-cancel]) > button[data-action] {
           flex: 1 1 auto !important;
@@ -252,6 +324,70 @@ function SpaToaster() {
             0px -2px 0px 0px #0000001a inset,
             0px 0px 2px 0px #00000040,
             0px 2px 0px 0px #00000040 inset !important;
+        }
+
+        /* ── PWA install instructions modal ── */
+        .pwa-install-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 16px;
+        }
+        .pwa-install-modal {
+          background: var(--color-light-paper, #fff);
+          border-radius: 24px;
+          box-shadow: 0px 7px 16px rgba(0,0,0,0.1), 0px 30px 30px rgba(0,0,0,0.09);
+          max-width: 400px;
+          width: 100%;
+          padding: 24px;
+          font-family: var(--font-sans);
+          color: var(--color-deep-grey);
+        }
+        .pwa-install-modal__title {
+          margin: 0 0 16px;
+          font-size: 18px;
+          font-weight: 600;
+          text-align: center;
+        }
+        .pwa-install-modal__section {
+          margin-bottom: 16px;
+        }
+        .pwa-install-modal__section strong {
+          display: block;
+          margin-bottom: 4px;
+          font-size: 14px;
+        }
+        .pwa-install-modal__section p {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.4;
+          font-weight: 400;
+        }
+        .pwa-install-modal__footer {
+          margin: 0 0 20px;
+          font-size: 13px;
+          line-height: 1.4;
+          opacity: 0.9;
+        }
+        .pwa-install-modal__close {
+          display: block;
+          width: 100%;
+          padding: 12px 16px;
+          border: none;
+          border-radius: 1rem;
+          background: var(--color-bold-blue);
+          color: white;
+          font-family: var(--font-sans);
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+        .pwa-install-modal__close:hover {
+          background: var(--color-navy);
         }
       `}</style>
     </>
