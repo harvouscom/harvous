@@ -1679,7 +1679,12 @@ export default function OrganizedContentList({
           loadMore={loadMore}
           renderItem={(entry, index) =>
             entry.type === 'section' ? (
-              <div className="organized-content__section-header">{entry.label}</div>
+              <div
+                className="organized-content__section-header card-enter"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                {entry.label}
+              </div>
             ) : (
               renderItem(entry.item, index)
             )

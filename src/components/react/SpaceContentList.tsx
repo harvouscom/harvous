@@ -1128,20 +1128,31 @@ export default function SpaceContentList({
     </div>
   );
 
+  let runningIndex = 0;
   return (
     <div className="flex flex-col">
       {SECTION_ORDER.flatMap((sectionKey) => {
         const itemsInSection = bySection.get(sectionKey)!;
         if (itemsInSection.length === 0) return [];
         const label = SECTION_LABELS[sectionKey];
-        return [
-          label ? (
-            <div key={`section-${sectionKey}`} className="organized-content__section-header">
+        const elements: React.ReactNode[] = [];
+        if (label) {
+          elements.push(
+            <div
+              key={`section-${sectionKey}`}
+              className="organized-content__section-header card-enter"
+              style={{ animationDelay: `${runningIndex * 50}ms` }}
+            >
               {label}
             </div>
-          ) : null,
-          ...itemsInSection.map((item, index) => renderItem(item, index))
-        ];
+          );
+          runningIndex += 1;
+        }
+        for (const item of itemsInSection) {
+          elements.push(renderItem(item, runningIndex));
+          runningIndex += 1;
+        }
+        return elements;
       })}
     </div>
   );
