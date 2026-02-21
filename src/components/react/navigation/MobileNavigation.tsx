@@ -922,23 +922,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { threads: persistentThreads } = organizePersistentItems();
 
-  // Merge nav-API threads with history threads so users see all threads —
-  // not just ones they've previously visited. Exclude unorganized thread from
-  // the list (it's not meaningful in the space switcher context).
-  // Also filter extraFromApi by selectedSpaceId so only threads belonging to
-  // the current space appear in the dropdown.
+  // Show only threads from navigation history (same as desktop PersistentNavigation).
   // Filter out closedItemIds so closed threads disappear immediately.
   const displayThreads = useMemo(() => {
-    const persistentIds = new Set(persistentThreads.map((t) => t.id));
-    const extraFromApi = threads.filter(
-      (t) => !persistentIds.has(t.id) && !closedItemIds.has(t.id) && t.id !== 'thread_unorganized' &&
-        (!selectedSpaceId || t.spaceId === selectedSpaceId)
-    );
-    return [
-      ...persistentThreads.filter((t) => !closedItemIds.has(t.id)),
-      ...extraFromApi
-    ];
-  }, [persistentThreads, threads, selectedSpaceId, closedItemIds]);
+    return persistentThreads.filter((t) => !closedItemIds.has(t.id));
+  }, [persistentThreads, closedItemIds]);
 
   const openSheet = () => {
     preloadSafeNavigate();

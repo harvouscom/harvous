@@ -1458,16 +1458,15 @@ button .menu-item__label {
   pointer-events: none;
 }
 
-/* PWA standalone: robust overlay size/position so it does not get stuck or disappear (iOS viewport/fixed quirks) */
+/* PWA standalone: overlay starts below system status bar (time/battery) to avoid iOS fixed-position stuck/disappear bug */
 @media (display-mode: standalone) {
   .sheet-overlay {
-    top: 0 !important;
+    top: env(safe-area-inset-top) !important;
+    inset: unset !important;
     right: 0 !important;
     bottom: 0 !important;
     left: 0 !important;
-    height: 100dvh !important;
-    min-height: 100dvh !important;
-    isolation: isolate;
+    width: 100% !important;
   }
 }
 
