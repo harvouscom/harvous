@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import CardThread from './CardThread';
@@ -140,7 +140,8 @@ export default function OrganizedContentList({
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
   // placeholder until the client hydrates and we can apply the deleted ID filter.
   const [isHydrated, setIsHydrated] = useState(false);
-  useEffect(() => {
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  useIsomorphicLayoutEffect(() => {
     setIsHydrated(true);
   }, []);
 
@@ -151,7 +152,7 @@ export default function OrganizedContentList({
   const [isWaitingForFreshData, setIsWaitingForFreshData] = useState<boolean>(() => !!isDataFromStaleCache);
   // True while a filter-change or initial-mount fetch is in flight. Prevents the
   // empty state from flashing before content loads (SPA always passes initialItems=[]).
-  const [isLoadingFilter, setIsLoadingFilter] = useState(true);
+  const [isLoadingFilter, setIsLoadingFilter] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(() => {
