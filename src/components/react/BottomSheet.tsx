@@ -124,6 +124,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteDetailsNote, setNoteDetailsNote] = useState<any | null>(null);
+  const [editSpaceInitialTab, setEditSpaceInitialTab] = useState<'added' | 'all' | 'people' | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -292,8 +293,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }
     };
 
-    const handleOpenEditSpacePanel = () => {
+    const handleOpenEditSpacePanel = (event: CustomEvent) => {
       if (isMobile) {
+        setEditSpaceInitialTab(event.detail?.initialTab);
         openBottomSheet('editSpace');
       }
     };
@@ -308,7 +310,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
 
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
-    window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+    window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel as EventListener);
     window.addEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
     
     // Listen for profile panel events (for mobile bottom sheet)
@@ -397,7 +399,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeMobileDrawer', handleCloseBottomSheet);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
-      window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel);
+      window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel as EventListener);
       window.removeEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
@@ -753,11 +755,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'editSpace' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {contentType === 'space' && currentSpace && (
-                <EditSpacePanel 
+                <EditSpacePanel
                   key={`mobile-edit-space-${panelKey}`}
                   spaceId={currentSpace.id}
                   initialTitle={currentSpace.title}
                   initialColor={currentSpace.color}
+                  initialTab={editSpaceInitialTab}
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
                   }}

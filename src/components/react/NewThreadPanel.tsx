@@ -1021,10 +1021,8 @@ export default function NewThreadPanel({
         {/* Bottom buttons */}
         <div className="panel__footer--buttons">
           {/* Back or Close button - conditionally render based on useBackButton prop */}
-          {useBackButton ? (
+          {inBottomSheet ? null : (
             <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
-          ) : inBottomSheet ? null : (
-            <SquareButton variant="Close" onClick={handleClose} />
           )}
           
           {/* Create Thread button - Button Default variant */}

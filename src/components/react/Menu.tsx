@@ -330,6 +330,15 @@ export default function Menu({
       } catch (error) {
         console.error('Error opening edit space panel:', error);
       }
+    } else if (action === 'openEditSpacePanelPeople') {
+      // Handle People action - open Edit Space panel with People tab
+      try {
+        window.dispatchEvent(new CustomEvent('openEditSpacePanel', {
+          detail: { contentId, contentType, initialTab: 'people' }
+        }));
+      } catch (error) {
+        console.error('Error opening edit space panel (people):', error);
+      }
     } else if (action === 'viewSpace') {
       // Handle Space details (members see People list; same panel as edit)
       try {

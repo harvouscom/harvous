@@ -844,6 +844,12 @@
   justify-content: center;
 }
 
+.tab-nav-container.content-tabs .tab-nav__button {
+  padding-top: 0;
+  padding-bottom: 8px;
+  height: 36px;
+}
+
 .tab-nav__button {
   display: flex;
   gap: 8px;

@@ -1251,7 +1251,7 @@ const isOnboardingNote = isNote && typeof currentThread?.id === 'string' && curr
               <div class="flex flex-col gap-6">
                 
                 {isThread && threadNotes ? (
-                  <div class="flex flex-col gap-3">
+                  <div class="flex flex-col">
                     {/* Tab Navigation - React for dynamic badge updates */}
                     <TabNavReact 
                       tabs={[
@@ -1316,7 +1316,7 @@ const isOnboardingNote = isNote && typeof currentThread?.id === 'string' && curr
                     </div>
                   </div>
                 ) : isSpace && content ? (
-                  <div class="flex flex-col gap-3">
+                  <div class="flex flex-col">
                     {/* Tab Navigation */}
                     <TabNav 
                       tabs={[

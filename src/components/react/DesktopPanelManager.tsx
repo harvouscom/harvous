@@ -450,6 +450,7 @@ export default function DesktopPanelManager({
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
+  const [editSpaceInitialTab, setEditSpaceInitialTab] = useState<'added' | 'all' | 'people' | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
 
@@ -544,7 +545,8 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_THREAD' });
     };
 
-    const handleOpenEditSpace = () => {
+    const handleOpenEditSpace = (event: CustomEvent) => {
+      setEditSpaceInitialTab(event.detail?.initialTab);
       dispatch({ type: 'OPEN_EDIT_SPACE' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
@@ -633,7 +635,7 @@ export default function DesktopPanelManager({
     window.addEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
     window.addEventListener('openEditThreadPanel', handleOpenEditThread);
     window.addEventListener('closeEditThreadPanel', handleCloseEditThread);
-    window.addEventListener('openEditSpacePanel', handleOpenEditSpace);
+    window.addEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
     window.addEventListener('closeEditSpacePanel', handleCloseEditSpace);
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
     window.addEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
@@ -660,7 +662,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteDetailsPanel', handleCloseNoteDetails);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThread);
       window.removeEventListener('closeEditThreadPanel', handleCloseEditThread);
-      window.removeEventListener('openEditSpacePanel', handleOpenEditSpace);
+      window.removeEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
       window.removeEventListener('closeEditSpacePanel', handleCloseEditSpace);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
@@ -889,6 +891,7 @@ export default function DesktopPanelManager({
                 spaceId={currentSpace.id}
                 initialTitle={currentSpace.title}
                 initialColor={currentSpace.color}
+                initialTab={editSpaceInitialTab}
                 onClose={handleCloseEditSpace}
               />
             </div>

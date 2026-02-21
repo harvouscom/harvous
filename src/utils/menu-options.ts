@@ -110,6 +110,7 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       }
       return [
         { action: "editSpace", label: "Edit Space" },
+        { action: "openEditSpacePanelPeople", label: "People" },
         { action: "eraseSpace", label: "Erase Space" }
       ];
     case "dashboard":

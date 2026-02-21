@@ -1350,6 +1350,7 @@ export default function NewNotePanel({
           currentCount={currentCount}
           limit={limit}
           showCloseButton={!inBottomSheet}
+          inBottomSheet={inBottomSheet}
         />
       </form>
 

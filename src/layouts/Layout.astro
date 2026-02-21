@@ -2,7 +2,8 @@
 import "../styles/global.css";
 import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
-import SquareButton from "@/components/SquareButton.astro";
+import ActionStrip from "@/components/ActionStrip.astro";
+import CreateNoteButton from "@/components/CreateNoteButton.astro";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
 import NoteDetailsPanel from "@/components/react/NoteDetailsPanel.tsx";
@@ -17,7 +18,6 @@ import PostHogUserInit from "@/components/react/PostHogUserInit.tsx";
 import UpgradeSuccessHandler from "@/components/react/UpgradeSuccessHandler.tsx";
 import SyncManagerIsland from "@/components/react/SyncManagerIsland.tsx";
 import ReferralCreditInit from "@/components/react/ReferralCreditInit.tsx";
-import { shouldShowMoreButton } from "@/utils/menu-options";
 import { ClientRouter, fade } from "astro:transitions";
 // Initialize toast utility globally
 import "@/utils/toast";
@@ -63,8 +63,8 @@ const noteType = currentNote?.noteType;
 const contentEncrypted = currentNote?.contentEncrypted;
 const noteSimpleId = currentNote?.noteId ?? null;
 
-// Determine if More button should be shown (pass contentId to hide for unorganized thread; hide for member viewing another's thread)
-const showMoreButton = shouldShowMoreButton(contentType, contentId, contentOwnerId, userId);
+// Show dock/action strip only on thread, note, or space (not dashboard, profile, search, or new space)
+const showActionStrip = contentType === 'thread' || contentType === 'note' || contentType === 'space';
 
 // Extract publishable key in frontmatter (where import.meta works)
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
@@ -434,25 +434,28 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           </div>
         </section>
 
-        <!-- Main Column -->
-        <section class="layout-column">
-          <slot name="main" />
+        <!-- Main Column (with fixed Add a note button at bottom + action strip tabs behind card) -->
+        <section class="layout-column main-column-with-cta">
+          <div class="main-column__body">
+            <div class="main-column__scroll">
+              <slot name="main" />
+            </div>
+            {contentType !== 'profile' && (
+              <CreateNoteButton />
+            )}
+            {showActionStrip && (
+              <div id="square-buttons-container" class="action-strip-dock">
+                <ActionStrip variant="desktop" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
+              </div>
+            )}
+          </div>
         </section>
 
-        <!-- Additional Column -->
+        <!-- Additional Column (panels only) -->
         <section class="layout-column desktop-additional-column">
           <slot name="additional">
             <!-- React Panel Management -->
             <div class="desktop-panel-container">
-              <!-- SquareButtons (shown when no panel is open) -->
-              <div id="square-buttons-container" class={`square-buttons-container ${showMoreButton ? 'square-buttons-container--with-more' : ''}`}>
-                {showMoreButton && (
-                  <SquareButton variant="More" withMenu={true} contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
-                )}
-                {contentType !== 'profile' && (
-                  <SquareButton variant="Add" withMenu={true} />
-                )}
-              </div>
               <!-- React Panel Manager (wrapped with context provider) -->
               <!-- This renders both desktop and mobile panels in a single React tree -->
               <PanelManagerWithContext
@@ -476,12 +479,24 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
           <slot name="mobile-navigation" />
         </div>
         
-        <!-- Main Column (Middle) -->
-        <div class="mobile-main">
-          <slot name="main" />
+        <!-- Main Column (Middle, with action strip dock behind card bottom when applicable) -->
+        <div class={`mobile-main main-column-with-cta ${showActionStrip ? 'mobile-main--with-dock' : ''}`}>
+          <div class="mobile-main__body">
+            <div class="main-column__scroll">
+              <slot name="main" />
+            </div>
+            {contentType !== 'profile' && (
+              <CreateNoteButton />
+            )}
+            {showActionStrip && (
+              <div class="mobile-action-strip-dock">
+                <ActionStrip variant="mobile" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
+              </div>
+            )}
+          </div>
         </div>
         
-        <!-- Additional Column (Bottom) -->
+        <!-- Additional Column (Bottom) - kept for slotted content from pages -->
         <div class="mobile-additional">
           <div class="mobile-additional__inner">
             <slot name="mobile-additional" />

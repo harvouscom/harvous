@@ -37,6 +37,7 @@ interface EditSpacePanelProps {
   spaceId: string;
   initialTitle?: string;
   initialColor?: ThreadColor;
+  initialTab?: 'added' | 'all' | 'people';
   onClose?: () => void;
   inBottomSheet?: boolean;
 }
@@ -45,6 +46,7 @@ export default function EditSpacePanel({
   spaceId,
   initialTitle = '', 
   initialColor = 'paper',
+  initialTab: initialTabProp,
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
@@ -100,7 +102,7 @@ export default function EditSpacePanel({
   } | null>(null);
 
   // Tab navigation
-  const [activeTab, setActiveTab] = useState<'added' | 'all' | 'people'>('added');
+  const [activeTab, setActiveTab] = useState<'added' | 'all' | 'people'>(initialTabProp ?? 'added');
   
   // Refs to track current values for save functions (avoid stale closures)
   const formDataRef = useRef(formData);

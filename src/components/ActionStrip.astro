@@ -1,0 +1,34 @@
+---
+import ActionStripReact from "./react/ActionStrip";
+
+export interface Props {
+  variant?: "desktop" | "mobile";
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+  contentId?: string;
+  currentThreadId?: string;
+  noteType?: string;
+  contentEncrypted?: boolean;
+  contentEncryptedServer?: boolean;
+  noteSimpleId?: number | null;
+  spaceRole?: "owner" | "member" | null;
+  contentOwnerId?: string | null;
+  userId?: string | null;
+}
+
+const { variant = "desktop", contentType = "dashboard", contentId, currentThreadId, noteType, contentEncrypted, contentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId } = Astro.props;
+---
+
+<ActionStripReact
+  variant={variant}
+  contentType={contentType}
+  contentId={contentId}
+  currentThreadId={currentThreadId}
+  noteType={noteType}
+  contentEncrypted={contentEncrypted}
+  contentEncryptedServer={contentEncryptedServer}
+  noteSimpleId={noteSimpleId}
+  spaceRole={spaceRole}
+  contentOwnerId={contentOwnerId}
+  userId={userId}
+  client:load
+/>

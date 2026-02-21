@@ -10,10 +10,11 @@ export interface NoteFormFooterProps {
   currentCount?: number;
   limit?: number;
   showCloseButton?: boolean;
+  inBottomSheet?: boolean;
 }
 
 /**
- * Footer with close and create note buttons
+ * Footer with back and create note buttons
  */
 export default function NoteFormFooter({
   isSubmitting,
@@ -24,6 +25,7 @@ export default function NoteFormFooter({
   currentCount = 0,
   limit = 200,
   showCloseButton = true,
+  inBottomSheet = false,
 }: NoteFormFooterProps) {
   const isResource = noteType === 'resource';
   const isDuplicate = duplicateInfo?.exists === true;
@@ -49,7 +51,7 @@ export default function NoteFormFooter({
   return (
     <div className="panel__footer--buttons">
       {showCloseButton ? (
-        <SquareButton variant="Close" onClick={onClose} />
+        <SquareButton variant="Back" onClick={onClose} inBottomSheet={inBottomSheet} />
       ) : null}
       
       {/* Conditionally render limit reached UI or Create Note button */}
