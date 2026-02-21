@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray, like, ne } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { getThreadsForSpaceBySpaceId } from '@/utils/dashboard-data';
 import { handleAPIError } from '@/utils/error-handling';
@@ -311,7 +311,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     
     if (note.noteType === 'scripture') {
       try {
-        const junctionEntries = await db
+        let junctionEntries = await db
           .select({
             id: Notes.id,
             title: Notes.title,
@@ -331,7 +331,73 @@ export const GET: APIRoute = async ({ params, locals }) => {
           )
           .orderBy(desc(Notes.updatedAt))
           .all();
-        
+
+        // Heal on read: when no junction entries exist, find notes whose content references this scripture note and create missing entries
+        if (junctionEntries.length === 0) {
+          try {
+            const notesWithPill = await db
+              .select({ id: Notes.id })
+              .from(Notes)
+              .where(
+                and(
+                  eq(Notes.userId, userId),
+                  ne(Notes.noteType, 'scripture'),
+                  like(Notes.content, `%data-note-id="${noteId}"%`)
+                )
+              )
+              .all();
+            for (const refNote of notesWithPill) {
+              try {
+                const existing = await db
+                  .select()
+                  .from(NoteScriptureReferences)
+                  .where(
+                    and(
+                      eq(NoteScriptureReferences.noteId, refNote.id),
+                      eq(NoteScriptureReferences.scriptureNoteId, noteId)
+                    )
+                  )
+                  .limit(1)
+                  .get();
+                if (!existing) {
+                  await db.insert(NoteScriptureReferences).values({
+                    id: `note-scripture-${refNote.id}-${noteId}-${Date.now()}`,
+                    noteId: refNote.id,
+                    scriptureNoteId: noteId,
+                    createdAt: new Date()
+                  });
+                }
+              } catch (_) {
+                // Ignore duplicate or other insert errors
+              }
+            }
+            if (notesWithPill.length > 0) {
+              junctionEntries = await db
+                .select({
+                  id: Notes.id,
+                  title: Notes.title,
+                  content: Notes.content,
+                  simpleNoteId: Notes.simpleNoteId,
+                  noteType: Notes.noteType,
+                  createdAt: Notes.createdAt,
+                  updatedAt: Notes.updatedAt
+                })
+                .from(NoteScriptureReferences)
+                .innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id))
+                .where(
+                  and(
+                    eq(NoteScriptureReferences.scriptureNoteId, noteId),
+                    eq(Notes.userId, userId)
+                  )
+                )
+                .orderBy(desc(Notes.updatedAt))
+                .all();
+            }
+          } catch (_) {
+            // Repair failed - continue with empty junctionEntries
+          }
+        }
+
         // Fetch resource metadata for resource notes
         const resourceNoteIds = junctionEntries
           .filter(entry => entry.noteType === 'resource')

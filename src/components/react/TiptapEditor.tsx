@@ -665,10 +665,19 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
             if (pillMark) {
               tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
             }
-            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ 
-              reference: reference, 
-              noteId: 'pending' 
-            }));
+            // Replace text with canonical reference when it differs (e.g. "john 3:16" -> "John 3:16")
+            const currentText = doc.textBetween(adjustedPos.from, adjustedPos.to);
+            if (currentText !== reference) {
+              const textNode = state.schema.text(reference, [
+                markType.create({ reference, noteId: 'pending' })
+              ]);
+              tr.replaceWith(adjustedPos.from, adjustedPos.to, textNode);
+            } else {
+              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({
+                reference,
+                noteId: 'pending'
+              }));
+            }
             modified = true;
           }
         } catch (e) {
