@@ -788,9 +788,9 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       return;
     }
     if (window.toast && typeof type === 'string' && type in window.toast) {
-      const toastMethod = (window.toast as unknown as Record<string, (m: string) => void>)[type];
+      const toastMethod = (window.toast as Record<string, unknown>)[type];
       if (typeof toastMethod === 'function') {
-        toastMethod(message ?? '');
+        (toastMethod as (m: string) => void)(message ?? '');
       }
     } else {
       console.warn('Toast system not available to handle toast event.');
