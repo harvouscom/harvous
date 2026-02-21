@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface MobileAdditionalProps {
-  contentType?: "thread" | "note" | "space" | "dashboard" | "profile";
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space";
   contentId?: string;
   currentThread?: any;
   currentSpace?: any;

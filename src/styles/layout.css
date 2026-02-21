@@ -213,6 +213,18 @@ a.profile-logout-button {
   pointer-events: none;
 }
 
+/* Floats inside .panel (which has position: relative) on top of panel__content */
+button.new-space-floating-button {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 2;
+  width: auto;
+  border: none;
+}
+
+
 /* Mobile main body: contains scroll area + action strip dock behind card bottom */
 .mobile-main__body {
   position: relative;

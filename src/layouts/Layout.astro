@@ -26,7 +26,7 @@ import packageJson from '../../package.json';
 interface Props {
   classNames?: string;
   title?: string;
-  contentType?: "thread" | "note" | "space" | "dashboard" | "profile" | "search";
+  contentType?: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space";
   contentId?: string;
   spaceRole?: 'owner' | 'member' | null;
   contentOwnerId?: string;
@@ -58,10 +58,15 @@ const {
   founderLetterHtml = ''
 }: Props = Astro.props;
 
-// Extract noteType, contentEncrypted, and noteSimpleId from currentNote for menu options
+// Extract noteType, contentEncrypted, noteSimpleId, and noteCreatedAt from currentNote for menu options
 const noteType = currentNote?.noteType;
 const contentEncrypted = currentNote?.contentEncrypted;
 const noteSimpleId = currentNote?.noteId ?? null;
+const noteCreatedAt = currentNote?.createdAt != null
+  ? (currentNote.createdAt instanceof Date ? currentNote.createdAt.toISOString() : String(currentNote.createdAt))
+  : undefined;
+
+const spaceIsShared = currentSpace?.isPublic === true;
 
 // Show dock/action strip only on thread, note, or space (not dashboard, profile, search, or new space)
 const showActionStrip = contentType === 'thread' || contentType === 'note' || contentType === 'space';
@@ -440,7 +445,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             <div class="main-column__scroll">
               <slot name="main" />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
             )}
             {contentType === 'profile' && (
@@ -457,7 +462,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             )}
             {showActionStrip && (
               <div id="square-buttons-container" class="action-strip-dock">
-                <ActionStrip variant="desktop" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
+                <ActionStrip variant="desktop" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} noteCreatedAt={noteCreatedAt} spaceRole={spaceRole} spaceIsShared={spaceIsShared} contentOwnerId={contentOwnerId} userId={userId} />
               </div>
             )}
           </div>
@@ -497,7 +502,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             <div class="main-column__scroll">
               <slot name="main" />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
             )}
             {contentType === 'profile' && (
@@ -514,7 +519,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             )}
             {showActionStrip && (
               <div class="mobile-action-strip-dock">
-                <ActionStrip variant="mobile" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} spaceRole={spaceRole} contentOwnerId={contentOwnerId} userId={userId} />
+                <ActionStrip variant="mobile" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} noteCreatedAt={noteCreatedAt} spaceRole={spaceRole} spaceIsShared={spaceIsShared} contentOwnerId={contentOwnerId} userId={userId} />
               </div>
             )}
           </div>

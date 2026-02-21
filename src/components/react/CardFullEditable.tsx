@@ -102,7 +102,9 @@ export default function CardFullEditable({
   const skipNextContentSyncRef = useRef(false);
   // Local lock state override when user locks/unlocks via dialog (avoids full page refresh)
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
+  const [serverEncryptedOverride, setServerEncryptedOverride] = useState<boolean | null>(null);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
+  const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
@@ -233,9 +235,10 @@ export default function CardFullEditable({
     }
   }, [title, content, contentEncrypted, lockStateOverride, noteId]);
 
-  // Reset lock state override when contentEncrypted prop changes (e.g. from server)
+  // Reset lock state overrides when contentEncrypted prop changes (e.g. from server)
   useEffect(() => {
     setLockStateOverride(null);
+    setServerEncryptedOverride(null);
   }, [contentEncrypted]);
 
   // Update content and lock state when PIN panel completes (lock/unlock from panel or bottom sheet)
@@ -246,6 +249,7 @@ export default function CardFullEditable({
         skipNextContentSyncRef.current = true;
         setDisplayContent(detail.newContent);
         setLockStateOverride(detail.encrypted === true);
+        setServerEncryptedOverride(detail.contentEncryptedServer ?? (detail.encrypted === true));
         if (detail.encrypted === true && noteId != null) {
           lockNote(String(noteId));
         }
@@ -1428,8 +1432,8 @@ export default function CardFullEditable({
           noteId={noteId}
           noteContent={displayContent}
           isEncrypted={effectiveEncrypted}
-          serverContentEncrypted={contentEncrypted}
-          serverNoteContent={contentEncrypted ? content : undefined}
+          serverContentEncrypted={effectiveServerEncrypted}
+          serverNoteContent={effectiveServerEncrypted ? content : undefined}
           onContentChange={(newContent) => setDisplayContent(newContent)}
           onLockStateChange={(isLocked) => setLockStateOverride(isLocked)}
           hideButton={true}

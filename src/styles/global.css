@@ -1282,6 +1282,16 @@ button.menu-item * {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ActionStrip meta note ID - same weight as date (600 desktop, 500 mobile) */
+.action-strip--desktop button.action-strip__meta-item--clickable,
+.action-strip--desktop button.action-strip__meta-item--clickable .action-strip__label {
+  font-weight: 600 !important;
+}
+.action-strip--mobile button.action-strip__meta-item--clickable,
+.action-strip--mobile button.action-strip__meta-item--clickable .action-strip__label {
+  font-weight: 500 !important;
+}
+
 /* All headings - bold weight */
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-sans) !important;

@@ -47,7 +47,7 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -71,11 +71,6 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
     case "note":
       const options = [];
 
-      // Copy note ID (prepend when simpleNoteId is available)
-      if (simpleNoteId != null) {
-        options.push({ action: "copyNoteId", label: `N${String(simpleNoteId).padStart(3, '0')}` });
-      }
-
       // Add "Notes" option for scripture notes only
       if (noteType === 'scripture') {
         options.push({ action: "openNoteDetailsNotes", label: "Notes" });
@@ -88,8 +83,14 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
 
       // Lock / Remove lock for default notes only (owner only when contentOwnerId is set)
       if (noteType === 'default' && canEditContent) {
-        const isLocked = contentEncrypted || contentEncryptedServer;
-        options.push({ action: isLocked ? "removeLock" : "lockNote", label: isLocked ? "Remove lock" : "Lock" });
+        if (!contentEncrypted && contentEncryptedServer) {
+          // Unlocked in session but still encrypted on server: show both options
+          options.push({ action: "lockNote", label: "Lock" });
+          options.push({ action: "removeLock", label: "Remove lock" });
+        } else {
+          const isLocked = contentEncrypted || contentEncryptedServer;
+          options.push({ action: isLocked ? "removeLock" : "lockNote", label: isLocked ? "Remove lock" : "Lock" });
+        }
       }
 
       // Share only when note is not locked
@@ -108,11 +109,14 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
           { action: "leaveSpace", label: "Leave Space" }
         ];
       }
-      return [
+      const spaceOptions = [
         { action: "editSpace", label: "Edit Space" },
-        { action: "openEditSpacePanelPeople", label: "People" },
-        { action: "eraseSpace", label: "Erase Space" }
       ];
+      if (spaceIsShared) {
+        spaceOptions.push({ action: "openEditSpacePanelPeople", label: "People" });
+      }
+      spaceOptions.push({ action: "eraseSpace", label: "Erase Space" });
+      return spaceOptions;
     case "dashboard":
     case "profile":
     default:

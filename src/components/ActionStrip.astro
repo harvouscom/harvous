@@ -10,12 +10,14 @@ export interface Props {
   contentEncrypted?: boolean;
   contentEncryptedServer?: boolean;
   noteSimpleId?: number | null;
+  noteCreatedAt?: string;
   spaceRole?: "owner" | "member" | null;
+  spaceIsShared?: boolean;
   contentOwnerId?: string | null;
   userId?: string | null;
 }
 
-const { variant = "desktop", contentType = "dashboard", contentId, currentThreadId, noteType, contentEncrypted, contentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId } = Astro.props;
+const { variant = "desktop", contentType = "dashboard", contentId, currentThreadId, noteType, contentEncrypted, contentEncryptedServer, noteSimpleId, noteCreatedAt, spaceRole, spaceIsShared, contentOwnerId, userId } = Astro.props;
 ---
 
 <ActionStripReact
@@ -27,7 +29,9 @@ const { variant = "desktop", contentType = "dashboard", contentId, currentThread
   contentEncrypted={contentEncrypted}
   contentEncryptedServer={contentEncryptedServer}
   noteSimpleId={noteSimpleId}
+  noteCreatedAt={noteCreatedAt}
   spaceRole={spaceRole}
+  spaceIsShared={spaceIsShared}
   contentOwnerId={contentOwnerId}
   userId={userId}
   client:load

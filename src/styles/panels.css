@@ -259,6 +259,11 @@
     flex: 1;
     min-height: 0;
   }
+
+  /* New-space desktop: allow panel__content to scroll */
+  &.panel__body--new-space-desktop {
+    overflow: hidden;
+  }
 }
 
 .panel__content {

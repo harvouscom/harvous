@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
-import Icon from './Icon';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
@@ -440,9 +439,6 @@ export default function ManageBillingPanel({
                             textDecoration: 'none'
                           }}
                         >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 384 512" aria-hidden="true">
-                            <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
-                          </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
                               {`${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 200).toLocaleString()} notes${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
@@ -460,9 +456,6 @@ export default function ManageBillingPanel({
                             borderColor: 'var(--color-fog-white)'
                           }}
                         >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512" aria-hidden="true">
-                            <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
-                          </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
                               Unlimited notes
@@ -481,9 +474,6 @@ export default function ManageBillingPanel({
                             textDecoration: 'none'
                           }}
                         >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }} viewBox="0 0 512 512" aria-hidden="true">
-                            <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
-                          </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
                               {sharedLimit != null
@@ -503,9 +493,6 @@ export default function ManageBillingPanel({
                             borderColor: 'var(--color-fog-white)'
                           }}
                         >
-                          <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 512 512" aria-hidden="true">
-                            <path d="M234.5 5.7c13.9-5 29.1-5 43.1 0l192 68.6C495 83.4 512 107.5 512 134.6l0 242.9c0 27-17 51.2-42.5 60.3l-192 68.6c-13.9 5-29.1 5-43.1 0l-192-68.6C17 428.6 0 404.5 0 377.4L0 134.6c0-27 17-51.2 42.5-60.3l192-68.6zM256 66L82.3 128 256 190l173.7-62L256 66zm32 368.6l160-57.1 0-188L288 246.6l0 188z" />
-                          </svg>
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
                               {sharedLimit != null

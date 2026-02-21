@@ -382,24 +382,18 @@ export default function PinEntryPanel({
               </div>
 
               {step === 'unlocked' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '0.75rem', marginTop: '1rem', width: '100%' }}>
                   <button
                     type="button"
                     onClick={handleRemoveLock}
                     disabled={isProcessing}
-                    style={{
-                      padding: '12px 24px',
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: 'white',
-                      backgroundColor: 'var(--color-deep-grey)',
-                      border: 'none',
-                      borderRadius: 12,
-                      cursor: isProcessing ? 'not-allowed' : 'pointer',
-                      opacity: isProcessing ? 0.7 : 1
-                    }}
+                    data-outer-shadow
+                    className="btn-cta btn--secondary w-full group"
                   >
-                    {isProcessing ? 'Removing…' : 'Remove lock'}
+                    <span className="btn-cta__content">
+                      {isProcessing ? 'Removing…' : 'Remove lock'}
+                    </span>
+                    <div className="btn-cta__shadow" />
                   </button>
                 </div>
               ) : (

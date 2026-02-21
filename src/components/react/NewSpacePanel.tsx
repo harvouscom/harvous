@@ -62,6 +62,12 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Ref for auto-focusing the space name input
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  // Detect standalone new-space page on desktop (check immediately, no effect needed)
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const floatingBtnRef = useRef<HTMLButtonElement>(null);
+  const isDesktopPage = typeof window !== 'undefined' && window.innerWidth >= 1160 && !!document.querySelector('.main-column__body');
+
+
   // When New Space panel is open, close any other create panels (Note, Thread, Resource)
   // so only this panel is visible (desktop slide-over and mobile bottom sheet both listen for these events)
   useEffect(() => {
@@ -825,18 +831,18 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   }
 
   return (
-    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
+    <div ref={wrapperRef} className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       {/* Form */}
-      <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
+      <form id="new-space-form" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
-        <div className="form-layout--expand" style={{ position: 'relative' }}>
+        <div className="form-layout--expand" style={isDesktopPage ? { position: 'relative', overflow: 'hidden' } : { position: 'relative' }}>
           {isLoadingItems && (
             <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
               <div className="panel__progress-fill" />
             </div>
           )}
           {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`} style={isDesktopPage ? { overflow: 'hidden', marginBottom: 0 } : undefined}>
             {/* Header section with space name input */}
             <div 
               className="panel__header"
@@ -863,7 +869,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             </div>
             
             {/* Content area */}
-            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
+            <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''} ${isDesktopPage ? 'panel__body--new-space-desktop' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}>
                 
                 {/* Color selection */}
@@ -967,48 +973,66 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                   </div>
                 )}
 
-                {/* Search and add notes/threads — always visible regardless of Private/Shared */}
-                <div className="w-full flex-1 min-h-0 flex flex-col">
+                {/* Search and add notes/threads */}
+                <div className="w-full">
                   {isLoadingItems ? (
                     <div className="panel__loading-state">
                       Loading items...
                     </div>
                   ) : (
-                    <div className="flex-1 min-h-0">
-                      <AddToSpaceSection
-                        allNotes={allNotes}
-                        allThreads={allThreads}
-                        currentSpaceId={null}
-                        onItemSelect={handleItemSelect}
-                        selectedItems={selectedItems}
-                        isLoading={isSubmitting}
-                        placeholder="Search notes and threads"
-                        emptyMessage="No items found"
-                      />
-                    </div>
+                    <AddToSpaceSection
+                      allNotes={allNotes}
+                      allThreads={allThreads}
+                      currentSpaceId={null}
+                      onItemSelect={handleItemSelect}
+                      selectedItems={selectedItems}
+                      isLoading={isSubmitting}
+                      placeholder="Search notes and threads"
+                      emptyMessage="No items found"
+                    />
                   )}
                 </div>
+
+                {isDesktopPage && <div style={{ height: 64, flexShrink: 0, pointerEvents: 'none' }} />}
+
               </div>
             </div>
+
+            {/* Desktop: button inside .panel, absolutely positioned at bottom */}
+            {isDesktopPage && (
+              <button
+                ref={floatingBtnRef}
+                type="submit"
+                disabled={isSubmitting}
+                className="btn btn--lg btn--primary new-space-floating-button"
+                tabIndex={3}
+              >
+                <div className="btn__content">
+                  {isSubmitting ? 'Creating...' : 'Create space'}
+                </div>
+                <div className="btn__shadow-overlay" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Bottom buttons */}
-        <div className="panel__footer--buttons">
-          {/* Create Space button */}
-          <button 
-            type="submit"
-            disabled={isSubmitting || !title.trim()}
-            data-outer-shadow
-            className="btn-cta flex-1 group"
-            tabIndex={3}
-          >
-            <span className="btn-cta__content">
-              {isSubmitting ? 'Creating...' : 'Create space'}
-            </span>
-            <div className="btn-cta__shadow" />
-          </button>
-        </div>
+        {/* Bottom buttons — inline in form on mobile/bottom-sheet */}
+        {!isDesktopPage && (
+          <div className="panel__footer--buttons">
+            <button
+              type="submit"
+              disabled={isSubmitting || !title.trim()}
+              data-outer-shadow
+              className="btn-cta flex-1 group"
+              tabIndex={3}
+            >
+              <span className="btn-cta__content">
+                {isSubmitting ? 'Creating...' : 'Create space'}
+              </span>
+              <div className="btn-cta__shadow" />
+            </button>
+          </div>
+        )}
       </form>
 
       {/* Unsaved Changes Dialog */}

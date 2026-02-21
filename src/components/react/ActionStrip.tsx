@@ -30,6 +30,14 @@ function getShortLabel(fullLabel: string): string {
   return map[fullLabel] ?? fullLabel;
 }
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+function formatNoteDate(isoString: string): string {
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
 interface ActionStripProps {
   variant?: 'desktop' | 'mobile';
   contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
@@ -39,7 +47,9 @@ interface ActionStripProps {
   contentEncrypted?: boolean;
   contentEncryptedServer?: boolean;
   noteSimpleId?: number | null;
+  noteCreatedAt?: string;
   spaceRole?: 'owner' | 'member' | null;
+  spaceIsShared?: boolean;
   contentOwnerId?: string | null;
   userId?: string | null;
 }
@@ -53,23 +63,32 @@ export default function ActionStrip({
   contentEncrypted,
   contentEncryptedServer,
   noteSimpleId,
+  noteCreatedAt,
   spaceRole,
+  spaceIsShared,
   contentOwnerId,
   userId: userIdProp
 }: ActionStripProps) {
   const userId = usePersistedUserId();
   const effectiveUserId = userIdProp ?? userId;
+  const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
+  const [contentEncryptedServerOverride, setContentEncryptedServerOverride] = useState<boolean | null>(null);
+
+  const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
+  const effectiveContentEncryptedServer = contentEncryptedServerOverride ?? contentEncryptedServer;
+
   const showStrip = shouldShowMoreButton(contentType, contentId, contentOwnerId, effectiveUserId);
   const options = getMenuOptions(
     contentType,
     contentId,
     noteType,
-    contentEncrypted,
-    contentEncryptedServer,
+    effectiveEncrypted,
+    effectiveContentEncryptedServer,
     noteSimpleId,
     spaceRole,
     contentOwnerId,
-    effectiveUserId
+    effectiveUserId,
+    spaceIsShared
   );
   const stripItems: ActionStripItem[] = options.map((o) => ({
     action: o.action,
@@ -79,6 +98,26 @@ export default function ActionStrip({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+
+  useEffect(() => {
+    setLockStateOverride(null);
+    setContentEncryptedServerOverride(null);
+  }, [contentId, contentEncrypted]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail != null && contentId != null && String(detail.noteId) === String(contentId)) {
+        const encrypted = detail.contentEncrypted === true;
+        setLockStateOverride(encrypted);
+        if (detail.contentEncryptedServer !== undefined) {
+          setContentEncryptedServerOverride(detail.contentEncryptedServer === true);
+        }
+      }
+    };
+    window.addEventListener('noteLockStateChanged', handler);
+    return () => window.removeEventListener('noteLockStateChanged', handler);
+  }, [contentId]);
 
   useEffect(() => {
     const handleEditModeChange = (e: Event) => {
@@ -277,14 +316,15 @@ export default function ActionStrip({
       window.dispatchEvent(new CustomEvent('focusLockNote', { detail: { contentId, removeLock: true } }));
       return;
     }
-    if (action === 'copyNoteId') {
-      const opt = options.find((o) => o.action === 'copyNoteId');
-      const textToCopy = opt?.label ?? '';
-      navigator.clipboard.writeText(textToCopy).then(
-        () => (window as any).toast?.success?.(`Copied ${textToCopy} to clipboard`),
-        () => (window as any).toast?.error?.('Failed to copy note ID')
-      );
-    }
+  };
+
+  const handleCopyNoteId = () => {
+    if (noteSimpleId == null) return;
+    const textToCopy = `N${String(noteSimpleId).padStart(3, '0')}`;
+    navigator.clipboard.writeText(textToCopy).then(
+      () => (window as any).toast?.success?.(`Copied ${textToCopy} to clipboard`),
+      () => (window as any).toast?.error?.('Failed to copy note ID')
+    );
   };
 
   const handleClick = (action: string) => {
@@ -319,6 +359,7 @@ export default function ActionStrip({
 
   const isDesktop = variant === 'desktop';
   const className = isDesktop ? 'action-strip action-strip--desktop' : 'action-strip action-strip--mobile';
+  const showMeta = contentType === 'note' && (noteSimpleId != null || (noteCreatedAt != null && noteCreatedAt !== ''));
 
   const buttons = stripItems.map((item) => (
     <button
@@ -331,10 +372,38 @@ export default function ActionStrip({
     </button>
   ));
 
+  const metaBlock = showMeta ? (
+    <div className="action-strip__meta">
+      {noteCreatedAt != null && noteCreatedAt !== '' && (
+        <span className="action-strip__meta-item">{formatNoteDate(noteCreatedAt)}</span>
+      )}
+      {noteSimpleId != null && (
+        <button
+          type="button"
+          className="action-strip__meta-item action-strip__meta-item--clickable"
+          onClick={handleCopyNoteId}
+          title="Click to copy note ID"
+        >
+          <span className="action-strip__label">{`#N${String(noteSimpleId).padStart(3, '0')}`}</span>
+        </button>
+      )}
+    </div>
+  ) : null;
+
   return (
     <>
       <div className={className} role="group" aria-label="Actions">
-        {isDesktop ? buttons : <div className="action-strip__inner">{buttons}</div>}
+        {isDesktop ? (
+          <>
+            {buttons}
+            {metaBlock}
+          </>
+        ) : (
+          <div className="action-strip__inner">
+            {buttons}
+            {metaBlock}
+          </div>
+        )}
       </div>
 
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(

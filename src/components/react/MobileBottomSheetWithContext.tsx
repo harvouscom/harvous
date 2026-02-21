@@ -7,7 +7,7 @@ interface MobileBottomSheetWithContextProps {
   currentThread?: any;
   currentSpace?: any;
   currentNote?: any;
-  contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
+  contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' | 'search' | 'new-space';
   publishableKey?: string | null;
   founderLetterHtml?: string;
   version?: string;

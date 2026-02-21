@@ -25,6 +25,12 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
 
   useEffect(() => {
     const isDesktop = () => window.matchMedia('(min-width: 1160px)').matches;
+
+    // Check localStorage on mount so state survives navigation
+    if (isDesktop() && localStorage.getItem('showNewNotePanel') === 'true') {
+      setIsNewNotePanelOpen(true);
+    }
+
     const handleOpen = () => { if (isDesktop()) setIsNewNotePanelOpen(true); };
     const handleClose = () => setIsNewNotePanelOpen(false);
     window.addEventListener('openNewNotePanel', handleOpen);

@@ -774,7 +774,7 @@ export async function getNotesForThreadForMember(
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(eq(NoteThreads.threadId, threadId))
+    .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
     .orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
@@ -939,6 +939,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited,
+      contentEncrypted: Notes.contentEncrypted,
     })
     .from(Notes)
     .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))

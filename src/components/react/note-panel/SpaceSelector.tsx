@@ -22,7 +22,7 @@ export default function SpaceSelector({
   onToggle,
 }: SpaceSelectorProps) {
   return (
-    <div className="mb-3.5 shrink-0">
+    <div className="shrink-0">
       <button
         type="button"
         onClick={onToggle}

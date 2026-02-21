@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
+import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import ConfirmDialog from './dialogs/ConfirmDialog';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -30,6 +31,9 @@ export default function EditSpacePeoplePanel({
     memberName: string;
     isSelf: boolean;
   } | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [isLoadingShareLink, setIsLoadingShareLink] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const fetchMemberInfo = async () => {
     try {
@@ -47,6 +51,53 @@ export default function EditSpacePeoplePanel({
       console.error('Error fetching member info:', error);
     } finally {
       setIsLoadingMembers(false);
+    }
+  };
+
+  const fetchShareLink = async () => {
+    try {
+      setIsLoadingShareLink(true);
+      const response = await fetch(`/api/spaces/${spaceId}/share-link`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        setShareUrl(data.shareUrl || null);
+      }
+    } catch (error) {
+      console.error('Error fetching share link:', error);
+    } finally {
+      setIsLoadingShareLink(false);
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Failed to copy link', type: 'error' } }));
+    }
+  };
+
+  const handleRefreshLink = async () => {
+    try {
+      setIsLoadingShareLink(true);
+      const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh' }),
+        credentials: 'include'
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setShareUrl(data.shareUrl || null);
+        window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Share link refreshed', type: 'success' } }));
+      }
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Failed to refresh link', type: 'error' } }));
+    } finally {
+      setIsLoadingShareLink(false);
     }
   };
 
@@ -100,6 +151,7 @@ export default function EditSpacePeoplePanel({
   useEffect(() => {
     if (spaceId) {
       fetchMemberInfo();
+      fetchShareLink();
     }
   }, [spaceId]);
 
@@ -205,6 +257,39 @@ export default function EditSpacePeoplePanel({
                     })}
                   </div>
                 </div>
+
+                {isOwner && shareUrl && (
+                  <div className="space-share-link" style={{ marginTop: 'auto' }}>
+                    <div className="space-share-link__container">
+                      <input
+                        type="text"
+                        readOnly
+                        value={shareUrl}
+                        className="space-share-link__input"
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <ButtonSmall
+                        type="button"
+                        onClick={handleCopyLink}
+                        disabled={isLoadingShareLink}
+                        state="Default"
+                      >
+                        {copied ? 'Copied' : 'Copy'}
+                      </ButtonSmall>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleRefreshLink}
+                      disabled={isLoadingShareLink}
+                      className="btn-cta btn--secondary"
+                    >
+                      <span className="btn-cta__content">
+                        Generate a new sharable link
+                      </span>
+                      <div className="btn-cta__shadow" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -270,6 +355,38 @@ export default function EditSpacePeoplePanel({
         .space-people-list__remove {
           flex-shrink: 0;
           margin-left: auto;
+        }
+
+        .space-share-link {
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+
+        .space-share-link__container {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 0.75rem;
+          background: var(--color-gradient-gray);
+          border-radius: 1.5rem;
+        }
+
+        .space-share-link__container .btn {
+          flex-shrink: 0;
+        }
+
+        .space-share-link__input {
+          flex: 1;
+          min-width: 0;
+          border: none;
+          background: transparent;
+          font-size: 0.875rem;
+          line-height: 1.25rem;
+          color: var(--color-deep-grey);
+          outline: none;
+          text-overflow: ellipsis;
+          font-family: var(--font-sans);
         }
       `}</style>
 

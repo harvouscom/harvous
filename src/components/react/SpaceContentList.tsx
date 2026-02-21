@@ -33,6 +33,7 @@ interface SpaceItem {
   threadColors?: Array<{ color: string; frequency: number }>;
   createdAt?: Date | string;
   lastVisited?: Date | string;
+  contentEncrypted?: boolean;
   /** Set for notes (thread they belong to); for threads use id. Used for onboarding section fallback. */
   threadId?: string | null;
 }
@@ -312,6 +313,7 @@ export default function SpaceContentList({
               title: note.title || 'Untitled Note',
               noteType: note.noteType || 'default',
               content: note.content,
+              contentEncrypted: note.contentEncrypted === true,
               resourceTitle: note.resourceTitle,
               resourceDescription: note.resourceDescription,
               resourceImage: note.resourceImage,
@@ -1105,12 +1107,14 @@ export default function SpaceContentList({
           <CardNote
             title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
             content={(() => {
+              if (item.contentEncrypted) return '';
               if (item.noteType === 'resource' && item.resourceDescription) {
                 return item.resourceDescription;
               }
               const cleanContent = stripHtml(item.content || '');
               return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
             })()}
+            contentEncrypted={item.contentEncrypted === true}
             noteType={item.noteType || 'default'}
             imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
             resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}

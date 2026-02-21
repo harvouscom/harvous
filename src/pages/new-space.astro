@@ -105,7 +105,7 @@ try {
   userXP = 0;
 }
 
-const contentType = "profile";
+const contentType = "new-space";
 const contentId = "new-space";
 ---
 
@@ -125,9 +125,18 @@ const contentId = "new-space";
   />
 
   <!-- Main Column -->
-  <div slot="main" class="h-full flex flex-col">
+  <div slot="main" class="h-full flex flex-col" style="min-height:0">
     <NewSpacePanelReact />
   </div>
+  <style>
+    /* Ensure astro-island participates in the flex height chain */
+    div[slot="main"] > astro-island {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+  </style>
 
   <!-- Mobile Navigation -->
   <div slot="mobile-navigation">
@@ -144,7 +153,7 @@ const contentId = "new-space";
 
   <!-- Mobile Additional -->
   <div slot="mobile-additional">
-    <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
+    <MobileAdditional contentType="new-space" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
 </Layout>
 
