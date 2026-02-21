@@ -609,7 +609,7 @@ export default function MySpacesPanel({
           className="btn-cta flex-1 group"
           onClick={() => safeNavigate('/new-space', { history: 'push' })}
         >
-          <span className="btn-cta__content">New Space</span>
+          <span className="btn-cta__content">New space</span>
           <div className="btn-cta__shadow" />
         </button>
       </div>

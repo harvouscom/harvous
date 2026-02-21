@@ -320,19 +320,21 @@ export default function ActionStrip({
   const isDesktop = variant === 'desktop';
   const className = isDesktop ? 'action-strip action-strip--desktop' : 'action-strip action-strip--mobile';
 
+  const buttons = stripItems.map((item) => (
+    <button
+      key={item.action}
+      type="button"
+      className="action-strip__item"
+      onClick={() => handleClick(item.action)}
+    >
+      <span className="action-strip__label">{item.label}</span>
+    </button>
+  ));
+
   return (
     <>
       <div className={className} role="group" aria-label="Actions">
-        {stripItems.map((item) => (
-          <button
-            key={item.action}
-            type="button"
-            className="action-strip__item"
-            onClick={() => handleClick(item.action)}
-          >
-            <span className="action-strip__label">{item.label}</span>
-          </button>
-        ))}
+        {isDesktop ? buttons : <div className="action-strip__inner">{buttons}</div>}
       </div>
 
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(

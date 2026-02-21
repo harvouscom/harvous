@@ -293,7 +293,7 @@ export default function EmailPasswordPanel({
             tabIndex={3}
           >
             <span className="btn-cta__content">
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
+              {isSubmitting ? 'Saving...' : 'Save changes'}
             </span>
             <div className="btn-cta__shadow" />
           </button>

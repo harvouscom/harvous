@@ -1004,7 +1004,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             tabIndex={3}
           >
             <span className="btn-cta__content">
-              {isSubmitting ? 'Creating...' : 'Create Space'}
+              {isSubmitting ? 'Creating...' : 'Create space'}
             </span>
             <div className="btn-cta__shadow" />
           </button>

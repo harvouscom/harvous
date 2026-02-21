@@ -52,7 +52,12 @@
   flex-shrink: 0;
   padding-top: 0.75rem;
   padding-bottom: 0.75rem;
-  overflow: clip;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.action-strip--desktop::-webkit-scrollbar {
+  display: none;
 }
 
 .action-strip--desktop .action-strip__item {
@@ -64,14 +69,27 @@
 /* ==========================================================================
    Mobile: horizontal row at bottom
    ========================================================================== */
+/* Scroll container: inner wrapper auto-centers when it fits, left-aligns when it overflows */
 .action-strip--mobile {
-  flex-direction: row;
-  justify-content: center;
-  flex-wrap: wrap;
+  display: block;
   width: 100%;
-  gap: 0.25rem;
   padding: 0.75rem;
-  overflow: clip;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.action-strip--mobile::-webkit-scrollbar {
+  display: none;
+}
+
+.action-strip--mobile .action-strip__inner {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 0.25rem;
+  width: max-content;
+  margin: 0 auto;
 }
 
 .action-strip--mobile .action-strip__item {

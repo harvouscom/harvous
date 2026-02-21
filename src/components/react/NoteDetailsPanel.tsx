@@ -755,10 +755,10 @@ export default function NoteDetailsPanel({
             type="button"
             onClick={addNewThread}
             data-outer-shadow
-            className="btn-cta flex-1 group"
+            className="btn-cta btn--secondary flex-1 group"
           >
             <span className="btn-cta__content">
-              New Thread
+              New thread
             </span>
             <div className="btn-cta__shadow" />
           </button>

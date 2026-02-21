@@ -429,7 +429,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     disabled={isClearingData}
                   >
                     <span className="font-sans text-[18px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                      {isClearingData ? 'Erasing...' : 'Erase All Notes, Threads, and Spaces'}
+                      {isClearingData ? 'Erasing...' : 'Erase all notes, threads, and spaces'}
                     </span>
                     {/* Progress bar */}
                     {isClearingData && (
@@ -546,7 +546,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             disabled={showDeleteConfirm}
           >
             <span className="btn-cta__content">
-              Delete Account
+              Delete account
             </span>
             <div className="btn-cta__shadow" />
           </button>
@@ -600,7 +600,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
               color: 'var(--color-deep-grey)',
               marginBottom: '0.5rem'
             }}>
-              Delete Account?
+              Delete account?
             </h3>
             <p style={{
               color: 'var(--color-pebble-grey)',
@@ -664,7 +664,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
               color: 'var(--color-deep-grey)',
               marginBottom: '0.5rem'
             }}>
-              Erase All Notes, Threads, and Spaces?
+              Erase all notes, threads, and spaces?
             </h3>
             <p style={{
               color: 'var(--color-pebble-grey)',

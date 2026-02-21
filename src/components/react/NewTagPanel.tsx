@@ -176,14 +176,14 @@ export default function NewTagPanel({
         </div>
 
         {/* Add Tag button */}
-        <button 
+        <button
           type="submit"
           disabled={isSubmitting}
           data-outer-shadow
-          className="btn-cta w-full group"
+          className="btn-cta btn--secondary w-full group"
         >
           <span className="btn-cta__content">
-            {isSubmitting ? 'Adding...' : 'Add Tag'}
+            {isSubmitting ? 'Adding...' : 'Add tag'}
           </span>
           <div className="btn-cta__shadow" />
         </button>
@@ -225,14 +225,14 @@ export default function NewTagPanel({
                   </div>
 
                   {/* Add Tag button - inside content area */}
-                  <button 
+                  <button
                     type="submit"
                     disabled={isSubmitting}
                     data-outer-shadow
-                    className="btn-cta w-full group"
+                    className="btn-cta btn--secondary w-full group"
                   >
                     <span className="btn-cta__content">
-                      {isSubmitting ? 'Adding...' : 'Add Tag'}
+                      {isSubmitting ? 'Adding...' : 'Add tag'}
                     </span>
                     <div className="btn-cta__shadow" />
                   </button>

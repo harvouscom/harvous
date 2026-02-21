@@ -52,7 +52,7 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
     if (target.querySelector(`[${SPACER_ATTR}]`)) return;
     const spacer = document.createElement('div');
     spacer.setAttribute(SPACER_ATTR, '');
-    spacer.style.height = '64px';
+    spacer.style.height = '68px';
     spacer.style.flexShrink = '0';
     spacer.style.pointerEvents = 'none';
     target.appendChild(spacer);

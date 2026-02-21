@@ -390,6 +390,7 @@
     position: relative;
     z-index: 2;
     background-color: var(--color-light-paper, #F3F2EC);
+    padding-bottom: 16px;
   }
 }
 

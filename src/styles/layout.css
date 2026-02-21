@@ -195,6 +195,24 @@
 
 /* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
 
+/* Profile logout button: same treatment as .create-note-button.
+   Uses .btn-cta which sets position: relative, so we need the
+   compound selector to win specificity. */
+a.profile-logout-button {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 2;
+  width: auto;
+}
+
+.profile-logout-spacer {
+  height: 80px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
 /* Mobile main body: contains scroll area + action strip dock behind card bottom */
 .mobile-main__body {
   position: relative;
@@ -325,6 +343,7 @@
   min-height: 0;
   max-height: 100%;
   width: 100%;
+  padding-bottom: 16px;
 }
 
 /* Base: no height (mobile uses auto; desktop scoped below) */

@@ -327,7 +327,7 @@ export default function NoteSharePanel({
                           className="btn-cta btn--secondary"
                         >
                           <span className="btn-cta__content">
-                            Generate a New Sharable Link
+                            Generate a new sharable link
                           </span>
                           <div className="btn-cta__shadow" />
                         </button>

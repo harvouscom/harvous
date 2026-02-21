@@ -14,7 +14,7 @@ interface Props {
 const { joinDate, seasonalXP, seasonName } = Astro.props;
 ---
 
-<div class="flex flex-col justify-between h-full w-full">
+<div class="flex flex-col w-full">
     <!-- Top Info Cards -->
     <div class="grid grid-cols-2" style="gap: 12px; margin-bottom: 12px;">
         <!-- Joined Date Card -->
@@ -45,7 +45,7 @@ const { joinDate, seasonalXP, seasonName } = Astro.props;
     <ProfileOptionsList client:load />
 
     <!-- Bottom Section - Get Support & About Harvous -->
-    <div class="mt-auto pt-3 pb-3 flex flex-col gap-3">
+    <div class="pt-3 pb-3 flex flex-col gap-3">
         <!-- Get Support Button -->
         <div onclick="window.dispatchEvent(new CustomEvent('openProfilePanel', { detail: { panelName: 'getSupport' } }))" class="w-full">
              <div class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">

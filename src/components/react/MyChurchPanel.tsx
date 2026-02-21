@@ -599,7 +599,7 @@ export default function MyChurchPanel({
                   style={{ backgroundColor: 'var(--color-red)' }}
                 >
                   <span className="btn-cta__content">
-                    {isSubmitting ? 'Removing...' : 'Remove Church'}
+                    {isSubmitting ? 'Removing...' : 'Remove church'}
                   </span>
                   <div className="btn-cta__shadow" />
                 </button>
@@ -725,7 +725,7 @@ export default function MyChurchPanel({
             tabIndex={3}
           >
             <span className="btn-cta__content">
-              {isSubmitting ? 'Saving...' : (hasExistingData ? 'Save Changes' : 'Add Church')}
+              {isSubmitting ? 'Saving...' : (hasExistingData ? 'Save changes' : 'Add church')}
             </span>
             <div className="btn-cta__shadow" />
           </button>
