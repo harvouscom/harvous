@@ -756,7 +756,7 @@ self.addEventListener('fetch', (event) => {
   
   // All other requests - network-first with cache fallback
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-cache' })
       .then((response) => {
         if (shouldCacheResponse(response)) {
           const timestamped = addCacheTimestamp(response.clone());

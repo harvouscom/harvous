@@ -126,23 +126,30 @@
       }
 
       reloadingForUpdate = true;
-      
+
+      function clearCachesAndReload() {
+        caches.keys()
+          .then(function(names) {
+            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+          })
+          .then(function() { window.location.reload(); })
+          .catch(function() { window.location.reload(); });
+      }
+
       // Minor/patch update - show toast and auto-reload
       if (window.toast && typeof window.toast.info === 'function') {
         try {
           window.toast.info('Updating Harvous for you');
           // Wait 1600ms (matches toast duration) before reloading
-          setTimeout(() => {
-            window.location.reload();
-          }, 1600);
+          setTimeout(clearCachesAndReload, 1600);
         } catch (error) {
           // If toast fails, reload immediately
           console.log('Toast notification failed, reloading immediately:', error);
-          window.location.reload();
+          clearCachesAndReload();
         }
       } else {
         // Toast system not available, reload immediately (fallback to current behavior)
-        window.location.reload();
+        clearCachesAndReload();
       }
     });
 
