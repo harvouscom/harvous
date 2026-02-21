@@ -339,7 +339,7 @@ self.addEventListener('fetch', (event) => {
     // This ensures the list order is always fresh when returning after time away
     if (isIndexPage && isOnline) {
       event.respondWith(
-        fetch(event.request).then(async (response) => {
+        fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
           // Cache for offline use
           if (shouldCacheResponse(response)) {
             const isSignIn = await isSignInPageResponse(response.clone());
@@ -423,7 +423,7 @@ self.addEventListener('fetch', (event) => {
       if (isOnline) {
         // Always go to network when online
         event.respondWith(
-          fetch(event.request).then(async (response) => {
+          fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
             // Cache for offline use
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());
@@ -570,7 +570,7 @@ self.addEventListener('fetch', (event) => {
           cachedIsSignIn = await isSignInPageResponse(cached);
         }
         
-        const networkPromise = fetch(event.request)
+        const networkPromise = fetch(event.request, { cache: 'no-cache' })
           .then(async (response) => {
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());

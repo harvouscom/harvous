@@ -269,17 +269,17 @@ export default function CardFullEditable({
   // Top/bottom gradient: check if content area is overflowing and update scroll state (display mode only)
   useEffect(() => {
     if (isContentEditing || !contentDisplayRef.current) return;
+    const el = contentDisplayRef.current;
     const checkOverflow = () => {
-      if (contentDisplayRef.current) {
-        const el = contentDisplayRef.current;
-        setContentOverflowing(el.scrollHeight > el.clientHeight);
-        const { scrollTop, scrollHeight, clientHeight } = el;
-        setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
-      }
+      if (!contentDisplayRef.current) return;
+      const { scrollHeight, clientHeight, scrollTop } = contentDisplayRef.current;
+      setContentOverflowing(scrollHeight > clientHeight);
+      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
     };
     checkOverflow();
-    const timer = setTimeout(checkOverflow, 50);
-    return () => clearTimeout(timer);
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [isContentEditing, displayContent, resourceDescription]);
 
   // Top/bottom gradient: track scroll position (display mode only)
