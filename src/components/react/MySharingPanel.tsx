@@ -220,7 +220,7 @@ export default function MySharingPanel({
               {isEmpty && !isLoading && (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Turn on sharing from a note, a thread, or a space to see them here.
+                    Turn on sharing from a note, a thread, or a space to see them here
                   </p>
                 </div>
               )}
@@ -313,7 +313,7 @@ export default function MySharingPanel({
               {!isLoading && !isEmpty && !hasItemsForFilter && !(activeFilter === 'spaces' && spacesCount === 0) && (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
-                    No {activeFilter === 'threads' ? 'threads' : activeFilter === 'notes' ? 'notes' : 'shared spaces'} yet.
+                    No {activeFilter === 'threads' ? 'threads' : activeFilter === 'notes' ? 'notes' : 'shared spaces'} yet
                   </p>
                 </div>
               )}

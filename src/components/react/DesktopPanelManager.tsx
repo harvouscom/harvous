@@ -38,6 +38,7 @@ const NewThreadPanel = createLazyComponent(() => import('./NewThreadPanel'), 'Ne
 const NoteDetailsPanel = createLazyComponent(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
 const EditThreadPanel = createLazyComponent(() => import('./EditThreadPanel'), 'EditThreadPanel');
 const EditSpacePanel = createLazyComponent(() => import('./EditSpacePanel'), 'EditSpacePanel');
+const EditSpacePeoplePanel = createLazyComponent(() => import('./EditSpacePeoplePanel'), 'EditSpacePeoplePanel');
 const InboxItemPreviewPanel = createLazyComponent(() => import('./InboxItemPreviewPanel'), 'InboxItemPreviewPanel');
 const MySpacesPanel = createLazyComponent(() => import('./MySpacesPanel'), 'MySpacesPanel');
 const MyAchievementsPanel = createLazyComponent(() => import('./MyAchievementsPanel'), 'MyAchievementsPanel');
@@ -70,6 +71,7 @@ type PanelType =
   | 'noteDetails'
   | 'editThread'
   | 'editSpace'
+  | 'editSpacePeople'
   | 'inboxPreview'
   | 'mySpaces'
   | 'myAchievements'
@@ -121,6 +123,8 @@ type PanelAction =
   | { type: 'CLOSE_EDIT_THREAD' }
   | { type: 'OPEN_EDIT_SPACE' }
   | { type: 'CLOSE_EDIT_SPACE' }
+  | { type: 'OPEN_EDIT_SPACE_PEOPLE' }
+  | { type: 'CLOSE_EDIT_SPACE_PEOPLE' }
   | { type: 'OPEN_INBOX_PREVIEW' }
   | { type: 'CLOSE_INBOX_PREVIEW' }
   | { type: 'OPEN_MY_SPACES' }
@@ -212,7 +216,13 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     
     case 'CLOSE_EDIT_SPACE':
       return { activePanel: null, panelKey: state.panelKey };
-    
+
+    case 'OPEN_EDIT_SPACE_PEOPLE':
+      return { activePanel: 'editSpacePeople', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_EDIT_SPACE_PEOPLE':
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_INBOX_PREVIEW':
       // Close all other panels and open InboxPreview
       return { activePanel: 'inboxPreview', panelKey: state.panelKey + 1 };
@@ -450,7 +460,6 @@ export default function DesktopPanelManager({
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
-  const [editSpaceInitialTab, setEditSpaceInitialTab] = useState<'added' | 'all' | 'people' | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
 
@@ -545,14 +554,22 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_THREAD' });
     };
 
-    const handleOpenEditSpace = (event: CustomEvent) => {
-      setEditSpaceInitialTab(event.detail?.initialTab);
+    const handleOpenEditSpace = () => {
       dispatch({ type: 'OPEN_EDIT_SPACE' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
 
     const handleCloseEditSpace = () => {
       dispatch({ type: 'CLOSE_EDIT_SPACE' });
+    };
+
+    const handleOpenEditSpacePeople = () => {
+      dispatch({ type: 'OPEN_EDIT_SPACE_PEOPLE' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+    };
+
+    const handleCloseEditSpacePeople = () => {
+      dispatch({ type: 'CLOSE_EDIT_SPACE_PEOPLE' });
     };
 
     const handleOpenInboxPreview = (event: CustomEvent) => {
@@ -637,6 +654,8 @@ export default function DesktopPanelManager({
     window.addEventListener('closeEditThreadPanel', handleCloseEditThread);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
     window.addEventListener('closeEditSpacePanel', handleCloseEditSpace);
+    window.addEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeople as EventListener);
+    window.addEventListener('closeEditSpacePeoplePanel', handleCloseEditSpacePeople);
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
     window.addEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
     window.addEventListener('closeInboxPreview', handleCloseInboxPreview);
@@ -664,6 +683,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeEditThreadPanel', handleCloseEditThread);
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
       window.removeEventListener('closeEditSpacePanel', handleCloseEditSpace);
+      window.removeEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeople as EventListener);
+      window.removeEventListener('closeEditSpacePeoplePanel', handleCloseEditSpacePeople);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('updateInboxPreview', handleUpdateInboxPreview as EventListener);
       window.removeEventListener('closeInboxPreview', handleCloseInboxPreview);
@@ -704,6 +725,11 @@ export default function DesktopPanelManager({
   // Handler for closing EditSpacePanel
   const handleCloseEditSpace = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
+  }, []);
+
+  // Handler for closing EditSpacePeoplePanel
+  const handleCloseEditSpacePeople = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeEditSpacePeoplePanel'));
   }, []);
 
   // Handler for closing InboxItemPreviewPanel
@@ -891,8 +917,23 @@ export default function DesktopPanelManager({
                 spaceId={currentSpace.id}
                 initialTitle={currentSpace.title}
                 initialColor={currentSpace.color}
-                initialTab={editSpaceInitialTab}
                 onClose={handleCloseEditSpace}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* Edit Space People Panel (spaces only) - Desktop Only */}
+      {state.activePanel === 'editSpacePeople' && contentType === 'space' && currentSpace && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+            <div className="h-full hidden min-[1160px]:block">
+              <EditSpacePeoplePanel
+                spaceId={currentSpace.id}
+                spaceTitle={currentSpace.title}
+                spaceColor={currentSpace.color}
+                onClose={handleCloseEditSpacePeople}
               />
             </div>
           </Suspense>

@@ -1702,7 +1702,7 @@ export default function EditThreadPanel({
                     <div className="w-full shrink-0 mb-3">
                       {currentThreadNotes.filter(n => !removedNoteIds.has(n.id) && !pendingRemovalsRef.current.has(n.id)).length === 0 && selectedItems.length === 0 ? (
                         <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm">
-                          No notes in this thread.
+                          No notes in this thread
                         </div>
                       ) : (
                         <div className="flex flex-col gap-2">

@@ -1192,12 +1192,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return localSpaces.find((s) => s.id === selectedSpaceId) ?? null;
   }, [selectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
 
-  // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when selectedSpace is null (e.g. find page).
+  // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when selectedSpace is null (e.g. search page).
   const selectedSpaceLabel = selectedSpace ? selectedSpace.title : (selectedSpaceId ? (spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'Space') : 'My Home');
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   
-  // Route-aware display: on dashboard show "My Home"; on other pages (profile, find, etc.) show stored selected space.
+  // Route-aware display: on dashboard show "My Home"; on other pages (profile, search, etc.) show stored selected space.
   const displaySelectedSpaceId = isDashboard ? null : selectedSpaceId;
   const displaySelectedSpaceLabel = isDashboard ? 'My Home' : selectedSpaceLabel;
   const displaySelectedSpaceCount = isDashboard ? inboxCount : selectedSpaceCount;

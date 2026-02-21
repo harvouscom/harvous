@@ -1711,10 +1711,22 @@ export default function OrganizedContentList({
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '300px', width: '100%', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
           <div className="empty-state-message">
             <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: '#4a473d', fontSize: '18px', lineHeight: '1.2' }}>
-              <p>So when's move-in day?</p>
+              <p>
+                {filter === 'threads' ? 'No threads yet' :
+                 filter === 'notes' ? 'No notes yet' :
+                 filter === 'scripture' ? 'No scripture notes yet' :
+                 filter === 'resources' ? 'No resources yet' :
+                 'So when\'s move-in day?'}
+              </p>
             </div>
             <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px', lineHeight: '1.3', maxWidth: '250px' }}>
-              <p>Add to your Harvous and this area will start to feel lived in.</p>
+              <p>
+                {filter === 'threads' ? 'Add a thread to get started' :
+                 filter === 'notes' ? 'Add a note to get started' :
+                 filter === 'scripture' ? 'Add a scripture note to get started' :
+                 filter === 'resources' ? 'Add a resource to get started' :
+                 'Add to your Harvous and this area will start to feel lived in'}
+              </p>
             </div>
           </div>
         </div>

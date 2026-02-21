@@ -10,6 +10,7 @@ import {
 import EditNameColorPanel from './EditNameColorPanel';
 import EditThreadPanel from './EditThreadPanel';
 import EditSpacePanel from './EditSpacePanel';
+import EditSpacePeoplePanel from './EditSpacePeoplePanel';
 import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
 import MySpacesPanel from './MySpacesPanel';
@@ -56,7 +57,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -87,6 +88,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'editNameColor': 'Edit Profile',
     'editThread': 'Edit Thread',
     'editSpace': 'Edit Space',
+    'editSpacePeople': 'People',
     'getSupport': 'Get Support',
     'emailPassword': 'Email & Password',
     'myChurch': 'My Church',
@@ -124,7 +126,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteDetailsNote, setNoteDetailsNote] = useState<any | null>(null);
-  const [editSpaceInitialTab, setEditSpaceInitialTab] = useState<'added' | 'all' | 'people' | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -160,7 +161,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     // to avoid the loading flash caused by a full remount on every open.
     const needsFreshState: DrawerType[] = [
       'note', 'thread', 'resource', 'noteDetails',
-      'editThread', 'editSpace', 'inboxPreview', 'noteShare', 'pinEntry',
+      'editThread', 'editSpace', 'editSpacePeople', 'inboxPreview', 'noteShare', 'pinEntry',
     ];
     if (needsFreshState.includes(type)) {
       setPanelKey(prev => prev + 1);
@@ -293,10 +294,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }
     };
 
-    const handleOpenEditSpacePanel = (event: CustomEvent) => {
+    const handleOpenEditSpacePanel = () => {
       if (isMobile) {
-        setEditSpaceInitialTab(event.detail?.initialTab);
         openBottomSheet('editSpace');
+      }
+    };
+
+    const handleOpenEditSpacePeoplePanel = () => {
+      if (isMobile) {
+        openBottomSheet('editSpacePeople');
       }
     };
 
@@ -311,6 +317,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel as EventListener);
+    window.addEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeoplePanel as EventListener);
     window.addEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
     
     // Listen for profile panel events (for mobile bottom sheet)
@@ -390,6 +397,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeProfilePanel', handleCloseBottomSheet);
     window.addEventListener('closeEditThreadPanel', handleCloseBottomSheet);
     window.addEventListener('closeEditSpacePanel', handleCloseBottomSheet);
+    window.addEventListener('closeEditSpacePeoplePanel', handleCloseBottomSheet);
     window.addEventListener('closeInboxPreview', handleCloseBottomSheet);
     window.addEventListener('closeNoteSharePanel', handleCloseBottomSheet);
     window.addEventListener('closePinEntryPanel', handleCloseBottomSheet);
@@ -400,6 +408,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
       window.removeEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpacePanel as EventListener);
+      window.removeEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeoplePanel as EventListener);
       window.removeEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
@@ -412,6 +421,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeProfilePanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditThreadPanel', handleCloseBottomSheet);
       window.removeEventListener('closeEditSpacePanel', handleCloseBottomSheet);
+      window.removeEventListener('closeEditSpacePeoplePanel', handleCloseBottomSheet);
       window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
       window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
       window.removeEventListener('closeNoteSharePanel', handleCloseBottomSheet);
@@ -760,9 +770,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   spaceId={currentSpace.id}
                   initialTitle={currentSpace.title}
                   initialColor={currentSpace.color}
-                  initialTab={editSpaceInitialTab}
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
+                  }}
+                  inBottomSheet={true}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Edit Space People Panel */}
+          {drawerType === 'editSpacePeople' && (
+            <div className="panel-container flex-1 flex flex-col min-h-0">
+              {contentType === 'space' && currentSpace && (
+                <EditSpacePeoplePanel
+                  key={`mobile-edit-space-people-${panelKey}`}
+                  spaceId={currentSpace.id}
+                  spaceTitle={currentSpace.title}
+                  spaceColor={currentSpace.color}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeEditSpacePeoplePanel'));
                   }}
                   inBottomSheet={true}
                 />

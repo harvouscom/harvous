@@ -503,7 +503,7 @@ export default function InboxItemPreviewPanel({
                       ) : (
                         <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
                           <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
-                            {isLoading ? '' : 'No notes found in this thread.'}
+                            {isLoading ? '' : 'No notes found in this thread'}
                           </p>
                         </div>
                       )}

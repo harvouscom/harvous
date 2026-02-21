@@ -162,7 +162,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     return null;
   }, [effectiveSelectedSpaceId, localSpaces, currentItemId]);
 
-  // Route-aware display: on dashboard show "My Home"; on other pages show stored selected space (so profile/find keep last space).
+  // Route-aware display: on dashboard show "My Home"; on other pages show stored selected space (so profile/search keep last space).
   const displaySelectedSpaceId = isDashboard ? null : effectiveSelectedSpaceId;
   const displaySelectedSpace = useMemo(() => {
     if (!displaySelectedSpaceId) return null;

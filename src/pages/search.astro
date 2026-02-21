@@ -627,7 +627,7 @@ if (query.trim()) {
   <div slot="main" class="h-full">
     <div class="flex flex-col h-full">
       <CardStack title="Search" headerBgColor="var(--color-paper)">
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-3">
           <!-- Search Input -->
           <FindSearchInput client:load initialQuery={query} />
 
@@ -636,7 +636,7 @@ if (query.trim()) {
 
           <!-- Tab Navigation -->
           {query && (
-            <div class="flex flex-col gap-3">
+            <div class="flex flex-col">
               <TabNav 
                 tabs={[
                   { 
@@ -860,7 +860,7 @@ if (query.trim()) {
       currentThread={null}
       initials={initials}
       userColor={userColor}
-      initialPath="find"
+      initialPath="search"
     />
   </div>
 

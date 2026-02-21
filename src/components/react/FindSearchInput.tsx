@@ -15,7 +15,7 @@ export default function FindSearchInput({
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Sync when initialQuery prop changes (e.g. SPA navigates to /find?q=term)
+  // Sync when initialQuery prop changes (e.g. SPA navigates to /search?q=term)
   useEffect(() => {
     setSearchQuery(initialQuery);
   }, [initialQuery]);

@@ -900,7 +900,7 @@ button.tab-nav__button .tab-nav__label,
   position: relative;
   flex-shrink: 0;
   white-space: nowrap;
-  color: #4a473d;
+  color: var(--color-deep-grey);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1099,8 +1099,7 @@ button.space-btn .space-btn__text {
 }
 
 .space-switcher-anchor .space-btn__toggle-icon {
-  color: var(--color-deep-grey);
-  opacity: 0.65;
+  color: var(--color-pebble-grey);
 }
 
 .space-btn__toggle-icon:active {
@@ -1240,6 +1239,12 @@ button.space-btn .space-btn__text {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+}
+
+/* Match secondary icon color (search clear, toggle, nav search, etc.) */
+.space-switcher-dropdown__icon-slot svg,
+.space-switcher-dropdown__check svg {
+  fill: var(--color-pebble-grey);
 }
 
 /* ==========================================================================

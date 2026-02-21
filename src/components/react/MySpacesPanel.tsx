@@ -568,7 +568,7 @@ export default function MySpacesPanel({
               {!isLoading && !error && uniqueSpaces.length === 0 && memberOfSpaces.length === 0 && (
                 <div className="w-full p-8 text-center">
                   <p className="text-[var(--color-pebble-grey)] text-[16px]">
-                    No spaces yet. Create your first space and you'll see it here.
+                    No spaces yet. Create your first space and you'll see it here
                   </p>
                 </div>
               )}
@@ -577,7 +577,7 @@ export default function MySpacesPanel({
               {!isLoading && !error && (uniqueSpaces.length > 0 || memberOfSpaces.length > 0) && filteredSpaces.length === 0 && (
                 <div className="w-full p-8 text-center">
                   <p className="text-[var(--color-pebble-grey)] text-[16px]">
-                    {activeFilter === 'private' ? 'No private spaces.' : 'No shared spaces.'}
+                    {activeFilter === 'private' ? 'No private spaces' : 'No shared spaces'}
                   </p>
                 </div>
               )}

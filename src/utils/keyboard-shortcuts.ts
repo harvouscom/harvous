@@ -84,7 +84,7 @@ function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolea
   
   const path = window.location.pathname;
   const isNote = path.startsWith('/note/');
-  const isThread = path.startsWith('/thread/') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space/') && !path.startsWith('/note/') && path !== '/' && path !== '/find' && path !== '/profile' && path !== '/sign-in' && path !== '/new-space');
+  const isThread = path.startsWith('/thread/') || (path.startsWith('/') && path.length > 1 && !isNote && !path.startsWith('/space/') && !path.startsWith('/note/') && path !== '/' && path !== '/search' && path !== '/profile' && path !== '/sign-in' && path !== '/new-space');
   const isSpace = path.startsWith('/space/');
   
   return { isNote, isThread, isSpace, path };
@@ -194,10 +194,10 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   if (modifier && key === 'f') {
     event.preventDefault();
     const currentPath = window.location.pathname;
-    if (currentPath === '/find') {
+    if (currentPath === '/search') {
       focusSearchInput();
     } else {
-      navigateTo('/find');
+      navigateTo('/search');
     }
     return;
   }

@@ -40,7 +40,7 @@ export const onRequest = clerkMiddleware((auth, context, next) => {
   }
 
   // All other routes are protected - check if user is authenticated
-  // This includes: /, /profile, /find, /new-space, and all dynamic routes like /[id].astro
+  // This includes: /, /profile, /search, /new-space, and all dynamic routes like /[id].astro
   if (!auth().userId) {
     // Redirect to custom sign-in page instead of Clerk's default page
     const signInUrl = new URL('/sign-in', context.request.url);

@@ -1033,18 +1033,18 @@ export default function SpaceContentList({
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
         <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--color-deep-grey)', fontSize: '18px', lineHeight: '1.2', marginBottom: '8px' }}>
           <p style={{ margin: 0 }}>
-            {filter === 'threads' ? 'No threads yet.' :
-             filter === 'notes' ? 'No notes yet.' :
-             filter === 'scripture' ? 'No scripture notes yet.' :
-             'Nothing here yet.'}
+            {filter === 'threads' ? 'No threads yet' :
+             filter === 'notes' ? 'No notes yet' :
+             filter === 'scripture' ? 'No scripture notes yet' :
+             'Nothing here yet'}
           </p>
         </div>
         <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'var(--color-pebble-grey)', fontSize: '14px', lineHeight: '1.3', maxWidth: '280px' }}>
           <p style={{ margin: 0 }}>
-            {filter === 'threads' ? 'Add a thread to get started.' :
-             filter === 'notes' ? 'Add a note to get started.' :
-             filter === 'scripture' ? 'Reference Bible verses in your notes to see them here.' :
-             'Add something to get started.'}
+            {filter === 'threads' ? 'Add a thread to get started' :
+             filter === 'notes' ? 'Add a note to get started' :
+             filter === 'scripture' ? 'Add a scripture note to get started' :
+             'Add something to get started'}
           </p>
         </div>
       </div>

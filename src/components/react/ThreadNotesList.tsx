@@ -1490,7 +1490,10 @@ export default function ThreadNotesList({
         ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
-              No notes found in this thread.
+              {noteTypeFilter === 'scripture' ? 'No scripture notes in this thread' :
+               noteTypeFilter === 'resource' || noteTypeFilter === 'resources' ? 'No resources in this thread' :
+               noteTypeFilter === 'default' || noteTypeFilter === 'notes' ? 'No notes in this thread' :
+               'No notes found in this thread'}
             </p>
           </div>
         )}

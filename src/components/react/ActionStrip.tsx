@@ -242,7 +242,7 @@ export default function ActionStrip({
 
   const dispatchAction = (action: string) => {
     if (action === 'openEditSpacePanelPeople') {
-      window.dispatchEvent(new CustomEvent('openEditSpacePanel', { detail: { contentId, contentType, initialTab: 'people' } }));
+      window.dispatchEvent(new CustomEvent('openEditSpacePeoplePanel', { detail: { contentId, contentType } }));
       return;
     }
     if (action === 'openNoteDetailsThreads') {

@@ -113,7 +113,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
     <!-- Prefetch critical routes for faster navigation -->
     <link rel="prefetch" href="/" />
     <link rel="prefetch" href="/new-space" />
-    <link rel="prefetch" href="/find" />
+    <link rel="prefetch" href="/search" />
     <link rel="prefetch" href="/profile" />
     
     <!-- PostHog Analytics (Official Astro Integration) -->
@@ -239,7 +239,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         if (typeof window === 'undefined') return;
         
         const prefetchCriticalPaths = () => {
-          const paths = ['/', '/new-space', '/find', '/profile'];
+          const paths = ['/', '/new-space', '/search', '/profile'];
           paths.forEach(path => {
             const link = document.createElement('link');
             link.rel = 'prefetch';

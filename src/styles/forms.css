@@ -74,7 +74,7 @@
   & svg {
     width: 20px;
     height: 20px;
-    fill: var(--color-deep-grey);
+    fill: var(--color-pebble-grey);
   }
 }
 

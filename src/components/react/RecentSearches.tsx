@@ -79,68 +79,47 @@ const RecentSearches: React.FC = () => {
 
   return (
     <div className="flex flex-col gap-3">
-<div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {recentSearches.map((search) => (
           <div key={search.term} className="recent-search-item">
-            <div className="relative nav-item-container">
-              <button 
-                className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-4 group w-full text-left" 
-                style={{
-                  backgroundImage: 'var(--color-gradient-gray)',
-                  color: 'var(--color-deep-grey)'
-                }}
+            <div
+              className="relative nav-item-container rounded-3xl min-h-[64px] py-5 px-4 flex items-center gap-3"
+              style={{ background: 'var(--color-gradient-gray)', boxShadow: 'var(--shadow-small)' }}
+            >
+              <button
+                type="button"
+                className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer transition-[scale,shadow] duration-300"
+                style={{ color: 'var(--color-deep-grey)' }}
                 onClick={(e) => {
-                  // Don't navigate if clicking on close icon
-                  if ((e.target as HTMLElement).closest('.recent-search-close-icon')) {
-                    return;
-                  }
-                  // Navigate to search results
+                  if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
                   safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
-                <div className="flex items-center">
-                  <span className="font-sans text-[18px] font-semibold">
-                    {search.term}
-                  </span>
-                  <span className="badge-count bg-[rgba(120,118,111,0.1)] inline-flex items-center justify-center rounded-3xl w-6 h-6 ml-4 text-[14px] font-sans font-semibold leading-[0]">
-                    {search.count}
-                  </span>
-                </div>
+                <span className="font-sans text-[18px] font-semibold truncate">
+                  {search.term}
+                </span>
+                <span className="badge-count bg-[rgba(120,118,111,0.1)] inline-flex items-center justify-center rounded-3xl w-6 h-6 flex-shrink-0 text-[14px] font-sans font-semibold leading-[0]">
+                  {search.count}
+                </span>
               </button>
-              {/* Close icon - always visible, matches SpaceButton close handler pattern */}
-              <div
+              <button
+                type="button"
                 onClick={(e: React.MouseEvent) => {
                   e.stopPropagation();
                   e.preventDefault();
                   removeFromRecentSearches(search.term);
                 }}
-                className="recent-search-close-icon absolute top-1/2 right-4 transform -translate-y-1/2 flex items-center justify-center w-6 h-6 cursor-pointer"
-                data-item-id={search.term}
+                className="recent-search-close-icon flex items-center justify-center flex-shrink-0 w-6 h-6 cursor-pointer p-0 border-0 bg-transparent ml-auto"
+                aria-label="Remove from recent searches"
               >
-                <svg 
-                  width="20" 
-                  height="20"
-                  className="fill-[var(--color-pebble-grey)]" 
-                  viewBox="0 0 384 512"
-                  aria-hidden="true"
-                >
+                <svg width="20" height="20" className="fill-[var(--color-pebble-grey)]" viewBox="0 0 384 512" aria-hidden="true">
                   <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
                 </svg>
-              </div>
+              </button>
             </div>
           </div>
         ))}
       </div>
-      
-      {/* CSS for close icon - always visible */}
-      <style>{`
-        .recent-search-item .recent-search-close-icon {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 50;
-        }
-      `}</style>
     </div>
   );
 };

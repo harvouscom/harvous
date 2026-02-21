@@ -606,7 +606,7 @@ export default function NoteDetailsPanel({
                     {/* Current Threads - directly below tab */}
                     <div className="tab-content__section--shrink">
                       {localThreads.length === 0 ? (
-                        <div className="panel__empty-state">No threads found for this note.</div>
+                        <div className="panel__empty-state">No threads found for this note</div>
                       ) : (
                         <div className="panel__item-list">
                           {localThreads.map((thread: Thread) => (
@@ -656,8 +656,8 @@ export default function NoteDetailsPanel({
                         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                           {localTags.length === 0 ? (
                             <div className="panel__empty-state-with-description">
-                              <p>No tags found for this note.</p>
-                              <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes.</p>
+                              <p>No tags found for this note</p>
+                              <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes</p>
                             </div>
                           ) : (
                             <div className="tag-list">
@@ -708,10 +708,7 @@ export default function NoteDetailsPanel({
                     {activeTab === 'notes' && isScriptureNote && (
                       <div className="tab-content__section">
                         {localReferencingNotes.length === 0 ? (
-                          <div className="panel__empty-state-with-description">
-                            <p>No notes reference this scripture yet.</p>
-                            <p className="panel__empty-state-description">When you reference this scripture in other notes, they'll appear here.</p>
-                          </div>
+                          <div className="panel__empty-state">No notes reference this scripture yet</div>
                         ) : (
                           <div className="panel__item-list">
                             {localReferencingNotes.map((refNote: ReferencingNote) => (
