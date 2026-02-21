@@ -33,22 +33,22 @@ function safeToast(callback: () => void, type: string, message: string) {
 export const toast = {
   success: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.success(cleanedMessage, { icon: null }), 'success', cleanedMessage);
+    safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
   },
   
   error: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.error(cleanedMessage, { icon: null }), 'error', cleanedMessage);
+    safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
   },
   
   info: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.info(cleanedMessage, { icon: null }), 'info', cleanedMessage);
+    safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'info', cleanedMessage);
   },
   
   warning: (message: string) => {
     const cleanedMessage = stripPunctuation(message);
-    safeToast(() => sonnerToast.warning(cleanedMessage, { icon: null }), 'warning', cleanedMessage);
+    safeToast(() => sonnerToast.warning(cleanedMessage, { icon: null, duration: 4000 }), 'warning', cleanedMessage);
   },
   
   // Generic toast function
@@ -56,16 +56,16 @@ export const toast = {
     const cleanedMessage = stripPunctuation(message);
     switch (type) {
       case 'success':
-        safeToast(() => sonnerToast.success(cleanedMessage, { icon: null }), 'success', cleanedMessage);
+        safeToast(() => sonnerToast.success(cleanedMessage, { icon: null, duration: 4000 }), 'success', cleanedMessage);
         break;
       case 'error':
-        safeToast(() => sonnerToast.error(cleanedMessage, { icon: null }), 'error', cleanedMessage);
+        safeToast(() => sonnerToast.error(cleanedMessage, { icon: null, duration: 4000 }), 'error', cleanedMessage);
         break;
       case 'info':
-        safeToast(() => sonnerToast.info(cleanedMessage, { icon: null }), 'info', cleanedMessage);
+        safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'info', cleanedMessage);
         break;
       case 'warning':
-        safeToast(() => sonnerToast.warning(cleanedMessage, { icon: null }), 'warning', cleanedMessage);
+        safeToast(() => sonnerToast.warning(cleanedMessage, { icon: null, duration: 4000 }), 'warning', cleanedMessage);
         break;
     }
   },

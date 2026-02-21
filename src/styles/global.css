@@ -1462,11 +1462,6 @@ button .menu-item__label {
 @media (display-mode: standalone) {
   .sheet-overlay {
     top: env(safe-area-inset-top) !important;
-    inset: unset !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
   }
 }
 

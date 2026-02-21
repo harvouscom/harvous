@@ -10,6 +10,7 @@ import { getSeasonalXP, getLifetimeXP } from "@/utils/xp-system";
 import { getSeasonDisplayName } from "@/utils/season-helpers";
 import { getThreadGradientCSS } from "@/utils/colors";
 import { getCachedUserData, type CachedUserData } from '@/utils/user-cache';
+import { formatMonthYearUTC } from '@/utils/date-formatting';
 import { db, UserMetadata, eq } from 'astro:db';
 import ProfilePageReact from "@/components/ProfilePageReact.astro";
 import ProfileContent from "@/components/profile/ProfileContent.astro";
@@ -49,18 +50,13 @@ try {
 
 const { firstName, lastName, email, initials, displayName, userColor, createdAt } = userData;
 
-// Format join date in UTC so it is consistent across server timezones and PWA vs browser (avoids cache/timezone mismatches)
+// Format join date in UTC so it is consistent across server timezones and PWA vs browser.
+// Use formatMonthYearUTC (hard-coded MMM) so iOS PWA doesn't show full month name.
 let joinDate: string;
 if (createdAt) {
-  const joinDateObj = new Date(createdAt);
-  const month = joinDateObj.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
-  const year = joinDateObj.getUTCFullYear();
-  joinDate = `${month} ${year}`;
+  joinDate = formatMonthYearUTC(new Date(createdAt));
 } else {
-  const currentDate = new Date();
-  const month = currentDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' });
-  const year = currentDate.getUTCFullYear();
-  joinDate = `${month} ${year}`;
+  joinDate = formatMonthYearUTC(new Date());
 }
 
 // Fetch navigation data and church data

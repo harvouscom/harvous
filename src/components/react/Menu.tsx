@@ -641,8 +641,9 @@ export default function Menu({
       }
 
         // Redirect based on content type (only reached if response.ok was true)
+        // Omit toast params when we already showed the toast (deletedOffline)
         let redirectUrl: string;
-        const toastQuery = `?toast=success&message=${encodeURIComponent(successMessage)}`;
+        const toastQuery = deletedOffline ? '' : `?toast=success&message=${encodeURIComponent(successMessage)}`;
         if (contentType === 'note') {
           // Priority 1: If we're on a thread page, always redirect back to that thread
           // This ensures deleting a note from a thread page keeps us on that thread

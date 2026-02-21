@@ -1,3 +1,14 @@
+/** Short month names for "MMM YYYY" format. Avoids iOS PWA ignoring en-US and showing full month. */
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+/**
+ * Format a date as "MMM YYYY" in UTC. Uses hard-coded month abbreviations to avoid
+ * iOS PWA ignoring toLocaleDateString('en-US', { month: 'short' }) and showing full month names.
+ */
+export function formatMonthYearUTC(date: Date): string {
+  return `${MONTHS_SHORT[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
 export function getRelativeTime(date: Date): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import {
   Sheet,
@@ -529,6 +529,29 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       cancelAnimationFrame(raf);
       window.clearTimeout(t);
     };
+  }, [isVisible]);
+
+  // Clear overlay inline styles when sheet closes so Radix's CSS transition can fire and transitionend triggers unmount (fixes multi-tap after dismiss)
+  useLayoutEffect(() => {
+    if (isVisible) return;
+    const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+    if (overlay) {
+      overlay.style.opacity = '';
+      overlay.style.transition = '';
+    }
+  }, [isVisible]);
+
+  // Post-close safety net: if overlay is still in DOM after animations, force non-interactive so it cannot block taps
+  useEffect(() => {
+    if (isVisible) return;
+    const t = window.setTimeout(() => {
+      const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
+      if (overlay) {
+        overlay.style.pointerEvents = 'none';
+        overlay.style.opacity = '0';
+      }
+    }, 500);
+    return () => window.clearTimeout(t);
   }, [isVisible]);
 
   // Don't render on desktop

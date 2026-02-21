@@ -623,20 +623,18 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       return hasClerkCookie || isProtectedRoute;
     }
 
-    // Helper to show toast - tries multiple methods
+    // Helper to show toast - use one path only to avoid double toast
     function showToastWithRetry(message: string) {
-      // Method 1: Dispatch showToast event (handled by Layout.astro listener)
-      window.dispatchEvent(new CustomEvent('showToast', {
-        detail: { message, type: 'success' }
-      }));
-      
-      // Method 2: Try window.toast directly (toast utility handles portal waiting internally)
       if (window.toast && typeof window.toast.success === 'function') {
         try {
           window.toast.success(message);
         } catch (error) {
           console.error('[Shared Content Handler] Error calling window.toast:', error);
         }
+      } else {
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: { message, type: 'success' }
+        }));
       }
     }
 
@@ -790,7 +788,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
       return;
     }
     if (window.toast && typeof type === 'string' && type in window.toast) {
-      const toastMethod = (window.toast as Record<string, (m: string) => void>)[type];
+      const toastMethod = (window.toast as unknown as Record<string, (m: string) => void>)[type];
       if (typeof toastMethod === 'function') {
         toastMethod(message ?? '');
       }
