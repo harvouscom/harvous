@@ -13,6 +13,8 @@ export interface ScriptureNoteFormProps {
   onEditorInstanceReady?: (editor: any) => void;
   parentThreadId?: string;
   toolbarAtBottom?: boolean;
+  /** When toolbarAtBottom, margin below toolbar in px. Default 12. */
+  toolbarBottomMargin?: number;
 }
 
 /**
@@ -28,6 +30,7 @@ export default function ScriptureNoteForm({
   parentThreadId,
   onEditorInstanceReady,
   toolbarAtBottom = false,
+  toolbarBottomMargin = 12,
 }: ScriptureNoteFormProps) {
   return (
     <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
@@ -60,6 +63,7 @@ export default function ScriptureNoteForm({
               tabindex={2}
               minimalToolbar={false}
               toolbarAtBottom={toolbarAtBottom}
+              toolbarBottomMargin={toolbarBottomMargin}
               onEditorReady={onEditorReady}
               onContentChange={onContentChange}
               parentThreadId={parentThreadId}
