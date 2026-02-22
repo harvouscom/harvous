@@ -1458,11 +1458,9 @@ button .menu-item__label {
   }
 }
 
-/* PWA standalone/minimal-ui: app-layout has padding-top: 0, overlay must start below system status bar */
-@media (display-mode: standalone), (display-mode: minimal-ui) {
-  .sheet-overlay {
-    top: env(safe-area-inset-top, 0px) !important;
-  }
+/* iOS PWA only: overlay must start below system status bar (class set by App IosPwaClass) */
+.ios-pwa .sheet-overlay {
+  top: env(safe-area-inset-top, 0px) !important;
 }
 
 /* Sheet content positioning — replaces Tailwind classes (z-50, fixed, inset-x-0, bottom-0)

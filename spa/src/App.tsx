@@ -77,6 +77,24 @@ const windowToast = {
   },
 };
 
+/** Set .ios-pwa on documentElement when running as PWA on iOS so overlay starts below status bar only there. */
+function IosPwaClass() {
+  useEffect(() => {
+    const isPwa =
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(display-mode: standalone)').matches ||
+        window.matchMedia('(display-mode: minimal-ui)').matches);
+    const isIos =
+      typeof navigator !== 'undefined' &&
+      /iPhone|iPad|iPod/.test(navigator.userAgent);
+    if (isPwa && isIos) {
+      document.documentElement.classList.add('ios-pwa');
+      return () => document.documentElement.classList.remove('ios-pwa');
+    }
+  }, []);
+  return null;
+}
+
 function ToastSetup() {
   useEffect(() => {
     // Make toast available globally (same as Layout.astro)
@@ -413,6 +431,7 @@ export default function App() {
   return (
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
+        <IosPwaClass />
         <ToastSetup />
         <UserIdSync />
         <SpaToaster />

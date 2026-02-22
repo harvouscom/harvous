@@ -108,6 +108,15 @@ export default function AppLayout() {
       el.classList.add('route-fade-in');
     }
 
+    // Reset scroll so new page is not pushed down by any persisted scroll position
+    if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0;
+    if (document.body.scrollTop) document.body.scrollTop = 0;
+    for (const el of targets) {
+      if (!el) continue;
+      const scroll = el.querySelector('.main-column__scroll');
+      if (scroll && scroll.scrollTop) (scroll as HTMLElement).scrollTop = 0;
+    }
+
     // Emit astro:page-load so shared components (content lists, navigation,
     // etc.) that relied on Astro View Transitions still get notified of route
     // changes in the SPA.
