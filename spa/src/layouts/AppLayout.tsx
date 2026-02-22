@@ -99,9 +99,13 @@ export default function AppLayout() {
     window.toast.pwaPrompt(message);
   }, [isLoaded, isSignedIn]);
 
-  // Close any open desktop panel when the route changes (panel manager stays mounted across routes).
-  // Also clear localStorage panel keys so LOAD_FROM_STORAGE doesn't reopen them on next mount.
+  // Close any open desktop panel only when pathname actually changes (real navigation).
+  // Use a ref so we don't clear panels on initial mount or when pathname hasn't changed,
+  // avoiding races where the panel is closed right after the user opens it on the same route.
+  const prevPathnameForPanelsRef = useRef<string | null>(null);
   useEffect(() => {
+    if (prevPathnameForPanelsRef.current === pathname) return;
+    prevPathnameForPanelsRef.current = pathname;
     localStorage.removeItem('showNewNotePanel');
     localStorage.removeItem('showNewThreadPanel');
     localStorage.removeItem('showNewResourcePanel');
@@ -294,6 +298,7 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
+            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
             )}
@@ -374,6 +379,7 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
+            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
             )}

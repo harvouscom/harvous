@@ -280,6 +280,14 @@ export default function ActionStrip({
   };
 
   const dispatchAction = (action: string) => {
+    if (action === 'openNewNotePanel') {
+      window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+      return;
+    }
+    if (action === 'openNewThreadPanel') {
+      window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
+      return;
+    }
     if (action === 'openEditSpacePanelPeople') {
       window.dispatchEvent(new CustomEvent('openEditSpacePeoplePanel', { detail: { contentId, contentType } }));
       return;
