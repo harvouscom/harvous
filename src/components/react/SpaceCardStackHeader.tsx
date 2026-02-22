@@ -66,6 +66,10 @@ export default function SpaceCardStackHeader({
   const backgroundGradient = getThreadGradientCSS(color);
   const textColor = getThreadTextColorCSS(color);
 
+  const handleClick = () => {
+    window.dispatchEvent(new CustomEvent('openEditSpacePanel', { detail: { contentId: spaceId, contentType: 'space' } }));
+  };
+
   return (
     <div 
       className="card-stack__header"
@@ -77,6 +81,11 @@ export default function SpaceCardStackHeader({
         backgroundColor: 'transparent',
         color: textColor
       }}
+      onClick={handleClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(); } }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Edit space ${title}`}
     >
       <div className="page-heading page-heading--center card-stack__header-inner">
         <p>{title}</p>

@@ -55,6 +55,43 @@ const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
+/** Preload panel chunks so opening a panel resolves Suspense immediately (shared cache with lazy). */
+function preloadPanelChunks() {
+  const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
+  schedule(() => {
+    const preloads = [
+      () => import('./NewNotePanel'),
+      () => import('./NewThreadPanel'),
+      () => import('./NoteDetailsPanel'),
+      () => import('./EditThreadPanel'),
+      () => import('./EditSpacePanel'),
+      () => import('./EditSpacePeoplePanel'),
+      () => import('./MySpacesPanel'),
+      () => import('./EditNameColorPanel'),
+    ];
+    preloads.forEach((fn) => fn().catch(() => {}));
+  });
+}
+
+/** Shows nothing for delayMs, then children (e.g. ProgressBarFallback) so fast loads don't flash. */
+function DelayedFallback({
+  delayMs,
+  containerClasses,
+  children,
+}: {
+  delayMs: number;
+  containerClasses: string;
+  children: React.ReactNode;
+}) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  if (!show) return <div className={containerClasses} style={{ minHeight: 0 }} />;
+  return <>{children}</>;
+}
+
 interface DesktopPanelManagerProps {
   currentThread?: any;
   currentSpace?: any;
@@ -463,6 +500,11 @@ export default function DesktopPanelManager({
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
 
+  // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
+  useEffect(() => {
+    preloadPanelChunks();
+  }, []);
+
   // Load panel state from localStorage on mount
   useEffect(() => {
     // Check if there's a pending panel open request BEFORE clearing
@@ -827,8 +869,8 @@ export default function DesktopPanelManager({
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" />}>
-            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full new-note-panel-container hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block content-fade-in" style={{ width: '100%', minWidth: 0 }}>
               <NewNotePanel
                 key={`new-note-${state.panelKey}`}
                 currentThread={currentThread}
@@ -843,8 +885,8 @@ export default function DesktopPanelManager({
       {/* New Thread Panel - Desktop Only */}
       {state.activePanel === 'newThread' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full w-full flex-1 hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full w-full flex-1 hidden min-[1160px]:block content-fade-in" style={{ width: '100%', minWidth: 0 }}>
               <NewThreadPanel
                 key={`new-thread-${state.panelKey}`}
                 currentSpace={currentSpace}
@@ -858,8 +900,8 @@ export default function DesktopPanelManager({
       {/* New Resource Panel - Desktop Only */}
       {state.activePanel === 'newResource' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" />}>
-            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block" style={{ width: '100%', minWidth: 0 }}>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full new-note-panel-container hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full new-note-panel-container hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full w-full flex-1 new-note-panel-container hidden min-[1160px]:block content-fade-in" style={{ width: '100%', minWidth: 0 }}>
               <NewNotePanel
                 key={`new-resource-${state.panelKey}`}
                 currentThread={currentThread}
@@ -875,8 +917,8 @@ export default function DesktopPanelManager({
       {/* Note Details Panel (notes only) - Desktop Only */}
       {state.activePanel === 'noteDetails' && contentType === 'note' && currentNote && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <NoteDetailsPanel 
                 noteId={currentNote.id} 
                 noteTitle={currentNote.title || "Note Details"}
@@ -895,8 +937,8 @@ export default function DesktopPanelManager({
       {/* Edit Thread Panel (threads only) - Desktop Only */}
       {state.activePanel === 'editThread' && contentType === 'thread' && currentThread && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <EditThreadPanel 
                 threadId={currentThread.id}
                 initialTitle={currentThread.title}
@@ -911,8 +953,8 @@ export default function DesktopPanelManager({
       {/* Edit Space Panel (spaces only) - Desktop Only */}
       {state.activePanel === 'editSpace' && contentType === 'space' && currentSpace && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <EditSpacePanel
                 spaceId={currentSpace.id}
                 initialTitle={currentSpace.title}
@@ -927,8 +969,8 @@ export default function DesktopPanelManager({
       {/* Edit Space People Panel (spaces only) - Desktop Only */}
       {state.activePanel === 'editSpacePeople' && contentType === 'space' && currentSpace && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <EditSpacePeoplePanel
                 spaceId={currentSpace.id}
                 spaceTitle={currentSpace.title}
@@ -943,8 +985,8 @@ export default function DesktopPanelManager({
       {/* Note Share Panel - Desktop Only */}
       {state.activePanel === 'noteShare' && noteShareData && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <NoteSharePanel
                 key={`note-share-${state.panelKey}`}
                 noteId={noteShareData.noteId}
@@ -960,8 +1002,8 @@ export default function DesktopPanelManager({
       {/* Pin Entry Panel (Lock / Unlock note) - Desktop Only */}
       {state.activePanel === 'pinEntry' && pinEntryData && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <PinEntryPanel
                 key={`pin-entry-${state.panelKey}`}
                 noteId={pinEntryData.noteId}
@@ -979,7 +1021,7 @@ export default function DesktopPanelManager({
       {/* Inbox Item Preview Panel - Desktop Only */}
       {state.activePanel === 'inboxPreview' && inboxPreviewData && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block" style={{ height: '100%', maxHeight: '100%', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
               <InboxItemPreviewPanel
                 key={`inbox-preview-${state.panelKey}`}
@@ -1007,8 +1049,8 @@ export default function DesktopPanelManager({
       {/* Profile Panels - Desktop Only */}
       {contentType === 'profile' && state.activePanel === 'mySpaces' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <MySpacesPanel key="my-spaces" onClose={handleCloseMySpaces} inBottomSheet={false} />
             </div>
           </Suspense>
@@ -1017,8 +1059,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'myAchievements' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <MyAchievementsPanel
                 key="my-achievements"
                 onClose={handleCloseMyAchievements}
@@ -1031,8 +1073,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'myChurch' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <MyChurchPanel key="my-church" onClose={handleCloseMyChurch} inBottomSheet={false} />
             </div>
           </Suspense>
@@ -1041,8 +1083,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'mySharing' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <MySharingPanel key="my-sharing" onClose={handleCloseMySharing} inBottomSheet={false} />
             </div>
           </Suspense>
@@ -1051,8 +1093,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'editNameColor' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <EditNameColorPanel
                 key="edit-name-color"
                 onClose={handleCloseEditNameColor}
@@ -1065,8 +1107,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'emailPassword' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <EmailPasswordPanel
                 key="email-password"
                 onClose={handleCloseEmailPassword}
@@ -1079,8 +1121,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'manageBilling' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <ManageBillingPanel
                 key="manage-billing"
                 onClose={handleCloseManageBilling}
@@ -1094,8 +1136,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'referral' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <ReferralPanel
                 key="referral"
                 onClose={handleCloseReferral}
@@ -1108,8 +1150,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'myData' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <MyDataPanel key="my-data" onClose={handleCloseMyData} inBottomSheet={false} />
             </div>
           </Suspense>
@@ -1118,8 +1160,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'getSupport' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <GetSupportPanel key="get-support" onClose={handleCloseGetSupport} inBottomSheet={false} version={version} />
             </div>
           </Suspense>
@@ -1128,8 +1170,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'lockPin' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <LockPinPanel key="lock-pin" onClose={handleCloseLockPin} inBottomSheet={false} />
             </div>
           </Suspense>
@@ -1138,8 +1180,8 @@ export default function DesktopPanelManager({
 
       {contentType === 'profile' && state.activePanel === 'aboutHarvous' && (
         <PanelErrorBoundary>
-          <Suspense fallback={<ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" />}>
-            <div className="h-full hidden min-[1160px]:block">
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
               <AboutHarvousPanel key="about-harvous" onClose={handleCloseAboutHarvous} inBottomSheet={false} />
             </div>
           </Suspense>

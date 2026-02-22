@@ -1471,6 +1471,7 @@ button .menu-item__label {
 .sheet-overlay[data-state="open"] {
   opacity: 1;
   pointer-events: auto;
+  transition: opacity 0.15s ease-out;
 }
 
 .sheet-overlay[data-state="closed"] {
