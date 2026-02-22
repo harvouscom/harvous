@@ -91,15 +91,15 @@ Many thanks to my friends **Cameron Pak** and **Corey Moen** for their initial s
 
 Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](https://hey.com) for email and [Fizzy](https://fizzy.do) to get work done, and we're grateful for their commitment to building thoughtful software and supporting the open source community.
 
-## Technologies:
-- [Astro](https://astro.build) - SSR framework
-- [React](https://react.dev) - Interactive components
-- [Turso](https://turso.tech) - Serverless database
-- [Clerk](https://clerk.com) - Authentication
-- [Tiptap](https://tiptap.dev) - Rich text editing
-- [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS) - Semantic CSS classes
-- [Radix UI](https://radix-ui.com) - Component primitives
-- [Netlify](https://netlify.com) - Hosting
+## Technologies
+
+- **Frontend (production)**: [React](https://react.dev) SPA built with [Vite](https://vite.dev), [TanStack Router](https://tanstack.com/router), [TanStack Query](https://tanstack.com/query/latest) (React Query), [Clerk](https://clerk.com) (auth)
+- **Backend / API**: [Astro](https://astro.build) SSR and API routes deployed as [Netlify](https://netlify.com) serverless functions
+- **Database**: [Astro DB](https://docs.astro.build/en/guides/astro-db/) with [Turso](https://turso.tech) (serverless SQL)
+- **Editing & UI**: [Tiptap](https://tiptap.dev) (rich text), [Radix UI](https://radix-ui.com) (primitives), [Lucide React](https://lucide.dev) (icons), [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS) (semantic classes, no Tailwind)
+- **Tooling**: [TypeScript](https://www.typescriptlang.org/), [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e), [Capacitor](https://capacitorjs.com) (PWA/native)
+
+For full stack details and versions, see [docs/TECH_STACK.md](./docs/TECH_STACK.md).
 
 ---
 

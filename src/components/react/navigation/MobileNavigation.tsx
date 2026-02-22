@@ -920,8 +920,26 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   // When viewing a note in unorganized without having opened the thread view first, thread_unorganized
   // may never have been added to navigationHistory — inject it so "Unorganized" appears in the nav.
   const persistentItemsWithActiveParent = (() => {
-    if (!currentItemId.startsWith('note_')) return persistentItems;
-    const activeParentThreadId = currentActiveItemId;
+    // Detect note page: currentItemId can be "note_xxx" (after extractIdFromPath) or pathname "/note/xxx" (SPA initialPath)
+    const isOnNotePage = currentItemId.startsWith('note_') || pathnameProp.startsWith('/note/');
+    if (!isOnNotePage) return persistentItems;
+    // Resolve parent thread id: may already be currentActiveItemId, or resolve when currentItemId is still the path
+    let activeParentThreadId = currentActiveItemId;
+    if (!activeParentThreadId || !activeParentThreadId.startsWith('thread_')) {
+      if (currentThread?.id && currentThread.id.startsWith('thread_')) activeParentThreadId = currentThread.id;
+      else if (activeThreadFromDom?.id && activeThreadFromDom.id.startsWith('thread_')) activeParentThreadId = activeThreadFromDom.id;
+      else if (typeof document !== 'undefined') {
+        const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+        const fromNote = noteEl?.dataset?.parentThreadId ?? null;
+        if (fromNote && fromNote.startsWith('thread_')) activeParentThreadId = fromNote;
+        else {
+          const navEl = (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ?? (document.querySelector('[slot="navigation"]') as HTMLElement | null);
+          const fromNav = navEl?.dataset?.parentThreadId ?? null;
+          if (fromNav && fromNav.startsWith('thread_')) activeParentThreadId = fromNav;
+          else activeParentThreadId = 'thread_unorganized';
+        }
+      } else activeParentThreadId = 'thread_unorganized';
+    }
     if (!activeParentThreadId || !activeParentThreadId.startsWith('thread_')) return persistentItems;
     if (persistentItems.some((i: any) => i.id === activeParentThreadId)) return persistentItems;
 
