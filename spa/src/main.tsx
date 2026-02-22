@@ -41,6 +41,7 @@ import '@fontsource/reddit-mono/600.css';
 // navigation, cards, forms, panels, animations, layout, utilities.
 // Only import separately what global.css does NOT include.
 import '../../src/styles/global.css';
+import '../../src/styles/action-strip.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';

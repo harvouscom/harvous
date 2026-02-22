@@ -19,7 +19,7 @@ if (!userId) {
 }
 
 // Set cache headers to reduce function invocations on repeat visits
-Astro.response.headers.set('Cache-Control', 'private, no-cache');
+Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
 // Get subscription info (pass auth object to use has() method)
 const subscriptionInfo = await getSubscriptionInfo(userId, auth);

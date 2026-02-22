@@ -72,7 +72,7 @@ export const GET: APIRoute = async ({ locals }) => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'private, no-cache'
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' // Cache 1 min, serve stale up to 3 min while revalidating
       }
     });
   } catch (error) {

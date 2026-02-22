@@ -56,7 +56,7 @@ if (!userId) {
 
 // Set cache headers to reduce function invocations on repeat visits
 // Note: Search results vary by query param, but caching the page structure is beneficial
-Astro.response.headers.set('Cache-Control', 'private, no-cache');
+Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
 
 // Try to fetch user data from Clerk API using secret key
 let userData: any = null;

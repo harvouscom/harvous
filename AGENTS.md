@@ -3,8 +3,9 @@
 ## Quick Commands
 
 ```bash
-npm run dev              # Dev server on port 4321
-npm run build            # Production build (prebuild injects package version into public/sw.js so PWA cache invalidates on deploy)
+npm run dev              # Astro SSR dev server on port 4321 (NOT what production serves)
+npm run dev:spa          # SPA dev server on port 4322 (proxies /api to 4321) — use this to test production-like UI
+npm run build            # Production build (astro build + vite build; dist-spa/ copied over dist/; prebuild injects version into public/sw.js)
 npm run db:sync          # Sync database schema
 npm run db:push          # Push schema to remote
 npm run db:check         # Pre-commit schema check
@@ -14,48 +15,61 @@ npm run test:e2e:setup   # Seed e2e data (local + remote) then run e2e
 
 ## Architecture Overview
 
-**Harvous** is a Bible study notes app built with Astro + React Islands + Turso database. Three-level hierarchy: Spaces → Threads → Notes.
+**Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Astro DB (Turso), schema in `db/config.ts`.
 
-- **Frontend**: Astro pages (SSR) + React islands for interactive components
-- **Database**: Astro DB (Turso) with schema in `db/config.ts`
-- **Auth**: Clerk via `src/middleware.ts`
-- **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`
+- **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
+- **API backend**: Astro SSR functions in `src/pages/api/` deployed as Netlify serverless functions.
+- **Astro SSR app** (`src/pages/*.astro`, `src/layouts/Layout.astro`): Development-only. Works with `npm run dev` but is NOT served in production. Netlify build copies `dist-spa/` over `dist/`, so the SPA's `index.html` is what gets served.
+- **Shared React components**: `src/components/react/` are imported by both the SPA and the Astro SSR app. UI changes that must ship to production should be made in `spa/src/` or these shared components. Changes only in `src/pages/*.astro` or `src/layouts/Layout.astro` do NOT affect production.
+- **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`. Astro middleware in `src/middleware.ts` for SSR.
+- **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`.
 
 ## Project Structure
 
 ```
+spa/                         # PRODUCTION FRONTEND (Vite SPA)
+  src/
+    layouts/                 # AppLayout.tsx (authenticated), AuthLayout.tsx
+    pages/                   # DashboardPage, NotePage, ThreadPage, SpacePage, etc.
+    hooks/queries/           # React Query hooks (useNote, useThread, useSpace, ...)
+    router.tsx               # TanStack Router route definitions
+    main.tsx                 # Entry point, global CSS imports
+    lib/api.ts               # API client wrapper
+    shims/                   # Astro module shims (e.g. astro:transitions/client for safeNavigate)
 src/
-├── pages/            # Astro routes
-│   ├── dashboard.astro
-│   └── api/          # API endpoints
-├── components/
-│   ├── react/        # React islands (interactive)
-│   └── *.astro       # Static Astro components
-├── utils/            # Helpers: dashboard-data, auto-tag-generator, scripture-detector
-├── actions/          # Server actions for CRUD
-└── styles/           # Vanilla CSS (semantic classes)
-db/config.ts          # Database schema & relationships
+  pages/api/                 # API endpoints (production — Netlify functions)
+  pages/*.astro              # SSR pages (development only — NOT served in production)
+  layouts/                   # Layout.astro, EmptyLayout.astro (SSR only)
+  components/react/          # Shared React components (used by BOTH SPA and SSR)
+  utils/                     # Shared utilities
+  actions/                   # Server actions for CRUD
+  styles/                    # Vanilla CSS (imported by both SPA and SSR)
+db/config.ts                 # Database schema & relationships
+public/                      # Static assets, sw.js, manifest.json
 ```
 
 ## Code Style
 
-- **TypeScript**: Strict mode, `@/` path aliases for imports
-- **React Components**: Use hooks, place in `src/components/react/`, name as `PascalCase.tsx`
-- **Astro Components**: Static/server-rendered only, name as `PascalCase.astro`
-- **CSS**: Semantic classes (no Tailwind), CSS variables for colors, organized by component
-- **Formatting**: Prettier (2 spaces, 120 char line width, trailing commas off)
+- **TypeScript**: Strict mode, `@/` path aliases for imports (in both `src/` and `spa/` via vite resolve alias).
+- **React Components**: Use hooks; shared ones in `src/components/react/` (PascalCase.tsx); SPA-specific in `spa/src/`.
+- **Astro Components**: Used only in the SSR app; name as `PascalCase.astro`.
+- **CSS**: Semantic classes (no Tailwind), CSS variables for colors, organized by component.
+- **Formatting**: Prettier (2 spaces, 120 char line width, trailing commas off).
 
 ## Key Patterns
 
-- **React Islands**: Use `client:load` for critical interactive components, `client:visible` for below-fold
-- **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`
-- **Events**: CustomEvents for cross-component updates (e.g., `noteAddedToThread`)
-- **Inline Scripts**: Only use script tags with attribute `is:inline` when you embed third‑party scripts from CDNs (analytics, SDKs, ads, etc.) OR you explicitly need a literal inline script tag in the rendered HTML instead of Astro’s bundled module behavior.
+- **CRITICAL — Production = SPA, not SSR.** For UI changes that must appear in production, edit `spa/src/` (e.g. `spa/src/layouts/AppLayout.tsx`, `spa/src/pages/*.tsx`) or shared `src/components/react/`. Changes only to `src/pages/*.astro` or `src/layouts/Layout.astro` affect `npm run dev` only and will NOT appear in production.
+- **Netlify build**: `astro build` (API + SSR output) then `vite build` (SPA → dist-spa/) then `cp -r dist-spa/. dist/`. The SPA's index and assets overwrite Astro's in `dist/`.
+- **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router.
+- **Data fetching**: React Query hooks in `spa/src/hooks/queries/`. API calls via `spa/src/lib/api.ts`.
+- **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`.
+- **Events**: CustomEvents for cross-component updates (e.g. `noteAddedToThread`).
+- **Inline Scripts** (Astro SSR only): Use `is:inline` only when embedding third‑party scripts from CDNs or when you need a literal inline script in the HTML.
 
 ## Important Files
 
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
-- `docs/REACT_ISLANDS_STRATEGY.md` - Component migration patterns, implementation details
+- `docs/REACT_ISLANDS_STRATEGY.md` - Astro SSR / React islands (legacy); production is SPA
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
 

@@ -13,6 +13,7 @@ import MobileNavigation from '../../../src/components/react/navigation/MobileNav
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
 import MobileBottomSheetWithContext from '../../../src/components/react/MobileBottomSheetWithContext';
 import SquareButton from '../../../src/components/react/SquareButton';
+import ActionStrip from '../../../src/components/react/ActionStrip';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
@@ -205,12 +206,18 @@ export default function AppLayout() {
     ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
     : (activeThread?.spaceId ? (allSpaces.find(s => s.id === activeThread.spaceId) ?? { id: activeThread.spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
 
-  // Note-specific data for SquareButton menu
+  // Note-specific data for ActionStrip / SquareButton
   const noteType = isNote ? (currentNote?.noteType ?? 'default') : undefined;
   const noteCurrentThreadId = noteParentThreadId ?? undefined;
   const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
+  const noteCreatedAt = isNote ? (currentNote?.createdAt ?? undefined) : undefined;
+  const contentEncrypted = isNote ? (currentNote?.contentEncrypted ?? false) : undefined;
+  const contentEncryptedServer = isNote ? (currentNote?.contentEncrypted ?? false) : undefined;
 
-  // contentOwnerId and userId for SquareButton — hide More / restrict options when member views another's content
+  // Space shared state for ActionStrip menu options
+  const spaceIsShared = isSpace ? (currentSpaceDetail?.isPublic ?? false) : false;
+
+  // contentOwnerId and userId for ActionStrip — hide strip / restrict options when member views another's content
   const contentOwnerId =
     isNote ? (currentNote?.userId ?? undefined)
     : isThread ? (currentThread?.userId ?? undefined)
@@ -269,15 +276,18 @@ export default function AppLayout() {
               className={`square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}
             >
               {contentType !== 'dashboard' && contentType !== 'profile' && !isUnorganized && (
-                <SquareButton
-                  variant="More"
-                  withMenu={true}
+                <ActionStrip
+                  variant="desktop"
                   contentType={contentType}
                   contentId={currentId}
-                  noteType={noteType}
                   currentThreadId={noteCurrentThreadId}
+                  noteType={noteType}
+                  contentEncrypted={contentEncrypted}
+                  contentEncryptedServer={contentEncryptedServer}
                   noteSimpleId={noteSimpleId}
-                  spaceRole={spaceRole ?? undefined}
+                  noteCreatedAt={noteCreatedAt}
+                  spaceRole={spaceRole}
+                  spaceIsShared={spaceIsShared}
                   contentOwnerId={contentOwnerId}
                   userId={user?.id}
                 />
@@ -321,22 +331,27 @@ export default function AppLayout() {
           <Outlet />
         </div>
 
-        {/* Bottom additional slot — More/Add buttons */}
+        {/* Bottom additional slot — ActionStrip + Add button */}
         {contentType !== 'profile' && (
           <div className={`mobile-additional square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}>
             {contentType !== 'dashboard' && !isUnorganized && (
-              <SquareButton
-                variant="More"
-                withMenu={true}
-                contentType={contentType}
-                contentId={currentId}
-                noteType={noteType}
-                currentThreadId={noteCurrentThreadId}
-                noteSimpleId={noteSimpleId}
-                spaceRole={spaceRole ?? undefined}
-                contentOwnerId={contentOwnerId}
-                userId={user?.id}
-              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <ActionStrip
+                  variant="mobile"
+                  contentType={contentType}
+                  contentId={currentId}
+                  currentThreadId={noteCurrentThreadId}
+                  noteType={noteType}
+                  contentEncrypted={contentEncrypted}
+                  contentEncryptedServer={contentEncryptedServer}
+                  noteSimpleId={noteSimpleId}
+                  noteCreatedAt={noteCreatedAt}
+                  spaceRole={spaceRole}
+                  spaceIsShared={spaceIsShared}
+                  contentOwnerId={contentOwnerId}
+                  userId={user?.id}
+                />
+              </div>
             )}
             <SquareButton variant="Add" withMenu={true} />
           </div>
