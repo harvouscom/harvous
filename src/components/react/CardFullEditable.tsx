@@ -105,10 +105,6 @@ export default function CardFullEditable({
   const [serverEncryptedOverride, setServerEncryptedOverride] = useState<boolean | null>(null);
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
-  const [contentOverflowing, setContentOverflowing] = useState(false);
-  const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
-  const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
-
   const cardRootRef = useRef<HTMLDivElement>(null);
 
   // Mobile keyboard: when keyboard opens (visualViewport shrinks), set CSS vars on card root so toolbar floats 12px above keyboard and editor scrolls (same as NewNotePanel in sheet)
@@ -265,46 +261,6 @@ export default function CardFullEditable({
     window.addEventListener('pinEntryComplete', handler);
     return () => window.removeEventListener('pinEntryComplete', handler);
   }, [noteId]);
-
-  // Top/bottom gradient: check if content area is overflowing and update scroll state (display mode only)
-  useEffect(() => {
-    if (isContentEditing || !contentDisplayRef.current) return;
-    const el = contentDisplayRef.current;
-    const checkOverflow = () => {
-      if (!contentDisplayRef.current) return;
-      const { scrollHeight, clientHeight, scrollTop } = contentDisplayRef.current;
-      setContentOverflowing(scrollHeight > clientHeight);
-      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
-    };
-    checkOverflow();
-    const observer = new ResizeObserver(checkOverflow);
-    observer.observe(el);
-    // Re-check after layout settles (production PWA can have delayed layout / 0 clientHeight on first paint)
-    const raf = requestAnimationFrame(checkOverflow);
-    const t1 = window.setTimeout(checkOverflow, 150);
-    const t2 = window.setTimeout(checkOverflow, 400);
-    return () => {
-      cancelAnimationFrame(raf);
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
-      observer.disconnect();
-    };
-  }, [isContentEditing, displayContent, resourceDescription]);
-
-  // Top/bottom gradient: track scroll position (display mode only)
-  useEffect(() => {
-    if (isContentEditing || !contentDisplayRef.current) return;
-    const el = contentDisplayRef.current;
-    const updateScrollState = () => {
-      if (!contentDisplayRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = contentDisplayRef.current;
-      setContentHasScrolledDown(scrollTop > 0);
-      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
-    };
-    el.addEventListener('scroll', updateScrollState);
-    updateScrollState();
-    return () => el.removeEventListener('scroll', updateScrollState);
-  }, [isContentEditing, displayContent, resourceDescription]);
 
   // Notify layout (e.g. MobileAdditional) to hide footer when in edit mode
   useEffect(() => {
@@ -1352,15 +1308,9 @@ export default function CardFullEditable({
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, width: '100%', marginTop: '12px' }}>
             {!isContentEditing ? (
               <div className="relative flex-1 min-h-0 flex flex-col">
-                {contentOverflowing && contentHasScrolledDown && (
-                  <div
-                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
-                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
-                  />
-                )}
                 <div
                   ref={contentDisplayRef}
-                  className={`flex-1 overflow-auto rounded px-3 ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                  className="flex-1 overflow-auto rounded px-3"
                   style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
                   onClick={handleContentClick}
                 >
@@ -1553,12 +1503,6 @@ export default function CardFullEditable({
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
-                {contentOverflowing && contentHasScrolledDown && (
-                  <div
-                    className="absolute top-0 left-0 right-0 pointer-events-none z-10"
-                    style={{ height: '48px', background: 'linear-gradient(to top, transparent, white)' }}
-                  />
-                )}
                 {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
                   <div ref={contentDisplayRef} className="flex flex-col shrink-0">
                     {noteId != null ? (
@@ -1570,7 +1514,7 @@ export default function CardFullEditable({
                 ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className={`card-full-editable__content-html flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                    className="card-full-editable__content-html flex-1 overflow-auto rounded"
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
@@ -1578,7 +1522,7 @@ export default function CardFullEditable({
                 ) : (
                   <div 
                     ref={contentDisplayRef}
-                    className={`flex-1 overflow-auto rounded ${contentOverflowing && !contentHasScrolledToBottom ? 'card-full-editable__content-fade-edges' : ''}`}
+                    className="flex-1 overflow-auto rounded"
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >

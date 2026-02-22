@@ -109,22 +109,27 @@
   margin-bottom: 3.5rem;
 }
 
-/* On mobile with a dock, use 8px bottom padding so the dock doesn't sit flush to the screen edge.
-   Pages without a dock (dashboard, profile, etc.) keep default 0.75rem bottom padding.
-   Unorganized thread only: no bottom padding (class mobile-main--unorganized). */
+/* On mobile with a dock, 12px bottom padding so the dock has a small gap above the screen edge.
+   Zero bottom padding on direct children so no wrapper adds extra space. */
 @media (max-width: 1159px) {
   .app-layout:has(.mobile-main--with-dock) {
-    padding-bottom: 8px;
+    padding-bottom: 12px;
+  }
+  .app-layout:has(.mobile-main--with-dock) > * {
+    padding-bottom: 0;
+  }
+  .mobile-layout:has(.mobile-main--with-dock) {
+    padding-bottom: 0;
   }
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: 0;
   }
 }
 
-/* PWA standalone: add safe area when dock present; Unorganized gets only safe area */
+/* PWA standalone: 12px + safe area when dock present; Unorganized gets only safe area */
 @media (max-width: 1159px) and (display-mode: standalone) {
   .app-layout:has(.mobile-main--with-dock) {
-    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: env(safe-area-inset-bottom, 0px);
