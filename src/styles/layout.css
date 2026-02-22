@@ -109,27 +109,34 @@
   margin-bottom: 3.5rem;
 }
 
-/* On mobile with a dock, 12px bottom padding so the dock has a small gap above the screen edge.
-   Zero bottom padding on direct children so no wrapper adds extra space. */
+/* On mobile with a dock, exactly 12px bottom padding (use shorthand so base 0.75rem doesn't add).
+   Zero bottom padding on #root and all wrappers so only .app-layout contributes the 12px. */
 @media (max-width: 1159px) {
+  #root:has(.mobile-main--with-dock) {
+    padding-bottom: 0 !important;
+  }
+  #root:has(.mobile-main--with-dock) > * {
+    padding-bottom: 0 !important;
+  }
   .app-layout:has(.mobile-main--with-dock) {
-    padding-bottom: 12px;
+    /* Explicit padding so bottom is exactly 12px; base padding: 0.75rem would use rem for bottom too */
+    padding: 0.75rem 0.75rem 12px 0.75rem;
   }
   .app-layout:has(.mobile-main--with-dock) > * {
-    padding-bottom: 0;
+    padding-bottom: 0 !important;
   }
   .mobile-layout:has(.mobile-main--with-dock) {
-    padding-bottom: 0;
+    padding-bottom: 0 !important;
   }
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: 0;
   }
 }
 
-/* PWA standalone: 12px + safe area when dock present; Unorganized gets only safe area */
+/* PWA standalone: 12px + safe area when dock present; top stays 0 (set by rule above). */
 @media (max-width: 1159px) and (display-mode: standalone) {
   .app-layout:has(.mobile-main--with-dock) {
-    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0.75rem calc(12px + env(safe-area-inset-bottom, 0px)) 0.75rem;
   }
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: env(safe-area-inset-bottom, 0px);
