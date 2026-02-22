@@ -16,6 +16,7 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
+import { api } from '../lib/api';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
@@ -62,6 +63,25 @@ export default function AppLayout() {
       router.navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
     }
   }, [isLoaded, isSignedIn, router, pathname]);
+
+  // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
+  const lastVisitRecordedPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    if (pathname === lastVisitRecordedPathRef.current) return;
+
+    const isThread = pathname.startsWith('/thread/');
+    const isNote = pathname.startsWith('/note/');
+    if (isThread && threadIdForHook && threadIdForHook !== 'thread_unorganized') {
+      lastVisitRecordedPathRef.current = pathname;
+      api.post(`/api/threads/${threadIdForHook}/visit`).catch(() => {});
+    } else if (isNote && noteIdForHook) {
+      lastVisitRecordedPathRef.current = pathname;
+      api.post(`/api/notes/${noteIdForHook}/visit`).catch(() => {});
+    } else if (!isThread && !isNote) {
+      lastVisitRecordedPathRef.current = null;
+    }
+  }, [isLoaded, isSignedIn, pathname, threadIdForHook, noteIdForHook]);
 
   // PWA install prompt: show once per app load when in browser (not PWA), on mobile only, on first visit, after join/invite, or every 30 days after "Not now"
   const pwaPromptCheckedRef = useRef(false);
