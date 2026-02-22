@@ -9,6 +9,7 @@ import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useCallback } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
+import { NavigationProvider } from '../../../src/components/react/navigation/NavigationContext';
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
 import MobileBottomSheetWithContext from '../../../src/components/react/MobileBottomSheetWithContext';
@@ -242,10 +243,11 @@ export default function AppLayout() {
 
   return (
     <div className="app-layout">
-      <ReferralCreditInit userId={user?.id} />
+      <NavigationProvider>
+        <ReferralCreditInit userId={user?.id} />
 
-      {/* ── Desktop: three-column grid (hidden on mobile) ── */}
-      <div className="desktop-layout">
+        {/* ── Desktop: three-column grid (hidden on mobile) ── */}
+        <div className="desktop-layout">
 
         {/* Column 1: Navigation */}
         <section className="layout-column">
@@ -397,7 +399,7 @@ export default function AppLayout() {
         />
 
       </div>
-
+      </NavigationProvider>
     </div>
   );
 }

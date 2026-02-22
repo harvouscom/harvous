@@ -1,6 +1,5 @@
 import React from 'react';
 import NavigationColumn from './NavigationColumn';
-import { NavigationProvider } from './NavigationContext';
 
 type Space = {
   id: string;
@@ -60,9 +59,7 @@ class NavigationErrorBoundary extends React.Component<
 export default function NavigationIsland(props: NavigationIslandProps) {
   return (
     <NavigationErrorBoundary>
-      <NavigationProvider>
-        <NavigationColumn {...props} />
-      </NavigationProvider>
+      <NavigationColumn {...props} />
     </NavigationErrorBoundary>
   );
 }
