@@ -1458,8 +1458,8 @@ button .menu-item__label {
   }
 }
 
-/* PWA standalone: app-layout has padding-top: 0, overlay starts below system status bar */
-@media (display-mode: standalone) {
+/* PWA standalone/minimal-ui: app-layout has padding-top: 0, overlay must start below system status bar */
+@media (display-mode: standalone), (display-mode: minimal-ui) {
   .sheet-overlay {
     top: env(safe-area-inset-top, 0px) !important;
   }

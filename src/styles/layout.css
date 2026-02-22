@@ -24,8 +24,8 @@
   }
 }
 
-/* PWA standalone: remove top padding — the system status bar sits flush above the layout */
-@media (display-mode: standalone) {
+/* PWA standalone/minimal-ui: remove top padding — the system status bar sits flush above the layout */
+@media (display-mode: standalone), (display-mode: minimal-ui) {
   .app-layout {
     padding-top: 0;
   }
@@ -221,17 +221,17 @@
 
 /* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
 
-/* Note page only: small Add button (plus) in bottom right instead of full-width "Add a note" */
+/* Note page only: small Add button (plus) in bottom right, 12px from bottom of card */
 .note-page-add-button {
   position: absolute;
-  bottom: 1rem;
+  bottom: 12px;
   right: 1rem;
   z-index: 2;
 }
 
-@media (display-mode: standalone) {
+@media (display-mode: standalone), (display-mode: minimal-ui) {
   .note-page-add-button {
-    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
 
