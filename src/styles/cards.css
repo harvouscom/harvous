@@ -889,12 +889,6 @@
   padding: 12px;
 }
 
-/* In NewNotePanel, add bottom padding so content isn't hidden behind the footer */
-.new-note-panel .card-stack__inner-content {
-  padding-bottom: 80px;
-}
-
-
 /* ==========================================================================
    Organized Content (Space page lists)
    ========================================================================== */
