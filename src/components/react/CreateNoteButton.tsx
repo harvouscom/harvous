@@ -57,9 +57,9 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
     let observer: MutationObserver | null = null;
 
     const inject = () => {
-      const target =
-        body.querySelector('.card-stack__inner-content') ||
-        body.querySelector('.main-column__scroll');
+      // Only inject into card content so spacer sits at bottom (reserve space above CTA).
+      // Do not fall back to .main-column__scroll — that would prepend the spacer and create a 64px gap above the card.
+      const target = body.querySelector('.card-stack__inner-content');
       if (!target) return false;
       if (target.querySelector(`[${SPACER_ATTR}]`)) return true;
       spacer = document.createElement('div');

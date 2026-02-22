@@ -57,6 +57,10 @@ interface MobileNavigationProps {
   currentThread?: Thread | null;
   initials?: string;
   userColor?: string;
+  /** Current pathname for route-derived selected space and currentItemId sync */
+  pathname?: string;
+  /** Current search string for ?space= */
+  search?: string;
   /** Server-provided path (e.g. 'note_xxx') to ensure SSR/client match */
   initialPath?: string;
   /** Optional SPA navigation handler for client-side routing */
@@ -71,11 +75,31 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   currentThread = null,
   initials = 'U',
   userColor = 'paper',
+  pathname: pathnameProp = '',
+  search: searchProp = '',
   initialPath = '',
   onNavigate,
 }) => {
   const navigate = onNavigate || safeNavigateSync;
   const selectedSpaceId = useSelectedSpaceId();
+  // Route-derived space (same logic as NavigationColumn): from ?space= or /space/...
+  const routeSelectedSpaceId = useMemo(() => {
+    try {
+      const params = new URLSearchParams(searchProp || '');
+      const fromQuery = params.get('space');
+      if (fromQuery && fromQuery.startsWith('space_')) return fromQuery.replace(/\/$/, '');
+    } catch {
+      // ignore
+    }
+    if (pathnameProp.startsWith('/space/')) {
+      const id = extractIdFromPath(pathnameProp);
+      return id ? id.replace(/\/$/, '') : null;
+    }
+    return null;
+  }, [pathnameProp, searchProp]);
+  // Prefer route, then current space when on thread/note, then storage (so resize from desktop shows correct space)
+  const isThreadOrNoteRoute = pathnameProp.startsWith('/thread/') || pathnameProp.startsWith('/note/');
+  const effectiveSelectedSpaceId = routeSelectedSpaceId ?? (isThreadOrNoteRoute && currentSpace?.id ? currentSpace.id : null) ?? selectedSpaceId;
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
@@ -143,6 +167,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     setLocalSpaces(spaces);
   }, [spaces]);
+
+  // Sync selected space to storage when on thread/note so desktop and mobile agree after resize
+  useEffect(() => {
+    if (isThreadOrNoteRoute && currentSpace?.id) {
+      setSelectedSpaceId(currentSpace.id);
+    }
+  }, [pathnameProp, currentSpace?.id, isThreadOrNoteRoute]);
 
   // Best-effort fallback: derive the active thread from DOM (for timing / View Transition cases)
   // Defined at component level so handleThreadUpdated (in a separate useEffect) can call it
@@ -254,6 +285,12 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     setCurrentItemId(extractIdFromPath(window.location.pathname) || window.location.pathname.substring(1));
   }, []);
+
+  // Sync currentItemId from pathname prop when it changes (e.g. after navigating on desktop then resizing to mobile)
+  useEffect(() => {
+    const id = extractIdFromPath(initialPath) || (initialPath.startsWith('/') ? initialPath.substring(1) : initialPath) || '';
+    setCurrentItemId(id);
+  }, [initialPath]);
 
   // Listen for page changes to update current item
   useEffect(() => {
@@ -879,16 +916,83 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const persistentItems = getPersistentItems();
 
+  // On note page: ensure the active parent thread is in the list (mirrors desktop PersistentNavigation).
+  // When viewing a note in unorganized without having opened the thread view first, thread_unorganized
+  // may never have been added to navigationHistory — inject it so "Unorganized" appears in the nav.
+  const persistentItemsWithActiveParent = (() => {
+    if (!currentItemId.startsWith('note_')) return persistentItems;
+    const activeParentThreadId = currentActiveItemId;
+    if (!activeParentThreadId || !activeParentThreadId.startsWith('thread_')) return persistentItems;
+    if (persistentItems.some((i: any) => i.id === activeParentThreadId)) return persistentItems;
+
+    // Build active parent thread object: from candidate or minimal for thread_unorganized
+    let activeParentThread: { id: string; title: string; count: number; backgroundGradient: string; spaceId: string | null } | null = null;
+    if (activeThreadCandidate?.id === activeParentThreadId) {
+      activeParentThread = {
+        id: activeThreadCandidate.id,
+        title: activeThreadCandidate.title || 'Thread',
+        count: activeThreadCandidate.noteCount ?? 0,
+        backgroundGradient: activeThreadCandidate.backgroundGradient || getThreadGradientCSS('paper'),
+        spaceId: activeThreadCandidate.spaceId ?? null,
+      };
+    } else if (activeParentThreadId === 'thread_unorganized') {
+      const unorganizedFromNav = threads.find((t) => t.id === 'thread_unorganized');
+      activeParentThread = {
+        id: 'thread_unorganized',
+        title: 'Unorganized',
+        count: unorganizedFromNav?.noteCount ?? 0,
+        backgroundGradient: unorganizedFromNav?.backgroundGradient || getThreadGradientCSS('paper'),
+        spaceId: null,
+      };
+    } else {
+      const fromNav = threads.find((t) => t.id === activeParentThreadId);
+      if (fromNav) {
+        activeParentThread = {
+          id: fromNav.id,
+          title: fromNav.title || 'Thread',
+          count: fromNav.noteCount ?? 0,
+          backgroundGradient: fromNav.backgroundGradient || getThreadGradientCSS('paper'),
+          spaceId: fromNav.spaceId ?? null,
+        };
+      }
+    }
+
+    if (!activeParentThread) return persistentItems;
+
+    // For thread_unorganized: only inject when not closed or when we're viewing it (clear closed when injecting)
+    if (activeParentThreadId === 'thread_unorganized') {
+      const isClosed = typeof localStorage !== 'undefined' && localStorage.getItem('unorganized-thread-closed') === 'true';
+      if (isClosed && currentActiveItemId !== 'thread_unorganized') return persistentItems;
+      if (isClosed && currentActiveItemId === 'thread_unorganized') {
+        try {
+          localStorage.removeItem('unorganized-thread-closed');
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    // Deduplication: don't add "Unorganized" with wrong id, or if "Unorganized" already exists by title
+    const isUnorganizedTitleWithWrongId =
+      activeParentThread.title === 'Unorganized' && activeParentThread.id !== 'thread_unorganized';
+    const unorganizedAlreadyExists = persistentItems.some((i: any) => i.title === 'Unorganized');
+    if (isUnorganizedTitleWithWrongId || (activeParentThread.title === 'Unorganized' && unorganizedAlreadyExists)) {
+      return persistentItems;
+    }
+
+    return [activeParentThread, ...persistentItems];
+  })();
+
   // Organize persistent items hierarchically (spaces with threads nested)
-  const organizePersistentItems = () => {
-    if (persistentItems.length === 0) return { spaces: [], threads: [] };
+  const organizePersistentItems = (items: any[]) => {
+    if (items.length === 0) return { spaces: [], threads: [] };
 
     const getOpenedInSpaceIds = (item: any): Array<string | null> => {
       if (Array.isArray(item?.openedInSpaceIds)) return item.openedInSpaceIds as Array<string | null>;
       return [item?.openedInSpaceId ?? item?.spaceId ?? null];
     };
 
-    const scoped = persistentItems.filter((item: any) => {
+    const scoped = items.filter((item: any) => {
       if (item.id === 'thread_unorganized') return true;
       const scopes = getOpenedInSpaceIds(item);
       if (!selectedSpaceId) return scopes.some((s) => s == null);
@@ -920,7 +1024,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return { spaces, threads };
   };
 
-  const { threads: persistentThreads } = organizePersistentItems();
+  const { threads: persistentThreads } = organizePersistentItems(persistentItemsWithActiveParent);
 
   // Show only threads from navigation history (same as desktop PersistentNavigation).
   // Filter out closedItemIds so closed threads disappear immediately.
@@ -1074,18 +1178,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
 
     // Ensure the currently selected space is in the dropdown (so label can resolve on find/profile etc.)
-    // Only do this when NOT on the dashboard — on dashboard, selectedSpaceId is the last-used space
-    // but displaySelectedSpaceId is null ("My Home"), so we must not pin that space into the dropdown
-    // or it will incorrectly disappear from "Add Existing Spaces".
+    // Only do this when NOT on the dashboard — on dashboard, displaySelectedSpaceId is null ("My Home").
     const pinSelectedSpace = !isDashboard;
-    if (pinSelectedSpace && selectedSpaceId && !spacesById.has(selectedSpaceId)) {
-      const fromLocal = localSpaces.find((s) => s.id === selectedSpaceId);
-      if (fromLocal) spacesById.set(selectedSpaceId, fromLocal);
+    if (pinSelectedSpace && effectiveSelectedSpaceId && !spacesById.has(effectiveSelectedSpaceId)) {
+      const fromLocal = localSpaces.find((s) => s.id === effectiveSelectedSpaceId);
+      if (fromLocal) spacesById.set(effectiveSelectedSpaceId, fromLocal);
     }
     
     // Convert back to array
     return Array.from(spacesById.values());
-  }, [filteredSpaces, currentSpace, selectedSpaceId, localSpaces]);
+  }, [filteredSpaces, currentSpace, effectiveSelectedSpaceId, localSpaces]);
 
   // Calculate available spaces that aren't in the dropdown
   const availableSpaces = useMemo(() => {
@@ -1113,7 +1215,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           return null;
         }
       })()) ??
-    selectedSpaceId;
+    effectiveSelectedSpaceId;
   const mismatchKey = mismatchThreadId && spaceForMismatch ? `${mismatchThreadId}|${spaceForMismatch}` : null;
   const baseSpaceMismatchPrompt =
     !!spaceForMismatch && isThreadPage && !!(updatedCurrentThread || currentThread)?.id && threadSpaceId !== spaceForMismatch;
@@ -1192,18 +1294,32 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return localSpaces.find((s) => s.id === selectedSpaceId) ?? null;
   }, [selectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
 
+  // Display space: lookup by effectiveSelectedSpaceId (route / thread-note context / storage) so resize from desktop shows correct space
+  const displaySelectedSpace = useMemo(() => {
+    if (!effectiveSelectedSpaceId) {
+      return null;
+    }
+    if (updatedCurrentSpace && updatedCurrentSpace.id === effectiveSelectedSpaceId) {
+      return updatedCurrentSpace;
+    }
+    const fromFiltered = filteredSpaces.find((s) => s.id === effectiveSelectedSpaceId);
+    if (fromFiltered) return fromFiltered;
+    if (currentSpace && currentSpace.id === effectiveSelectedSpaceId) return currentSpace;
+    return localSpaces.find((s) => s.id === effectiveSelectedSpaceId) ?? null;
+  }, [effectiveSelectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
+
   // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when selectedSpace is null (e.g. search page).
   const selectedSpaceLabel = selectedSpace ? selectedSpace.title : (selectedSpaceId ? (spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'Space') : 'My Home');
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   
-  // Route-aware display: on dashboard show "My Home"; on other pages (profile, search, etc.) show stored selected space.
-  const displaySelectedSpaceId = isDashboard ? null : selectedSpaceId;
-  const displaySelectedSpaceLabel = isDashboard ? 'My Home' : selectedSpaceLabel;
-  const displaySelectedSpaceCount = isDashboard ? inboxCount : selectedSpaceCount;
-  const displaySelectedSpaceBackground = isDashboard ? getThreadGradientCSS('paper') : selectedSpaceBackground;
+  // Route-aware display: use effectiveSelectedSpaceId so after resize from desktop we show the space we're actually in
+  const displaySelectedSpaceLabel = isDashboard ? 'My Home' : (displaySelectedSpace ? displaySelectedSpace.title : (effectiveSelectedSpaceId ? (spacesForDropdown.find((s) => s.id === effectiveSelectedSpaceId)?.title ?? 'Space') : 'My Home'));
+  const displaySelectedSpaceCount = isDashboard ? inboxCount : (displaySelectedSpace ? displaySelectedSpace.totalItemCount : inboxCount);
+  const displaySelectedSpaceBackground = isDashboard ? getThreadGradientCSS('paper') : (displaySelectedSpace?.backgroundGradient || getThreadGradientCSS('paper'));
+  const displaySelectedSpaceId = isDashboard ? null : effectiveSelectedSpaceId;
 
-  const spaceButtonKey = `space-button-${selectedSpaceId}-${selectedSpaceLabel}-${selectedSpaceBackground}`;
+  const spaceButtonKey = `space-button-${effectiveSelectedSpaceId}-${displaySelectedSpaceLabel}-${displaySelectedSpaceBackground}`;
 
   const topSpaceIsActive = displaySelectedSpaceId ? currentItemId === displaySelectedSpaceId : isDashboard;
 
@@ -1234,13 +1350,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             className="nav-link"
             style={{ display: 'block', width: '100%', cursor: 'pointer' }}
             onClick={() => {
-              const href = isNote && currentThread ? idToUrl(currentThread.id) : (selectedSpaceId ? idToUrl(selectedSpaceId) : '/');
+              const href = isNote && currentThread ? idToUrl(currentThread.id) : (effectiveSelectedSpaceId ? idToUrl(effectiveSelectedSpaceId) : '/');
               navigate(href);
             }}
           >
             <SpaceButton
               as="div"
-              text={activeThreadCandidate ? activeThreadCandidate.title : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.title : (isDashboard ? "My Home" : selectedSpaceLabel)}
+              text={activeThreadCandidate ? activeThreadCandidate.title : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.title : (isDashboard ? "My Home" : displaySelectedSpaceLabel)}
               count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.totalItemCount : inboxCount}
               state="DropdownTrigger"
               rightAccessory="none"
@@ -1426,7 +1542,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                   e.preventDefault();
                                   setLocalSpaces((prev) => prev.filter((s2) => s2.id !== s.id));
                                   removeFromNavigationHistory(s.id);
-                                  if (selectedSpaceId === s.id) {
+                                  if (effectiveSelectedSpaceId === s.id) {
                                     setSelectedSpaceId(null);
                                   }
                                   // Sheet stays open — user sees the space vanish from the list.
@@ -1514,7 +1630,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       // Use updated thread data for active thread to show live updates
                       const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;
                       // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
-                      let spaceForLink = selectedSpaceId;
+                      let spaceForLink = effectiveSelectedSpaceId;
                       if (typeof window !== 'undefined') {
                         try {
                           const fromUrl = new URLSearchParams(window.location.search).get('space');

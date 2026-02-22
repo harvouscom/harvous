@@ -340,6 +340,8 @@ export default function AppLayout() {
             currentThread={activeThread}
             initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
+            pathname={pathname}
+            search={search}
             initialPath={pathname}
             onNavigate={(href) => router.navigate({ to: href as any })}
           />

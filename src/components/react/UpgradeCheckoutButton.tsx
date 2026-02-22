@@ -411,7 +411,7 @@ function UpgradeCheckoutButtonInner({
             </button>
           </CheckoutButton>
 
-      {/* Go back to My Harvous button - secondary variant */}
+      {/* Go back to my Harvous button - secondary variant */}
       <a
         href="/"
         className="btn-cta btn--secondary flex-1 group"
@@ -426,7 +426,7 @@ function UpgradeCheckoutButtonInner({
         tabIndex={4}
       >
         <span className="btn-cta__content">
-          Go back to My Harvous
+          Go back to my Harvous
         </span>
         <div className="btn-cta__shadow" />
       </a>

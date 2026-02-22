@@ -102,6 +102,20 @@
   /* Flex container so card-stack height: 100% resolves correctly in all browsers */
   display: flex;
   flex-direction: column;
+  margin-top: 0;
+}
+
+/* Mobile only: lock 12px gap and no extra top space so nav-to-cardstack is exactly 12px */
+@media (max-width: 1159px) {
+  .mobile-layout {
+    gap: 12px;
+  }
+  .mobile-main {
+    margin-top: 0;
+  }
+  .mobile-main .main-column__scroll {
+    padding-top: 0;
+  }
 }
 
 /* Reserve space for the action strip dock only when the dock is present */

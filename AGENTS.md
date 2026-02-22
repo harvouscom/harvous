@@ -70,6 +70,7 @@ public/                      # Static assets, sw.js, manifest.json
 ## Important Files
 
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
+- `docs/CLEAR_SPLIT_MIGRATION.md` - Plan to simplify to Node API + SPA (no Astro in the middle)
 - `docs/REACT_ISLANDS_STRATEGY.md` - Astro SSR / React islands (legacy); production is SPA
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
