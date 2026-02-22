@@ -370,6 +370,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // This handles the case where user explicitly navigates to a closed item
     removeFromClosedItems(item.id);
 
+    // When adding unorganized to history, clear the closed flag so it shows in mobile nav
+    if (item.id === 'thread_unorganized') {
+      safeRemoveItem('unorganized-thread-closed');
+    }
+
     // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
     const rawHistory = getRawNavigationHistory();
 

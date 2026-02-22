@@ -116,6 +116,12 @@ export default function AppLayout() {
       const scroll = el.querySelector('.main-column__scroll');
       if (scroll && scroll.scrollTop) (scroll as HTMLElement).scrollTop = 0;
     }
+    // Reset .card-stack__inner so reused DOM (e.g. ThreadPage A → B) does not keep scroll
+    for (const el of targets) {
+      if (!el) continue;
+      const inner = el.querySelector('.card-stack__inner');
+      if (inner && inner.scrollTop !== 0) (inner as HTMLElement).scrollTop = 0;
+    }
 
     // Emit astro:page-load so shared components (content lists, navigation,
     // etc.) that relied on Astro View Transitions still get notified of route
