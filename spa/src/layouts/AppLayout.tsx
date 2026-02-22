@@ -12,7 +12,7 @@ import NavigationIsland from '../../../src/components/react/navigation/Navigatio
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
 import MobileBottomSheetWithContext from '../../../src/components/react/MobileBottomSheetWithContext';
-import SquareButton from '../../../src/components/react/SquareButton';
+import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
@@ -206,7 +206,7 @@ export default function AppLayout() {
     ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
     : (activeThread?.spaceId ? (allSpaces.find(s => s.id === activeThread.spaceId) ?? { id: activeThread.spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
 
-  // Note-specific data for ActionStrip / SquareButton
+  // Note-specific data for ActionStrip
   const noteType = isNote ? (currentNote?.noteType ?? 'default') : undefined;
   const noteCurrentThreadId = noteParentThreadId ?? undefined;
   const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
@@ -224,7 +224,7 @@ export default function AppLayout() {
     : isSpace ? (currentSpaceDetail?.ownerId ?? undefined)
     : undefined;
 
-  // Space role — used by SquareButton "More" menu to show owner vs member options
+  // Space role — used by ActionStrip menu to show owner vs member options
   const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
   const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
 
@@ -235,8 +235,9 @@ export default function AppLayout() {
     pathname === '/profile' ? 'profile' :
     'dashboard';
 
-  // Unorganized thread is virtual — it has no editable options, so hide the More button
+  // Unorganized thread is virtual — it has no editable options, so hide the ActionStrip dock
   const isUnorganized = isThread && currentId === 'thread_unorganized';
+  const showActionStrip = (contentType === 'thread' || contentType === 'note' || contentType === 'space') && !isUnorganized;
 
   return (
     <div className="app-layout">
@@ -262,20 +263,29 @@ export default function AppLayout() {
           />
         </section>
 
-        {/* Column 2: Main content */}
-        <section className="layout-column route-fade-in" ref={desktopContentRef}>
-          <Outlet />
-        </section>
-
-        {/* Column 3: More/Add buttons + slide-in panel manager */}
-        <section className="layout-column">
-          <div className="desktop-panel-container">
-            {/* DesktopPanelManager hides this by id when a panel opens */}
-            <div
-              id="square-buttons-container"
-              className={`square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}
-            >
-              {contentType !== 'dashboard' && contentType !== 'profile' && !isUnorganized && (
+        {/* Column 2: Main content + CreateNoteButton + action-strip-dock (matches SSR main-column-with-cta) */}
+        <section className="layout-column main-column-with-cta route-fade-in" ref={desktopContentRef}>
+          <div className="main-column__body">
+            <div className="main-column__scroll">
+              <Outlet />
+            </div>
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+              <CreateNoteButton />
+            )}
+            {contentType === 'profile' && (
+              <a
+                id="logout-button"
+                href="#"
+                data-outer-shadow
+                className="btn-cta btn--secondary profile-logout-button group no-underline"
+                onClick={(e) => { e.preventDefault(); if ((window as any).__harvousLogout) (window as any).__harvousLogout(); }}
+              >
+                <span className="btn-cta__content">Logout</span>
+                <div className="btn-cta__shadow" />
+              </a>
+            )}
+            {showActionStrip && (
+              <div id="square-buttons-container" className="action-strip-dock">
                 <ActionStrip
                   variant="desktop"
                   contentType={contentType}
@@ -291,11 +301,14 @@ export default function AppLayout() {
                   contentOwnerId={contentOwnerId}
                   userId={user?.id}
                 />
-              )}
-              {contentType !== 'profile' && (
-                <SquareButton variant="Add" withMenu={true} />
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Column 3: Panels only (matches SSR desktop-additional-column) */}
+        <section className="layout-column desktop-additional-column">
+          <div className="desktop-panel-container">
             <PanelManagerWithContext
               currentThread={activeThread}
               currentSpace={currentSpace}
@@ -326,16 +339,29 @@ export default function AppLayout() {
           />
         </div>
 
-        {/* Main content */}
-        <div className="mobile-main route-fade-in" ref={mobileContentRef}>
-          <Outlet />
-        </div>
-
-        {/* Bottom additional slot — ActionStrip + Add button */}
-        {contentType !== 'profile' && (
-          <div className={`mobile-additional square-buttons-container ${contentType !== 'dashboard' && !isUnorganized ? 'square-buttons-container--with-more' : ''}`}>
-            {contentType !== 'dashboard' && !isUnorganized && (
-              <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Main content + CreateNoteButton + mobile-action-strip-dock (matches SSR mobile-main) */}
+        <div className={`mobile-main main-column-with-cta route-fade-in ${showActionStrip ? 'mobile-main--with-dock' : ''}`} ref={mobileContentRef}>
+          <div className="mobile-main__body">
+            <div className="main-column__scroll">
+              <Outlet />
+            </div>
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+              <CreateNoteButton />
+            )}
+            {contentType === 'profile' && (
+              <a
+                id="logout-button-mobile"
+                href="#"
+                data-outer-shadow
+                className="btn-cta btn--secondary profile-logout-button group no-underline"
+                onClick={(e) => { e.preventDefault(); if ((window as any).__harvousLogout) (window as any).__harvousLogout(); }}
+              >
+                <span className="btn-cta__content">Logout</span>
+                <div className="btn-cta__shadow" />
+              </a>
+            )}
+            {showActionStrip && (
+              <div className="mobile-action-strip-dock">
                 <ActionStrip
                   variant="mobile"
                   contentType={contentType}
@@ -353,9 +379,8 @@ export default function AppLayout() {
                 />
               </div>
             )}
-            <SquareButton variant="Add" withMenu={true} />
           </div>
-        )}
+        </div>
 
         {/* Mobile bottom sheet — fixed overlay, handles all panels on mobile */}
         <MobileBottomSheetWithContext

@@ -1,13 +1,16 @@
-# API routes → Astro SSR function (Netlify serverless)
-/api/*  /.netlify/functions/ssr  200
-
-# PWA web-app-origin-association endpoint
-/.well-known/*  /.netlify/functions/ssr  200
-
-# SSR-only pages (no SPA equivalent)
-/logout  /.netlify/functions/ssr  200
-
-# SPA catch-all: all other non-static routes serve the React SPA's index.html.
-# Static assets (/_astro/*, /scripts/*, /fonts/*, etc.) are served directly
-# by Netlify before redirects apply (no force flag = static files take priority).
-/*  /index.html  200
+# SPA routes -- serve index.html for all client-side routes.
+# /api/* is intentionally NOT listed here so the Astro SSR function
+# handles it via its path: '/*' config.
+/note/*          /index.html  200
+/thread/*        /index.html  200
+/space/*         /index.html  200
+/search          /index.html  200
+/profile         /index.html  200
+/new-space       /index.html  200
+/upgrade         /index.html  200
+/dashboard       /index.html  200
+/sign-in/*       /index.html  200
+/sign-up/*       /index.html  200
+/spaces/join/*   /index.html  200
+/shared/*        /index.html  200
+/invitations/*  /index.html  200
