@@ -343,7 +343,7 @@ export default function AppLayout() {
         </div>
 
         {/* Main content + CreateNoteButton + mobile-action-strip-dock (matches SSR mobile-main) */}
-        <div className={`mobile-main main-column-with-cta route-fade-in ${showActionStrip ? 'mobile-main--with-dock' : ''}`} ref={mobileContentRef}>
+        <div className={`mobile-main main-column-with-cta route-fade-in ${showActionStrip ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`} ref={mobileContentRef}>
           <div className="mobile-main__body">
             <div className="main-column__scroll">
               <Outlet />

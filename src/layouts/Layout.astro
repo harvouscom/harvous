@@ -501,7 +501,7 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
         </div>
         
         <!-- Main Column (Middle, with action strip dock behind card bottom when applicable) -->
-        <div class={`mobile-main main-column-with-cta ${showActionStrip ? 'mobile-main--with-dock' : ''}`}>
+        <div class={`mobile-main main-column-with-cta ${showActionStrip ? 'mobile-main--with-dock' : ''} ${contentId === 'thread_unorganized' ? 'mobile-main--unorganized' : ''}`}>
           <div class="mobile-main__body">
             <div class="main-column__scroll">
               <slot name="main" />
