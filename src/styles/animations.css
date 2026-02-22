@@ -344,8 +344,20 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Mobile: opacity-only so position:fixed toolbar (keyboard open) stays viewport-relative */
+@keyframes routeFadeInOpacityOnly {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
 .route-fade-in {
   animation: routeFadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (max-width: 1159px) {
+  .route-fade-in {
+    animation: routeFadeInOpacityOnly 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
 }
 
 /* Dropdown Animations */
