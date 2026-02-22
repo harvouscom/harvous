@@ -254,6 +254,7 @@ button.new-space-floating-button {
   border-bottom-left-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
   animation: mobile-dock-slide-in 0.35s ease-out both;
+  overflow: hidden;
 }
 
 /* Dock starts fully behind the card, then slides down to reveal actions */

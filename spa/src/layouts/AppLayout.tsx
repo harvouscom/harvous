@@ -272,18 +272,6 @@ export default function AppLayout() {
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
             )}
-            {contentType === 'profile' && (
-              <a
-                id="logout-button"
-                href="#"
-                data-outer-shadow
-                className="btn-cta btn--secondary profile-logout-button group no-underline"
-                onClick={(e) => { e.preventDefault(); if ((window as any).__harvousLogout) (window as any).__harvousLogout(); }}
-              >
-                <span className="btn-cta__content">Logout</span>
-                <div className="btn-cta__shadow" />
-              </a>
-            )}
             {showActionStrip && (
               <div id="square-buttons-container" className="action-strip-dock">
                 <ActionStrip
@@ -347,18 +335,6 @@ export default function AppLayout() {
             </div>
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
-            )}
-            {contentType === 'profile' && (
-              <a
-                id="logout-button-mobile"
-                href="#"
-                data-outer-shadow
-                className="btn-cta btn--secondary profile-logout-button group no-underline"
-                onClick={(e) => { e.preventDefault(); if ((window as any).__harvousLogout) (window as any).__harvousLogout(); }}
-              >
-                <span className="btn-cta__content">Logout</span>
-                <div className="btn-cta__shadow" />
-              </a>
             )}
             {showActionStrip && (
               <div className="mobile-action-strip-dock">

@@ -6,10 +6,10 @@ import ProfileOptionsList from '../../../src/components/react/ProfileOptionsList
 import { getSeasonDisplayName } from '../../../src/utils/season-helpers';
 
 // Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
-const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 function formatJoinDate(date: Date | null | undefined): string {
   if (!date) return '';
-  return `${MONTHS_LONG[date.getMonth()]} ${date.getFullYear()}`;
+  return `${MONTHS_SHORT[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 export default function ProfilePageWrapper() {

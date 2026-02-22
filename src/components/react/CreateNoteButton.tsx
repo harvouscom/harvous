@@ -53,7 +53,7 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
     if (!body) return;
     const target =
       body.querySelector('.card-stack__inner-content') ||
-      body.querySelector('.card-full-editable');
+      body.querySelector('.main-column__scroll');
     if (!target) return;
     if (target.querySelector(`[${SPACER_ATTR}]`)) return;
     const spacer = document.createElement('div');
