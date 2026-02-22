@@ -108,9 +108,10 @@ export default function AppLayout() {
       el.classList.add('route-fade-in');
     }
 
-    // Emit astro:page-load so shared components (content lists, navigation,
-    // etc.) that relied on Astro View Transitions still get notified of route
-    // changes in the SPA.
+    // Emit Astro View Transition lifecycle events so shared components (content
+    // lists, navigation, etc.) that listen for them still get notified of route
+    // changes in the SPA. Match Astro order: after-swap then page-load.
+    document.dispatchEvent(new Event('astro:after-swap'));
     document.dispatchEvent(new Event('astro:page-load'));
   }, [pathname]);
 

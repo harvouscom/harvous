@@ -9,7 +9,7 @@ Harvous runs as a **dual-app monorepo**:
 - **`/` (root)** — Astro SSR app: handles API endpoints, database access, auth middleware, and public/shared pages (sign-in, shared notes, shared threads, invitations). Also serves as the static host for the SPA.
 - **`/spa`** — React SPA: the authenticated app shell. A Vite-built single-page app that handles all authenticated routes (`/`, `/thread/*`, `/note/*`, `/space/*`, `/profile`, etc.).
 
-At runtime, Netlify routes authenticated app paths to `spa/index.html`, while API routes and public pages are served by the Astro SSR layer.
+At runtime, Netlify routes authenticated app paths to `spa/index.html`, while API routes and public pages are served by the Astro SSR layer. The `public/_redirects` file must include the root `/` and all SPA paths so they serve the SPA’s `index.html`.
 
 ## Core Framework
 

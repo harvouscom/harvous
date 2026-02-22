@@ -60,7 +60,7 @@ public/                      # Static assets, sw.js, manifest.json
 
 - **CRITICAL — Production = SPA, not SSR.** For UI changes that must appear in production, edit `spa/src/` (e.g. `spa/src/layouts/AppLayout.tsx`, `spa/src/pages/*.tsx`) or shared `src/components/react/`. Changes only to `src/pages/*.astro` or `src/layouts/Layout.astro` affect `npm run dev` only and will NOT appear in production.
 - **Netlify build**: `astro build` (API + SSR output) then `vite build` (SPA → dist-spa/) then `cp -r dist-spa/. dist/`. The SPA's index and assets overwrite Astro's in `dist/`.
-- **Production routing** (`public/_redirects`): List SPA routes (e.g. `/note/*`, `/thread/*`, `/dashboard`, …) → `/index.html` 200. Do **not** add a rule for `/api/*` — leave it unmatched so the Netlify SSR function (path: `/*`) handles API requests. A catch-all `/*` → `/index.html` would make API calls return HTML and break the app.
+- **Production routing** (`public/_redirects`): List SPA routes (e.g. `/`, `/note/*`, `/thread/*`, `/dashboard`, …) → `/index.html` 200. Include the root `/` so the dashboard at `/` loads the SPA. Do **not** add a rule for `/api/*` — leave it unmatched so the Netlify SSR function (path: `/*`) handles API requests. A catch-all `/*` → `/index.html` would make API calls return HTML and break the app.
 - **Routing**: TanStack Router in `spa/src/router.tsx`. Use `router.navigate()`. Shared code that calls `safeNavigate()` uses the shim in `spa/src/shims/astro-transitions.ts` to drive the router.
 - **Data fetching**: React Query hooks in `spa/src/hooks/queries/`. API calls via `spa/src/lib/api.ts`.
 - **Note IDs**: Never reuse deleted IDs; track highest via `UserMetadata.highestSimpleNoteId`.

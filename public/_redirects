@@ -1,6 +1,8 @@
 # SPA routes -- serve index.html for all client-side routes.
 # /api/* is intentionally NOT listed here so the Astro SSR function
 # handles it via its path: '/*' config.
+# Root must serve SPA so dashboard at / loads the React app.
+/                /index.html  200
 /note/*          /index.html  200
 /thread/*        /index.html  200
 /space/*         /index.html  200
