@@ -108,21 +108,6 @@ export default function AppLayout() {
       el.classList.add('route-fade-in');
     }
 
-    // Reset scroll so new page is not pushed down by any persisted scroll position
-    if (document.documentElement.scrollTop) document.documentElement.scrollTop = 0;
-    if (document.body.scrollTop) document.body.scrollTop = 0;
-    for (const el of targets) {
-      if (!el) continue;
-      const scroll = el.querySelector('.main-column__scroll');
-      if (scroll && scroll.scrollTop) (scroll as HTMLElement).scrollTop = 0;
-    }
-    // Reset .card-stack__inner so reused DOM (e.g. ThreadPage A → B) does not keep scroll
-    for (const el of targets) {
-      if (!el) continue;
-      const inner = el.querySelector('.card-stack__inner');
-      if (inner && inner.scrollTop !== 0) (inner as HTMLElement).scrollTop = 0;
-    }
-
     // Emit astro:page-load so shared components (content lists, navigation,
     // etc.) that relied on Astro View Transitions still get notified of route
     // changes in the SPA.
@@ -285,7 +270,7 @@ export default function AppLayout() {
         <section className="layout-column main-column-with-cta route-fade-in" ref={desktopContentRef}>
           <div className="main-column__body">
             <div className="main-column__scroll">
-              <Outlet />
+              <Outlet key={pathname} />
             </div>
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
@@ -363,7 +348,7 @@ export default function AppLayout() {
         <div className={`mobile-main main-column-with-cta route-fade-in ${showActionStrip ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`} ref={mobileContentRef}>
           <div className="mobile-main__body">
             <div className="main-column__scroll">
-              <Outlet />
+              <Outlet key={pathname} />
             </div>
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
