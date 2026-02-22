@@ -1,4 +1,4 @@
-import { useUser, useClerk } from '@clerk/clerk-react';
+import { useUser } from '@clerk/clerk-react';
 import { useProfile, useXP } from '../hooks/queries/useProfile';
 import CardStack from '../components/CardStack';
 import ProfileCardStackHeader from '../../../src/components/react/ProfileCardStackHeader';
@@ -14,7 +14,6 @@ function formatJoinDate(date: Date | null | undefined): string {
 
 export default function ProfilePageWrapper() {
   const { user } = useUser();
-  const { signOut } = useClerk();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: xp } = useXP();
   // Build initials display: "Derek J" format (first name + last initial)
@@ -29,10 +28,6 @@ export default function ProfilePageWrapper() {
   // Render the card shell immediately — avoids a hard layout swap while profile loads.
   // Content fades in once both Clerk user and profile data are ready.
   const contentReady = !profileLoading && !!user;
-
-  const handleLogout = () => {
-    signOut({ redirectUrl: '/sign-in' });
-  };
 
   return (
     <div className="page-flex-column">
@@ -113,20 +108,8 @@ export default function ProfilePageWrapper() {
               </div>
             </div>
           </div>
+          <div className="profile-logout-spacer" />
         </CardStack>
-      </div>
-
-      {/* Logout button below the card */}
-      <div style={{ marginTop: '1rem', paddingBottom: 'env(safe-area-inset-bottom, 0px)', flexShrink: 0 }}>
-        <button
-          onClick={handleLogout}
-          data-outer-shadow
-          className="btn-cta btn--secondary"
-          style={{ width: '100%' }}
-        >
-          <span className="btn-cta__content">Logout</span>
-          <div className="btn-cta__shadow" />
-        </button>
       </div>
     </div>
   );

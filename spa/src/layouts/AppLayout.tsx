@@ -21,7 +21,7 @@ import { useThread } from '../hooks/queries/useThread';
 import { useSpace } from '../hooks/queries/useSpace';
 
 export default function AppLayout() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, signOut } = useAuth();
   const { user } = useUser();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -272,6 +272,15 @@ export default function AppLayout() {
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
             )}
+            {contentType === 'profile' && (
+              <button
+                type="button"
+                className="btn btn--lg btn--secondary profile-logout-button"
+                onClick={() => signOut({ redirectUrl: '/sign-in' })}
+              >
+                Logout
+              </button>
+            )}
             {showActionStrip && (
               <div id="square-buttons-container" className="action-strip-dock">
                 <ActionStrip
@@ -335,6 +344,15 @@ export default function AppLayout() {
             </div>
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'profile' && (
+              <button
+                type="button"
+                className="btn btn--lg btn--secondary profile-logout-button"
+                onClick={() => signOut({ redirectUrl: '/sign-in' })}
+              >
+                Logout
+              </button>
             )}
             {showActionStrip && (
               <div className="mobile-action-strip-dock">

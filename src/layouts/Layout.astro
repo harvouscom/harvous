@@ -448,6 +448,16 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
             )}
+            {contentType === 'profile' && (
+              <button
+                type="button"
+                id="logout-button"
+                class="btn btn--lg btn--secondary profile-logout-button"
+                onclick="if(window.__harvousLogout) window.__harvousLogout(); return false;"
+              >
+                Logout
+              </button>
+            )}
             {showActionStrip && (
               <div id="square-buttons-container" class="action-strip-dock">
                 <ActionStrip variant="desktop" contentType={contentType} contentId={contentId} currentThreadId={currentThread?.id} noteType={noteType} contentEncrypted={contentEncrypted} contentEncryptedServer={contentEncrypted} noteSimpleId={noteSimpleId} noteCreatedAt={noteCreatedAt} spaceRole={spaceRole} spaceIsShared={spaceIsShared} contentOwnerId={contentOwnerId} userId={userId} />
@@ -492,6 +502,16 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             </div>
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'profile' && (
+              <button
+                type="button"
+                id="logout-button"
+                class="btn btn--lg btn--secondary profile-logout-button"
+                onclick="if(window.__harvousLogout) window.__harvousLogout(); return false;"
+              >
+                Logout
+              </button>
             )}
             {showActionStrip && (
               <div class="mobile-action-strip-dock">
