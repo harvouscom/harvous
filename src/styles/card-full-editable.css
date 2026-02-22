@@ -86,6 +86,13 @@
     0px 2px 0px 0px #00000040 inset;
 }
 
+/* Scroll container: ensure touch scroll works on iOS PWA and flex height is constrained */
+.card-full-editable__content-html.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  min-height: 0;
+}
+
 /* Link styling for view-mode note content (matches Tiptap editor: primary blue + underline) */
 .card-full-editable__content-html a {
   color: var(--color-bold-blue) !important;

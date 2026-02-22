@@ -13,6 +13,7 @@ import MobileNavigation from '../../../src/components/react/navigation/MobileNav
 import PanelManagerWithContext from '../../../src/components/react/PanelManagerWithContext';
 import MobileBottomSheetWithContext from '../../../src/components/react/MobileBottomSheetWithContext';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
+import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
@@ -269,8 +270,13 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'note' && (
+              <div className="note-page-add-button">
+                <NotePageAddButton />
+              </div>
             )}
             {contentType === 'profile' && (
               <button
@@ -342,8 +348,13 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'note' && (
+              <div className="note-page-add-button">
+                <NotePageAddButton />
+              </div>
             )}
             {contentType === 'profile' && (
               <button

@@ -1295,12 +1295,14 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Seed navigation history from API when empty (e.g. first load in production, new device).
     // Ensures mobile dropdown shows threads/spaces even before user has navigated to them.
+    // In production Clerk may not be ready on first mount, so retry after short delays.
     const seedFromApiWhenEmpty = async () => {
       try {
-        if (typeof window === 'undefined' || !isAuthReady() || !navigator.onLine) return;
+        if (typeof window === 'undefined' || !navigator.onLine) return;
         const rawHistory = getRawNavigationHistory();
         const hasThreads = rawHistory.some((item: any) => item?.id?.startsWith('thread_'));
         if (hasThreads) return;
+        if (!isAuthReady()) return;
 
         const response = await safeFetch('/api/navigation/data');
         if (!response?.ok) return;
@@ -1351,7 +1353,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // non-critical
       }
     };
+
     seedFromApiWhenEmpty();
+    // Retry when auth becomes ready (production: Clerk often loads after first paint)
+    const seedRetry1 = window.setTimeout(seedFromApiWhenEmpty, 1500);
+    const seedRetry2 = window.setTimeout(seedFromApiWhenEmpty, 3500);
 
     // Backfill thread spaceIds for existing navigation history entries (once per session as needed).
     const backfillThreadSpaceIds = async () => {
@@ -1935,6 +1941,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     (window as any).refreshNavigation = refreshNavigation;
     
     return () => {
+      window.clearTimeout(seedRetry1);
+      window.clearTimeout(seedRetry2);
       // Clean up validation timeout if it exists
       if (validationTimeoutRef.current) {
         clearTimeout(validationTimeoutRef.current);

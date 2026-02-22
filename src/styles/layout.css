@@ -109,11 +109,18 @@
   margin-bottom: 3.5rem;
 }
 
-/* On mobile with a dock, remove bottom padding so the dock reaches closer to the screen edge.
+/* On mobile with a dock, use 12px bottom padding so the dock doesn't sit flush to the screen edge.
    Pages without a dock (dashboard, profile, etc.) keep the default 0.75rem bottom padding. */
 @media (max-width: 1159px) {
   .app-layout:has(.mobile-main--with-dock) {
-    padding-bottom: 0;
+    padding-bottom: 12px;
+  }
+}
+
+/* PWA standalone: add safe area so 12px sits above the home indicator */
+@media (max-width: 1159px) and (display-mode: standalone) {
+  .app-layout:has(.mobile-main--with-dock) {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -195,6 +202,20 @@
 }
 
 /* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
+
+/* Note page only: small Add button (plus) in bottom right instead of full-width "Add a note" */
+.note-page-add-button {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 2;
+}
+
+@media (display-mode: standalone) {
+  .note-page-add-button {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+}
 
 /* Profile logout button: same treatment as .create-note-button.
    Uses .btn-cta which sets position: relative, so we need the

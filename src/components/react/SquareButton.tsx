@@ -334,8 +334,8 @@ export default function SquareButton({
     
     if (variant === "Close") {
       variantClasses = "bg-[var(--color-stone-grey)]";
-    } else if (variant === "Add" && withMenu) {
-      variantClasses = `${isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]'}`;
+    } else if (variant === "Add") {
+      variantClasses = withMenu && isOpen ? 'bg-[var(--color-stone-grey)]' : 'bg-[var(--color-bold-blue)]';
     } else if (variant === "More" && withMenu) {
       // More button with menu: stone grey when open, gradient gray when closed (via inline style)
       variantClasses = `${isOpen ? 'bg-[var(--color-stone-grey)]' : ''}`;
@@ -360,8 +360,8 @@ export default function SquareButton({
       return {
         backgroundImage: 'var(--color-gradient-gray)',
       };
-    } else if (variant === "Add" && withMenu) {
-      // Add button with menu - background is handled by classes
+    } else if (variant === "Add") {
+      // Add button - background is handled by classes
       return {};
     } else if (variant === "Back" || variant === "Find" || (variant === "More" && !withMenu)) {
       // Back, Find, and More (without menu) all use gradient gray background
@@ -401,7 +401,7 @@ export default function SquareButton({
         className={getButtonClasses()}
         style={getButtonStyle()}
         onClick={handleButtonClick}
-        data-outer-shadow={(variant === "Close" || (variant === "Add" && withMenu)) ? "" : undefined}
+        data-outer-shadow={(variant === "Close" || variant === "Add") ? "" : undefined}
         aria-label={
           variant === "Add" ? "Add new item" :
           variant === "Close" ? "Close" :
@@ -427,7 +427,7 @@ export default function SquareButton({
             </div>
           </div>
         </div>
-        {(variant === "Close" || (variant === "Add" && withMenu)) && (
+        {(variant === "Close" || variant === "Add") && (
           <div className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-8px_0px_0px_rgba(0,0,0,0.1)_inset] group-active:!shadow-[0px_-2px_0px_0px_rgba(0,0,0,0.1)_inset]" />
         )}
         {(variant === "More" && withMenu && isOpen) && (

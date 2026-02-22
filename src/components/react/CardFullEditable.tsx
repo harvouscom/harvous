@@ -279,7 +279,16 @@ export default function CardFullEditable({
     checkOverflow();
     const observer = new ResizeObserver(checkOverflow);
     observer.observe(el);
-    return () => observer.disconnect();
+    // Re-check after layout settles (production PWA can have delayed layout / 0 clientHeight on first paint)
+    const raf = requestAnimationFrame(checkOverflow);
+    const t1 = window.setTimeout(checkOverflow, 150);
+    const t2 = window.setTimeout(checkOverflow, 400);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      observer.disconnect();
+    };
   }, [isContentEditing, displayContent, resourceDescription]);
 
   // Top/bottom gradient: track scroll position (display mode only)
@@ -1543,7 +1552,7 @@ export default function CardFullEditable({
           {/* Display mode */}
           {!isContentEditing ? (
               <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
+              <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
                 {contentOverflowing && contentHasScrolledDown && (
                   <div
                     className="absolute top-0 left-0 right-0 pointer-events-none z-10"

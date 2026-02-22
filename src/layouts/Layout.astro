@@ -4,6 +4,7 @@ import "sonner/dist/styles.css";
 import ToastProvider from "@/components/react/ToastProvider.tsx";
 import ActionStrip from "@/components/ActionStrip.astro";
 import CreateNoteButton from "@/components/CreateNoteButton.astro";
+import NotePageAddButton from "@/components/react/NotePageAddButton.tsx";
 import NewNotePanelSimple from "@/components/NewNotePanelSimple.astro";
 import NewThreadPanelReact from "@/components/react/NewThreadPanel.tsx";
 import NoteDetailsPanel from "@/components/react/NoteDetailsPanel.tsx";
@@ -68,8 +69,8 @@ const noteCreatedAt = currentNote?.createdAt != null
 
 const spaceIsShared = currentSpace?.isPublic === true;
 
-// Show dock/action strip only on thread, note, or space (not dashboard, profile, search, or new space)
-const showActionStrip = contentType === 'thread' || contentType === 'note' || contentType === 'space';
+// Show dock/action strip only on thread, note, or space — not on dashboard, profile, search, new space, or unorganized thread
+const showActionStrip = (contentType === 'thread' || contentType === 'note' || contentType === 'space') && contentId !== 'thread_unorganized';
 
 // Extract publishable key in frontmatter (where import.meta works)
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
@@ -445,8 +446,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             <div class="main-column__scroll">
               <slot name="main" />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'note' && (
+              <div class="note-page-add-button">
+                <NotePageAddButton client:load />
+              </div>
             )}
             {contentType === 'profile' && (
               <button
@@ -500,8 +506,13 @@ const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY || null;
             <div class="main-column__scroll">
               <slot name="main" />
             </div>
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && (
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
+            )}
+            {contentType === 'note' && (
+              <div class="note-page-add-button">
+                <NotePageAddButton client:load />
+              </div>
             )}
             {contentType === 'profile' && (
               <button
