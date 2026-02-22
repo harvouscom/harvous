@@ -109,17 +109,16 @@
   margin-bottom: 3.5rem;
 }
 
-/* On mobile with a dock, exactly 12px bottom padding (use shorthand so base 0.75rem doesn't add).
-   Zero bottom padding on #root and all wrappers so only .app-layout contributes the 12px. */
+/* On mobile with a dock, exactly 12px bottom padding on .app-layout.
+   Zero bottom padding on #root and on wrappers (but not .app-layout — it is often #root's direct child). */
 @media (max-width: 1159px) {
   #root:has(.mobile-main--with-dock) {
     padding-bottom: 0 !important;
   }
-  #root:has(.mobile-main--with-dock) > * {
+  #root:has(.mobile-main--with-dock) > *:not(.app-layout) {
     padding-bottom: 0 !important;
   }
   .app-layout:has(.mobile-main--with-dock) {
-    /* Explicit padding so bottom is exactly 12px; base padding: 0.75rem would use rem for bottom too */
     padding: 0.75rem 0.75rem 12px 0.75rem;
   }
   .app-layout:has(.mobile-main--with-dock) > * {
