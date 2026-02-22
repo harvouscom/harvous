@@ -1,5 +1,7 @@
 # React Islands Strategy for Harvous
 
+**Note:** Production now serves the **React SPA** (`spa/src/`), not the Astro SSR app. This document describes the React Islands approach used in the **Astro SSR app** (e.g. `npm run dev`). For production UI work, see `spa/src/` and `AGENTS.md`.
+
 ## Overview
 
 This document outlines our strategy for using React Islands within our Astro-based Harvous application. Instead of a full migration to React, we're selectively converting the most complex, interactive components to React while keeping the majority of our app as static Astro components.

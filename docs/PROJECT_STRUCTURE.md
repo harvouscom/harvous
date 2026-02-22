@@ -2,10 +2,22 @@
 
 Complete documentation of Harvous's project structure, including directory organization and file purposes.
 
+**Production frontend:** The app served in production is the **React SPA** in `spa/`. The Netlify build runs `astro build` then `vite build` and copies `dist-spa/` over `dist/`, so the SPA's `index.html` and assets are what users receive. The Astro pages under `src/pages/*.astro` are used only for local development (`npm run dev`) and are not served in production.
+
 ## Directory Tree
 
 ```
 harvous/
+├── spa/                     # PRODUCTION FRONTEND (Vite SPA)
+│   └── src/
+│       ├── layouts/         # AppLayout.tsx, AuthLayout.tsx
+│       ├── pages/           # DashboardPage, NotePage, ThreadPage, SpacePage, etc.
+│       ├── hooks/queries/   # React Query hooks (useNote, useThread, useSpace, ...)
+│       ├── router.tsx       # TanStack Router routes
+│       ├── main.tsx         # Entry point, global CSS
+│       ├── lib/api.ts       # API client
+│       └── shims/           # e.g. astro:transitions/client for safeNavigate
+│
 ├── src/
 │   ├── pages/              # Astro pages (routes)
 │   │   ├── index.astro     # Landing page
@@ -105,9 +117,19 @@ harvous/
 
 ## Key Directories
 
+### `spa/` (production frontend)
+
+The React SPA built with Vite. This is what production and the PWA serve.
+
+- **`spa/src/layouts/AppLayout.tsx`** - Authenticated app layout: main column with content, CreateNoteButton ("Add a note"), and ActionStrip dock (note/thread/space); third column is panels only.
+- **`spa/src/pages/`** - Route-level components (DashboardPage, NotePage, ThreadPage, SpacePage, etc.).
+- **`spa/src/router.tsx`** - TanStack Router route definitions.
+- **`spa/src/hooks/queries/`** - React Query hooks for API data (useNote, useThread, useNavigation, etc.).
+- **`spa/src/lib/api.ts`** - API client used by the SPA.
+
 ### `src/pages/`
 
-Astro pages that define routes. Each `.astro` file becomes a route.
+Astro pages that define routes (development only; not served in production). Each `.astro` file becomes a route.
 
 **Key Files:**
 - `dashboard.astro` - Main dashboard with inbox and organized content
