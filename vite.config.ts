@@ -61,6 +61,10 @@ export default defineConfig({
       // Migrated routes → Hono dev server (port 3001)
       '/api/health': { target: 'http://localhost:3001', changeOrigin: true },
       '/api/navigation/data': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/debug': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/about': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/og': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/stats': { target: 'http://localhost:3001', changeOrigin: true },
       // All other API calls → Astro dev server (port 4321)
       '/api': { target: 'http://localhost:4321', changeOrigin: true },
     },
