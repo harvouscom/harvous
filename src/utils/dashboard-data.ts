@@ -140,9 +140,14 @@ export async function getThreadWithCount(threadId: string, userId: string) {
 
 // Fetch all threads with note counts (excluding unorganized thread) - OPTIMIZED
 export async function getAllThreadsWithCounts(userId: string) {
+  return getThreadsWithCountsLimited(userId);
+}
+
+// Fetch threads with note counts (excluding unorganized thread), with optional limit for dashboard list - OPTIMIZED
+export async function getThreadsWithCountsLimited(userId: string, limit?: number) {
   try {
-    // Get threads first
-    const threads = await db.select({
+    // Get threads first (same ordering as getAllThreadsWithCounts)
+    const baseQuery = db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -160,8 +165,6 @@ export async function getAllThreadsWithCounts(userId: string) {
       ne(Threads.id, "thread_unorganized") // Exclude unorganized thread from dashboard display
     ))
     // CRITICAL: Use CASE expression to ensure items WITH lastVisited sort before items WITHOUT
-    // SQLite puts NULLs first in DESC order, so we need explicit NULL handling
-    // Use explicit asc() to ensure 0 (has lastVisited) sorts before 1 (no lastVisited)
     .orderBy(
       desc(Threads.isPinned),
       asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -169,8 +172,8 @@ export async function getAllThreadsWithCounts(userId: string) {
       desc(Threads.updatedAt),
       desc(Threads.createdAt),
       asc(Threads.id)
-    )
-    .all();
+    );
+    const threads = limit != null ? await baseQuery.limit(limit).all() : await baseQuery.all();
 
     // Get note counts for all threads in a single query using GROUP BY
     const threadIds = threads.map(thread => thread.id);
@@ -1360,9 +1363,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
   try {
     // Fetch enough items to cover offset + limit
     const fetchLimit = limit + offset;
+    // Limit threads for dashboard list to avoid loading every thread on every request
+    const threadLimit = Math.min(fetchLimit + 50, 500);
     const [threadsData, assignedNotesRaw, unorganizedNotesRaw] = await Promise.all([
-      // Use provided threads if available, otherwise fetch
-      threads && Array.isArray(threads) ? Promise.resolve(threads) : getAllThreadsWithCounts(userId),
+      // Use provided threads if available, otherwise fetch with limit for dashboard
+      threads && Array.isArray(threads) ? Promise.resolve(threads) : getThreadsWithCountsLimited(userId, threadLimit),
       getAssignedNotesForDashboard(userId, fetchLimit),
       getUnorganizedNotesForDashboard(userId, fetchLimit)
     ]);

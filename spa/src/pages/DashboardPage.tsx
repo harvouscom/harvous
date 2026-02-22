@@ -20,12 +20,11 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<DashboardFilter>('all');
 
-  // Use React Query cache as seed data for OrganizedContentList.
-  // staleTime=30s means navigating back to dashboard within 30s uses cached items
-  // instantly — no empty-state flash. OrganizedContentList still does its own
-  // authoritative fetch to stay fresh; this just provides an immediate first render.
-  const { data: cachedContent, dataUpdatedAt } = useDashboardContent(filter, 100);
+  // Use React Query as single source of truth for initial load. OrganizedContentList
+  // does not refresh on mount when we have no data (relies on parent to pass initialItems).
+  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 100);
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
+  const isInitialLoading = cachedItems.length === 0 && isFetching;
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
@@ -42,6 +41,7 @@ export default function DashboardPage() {
         userId={user?.id}
         dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
         onNavigate={(href) => navigate({ to: href as any })}
+        parentIsLoading={isInitialLoading}
       />
     </CardStack>
   );

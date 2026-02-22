@@ -56,6 +56,8 @@ interface OrganizedContentListProps {
   dataGeneratedAt?: number; // Timestamp when SSR data was generated - used to detect stale cached pages
   /** Optional SPA navigation handler — when provided, item clicks use client-side navigation instead of full page reload */
   onNavigate?: (href: string) => void;
+  /** When true (e.g. parent React Query fetching), show loading until initialItems arrive. Avoids duplicate fetch on mount. */
+  parentIsLoading?: boolean;
 }
 
 // Helper to normalize dates once at API boundary
@@ -135,6 +137,7 @@ export default function OrganizedContentList({
   userId,
   dataGeneratedAt,
   onNavigate,
+  parentIsLoading = false,
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -1263,16 +1266,17 @@ export default function OrganizedContentList({
       const ssrAge = dataGeneratedAt ? Date.now() - dataGeneratedAt : 0;
       const isFromStaleCache = ssrAge > 30000; // 30 seconds - trigger refresh sooner than the 60s render skip
 
-      // In SPA context, initialItems is always empty — always refresh on mount
-      const hasNoInitialData = !initialItems || initialItems.length === 0;
+      // Do NOT refresh when the only reason would be empty initialItems (SPA first load).
+      // Parent (e.g. DashboardPage with React Query) supplies data via initialItems; we show loading via parentIsLoading.
+      const shouldRefresh =
+        inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote;
 
-      if (hasNoInitialData || inPWA || dataIsStale || isFromStaleCache || cameFromNotePage || previousWasNote) {
+      if (shouldRefresh) {
         // Set loading state if data is from stale cache
         if (isFromStaleCache) {
           debug('[OrganizedContentList] checkAndRefreshOnMount: SSR data from stale cache (age: ' + Math.round(ssrAge / 1000) + 's), refreshing');
           setIsWaitingForFreshData(true);
         }
-        // Removed delays for instant refresh
         if (isMountedRef.current && isDashboardPath() &&
             !refreshStateRef.current.isNavigating && !refreshStateRef.current.isRefreshing) {
           refreshContent()
@@ -1665,8 +1669,8 @@ export default function OrganizedContentList({
 
   return (
     <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
-      {(isWaitingForFreshData || isLoadingFilter) && displayItems.length === 0 ? (
-        // Show loading state when waiting for fresh data from stale cache OR during filter/initial fetch
+      {(isWaitingForFreshData || isLoadingFilter || parentIsLoading) && displayItems.length === 0 ? (
+        // Show loading state when waiting for fresh data from stale cache OR during filter/initial fetch OR parent (e.g. React Query) loading
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
           <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
             Loading...

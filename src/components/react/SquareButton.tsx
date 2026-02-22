@@ -413,7 +413,10 @@ export default function SquareButton({
       >
         <div className="flex flex-row items-center justify-center relative w-full h-full">
           <div className="box-border flex flex-row gap-3 items-center justify-center px-4 relative w-full h-full py-[20px]">
-            <div className={`relative shrink-0 flex items-center justify-center ${iconSize}`}>
+            <div
+              className={`relative shrink-0 flex items-center justify-center ${iconSize}`}
+              style={variant === "Add" || variant === "Close" ? { marginTop: "-4px" } : undefined}
+            >
               {shouldShowIconWrapper() && (
                 <div className="flex-none">
                   <div className="relative w-6 h-6 flex items-center justify-center">
