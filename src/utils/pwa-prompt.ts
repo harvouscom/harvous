@@ -50,3 +50,14 @@ export function clearPwaPromptFromJoinFlag(): void {
     sessionStorage.removeItem(PWA_PROMPT_FROM_JOIN_KEY);
   } catch (_) {}
 }
+
+/**
+ * Returns true if the device is considered mobile (phone or tablet).
+ * Used to show the PWA install toast only on mobile, not desktop.
+ */
+export function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (ua.userAgentData?.mobile === true) return true;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}

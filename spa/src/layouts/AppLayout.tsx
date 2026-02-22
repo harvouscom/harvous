@@ -1,5 +1,6 @@
 import {
   clearPwaPromptFromJoinFlag,
+  isMobileDevice,
   shouldShowPwaPrompt,
 } from '../../../src/utils/pwa-prompt';
 import { isPWA } from '../../../src/utils/content-list-helpers';
@@ -59,7 +60,7 @@ export default function AppLayout() {
     }
   }, [isLoaded, isSignedIn, router, pathname]);
 
-  // PWA install prompt: show once per app load when in browser (not PWA), on first visit, after join/invite, or every 30 days after "Not now"
+  // PWA install prompt: show once per app load when in browser (not PWA), on mobile only, on first visit, after join/invite, or every 30 days after "Not now"
   const pwaPromptCheckedRef = useRef(false);
   useEffect(() => {
     if (!isLoaded || !isSignedIn || pwaPromptCheckedRef.current || isPWA()) return;
@@ -67,6 +68,7 @@ export default function AppLayout() {
     if (!show || !window.toast?.pwaPrompt) return;
     pwaPromptCheckedRef.current = true;
     clearPwaPromptFromJoinFlag();
+    if (!isMobileDevice()) return;
     const message =
       reason === 'from_join'
         ? "You just joined a space — get the app for a better experience."

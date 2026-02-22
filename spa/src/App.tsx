@@ -148,21 +148,29 @@ function PwaInstallInstructionsModal({ onClose }: { onClose: () => void }) {
         </h2>
         <div className="pwa-install-modal__section">
           <strong>iPhone (Safari)</strong>
-          <p>Tap the Share icon (square with arrow), then <strong>Add to Home Screen</strong>. Name it and tap <strong>Add</strong>.</p>
+          <ol>
+            <li>Tap the <strong>Share</strong> icon (square with arrow)</li>
+            <li>Scroll down and tap <strong>Add to Home Screen</strong></li>
+            <li>Tap <strong>Add</strong></li>
+          </ol>
         </div>
         <div className="pwa-install-modal__section">
           <strong>Android (Chrome)</strong>
-          <p>Tap the menu (⋮), then <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</p>
+          <ol>
+            <li>Tap the menu (⋮)</li>
+            <li>Tap <strong>Install app</strong> or <strong>Add to Home Screen</strong></li>
+          </ol>
         </div>
         <p className="pwa-install-modal__footer">
           Then open Harvous from your home screen for a faster, app-like experience.
         </p>
         <button
           type="button"
-          className="pwa-install-modal__close"
+          className="btn btn--primary btn--sm btn-animate-squish pwa-install-modal__close"
           onClick={onClose}
         >
-          Close
+          <span className="btn__content">Close</span>
+          <span className="btn__shadow-overlay" aria-hidden="true" />
         </button>
       </div>
     </div>,
@@ -334,7 +342,7 @@ function SpaToaster() {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 9999;
+          z-index: 1000025;
           padding: 16px;
         }
         .pwa-install-modal {
@@ -361,11 +369,16 @@ function SpaToaster() {
           margin-bottom: 4px;
           font-size: 14px;
         }
-        .pwa-install-modal__section p {
+        .pwa-install-modal__section ol {
           margin: 0;
+          padding-left: 1.25rem;
+          list-style-type: decimal;
           font-size: 14px;
-          line-height: 1.4;
+          line-height: 1.5;
           font-weight: 400;
+        }
+        .pwa-install-modal__section ol li {
+          margin-bottom: 4px;
         }
         .pwa-install-modal__footer {
           margin: 0 0 20px;
@@ -376,18 +389,7 @@ function SpaToaster() {
         .pwa-install-modal__close {
           display: block;
           width: 100%;
-          padding: 12px 16px;
-          border: none;
-          border-radius: 1rem;
-          background: var(--color-bold-blue);
-          color: white;
-          font-family: var(--font-sans);
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .pwa-install-modal__close:hover {
-          background: var(--color-navy);
+          margin-top: 4px;
         }
       `}</style>
     </>

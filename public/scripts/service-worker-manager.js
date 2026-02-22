@@ -136,19 +136,21 @@
           .catch(function() { window.location.reload(); });
       }
 
-      // Minor/patch update - show toast and auto-reload
-      if (window.toast && typeof window.toast.info === 'function') {
+      // Only show toast on app layout pages (Layout.astro has .app-layout); suppress on sign-in, sign-up, shared, etc.
+      var isAppLayoutPage = document.querySelector('.app-layout') !== null;
+
+      // Minor/patch update - show toast on app layout only, then auto-reload
+      if (isAppLayoutPage && window.toast && typeof window.toast.info === 'function') {
         try {
           window.toast.info('Updating Harvous for you');
           // Wait 1600ms (matches toast duration) before reloading
           setTimeout(clearCachesAndReload, 1600);
         } catch (error) {
-          // If toast fails, reload immediately
           console.log('Toast notification failed, reloading immediately:', error);
           clearCachesAndReload();
         }
       } else {
-        // Toast system not available, reload immediately (fallback to current behavior)
+        // Non-app layout or toast not available - reload immediately without toast
         clearCachesAndReload();
       }
     });

@@ -227,7 +227,7 @@ try {
 const { firstName, lastName, initials, userColor } = userData;
 
 // Cache-Control for Netlify function optimization (repeat visits served from CDN when valid)
-Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+Astro.response.headers.set('Cache-Control', 'private, no-cache');
 
 // Parse path from request URL so slug parsing works regardless of params.slug format (string vs array)
 const currentSlugPath = Astro.url.pathname || '/';

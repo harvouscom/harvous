@@ -30,7 +30,7 @@ if (!userId) {
 }
 
 // Set cache headers to reduce function invocations on repeat visits
-Astro.response.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=120');
+Astro.response.headers.set('Cache-Control', 'private, no-cache');
 
 // Get cached user data
 let userData: CachedUserData;
