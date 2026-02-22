@@ -57,14 +57,16 @@ const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinE
 
 /** Preload panel chunks so opening a panel resolves Suspense immediately (shared cache with lazy). */
 function preloadPanelChunks() {
+  // Prioritize EditThreadPanel and EditSpacePanel (often opened from thread/space pages) without waiting for idle
+  import('./EditThreadPanel').catch(() => {});
+  import('./EditSpacePanel').catch(() => {});
+
   const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
   schedule(() => {
     const preloads = [
       () => import('./NewNotePanel'),
       () => import('./NewThreadPanel'),
       () => import('./NoteDetailsPanel'),
-      () => import('./EditThreadPanel'),
-      () => import('./EditSpacePanel'),
       () => import('./EditSpacePeoplePanel'),
       () => import('./MySpacesPanel'),
       () => import('./EditNameColorPanel'),
@@ -504,6 +506,14 @@ export default function DesktopPanelManager({
   useEffect(() => {
     preloadPanelChunks();
   }, []);
+
+  // Eager preload EditSpacePanel when on a space page so first open is instant
+  useEffect(() => {
+    if (contentType === 'space' && currentSpace?.id) {
+      import('./EditSpacePanel').catch(() => {});
+      import('./EditSpacePeoplePanel').catch(() => {});
+    }
+  }, [contentType, currentSpace?.id]);
 
   // Load panel state from localStorage on mount
   useEffect(() => {
