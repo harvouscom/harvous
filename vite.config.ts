@@ -58,11 +58,11 @@ export default defineConfig({
       ignored: ['!**/src/**'],
     },
     proxy: {
-      // Proxy API calls to the Astro dev server during development
-      '/api': {
-        target: 'http://localhost:4321',
-        changeOrigin: true,
-      },
+      // Migrated routes → Hono dev server (port 3001)
+      '/api/health': { target: 'http://localhost:3001', changeOrigin: true },
+      '/api/navigation/data': { target: 'http://localhost:3001', changeOrigin: true },
+      // All other API calls → Astro dev server (port 4321)
+      '/api': { target: 'http://localhost:4321', changeOrigin: true },
     },
   },
 });
