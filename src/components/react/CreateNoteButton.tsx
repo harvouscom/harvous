@@ -45,24 +45,46 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
 
   // Inject a spacer inside the card's content area so the last item
   // can scroll above this floating button. Remove when button is hidden.
+  // MutationObserver fallback handles SPA where Outlet content mounts after this effect runs.
   useEffect(() => {
     if (isEditMode || isNewNotePanelOpen) return;
     const btn = btnRef.current;
     if (!btn) return;
     const body = btn.closest('.main-column__body') || btn.closest('.mobile-main__body');
     if (!body) return;
-    const target =
-      body.querySelector('.card-stack__inner-content') ||
-      body.querySelector('.main-column__scroll');
-    if (!target) return;
-    if (target.querySelector(`[${SPACER_ATTR}]`)) return;
-    const spacer = document.createElement('div');
-    spacer.setAttribute(SPACER_ATTR, '');
-    spacer.style.height = '68px';
-    spacer.style.flexShrink = '0';
-    spacer.style.pointerEvents = 'none';
-    target.appendChild(spacer);
-    return () => { spacer.remove(); };
+
+    let spacer: HTMLDivElement | null = null;
+    let observer: MutationObserver | null = null;
+
+    const inject = () => {
+      const target =
+        body.querySelector('.card-stack__inner-content') ||
+        body.querySelector('.main-column__scroll');
+      if (!target) return false;
+      if (target.querySelector(`[${SPACER_ATTR}]`)) return true;
+      spacer = document.createElement('div');
+      spacer.setAttribute(SPACER_ATTR, '');
+      spacer.style.height = '68px';
+      spacer.style.flexShrink = '0';
+      spacer.style.pointerEvents = 'none';
+      target.appendChild(spacer);
+      return true;
+    };
+
+    if (!inject()) {
+      observer = new MutationObserver(() => {
+        if (inject() && observer) {
+          observer.disconnect();
+          observer = null;
+        }
+      });
+      observer.observe(body, { childList: true, subtree: true });
+    }
+
+    return () => {
+      spacer?.remove();
+      observer?.disconnect();
+    };
   }, [isEditMode, isNewNotePanelOpen]);
 
   useEffect(() => {

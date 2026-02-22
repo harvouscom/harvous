@@ -125,10 +125,12 @@
 .action-strip--mobile {
   display: block;
   width: 100%;
+  min-width: 0;
   padding: 0.75rem;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  box-sizing: border-box;
 }
 
 .action-strip--mobile::-webkit-scrollbar {

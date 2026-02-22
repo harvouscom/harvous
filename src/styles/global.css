@@ -1439,15 +1439,30 @@ button .menu-item__label {
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
 /* Sheet overlay: dims content behind the sheet, including the nav bar.
-   Must be above the mobile nav space-switcher (z-index: 1000002). */
+   Must be above the mobile nav space-switcher (z-index: 1000002).
+   top offset matches .app-layout padding so the overlay doesn't bleed
+   into the area above the app (cream gutter / system status bar). */
 .sheet-overlay {
   position: fixed !important;
-  top: 0 !important;
+  top: 0.75rem !important;
   right: 0 !important;
   bottom: 0 !important;
   left: 0 !important;
   z-index: 1000020 !important;
   background-color: rgba(0, 0, 0, 0.4) !important;
+}
+
+@media (min-width: 1160px) {
+  .sheet-overlay {
+    top: 1.5rem !important;
+  }
+}
+
+/* PWA standalone: app-layout has padding-top: 0, overlay starts below system status bar */
+@media (display-mode: standalone) {
+  .sheet-overlay {
+    top: env(safe-area-inset-top, 0px) !important;
+  }
 }
 
 /* Sheet content positioning — replaces Tailwind classes (z-50, fixed, inset-x-0, bottom-0)
@@ -1470,13 +1485,6 @@ button .menu-item__label {
   opacity: 0;
   transition: opacity 0.2s ease-in;
   pointer-events: none;
-}
-
-/* PWA standalone: overlay starts below system status bar (time/battery) to avoid iOS fixed-position stuck/disappear bug */
-@media (display-mode: standalone) {
-  .sheet-overlay {
-    top: env(safe-area-inset-top) !important;
-  }
 }
 
 /* Drag handle indicator for bottom sheets */

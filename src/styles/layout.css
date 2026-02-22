@@ -109,9 +109,10 @@
   margin-bottom: 3.5rem;
 }
 
-/* On mobile, remove bottom padding so the dock reaches closer to the screen edge */
+/* On mobile with a dock, remove bottom padding so the dock reaches closer to the screen edge.
+   Pages without a dock (dashboard, profile, etc.) keep the default 0.75rem bottom padding. */
 @media (max-width: 1159px) {
-  .app-layout {
+  .app-layout:has(.mobile-main--with-dock) {
     padding-bottom: 0;
   }
 }
@@ -254,7 +255,6 @@ button.new-space-floating-button {
   border-bottom-left-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
   animation: mobile-dock-slide-in 0.35s ease-out both;
-  overflow: hidden;
 }
 
 /* Dock starts fully behind the card, then slides down to reveal actions */

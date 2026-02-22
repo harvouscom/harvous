@@ -170,9 +170,20 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
         client:load
       />
       <ProfileContent joinDate={joinDate} seasonalXP={seasonalXP} seasonName={seasonName} />
-      <!-- Spacer so last item scrolls above the floating logout button -->
-      <div class="profile-logout-spacer" />
     </CardStack>
+    <!-- Single logout button (Layout body delegation handles click via #logout-button) -->
+    <div class="mt-4 flex-shrink-0" style="padding-bottom: env(safe-area-inset-bottom, 0px);">
+      <a
+        id="logout-button"
+        href="#"
+        data-outer-shadow
+        class="btn-cta btn--secondary profile-logout-button block w-full text-center no-underline"
+        onclick="if(window.__harvousLogout) window.__harvousLogout(); return false;"
+      >
+        <span class="btn-cta__content">Logout</span>
+        <div class="btn-cta__shadow" />
+      </a>
+    </div>
   </div>
 
   <ProfilePageReact
@@ -209,5 +220,5 @@ const founderLetterHtml = markdownToHtml(founderLetterMarkdown);
   <div slot="mobile-additional">
     <MobileAdditional contentType="profile" contentId={contentId} currentThread={null} currentSpace={null} />
   </div>
-  <!-- Logout is handled by event delegation in Layout.astro (click on #logout-button); sign-out runs on current page where Clerk is already loaded. -->
+  <!-- Logout: #logout-button in main slot is handled by Layout.astro body delegation (__harvousLogout). -->
 </Layout>
