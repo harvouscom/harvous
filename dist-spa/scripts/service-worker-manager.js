@@ -73,6 +73,34 @@
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
 
+    // --- iOS PWA silent-update detection ---
+    // On iOS, when the PWA is killed and relaunched, the new service worker is
+    // already the controller before this script runs, so 'controllerchange' is
+    // never fired. We compare the current SW cache version to the version stored
+    // during the last session. If they differ, the app updated while dormant.
+    const SW_VERSION_KEY = 'harvous-sw-version';
+    async function getCurrentCacheVersion() {
+      try {
+        const keys = await caches.keys();
+        const harvousCache = keys.find(k => k.startsWith('harvous-cache-v'));
+        return harvousCache || null;
+      } catch (_) { return null; }
+    }
+    async function checkSilentUpdate() {
+      const currentVersion = await getCurrentCacheVersion();
+      if (!currentVersion) return;
+      const lastVersion = localStorage.getItem(SW_VERSION_KEY);
+      // Always persist the current version for next comparison
+      localStorage.setItem(SW_VERSION_KEY, currentVersion);
+      if (lastVersion && lastVersion !== currentVersion) {
+        // App updated silently (iOS killed + relaunch scenario).
+        // Don't reload — the page is already running the new code.
+        // Just show the "updated" toast so the user knows.
+        if (window.toast && typeof window.toast.info === 'function') {
+          window.toast.info('Harvous has been updated');
+        }
+      }
+    }
 
     // Set up controller change listener once
     // Only reload if this isn't a fresh page load (performance.navigation.type check)
@@ -98,23 +126,32 @@
       }
 
       reloadingForUpdate = true;
-      
-      // Minor/patch update - show toast and auto-reload
-      if (window.toast && typeof window.toast.info === 'function') {
+
+      function clearCachesAndReload() {
+        caches.keys()
+          .then(function(names) {
+            return Promise.all(names.map(function(n) { return caches.delete(n); }));
+          })
+          .then(function() { window.location.reload(); })
+          .catch(function() { window.location.reload(); });
+      }
+
+      // Only show toast on app layout pages (Layout.astro has .app-layout); suppress on sign-in, sign-up, shared, etc.
+      var isAppLayoutPage = document.querySelector('.app-layout') !== null;
+
+      // Minor/patch update - show toast on app layout only, then auto-reload
+      if (isAppLayoutPage && window.toast && typeof window.toast.info === 'function') {
         try {
           window.toast.info('Updating Harvous for you');
           // Wait 1600ms (matches toast duration) before reloading
-          setTimeout(() => {
-            window.location.reload();
-          }, 1600);
+          setTimeout(clearCachesAndReload, 1600);
         } catch (error) {
-          // If toast fails, reload immediately
           console.log('Toast notification failed, reloading immediately:', error);
-          window.location.reload();
+          clearCachesAndReload();
         }
       } else {
-        // Toast system not available, reload immediately (fallback to current behavior)
-        window.location.reload();
+        // Non-app layout or toast not available - reload immediately without toast
+        clearCachesAndReload();
       }
     });
 
@@ -146,8 +183,11 @@
       navigator.serviceWorker.register('/sw.js')
         .then(registration => {
           registrationRef = registration;
-          
-          // Check for updates immediately
+
+          // Check for iOS silent-update (app was killed & relaunched with a new SW already active)
+          checkSilentUpdate();
+
+          // Check for updates immediately (handles waiting/installing workers)
           checkForUpdates(registration);
           
           // Listen for new updates

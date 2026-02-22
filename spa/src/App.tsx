@@ -1,5 +1,5 @@
 import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
-import { ClerkProvider } from '@clerk/clerk-react';
+import { ClerkProvider, useUser } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
 import React, { useEffect, useState, useCallback } from 'react';
@@ -129,6 +129,19 @@ function ToastSetup() {
     };
   }, []);
 
+  return null;
+}
+
+function UserIdSync() {
+  const { user } = useUser();
+  useEffect(() => {
+    if (user?.id) {
+      (window as any).__harvous_userId = user.id;
+      try {
+        localStorage.setItem('harvous-user-id', user.id);
+      } catch (_) {}
+    }
+  }, [user?.id]);
   return null;
 }
 
@@ -401,6 +414,7 @@ export default function App() {
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
         <ToastSetup />
+        <UserIdSync />
         <SpaToaster />
         <RouterProvider router={router} />
       </QueryClientProvider>

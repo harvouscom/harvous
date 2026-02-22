@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-129-0';
+const CACHE_NAME = 'harvous-cache-v1-137-5';
 const NAV_API_CACHE = 'harvous-nav-api-v10';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -90,6 +90,7 @@ const safeCachePut = async (cache, request, response) => {
 
 const isNoteOrThreadPage = (pathname) => {
   if (/^\/\d+$/.test(pathname)) return true;
+  if (/^\/(note|thread)\//.test(pathname)) return true;
   return false;
 };
 
@@ -328,7 +329,42 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
+
+  // Static assets (/assets/) - cache-first (SPA Vite bundles)
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          fetch(event.request).then((response) => {
+            if (shouldCacheResponse(response)) {
+              const timestamped = addCacheTimestamp(response);
+              const timestampedClone = timestamped.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, timestampedClone);
+              });
+            }
+          }).catch(() => {});
+          return cached;
+        }
+
+        return fetch(event.request).then((response) => {
+          if (shouldCacheResponse(response)) {
+            const timestamped = addCacheTimestamp(response.clone());
+            const responseToCache = timestamped.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, responseToCache);
+            });
+            return timestamped;
+          }
+          return response;
+        }).catch(() => {
+          return caches.match(event.request);
+        });
+      })
+    );
+    return;
+  }
+
   // Navigation requests (pages)
   if (event.request.mode === 'navigate') {
     const isNoteOrThread = isNoteOrThreadPage(url.pathname);
@@ -339,7 +375,7 @@ self.addEventListener('fetch', (event) => {
     // This ensures the list order is always fresh when returning after time away
     if (isIndexPage && isOnline) {
       event.respondWith(
-        fetch(event.request).then(async (response) => {
+        fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
           // Cache for offline use
           if (shouldCacheResponse(response)) {
             const isSignIn = await isSignInPageResponse(response.clone());
@@ -423,7 +459,7 @@ self.addEventListener('fetch', (event) => {
       if (isOnline) {
         // Always go to network when online
         event.respondWith(
-          fetch(event.request).then(async (response) => {
+          fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
             // Cache for offline use
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());
@@ -570,7 +606,7 @@ self.addEventListener('fetch', (event) => {
           cachedIsSignIn = await isSignInPageResponse(cached);
         }
         
-        const networkPromise = fetch(event.request)
+        const networkPromise = fetch(event.request, { cache: 'no-cache' })
           .then(async (response) => {
             if (shouldCacheResponse(response)) {
               const isSignIn = await isSignInPageResponse(response.clone());
@@ -756,7 +792,7 @@ self.addEventListener('fetch', (event) => {
   
   // All other requests - network-first with cache fallback
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, { cache: 'no-cache' })
       .then((response) => {
         if (shouldCacheResponse(response)) {
           const timestamped = addCacheTimestamp(response.clone());

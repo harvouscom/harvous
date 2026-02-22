@@ -90,6 +90,7 @@ const safeCachePut = async (cache, request, response) => {
 
 const isNoteOrThreadPage = (pathname) => {
   if (/^\/\d+$/.test(pathname)) return true;
+  if (/^\/(note|thread)\//.test(pathname)) return true;
   return false;
 };
 
@@ -328,7 +329,42 @@ self.addEventListener('fetch', (event) => {
     );
     return;
   }
-  
+
+  // Static assets (/assets/) - cache-first (SPA Vite bundles)
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) {
+          fetch(event.request).then((response) => {
+            if (shouldCacheResponse(response)) {
+              const timestamped = addCacheTimestamp(response);
+              const timestampedClone = timestamped.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                safeCachePut(cache, event.request, timestampedClone);
+              });
+            }
+          }).catch(() => {});
+          return cached;
+        }
+
+        return fetch(event.request).then((response) => {
+          if (shouldCacheResponse(response)) {
+            const timestamped = addCacheTimestamp(response.clone());
+            const responseToCache = timestamped.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              safeCachePut(cache, event.request, responseToCache);
+            });
+            return timestamped;
+          }
+          return response;
+        }).catch(() => {
+          return caches.match(event.request);
+        });
+      })
+    );
+    return;
+  }
+
   // Navigation requests (pages)
   if (event.request.mode === 'navigate') {
     const isNoteOrThread = isNoteOrThreadPage(url.pathname);
