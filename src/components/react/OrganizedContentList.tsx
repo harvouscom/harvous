@@ -1664,7 +1664,7 @@ export default function OrganizedContentList({
   }
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
       {(isWaitingForFreshData || isLoadingFilter) && displayItems.length === 0 ? (
         // Show loading state when waiting for fresh data from stale cache OR during filter/initial fetch
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>

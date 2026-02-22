@@ -1130,7 +1130,7 @@ export default function SpaceContentList({
 
   let runningIndex = 0;
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
       {SECTION_ORDER.flatMap((sectionKey) => {
         const itemsInSection = bySection.get(sectionKey)!;
         if (itemsInSection.length === 0) return [];
