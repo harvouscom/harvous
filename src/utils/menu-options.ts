@@ -105,8 +105,6 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
     case "space":
       if (spaceRole === 'member') {
         return [
-          { action: "openNewNotePanel", label: "Add Note" },
-          { action: "openNewThreadPanel", label: "Add Thread" },
           { action: "viewSpace", label: "About Space" },
           { action: "leaveSpace", label: "Leave Space" }
         ];

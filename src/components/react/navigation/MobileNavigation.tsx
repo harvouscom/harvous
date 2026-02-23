@@ -124,6 +124,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     initials: initials,
     userColor: userColor,
   });
+  // Sync avatar when parent passes updated profile (e.g. useProfile() resolve after sign-in)
+  useEffect(() => {
+    setProfileData({ initials, userColor });
+  }, [initials, userColor]);
 
   // Sync updatedCurrentThread when currentThread prop changes
   useEffect(() => {

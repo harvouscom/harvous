@@ -115,6 +115,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
+  // Sync avatar when parent passes updated profile (e.g. useProfile() resolve after sign-in)
+  useEffect(() => {
+    setProfileData({ initials, userColor });
+  }, [initials, userColor]);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return extractIdFromPath(pathname) || '';

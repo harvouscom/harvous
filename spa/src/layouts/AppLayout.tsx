@@ -219,7 +219,7 @@ export default function AppLayout() {
     ?? (isNote ? getCachedNoteParentThreadId(noteIdForHook) : null);
 
   // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
-  const activeThread = isThread
+  const activeThreadFromNav = isThread
     ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
     : isNote
     ? (noteParentThreadId
@@ -227,6 +227,21 @@ export default function AppLayout() {
             ?? getCachedNoteParentThread(noteIdForHook))
         : null)
     : null;
+
+  // Enrich with page-level data when available so nav shows correct thread color
+  // (nav/cache can be stale or missing backgroundGradient; useThread/useNote load shortly after)
+  const activeThread = (() => {
+    const base = activeThreadFromNav;
+    if (!base) return null;
+    if (isThread && currentThread?.backgroundGradient) {
+      return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
+    }
+    const noteParent = currentNote?.threads?.[0];
+    if (isNote && noteParent?.backgroundGradient) {
+      return { ...base, backgroundGradient: noteParent.backgroundGradient, title: noteParent.title };
+    }
+    return base;
+  })();
 
   // Enrich currentSpace with title/gradient from nav so navigation components can display it
   const currentSpace = spaceId

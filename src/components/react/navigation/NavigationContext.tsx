@@ -1316,6 +1316,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const spacesFromApi = data.spaces ?? [];
         const existingIds = new Set(rawHistory.map((item: any) => item.id));
 
+        // When seeding from API (empty history), only add a minimal "recent" thread set,
+        // not all threads, so nav reflects "last opened" instead of "all available."
+        const MAX_RECENT_THREADS_TO_SEED = 2;
+        let recentThreadsAdded = 0;
+
         const now = Date.now();
         const newItems: any[] = [];
 
@@ -1333,7 +1338,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }
         for (const t of threadsFromApi) {
           if (!t?.id || existingIds.has(t.id)) continue;
+          // Always seed Unorganized; for other threads, only seed up to MAX_RECENT_THREADS_TO_SEED
+          if (t.id !== 'thread_unorganized' && recentThreadsAdded >= MAX_RECENT_THREADS_TO_SEED) continue;
           existingIds.add(t.id);
+          if (t.id !== 'thread_unorganized') recentThreadsAdded += 1;
           const spaceId = t.spaceId ?? null;
           newItems.push({
             id: t.id,
