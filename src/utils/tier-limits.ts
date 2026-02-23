@@ -1,11 +1,11 @@
 /**
  * Tier Limits for Collaborative Shared Spaces
  *
- * User-facing: Free = 3 shared spaces, paid = unlimited. One simple metric.
+ * User-facing: Free = 200 notes (paid = unlimited notes). Shared spaces are unlimited for all tiers.
  * Invisible cap: 150 people per space (both tiers), like YouVersion. No join limit.
  *
- * - Free tier: 3 shared spaces, unlimited join, 150 people/space (invisible)
- * - Unlimited tier: unlimited shared spaces, unlimited join, 150 people/space (invisible)
+ * - Free tier: 200 notes, unlimited shared spaces, unlimited join, 150 people/space (invisible)
+ * - Unlimited tier: unlimited notes, unlimited shared spaces, unlimited join, 150 people/space (invisible)
  */
 
 import { db, Spaces, Members, eq } from 'astro:db';
@@ -17,7 +17,7 @@ const MEMBERS_PER_SPACE_CAP = 150;
 // Tier limits configuration
 export const TIER_LIMITS = {
   free: {
-    ownedSharedSpaces: 3,
+    ownedSharedSpaces: Infinity, // No limit; only note limit is enforced
     membersPerSpace: MEMBERS_PER_SPACE_CAP,
     joinableSpaces: Infinity, // No join limit
   },
