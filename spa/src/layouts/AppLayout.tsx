@@ -6,6 +6,7 @@ import {
 import { isPWA } from '../../../src/utils/content-list-helpers';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
+import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useCallback } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
@@ -31,6 +32,7 @@ export default function AppLayout() {
   const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
   const { data: nav } = useNavigation();
+  const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
   const { data: profile } = useProfile();
 
@@ -139,7 +141,7 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('astro:page-load'));
   }, [pathname]);
 
-  // Invalidate navigation cache when spaces/threads are created or deleted
+  // Invalidate navigation cache when spaces/threads are created, updated, or deleted
   useEffect(() => {
     const refresh = () => refreshNavigation();
 
@@ -161,17 +163,37 @@ export default function AppLayout() {
       refreshNavigation();
     };
 
+    const handleThreadUpdated = (e: Event) => {
+      const threadId = (e as CustomEvent).detail?.threadId;
+      if (threadId) {
+        queryClient.invalidateQueries({ queryKey: ['thread', threadId] });
+      }
+      refreshNavigation();
+    };
+
+    const handleSpaceUpdated = (e: Event) => {
+      const spaceId = (e as CustomEvent).detail?.spaceId;
+      if (spaceId) {
+        queryClient.invalidateQueries({ queryKey: ['space', spaceId] });
+      }
+      refreshNavigation();
+    };
+
     window.addEventListener('spaceCreated', refresh);
     window.addEventListener('threadCreated', refresh);
+    window.addEventListener('threadUpdated', handleThreadUpdated);
+    window.addEventListener('spaceUpdated', handleSpaceUpdated);
     window.addEventListener('spaceDeleted', handleSpaceDeleted);
     window.addEventListener('threadDeleted', refresh);
     return () => {
       window.removeEventListener('spaceCreated', refresh);
       window.removeEventListener('threadCreated', refresh);
+      window.removeEventListener('threadUpdated', handleThreadUpdated);
+      window.removeEventListener('spaceUpdated', handleSpaceUpdated);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted);
       window.removeEventListener('threadDeleted', refresh);
     };
-  }, [refreshNavigation]);
+  }, [queryClient, refreshNavigation]);
 
   if (!isLoaded) {
     return (

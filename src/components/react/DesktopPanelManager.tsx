@@ -501,6 +501,7 @@ export default function DesktopPanelManager({
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
+  const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
 
   // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
   useEffect(() => {
@@ -606,12 +607,15 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_THREAD' });
     };
 
-    const handleOpenEditSpace = () => {
+    const handleOpenEditSpace = (event: Event) => {
+      const detail = (event as CustomEvent<{ contentId?: string; contentType?: string }>)?.detail;
+      setRequestedSpaceId(detail?.contentId ?? null);
       dispatch({ type: 'OPEN_EDIT_SPACE' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
 
     const handleCloseEditSpace = () => {
+      setRequestedSpaceId(null);
       dispatch({ type: 'CLOSE_EDIT_SPACE' });
     };
 
@@ -718,7 +722,10 @@ export default function DesktopPanelManager({
     window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
 
     // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
-    const handleCloseAllPanels = () => dispatch({ type: 'CLOSE_ALL' });
+    const handleCloseAllPanels = () => {
+      setRequestedSpaceId(null);
+      dispatch({ type: 'CLOSE_ALL' });
+    };
     window.addEventListener('closeAllPanels', handleCloseAllPanels);
 
     // Cleanup
@@ -960,21 +967,26 @@ export default function DesktopPanelManager({
         </PanelErrorBoundary>
       )}
 
-      {/* Edit Space Panel (spaces only) - Desktop Only */}
-      {state.activePanel === 'editSpace' && contentType === 'space' && currentSpace && (
-        <PanelErrorBoundary>
-          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
-            <div className="h-full hidden min-[1160px]:block content-fade-in">
-              <EditSpacePanel
-                spaceId={currentSpace.id}
-                initialTitle={currentSpace.title}
-                initialColor={currentSpace.color}
-                onClose={handleCloseEditSpace}
-              />
-            </div>
-          </Suspense>
-        </PanelErrorBoundary>
-      )}
+      {/* Edit Space Panel - Desktop Only (opens with event contentId or currentSpace so About Space opens right away for members) */}
+      {state.activePanel === 'editSpace' && (() => {
+        const effectiveSpaceId = requestedSpaceId ?? currentSpace?.id;
+        if (!effectiveSpaceId) return null;
+        const useCurrentSpace = currentSpace?.id === effectiveSpaceId;
+        return (
+          <PanelErrorBoundary>
+            <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+              <div className="h-full hidden min-[1160px]:block content-fade-in">
+                <EditSpacePanel
+                  spaceId={effectiveSpaceId}
+                  initialTitle={useCurrentSpace ? currentSpace.title : undefined}
+                  initialColor={useCurrentSpace && (currentSpace as { color?: string })?.color ? (currentSpace as { color: string }).color : undefined}
+                  onClose={handleCloseEditSpace}
+                />
+              </div>
+            </Suspense>
+          </PanelErrorBoundary>
+        );
+      })()}
 
       {/* Edit Space People Panel (spaces only) - Desktop Only */}
       {state.activePanel === 'editSpacePeople' && contentType === 'space' && currentSpace && (

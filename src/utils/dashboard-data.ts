@@ -138,6 +138,55 @@ export async function getThreadWithCount(threadId: string, userId: string) {
   }
 }
 
+/**
+ * Fetch a single thread by ID with note count for space members.
+ * No userId filter; caller must have verified space access via requireSpaceAccess.
+ */
+export async function getThreadWithCountForMember(threadId: string) {
+  try {
+    const thread = await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      userId: Threads.userId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited,
+    })
+    .from(Threads)
+    .where(eq(Threads.id, threadId))
+    .get();
+
+    if (!thread) {
+      return null;
+    }
+
+    const noteCountResult = await db.select({
+      count: count(),
+    })
+    .from(NoteThreads)
+    .where(eq(NoteThreads.threadId, threadId))
+    .get();
+
+    const noteCount = noteCountResult?.count || 0;
+
+    return {
+      ...thread,
+      noteCount,
+      lastUpdated: thread.lastVisited || thread.updatedAt || thread.createdAt,
+      accentColor: getThreadColorCSS(thread.color),
+      backgroundGradient: getThreadGradientCSS(thread.color),
+    };
+  } catch (error) {
+    console.error("Error fetching thread with count (member):", error);
+    return null;
+  }
+}
+
 // Fetch all threads with note counts (excluding unorganized thread) - OPTIMIZED
 export async function getAllThreadsWithCounts(userId: string) {
   return getThreadsWithCountsLimited(userId);
@@ -911,6 +960,43 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
     };
   } catch (error) {
     console.error("Error fetching note type counts for thread:", error);
+    return {
+      all: 0,
+      default: 0,
+      scripture: 0,
+      resource: 0
+    };
+  }
+}
+
+/**
+ * Get note type counts for a thread when viewing as a space member.
+ * Counts notes in the thread via junction table only (no Notes.userId filter).
+ */
+export async function getThreadNoteTypeCountsForMember(threadId: string) {
+  try {
+    const allNotes = await db.select({
+      id: Notes.id,
+      noteType: Notes.noteType,
+    })
+    .from(Notes)
+    .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+    .where(eq(NoteThreads.threadId, threadId))
+    .all();
+
+    const allCount = allNotes.length;
+    const defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
+    const scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
+    const resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
+
+    return {
+      all: allCount,
+      default: defaultCount,
+      scripture: scriptureCount,
+      resource: resourceCount
+    };
+  } catch (error) {
+    console.error("Error fetching note type counts for thread (member):", error);
     return {
       all: 0,
       default: 0,

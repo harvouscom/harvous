@@ -1,7 +1,9 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getThreadNoteTypeCounts } from '@/utils/dashboard-data';
+import { db, Threads, eq } from 'astro:db';
+import { getThreadNoteTypeCounts, getThreadNoteTypeCountsForMember } from '@/utils/dashboard-data';
+import { requireSpaceAccess } from '@/utils/space-permissions';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
@@ -23,7 +25,20 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    const noteTypeCounts = await getThreadNoteTypeCounts(threadId, userId);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, userId);
+
+    // Member path: if owner path returned all zeros, try thread in shared space
+    if (noteTypeCounts.all === 0 && noteTypeCounts.default === 0 && noteTypeCounts.scripture === 0 && noteTypeCounts.resource === 0) {
+      const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      if (thread?.spaceId) {
+        try {
+          await requireSpaceAccess(thread.spaceId, userId);
+          noteTypeCounts = await getThreadNoteTypeCountsForMember(threadId);
+        } catch {
+          // No access – keep zeros
+        }
+      }
+    }
 
     return new Response(JSON.stringify({
       noteTypeCounts
