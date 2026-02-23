@@ -20,6 +20,7 @@ import search from './routes/search';
 import content from './routes/content';
 import threads from './routes/threads';
 import notes from './routes/notes';
+import spaces from './routes/spaces';
 
 const app = new Hono();
 
@@ -38,5 +39,6 @@ app.route('/', search);
 app.route('/', content);
 app.route('/', threads);
 app.route('/', notes);
+app.route('/', spaces);
 
 export default app;

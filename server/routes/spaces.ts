@@ -652,7 +652,7 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
       const invitations = await db.select().from(SpaceInvitations)
         .where(and(eq(SpaceInvitations.spaceId, spaceId), eq(SpaceInvitations.status, 'pending'))).all();
       pendingInvitations = invitations.map(inv => ({
-        id: inv.id, email: inv.email, inviteMethod: inv.inviteMethod, createdAt: inv.createdAt, expiresAt: inv.expiresAt,
+        id: inv.id, email: inv.invitedEmail, createdAt: inv.createdAt, expiresAt: inv.expiresAt,
       }));
     }
 
@@ -714,9 +714,8 @@ route.post('/api/spaces/:spaceId/members/invite', async (c) => {
       id: `invite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       spaceId,
       invitedBy: auth.userId,
-      email: email || null,
-      inviteMethod: method,
-      token: inviteToken,
+      invitedEmail: email || null,
+      inviteToken,
       status: 'pending',
       expiresAt,
       createdAt: now,
