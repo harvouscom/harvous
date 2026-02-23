@@ -8,6 +8,7 @@ interface ManageBillingPanelProps {
   publishableKey?: string | null;
 }
 
+/** Subscription data comes only from /api/subscription/status. Do not add limitsInfo. */
 export default function ManageBillingPanel({ 
   onClose,
   inBottomSheet = false,

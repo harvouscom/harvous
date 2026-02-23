@@ -1,18 +1,12 @@
 import { useEffect, useState } from 'react';
-import UpgradePageContent from '../../../src/components/react/UpgradePageContent';
+import UpgradePageContent, { type LimitsInfo } from '../../../src/components/react/UpgradePageContent';
 import { api } from '../lib/api';
-
-interface LimitsInfo {
-  currentCount: number;
-  limit: number;
-  [key: string]: unknown;
-}
 
 interface UpgradeData {
   hasUnlimited: boolean;
   currentCount: number;
   limit: number;
-  limitsInfo: LimitsInfo;
+  limitsInfo: LimitsInfo | null;
 }
 
 const HarvousLogo = () => (
@@ -64,7 +58,7 @@ export default function UpgradePage() {
                   initialHasUnlimited={data?.hasUnlimited ?? false}
                   initialCurrentCount={data?.currentCount ?? 0}
                   initialLimit={data?.limit ?? 0}
-                  limitsInfo={data?.limitsInfo ?? { currentCount: 0, limit: 0 }}
+                  limitsInfo={data?.limitsInfo ?? null}
                   publishableKey={null}
                   unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
                 />

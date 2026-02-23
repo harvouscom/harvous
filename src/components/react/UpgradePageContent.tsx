@@ -35,7 +35,7 @@ export default function UpgradePageContent({
   const [hasUnlimited, setHasUnlimited] = useState(initialHasUnlimited);
   const [currentCount, setCurrentCount] = useState(initialCurrentCount);
   const [limit, setLimit] = useState(initialLimit);
-  const [limitsInfo, setLimitsInfo] = useState<LimitsInfo | null>(initialLimitsInfo);
+  const [limitsInfo, setLimitsInfo] = useState<LimitsInfo | null>(initialLimitsInfo ?? null);
 
   // Check subscription status via API (simplified)
   const checkStatus = async () => {
@@ -82,6 +82,7 @@ export default function UpgradePageContent({
     };
   }, []);
 
+  const safeLimitsInfo = limitsInfo ?? null;
 
   return (
     <>
@@ -93,7 +94,7 @@ export default function UpgradePageContent({
             <p className="clerk-form-header-subtitle">
               You're all set. Create as many notes as you need.
             </p>
-            {limitsInfo && (
+            {safeLimitsInfo && (
               <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
                 <li>Unlimited notes</li>
               </ul>
@@ -117,7 +118,7 @@ export default function UpgradePageContent({
             <p className="clerk-form-header-subtitle" style={{ textWrap: 'balance' }}>
               Get unlimited notes. Pay monthly or yearly—save 50% at $3 per month.
             </p>
-            {limitsInfo && (() => {
+            {safeLimitsInfo && (() => {
               const limitRed = 'var(--color-red, #dc2626)';
               const notesAtLimit = (limit ?? 200) - currentCount <= 100;
               if (!notesAtLimit) return null;

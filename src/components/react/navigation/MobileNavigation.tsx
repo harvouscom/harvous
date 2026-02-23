@@ -1360,11 +1360,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <SpaceButton
               as="div"
-              text={activeThreadCandidate ? activeThreadCandidate.title : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.title : (isDashboard ? "My Home" : displaySelectedSpaceLabel)}
-              count={updatedCurrentThread ? updatedCurrentThread.noteCount : currentThread ? currentThread.noteCount : (updatedCurrentSpace || currentSpace) ? (updatedCurrentSpace || currentSpace)!.totalItemCount : inboxCount}
+              text={activeThreadCandidate ? activeThreadCandidate.title : displaySelectedSpaceLabel}
+              count={activeThreadCandidate ? (updatedCurrentThread ?? currentThread)?.noteCount ?? 0 : displaySelectedSpaceCount}
               state="DropdownTrigger"
               rightAccessory="none"
-              backgroundGradient={activeThreadCandidate?.backgroundGradient || (updatedCurrentSpace || currentSpace)?.backgroundGradient || getThreadGradientCSS('paper')}
+              backgroundGradient={activeThreadCandidate?.backgroundGradient ?? displaySelectedSpaceBackground}
               hideDropdownIcon={true}
             />
           </div>
