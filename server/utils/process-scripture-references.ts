@@ -396,6 +396,10 @@ export async function processScriptureReferences(
               currentSeason: season,
               lastMonthlyVisit: null,
               churchAddedAt: null,
+              referralBonusNotes: 0,
+              referralCode: null,
+              lockPinSalt: null,
+              lockPinHash: null,
               createdAt: new Date().toISOString(),
               updatedAt: null
             };
@@ -855,6 +859,10 @@ export async function processScriptureReferences(
                 currentSeason: season,
                 lastMonthlyVisit: null,
                 churchAddedAt: null,
+                referralBonusNotes: 0,
+                referralCode: null,
+                lockPinSalt: null,
+                lockPinHash: null,
                 createdAt: new Date().toISOString(),
                 updatedAt: null
               };
@@ -924,9 +932,9 @@ export async function processScriptureReferences(
 
             // Auto-generate and apply tags
             try {
-              const autoTags = await generateAutoTags(capitalizedContent, userId);
-              if (autoTags.length > 0) {
-                await applyAutoTags(newScriptureNote.id, autoTags, userId);
+              const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, 0.8);
+              if (autoTagResult.suggestions.length > 0) {
+                await applyAutoTags(newScriptureNote.id, autoTagResult.suggestions, userId);
               }
             } catch (tagError: any) {
               console.error(`Error auto-generating tags for scripture note ${newScriptureNote.id}:`, tagError);

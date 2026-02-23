@@ -1,31 +1,101 @@
 /**
  * Thread routes — Hono port of:
  *   - src/pages/api/threads/list.ts
+ *   - src/pages/api/threads/create.ts
+ *   - src/pages/api/threads/update.ts
+ *   - src/pages/api/threads/delete.ts
+ *   - src/pages/api/threads/ensure-unorganized.ts
+ *   - src/pages/api/threads/erase-with-notes.ts
  *   - src/pages/api/threads/[threadId]/prefetch.ts
  *   - src/pages/api/threads/[threadId]/note-type-counts.ts
+ *   - src/pages/api/threads/[threadId]/notes.ts
+ *   - src/pages/api/threads/[threadId]/share.ts (GET + POST)
+ *   - src/pages/api/threads/[threadId]/referenced-scripture-notes.ts
  */
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import {
+  db, Threads, Notes, NoteThreads, NoteTags, Comments, Spaces, Members,
+  ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
+  eq, and, inArray, isNull,
+} from '../db';
+import { nowISO } from '../db/dates';
+import {
   getAllThreadsWithCounts,
   getThreadWithCount,
   getNotesForThread,
+  getNotesForThreadForMember,
   getThreadNoteTypeCounts,
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { getThreadGradientCSS } from '@/utils/colors';
+import { requireSpaceAccess } from '../utils/space-permissions';
+import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
+import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
+import { getNextUntitledThreadName } from '../utils/untitled-naming';
+import { getThreadGradientCSS, THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
+import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
+import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { generateThreadId, generateShareToken } from '@/utils/ids';
 
 const route = new Hono();
 
-// GET /api/threads/list
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function parseSelectedNoteIds(raw: string | null): string[] {
+  if (!raw) return [];
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return [];
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+}
+
+async function addNotesToThread(
+  noteIds: string[],
+  threadId: string,
+  userId: string,
+): Promise<void> {
+  for (const noteId of noteIds) {
+    try {
+      const note = await db.select().from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).get();
+      if (!note) continue;
+
+      const existingRelation = await db.select().from(NoteThreads)
+        .where(and(eq(NoteThreads.noteId, noteId), eq(NoteThreads.threadId, threadId))).get();
+      if (existingRelation) continue;
+
+      const existingThreadRelations = await db.select().from(NoteThreads)
+        .where(eq(NoteThreads.noteId, noteId)).all();
+      const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
+
+      const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await db.insert(NoteThreads).values({ id: noteThreadId, noteId, threadId, createdAt: nowISO() });
+
+      if (isInUnorganized && threadId !== 'thread_unorganized') {
+        await db.update(Notes).set({ threadId }).where(eq(Notes.id, noteId));
+      }
+
+      moveScriptureNotesToThread(noteId, threadId, userId).catch((error) => {
+        console.error(`Error moving scripture notes for note ${noteId} (non-blocking):`, error);
+      });
+    } catch (error) {
+      console.error(`Error adding note ${noteId} to thread:`, error);
+    }
+  }
+}
+
+// ─── GET /api/threads/list ──────────────────────────────────────────────────
 route.get('/api/threads/list', async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const threads = await getAllThreadsWithCounts(auth.userId);
 
@@ -38,11 +108,8 @@ route.get('/api/threads/list', async (c) => {
       backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color || 'blue'),
     }));
 
-    // Ensure "Unorganized" thread exists with actual count
     const unorganizedThreadData = await ensureUnorganizedThread(auth.userId);
-    const hasUnorganizedThread = threadOptions.some((thread: any) =>
-      thread.id === 'thread_unorganized'
-    );
+    const hasUnorganizedThread = threadOptions.some((thread: any) => thread.id === 'thread_unorganized');
 
     if (!hasUnorganizedThread) {
       threadOptions.unshift({
@@ -54,9 +121,7 @@ route.get('/api/threads/list', async (c) => {
         backgroundGradient: getThreadGradientCSS('paper'),
       });
     } else {
-      const unorganizedIndex = threadOptions.findIndex((thread: any) =>
-        thread.id === 'thread_unorganized'
-      );
+      const unorganizedIndex = threadOptions.findIndex((thread: any) => thread.id === 'thread_unorganized');
       if (unorganizedIndex !== -1) {
         threadOptions[unorganizedIndex].noteCount = unorganizedThreadData.noteCount || 0;
         threadOptions[unorganizedIndex].spaceId = null;
@@ -65,26 +130,303 @@ route.get('/api/threads/list', async (c) => {
 
     return c.json(threadOptions);
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/threads/list',
-      action: 'list_threads',
-    });
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/list', action: 'list_threads' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
 
-// GET /api/threads/:threadId/prefetch
+// ─── POST /api/threads/create ───────────────────────────────────────────────
+route.post('/api/threads/create', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const ip = getClientIP(c.req.raw);
+    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/create', 'write', ip);
+    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
+
+    const formData = await c.req.formData();
+    const title = formData.get('title') as string;
+    const color = formData.get('color') as string;
+    const isPublic = formData.get('isPublic') === 'true';
+    const spaceId = formData.get('spaceId') as string;
+    const selectedNoteIds = parseSelectedNoteIds(formData.get('selectedNoteIds') as string | null);
+
+    const titleValidation = validateTitle(title, false);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+
+    let finalTitle: string;
+    if (!title || !title.trim()) {
+      finalTitle = await getNextUntitledThreadName(auth.userId);
+    } else {
+      finalTitle = title.trim();
+    }
+
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+    let threadColor = color;
+    if (color && !THREAD_COLORS.includes(color as any)) threadColor = getRandomThreadColor();
+    else if (!color) threadColor = getRandomThreadColor();
+
+    const spaceIdValidation = validateSpaceId(spaceId);
+    if (!spaceIdValidation.isValid) return c.json({ error: spaceIdValidation.error, code: spaceIdValidation.code }, 400);
+    let finalSpaceId = null;
+    if (spaceId && spaceId.trim() && spaceId !== 'default_space') finalSpaceId = spaceId;
+
+    const capitalizedTitle = finalTitle.charAt(0).toUpperCase() + finalTitle.slice(1);
+    const shareToken = isPublic ? generateShareToken() : null;
+    const now = nowISO();
+
+    const newThread = await db.insert(Threads).values({
+      id: generateThreadId(),
+      title: capitalizedTitle,
+      subtitle: null,
+      spaceId: finalSpaceId,
+      userId: auth.userId,
+      isPublic,
+      color: threadColor,
+      isPinned: false,
+      shareToken,
+      shareTokenCreatedAt: isPublic ? now : null,
+      createdAt: now,
+      updatedAt: now,
+      lastVisited: now,
+    }).returning().get();
+
+    if (selectedNoteIds.length > 0) {
+      await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
+      await db.update(Threads).set({ updatedAt: nowISO() })
+        .where(and(eq(Threads.id, newThread.id), eq(Threads.userId, auth.userId)));
+    }
+
+    awardCreationBonusXP(auth.userId, 'thread').catch(() => {});
+
+    return c.json({ success: 'Thread created!', thread: newThread });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/create', action: 'create_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/update ───────────────────────────────────────────────
+route.post('/api/threads/update', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const ip = getClientIP(c.req.raw);
+    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/update', 'write', ip);
+    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
+
+    const formData = await c.req.formData();
+    const threadId = formData.get('id') as string;
+    const title = formData.get('title') as string;
+    const color = formData.get('color') as string;
+    const subtitle = formData.get('subtitle') as string | null;
+    const isPublic = formData.get('isPublic') === 'true';
+    const selectedNoteIds = parseSelectedNoteIds(formData.get('selectedNoteIds') as string | null);
+
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    // Inline the Astro action logic: verify ownership then update
+    const currentThread = await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    if (!currentThread) return c.json({ error: 'Thread not found or access denied' }, 404);
+
+    const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
+    const normalizedSubtitle = subtitle || null;
+
+    // Compare values to determine if only color changed
+    const titleChanged = currentThread.title !== capitalizedTitle;
+    const subtitleChanged = (currentThread.subtitle || null) !== normalizedSubtitle;
+    const isPublicChanged = currentThread.isPublic !== isPublic;
+    const onlyColorChanged = !titleChanged && !subtitleChanged && !isPublicChanged;
+
+    const updateData: any = {
+      title: capitalizedTitle,
+      subtitle: normalizedSubtitle,
+      isPublic,
+      color,
+    };
+    if (!onlyColorChanged) {
+      updateData.updatedAt = nowISO();
+    }
+
+    const updatedThread = await db.update(Threads).set(updateData)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).returning().get();
+
+    // Add selected notes to thread
+    if (selectedNoteIds.length > 0) {
+      await addNotesToThread(selectedNoteIds, threadId, auth.userId);
+      await db.update(Threads).set({ updatedAt: nowISO() })
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+
+    return c.json({ success: 'Thread updated!', thread: updatedThread });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/update', action: 'update_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── DELETE /api/threads/delete ─────────────────────────────────────────────
+route.delete('/api/threads/delete', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const ip = getClientIP(c.req.raw);
+    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/delete', 'write', ip);
+    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
+
+    const threadId = c.req.query('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const existingThread = await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
+
+    if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot delete the unorganized thread' }, 400);
+
+    const threadCreatedAt = existingThread.createdAt;
+
+    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt as string));
+    await revokeAllXPForItem(auth.userId, threadId);
+
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
+      .where(eq(NoteThreads.threadId, threadId)).all();
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+
+    if (affectedNotes.length > 0) {
+      for (const { noteId } of affectedNotes) {
+        await db.update(Notes).set({ threadId: 'thread_unorganized' })
+          .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+      }
+    }
+
+    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+
+    return c.json({ success: 'Thread erased! Notes have been moved to the Unorganized thread.', threadId });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/delete', action: 'delete_thread' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/ensure-unorganized ───────────────────────────────────
+route.post('/api/threads/ensure-unorganized', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
+
+    const existingThread = await db.select().from(Threads)
+      .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).get();
+
+    if (existingThread) {
+      return c.json({ success: true, message: 'Unorganized thread already exists', thread: existingThread });
+    }
+
+    const now = nowISO();
+    const unorganizedThread = {
+      id: 'thread_unorganized',
+      userId: auth.userId,
+      title: 'Unorganized',
+      subtitle: 'Individual notes and unassigned content',
+      color: null,
+      spaceId: null,
+      isPublic: false,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      await db.insert(Threads).values(unorganizedThread);
+      return c.json({ success: true, message: 'Unorganized thread created', thread: unorganizedThread }, 201);
+    } catch (insertError: any) {
+      if (insertError.code === 'SQLITE_CONSTRAINT' || insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
+          insertError.rawCode === 1555 || insertError.message?.includes('UNIQUE constraint failed')) {
+        const createdThread = await db.select().from(Threads)
+          .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).get();
+        if (createdThread) return c.json({ success: true, message: 'Unorganized thread already exists', thread: createdThread });
+      }
+      throw insertError;
+    }
+  } catch (error) {
+    console.error('Error ensuring unorganized thread:', error);
+    return c.json({ error: 'Failed to ensure unorganized thread exists' }, 500);
+  }
+});
+
+// ─── DELETE /api/threads/erase-with-notes ───────────────────────────────────
+route.delete('/api/threads/erase-with-notes', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const ip = getClientIP(c.req.raw);
+    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/erase-with-notes', 'write', ip);
+    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
+
+    const threadId = c.req.query('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const existingThread = await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
+    if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot erase the unorganized thread' }, 400);
+
+    const threadCreatedAt = existingThread.createdAt;
+
+    const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
+      .where(eq(NoteThreads.threadId, threadId)).all();
+    const noteIds = affectedNotes.map(n => n.noteId);
+
+    // Delete all related data for each note
+    for (const noteId of noteIds) {
+      const note = await db.select().from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+      if (note) {
+        await revokeXPOnDeletion(auth.userId, noteId, new Date(note.createdAt as string));
+        await revokeAllXPForItem(auth.userId, noteId);
+        await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
+        await db.delete(Comments).where(eq(Comments.noteId, noteId));
+        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, noteId));
+      }
+    }
+
+    await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
+    for (const noteId of noteIds) {
+      await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+    }
+
+    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt as string));
+    await revokeAllXPForItem(auth.userId, threadId);
+    await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+
+    return c.json({ success: 'Thread and all notes erased!', threadId, notesDeleted: noteIds.length });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/erase-with-notes', action: 'erase_thread_with_notes' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/threads/:threadId/prefetch ────────────────────────────────────
 route.get('/api/threads/:threadId/prefetch', async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) {
-      return c.json({ error: 'Authentication required' }, 401);
-    }
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threadId = c.req.param('threadId');
-    if (!threadId) {
-      return c.json({ error: 'Thread ID required' }, 400);
-    }
+    if (!threadId) return c.json({ error: 'Thread ID required' }, 400);
 
     const [thread, notesResult, noteTypeCounts] = await Promise.all([
       getThreadWithCount(threadId, auth.userId),
@@ -92,10 +434,7 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
       getThreadNoteTypeCounts(threadId, auth.userId),
     ]);
 
-    if (!thread) {
-      return c.json({ error: 'Thread not found' }, 404);
-    }
-
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
     const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
 
     return c.json({
@@ -119,18 +458,14 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
   }
 });
 
-// GET /api/threads/:threadId/note-type-counts
+// ─── GET /api/threads/:threadId/note-type-counts ────────────────────────────
 route.get('/api/threads/:threadId/note-type-counts', async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) {
-      return c.json({ error: 'Authentication required' }, 401);
-    }
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threadId = c.req.param('threadId');
-    if (!threadId) {
-      return c.json({ error: 'Thread ID is required' }, 400);
-    }
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
 
     const noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
     return c.json({ noteTypeCounts });
@@ -140,6 +475,159 @@ route.get('/api/threads/:threadId/note-type-counts', async (c) => {
       action: 'get_thread_note_type_counts',
       threadId: c.req.param('threadId'),
     });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/threads/:threadId/notes ───────────────────────────────────────
+route.get('/api/threads/:threadId/notes', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const threadId = c.req.param('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const offset = parseInt(c.req.query('offset') || '0', 10);
+    const limit = parseInt(c.req.query('limit') || '20', 10);
+
+    // Owner path
+    let result = await getNotesForThread(threadId, auth.userId, limit, offset);
+    if (Array.isArray(result)) {
+      result = { notes: [], hasMore: false };
+    }
+
+    // If owner path returned no notes and offset is 0, try member path
+    if (result.notes.length === 0 && offset === 0) {
+      const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      if (thread?.spaceId) {
+        let memberNotesResult: { notes: any[]; hasMore: boolean } | null = null;
+        try {
+          const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
+          memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
+        } catch {
+          const spaceRow = await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).get();
+          const memberRow = await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).get();
+          if (spaceRow && memberRow) {
+            memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
+          }
+        }
+        if (memberNotesResult) result = memberNotesResult;
+      }
+    }
+
+    return c.json({ notes: result.notes, hasMore: result.hasMore, offset, limit });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/notes', action: 'get_thread_notes', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/threads/:threadId/share ───────────────────────────────────────
+route.get('/api/threads/:threadId/share', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const threadId = c.req.param('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const thread = await db.select({
+      id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken,
+      shareTokenCreatedAt: Threads.shareTokenCreatedAt, userId: Threads.userId,
+    }).from(Threads).where(eq(Threads.id, threadId)).get();
+
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
+    if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to access this thread' }, 403);
+
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      isPublic: thread.isPublic,
+      shareToken: thread.shareToken,
+      shareUrl: thread.shareToken ? `${origin}/shared/thread/${thread.shareToken}` : null,
+      shareTokenCreatedAt: thread.shareTokenCreatedAt,
+    });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/share', action: 'get_share_status', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── POST /api/threads/:threadId/share ──────────────────────────────────────
+route.post('/api/threads/:threadId/share', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const threadId = c.req.param('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const { action } = await c.req.json();
+    if (!action || !['enable', 'disable', 'refresh'].includes(action)) {
+      return c.json({ error: 'Invalid action. Must be enable, disable, or refresh' }, 400);
+    }
+
+    const thread = await db.select({
+      id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken, userId: Threads.userId,
+    }).from(Threads).where(eq(Threads.id, threadId)).get();
+
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
+    if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to modify this thread' }, 403);
+
+    const now = nowISO();
+    let newShareToken: string | null = null;
+    let isPublic = thread.isPublic;
+
+    if (action === 'enable') {
+      newShareToken = generateShareToken();
+      isPublic = true;
+      await db.update(Threads).set({ isPublic: true, shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    } else if (action === 'disable') {
+      newShareToken = null;
+      isPublic = false;
+      await db.update(Threads).set({ isPublic: false, shareToken: null, shareTokenCreatedAt: null, updatedAt: now })
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    } else if (action === 'refresh') {
+      if (!thread.isPublic) return c.json({ error: 'Cannot refresh share link for a private thread' }, 400);
+      newShareToken = generateShareToken();
+      isPublic = true;
+      await db.update(Threads).set({ shareToken: newShareToken, shareTokenCreatedAt: now, updatedAt: now })
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    }
+
+    const origin = new URL(c.req.url).origin;
+    const shareUrl = newShareToken ? `${origin}/shared/thread/${newShareToken}` : null;
+
+    return c.json({ success: true, isPublic, shareToken: newShareToken, shareUrl, shareTokenCreatedAt: action !== 'disable' ? now : null });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/share', action: 'update_share_status', threadId: c.req.param('threadId') });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/threads/:threadId/referenced-scripture-notes ──────────────────
+route.get('/api/threads/:threadId/referenced-scripture-notes', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const noteIdsParam = c.req.query('noteIds');
+    if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });
+
+    const noteIds = noteIdsParam.split(',').filter(id => id);
+    if (noteIds.length === 0) return c.json({ scriptureNoteIds: [] });
+
+    const references = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+      .from(NoteScriptureReferences)
+      .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+      .where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, auth.userId), eq(Notes.noteType, 'scripture')))
+      .all();
+
+    const scriptureNoteIds = [...new Set(references.map(r => r.scriptureNoteId))];
+    return c.json({ scriptureNoteIds });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/threads/[threadId]/referenced-scripture-notes', action: 'get_referenced_scripture_notes', threadId: c.req.param('threadId') });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
