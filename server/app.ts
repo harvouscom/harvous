@@ -16,6 +16,9 @@ import debug from './routes/debug';
 import about from './routes/about';
 import og from './routes/og';
 import stats from './routes/stats';
+import search from './routes/search';
+import content from './routes/content';
+import threads from './routes/threads';
 
 const app = new Hono();
 
@@ -30,5 +33,8 @@ app.route('/', debug);
 app.route('/', about);
 app.route('/', og);
 app.route('/', stats);
+app.route('/', search);
+app.route('/', content);
+app.route('/', threads);
 
 export default app;

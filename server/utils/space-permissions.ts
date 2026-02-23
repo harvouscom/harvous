@@ -1,0 +1,113 @@
+/**
+ * Space permission helpers — Drizzle port of src/utils/space-permissions.ts
+ */
+
+import { db, Spaces, Members, eq, and } from '../db';
+import { forbiddenResponse, notFoundResponse } from '@/utils/api-responses';
+
+export type SpaceRole = 'owner' | 'member';
+
+export async function isSpaceOwner(spaceId: string, userId: string): Promise<boolean> {
+  const space = await db.select()
+    .from(Spaces)
+    .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
+    .get();
+  return !!space;
+}
+
+export async function isSpaceMember(spaceId: string, userId: string): Promise<boolean> {
+  const space = await db.select()
+    .from(Spaces)
+    .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
+    .get();
+  if (space) return true;
+
+  const member = await db.select()
+    .from(Members)
+    .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+    .get();
+  return !!member;
+}
+
+export async function getSpaceRole(spaceId: string, userId: string): Promise<SpaceRole | null> {
+  const space = await db.select()
+    .from(Spaces)
+    .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
+    .get();
+  if (space) return 'owner';
+
+  const member = await db.select()
+    .from(Members)
+    .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+    .get();
+  if (member) return 'member';
+
+  return null;
+}
+
+export async function requireSpaceAccess(
+  spaceId: string,
+  userId: string,
+  requireOwner: boolean = false
+): Promise<{ role: SpaceRole; space: any }> {
+  const space = await db.select()
+    .from(Spaces)
+    .where(eq(Spaces.id, spaceId))
+    .get();
+
+  if (!space) {
+    throw notFoundResponse('Space');
+  }
+
+  const isOwner = space.userId === userId;
+  if (isOwner) {
+    return { role: 'owner', space };
+  }
+
+  if (requireOwner) {
+    throw forbiddenResponse('Only space owners can perform this action');
+  }
+
+  const member = await db.select()
+    .from(Members)
+    .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+    .get();
+
+  if (member) {
+    return { role: 'member', space };
+  }
+
+  throw forbiddenResponse('You do not have access to this space');
+}
+
+export async function getUserSpaces(userId: string) {
+  const ownedSpaces = await db.select()
+    .from(Spaces)
+    .where(eq(Spaces.userId, userId))
+    .all();
+
+  const memberships = await db.select()
+    .from(Members)
+    .where(eq(Members.userId, userId))
+    .all();
+
+  const memberSpaceIds = memberships.map(m => m.spaceId);
+
+  let memberSpaces: any[] = [];
+  if (memberSpaceIds.length > 0) {
+    memberSpaces = await db.select()
+      .from(Spaces)
+      .where(
+        and(
+          ...memberSpaceIds.map(id => eq(Spaces.id, id))
+        )
+      )
+      .all();
+  }
+
+  return {
+    ownedSpaces,
+    memberSpaces,
+    allSpaces: [...ownedSpaces, ...memberSpaces],
+  };
+}
