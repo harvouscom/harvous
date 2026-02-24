@@ -512,6 +512,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         lastVisited: Notes.lastVisited,
+        userId: Notes.userId,
       })
       .from(Notes)
       .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -580,6 +581,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             createdAt: Notes.createdAt,
             updatedAt: Notes.updatedAt,
             lastVisited: Notes.lastVisited,
+            userId: Notes.userId,
           })
           .from(Notes)
           .where(and(
@@ -616,6 +618,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
         lastVisited: Notes.lastVisited,
+        userId: Notes.userId,
       })
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -681,6 +684,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
             createdAt: Notes.createdAt,
             updatedAt: Notes.updatedAt,
             lastVisited: Notes.lastVisited,
+            userId: Notes.userId,
           })
           .from(Notes)
           .where(and(
@@ -823,6 +827,7 @@ export async function getNotesForThreadForMember(
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited,
+      userId: Notes.userId,
     })
     .from(Notes)
     .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))

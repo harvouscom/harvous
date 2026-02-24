@@ -23,6 +23,7 @@ interface Note {
   content: string;
   spaceId: string | null;
   noteType?: string;
+  userId?: string;
   [key: string]: any;
 }
 
@@ -1775,37 +1776,39 @@ export default function EditThreadPanel({
                               >
                                 {renderCompactNoteItem(note)}
                               </a>
-                              {/* Remove from thread button - absolutely positioned over the link */}
-                              <div
-                                className="remove-button-area absolute top-0 right-0 w-12 h-full"
-                                style={{ pointerEvents: 'none', zIndex: 10 }}
-                              >
-                                <ActionButton
-                                  variant="Remove"
-                                  onMouseDown={(e) => {
-                                    // Mark button click immediately on mousedown (before link's onMouseDown)
-                                    buttonClickRef.current = note.id;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
-                                  }}
-                                  onClick={(e) => {
-                                    // Mark button click immediately
-                                    buttonClickRef.current = note.id;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
-                                    handleRemoveFromThread(note.id);
-                                  }}
-                                  className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
-                                  disabled={isRemovingNote}
-                                  style={{ pointerEvents: 'auto', zIndex: 11 }}
-                                />
-                              </div>
+                              {/* Remove from thread button - only for notes the current user owns */}
+                              {note.userId === userId && (
+                                <div
+                                  className="remove-button-area absolute top-0 right-0 w-12 h-full"
+                                  style={{ pointerEvents: 'none', zIndex: 10 }}
+                                >
+                                  <ActionButton
+                                    variant="Remove"
+                                    onMouseDown={(e) => {
+                                      // Mark button click immediately on mousedown (before link's onMouseDown)
+                                      buttonClickRef.current = note.id;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (e.stopImmediatePropagation) {
+                                        e.stopImmediatePropagation();
+                                      }
+                                    }}
+                                    onClick={(e) => {
+                                      // Mark button click immediately
+                                      buttonClickRef.current = note.id;
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      if (e.stopImmediatePropagation) {
+                                        e.stopImmediatePropagation();
+                                      }
+                                      handleRemoveFromThread(note.id);
+                                    }}
+                                    className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
+                                    disabled={isRemovingNote}
+                                    style={{ pointerEvents: 'auto', zIndex: 11 }}
+                                  />
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
