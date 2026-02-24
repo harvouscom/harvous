@@ -143,7 +143,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $36 per year
+                $48 per year
               </span>
             </button>
           </div>
@@ -257,7 +257,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $36 per year
+                $48 per year
               </span>
             </button>
           </div>
@@ -373,7 +373,7 @@ function UpgradeCheckoutButtonInner({
                     display: 'block'
                   }}
                 >
-                  $36 per year
+                  $48 per year
                 </span>
               </button>
             </div>
