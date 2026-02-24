@@ -457,7 +457,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (90vh)
+  // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (100vh)
   useEffect(() => {
     if (!isVisible || !isMobile) return;
     const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';

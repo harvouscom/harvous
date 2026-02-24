@@ -47,8 +47,10 @@ a, button {
 }
 
 /* SPA: html/body/#root already have overflow:hidden, so no scroll-lock needed.
-   Kept as empty rule in case other code checks for this class. */
+   Kept as empty rule in case other code checks for this class.
+   When sheet is open, collapse top padding so no 12px strip shows above overlay. */
 #layout-root.bottom-sheet-open {
+  padding-top: 0;
 }
 
 /* Remove default button styles */
