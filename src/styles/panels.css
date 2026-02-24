@@ -64,13 +64,13 @@
    Bottom Sheet (Radix SheetContent side="bottom") spacing
    ========================================================================== */
 
-/* Flex column so content area gets remaining height; 85svh so sheet doesn't take full screen */
+/* Flex column so content area gets remaining height; 89svh so sheet doesn't take full screen */
 .bottom-sheet-content {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  height: 85svh;
-  height: 85vh;
+  height: 89svh;
+  height: 89vh;
 }
 
 /* Prevent header/focus anchor from shrinking so title and toolbar stay visible every time */
@@ -86,8 +86,8 @@
   min-height: 0;
   flex: 1 1 0%;
   overflow: hidden;
-  max-height: var(--sheet-viewport-height, 85vh);
-  max-height: var(--sheet-viewport-height, 85svh);
+  max-height: var(--sheet-viewport-height, 89vh);
+  max-height: var(--sheet-viewport-height, 89svh);
 }
 
 /* New note panel inside bottom sheet only: strict flex chain so .tiptap-content gets a height and scrolls */
