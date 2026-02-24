@@ -15,6 +15,13 @@ export const POST: APIRoute = async ({ request, locals }) => {
       });
     }
 
+    if (!UNLIMITED_PLAN_ID) {
+      return new Response(JSON.stringify({ error: 'Billing not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const body = await request.json();
     const { planId, billingInterval } = body;
 

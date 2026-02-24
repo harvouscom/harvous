@@ -21,7 +21,7 @@ export default function UpgradePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Upgrade - Harvous';
+    document.title = 'Upgrade | Harvous';
     sonnerToast.dismiss();
     Promise.all([
       api.get<{ hasUnlimited: boolean; currentCount: number; limit: number }>('/api/subscription/status'),
@@ -62,7 +62,7 @@ export default function UpgradePage() {
                   initialLimit={data?.limit ?? 0}
                   limitsInfo={data?.limitsInfo ?? null}
                   publishableKey={null}
-                  unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID || 'cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ'}
+                  unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
                 />
               )}
             </div>

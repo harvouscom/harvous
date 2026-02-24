@@ -29,10 +29,10 @@ const limitsInfo = await getUserLimitsInfo(userId, auth);
 // Extract publishable key and plan ID in frontmatter (where import.meta works)
 // Convert to strings to ensure proper serialization
 const publishableKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY ? String(import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY) : null;
-const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.meta.env.CLERK_UNLIMITED_PLAN_ID) : 'cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ';
+const unlimitedPlanId = import.meta.env.CLERK_UNLIMITED_PLAN_ID ? String(import.meta.env.CLERK_UNLIMITED_PLAN_ID) : '';
 ---
 
-<EmptyLayout title="Upgrade - Harvous">
+<EmptyLayout title="Upgrade | Harvous">
   <ToastProvider client:load />
   <UpgradeSuccessHandler client:load />
   <div id="upgrade-content" class="auth-page auth-page__hidden">

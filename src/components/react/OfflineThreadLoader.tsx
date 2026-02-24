@@ -77,7 +77,7 @@ export default function OfflineThreadLoader({ threadId }: OfflineThreadLoaderPro
         // Update page title
         const titleElement = document.querySelector('title');
         if (titleElement) {
-          titleElement.textContent = `${thread.title} - Harvous`;
+          titleElement.textContent = `${thread.title} | Harvous`;
         }
 
         // Update data attributes on main column for navigation context
