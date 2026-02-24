@@ -442,7 +442,7 @@ function UpgradeCheckoutButtonInner({
 export default function UpgradeCheckoutButton({ 
   className = '', 
   publishableKey = null,
-  unlimitedPlanId = 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw' // Default fallback
+  unlimitedPlanId = 'cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ' // Default fallback
 }: UpgradeCheckoutButtonProps) {
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
 

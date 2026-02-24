@@ -62,7 +62,7 @@ export default function UpgradePage() {
                   initialLimit={data?.limit ?? 0}
                   limitsInfo={data?.limitsInfo ?? null}
                   publishableKey={null}
-                  unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
+                  unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID || 'cplan_37aHkwe15Sqd6V9DLZXyHtVJPCQ'}
                 />
               )}
             </div>
