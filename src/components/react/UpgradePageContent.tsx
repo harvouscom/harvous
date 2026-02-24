@@ -107,9 +107,6 @@ export default function UpgradePageContent({
           >
             Go to Dashboard
           </a>
-          <div className="text-sm text-[var(--color-pebble-grey)] italic text-center" style={{ marginTop: '1.5rem' }}>
-            Thanks in advance for subscribing. -Derek, the founder
-          </div>
         </div>
       ) : (
         <div className="upgrade-content">
@@ -152,9 +149,6 @@ export default function UpgradePageContent({
 
           {/* Checkout button using Clerk's React CheckoutButton component */}
           <UpgradeCheckoutButton publishableKey={publishableKey} unlimitedPlanId={unlimitedPlanId} />
-          <div className="text-sm text-[var(--color-pebble-grey)] italic text-center" style={{ marginTop: '1.5rem' }}>
-            Thanks in advance for subscribing. -Derek, the founder
-          </div>
         </div>
       )}
     </>
