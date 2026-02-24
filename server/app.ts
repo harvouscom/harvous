@@ -21,6 +21,17 @@ import content from './routes/content';
 import threads from './routes/threads';
 import notes from './routes/notes';
 import spaces from './routes/spaces';
+import user from './routes/user';
+import tagsScripture from './routes/tags-scripture';
+import shared from './routes/shared';
+import billing from './routes/billing';
+import resource from './routes/resource';
+import inbox from './routes/inbox';
+import webflow from './routes/webflow';
+import webhooks from './routes/webhooks';
+import sync from './routes/sync';
+import migrations from './routes/migrations';
+import admin from './routes/admin';
 
 const app = new Hono();
 
@@ -40,5 +51,16 @@ app.route('/', content);
 app.route('/', threads);
 app.route('/', notes);
 app.route('/', spaces);
+app.route('/', user);
+app.route('/', tagsScripture);
+app.route('/', shared);
+app.route('/', billing);
+app.route('/', resource);
+app.route('/', inbox);
+app.route('/', webflow);
+app.route('/', webhooks);
+app.route('/', sync);
+app.route('/', migrations);
+app.route('/', admin);
 
 export default app;

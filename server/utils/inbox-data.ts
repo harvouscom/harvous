@@ -1,12 +1,14 @@
 /**
  * Inbox data utilities — Drizzle port of src/utils/inbox-data.ts
  *
- * Only the functions needed by /api/navigation/data are ported here:
+ * Functions:
  *   - getInboxItems(userId)
  *   - getInboxCount(userId)
+ *   - getInboxItemWithNotes(inboxItemId)
  */
 
-import { db, InboxItems, UserInboxItems, eq, and, desc } from '../db';
+import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc } from '../db';
+import { asc } from 'drizzle-orm';
 
 export async function getInboxItems(userId: string) {
   try {
@@ -35,6 +37,39 @@ export async function getInboxItems(userId: string) {
   } catch (error) {
     console.error("Error fetching inbox items:", error);
     return [];
+  }
+}
+
+export async function getInboxItemWithNotes(inboxItemId: string) {
+  try {
+    // Fetch inbox item and notes in parallel for better performance
+    const [inboxItem, notes] = await Promise.all([
+      db
+        .select()
+        .from(InboxItems)
+        .where(eq(InboxItems.id, inboxItemId))
+        .get(),
+      // Pre-fetch notes (will be empty array if not a thread, but avoids conditional query)
+      db
+        .select()
+        .from(InboxItemNotes)
+        .where(eq(InboxItemNotes.inboxItemId, inboxItemId))
+        .orderBy(asc(InboxItemNotes.order))
+        .all()
+    ]);
+
+    if (!inboxItem) {
+      return null;
+    }
+
+    // Return notes only if it's a thread, otherwise empty array
+    return {
+      ...inboxItem,
+      notes: inboxItem.contentType === 'thread' ? notes : [],
+    };
+  } catch (error) {
+    console.error("Error fetching inbox item with notes:", error);
+    return null;
   }
 }
 
