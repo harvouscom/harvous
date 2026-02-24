@@ -11,7 +11,7 @@
   NODE_VERSION = "22"
   NPM_FLAGS = "--prefer-offline --no-audit"
   # Plan ID is inlined into SPA bundle by Vite; it's a public plan identifier, not a secret
-  SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_CLERK_UNLIMITED_PLAN_ID,CLERK_UNLIMITED_PLAN_ID"
 
 # Redirect old URL format (/thread_ID) to new format (/thread/ID)
 [[redirects]]
