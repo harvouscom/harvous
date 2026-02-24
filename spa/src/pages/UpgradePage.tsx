@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent, { type LimitsInfo } from '../../../src/components/react/UpgradePageContent';
 import { api } from '../lib/api';
 
@@ -21,6 +22,7 @@ export default function UpgradePage() {
 
   useEffect(() => {
     document.title = 'Upgrade - Harvous';
+    sonnerToast.dismiss();
     Promise.all([
       api.get<{ hasUnlimited: boolean; currentCount: number; limit: number }>('/api/subscription/status'),
       api.get<LimitsInfo>('/api/user/limits'),

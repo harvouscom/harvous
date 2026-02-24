@@ -116,7 +116,7 @@ export default function UpgradePageContent({
           <div className="upgrade-content__header">
             <h1 className="clerk-form-header-title">You're on the free plan</h1>
             <p className="clerk-form-header-subtitle" style={{ textWrap: 'balance' }}>
-              Get unlimited notes. Pay monthly or yearly—save 50% at $3 per month.
+              Get unlimited notes. Pay monthly or yearly which is only $4 per month.
             </p>
             {safeLimitsInfo && (() => {
               const limitRed = 'var(--color-red, #dc2626)';

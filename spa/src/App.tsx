@@ -103,12 +103,19 @@ function ToastSetup() {
     // Expose app version globally so GetSupportPanel can read it
     (window as any).__APP_VERSION__ = __APP_VERSION__;
 
+    // Don't show toasts on upgrade or auth pages
+    function isNoToastPath() {
+      const p = window.location.pathname;
+      return p === '/upgrade' || p.startsWith('/sign-in') || p.startsWith('/sign-up');
+    }
+
     // Handle ?toast=success&message=... URL params (same as public/scripts/toast-handler.js in Astro)
     function handleUrlToast() {
       const params = new URLSearchParams(window.location.search);
       const toastType = params.get('toast');
       const message = params.get('message');
       if (!toastType || !message) return;
+      if (isNoToastPath()) return;
 
       // Clean params from URL immediately
       const newUrl = new URL(window.location.href);
@@ -127,6 +134,7 @@ function ToastSetup() {
 
     // Handle 'toast' and 'showToast' custom events dispatched by components
     function handleToastEvent(event: Event) {
+      if (isNoToastPath()) return;
       const { message, type, code, upgradeUrl } = (event as CustomEvent).detail || {};
       if (code === 'SHARED_SPACE_LIMIT_EXCEEDED' || code === 'NOTE_LIMIT_EXCEEDED') {
         windowToast.upgradePrompt(message ?? '', upgradeUrl);
