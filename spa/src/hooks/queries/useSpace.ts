@@ -31,9 +31,11 @@ export function useSpace(spaceId: string) {
   return useQuery({
     queryKey: ['space', spaceId],
     // Prefetch endpoint returns { space: SpaceDetail }
-    queryFn: () =>
-      api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`)
-        .then(res => res.space),
+    queryFn: async () => {
+      const res = await api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`);
+      if (res.space === undefined) throw new Error('Space not found');
+      return res.space;
+    },
     enabled: !!spaceId,
     staleTime: 30_000,
   });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useParams, Link } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpace } from '../hooks/queries/useSpace';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
@@ -22,7 +22,7 @@ export default function SpacePage() {
   // URL param is the slug (e.g. "ghi789"); DB + API need the full prefixed ID
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
-  const { data: space, isLoading } = useSpace(spaceId);
+  const { data: space, isLoading, isError } = useSpace(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
 
   // Track this space visit in navigation history so NavigationColumn shows it in the dropdown.
@@ -57,6 +57,15 @@ export default function SpacePage() {
     return (
       <CardStack title="Loading..." headerBgColor="var(--color-paper)" centerTitle>
         <div className="page-loading" />
+      </CardStack>
+    );
+  }
+
+  if (isError) {
+    return (
+      <CardStack title="Space not found" headerBgColor="var(--color-paper)" centerTitle>
+        <p className="page-error-message">This space doesn&apos;t exist or you don&apos;t have access to it.</p>
+        <Link to="/" className="primary-button">Back to dashboard</Link>
       </CardStack>
     );
   }

@@ -428,8 +428,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         }
 
         const getThreadHrefWithSpace = () => {
-          // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
-          let spaceForLink = selectedSpaceId;
+          // Prefer the thread's own space so opening a thread always carries its space in the URL.
+          let spaceForLink = (item as any).spaceId ?? selectedSpaceId;
           if (typeof window !== 'undefined') {
             try {
               const fromUrl = new URLSearchParams(window.location.search).get('space');

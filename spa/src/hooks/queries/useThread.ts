@@ -35,9 +35,11 @@ export function useThread(threadId: string) {
   return useQuery({
     queryKey: ['thread', threadId],
     // Prefetch endpoint returns { thread: ThreadDetail, notes, noteTypeCounts }
-    queryFn: () =>
-      api.get<{ thread: ThreadDetail }>(`/api/threads/${threadId}/prefetch`)
-        .then(res => res.thread),
+    queryFn: async () => {
+      const res = await api.get<{ thread: ThreadDetail }>(`/api/threads/${threadId}/prefetch`);
+      if (res.thread === undefined) throw new Error('Thread not found');
+      return res.thread;
+    },
     enabled: !!threadId,
     staleTime: 60_000,
   });

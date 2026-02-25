@@ -5,6 +5,7 @@
 ```bash
 npm run dev              # Astro SSR dev server on port 4321 (NOT what production serves)
 npm run dev:spa          # SPA dev server on port 4322 (proxies /api to 4321) — use this to test production-like UI
+npm run dev:all          # Hono API (3001) + SPA (4322) — production-like dev
 npm run build            # Production build (astro build + vite build; dist-spa/ copied over dist/; prebuild injects version into public/sw.js)
 npm run db:sync          # Sync database schema
 npm run db:push          # Push schema to remote
@@ -12,6 +13,8 @@ npm run db:check         # Pre-commit schema check
 npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data (local + remote) then run e2e
 ```
+
+**Clean new user on each dev run:** When using `dev:all`, the first authenticated request in a server run resets that user to "new user" state (onboarding only, no test/seed data). No env var or manual reset needed. Optional: set `DEV_RESET_USER_ID` in `.env` to reset a specific user on server startup instead.
 
 ## Architecture Overview
 

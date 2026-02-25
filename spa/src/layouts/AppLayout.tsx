@@ -231,10 +231,12 @@ export default function AppLayout() {
   const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
   const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
 
-  const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' =
+  const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' | 'search' | 'new-space' =
     isNote ? 'note' :
     isThread ? 'thread' :
     isSpace ? 'space' :
+    pathname === '/new-space' ? 'new-space' :
+    pathname === '/search' ? 'search' :
     pathname === '/profile' ? 'profile' :
     'dashboard';
 

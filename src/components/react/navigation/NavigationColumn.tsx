@@ -620,6 +620,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, search]);
 
+  // When on a thread or note page, sync selected space to that content's space so "current space"
+  // matches what the user is viewing (fixes items opening in a different space than expected).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isThreadOrNote = pathname.startsWith('/thread/') || pathname.startsWith('/note/');
+    if (!isThreadOrNote) return;
+    const spaceFromContent = activeThread?.spaceId ?? currentSpace?.id ?? null;
+    if (spaceFromContent) setSelectedSpaceId(spaceFromContent);
+  }, [pathname, activeThread?.spaceId, currentSpace?.id]);
+
   useEffect(() => {
     const handleNavigationUpdate = () => {
       forceUpdate(prev => prev + 1);

@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { clerkAuth } from './middleware/auth';
+import { devResetUserOnce } from './middleware/dev-reset-user';
 
 // Routes
 import health from './routes/health';
@@ -32,12 +33,14 @@ import webhooks from './routes/webhooks';
 import sync from './routes/sync';
 import migrations from './routes/migrations';
 import admin from './routes/admin';
+import test from './routes/test';
 
 const app = new Hono();
 
 // Global middleware
 app.use('/api/*', cors());
 app.use('/api/*', clerkAuth);
+app.use('/api/*', devResetUserOnce);
 
 // Register routes
 app.route('/', health);
@@ -62,5 +65,6 @@ app.route('/', webhooks);
 app.route('/', sync);
 app.route('/', migrations);
 app.route('/', admin);
+app.route('/', test);
 
 export default app;

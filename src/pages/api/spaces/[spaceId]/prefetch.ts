@@ -68,7 +68,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
       });
     }
 
-    // Return lightweight response optimized for caching
+    // Return lightweight response optimized for caching (never 200 without space)
     return new Response(JSON.stringify({
       space: {
         id: space.id,
