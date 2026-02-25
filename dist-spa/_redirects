@@ -1,11 +1,16 @@
-# SPA routes -- serve index.html for all client-side routes.
-# /api/* is intentionally NOT listed here so the Astro SSR function
-# handles it via its path: '/*' config.
+# API routes → Hono Netlify Function
+/api/*  /.netlify/functions/api/:splat  200
+
+# SPA routes — serve index.html for all client-side routes.
+# Static assets (JS, CSS, images, fonts) are served directly from dist-spa/.
+# Everything else falls through to the SPA's client-side router.
+/                /index.html  200
 /note/*          /index.html  200
 /thread/*        /index.html  200
 /space/*         /index.html  200
 /search          /index.html  200
 /profile         /index.html  200
+/profile/        /index.html  200
 /new-space       /index.html  200
 /upgrade         /index.html  200
 /dashboard       /index.html  200

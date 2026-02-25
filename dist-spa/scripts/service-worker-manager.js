@@ -115,17 +115,19 @@
         return;
       }
 
+      // Claim immediately so duplicate controllerchange events in this document are ignored
+      reloadingForUpdate = true;
+
       // Check if this is a major version update
       const isMajorUpdate = await isMajorVersionUpdate();
       
       if (isMajorUpdate) {
         // Major version update detected - don't force reload
         console.log('Major version update detected. Skipping automatic reload.');
+        reloadingForUpdate = false; // Allow future updates to trigger toast
         // TODO: In the future, could show a different notification here for major updates
         return;
       }
-
-      reloadingForUpdate = true;
 
       function clearCachesAndReload() {
         caches.keys()

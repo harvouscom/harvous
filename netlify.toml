@@ -1,11 +1,15 @@
 [build]
-  # 1. astro build — compiles API routes + SSR function into dist/ and .netlify/
-  # 2. vite build — compiles the SPA into dist-spa/
-  # 3. cp — copy SPA assets into dist/ so Netlify serves them alongside Astro's SSR
-  command = "npm ci && npm run build && node_modules/.bin/vite build && cp -r dist-spa/. dist/"
-  publish = "dist"
+  # 1. inject SW cache version (was handled by npm prebuild lifecycle, now explicit)
+  # 2. build:api — bundles Hono server as Netlify Function (netlify/functions/api.mjs)
+  # 3. build:spa — compiles the SPA into dist-spa/
+  command = "npm ci && node scripts/inject-sw-cache-version.js && npm run build:api && npm run build:spa"
+  publish = "dist-spa"
   # Skip build when only doc paths change (exit 0 = skip). See scripts/netlify-skip-build.sh.
   ignore = "bash scripts/netlify-skip-build.sh"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "none"
 
 [build.environment]
   NODE_VERSION = "22"
@@ -35,8 +39,7 @@
   status = 200
   force = true
 
-# Catch-all and /api/* routing handled by public/_redirects
-# (netlify.toml cannot target /.netlify/functions/* paths in redirect rules)
+# API routing (/api/* → Hono function) and SPA fallback handled by public/_redirects
 
 # API routes must never be cached at the edge
 [[headers]]

@@ -1,19 +1,6 @@
-# SPA routes -- serve index.html for all client-side routes.
-# /api/* is intentionally NOT listed here so the Astro SSR function
-# handles it via its path: '/*' config.
-# Root must serve SPA so dashboard at / loads the React app.
-/                /index.html  200
-/note/*          /index.html  200
-/thread/*        /index.html  200
-/space/*         /index.html  200
-/search          /index.html  200
-/profile         /index.html  200
-/profile/        /index.html  200
-/new-space       /index.html  200
-/upgrade         /index.html  200
-/dashboard       /index.html  200
-/sign-in/*       /index.html  200
-/sign-up/*       /index.html  200
-/spaces/join/*   /index.html  200
-/shared/*        /index.html  200
-/invitations/*  /index.html  200
+# API routes → Hono Netlify Function
+/api/*  /.netlify/functions/api/:splat  200
+
+# SPA catch-all — everything else serves index.html (React Router handles routing)
+# Static assets (JS, CSS, images, fonts) are served directly by Netlify before this rule applies.
+/*  /index.html  200

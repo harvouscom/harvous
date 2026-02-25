@@ -7,7 +7,7 @@
 
 import { db, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and } from '../db';
 import { nowISO } from '../db/dates';
-import { generateReferralCode } from '@/utils/referral-code';
+import { generateReferralCode } from './referral-code';
 import { getCurrentSeason } from '@/utils/season-helpers';
 
 export interface CachedUserData {

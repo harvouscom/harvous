@@ -6,8 +6,8 @@ const require = createRequire(import.meta.url);
 const pkg = require('./package.json');
 
 // Vite config for the SPA build (Capacitor + web client)
-// The Astro build (astro.config.mjs) handles the API/server side.
-// This builds src/spa/ → dist-spa/ which Capacitor bundles into the native app.
+// The Hono server (server/dev.ts on port 3001) handles all API routes.
+// This builds spa/ → dist-spa/ which Capacitor bundles into the native app.
 export default defineConfig({
   plugins: [react()],
   root: 'spa',
@@ -58,15 +58,8 @@ export default defineConfig({
       ignored: ['!**/src/**'],
     },
     proxy: {
-      // Migrated routes → Hono dev server (port 3001)
-      '/api/health': { target: 'http://localhost:3001', changeOrigin: true },
-      '/api/navigation/data': { target: 'http://localhost:3001', changeOrigin: true },
-      '/api/debug': { target: 'http://localhost:3001', changeOrigin: true },
-      '/api/about': { target: 'http://localhost:3001', changeOrigin: true },
-      '/api/og': { target: 'http://localhost:3001', changeOrigin: true },
-      '/api/stats': { target: 'http://localhost:3001', changeOrigin: true },
-      // All other API calls → Astro dev server (port 4321)
-      '/api': { target: 'http://localhost:4321', changeOrigin: true },
+      // All API calls → Hono dev server (port 3001)
+      '/api': { target: 'http://localhost:3001', changeOrigin: true },
     },
   },
 });
