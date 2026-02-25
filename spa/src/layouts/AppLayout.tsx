@@ -6,6 +6,7 @@ import {
 import { isPWA } from '../../../src/utils/content-list-helpers';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
+import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useCallback } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
@@ -16,6 +17,7 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
+import { api } from '../lib/api';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
@@ -30,6 +32,7 @@ export default function AppLayout() {
   const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
   const { data: nav } = useNavigation();
+  const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
   const { data: profile } = useProfile();
 
@@ -63,6 +66,25 @@ export default function AppLayout() {
     }
   }, [isLoaded, isSignedIn, router, pathname]);
 
+  // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
+  const lastVisitRecordedPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    if (pathname === lastVisitRecordedPathRef.current) return;
+
+    const isThread = pathname.startsWith('/thread/');
+    const isNote = pathname.startsWith('/note/');
+    if (isThread && threadIdForHook && threadIdForHook !== 'thread_unorganized') {
+      lastVisitRecordedPathRef.current = pathname;
+      api.post(`/api/threads/${threadIdForHook}/visit`).catch(() => {});
+    } else if (isNote && noteIdForHook) {
+      lastVisitRecordedPathRef.current = pathname;
+      api.post(`/api/notes/${noteIdForHook}/visit`).catch(() => {});
+    } else if (!isThread && !isNote) {
+      lastVisitRecordedPathRef.current = null;
+    }
+  }, [isLoaded, isSignedIn, pathname, threadIdForHook, noteIdForHook]);
+
   // PWA install prompt: show once per app load when in browser (not PWA), on mobile only, on first visit, after join/invite, or every 30 days after "Not now"
   const pwaPromptCheckedRef = useRef(false);
   useEffect(() => {
@@ -79,9 +101,13 @@ export default function AppLayout() {
     window.toast.pwaPrompt(message);
   }, [isLoaded, isSignedIn]);
 
-  // Close any open desktop panel when the route changes (panel manager stays mounted across routes).
-  // Also clear localStorage panel keys so LOAD_FROM_STORAGE doesn't reopen them on next mount.
+  // Close any open desktop panel only when pathname actually changes (real navigation).
+  // Use a ref so we don't clear panels on initial mount or when pathname hasn't changed,
+  // avoiding races where the panel is closed right after the user opens it on the same route.
+  const prevPathnameForPanelsRef = useRef<string | null>(null);
   useEffect(() => {
+    if (prevPathnameForPanelsRef.current === pathname) return;
+    prevPathnameForPanelsRef.current = pathname;
     localStorage.removeItem('showNewNotePanel');
     localStorage.removeItem('showNewThreadPanel');
     localStorage.removeItem('showNewResourcePanel');
@@ -115,7 +141,7 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('astro:page-load'));
   }, [pathname]);
 
-  // Invalidate navigation cache when spaces/threads are created or deleted
+  // Invalidate navigation cache when spaces/threads are created, updated, or deleted
   useEffect(() => {
     const refresh = () => refreshNavigation();
 
@@ -137,17 +163,37 @@ export default function AppLayout() {
       refreshNavigation();
     };
 
+    const handleThreadUpdated = (e: Event) => {
+      const threadId = (e as CustomEvent).detail?.threadId;
+      if (threadId) {
+        queryClient.invalidateQueries({ queryKey: ['thread', threadId] });
+      }
+      refreshNavigation();
+    };
+
+    const handleSpaceUpdated = (e: Event) => {
+      const spaceId = (e as CustomEvent).detail?.spaceId;
+      if (spaceId) {
+        queryClient.invalidateQueries({ queryKey: ['space', spaceId] });
+      }
+      refreshNavigation();
+    };
+
     window.addEventListener('spaceCreated', refresh);
     window.addEventListener('threadCreated', refresh);
+    window.addEventListener('threadUpdated', handleThreadUpdated);
+    window.addEventListener('spaceUpdated', handleSpaceUpdated);
     window.addEventListener('spaceDeleted', handleSpaceDeleted);
     window.addEventListener('threadDeleted', refresh);
     return () => {
       window.removeEventListener('spaceCreated', refresh);
       window.removeEventListener('threadCreated', refresh);
+      window.removeEventListener('threadUpdated', handleThreadUpdated);
+      window.removeEventListener('spaceUpdated', handleSpaceUpdated);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted);
       window.removeEventListener('threadDeleted', refresh);
     };
-  }, [refreshNavigation]);
+  }, [queryClient, refreshNavigation]);
 
   if (!isLoaded) {
     return (
@@ -195,7 +241,7 @@ export default function AppLayout() {
     ?? (isNote ? getCachedNoteParentThreadId(noteIdForHook) : null);
 
   // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
-  const activeThread = isThread
+  const activeThreadFromNav = isThread
     ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
     : isNote
     ? (noteParentThreadId
@@ -203,6 +249,21 @@ export default function AppLayout() {
             ?? getCachedNoteParentThread(noteIdForHook))
         : null)
     : null;
+
+  // Enrich with page-level data when available so nav shows correct thread color
+  // (nav/cache can be stale or missing backgroundGradient; useThread/useNote load shortly after)
+  const activeThread = (() => {
+    const base = activeThreadFromNav;
+    if (!base) return null;
+    if (isThread && currentThread?.backgroundGradient) {
+      return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
+    }
+    const noteParent = currentNote?.threads?.[0];
+    if (isNote && noteParent?.backgroundGradient) {
+      return { ...base, backgroundGradient: noteParent.backgroundGradient, title: noteParent.title };
+    }
+    return base;
+  })();
 
   // Enrich currentSpace with title/gradient from nav so navigation components can display it
   const currentSpace = spaceId
@@ -238,6 +299,7 @@ export default function AppLayout() {
     pathname === '/new-space' ? 'new-space' :
     pathname === '/search' ? 'search' :
     pathname === '/profile' ? 'profile' :
+    pathname === '/new-space' ? 'new-space' :
     'dashboard';
 
   // Unorganized thread is virtual — it has no editable options, so hide the ActionStrip dock
@@ -275,6 +337,7 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
+            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
             )}
@@ -355,6 +418,7 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
+            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
             {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
               <CreateNoteButton />
             )}

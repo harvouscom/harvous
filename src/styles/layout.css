@@ -173,6 +173,8 @@
 }
 
 .main-column__scroll {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -235,10 +237,10 @@
 
 /* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
 
-/* Note page only: small Add button (plus) in bottom right; 12px from bottom comes from .app-layout padding-bottom */
+/* Note page only: small Add button (plus) in bottom right; 20px from bottom */
 .note-page-add-button {
   position: absolute;
-  bottom: 0;
+  bottom: 20px;
   right: 1rem;
   z-index: 2;
 }

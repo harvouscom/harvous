@@ -10,6 +10,7 @@ import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
 import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { usePersistedUserId } from '@/utils/user-id';
 
 interface Thread {
   id: string;
@@ -87,7 +88,10 @@ export default function NoteDetailsPanel({
   const [localReferencingNotes, setLocalReferencingNotes] = useState<ReferencingNote[]>([]);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
+  const [noteUserId, setNoteUserId] = useState<string | null>(null);
+
+  const currentUserId = usePersistedUserId();
+
   // Check if this is a scripture note (to show the Notes tab)
   const isScriptureNote = noteType === 'scripture';
 
@@ -117,6 +121,7 @@ export default function NoteDetailsPanel({
           setNoteVersion(data.note.version || null);
           setNoteAddedBy(data.note.addedBy || 'user');
           setNoteType(data.note.noteType || 'default');
+          setNoteUserId(data.note.userId ?? null);
           
           // Set default tab to 'notes' for scripture notes only on initial load
           // Preserve current tab during refreshes (e.g., after tag operations)
@@ -618,36 +623,40 @@ export default function NoteDetailsPanel({
                               >
                                 <CardThread thread={thread} />
                               </a>
-                              {/* Remove from thread button */}
-                              <ActionButton
-                                variant="Remove"
-                                {...({ onClick: (e: any) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  handleRemoveFromThread(thread.id);
-                                } } as any)}
-                                className="panel__item-list-item-actions"
-                                disabled={isMovingThread}
-                              />
+                              {/* Remove from thread button - only for notes the current user owns */}
+                              {noteUserId === currentUserId && (
+                                <ActionButton
+                                  variant="Remove"
+                                  {...({ onClick: (e: any) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleRemoveFromThread(thread.id);
+                                  } } as any)}
+                                  className="panel__item-list-item-actions"
+                                  disabled={isMovingThread}
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
 
-                    {/* Add to Thread Section - fills remaining space */}
-                    <div className="tab-content__section--expand" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                      <AddToSection
-                        allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
-                        currentItems={localThreads}
-                        onItemSelect={handleAddToThread}
-                        isLoading={isMovingThread}
-                        loadingText="Adding to thread..."
-                        title="Add to Thread"
-                        placeholder="Find threads to add to..."
-                        emptyMessage="No threads found"
-                      />
-                    </div>
+                    {/* Add to Thread Section - only for notes the current user owns */}
+                    {noteUserId === currentUserId && (
+                      <div className="tab-content__section--expand" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        <AddToSection
+                          allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
+                          currentItems={localThreads}
+                          onItemSelect={handleAddToThread}
+                          isLoading={isMovingThread}
+                          loadingText="Adding to thread..."
+                          title="Add to Thread"
+                          placeholder="Find threads to add to..."
+                          emptyMessage="No threads found"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
                     {activeTab === 'tags' && (
@@ -672,20 +681,22 @@ export default function NoteDetailsPanel({
                                       </div>
                                       <div className="btn__shadow-overlay" />
                                     </div>
-                                    {/* Close icon - absolutely positioned, matches RecentSearches pattern */}
-                                    <div
-                                      onClick={(e: any) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        removeTagFromNote(tag.id);
-                                      }}
-                                      className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
-                                      data-item-id={tag.id}
-                                    >
-                                      <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
-                                        <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                                      </svg>
-                                    </div>
+                                    {/* Close icon - only for notes the current user owns */}
+                                    {noteUserId === currentUserId && (
+                                      <div
+                                        onClick={(e: any) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          removeTagFromNote(tag.id);
+                                        }}
+                                        className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
+                                        data-item-id={tag.id}
+                                      >
+                                        <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
+                                          <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                                        </svg>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -693,16 +704,18 @@ export default function NoteDetailsPanel({
                           )}
                         </div>
 
-                        {/* New Tag Form - positioned at bottom */}
-                        <div style={{ marginTop: 'auto', flexShrink: 0 }}>
-                          <NewTagPanel
-                            noteId={noteId}
-                            onClose={() => {}} // No-op since it's always visible
-                            onTagCreated={handleTagCreated}
-                            inBottomSheet={inBottomSheet}
-                            inline={true}
-                          />
-                        </div>
+                        {/* New Tag Form - only for notes the current user owns */}
+                        {noteUserId === currentUserId && (
+                          <div style={{ marginTop: 'auto', flexShrink: 0 }}>
+                            <NewTagPanel
+                              noteId={noteId}
+                              onClose={() => {}} // No-op since it's always visible
+                              onTagCreated={handleTagCreated}
+                              inBottomSheet={inBottomSheet}
+                              inline={true}
+                            />
+                          </div>
+                        )}
                       </div>
                     )}
                     {activeTab === 'notes' && isScriptureNote && (

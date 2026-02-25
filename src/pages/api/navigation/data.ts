@@ -1,7 +1,7 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces } from '@/utils/dashboard-data';
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces, getThreadsForSpaceBySpaceId } from '@/utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '@/utils/unorganized-thread';
@@ -51,6 +51,18 @@ export const GET: APIRoute = async ({ locals }) => {
       accentColor: getThreadGradientCSS('paper'),
       backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper')
     });
+
+    // Include threads from joined (member) spaces so nav badge counts show for member-space threads
+    const memberSpaceThreads = await Promise.all(
+      memberSpaces.map((space) => getThreadsForSpaceBySpaceId(space.id))
+    );
+    const flatMemberThreads = memberSpaceThreads.flat();
+    for (const t of flatMemberThreads) {
+      threadsWithGradients.push({
+        ...t,
+        backgroundGradient: t.backgroundGradient || getThreadGradientCSS(t.color || 'blue')
+      });
+    }
     
     const spacesWithGradients = spaces.map(space => ({
       ...space,

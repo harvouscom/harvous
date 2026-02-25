@@ -8,6 +8,7 @@ interface ManageBillingPanelProps {
   publishableKey?: string | null;
 }
 
+/** Subscription data comes only from /api/subscription/status. Do not add limitsInfo. */
 export default function ManageBillingPanel({ 
   onClose,
   inBottomSheet = false,
@@ -18,14 +19,6 @@ export default function ManageBillingPanel({
     currentCount: number;
     limit: number | null;
     referralBonusNotes?: number;
-  } | null>(null);
-  const [limitsInfo, setLimitsInfo] = useState<{
-    tier: string;
-    limits: {
-      ownedSharedSpaces: { current: number; limit: number; remaining: number };
-      membersPerSpace: { limit: number };
-      joinableSpaces: { current: number; limit: number | null; remaining: number };
-    };
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -46,25 +39,9 @@ export default function ManageBillingPanel({
     };
     document.addEventListener('astro:page-load', handlePageLoad);
 
-    // Refresh when Manage Billing panel is opened (so shared spaces count is up to date)
-    const handlePanelOpened = (event: CustomEvent) => {
-      if (event.detail?.panelName === 'manageBilling') {
-        loadSubscriptionInfo();
-      }
-    };
-    window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
-
-    // Refresh when sharing changes (e.g. space made public/private) so "spaces shared" count updates
-    const handleSharingInvalidate = () => {
-      loadSubscriptionInfo();
-    };
-    window.addEventListener('mySharingInvalidate', handleSharingInvalidate);
-
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
       document.removeEventListener('astro:page-load', handlePageLoad);
-      window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
-      window.removeEventListener('mySharingInvalidate', handleSharingInvalidate);
     };
   }, []);
 
@@ -161,11 +138,7 @@ export default function ManageBillingPanel({
   const loadSubscriptionInfo = async () => {
     setIsLoading(true);
     try {
-      const [subRes, limitsRes] = await Promise.all([
-        fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' }),
-        fetch('/api/user/limits', { credentials: 'include', cache: 'no-store' })
-      ]);
-
+      const subRes = await fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' });
       if (subRes.ok) {
         const data = await subRes.json();
         setSubscriptionInfo({
@@ -174,10 +147,6 @@ export default function ManageBillingPanel({
           limit: data.limit || null,
           referralBonusNotes: data.referralBonusNotes ?? 0
         });
-      }
-      if (limitsRes.ok) {
-        const data = await limitsRes.json();
-        if (data.limits) setLimitsInfo(data);
       }
     } catch (error) {
       console.error('ManageBillingPanel: Error loading subscription info:', error);
@@ -413,12 +382,6 @@ export default function ManageBillingPanel({
                 {!isLoading && subscriptionInfo && (() => {
                   const limitRed = 'var(--color-red, #dc2626)';
                   const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 200) - subscriptionInfo.currentCount <= 100;
-                  const sharedAtLimit = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && limitsInfo.limits.ownedSharedSpaces.remaining <= 0;
-                  // When at/over limit, cap displayed current to limit so we never show e.g. "4 of 3"
-                  const sharedCurrent = limitsInfo != null && limitsInfo.limits.ownedSharedSpaces.limit != null && sharedAtLimit
-                    ? Math.min(limitsInfo.limits.ownedSharedSpaces.current, limitsInfo.limits.ownedSharedSpaces.limit)
-                    : limitsInfo?.limits.ownedSharedSpaces.current ?? 0;
-                  const sharedLimit = limitsInfo?.limits.ownedSharedSpaces.limit;
                   return (
                   <div className="w-full">
                     <div
@@ -428,7 +391,6 @@ export default function ManageBillingPanel({
                       {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
                     </div>
                     <div className="flex flex-col" style={{ gap: 12, marginBottom: 12 }}>
-                      {/* Notes - horizontal, one line, left-aligned */}
                       {!subscriptionInfo.hasUnlimited ? (
                         <a
                           href="/upgrade"
@@ -463,45 +425,6 @@ export default function ManageBillingPanel({
                           </div>
                         </div>
                       )}
-                      {/* Spaces shared - horizontal, one line, left-aligned */}
-                      {limitsInfo && (!subscriptionInfo.hasUnlimited ? (
-                        <a
-                          href="/upgrade"
-                          className="billing-limit-link bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: sharedAtLimit ? limitRed : 'var(--color-fog-white)',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: sharedAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {sharedLimit != null
-                                ? `${sharedCurrent} of ${sharedLimit} spaces shared`
-                                : `${sharedCurrent} (unlimited) spaces shared`}
-                            </span>
-                            <span className="text-xs flex-shrink-0" style={{ color: sharedAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                              Upgrade for unlimited
-                            </span>
-                          </div>
-                        </a>
-                      ) : (
-                        <div
-                          className="bg-white rounded-xl p-3 flex items-center gap-3"
-                          style={{
-                            border: '1px solid',
-                            borderColor: 'var(--color-fog-white)'
-                          }}
-                        >
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              {sharedLimit != null
-                                ? `${sharedCurrent} of ${sharedLimit} spaces shared`
-                                : `${sharedCurrent} (unlimited) spaces shared`}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
                   );

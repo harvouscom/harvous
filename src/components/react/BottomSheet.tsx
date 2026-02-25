@@ -36,6 +36,21 @@ const NewNotePanel = createLazyPanel(() => import('./NewNotePanel'), 'NewNotePan
 const NewThreadPanel = createLazyPanel(() => import('./NewThreadPanel'), 'NewThreadPanel');
 const NoteDetailsPanel = createLazyPanel(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
 
+/** Shows nothing for delayMs, then children (e.g. Loading…) so fast loads don't flash. */
+function DelayedFallback({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), delayMs);
+    return () => clearTimeout(t);
+  }, [delayMs]);
+  if (!show) return <div className="flex-1 min-h-0" />;
+  return <>{children}</>;
+}
+
+const mobileLoadingFallback = (
+  <div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>
+);
+
 // Extend the Window interface to include custom functions
 declare global {
   interface Window {
@@ -442,7 +457,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
 
-  // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (90vh)
+  // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (100vh)
   useEffect(() => {
     if (!isVisible || !isMobile) return;
     const isNoteOrResource = drawerType === 'note' || drawerType === 'resource';
@@ -642,7 +657,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
-              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+              <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewNotePanel
                   key={`mobile-note-${panelKey}`}
                   currentThread={currentThread}
@@ -665,7 +680,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Thread Panel */}
           {drawerType === 'thread' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
-              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+              <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewThreadPanel
                   key={`mobile-thread-${panelKey}`}
                   currentSpace={currentSpace}
@@ -687,7 +702,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* New Resource Panel */}
           {drawerType === 'resource' && (
             <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
-              <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+              <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewNotePanel
                   key={`mobile-resource-${panelKey}`}
                   currentThread={currentThread}
@@ -712,7 +727,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {drawerType === 'noteDetails' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
               {noteDetailsNote && (
-                <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>}>
+                <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                   <NoteDetailsPanel
                     key={`mobile-note-details-${panelKey}`}
                     noteId={noteDetailsNote.id}

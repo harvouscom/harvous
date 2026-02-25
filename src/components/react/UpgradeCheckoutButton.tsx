@@ -143,7 +143,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $36 per year
+                $48 per year
               </span>
             </button>
           </div>
@@ -257,7 +257,7 @@ function UpgradeCheckoutButtonInner({
                   display: 'block'
                 }}
               >
-                $36 per year
+                $48 per year
               </span>
             </button>
           </div>
@@ -373,7 +373,7 @@ function UpgradeCheckoutButtonInner({
                     display: 'block'
                   }}
                 >
-                  $36 per year
+                  $48 per year
                 </span>
               </button>
             </div>
@@ -439,10 +439,10 @@ function UpgradeCheckoutButtonInner({
  * Uses CheckoutButton from @clerk/clerk-react/experimental.
  * React Islands are isolated, so this component provides its own ClerkProvider.
  */
-export default function UpgradeCheckoutButton({ 
-  className = '', 
+export default function UpgradeCheckoutButton({
+  className = '',
   publishableKey = null,
-  unlimitedPlanId = 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw' // Default fallback
+  unlimitedPlanId = ''
 }: UpgradeCheckoutButtonProps) {
   const [effectiveKey, setEffectiveKey] = useState<string | null>(publishableKey);
 
@@ -469,6 +469,28 @@ export default function UpgradeCheckoutButton({
   // In the SPA, ClerkProvider is already provided by App.tsx — publishableKey === null
   // is the sentinel for SPA mode. Skip the effectiveKey check entirely.
   // (The actual SPA render happens further below after the hooks.)
+
+  // If no plan ID configured, don't expose checkout (plan ID must come from env)
+  if (!unlimitedPlanId) {
+    return (
+      <div className={className}>
+        <button
+          type="button"
+          disabled
+          className="btn-cta flex-1 group"
+          style={{
+            width: '100%',
+            marginTop: '1.5rem',
+            opacity: 0.5,
+            cursor: 'not-allowed'
+          }}
+        >
+          <span className="btn-cta__content">Billing Unavailable</span>
+          <div className="btn-cta__shadow" />
+        </button>
+      </div>
+    );
+  }
 
   // If no publishable key AND not in SPA mode, render disabled button
   if (!effectiveKey && publishableKey !== null) {

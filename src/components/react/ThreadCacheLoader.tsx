@@ -109,9 +109,11 @@ export default function ThreadCacheLoader({
     const handleNoteCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const note = customEvent.detail?.note;
+      // Use actualThreadId from event detail (from junction table), fallback to legacy threadId
+      const actualThreadId = customEvent.detail?.actualThreadId || customEvent.detail?.threadId || note?.threadId;
 
       // Clear cache if note was added to this thread
-      if (note?.threadId === threadId || customEvent.detail?.threadId === threadId) {
+      if (actualThreadId === threadId || note?.threadId === threadId) {
         clearThreadCache(threadId, userId);
       }
     };

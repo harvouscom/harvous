@@ -44,21 +44,22 @@ export const GET: APIRoute = async ({ request, locals }) => {
         });
       }
 
-      // For other filters, use the existing getContentItems function
-      // Fetch more items than needed to check if there are more
-      const fetchLimit = filter === 'all'
-        ? limit
-        : limit * 3;
+      // For other filters, use the existing getContentItems function.
+      // Use limit + offset (no 3x over-fetch); hasMore is still correct after client-side filter + slice.
+      const fetchLimit = limit + offset;
       // Only exclude referenced scripture notes in the 'all' tab
       const filterExcludeReferencedScripture = filter === 'all';
 
-      const items = await getContentItems(userId, fetchLimit, offset, filterExcludeReferencedScripture);
-
-      // For 'all' filter on initial load (offset === 0), also fetch referenced scripture notes without lastVisited
-      // These should appear in the UI even though they're filtered out by the main API
+      // For 'all' filter on initial load, fetch content and referenced scripture notes in parallel
+      let items: Awaited<ReturnType<typeof getContentItems>>;
       let referencedScriptureNotes: any[] = [];
       if (filter === 'all' && offset === 0) {
-        referencedScriptureNotes = await getReferencedScriptureNotesWithoutLastVisited(userId);
+        [items, referencedScriptureNotes] = await Promise.all([
+          getContentItems(userId, fetchLimit, offset, filterExcludeReferencedScripture),
+          getReferencedScriptureNotesWithoutLastVisited(userId)
+        ]);
+      } else {
+        items = await getContentItems(userId, fetchLimit, offset, filterExcludeReferencedScripture);
       }
 
       // Filter by type if needed

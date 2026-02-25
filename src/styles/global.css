@@ -47,8 +47,10 @@ a, button {
 }
 
 /* SPA: html/body/#root already have overflow:hidden, so no scroll-lock needed.
-   Kept as empty rule in case other code checks for this class. */
+   Kept as empty rule in case other code checks for this class.
+   When sheet is open, collapse top padding so no 12px strip shows above overlay. */
 #layout-root.bottom-sheet-open {
+  padding-top: 0;
 }
 
 /* Remove default button styles */
@@ -1438,12 +1440,12 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Sheet overlay: dims content behind the sheet, including the nav bar.
+/* Sheet overlay: dims content behind the sheet, full viewport so no 12px strip at top.
    Must be above the mobile nav space-switcher (z-index: 1000002).
-   top: max(padding, safe-area) so overlay never bleeds behind status bar on iOS. */
+   top: safe-area only so overlay reaches top of screen (no padding). */
 .sheet-overlay {
   position: fixed !important;
-  top: max(0.75rem, env(safe-area-inset-top, 0px)) !important;
+  top: env(safe-area-inset-top, 0px) !important;
   right: 0 !important;
   bottom: 0 !important;
   left: 0 !important;
@@ -1471,6 +1473,7 @@ button .menu-item__label {
 .sheet-overlay[data-state="open"] {
   opacity: 1;
   pointer-events: auto;
+  transition: opacity 0.15s ease-out;
 }
 
 .sheet-overlay[data-state="closed"] {

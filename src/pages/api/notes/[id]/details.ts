@@ -1,9 +1,10 @@
 export const prerender = false;
 
 import type { APIRoute } from 'astro';
-import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray, like, ne } from 'astro:db';
+import { db, Notes, Threads, Comments, Tags, NoteTags, NoteThreads, ScriptureMetadata, ResourceMetadata, NoteScriptureReferences, eq, and, count, desc, inArray, like, ne, isNotNull } from 'astro:db';
 import { requireSpaceAccess } from '@/utils/space-permissions';
 import { getThreadsForSpaceBySpaceId } from '@/utils/dashboard-data';
+import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 
 export const GET: APIRoute = async ({ params, locals }) => {
@@ -33,6 +34,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
       .get();
 
     let isMemberView = false;
+    let memberSpaceId: string | null = null;
     if (!note) {
       // Member path: note in a shared space the user can access
       const noteById = await db.select()
@@ -45,14 +47,24 @@ export const GET: APIRoute = async ({ params, locals }) => {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      if (!noteById.spaceId) {
+      memberSpaceId = noteById.spaceId ?? null;
+      if (!memberSpaceId) {
+        // Resolve space from a thread that contains this note and has spaceId
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+          .from(NoteThreads)
+          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
+          .get();
+        if (threadWithSpace?.spaceId) memberSpaceId = threadWithSpace.spaceId;
+      }
+      if (!memberSpaceId) {
         return new Response(JSON.stringify({ error: 'Note not found or access denied' }), {
           status: 404,
           headers: { 'Content-Type': 'application/json' }
         });
       }
       try {
-        await requireSpaceAccess(noteById.spaceId, userId);
+        await requireSpaceAccess(memberSpaceId, userId);
       } catch (err) {
         if (err instanceof Response) return err;
         throw err;
@@ -94,7 +106,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
     }
 
     // Member view: space-scoped threads and allUserThreads; empty comments/tags/referencingNotes
-    if (isMemberView && note.spaceId) {
+    if (isMemberView && memberSpaceId) {
       const spaceThreadsRaw = await db
         .select({
           id: Threads.id,
@@ -108,7 +120,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
         })
         .from(NoteThreads)
         .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.spaceId, note.spaceId)))
+        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.spaceId, memberSpaceId)))
         .all();
       const memberThreads = await Promise.all(
         spaceThreadsRaw.map(async (thread) => {
@@ -127,10 +139,11 @@ export const GET: APIRoute = async ({ params, locals }) => {
             createdAt: thread.createdAt,
             updatedAt: thread.updatedAt,
             count: noteCount,
+            backgroundGradient: getThreadGradientCSS(thread.color),
           };
         })
       );
-      const spaceAllThreads = await getThreadsForSpaceBySpaceId(note.spaceId);
+      const spaceAllThreads = await getThreadsForSpaceBySpaceId(memberSpaceId);
       const memberAllUserThreads = spaceAllThreads.map((t) => ({
         id: t.id,
         title: t.title,
@@ -147,7 +160,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
           content: note.content,
           contentEncrypted: note.contentEncrypted || false,
           threadId: note.threadId,
-          spaceId: note.spaceId,
+          spaceId: note.spaceId ?? memberSpaceId,
           simpleNoteId: note.simpleNoteId,
           noteType: note.noteType || 'default',
           isPublic: note.isPublic,
