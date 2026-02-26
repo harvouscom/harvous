@@ -7,6 +7,7 @@ This folder contains troubleshooting documentation for common issues encountered
 ### Database Issues
 - **[Database Deployment Errors](./database-deployment-errors.md)** - Fixing UNIQUE constraint errors during Netlify deployments
 - **[Auto-Tag Debugging Guide](./AUTO_TAG_DEBUGGING_GUIDE.md)** - Troubleshooting auto-tag generation issues
+- **[Clerk duplicate user migration](./CLERK_DUPLICATE_USER_MIGRATION.md)** - When a user has two Clerk IDs and missing notes/threads; how to reassign data to the current account
 
 ### UI/Component Issues
 - **[Close Icon Troubleshooting](./CLOSE_ICON_TROUBLESHOOTING.md)** - Fixing close icon functionality in RecentSearches component
