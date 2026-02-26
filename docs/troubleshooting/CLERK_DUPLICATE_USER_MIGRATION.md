@@ -14,6 +14,17 @@ The same person ended up with two Clerk identities. Common causes:
 
 Our app stores everything by Clerk `userId`. If Clerk starts returning a different ID for that person, the app only shows data for the new ID; the old data stays under the old ID.
 
+### pk_test in production (test vs live keys)
+
+If production was mistakenly configured with **test** Clerk keys (`pk_test_...` / `sk_test_...`) instead of **live** keys (`pk_live_...` / `sk_live_...`), then:
+
+- **Live Clerk user IDs** = original accounts; they hold the data that existed *before* the mistake (e.g. existing notes/threads).
+- **Test Clerk user IDs** = identities created while prod used test keys; they may have 0 or a few items created during the mistake.
+
+**Step 1 – Restore pre-mistake data:** Set Netlify env to **live** keys only (`VITE_CLERK_PUBLISHABLE_KEY=pk_live_...`, `CLERK_SECRET_KEY=sk_live_...`) and redeploy. After that, users sign in with their **live** ID and immediately see all pre-mistake data (no migration needed for that).
+
+**Step 2 – Merge test-created data into live:** For each user who created data under a test ID during the mistake, run `scripts/merge-test-user-into-live.ts` (see below). It moves all content from the test user into the live user and **merges** UserMetadata / UserLifetimeXP / UserSeasonalXP so the live account keeps the correct or better values (e.g. `highestSimpleNoteId = max(live, test)`). It does **not** delete or overwrite the live user’s metadata.
+
 ## Fix: reassign data to the current Clerk user
 
 We have a one-off script that moves **all** rows from the old Clerk user ID to the new one. After running it, the account they use now (new ID) will own all notes, threads, spaces, XP, etc.
@@ -42,11 +53,33 @@ Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (same as production).
 
 Have the user refresh the app (or log out and back in). They should see all notes/threads. You can confirm with `/api/debug/me` (should show the higher note/thread counts for the new ID).
 
-## If this is affecting many users
+## If this is affecting many users (e.g. all users after clear-split + pk_test)
 
-- Run `scripts/check-user-ids-in-db.ts` to see all user IDs and row counts.
-- For each user who reports missing data, you need the mapping: **old Clerk ID** (the one with the data) → **new Clerk ID** (the one they use to sign in). You can get the new ID from Clerk Dashboard (match by email) or by having them call `/api/debug/me` while logged in.
-- Run `migrate-clerk-user.ts` once per mapping, or extend the script to accept a list of (old, new) pairs.
+When **all** (or most) current users are affected—for example production was on pk_test after merging clear-split-migration and everyone signed in during that window—you can merge every affected user in one batch:
+
+1. **Get all user IDs that have data**  
+   Run `npx tsx scripts/check-user-ids-in-db.ts` against the production DB. You’ll see Notes/Threads counts per userId. Any ID with data that is from the **test** Clerk app needs a matching **live** ID.
+
+2. **Build the test → live mapping**  
+   - In **Clerk Dashboard**, open your **Test** application and list users (user ID + primary email).  
+   - Open your **Live** application and list users (user ID + primary email).  
+   - Match by **email** (same person): test user ID → live user ID.  
+   - Create a CSV file (e.g. `merge-pairs.csv`) with one pair per line:
+     ```csv
+     test_user_id,live_user_id
+     user_35FUJeLEI2L0gRjCJqIIbNWraRK,user_35TxUL3GoQDZYHUoj90FXDtJveX
+     user_2abc...,user_2def...
+     ```
+     First line may be the header `test_user_id,live_user_id`; the script will skip it. See `scripts/merge-pairs.csv.example`.
+
+3. **Run the batch merge**  
+   With production DB credentials in `.env`:
+   ```bash
+   MERGE_PAIRS_CSV=merge-pairs.csv npx tsx scripts/merge-test-user-into-live.ts
+   ```
+   The script will merge each pair in order. After it finishes, have users sign in in production (with live keys) to verify.
+
+**Single-user fallback:** For one-off cases, use `TEST_CLERK_USER_ID` and `LIVE_CLERK_USER_ID` as in the “Merge test user into live” section below; no CSV needed.
 
 ## Prevention
 
@@ -54,8 +87,27 @@ Have the user refresh the app (or log out and back in). They should see all note
 - In Clerk Dashboard, consider merging duplicate users (if both exist) so only one identity remains.
 - Encourage "Sign in" instead of creating a second account when the user already has one (e.g. copy and sign-in flow).
 
+## Merge test user into live (pk_test mistake)
+
+When production was on pk_test and you’ve switched back to pk_live, use this script to merge data created under a **test** user ID into the corresponding **live** user, without overwriting the live user’s UserMetadata or UserLifetimeXP:
+
+```bash
+TEST_CLERK_USER_ID=user_35FUJeL... LIVE_CLERK_USER_ID=user_35TxUL... \
+npx tsx scripts/merge-test-user-into-live.ts
+```
+
+- `TEST_CLERK_USER_ID` = the test-app user ID that has the data to merge in (e.g. the “new” ID that had only a few items).
+- `LIVE_CLERK_USER_ID` = the live-app user ID (canonical account; same person, from Clerk live application).
+
+**Batch (all affected users):** Create `merge-pairs.csv` with one `test_user_id,live_user_id` per line (see "If this is affecting many users" above and `scripts/merge-pairs.csv.example`), then run:
+`MERGE_PAIRS_CSV=merge-pairs.csv npx tsx scripts/merge-test-user-into-live.ts`
+
+Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (e.g. production credentials in `.env`).
+
 ## Related
 
 - `scripts/check-user-ids-in-db.ts` – list Notes/Threads counts per userId.
-- `scripts/migrate-clerk-user.ts` – reassign all rows from one Clerk userId to another.
+- `scripts/migrate-clerk-user.ts` – reassign all rows from one Clerk userId to another (use when the *new* ID has no important metadata).
+- `scripts/merge-test-user-into-live.ts` – merge test user data into live user without overwriting live’s UserMetadata/UserLifetimeXP (single or batch via MERGE_PAIRS_CSV).
+- `scripts/merge-pairs.csv.example` – example CSV for batch merge.
 - `server/routes/debug.ts` – `GET /api/debug/me` returns current auth userId and DB counts (for verifying which ID is in use and that migration worked).
