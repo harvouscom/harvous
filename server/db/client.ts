@@ -1,12 +1,12 @@
 /**
  * Turso database client via @libsql/client + Drizzle ORM.
  *
- * Uses the web/HTTP client (@libsql/client/web) so the Netlify function
- * does not need native bindings (@libsql/linux-x64-gnu). Same env vars
- * (ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
+ * In the Netlify build, --alias:@libsql/client=@libsql/client/web redirects
+ * this import to the HTTP-only client (no native @libsql/linux-x64-gnu).
+ * Same env vars (ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
  */
 
-import { createClient } from '@libsql/client/web';
+import { createClient } from '@libsql/client';
 import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from './schema';
 
