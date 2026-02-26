@@ -62035,9 +62035,6 @@ var Context = class {
    * ```
    */
   body = (data, arg, headers) => this.#newResponse(data, arg, headers);
-  #useFastPath() {
-    return !this.#preparedHeaders && !this.#status && !this.finalized;
-  }
   /**
    * `.text()` can render text as `Content-Type:text/plain`.
    *
@@ -62051,7 +62048,7 @@ var Context = class {
    * ```
    */
   text = (text2, arg, headers) => {
-    return this.#useFastPath() && !arg && !headers ? createResponseInstance(text2) : this.#newResponse(
+    return !this.#preparedHeaders && !this.#status && !arg && !headers && !this.finalized ? new Response(text2) : this.#newResponse(
       text2,
       arg,
       setDefaultContentType(TEXT_PLAIN, headers)
@@ -62070,7 +62067,7 @@ var Context = class {
    * ```
    */
   json = (object2, arg, headers) => {
-    return this.#useFastPath() && !arg && !headers ? Response.json(object2) : this.#newResponse(
+    return this.#newResponse(
       JSON.stringify(object2),
       arg,
       setDefaultContentType("application/json", headers)
@@ -76781,9 +76778,9 @@ async function generateAutoTags(noteTitle, noteContent, userId, confidenceThresh
       console.error("Auto-tag generation failed: userId is required");
       return { suggestions: [], totalFound: 0, highConfidence: 0 };
     }
-    const { stripHtml: stripHtml3 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
+    const { stripHtml: stripHtml2 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
     const cleanTitle2 = (noteTitle || "").trim();
-    const cleanContent = stripHtml3(noteContent || "").trim();
+    const cleanContent = stripHtml2(noteContent || "").trim();
     const fullText = `${cleanTitle2} ${cleanContent}`.trim();
     if (!fullText) return { suggestions: [], totalFound: 0, highConfidence: 0 };
     let foundKeywords = [];
@@ -88627,7 +88624,6 @@ ${callout.content}
 }
 
 // server/routes/notes.ts
-init_html_stripper();
 var route10 = new Hono2();
 var TITLE_HARD_LIMIT = 50;
 var truncateAndCapitalizeTitle = (title) => {
@@ -95427,7 +95423,6 @@ var sync_default = app9;
 
 // server/routes/migrations.ts
 init_db2();
-init_dates();
 init_dist();
 var app10 = new Hono2();
 app10.post("/api/migrations/backfill-last-visited", async (c) => {

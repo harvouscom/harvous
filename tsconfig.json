@@ -1,13 +1,18 @@
 {
-  "extends": "astro/tsconfigs/strict",
   "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
     "outDir": "dist",
     "baseUrl": ".",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-    "resolveJsonModule": true
+    "paths": { "@/*": ["src/*"] },
+    "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
   },
-  "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["node_modules", "dist", "public"]
+  "include": ["src/**/*", "spa/**/*", "server/**/*", "scripts/**/*", "db/**/*", "e2e/**/*"],
+  "exclude": ["node_modules", "dist", "dist-spa", "public"]
 }
