@@ -7,6 +7,8 @@ interface Member {
   role: 'owner' | 'member';
   firstName?: string | null;
   lastName?: string | null;
+  /** First name + last initial only (API no longer sends lastName for privacy). */
+  displayName?: string | null;
   email?: string | null;
   profileImageUrl?: string | null;
   joinedAt: string;
@@ -177,9 +179,10 @@ export default function SpaceMembersList({
   };
 
   const getMemberDisplayName = (member: Member) => {
-    if (member.firstName || member.lastName) {
-      return `${member.firstName || ''} ${member.lastName || ''}`.trim();
-    }
+    if (member.displayName) return member.displayName;
+    const first = member.firstName || '';
+    const lastInitial = member.lastName ? member.lastName.charAt(0).toUpperCase() + '.' : '';
+    if (first || lastInitial) return `${first} ${lastInitial}`.trim();
     return member.email || 'Unknown User';
   };
 

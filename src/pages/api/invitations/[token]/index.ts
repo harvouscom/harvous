@@ -51,11 +51,16 @@ export const GET: APIRoute = async ({ params, locals }) => {
       return notFoundResponse('Space');
     }
 
-    // Get inviter details
+    // Get inviter details (first name + last initial only; never full last name)
     const inviter = await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, invitation.invitedBy))
       .get();
+    const inviterFirst = inviter?.firstName || '';
+    const inviterLastInitial = inviter?.lastName ? inviter.lastName.charAt(0).toUpperCase() : '';
+    const inviterDisplayName = inviterFirst
+      ? (inviterLastInitial ? `${inviterFirst} ${inviterLastInitial}.` : inviterFirst)
+      : 'A Harvous User';
 
     // Check if current user (if logged in) is already a member
     const { userId } = locals.auth();
@@ -88,10 +93,7 @@ export const GET: APIRoute = async ({ params, locals }) => {
       invitation: {
         spaceTitle: space.title,
         spaceColor: space.color || 'paper',
-        invitedBy: {
-          firstName: inviter?.firstName,
-          lastName: inviter?.lastName,
-        },
+        invitedBy: { displayName: inviterDisplayName },
         message: invitation.message,
         expiresAt: invitation.expiresAt,
         isExpired,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import React, { useState, useEffect, Fragment, useMemo } from 'react';
 import Icon from './Icon';
 import ButtonSmall from './ButtonSmall';
 import SquareButton from './SquareButton';
@@ -24,6 +24,17 @@ export default function NoteSharePanel({
   const [isMounted, setIsMounted] = useState(false);
   const [noteType, setNoteType] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState(false);
+
+  // Normalize share URL to current origin (SPA) so copy/link is correct when API is on a different host (e.g. dev API port)
+  const displayShareUrl = useMemo(() => {
+    if (!shareUrl) return null;
+    try {
+      const u = new URL(shareUrl);
+      return typeof window !== 'undefined' ? window.location.origin + u.pathname : shareUrl;
+    } catch {
+      return shareUrl;
+    }
+  }, [shareUrl]);
 
   const fetchShareStatus = async () => {
     setFetchError(false);
@@ -157,10 +168,11 @@ export default function NoteSharePanel({
 
   // Handle copy link
   const handleCopyLink = async () => {
-    if (!shareUrl) return;
+    const urlToCopy = displayShareUrl ?? shareUrl;
+    if (!urlToCopy) return;
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(urlToCopy);
       setCopied(true);
 
       window.dispatchEvent(new CustomEvent('toast', {
@@ -301,7 +313,7 @@ export default function NoteSharePanel({
                           <input
                             type="text"
                             readOnly
-                            value={shareUrl}
+                            value={displayShareUrl ?? shareUrl}
                             className="note-share-panel__link-input"
                             onClick={(e) => {
                               const target = e.target as HTMLInputElement;

@@ -9,6 +9,7 @@ import { db, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThrea
 import { nowISO } from '../db/dates';
 import { generateReferralCode } from './referral-code';
 import { getCurrentSeason } from '@/utils/season-helpers';
+import { processScriptureReferences } from './process-scripture-references';
 
 export interface CachedUserData {
   firstName: string;
@@ -245,6 +246,12 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
             threadId: onboardingThreadId,
             createdAt: nowISO()
           });
+
+          try {
+            await processScriptureReferences(noteId, userId, onboardingThreadId, noteData.content);
+          } catch (e) {
+            console.error('Error processing scripture for onboarding note', noteId, e);
+          }
 
           currentSimpleNoteId++;
         }

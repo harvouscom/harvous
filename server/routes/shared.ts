@@ -400,6 +400,11 @@ app.get('/api/invitations/:token', async (c) => {
     if (!space) return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
     const inviter = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, invitation.invitedBy)).get();
+    const inviterFirst = inviter?.firstName || '';
+    const inviterLastInitial = inviter?.lastName ? inviter.lastName.charAt(0).toUpperCase() : '';
+    const inviterDisplayName = inviterFirst
+      ? (inviterLastInitial ? `${inviterFirst} ${inviterLastInitial}.` : inviterFirst)
+      : 'A Harvous User';
 
     const auth = getAuth(c);
     let alreadyMember = false;
@@ -420,7 +425,7 @@ app.get('/api/invitations/:token', async (c) => {
       data: {
         invitation: {
           spaceTitle: space.title, spaceColor: space.color || 'paper',
-          invitedBy: { firstName: inviter?.firstName, lastName: inviter?.lastName },
+          invitedBy: { displayName: inviterDisplayName },
           message: invitation.message, expiresAt: invitation.expiresAt, isExpired, status: invitation.status,
         },
         canAccept, alreadyMember, requiresAuth: !auth.userId,

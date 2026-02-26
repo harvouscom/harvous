@@ -312,21 +312,33 @@ route.post('/api/notes/create', async (c) => {
       }
     }
 
-    // Process scripture references (fire-and-forget)
+    // Process scripture references before responding so the note has pill content when the user lands on the note page
+    let scriptureResults: any[] = [];
     if (!contentEncrypted) {
-      (async () => {
-        try {
-          const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
-          const latestNote = finalNoteType === 'resource'
-            ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
-            : null;
-          const contentToProcess = latestNote?.content || newNote.content;
-          await processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess);
-        } catch {}
-      })().catch(() => {});
+      try {
+        const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+        const latestNote = finalNoteType === 'resource'
+          ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
+          : null;
+        const contentToProcess = latestNote?.content || newNote.content;
+        const preview = typeof contentToProcess === 'string'
+          ? contentToProcess.slice(0, 80).replace(/\s+/g, ' ').trim()
+          : '';
+        console.log('[api/notes/create] About to run scripture processing', {
+          noteId: newNote.id,
+          contentLength: contentToProcess?.length ?? 0,
+          contentPreview: preview || '(empty)'
+        });
+        const scriptureResult = await processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess);
+        scriptureResults = scriptureResult.results ?? [];
+      } catch (error: any) {
+        console.error('[api/notes/create] Scripture processing failed:', error?.message);
+        console.error('[api/notes/create] Scripture processing error stack:', error?.stack);
+        console.error('[api/notes/create] Scripture processing error string:', String(error));
+      }
     }
 
-    return c.json({ success: 'Note created!', note: newNote, scriptureResults: [] });
+    return c.json({ success: 'Note created!', note: newNote, scriptureResults });
   } catch (error: any) {
     console.error('[api/notes/create] Error:', error);
     return c.json({ error: error.message || 'Failed to create note' }, 500);
@@ -793,12 +805,17 @@ route.get('/api/notes/:id/details', async (c) => {
       allThreads = junctionThreads.filter(t => t.title !== 'Unorganized');
     } catch { allThreads = []; }
 
-    // Format threads with counts
+    // Format threads with counts and backgroundGradient for nav/NotePage
     const formattedThreads = await Promise.all(allThreads.map(async (thread: any) => {
       const junctionCountResult = await db.select({ count: count() }).from(Notes)
         .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
-      return { ...thread, subtitle: thread.subtitle || 'Thread', count: junctionCountResult?.count || 0 };
+      return {
+        ...thread,
+        subtitle: thread.subtitle || 'Thread',
+        count: junctionCountResult?.count || 0,
+        backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color),
+      };
     }));
 
     // Comments
@@ -1004,7 +1021,15 @@ route.post('/api/notes/:id/process-scripture-references', async (c) => {
     const noteId = c.req.param('id');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const { threadId, contentOverride } = await c.req.json();
+    let threadId: string | undefined;
+    let contentOverride: string | undefined;
+    try {
+      const body = await c.req.json();
+      threadId = body?.threadId;
+      contentOverride = body?.contentOverride;
+    } catch {
+      // Empty or invalid JSON body is ok; processScriptureReferences will read from DB
+    }
     const result = await processScriptureReferences(noteId, auth.userId, threadId, contentOverride);
     return c.json(result);
   } catch (error: any) {

@@ -58,8 +58,17 @@ export default defineConfig({
       ignored: ['!**/src/**'],
     },
     proxy: {
-      // All API calls → Hono dev server (port 3001)
-      '/api': { target: 'http://localhost:3001', changeOrigin: true },
+      // All API calls → Hono dev server (port 3001). If the API is not running, you get 500 — use npm run dev:all to run both.
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err, req, res) => {
+            console.error('[vite proxy] API request failed (is the API running on port 3001?):', req.url);
+            console.error('[vite proxy] Run "npm run dev:all" to start both the API and SPA, or "npm run dev:api" in another terminal.');
+          });
+        },
+      },
     },
   },
 });

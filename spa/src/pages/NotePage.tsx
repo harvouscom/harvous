@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNote } from '../hooks/queries/useNote';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
+import { detectScriptureReferences } from '@/utils/scripture-detector';
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -26,6 +27,43 @@ export default function NotePage() {
     window.addEventListener('noteLockStateChanged', handler);
     return () => window.removeEventListener('noteLockStateChanged', handler);
   }, [noteId, queryClient]);
+
+  // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),
+  // run scripture processing once so pills and scripture notes are created, then refetch.
+  const reprocessAttemptedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!note || isLoading || note.contentEncrypted) return;
+    const content = note.content ?? '';
+    if (!content || typeof content !== 'string') return;
+    if (content.includes('data-scripture-reference')) return; // Already has pills
+    if (reprocessAttemptedRef.current === noteId) return;
+
+    const plainText = content
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const refs = detectScriptureReferences(plainText);
+    if (refs.length === 0) return;
+
+    reprocessAttemptedRef.current = noteId;
+    const parentThread = note.threads?.[0];
+    const threadId = parentThread?.id ?? undefined;
+
+    fetch(`/api/notes/${noteId}/process-scripture-references`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ contentOverride: content, threadId }),
+    })
+      .then((res) => {
+        if (res.ok) {
+          queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+        }
+      })
+      .catch(() => {
+        reprocessAttemptedRef.current = null; // Allow retry on next mount
+      });
+  }, [note, noteId, isLoading, queryClient]);
 
   // The parent thread is the first thread this note belongs to (if any)
   const parentThread = note?.threads?.[0];

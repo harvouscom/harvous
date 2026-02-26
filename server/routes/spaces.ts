@@ -53,6 +53,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
 import { generateSpaceId, generateShareToken } from '@/utils/ids';
+import { idToUrl } from '@/utils/url-helpers';
 
 const route = new Hono();
 
@@ -357,9 +358,16 @@ route.get('/api/spaces/:spaceId/prefetch', async (c) => {
     const ownerSpace = ownerSpaces.find((s: any) => s.id === spaceId);
     if (ownerSpace) {
       return c.json({
-        id: ownerSpace.id, title: ownerSpace.title, color: ownerSpace.color,
-        backgroundGradient: ownerSpace.backgroundGradient, totalItemCount: ownerSpace.totalItemCount,
-        isPublic: ownerSpace.isPublic, ownerId: auth.userId,
+        space: {
+          id: ownerSpace.id,
+          title: ownerSpace.title,
+          color: ownerSpace.color,
+          backgroundGradient: ownerSpace.backgroundGradient,
+          totalItemCount: ownerSpace.totalItemCount,
+          isPublic: ownerSpace.isPublic,
+          ownerId: auth.userId,
+          memberCount: 0,
+        },
       }, 200, { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' });
     }
 
@@ -375,9 +383,16 @@ route.get('/api/spaces/:spaceId/prefetch', async (c) => {
     const totalItemCount = (noteCountResult?.count || 0) + (threadCountResult?.count || 0);
 
     return c.json({
-      id: space.id, title: space.title, color: space.color,
-      backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
-      totalItemCount, isPublic: space.isPublic, ownerId: space.userId,
+      space: {
+        id: space.id,
+        title: space.title,
+        color: space.color,
+        backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
+        totalItemCount,
+        isPublic: space.isPublic,
+        ownerId: space.userId,
+        memberCount: 0,
+      },
     }, 200, { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' });
   } catch (error: any) {
     console.error('Error prefetching space:', error);
@@ -628,10 +643,16 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
     }
 
     const ownerMeta = userMetadataMap[space.userId] || {};
+    const toDisplayName = (firstName: string | null, lastName: string | null, fallback: string) => {
+      const first = firstName || '';
+      const lastInitial = lastName ? lastName.charAt(0).toUpperCase() : '';
+      return first ? (lastInitial ? `${first} ${lastInitial}.` : first) : fallback;
+    };
     const memberList = [
       {
         userId: space.userId, role: 'owner', joinedAt: space.createdAt,
-        firstName: ownerMeta.firstName || null, lastName: ownerMeta.lastName || null,
+        firstName: ownerMeta.firstName || null,
+        displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User'),
         email: ownerMeta.email || null, profileImageUrl: ownerMeta.profileImageUrl || null,
         userColor: ownerMeta.userColor || 'paper',
       },
@@ -639,7 +660,8 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
         const meta = userMetadataMap[m.userId] || {};
         return {
           userId: m.userId, role: 'member', joinedAt: m.joinedAt || m.createdAt,
-          firstName: meta.firstName || null, lastName: meta.lastName || null,
+          firstName: meta.firstName || null,
+          displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || 'Unknown User'),
           email: meta.email || null, profileImageUrl: meta.profileImageUrl || null,
           userColor: meta.userColor || 'paper',
         };
@@ -806,7 +828,7 @@ route.post('/api/spaces/join/:token', async (c) => {
       createdAt: now,
     });
 
-    return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: `/spaces/${space.id}` });
+    return c.json({ success: true, spaceId: space.id, spaceName: space.title, redirectUrl: idToUrl(space.id) });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/join/[token]', action: 'join_space' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -823,10 +845,12 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
     if (!space) return c.json({ error: 'Space not found or link expired' }, 404);
     if (!space.isPublic) return c.json({ error: 'This space is no longer public' }, 403);
 
-    // Owner info
+    // Owner info (first name + last initial only; never full last name)
     const ownerMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).get();
-    const ownerDisplayName = ownerMeta
-      ? [ownerMeta.firstName, ownerMeta.lastName].filter(Boolean).join(' ') || 'Anonymous'
+    const ownerFirst = ownerMeta?.firstName || '';
+    const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : '';
+    const ownerDisplayName = ownerFirst
+      ? (ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst)
       : 'Anonymous';
 
     // Member count

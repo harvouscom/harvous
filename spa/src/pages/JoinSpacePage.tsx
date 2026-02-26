@@ -20,6 +20,22 @@ interface SpacePreview {
   threads?: Array<{ id: string; title: string; color: string; noteCount: number }>;
 }
 
+/** Matches GET /api/spaces/join-preview/:token response. */
+interface JoinPreviewResponse {
+  space: {
+    id: string;
+    title: string;
+    color?: string;
+    backgroundGradient?: string;
+    description?: string;
+  };
+  owner: { displayName: string; profileImageUrl?: string | null } | null;
+  memberCount: number;
+  threadPreviews: Array<{ id: string; title: string; color: string; noteCount: number }>;
+  notePreviews: Array<{ id: string; title: string; noteType: string; createdAt?: string }>;
+  isAlreadyMember: boolean;
+}
+
 export default function JoinSpacePage() {
   const { token } = useParams({ from: '/spaces/join/$token' });
   const { isSignedIn } = useAuth();
@@ -34,8 +50,20 @@ export default function JoinSpacePage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    api.get<SpacePreview>(`/api/spaces/join-preview/${token}`)
-      .then(setSpace)
+    api
+      .get<JoinPreviewResponse>(`/api/spaces/join-preview/${token}`)
+      .then((res) => {
+        const normalized: SpacePreview = {
+          ...res.space,
+          ownerDisplayName: res.owner?.displayName ?? 'Anonymous',
+          memberCount: res.memberCount,
+          noteCount: res.notePreviews?.length ?? 0,
+          isAlreadyMember: res.isAlreadyMember,
+          notes: res.notePreviews,
+          threads: res.threadPreviews,
+        };
+        setSpace(normalized);
+      })
       .catch(() => setError('invalid'))
       .finally(() => setIsLoading(false));
   }, [token]);
@@ -235,6 +263,7 @@ export default function JoinSpacePage() {
                         </button>
                       ) : (
                         <button
+                          id="join-space-btn"
                           className="btn btn--lg btn--primary shared-page__cta-button"
                           onClick={handleJoin}
                           disabled={isJoining}

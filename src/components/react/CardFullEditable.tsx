@@ -1515,7 +1515,7 @@ export default function CardFullEditable({
                   <div 
                     ref={contentDisplayRef}
                     className="card-full-editable__content-html flex-1 overflow-auto rounded"
-                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
                   />
@@ -1523,7 +1523,7 @@ export default function CardFullEditable({
                   <div 
                     ref={contentDisplayRef}
                     className="flex-1 overflow-auto rounded"
-                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '12px', cursor: effectiveIsEditable ? 'text' : 'default' }}
+                    style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >
                     <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
@@ -1580,7 +1580,8 @@ export default function CardFullEditable({
                 lineHeight: '1.4',
                 color: 'var(--color-pebble-grey)',
                 margin: 0,
-                textAlign: 'left'
+                textAlign: 'left',
+                paddingRight: '96px'
               }}
             >
               Per Gratis use quotations designated{' '}

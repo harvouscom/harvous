@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Icon from './Icon';
 import ButtonSmall from './ButtonSmall';
 
@@ -35,6 +35,17 @@ export default function ThreadVisibilityDropdown({
   const [hoveredOption, setHoveredOption] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Normalize share URL to current origin (SPA) so copy/link is correct when API is on a different host (e.g. dev API port)
+  const displayShareUrl = useMemo(() => {
+    if (!shareUrl) return null;
+    try {
+      const u = new URL(shareUrl);
+      return typeof window !== 'undefined' ? window.location.origin + u.pathname : shareUrl;
+    } catch {
+      return shareUrl;
+    }
+  }, [shareUrl]);
+
   // Handle click outside to close dropdown
   useEffect(() => {
     if (!isOpen) return;
@@ -63,10 +74,11 @@ export default function ThreadVisibilityDropdown({
   }, [isOpen]);
 
   const handleCopyLink = async () => {
-    if (!shareUrl) return;
+    const urlToCopy = displayShareUrl ?? shareUrl;
+    if (!urlToCopy) return;
 
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(urlToCopy);
       setCopied(true);
 
       window.dispatchEvent(new CustomEvent('toast', {
@@ -236,7 +248,7 @@ export default function ThreadVisibilityDropdown({
                     <input
                       type="text"
                       readOnly
-                      value={shareUrl}
+                      value={displayShareUrl}
                       className="thread-visibility-dropdown__link-input"
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />

@@ -205,10 +205,12 @@ export default function EditSpacePeoplePanel({
                         .filter(Boolean)
                         .join('')
                         .toUpperCase() || '?';
-                      const displayName =
-                        [member.firstName, member.lastName ? member.lastName[0] + '.' : null]
-                          .filter(Boolean)
-                          .join(' ') || member.email || 'Unknown';
+                      const displayName = member.displayName
+                        ?? ([member.firstName, member.lastName ? member.lastName[0] + '.' : null]
+                            .filter(Boolean)
+                            .join(' ')
+                            .trim()
+                            || member.email || 'Unknown');
                       const isRemoving = removingUserId === member.userId;
                       const canRemove = isOwner && member.role !== 'owner';
 

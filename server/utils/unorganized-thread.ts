@@ -75,20 +75,10 @@ export async function ensureUnorganizedThread(userId: string) {
         });
       } catch (insertError: any) {
         if (insertError.code === 'SQLITE_CONSTRAINT' ||
-            insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
+            insertError.cause?.code === 'SQLITE_CONSTRAINT' ||
             insertError.rawCode === 1555 ||
             insertError.message?.includes('UNIQUE constraint failed')) {
-          const createdThread = await db.select({
-            id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
-            color: Threads.color, spaceId: Threads.spaceId,
-            isPublic: Threads.isPublic, isPinned: Threads.isPinned,
-            createdAt: Threads.createdAt, updatedAt: Threads.updatedAt,
-          })
-          .from(Threads)
-          .where(and(eq(Threads.userId, userId), eq(Threads.id, "thread_unorganized")))
-          .get();
-
-          if (createdThread) { /* Thread was created by another request */ }
+          // Single global thread_unorganized row exists (created by seed or another user); continue
         } else {
           console.error("Error creating unorganized thread:", insertError);
           throw insertError;

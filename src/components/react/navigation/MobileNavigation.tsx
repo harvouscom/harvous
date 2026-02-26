@@ -135,37 +135,41 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   }, [currentThread]);
 
   // Sync updatedCurrentSpace when currentSpace prop changes
-  // BUT only if we don't already have a more recent update for this space
+  // BUT only if we don't already have a more recent update for this space.
+  // Depend on stable primitives (id, title, backgroundGradient) so we don't re-run every
+  // render when parent passes a new object reference for the same space (which causes
+  // "Maximum update depth exceeded"). Do NOT include updatedCurrentSpace in deps — the
+  // effect updates it, so including it would cause an infinite loop.
+  const currentSpaceId = currentSpace?.id ?? null;
+  const currentSpaceTitle = currentSpace?.title ?? '';
+  const currentSpaceGradient = currentSpace?.backgroundGradient ?? '';
   useEffect(() => {
     // Don't sync if we just updated from an event (within last 2 seconds)
     if (lastEventUpdateRef.current && 
-        lastEventUpdateRef.current.spaceId === currentSpace?.id &&
+        lastEventUpdateRef.current.spaceId === currentSpaceId &&
         Date.now() - lastEventUpdateRef.current.timestamp < 2000) {
       return;
     }
     
+    if (!currentSpace) {
+      setUpdatedCurrentSpace(null);
+      return;
+    }
     // Only sync if:
     // 1. We don't have updatedCurrentSpace set, OR
     // 2. The currentSpace ID is different from what we have, OR
     // 3. The currentSpace ID matches but we want to ensure it's in sync
-    // However, if we just updated updatedCurrentSpace from an event, don't overwrite it
-    if (!updatedCurrentSpace || (currentSpace && updatedCurrentSpace.id !== currentSpace.id)) {
-      setUpdatedCurrentSpace(currentSpace);
-    } else if (currentSpace && updatedCurrentSpace.id === currentSpace.id) {
-      // Same space - merge to preserve any updates we have while syncing other fields
-      // Preserve our updated backgroundGradient if we have one, otherwise use currentSpace
-      setUpdatedCurrentSpace(prev => {
-        if (prev && prev.backgroundGradient && prev.backgroundGradient !== currentSpace.backgroundGradient) {
-          // Keep our updated gradient
-          return {
-            ...currentSpace,
-            backgroundGradient: prev.backgroundGradient
-          };
-        }
+    setUpdatedCurrentSpace(prev => {
+      if (!prev || prev.id !== currentSpace.id) {
         return currentSpace;
-      });
-    }
-  }, [currentSpace, updatedCurrentSpace]);
+      }
+      // Same space - merge to preserve any updates we have while syncing other fields
+      if (prev.backgroundGradient && prev.backgroundGradient !== currentSpace.backgroundGradient) {
+        return { ...currentSpace, backgroundGradient: prev.backgroundGradient };
+      }
+      return currentSpace;
+    });
+  }, [currentSpaceId, currentSpaceTitle, currentSpaceGradient]);
 
   // Sync localSpaces when spaces prop changes (e.g., on initial load or navigation)
   useEffect(() => {

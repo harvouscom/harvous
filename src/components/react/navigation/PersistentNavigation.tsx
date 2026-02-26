@@ -123,6 +123,17 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
   const getPersistentItems = () => {
     if (typeof window === 'undefined') return [];
 
+    const GRAY_FALLBACK = 'var(--color-gradient-gray)';
+    const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+    const isRealGradient = (g: string | undefined): boolean =>
+      !!(g && g !== GRAY_FALLBACK && g !== 'var(--color-paper)' && g !== PAPER_GRADIENT);
+
+    const getGradientFromHistory = (threadId: string): string | undefined => {
+      const item = navigationHistory.find((i: any) => i.id === threadId);
+      const g = item?.backgroundGradient;
+      return g && isRealGradient(g) ? g : undefined;
+    };
+
     // When viewing a note page, always ensure its parent thread is visible in the nav.
     // View Transitions and timing can cause navigationHistory to miss/lose the parent thread briefly;
     // this keeps the UI consistent and avoids "missing thread" cases.
@@ -139,10 +150,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
         const title = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
         const countStr = noteEl?.dataset?.parentThreadCount ?? navEl?.dataset?.parentThreadCount ?? '0';
-        const backgroundGradient =
+        let backgroundGradient =
           noteEl?.dataset?.parentThreadBackgroundGradient ??
           navEl?.dataset?.parentThreadBackgroundGradient ??
-          'var(--color-gradient-gray)';
+          GRAY_FALLBACK;
+        if (!backgroundGradient || backgroundGradient === GRAY_FALLBACK) {
+          const fromHistory = getGradientFromHistory(parentThreadId);
+          if (fromHistory) backgroundGradient = fromHistory;
+        }
         const spaceId = noteEl?.dataset?.parentThreadSpaceId ?? navEl?.dataset?.parentThreadSpaceId ?? null;
 
         return {
@@ -211,6 +226,13 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
             spaceId: null,
           };
+        }
+      }
+      // When activeParentThread still has gray/missing gradient, use navigationHistory if it has a real color
+      if (activeParentThread && !isRealGradient(activeParentThread.backgroundGradient)) {
+        const fromHistory = getGradientFromHistory(activeParentThread.id);
+        if (fromHistory) {
+          activeParentThread = { ...activeParentThread, backgroundGradient: fromHistory };
         }
       }
     }

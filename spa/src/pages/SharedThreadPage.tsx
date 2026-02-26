@@ -111,8 +111,10 @@ export default function SharedThreadPage() {
           shareToken,
           timestamp: Date.now(),
         }));
+        sessionStorage.setItem('harvous_pending_redirect', window.location.href);
       } catch { /* ignore */ }
-      navigate({ to: '/sign-in' as any });
+      const redirectUrl = encodeURIComponent(window.location.href);
+      navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
       return;
     }
     await doAdd();

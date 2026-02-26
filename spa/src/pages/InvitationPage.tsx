@@ -9,10 +9,7 @@ interface InvitationResponse {
   invitation: {
     spaceTitle: string;
     spaceColor?: string;
-    invitedBy: {
-      firstName?: string;
-      lastName?: string;
-    };
+    invitedBy: { displayName: string };
     message?: string;
     expiresAt?: string;
     isExpired: boolean;
@@ -116,12 +113,7 @@ export default function InvitationPage() {
 
   const invitation = data?.invitation;
   const spaceColor = invitation?.spaceColor || 'paper';
-  const inviterFirstName = invitation?.invitedBy?.firstName || '';
-  const inviterLastName = invitation?.invitedBy?.lastName || '';
-  const inviterLastInitial = inviterLastName.charAt(0).toUpperCase();
-  const inviterDisplayName = inviterFirstName
-    ? (inviterLastName ? `${inviterFirstName} ${inviterLastInitial}.` : inviterFirstName)
-    : 'A Harvous User';
+  const inviterDisplayName = invitation?.invitedBy?.displayName || 'A Harvous User';
 
   // Determine if already used from API response
   const isAlreadyUsed = invitation && invitation.status !== 'pending' && !invitation.isExpired;

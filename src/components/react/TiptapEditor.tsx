@@ -493,59 +493,47 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
           break;
         }
         
-        // Check if this position already has a scripture pill mark or overlaps with existing pills
+        // Skip only when the ENTIRE range [candidateFrom, candidateTo) is already inside
+        // scripture pills. If only part of the range has a pill (e.g. "Matthew 1:12" in a pill
+        // and " -13" plain), we still return this position so the caller can replace/extend
+        // with one pill for the full reference.
         if (skipMarked) {
           try {
-            // Check multiple positions within the match to catch pills that might span part of it
-            let hasPill = false;
-            const checkPositions = [
-              candidateFrom,
-              candidateFrom + Math.floor((candidateTo - candidateFrom) / 2),
-              candidateTo - 1
-            ];
-            
-            for (const checkPos of checkPositions) {
+            const rangeLen = candidateTo - candidateFrom;
+            // Sample positions across the range; skip only if every sampled position has a pill
+            const sampleCount = Math.min(rangeLen, 8);
+            const step = rangeLen <= sampleCount ? 1 : Math.max(1, Math.floor(rangeLen / (sampleCount - 1)));
+            let allHavePill = true;
+            for (let i = 0; i < rangeLen; i += step) {
+              const pos = candidateFrom + (i === 0 ? 0 : Math.min(i, rangeLen - 1));
               try {
-                const $check = doc.resolve(checkPos);
-                const marks = $check.marks();
-                if (marks.some((m: any) => m.type.name === 'scripturePill')) {
-                  hasPill = true;
+                const $p = doc.resolve(pos);
+                const marks = $p.marks();
+                if (!marks.some((m: any) => m.type.name === 'scripturePill')) {
+                  allHavePill = false;
                   break;
                 }
               } catch (e) {
-                // If we can't resolve, continue checking other positions
+                allHavePill = false;
+                break;
               }
             }
-            
-            if (hasPill) {
-              // Skip this position - it's already inside a pill
-              continue;
-            }
-            
-            // Also check if this position overlaps with any existing pill boundaries
-            // by checking positions just before and after the match
-            const checkBefore = Math.max(0, candidateFrom - 1);
-            const checkAfter = Math.min(doc.content.size, candidateTo + 1);
-            
-            try {
-              const $before = doc.resolve(checkBefore);
-              const $after = doc.resolve(checkAfter);
-              const marksBefore = $before.marks();
-              const marksAfter = $after.marks();
-              
-              // If positions immediately before or after have pills, this might overlap
-              if (marksBefore.some((m: any) => m.type.name === 'scripturePill') ||
-                  marksAfter.some((m: any) => m.type.name === 'scripturePill')) {
-                // Check if the pill extends into our match area
-                // If so, skip to avoid overlapping pills
-                continue;
+            // Also check the last position in the range
+            if (allHavePill && rangeLen > 0) {
+              try {
+                const $last = doc.resolve(candidateTo - 1);
+                if (!$last.marks().some((m: any) => m.type.name === 'scripturePill')) {
+                  allHavePill = false;
+                }
+              } catch (e) {
+                allHavePill = false;
               }
-            } catch (e) {
-              // If we can't check, continue anyway
+            }
+            if (allHavePill) {
+              continue; // Entire range already in pill(s), skip
             }
           } catch (e) {
-            // If we can't resolve, skip it
-            continue;
+            // If we can't resolve, don't skip so caller can try to apply
           }
         }
         
@@ -673,6 +661,7 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
               ]);
               tr.replaceWith(adjustedPos.from, adjustedPos.to, textNode);
             } else {
+              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
               tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({
                 reference,
                 noteId: 'pending'
@@ -935,6 +924,7 @@ export async function convertScriptureReferencesToPills(
             const tr = editor.state.tr;
             const markType = editor.state.schema.marks.scripturePill;
             if (markType) {
+              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
               tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
               // Remove noteLink mark if present
               const noteLinkMark = editor.state.schema.marks.noteLink;
@@ -1090,6 +1080,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             const tr = editor.state.tr;
             const markType = editor.state.schema.marks.scripturePill;
             if (markType) {
+              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
               tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
               // Remove noteLink mark if present
               const noteLinkMark = editor.state.schema.marks.noteLink;
@@ -1256,6 +1247,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
                     const tr = editor.state.tr;
                     const markType = editor.state.schema.marks.scripturePill;
                     if (markType) {
+                      tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
                       tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
                       // Remove noteLink mark if present
                       const noteLinkMark = editor.state.schema.marks.noteLink;
@@ -1549,6 +1541,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           const tr = editor.state.tr;
           const markType = editor.state.schema.marks.scripturePill;
           if (markType) {
+            tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
             tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId: noteId || undefined }));
             // Remove noteLink mark if present
             const noteLinkMark = editor.state.schema.marks.noteLink;

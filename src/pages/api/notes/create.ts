@@ -538,7 +538,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     }
 
     // Process scripture references in the note content (async, fire-and-forget for all note types)
-    // This allows the frontend to redirect immediately while scripture notes are created in the background
+    // NOTE: Production API is Hono (server/routes/notes.ts); this Astro route is legacy. Only Hono is awaited and returns scriptureResults.
     // Skip for encrypted notes (server can't read content)
     if (!contentEncrypted) {
       const processScriptureReferencesAsync = async () => {

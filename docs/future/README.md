@@ -104,6 +104,12 @@ These were designed here and are now live. The stub files in this folder point t
   - Shared-space templates for groups
   - Implementation outline and design considerations
 
+- **`SCRIPTURE_NOTES_FUTURE_IMPROVEMENTS.md`** - Scripture note experience improvements
+  - Overlapping passages: surfacing on scripture note view + merge action (redirect refs, update pills, delete merged note)
+  - Related: overlap-aware reuse at creation, check-existing overlap, detection-time longer ref
+  - Bible reader / “collected verses” view: see which verses you’ve saved across the Bible (book/chapter/verse, highlight saved)
+  - Data and implementation notes for each
+
 - **`OFFLINE_MODE_IMPLEMENTATION.md`** - Complete offline mode architecture
   - Full offline read/write support with IndexedDB
   - Data synchronization strategies

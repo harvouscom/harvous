@@ -66,6 +66,23 @@ export default function AppLayout() {
     }
   }, [isLoaded, isSignedIn, router, pathname]);
 
+  // Pending redirect fallback: if user signed in from join/invite/shared but Clerk sent them to /, send them back
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || pathname !== '/') return;
+    try {
+      const url = sessionStorage.getItem('harvous_pending_redirect');
+      if (url && url.startsWith('http')) {
+        sessionStorage.removeItem('harvous_pending_redirect');
+        const path = new URL(url).pathname + new URL(url).search;
+        if (path !== '/' && (path.startsWith('/spaces/join/') || path.startsWith('/invitations/') || path.startsWith('/shared/'))) {
+          window.location.replace(url);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [isLoaded, isSignedIn, pathname]);
+
   // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
   const lastVisitRecordedPathRef = useRef<string | null>(null);
   useEffect(() => {

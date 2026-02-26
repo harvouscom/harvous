@@ -111,9 +111,11 @@ No webhook change is required; attribution is cookie + post-signup API so the se
 
 ---
 
-## 9. Testing
+## 9. Testing & Verification
 
-- Manual: share referral link → sign up new user in incognito → confirm referrer's `referralBonusNotes` +100 and UI shows new cap (e.g. 1,100).
+- **E2E:** [e2e/referral.spec.ts](../e2e/referral.spec.ts) – one test runs: authenticated user can GET `/api/referral/status` and receives `referralCode`, `referralBonusNotes`, and `limit` (≥200). Panel and full credit flow are skipped in CI (Clerk sign-in from sign-in page doesn’t complete in this env); see test comments for manual steps.
+- **Bonus note count in limit:** Note creation uses the effective limit in [server/utils/subscription.ts](../server/utils/subscription.ts): `canCreateNote` and `getSubscriptionInfo` use `effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes`; [server/routes/notes.ts](../server/routes/notes.ts) calls `canCreateNote` before creating a note (403 when at limit).
+- **Manual:** Share referral link → sign up new user in incognito → confirm referrer's `referralBonusNotes` +100 and UI shows new cap (e.g. 300).
 
 ---
 

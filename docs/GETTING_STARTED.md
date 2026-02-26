@@ -59,20 +59,26 @@ npm run db:push     # Push to remote
 
 ### 5. Start development servers
 
-The app has two dev servers — run both simultaneously:
+**Option A — Hono API + SPA (recommended on clear-split branch):**
+```bash
+npm run dev:all
+```
+Runs the Hono API on port 3001 and the SPA on port 4322. Open `http://localhost:4322`. If you run only `npm run dev:spa`, `/api` requests will return 500 because the API must be running on 3001.
+
+**Option B — Astro + SPA (two terminals):**
 
 **Terminal 1 — Astro (API layer, port 4321):**
 ```bash
 npm run dev
 ```
 
-**Terminal 2 — React SPA (authenticated app, port 5173):**
+**Terminal 2 — React SPA (port 4322 from root):**
 ```bash
-cd spa && npm run dev
+npm run dev:spa
 ```
 
 - Astro dev server: `http://localhost:4321` — API routes, sign-in, shared pages
-- SPA dev server: `http://localhost:5173` — authenticated app (dashboard, threads, notes, spaces)
+- SPA dev server: `http://localhost:4322` — authenticated app (when using `dev:spa` or `dev:all`)
 
 ---
 

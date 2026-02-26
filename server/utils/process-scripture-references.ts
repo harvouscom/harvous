@@ -238,6 +238,12 @@ export async function processScriptureReferences(
 
   // Detect all scripture references in the content
   const detectedReferences = detectScriptureReferences(plainText);
+  console.log('[processScriptureReferences] Detection', {
+    noteId,
+    plainTextLength: plainText.length,
+    detectedCount: detectedReferences.length,
+    firstRef: detectedReferences[0]?.reference ?? null
+  });
 
   const results: ProcessingResult[] = [];
   const referenceMap: Map<string, string> = new Map(); // reference -> noteId
@@ -294,32 +300,27 @@ export async function processScriptureReferences(
     }
 
     try {
-      // Check if scripture note exists
-      // First try exact match with normalized reference (direct database query for exact match)
-      let existingScripture = await db.select({
-        noteId: ScriptureMetadata.noteId,
-        reference: ScriptureMetadata.reference
-      })
-        .from(ScriptureMetadata)
-        .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-        .where(
-          and(
-            eq(ScriptureMetadata.reference, normalizedReference),
-            eq(Notes.userId, userId)
-          )
-        )
-        .limit(1)
-        .get();
+      // Check if scripture note exists: use normalized map (handles exact and legacy format variants)
+      let existingScripture = normalizedScriptureMap.get(normalizedReference)
+        ? { noteId: normalizedScriptureMap.get(normalizedReference)!.noteId, reference: normalizedScriptureMap.get(normalizedReference)!.reference }
+        : null;
 
-      // If no exact match, use the pre-built normalized map instead of querying database again
-      // This handles legacy references that might not be normalized
+      // Double-check right before create to avoid duplicate from concurrent requests (e.g. reprocess-on-view firing twice)
       if (!existingScripture) {
-        const matchedScripture = normalizedScriptureMap.get(normalizedReference);
-        if (matchedScripture) {
-          existingScripture = {
-            noteId: matchedScripture.noteId,
-            reference: matchedScripture.reference
-          };
+        const freshCheck = await db.select({
+          noteId: ScriptureMetadata.noteId,
+          reference: ScriptureMetadata.reference
+        })
+          .from(ScriptureMetadata)
+          .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+          .where(eq(Notes.userId, userId))
+          .all();
+        for (const row of freshCheck) {
+          if (normalizeScriptureReference(row.reference) === normalizedReference) {
+            existingScripture = { noteId: row.noteId, reference: row.reference };
+            normalizedScriptureMap.set(normalizedReference, { noteId: row.noteId, reference: row.reference });
+            break;
+          }
         }
       }
 
@@ -506,6 +507,7 @@ export async function processScriptureReferences(
           }
 
           referenceMap.set(reference, scriptureNote.id);
+          normalizedScriptureMap.set(normalizedReference, { noteId: scriptureNote.id, reference: normalizedReference });
 
           // Create junction entry linking this note to the new scripture note
           try {
@@ -998,6 +1000,10 @@ export async function processScriptureReferences(
   // Always update note in database with properly highlighted content
   // This ensures scripture pills always have correct class and data attributes
   // even if Tiptap's getHTML output was missing some attributes
+  console.log('[processScriptureReferences] Updating note with highlighted content', {
+    noteId,
+    referencesForHighlightingCount: referencesForHighlighting.length
+  });
   await db.update(Notes)
     .set({
       content: updatedContent,

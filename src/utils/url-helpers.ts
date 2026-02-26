@@ -28,6 +28,7 @@ const PREFIXES: Array<[string, string]> = [
  * so the server can reliably determine which thread the user navigated from.
  */
 export function idToUrl(id: string, threadContext?: string): string {
+  if (id == null || typeof id !== 'string') return '/';
   let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
     if (id.startsWith(prefix)) {
