@@ -64525,6 +64525,8 @@ route2.get("/api/navigation/data", async (c) => {
 var navigation_default = route2;
 
 // server/routes/debug.ts
+init_db2();
+init_drizzle_orm();
 var route3 = new Hono2();
 route3.get("/api/debug/request-headers", (c) => {
   if (process.env.NODE_ENV === "production") {
@@ -64544,6 +64546,33 @@ route3.get("/api/debug/request-headers", (c) => {
     200,
     { "Cache-Control": "no-store" }
   );
+});
+route3.get("/api/debug/me", async (c) => {
+  const auth = getAuth(c);
+  if (!auth.userId) {
+    return c.json({ hasUserId: false, message: "Not authenticated" }, 200, { "Cache-Control": "no-store" });
+  }
+  try {
+    const [threadCountRow, spaceCountRow, noteCountRow] = await Promise.all([
+      db.select({ count: count() }).from(Threads).where(eq(Threads.userId, auth.userId)).get(),
+      db.select({ count: count() }).from(Spaces).where(eq(Spaces.userId, auth.userId)).get(),
+      db.select({ count: count() }).from(Notes).where(eq(Notes.userId, auth.userId)).get()
+    ]);
+    return c.json(
+      {
+        hasUserId: true,
+        userIdPrefix: auth.userId.slice(0, 12),
+        threadCount: threadCountRow?.count ?? 0,
+        spaceCount: spaceCountRow?.count ?? 0,
+        noteCount: noteCountRow?.count ?? 0
+      },
+      200,
+      { "Cache-Control": "no-store" }
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return c.json({ hasUserId: true, userIdPrefix: auth.userId.slice(0, 12), error: message }, 500, { "Cache-Control": "no-store" });
+  }
 });
 var debug_default = route3;
 

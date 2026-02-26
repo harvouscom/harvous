@@ -7,7 +7,7 @@ Complete technology stack documentation for Harvous, including versions, depende
 **Production** is a **React SPA + Hono API**:
 
 - **`/spa`** — React SPA (Vite): the full app users see. Handles all routes (dashboard, threads, notes, spaces, profile, sign-in, shared content, etc.). Built output is copied to `dist/` and served as static `index.html` + assets.
-- **`/server`** — Hono API: a single Node server that handles **all** `/api/*` requests. Bundled as one Netlify serverless function (`netlify/functions/api.mjs`). Database access, auth, and business logic live here.
+- **`/server`** — Hono API: a single Node server that handles **all** `/api/*` requests. Bundled as one Netlify serverless function (`netlify/functions/api.cjs`). Database access, auth, and business logic live here.
 
 **Astro** is used for build tooling (e.g. Astro DB, schema in `db/config.ts`) and for **optional local development** (Astro SSR pages and legacy `src/pages/api/` routes). Astro is **not** served in production; the Netlify build runs `astro build` then `vite build` and overwrites `dist/` with `dist-spa/`, so production serves only the SPA and the Hono function.
 
@@ -29,7 +29,7 @@ Astro                 - Build tooling, Astro DB, optional dev server (not served
 ### Hono API (`/server`)
 
 - **Purpose**: Production API — all `/api/*` endpoints, database access, auth, business logic
-- **Deployment**: Single Netlify serverless function (`netlify/functions/api.mjs`)
+- **Deployment**: Single Netlify serverless function (`netlify/functions/api.cjs`)
 - **Handles**: Notes, threads, spaces, user, referral, billing, shared content, invitations, webhooks, etc.
 - **Dev**: Run with `npm run dev:all` (API on 3001, SPA on 4322)
 
@@ -159,7 +159,7 @@ Output: Hono (server/)- Single serverless function for all /api/*
 
 - **Build order**: `astro build` (DB/schema tooling, legacy output) then `vite build` (SPA → `dist-spa/`); `dist-spa/` is copied over `dist/`, so **production serves the SPA**.
 - **SPA**: Static `index.html` + hashed JS/CSS from `spa/`, served from CDN.
-- **API**: Single Netlify function (`netlify/functions/api.mjs`) handles all `/api/*` (Hono app from `server/`).
+- **API**: Single Netlify function (`netlify/functions/api.cjs`) handles all `/api/*` (Hono app from `server/`).
 
 ## Development Tools
 

@@ -7,6 +7,7 @@ npm run dev              # Astro SSR dev server on port 4321 (NOT what productio
 npm run dev:spa          # SPA dev server on port 4322 (proxies /api to 3001). API must be running or /api requests return 500.
 npm run dev:all          # Hono API (3001) + SPA (4322) — use this for full-stack dev so /api works
 npm run build            # Production build (astro build + vite build; dist-spa/ copied over dist/; prebuild injects version into public/sw.js)
+npm run build:api        # Bundle Hono API to netlify/functions/api.cjs (run before deploy or to validate production API build)
 npm run db:sync          # Sync database schema
 npm run db:push          # Push schema to remote
 npm run db:check         # Pre-commit schema check
@@ -21,11 +22,13 @@ npm run test:e2e:setup   # Seed e2e data (local + remote) then run e2e
 **Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Astro DB (Turso), schema in `db/config.ts`.
 
 - **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
-- **API backend**: Hono server in `server/` bundled as a single Netlify Function (`netlify/functions/api.mjs`). All `/api/*` requests are routed there by `public/_redirects`. The `src/pages/api/` Astro routes are legacy and not used in production.
+- **API backend**: Hono server in `server/` bundled as a single Netlify Function (`netlify/functions/api.cjs`). All `/api/*` requests are routed there by `public/_redirects`. The `src/pages/api/` Astro routes are legacy and not used in production.
 - **Astro SSR app** (`src/pages/*.astro`, `src/layouts/Layout.astro`): Development-only. Works with `npm run dev` but is NOT served in production. Netlify build copies `dist-spa/` over `dist/`, so the SPA's `index.html` is what gets served.
 - **Shared React components**: `src/components/react/` are imported by both the SPA and the Astro SSR app. UI changes that must ship to production should be made in `spa/src/` or these shared components. Changes only in `src/pages/*.astro` or `src/layouts/Layout.astro` do NOT affect production.
 - **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`. Astro middleware in `src/middleware.ts` for SSR.
 - **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`.
+
+**Production API contract:** The API is built as a single file (`netlify/functions/api.cjs`); Netlify uses `node_bundler = "none"`, so there is no `node_modules` at function runtime. All dependencies must be bundled (do not add `--packages=external` to `build:api`). Use `@libsql/client/web` for Turso in `server/db/client.ts` (not the default Node client) so the function works without native bindings. Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
 
 ## Project Structure
 
@@ -74,6 +77,7 @@ public/                      # Static assets, sw.js, manifest.json
 
 - `docs/ARCHITECTURE.md` - Data structures, database schema, relationships
 - `docs/CLEAR_SPLIT_MIGRATION.md` - Plan to simplify to Node API + SPA (no Astro in the middle)
+- `docs/CLEAR_SPLIT_MERGE_DELTA.md` - What changed at merge, production API contract, pre-merge checklist
 - `docs/REACT_ISLANDS_STRATEGY.md` - Astro SSR / React islands (legacy); production is SPA
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
