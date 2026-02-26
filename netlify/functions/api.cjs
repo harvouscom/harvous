@@ -9882,9 +9882,9 @@ var require_event_target = __commonJS({
        *     the listener would be automatically removed when invoked.
        * @public
        */
-      addEventListener(type, handler4, options = {}) {
+      addEventListener(type, handler5, options = {}) {
         for (const listener of this.listeners(type)) {
-          if (!options[kForOnEventAttribute] && listener[kListener] === handler4 && !listener[kForOnEventAttribute]) {
+          if (!options[kForOnEventAttribute] && listener[kListener] === handler5 && !listener[kForOnEventAttribute]) {
             return;
           }
         }
@@ -9895,7 +9895,7 @@ var require_event_target = __commonJS({
               data: isBinary ? data : data.toString()
             });
             event[kTarget] = this;
-            callListener(handler4, this, event);
+            callListener(handler5, this, event);
           };
         } else if (type === "close") {
           wrapper = function onClose(code, message) {
@@ -9905,7 +9905,7 @@ var require_event_target = __commonJS({
               wasClean: this._closeFrameReceived && this._closeFrameSent
             });
             event[kTarget] = this;
-            callListener(handler4, this, event);
+            callListener(handler5, this, event);
           };
         } else if (type === "error") {
           wrapper = function onError(error) {
@@ -9914,19 +9914,19 @@ var require_event_target = __commonJS({
               message: error.message
             });
             event[kTarget] = this;
-            callListener(handler4, this, event);
+            callListener(handler5, this, event);
           };
         } else if (type === "open") {
           wrapper = function onOpen() {
             const event = new Event("open");
             event[kTarget] = this;
-            callListener(handler4, this, event);
+            callListener(handler5, this, event);
           };
         } else {
           return;
         }
         wrapper[kForOnEventAttribute] = !!options[kForOnEventAttribute];
-        wrapper[kListener] = handler4;
+        wrapper[kListener] = handler5;
         if (options.once) {
           this.once(type, wrapper);
         } else {
@@ -9940,9 +9940,9 @@ var require_event_target = __commonJS({
        * @param {(Function|Object)} handler The listener to remove
        * @public
        */
-      removeEventListener(type, handler4) {
+      removeEventListener(type, handler5) {
         for (const listener of this.listeners(type)) {
-          if (listener[kListener] === handler4 && !listener[kForOnEventAttribute]) {
+          if (listener[kListener] === handler5 && !listener[kForOnEventAttribute]) {
             this.removeListener(type, listener);
             break;
           }
@@ -10576,15 +10576,15 @@ var require_websocket = __commonJS({
           }
           return null;
         },
-        set(handler4) {
+        set(handler5) {
           for (const listener of this.listeners(method)) {
             if (listener[kForOnEventAttribute]) {
               this.removeListener(method, listener);
               break;
             }
           }
-          if (typeof handler4 !== "function") return;
-          this.addEventListener(method, handler4, {
+          if (typeof handler5 !== "function") return;
+          this.addEventListener(method, handler5, {
             [kForOnEventAttribute]: true
           });
         }
@@ -33616,9 +33616,9 @@ var require_lib9 = __commonJS({
       return domhandler_2.DomHandler;
     } });
     function parseDocument2(data, options) {
-      var handler4 = new domhandler_1.DomHandler(void 0, options);
-      new Parser_js_1.Parser(handler4, options).end(data);
-      return handler4.root;
+      var handler5 = new domhandler_1.DomHandler(void 0, options);
+      new Parser_js_1.Parser(handler5, options).end(data);
+      return handler5.root;
     }
     exports2.parseDocument = parseDocument2;
     function parseDOM2(data, options) {
@@ -33626,8 +33626,8 @@ var require_lib9 = __commonJS({
     }
     exports2.parseDOM = parseDOM2;
     function createDomStream2(callback, options, elementCallback) {
-      var handler4 = new domhandler_1.DomHandler(callback, options, elementCallback);
-      return new Parser_js_1.Parser(handler4, options);
+      var handler5 = new domhandler_1.DomHandler(callback, options, elementCallback);
+      return new Parser_js_1.Parser(handler5, options);
     }
     exports2.createDomStream = createDomStream2;
     var Tokenizer_js_1 = require_Tokenizer();
@@ -43389,15 +43389,15 @@ var require_EventTarget = __commonJS({
           var type = event2.type, phase = event2.eventPhase;
           event2.currentTarget = target;
           if (phase !== Event.CAPTURING_PHASE && target._handlers && target._handlers[type]) {
-            var handler4 = target._handlers[type];
+            var handler5 = target._handlers[type];
             var rv;
-            if (typeof handler4 === "function") {
-              rv = handler4.call(event2.currentTarget, event2);
+            if (typeof handler5 === "function") {
+              rv = handler5.call(event2.currentTarget, event2);
             } else {
-              var f = handler4.handleEvent;
+              var f = handler5.handleEvent;
               if (typeof f !== "function")
                 throw new TypeError("handleEvent property of event handler object isnot a function.");
-              rv = f.call(handler4, event2);
+              rv = f.call(handler5, event2);
             }
             switch (event2.type) {
               case "mouseover":
@@ -43539,9 +43539,9 @@ var require_EventTarget = __commonJS({
       // the same type.  They are not invoked during the capturing phase
       // of event dispatch.
       //
-      _setEventHandler: function _setEventHandler(type, handler4) {
+      _setEventHandler: function _setEventHandler(type, handler5) {
         if (!this._handlers) this._handlers = /* @__PURE__ */ Object.create(null);
-        this._handlers[type] = handler4;
+        this._handlers[type] = handler5;
       },
       _getEventHandler: function _getEventHandler(type) {
         return this._handlers && this._handlers[type] || null;
@@ -44687,12 +44687,12 @@ var require_attributes = __commonJS({
         }
       };
     }
-    exports2.registerChangeHandler = function(c, name, handler4) {
+    exports2.registerChangeHandler = function(c, name, handler5) {
       var p = c.prototype;
       if (!Object.prototype.hasOwnProperty.call(p, "_attributeChangeHandlers")) {
         p._attributeChangeHandlers = Object.create(p._attributeChangeHandlers || null);
       }
-      p._attributeChangeHandlers[name] = handler4;
+      p._attributeChangeHandlers[name] = handler5;
     };
   }
 });
@@ -48089,7 +48089,7 @@ var require_CSSStyleDeclaration2 = __commonJS({
     var { parse: parse8 } = require_style_parser();
     module2.exports = function(elt) {
       const style = new CSSStyleDeclaration2(elt);
-      const handler4 = {
+      const handler5 = {
         get: function(target, property) {
           return property in target ? target[property] : target.getPropertyValue(dasherizeProperty(property));
         },
@@ -48105,7 +48105,7 @@ var require_CSSStyleDeclaration2 = __commonJS({
           return true;
         }
       };
-      return new Proxy(style, handler4);
+      return new Proxy(style, handler5);
     };
     function dasherizeProperty(property) {
       return property.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
@@ -50392,8 +50392,8 @@ var require_Document = __commonJS({
       // This method allows dom.js to communicate with a renderer
       // that displays the document in some way
       // XXX: I should probably move this to the window object
-      _setMutationHandler: { value: function(handler4) {
-        this.mutationHandler = handler4;
+      _setMutationHandler: { value: function(handler5) {
+        this.mutationHandler = handler5;
       } },
       // This method allows dom.js to receive event notifications
       // from the renderer.
@@ -59295,8 +59295,8 @@ var require_DOMImplementation = __commonJS({
         d2.modclock = 1;
         return d2;
       },
-      mozSetOutputMutationHandler: function(doc, handler4) {
-        doc.mutationHandler = handler4;
+      mozSetOutputMutationHandler: function(doc, handler5) {
+        doc.mutationHandler = handler5;
       },
       mozGetInputMutationHandler: function(doc) {
         utils.nyi();
@@ -61071,7 +61071,8 @@ var require_dist2 = __commonJS({
 // server/netlify.ts
 var netlify_exports = {};
 __export(netlify_exports, {
-  default: () => netlify_default
+  default: () => netlify_default,
+  handler: () => handler4
 });
 module.exports = __toCommonJS(netlify_exports);
 
@@ -61094,16 +61095,16 @@ var compose = (middleware, onError, onNotFound) => {
       index2 = i;
       let res;
       let isError = false;
-      let handler4;
+      let handler5;
       if (middleware[i]) {
-        handler4 = middleware[i][0][0];
+        handler5 = middleware[i][0][0];
         context.req.routeIndex = i;
       } else {
-        handler4 = i === middleware.length && next || void 0;
+        handler5 = i === middleware.length && next || void 0;
       }
-      if (handler4) {
+      if (handler5) {
         try {
-          res = await handler4(context, () => dispatch2(i + 1));
+          res = await handler5(context, () => dispatch2(i + 1));
         } catch (err) {
           if (err instanceof Error && onError) {
             context.error = err;
@@ -62174,8 +62175,8 @@ var Hono = class _Hono {
         } else {
           this.#addRoute(method, this.#path, args1);
         }
-        args.forEach((handler4) => {
-          this.#addRoute(method, this.#path, handler4);
+        args.forEach((handler5) => {
+          this.#addRoute(method, this.#path, handler5);
         });
         return this;
       };
@@ -62184,8 +62185,8 @@ var Hono = class _Hono {
       for (const p of [path].flat()) {
         this.#path = p;
         for (const m2 of [method].flat()) {
-          handlers.map((handler4) => {
-            this.#addRoute(m2.toUpperCase(), this.#path, handler4);
+          handlers.map((handler5) => {
+            this.#addRoute(m2.toUpperCase(), this.#path, handler5);
           });
         }
       }
@@ -62198,8 +62199,8 @@ var Hono = class _Hono {
         this.#path = "*";
         handlers.unshift(arg1);
       }
-      handlers.forEach((handler4) => {
-        this.#addRoute(METHOD_NAME_ALL, this.#path, handler4);
+      handlers.forEach((handler5) => {
+        this.#addRoute(METHOD_NAME_ALL, this.#path, handler5);
       });
       return this;
     };
@@ -62241,14 +62242,14 @@ var Hono = class _Hono {
   route(path, app14) {
     const subApp = this.basePath(path);
     app14.routes.map((r) => {
-      let handler4;
+      let handler5;
       if (app14.errorHandler === errorHandler) {
-        handler4 = r.handler;
+        handler5 = r.handler;
       } else {
-        handler4 = async (c, next) => (await compose([], app14.errorHandler)(c, () => r.handler(c, next))).res;
-        handler4[COMPOSED_HANDLER] = r.handler;
+        handler5 = async (c, next) => (await compose([], app14.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5[COMPOSED_HANDLER] = r.handler;
       }
-      subApp.#addRoute(r.method, r.path, handler4);
+      subApp.#addRoute(r.method, r.path, handler5);
     });
     return this;
   }
@@ -62286,8 +62287,8 @@ var Hono = class _Hono {
    * })
    * ```
    */
-  onError = (handler4) => {
-    this.errorHandler = handler4;
+  onError = (handler5) => {
+    this.errorHandler = handler5;
     return this;
   };
   /**
@@ -62305,8 +62306,8 @@ var Hono = class _Hono {
    * })
    * ```
    */
-  notFound = (handler4) => {
-    this.#notFoundHandler = handler4;
+  notFound = (handler5) => {
+    this.#notFoundHandler = handler5;
     return this;
   };
   /**
@@ -62376,21 +62377,21 @@ var Hono = class _Hono {
         return new Request(url, request);
       };
     })();
-    const handler4 = async (c, next) => {
+    const handler5 = async (c, next) => {
       const res = await applicationHandler(replaceRequest(c.req.raw), ...getOptions(c));
       if (res) {
         return res;
       }
       await next();
     };
-    this.#addRoute(METHOD_NAME_ALL, mergePath(path, "*"), handler4);
+    this.#addRoute(METHOD_NAME_ALL, mergePath(path, "*"), handler5);
     return this;
   }
-  #addRoute(method, path, handler4) {
+  #addRoute(method, path, handler5) {
     method = method.toUpperCase();
     path = mergePath(this._basePath, path);
-    const r = { basePath: this._basePath, path, method, handler: handler4 };
-    this.router.add(method, path, [handler4, r]);
+    const r = { basePath: this._basePath, path, method, handler: handler5 };
+    this.router.add(method, path, [handler5, r]);
     this.routes.push(r);
   }
   #handleError(err, c) {
@@ -62779,7 +62780,7 @@ var RegExpRouter = class {
     this.#middleware = { [METHOD_NAME_ALL]: /* @__PURE__ */ Object.create(null) };
     this.#routes = { [METHOD_NAME_ALL]: /* @__PURE__ */ Object.create(null) };
   }
-  add(method, path, handler4) {
+  add(method, path, handler5) {
     const middleware = this.#middleware;
     const routes = this.#routes;
     if (!middleware || !routes) {
@@ -62810,14 +62811,14 @@ var RegExpRouter = class {
       Object.keys(middleware).forEach((m2) => {
         if (method === METHOD_NAME_ALL || method === m2) {
           Object.keys(middleware[m2]).forEach((p) => {
-            re2.test(p) && middleware[m2][p].push([handler4, paramCount]);
+            re2.test(p) && middleware[m2][p].push([handler5, paramCount]);
           });
         }
       });
       Object.keys(routes).forEach((m2) => {
         if (method === METHOD_NAME_ALL || method === m2) {
           Object.keys(routes[m2]).forEach(
-            (p) => re2.test(p) && routes[m2][p].push([handler4, paramCount])
+            (p) => re2.test(p) && routes[m2][p].push([handler5, paramCount])
           );
         }
       });
@@ -62831,7 +62832,7 @@ var RegExpRouter = class {
           routes[m2][path2] ||= [
             ...findMiddleware(middleware[m2], path2) || findMiddleware(middleware[METHOD_NAME_ALL], path2) || []
           ];
-          routes[m2][path2].push([handler4, paramCount - len + i + 1]);
+          routes[m2][path2].push([handler5, paramCount - len + i + 1]);
         }
       });
     }
@@ -62876,11 +62877,11 @@ var SmartRouter = class {
   constructor(init) {
     this.#routers = init.routers;
   }
-  add(method, path, handler4) {
+  add(method, path, handler5) {
     if (!this.#routes) {
       throw new Error(MESSAGE_MATCHER_IS_ALREADY_BUILT);
     }
-    this.#routes.push([method, path, handler4]);
+    this.#routes.push([method, path, handler5]);
   }
   match(method, path) {
     if (!this.#routes) {
@@ -62937,17 +62938,17 @@ var Node3 = class _Node2 {
   #patterns;
   #order = 0;
   #params = emptyParams;
-  constructor(method, handler4, children) {
+  constructor(method, handler5, children) {
     this.#children = children || /* @__PURE__ */ Object.create(null);
     this.#methods = [];
-    if (method && handler4) {
+    if (method && handler5) {
       const m2 = /* @__PURE__ */ Object.create(null);
-      m2[method] = { handler: handler4, possibleKeys: [], score: 0 };
+      m2[method] = { handler: handler5, possibleKeys: [], score: 0 };
       this.#methods = [m2];
     }
     this.#patterns = [];
   }
-  insert(method, path, handler4) {
+  insert(method, path, handler5) {
     this.#order = ++this.#order;
     let curNode = this;
     const parts = splitRoutingPath(path);
@@ -62973,7 +62974,7 @@ var Node3 = class _Node2 {
     }
     curNode.#methods.push({
       [method]: {
-        handler: handler4,
+        handler: handler5,
         possibleKeys: possibleKeys.filter((v2, i, a) => a.indexOf(v2) === i),
         score: this.#order
       }
@@ -63094,7 +63095,7 @@ var Node3 = class _Node2 {
         return a.score - b2.score;
       });
     }
-    return [handlerSets.map(({ handler: handler4, params }) => [handler4, params])];
+    return [handlerSets.map(({ handler: handler5, params }) => [handler5, params])];
   }
 };
 
@@ -63105,15 +63106,15 @@ var TrieRouter = class {
   constructor() {
     this.#node = new Node3();
   }
-  add(method, path, handler4) {
+  add(method, path, handler5) {
     const results = checkOptionalParameter(path);
     if (results) {
       for (let i = 0, len = results.length; i < len; i++) {
-        this.#node.insert(method, results[i], handler4);
+        this.#node.insert(method, results[i], handler5);
       }
       return;
     }
-    this.#node.insert(method, path, handler4);
+    this.#node.insert(method, path, handler5);
   }
   match(method, path) {
     return this.#node.search(method, path);
@@ -81450,20 +81451,20 @@ function isValidFeed(value) {
 
 // node_modules/htmlparser2/dist/esm/index.js
 function parseDocument(data, options) {
-  const handler4 = new DomHandler(void 0, options);
-  new Parser(handler4, options).end(data);
-  return handler4.root;
+  const handler5 = new DomHandler(void 0, options);
+  new Parser(handler5, options).end(data);
+  return handler5.root;
 }
 function parseDOM(data, options) {
   return parseDocument(data, options).children;
 }
 function createDocumentStream(callback, options, elementCallback) {
-  const handler4 = new DomHandler((error) => callback(error, handler4.root), options, elementCallback);
-  return new Parser(handler4, options);
+  const handler5 = new DomHandler((error) => callback(error, handler5.root), options, elementCallback);
+  return new Parser(handler5, options);
 }
 function createDomStream(callback, options, elementCallback) {
-  const handler4 = new DomHandler(callback, options, elementCallback);
-  return new Parser(handler4, options);
+  const handler5 = new DomHandler(callback, options, elementCallback);
+  return new Parser(handler5, options);
 }
 var parseFeedDefaultOptions = { xmlMode: true };
 function parseFeed(feed, options = parseFeedDefaultOptions) {
@@ -95926,7 +95927,12 @@ app13.route("/", test_default);
 var app_default = app13;
 
 // server/netlify.ts
-var netlify_default = handle(app_default);
+var handler4 = handle(app_default);
+var netlify_default = handler4;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  handler
+});
 /*! Bundled license information:
 
 is-plain-object/dist/is-plain-object.js:
