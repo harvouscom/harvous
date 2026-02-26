@@ -16249,7 +16249,7 @@ var require_lib2 = __commonJS({
       let accum = [];
       let accumBytes = 0;
       let abort = false;
-      return new Body.Promise(function(resolve2, reject) {
+      return new Body.Promise(function(resolve, reject) {
         let resTimeout;
         if (_this4.timeout) {
           resTimeout = setTimeout(function() {
@@ -16283,7 +16283,7 @@ var require_lib2 = __commonJS({
           }
           clearTimeout(resTimeout);
           try {
-            resolve2(Buffer.concat(accum, accumBytes));
+            resolve(Buffer.concat(accum, accumBytes));
           } catch (err) {
             reject(new FetchError(`Could not create Buffer from response body for ${_this4.url}: ${err.message}`, "system", err));
           }
@@ -16958,7 +16958,7 @@ var require_lib2 = __commonJS({
         throw new Error("native promise missing, set fetch.Promise to your favorite alternative");
       }
       Body.Promise = fetch6.Promise;
-      return new fetch6.Promise(function(resolve2, reject) {
+      return new fetch6.Promise(function(resolve, reject) {
         const request = new Request6(url, opts);
         const options = getNodeRequestOptions(request);
         const send = (options.protocol === "https:" ? https : http).request;
@@ -17091,7 +17091,7 @@ var require_lib2 = __commonJS({
                   requestOpts.body = void 0;
                   requestOpts.headers.delete("content-length");
                 }
-                resolve2(fetch6(new Request6(locationURL, requestOpts)));
+                resolve(fetch6(new Request6(locationURL, requestOpts)));
                 finalize();
                 return;
             }
@@ -17112,7 +17112,7 @@ var require_lib2 = __commonJS({
           const codings = headers.get("Content-Encoding");
           if (!request.compress || request.method === "HEAD" || codings === null || res.statusCode === 204 || res.statusCode === 304) {
             response = new Response3(body, response_options);
-            resolve2(response);
+            resolve(response);
             return;
           }
           const zlibOptions = {
@@ -17122,7 +17122,7 @@ var require_lib2 = __commonJS({
           if (codings == "gzip" || codings == "x-gzip") {
             body = body.pipe(zlib.createGunzip(zlibOptions));
             response = new Response3(body, response_options);
-            resolve2(response);
+            resolve(response);
             return;
           }
           if (codings == "deflate" || codings == "x-deflate") {
@@ -17134,12 +17134,12 @@ var require_lib2 = __commonJS({
                 body = body.pipe(zlib.createInflateRaw());
               }
               response = new Response3(body, response_options);
-              resolve2(response);
+              resolve(response);
             });
             raw2.on("end", function() {
               if (!response) {
                 response = new Response3(body, response_options);
-                resolve2(response);
+                resolve(response);
               }
             });
             return;
@@ -17147,11 +17147,11 @@ var require_lib2 = __commonJS({
           if (codings == "br" && typeof zlib.createBrotliDecompress === "function") {
             body = body.pipe(zlib.createBrotliDecompress());
             response = new Response3(body, response_options);
-            resolve2(response);
+            resolve(response);
             return;
           }
           response = new Response3(body, response_options);
-          resolve2(response);
+          resolve(response);
         });
         writeToStream(req, request);
       });
@@ -18630,8 +18630,8 @@ var require_promise_limit = __commonJS({
         }
       }
       function queue(fn) {
-        return new Promise(function(resolve2, reject) {
-          jobs.push({ fn, resolve: resolve2, reject });
+        return new Promise(function(resolve, reject) {
+          jobs.push({ fn, resolve, reject });
           semaphore.queue = jobs.length;
         });
       }
@@ -26050,7 +26050,7 @@ __export(unorganized_thread_exports, {
   ensureUnorganizedThread: () => ensureUnorganizedThread
 });
 function sleep2(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function retryDbOperation(operation, maxRetries = 3, baseDelay = 50) {
   let lastError;
@@ -37515,7 +37515,7 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports2, module2) {
     "use strict";
-    var { existsSync, readFileSync: readFileSync3 } = require("fs");
+    var { existsSync, readFileSync: readFileSync2 } = require("fs");
     var { dirname: dirname2, join: join2 } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
@@ -37580,7 +37580,7 @@ var require_previous_map = __commonJS({
         this.root = dirname2(path);
         if (existsSync(path)) {
           this.mapFile = path;
-          return readFileSync3(path, "utf-8").toString().trim();
+          return readFileSync2(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -37636,7 +37636,7 @@ var require_input = __commonJS({
   "node_modules/postcss/lib/input.js"(exports2, module2) {
     "use strict";
     var { nanoid } = require_non_secure();
-    var { isAbsolute, resolve: resolve2 } = require("path");
+    var { isAbsolute, resolve } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { fileURLToPath: fileURLToPath2, pathToFileURL } = require("url");
     var CssSyntaxError = require_css_syntax_error();
@@ -37644,7 +37644,7 @@ var require_input = __commonJS({
     var terminalHighlight = require_terminal_highlight();
     var lineToIndexCache = Symbol("lineToIndexCache");
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(resolve2 && isAbsolute);
+    var pathAvailable = Boolean(resolve && isAbsolute);
     function getLineToIndex(input) {
       if (input[lineToIndexCache]) return input[lineToIndexCache];
       let lines = input.css.split("\n");
@@ -37678,7 +37678,7 @@ var require_input = __commonJS({
           if (!pathAvailable || /^\w+:\/\//.test(opts.from) || isAbsolute(opts.from)) {
             this.file = opts.from;
           } else {
-            this.file = resolve2(opts.from);
+            this.file = resolve(opts.from);
           }
         }
         if (pathAvailable && sourceMapAvailable) {
@@ -37791,7 +37791,7 @@ var require_input = __commonJS({
         if (/^\w+:\/\//.test(file)) {
           return file;
         }
-        return resolve2(this.map.consumer().sourceRoot || this.map.root || ".", file);
+        return resolve(this.map.consumer().sourceRoot || this.map.root || ".", file);
       }
       origin(line, column, endLine, endColumn) {
         if (!this.map) return false;
@@ -38050,12 +38050,12 @@ var require_fromJSON = __commonJS({
 var require_map_generator = __commonJS({
   "node_modules/postcss/lib/map-generator.js"(exports2, module2) {
     "use strict";
-    var { dirname: dirname2, relative, resolve: resolve2, sep } = require("path");
+    var { dirname: dirname2, relative, resolve, sep } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { pathToFileURL } = require("url");
     var Input = require_input();
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(dirname2 && resolve2 && relative && sep);
+    var pathAvailable = Boolean(dirname2 && resolve && relative && sep);
     var MapGenerator = class {
       constructor(stringify2, root, opts, cssString) {
         this.stringify = stringify2;
@@ -38276,7 +38276,7 @@ var require_map_generator = __commonJS({
         if (cached) return cached;
         let from = this.opts.to ? dirname2(this.opts.to) : ".";
         if (typeof this.mapOpts.annotation === "string") {
-          from = dirname2(resolve2(from, this.mapOpts.annotation));
+          from = dirname2(resolve(from, this.mapOpts.annotation));
         }
         let path = relative(from, file);
         this.memoizedPaths.set(file, path);
@@ -42802,16 +42802,16 @@ __export(load_onboarding_notes_exports, {
 });
 function loadMarkdownFiles() {
   try {
-    const __filename = (0, import_url8.fileURLToPath)(import_meta2.url);
-    const __dirname2 = (0, import_path2.dirname)(__filename);
-    const onboardingDir = (0, import_path2.join)(__dirname2, "..", "data", "onboarding");
+    const __filename = (0, import_url8.fileURLToPath)(import_meta.url);
+    const __dirname = (0, import_path.dirname)(__filename);
+    const onboardingDir = (0, import_path.join)(__dirname, "..", "data", "onboarding");
     console.log("[loadOnboardingNotes] Looking for files in:", onboardingDir);
-    const files = (0, import_fs2.readdirSync)(onboardingDir).filter((file) => file.endsWith(".md") && file !== "README.md").sort();
+    const files = (0, import_fs.readdirSync)(onboardingDir).filter((file) => file.endsWith(".md") && file !== "README.md").sort();
     console.log("[loadOnboardingNotes] Found files:", files);
     const modules = {};
     for (const file of files) {
-      const filePath = (0, import_path2.join)(onboardingDir, file);
-      const content = (0, import_fs2.readFileSync)(filePath, "utf-8");
+      const filePath = (0, import_path.join)(onboardingDir, file);
+      const content = (0, import_fs.readFileSync)(filePath, "utf-8");
       modules[`../data/onboarding/${file}`] = content;
       console.log(`[loadOnboardingNotes] Loaded file: ${file} (${content.length} chars)`);
     }
@@ -42892,15 +42892,15 @@ function getDefaultOnboardingNotes() {
     }
   ];
 }
-var import_fs2, import_path2, import_url8, import_meta2, onboardingModules;
+var import_fs, import_path, import_url8, import_meta, onboardingModules;
 var init_load_onboarding_notes = __esm({
   "src/utils/load-onboarding-notes.ts"() {
     "use strict";
     init_markdown_to_html();
-    import_fs2 = require("fs");
-    import_path2 = require("path");
+    import_fs = require("fs");
+    import_path = require("path");
     import_url8 = require("url");
-    import_meta2 = {};
+    import_meta = {};
     onboardingModules = loadMarkdownFiles();
   }
 });
@@ -64597,17 +64597,15 @@ route3.get("/api/debug/request-headers", (c) => {
 var debug_default = route3;
 
 // server/routes/about.ts
-var import_fs = require("fs");
-var import_path = require("path");
 init_markdown_to_html();
-var import_meta = {};
-var founderLetterMarkdown = (0, import_fs.readFileSync)(
-  (0, import_path.resolve)((typeof __dirname !== "undefined" ? __dirname : import_meta?.dirname) ?? "", "../../src/data/about/founder-letter.md"),
-  "utf-8"
-);
+
+// src/data/about/founder-letter.md
+var founder_letter_default = "It means a lot that you're here.\n\nI started making Harvous first and foremost for me. I needed a notes app for my Bible study that was designed in a way where the more you used it the more you'd remember. \n\nHarvous 1.0 is the start of this goal to be the home for your Bible study. For right now it's a simple notes app with features to make it more designed for Bible study like threads instead of folders, auto-generated scripture, and selecting text to create a new note.\n\nThere's a lot more to come. Until then, my prayer and hope is that Harvous helps your Bible study journey.\n\nIf you ever have feedback, questions, or just want to say hey, I'd love to hear from you at derek@harvous.com.\n\nGodspeed,";
+
+// server/routes/about.ts
 var route4 = new Hono2();
 route4.get("/api/about/founder-letter", (c) => {
-  const html = markdownToHtml(founderLetterMarkdown);
+  const html = markdownToHtml(founder_letter_default);
   return c.json(
     { html },
     200,
@@ -65459,7 +65457,7 @@ async function backfillUserXP(userId) {
 // server/utils/move-scripture-notes-to-thread.ts
 init_db2();
 function sleep3(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function moveScriptureNotesToThread(parentNoteId, threadId, userId) {
   if (threadId === "thread_unorganized") return;
@@ -77890,7 +77888,7 @@ init_unorganized_thread();
 // server/utils/remove-scripture-notes-from-thread.ts
 init_db2();
 function sleep4(ms) {
-  return new Promise((resolve2) => setTimeout(resolve2, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function removeScriptureNotesFromThread(parentNoteId, threadId, userId) {
   if (threadId === "thread_unorganized") return;
@@ -81634,8 +81632,8 @@ var CustomElementRegistry = class {
     } : (element) => element.localName === localName;
     registry.set(localName, { Class, check });
     if (waiting.has(localName)) {
-      for (const resolve2 of waiting.get(localName))
-        resolve2(Class);
+      for (const resolve of waiting.get(localName))
+        resolve(Class);
       waiting.delete(localName);
     }
     ownerDocument.querySelectorAll(
@@ -81675,13 +81673,13 @@ var CustomElementRegistry = class {
    */
   whenDefined(localName) {
     const { registry, waiting } = this;
-    return new Promise((resolve2) => {
+    return new Promise((resolve) => {
       if (registry.has(localName))
-        resolve2(registry.get(localName).Class);
+        resolve(registry.get(localName).Class);
       else {
         if (!waiting.has(localName))
           waiting.set(localName, []);
-        waiting.get(localName).push(resolve2);
+        waiting.get(localName).push(resolve);
       }
     });
   }
@@ -93340,9 +93338,9 @@ init_ids();
 init_unorganized_thread();
 
 // src/utils/webflow-verification.ts
-var import_meta3 = {};
+var import_meta2 = {};
 async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0edd9bab40a4eb397") {
-  const webflowToken = import_meta3?.env?.WEBFLOW_INBOX_API_TOKEN ?? process.env?.WEBFLOW_INBOX_API_TOKEN;
+  const webflowToken = import_meta2?.env?.WEBFLOW_INBOX_API_TOKEN ?? process.env?.WEBFLOW_INBOX_API_TOKEN;
   if (!webflowToken) {
     console.warn("Webflow API token not configured - skipping verification");
     return { isValid: true, reason: "No API token configured" };
@@ -94477,7 +94475,7 @@ init_chunk_YBVFDYDR();
 init_chunk_3SCGTTJP();
 
 // node_modules/@clerk/shared/dist/runtime/getEnvVariable-BSXrgsT3.mjs
-var import_meta4 = {};
+var import_meta3 = {};
 var hasCloudflareProxyContext = (context) => {
   return !!context?.cloudflare?.env;
 };
@@ -94486,7 +94484,7 @@ var hasCloudflareContext = (context) => {
 };
 var getEnvVariable = (name, context) => {
   if (typeof process !== "undefined" && process.env && typeof process.env[name] === "string") return process.env[name];
-  if (typeof import_meta4 !== "undefined" && import_meta4.env && typeof import_meta4.env[name] === "string") return import_meta4.env[name];
+  if (typeof import_meta3 !== "undefined" && import_meta3.env && typeof import_meta3.env[name] === "string") return import_meta3.env[name];
   if (hasCloudflareProxyContext(context)) return context.cloudflare.env[name] || "";
   if (hasCloudflareContext(context)) return context.env[name] || "";
   if (context && typeof context[name] === "string") return context[name];
@@ -94561,10 +94559,10 @@ async function verifyWebhook(request, options = {}) {
 }
 
 // src/utils/audienceful.ts
-var import_meta5 = {};
+var import_meta4 = {};
 var AUDIENCEFUL_API_BASE = "https://app.audienceful.com/api";
 function getApiKey() {
-  const apiKey = import_meta5?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
+  const apiKey = import_meta4?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
   if (!apiKey) {
     throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
   }
@@ -94642,7 +94640,7 @@ async function tagAsAppUser(email, clerkUserId, firstName, lastName) {
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
   try {
-    const apiKey = import_meta5?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
+    const apiKey = import_meta4?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
     if (!apiKey) {
       throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
     }
@@ -95615,7 +95613,7 @@ app10.post("/api/migrations/sync-clerk-to-audienceful", async (c) => {
       }
       hasMore = users.length === batchSize && (!limit || results.totalUsers < limit);
       currentOffset += users.length;
-      if (hasMore) await new Promise((resolve2) => setTimeout(resolve2, 100));
+      if (hasMore) await new Promise((resolve) => setTimeout(resolve, 100));
     }
     const durationSeconds = ((Date.now() - results.startTime) / 1e3).toFixed(2);
     return c.json({

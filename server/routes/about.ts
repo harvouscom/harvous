@@ -2,20 +2,15 @@
  * GET /api/about/founder-letter
  *
  * Returns the founder letter as rendered HTML.
+ * Markdown is inlined at build time (esbuild --loader:.md=text) so the
+ * Netlify function has no filesystem dependency on src/data.
  *
  * Port of: src/pages/api/about/founder-letter.ts
  */
 
 import { Hono } from 'hono';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { markdownToHtml } from '@/utils/markdown-to-html';
-
-// Read the markdown file once at module load time
-const founderLetterMarkdown = readFileSync(
-  resolve((typeof __dirname !== 'undefined' ? __dirname : (import.meta as { dirname?: string })?.dirname) ?? '', '../../src/data/about/founder-letter.md'),
-  'utf-8',
-);
+import founderLetterMarkdown from '@/data/about/founder-letter.md';
 
 const route = new Hono();
 
