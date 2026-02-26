@@ -155,6 +155,23 @@ export const UserMetadata = sqliteTable('UserMetadata', {
   updatedAt: text('updatedAt'),
 });
 
+// ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
+
+export const ClerkUserMapping = sqliteTable(
+  'ClerkUserMapping',
+  {
+    devUserId: text('devUserId').primaryKey(),
+    email: text('email').notNull(),
+    liveUserId: text('liveUserId').unique(),
+    /** When set, data has been merged to live; use liveUserId for DB from now on. */
+    migratedToLiveAt: text('migratedToLiveAt'),
+  },
+  (table) => [
+    index('ClerkUserMapping_liveUserIdIndex').on(table.liveUserId),
+    index('ClerkUserMapping_emailIndex').on(table.email),
+  ]
+);
+
 // ─── UserXP ────────────────────────────────────────────────────────────────────
 
 export const UserXP = sqliteTable('UserXP', {

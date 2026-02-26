@@ -4,10 +4,18 @@
  * Replaces the Astro middleware at src/middleware.ts.
  * Verifies the __session cookie using @clerk/backend and sets
  * `c.var.auth` with { userId, has } for use in route handlers.
+ *
+ * When ClerkUserMapping is populated (pk_live vs pk_test), resolves the live
+ * user ID to the dev user ID so existing Turso data is visible without migration.
  */
 
-import { verifyToken } from '@clerk/backend';
+import { createClerkClient, verifyToken } from '@clerk/backend';
 import type { Context, Next } from 'hono';
+import { eq } from 'drizzle-orm';
+import { getDb } from '../db/client';
+import { nowISO } from '../db/dates';
+import { ClerkUserMapping } from '../db/schema';
+import { mergeDevUserIntoLive } from '../utils/merge-user-into-live';
 import type { Auth } from './types';
 
 /**
@@ -48,6 +56,53 @@ function getSessionToken(cookieHeader: string | undefined): string | null {
   return match ? match[1] : null;
 }
 
+type ResolvedMapping = { devUserId: string; migratedToLiveAt: string | null };
+
+/**
+ * Resolve Clerk Production (live) user ID: if we have a mapping to a dev user
+ * and have not yet migrated, we merge dev→live and then use live ID from then on.
+ * Returns the mapping row if found, else null.
+ */
+async function resolveLiveToDevMapping(liveUserId: string, secretKey: string): Promise<ResolvedMapping | null> {
+  try {
+    const db = getDb();
+    const byLive = await db
+      .select({
+        devUserId: ClerkUserMapping.devUserId,
+        migratedToLiveAt: ClerkUserMapping.migratedToLiveAt,
+      })
+      .from(ClerkUserMapping)
+      .where(eq(ClerkUserMapping.liveUserId, liveUserId))
+      .get();
+    if (byLive) return { devUserId: byLive.devUserId, migratedToLiveAt: byLive.migratedToLiveAt };
+
+    const clerk = createClerkClient({ secretKey });
+    const user = await clerk.users.getUser(liveUserId);
+    const primaryEmail = user.emailAddresses?.find((e) => e.id === user.primaryEmailAddressId);
+    const email = primaryEmail?.emailAddress;
+    if (!email) return null;
+    const normalized = email.trim().toLowerCase();
+
+    const byEmail = await db
+      .select({
+        devUserId: ClerkUserMapping.devUserId,
+        migratedToLiveAt: ClerkUserMapping.migratedToLiveAt,
+      })
+      .from(ClerkUserMapping)
+      .where(eq(ClerkUserMapping.email, normalized))
+      .get();
+    if (!byEmail) return null;
+
+    await db
+      .update(ClerkUserMapping)
+      .set({ liveUserId })
+      .where(eq(ClerkUserMapping.devUserId, byEmail.devUserId));
+    return { devUserId: byEmail.devUserId, migratedToLiveAt: byEmail.migratedToLiveAt };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Clerk auth middleware for Hono.
  * Sets c.set('auth', { userId, has }) on every request.
@@ -78,8 +133,24 @@ export async function clerkAuth(c: Context, next: Next) {
   try {
     const payload = await verifyToken(token, { secretKey });
 
+    let userId = payload.sub;
+    const mapping = await resolveLiveToDevMapping(userId, secretKey);
+    if (mapping) {
+      if (mapping.migratedToLiveAt) {
+        userId = payload.sub;
+      } else {
+        await mergeDevUserIntoLive(mapping.devUserId, payload.sub);
+        const db = getDb();
+        await db
+          .update(ClerkUserMapping)
+          .set({ migratedToLiveAt: nowISO() })
+          .where(eq(ClerkUserMapping.devUserId, mapping.devUserId));
+        userId = payload.sub;
+      }
+    }
+
     const auth: Auth = {
-      userId: payload.sub,
+      userId,
       has: (check: { feature: string }) => {
         // Clerk encodes features in the token's "fea" claim (comma-separated)
         const fea = (payload as any).fea;

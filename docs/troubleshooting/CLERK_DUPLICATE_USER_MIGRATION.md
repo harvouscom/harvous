@@ -25,6 +25,16 @@ If production was mistakenly configured with **test** Clerk keys (`pk_test_...` 
 
 **Step 2 – Merge test-created data into live:** For each user who created data under a test ID during the mistake, run `scripts/merge-test-user-into-live.ts` (see below). It moves all content from the test user into the live user and **merges** UserMetadata / UserLifetimeXP / UserSeasonalXP so the live account keeps the correct or better values (e.g. `highestSimpleNoteId = max(live, test)`). It does **not** delete or overwrite the live user’s metadata.
 
+#### Option: read-time mapping (no data migration)
+
+When **all** Turso data is under **test** (Development) user IDs and you have switched production to **live** keys, you can avoid migrating 100+ user IDs by resolving live to dev at request time:
+
+1. **Schema:** Add the `ClerkUserMapping` table (see `server/db/schema.ts`), then run `npm run db:push` so production has the table.
+2. **Populate once:** Run `npx tsx scripts/populate-clerk-user-mapping.ts` against the production DB (same `ASTRO_DB_*` env). This copies `userId` and `email` from `UserMetadata` (where email is set) into `ClerkUserMapping` as `devUserId` and normalized `email`.
+3. **Deploy:** The auth middleware (see `server/middleware/auth.ts`) will, for each authenticated request, look up the current (live) user ID in `ClerkUserMapping` by `liveUserId` or by email (via Clerk API). On **first** login for a mapped user, it merges all data from the dev user into the live user (same logic as `merge-test-user-into-live.ts`), sets `migratedToLiveAt` on the mapping row, and uses the **live** user ID for that and all future requests. So over time Turso ends up with pk_live (Production) user IDs as canonical; no manual per-user merge needed.
+
+Legacy users **without** an email in `UserMetadata` are not in the mapping and will see empty data after signing in with live. You can add manual rows to `ClerkUserMapping` (devUserId, email from Clerk, and optionally liveUserId) or use a one-off script with Clerk test keys to backfill emails for those users.
+
 ## Fix: reassign data to the current Clerk user
 
 We have a one-off script that moves **all** rows from the old Clerk user ID to the new one. After running it, the account they use now (new ID) will own all notes, threads, spaces, XP, etc.
@@ -108,6 +118,7 @@ Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (e.g. production credentia
 
 ## Related
 
+- `scripts/populate-clerk-user-mapping.ts` – one-time populate of ClerkUserMapping from UserMetadata (for read-time live→dev resolution).
 - `scripts/check-user-ids-in-db.ts` – list Notes/Threads counts per userId.
 - `scripts/migrate-clerk-user.ts` – reassign all rows from one Clerk userId to another (use when the *new* ID has no important metadata).
 - `scripts/merge-test-user-into-live.ts` – merge test user data into live user without overwriting live’s UserMetadata/UserLifetimeXP (single or batch via MERGE_PAIRS_CSV).

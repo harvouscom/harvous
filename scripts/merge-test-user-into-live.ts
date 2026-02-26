@@ -12,29 +12,14 @@
  *   MERGE_PAIRS_CSV=merge-pairs.csv npx tsx scripts/merge-test-user-into-live.ts
  * CSV format: one pair per line, "test_user_id,live_user_id". First line may be header "test_user_id,live_user_id".
  *
+ * Optional: SKIP_TEST_USER_IDS=user_1,user_2,... to skip merging those Test (Development) user IDs.
+ *
  * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
  */
 import 'dotenv/config';
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  db,
-  Spaces,
-  Threads,
-  Notes,
-  Comments,
-  Members,
-  SpaceInvitations,
-  UserMetadata,
-  UserXP,
-  UserSeasonalXP,
-  UserLifetimeXP,
-  WeeklyStreaks,
-  Tags,
-  UserInboxItems,
-} from '../server/db';
-import { eq, and } from 'drizzle-orm';
-import { nowISO } from '../server/db/dates';
+import { mergeDevUserIntoLive } from '../server/utils/merge-user-into-live';
 
 function parsePairsCsv(csvPath: string): Array<{ testId: string; liveId: string }> {
   const abs = path.isAbsolute(csvPath) ? csvPath : path.resolve(process.cwd(), csvPath);
@@ -54,80 +39,7 @@ function parsePairsCsv(csvPath: string): Array<{ testId: string; liveId: string 
 async function mergeOne(TEST_ID: string, LIVE_ID: string): Promise<void> {
   if (TEST_ID === LIVE_ID) return;
   console.log('Merging data from TEST', TEST_ID, 'into LIVE', LIVE_ID);
-
-  // 1. Content tables: reassign test -> live (no unique userId conflict)
-  await db.update(Spaces).set({ userId: LIVE_ID }).where(eq(Spaces.userId, TEST_ID));
-  await db.update(Threads).set({ userId: LIVE_ID }).where(eq(Threads.userId, TEST_ID));
-  await db.update(Notes).set({ userId: LIVE_ID }).where(eq(Notes.userId, TEST_ID));
-  await db.update(Comments).set({ userId: LIVE_ID }).where(eq(Comments.userId, TEST_ID));
-  await db.update(Members).set({ userId: LIVE_ID }).where(eq(Members.userId, TEST_ID));
-  await db.update(SpaceInvitations).set({ invitedBy: LIVE_ID }).where(eq(SpaceInvitations.invitedBy, TEST_ID));
-  await db.update(SpaceInvitations).set({ invitedUserId: LIVE_ID }).where(eq(SpaceInvitations.invitedUserId, TEST_ID));
-  await db.update(UserXP).set({ userId: LIVE_ID }).where(eq(UserXP.userId, TEST_ID));
-  await db.update(WeeklyStreaks).set({ userId: LIVE_ID }).where(eq(WeeklyStreaks.userId, TEST_ID));
-  await db.update(Tags).set({ userId: LIVE_ID }).where(eq(Tags.userId, TEST_ID));
-  await db.update(UserInboxItems).set({ userId: LIVE_ID }).where(eq(UserInboxItems.userId, TEST_ID));
-  console.log('  Reassigned content: Spaces, Threads, Notes, Comments, Members, SpaceInvitations, UserXP, WeeklyStreaks, Tags, UserInboxItems');
-
-  // 2. UserMetadata: merge into live, then remove test row (do not delete live's row)
-  const liveMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, LIVE_ID)).get();
-  const testMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, TEST_ID)).get();
-  if (testMeta) {
-    if (liveMeta) {
-      const maxSimpleNoteId = Math.max(
-        liveMeta.highestSimpleNoteId ?? 0,
-        testMeta.highestSimpleNoteId ?? 0
-      );
-      await db.update(UserMetadata).set({
-        highestSimpleNoteId: maxSimpleNoteId,
-        updatedAt: nowISO(),
-      }).where(eq(UserMetadata.userId, LIVE_ID));
-      console.log('  Merged UserMetadata: highestSimpleNoteId = max(live, test) =', maxSimpleNoteId);
-    } else {
-      // Live has no row; reassign test's row to live
-      await db.update(UserMetadata).set({ userId: LIVE_ID, updatedAt: nowISO() }).where(eq(UserMetadata.userId, TEST_ID));
-      console.log('  Reassigned test UserMetadata row to live (live had none)');
-    }
-    await db.delete(UserMetadata).where(eq(UserMetadata.userId, TEST_ID));
-  }
-
-  // 3. UserLifetimeXP: merge into live, then remove test row
-  const liveLifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, LIVE_ID)).get();
-  const testLifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, TEST_ID)).get();
-  if (testLifetime) {
-    if (liveLifetime) {
-      const combinedTotal = (liveLifetime.totalXP ?? 0) + (testLifetime.totalXP ?? 0);
-      const latestUpdated = [liveLifetime.lastUpdated, testLifetime.lastUpdated].filter(Boolean).sort().pop()!;
-      await db.update(UserLifetimeXP).set({
-        totalXP: combinedTotal,
-        lastUpdated: latestUpdated,
-      }).where(eq(UserLifetimeXP.userId, LIVE_ID));
-      console.log('  Merged UserLifetimeXP: totalXP = live + test =', combinedTotal);
-    } else {
-      await db.update(UserLifetimeXP).set({ userId: LIVE_ID }).where(eq(UserLifetimeXP.userId, TEST_ID));
-      console.log('  Reassigned test UserLifetimeXP row to live (live had none)');
-    }
-    await db.delete(UserLifetimeXP).where(eq(UserLifetimeXP.userId, TEST_ID));
-  }
-
-  // 4. UserSeasonalXP: per-season merge (reassign or sum into live)
-  const testSeasonal = await db.select().from(UserSeasonalXP).where(eq(UserSeasonalXP.userId, TEST_ID)).all();
-  for (const row of testSeasonal) {
-    const liveRow = await db.select().from(UserSeasonalXP).where(and(eq(UserSeasonalXP.userId, LIVE_ID), eq(UserSeasonalXP.season, row.season))).get();
-    if (liveRow) {
-      await db.update(UserSeasonalXP).set({
-        totalXP: (liveRow.totalXP ?? 0) + (row.totalXP ?? 0),
-        sessionCount: (liveRow.sessionCount ?? 0) + (row.sessionCount ?? 0),
-        updatedAt: nowISO(),
-      }).where(eq(UserSeasonalXP.id, liveRow.id));
-      await db.delete(UserSeasonalXP).where(eq(UserSeasonalXP.id, row.id));
-    } else {
-      await db.update(UserSeasonalXP).set({ userId: LIVE_ID, updatedAt: nowISO() }).where(eq(UserSeasonalXP.id, row.id));
-    }
-  }
-  if (testSeasonal.length) console.log('  Merged UserSeasonalXP:', testSeasonal.length, 'season(s)');
-
-  console.log('Done. Live account', LIVE_ID, 'now owns all data.');
+  await mergeDevUserIntoLive(TEST_ID, LIVE_ID, (msg) => console.log(' ', msg));
 }
 
 async function run() {

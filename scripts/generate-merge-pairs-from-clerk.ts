@@ -9,6 +9,8 @@
  *   npx tsx scripts/generate-merge-pairs-from-clerk.ts
  *
  * Output: merge-pairs.csv (or OUTPUT_CSV path). Pairs where same email exists in BOTH apps.
+ *
+ * Optional: SKIP_TEST_USER_IDS=user_1,user_2,... to exclude those Test (Development) user IDs from the CSV.
  */
 
 import 'dotenv/config';
@@ -19,6 +21,8 @@ import { createClerkClient } from '@clerk/backend';
 const LIVE_SECRET = process.env.CLERK_SECRET_KEY;
 const TEST_SECRET = process.env.CLERK_SECRET_KEY_TEST;
 const OUTPUT_CSV = process.env.OUTPUT_CSV || path.join(process.cwd(), 'merge-pairs.csv');
+/** Comma-separated list of Test (Development) user IDs to exclude from the CSV. */
+const SKIP_TEST_IDS = new Set((process.env.SKIP_TEST_USER_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean));
 
 function normalizeEmail(s: string): string {
   return s.trim().toLowerCase();
@@ -118,9 +122,11 @@ async function main() {
       testNoMatch++;
       continue;
     }
+    if (SKIP_TEST_IDS.has(u.id)) continue;
     if (liveId !== u.id) pairs.push({ testId: u.id, liveId, email: matchedEmail });
   }
 
+  if (SKIP_TEST_IDS.size) console.log('Skipped', SKIP_TEST_IDS.size, 'Test user ID(s) (SKIP_TEST_USER_IDS)');
   console.log('Matched by email:', pairs.length, 'pairs');
   if (testNoEmail > 0) console.log('  (Test users with no email extracted:', testNoEmail + ')');
   if (testNoMatch > 0) console.log('  (Test users with email but no matching Live user:', testNoMatch + ')');
