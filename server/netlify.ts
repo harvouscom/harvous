@@ -35,16 +35,27 @@ function legacyEventToRequest(event: { path?: string; httpMethod?: string; heade
   return new Request(url, { method, headers: new Headers(headers), body });
 }
 
-async function handler(reqOrEvent: Request | unknown, context: unknown): Promise<Response> {
+async function responseToLegacy(res: Response): Promise<{ statusCode: number; body: string; headers: Record<string, string> }> {
+  const body = await res.text();
+  const headers: Record<string, string> = {};
+  res.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return { statusCode: res.status, body, headers };
+}
+
+async function handler(reqOrEvent: Request | unknown, context: unknown): Promise<Response | { statusCode: number; body: string; headers: Record<string, string> }> {
+  const isLegacy = isLegacyEvent(reqOrEvent);
   let req: Request;
-  if (isLegacyEvent(reqOrEvent)) {
+  if (isLegacy) {
     req = legacyEventToRequest(reqOrEvent);
   } else if (reqOrEvent && typeof (reqOrEvent as Request).url === 'string') {
     req = reqOrEvent as Request;
   } else {
     req = new Request('https://localhost/', { method: 'GET' });
   }
-  return honoHandler(req, context);
+  const res = await honoHandler(req, context);
+  return isLegacy ? responseToLegacy(res) : res;
 }
 
 export default handler;

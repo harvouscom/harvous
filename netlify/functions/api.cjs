@@ -95945,16 +95945,26 @@ function legacyEventToRequest(event) {
   const body = event.body != null && event.body !== "" ? event.body : void 0;
   return new Request(url, { method, headers: new Headers(headers), body });
 }
+async function responseToLegacy(res) {
+  const body = await res.text();
+  const headers = {};
+  res.headers.forEach((value, key2) => {
+    headers[key2] = value;
+  });
+  return { statusCode: res.status, body, headers };
+}
 async function handler4(reqOrEvent, context) {
+  const isLegacy = isLegacyEvent(reqOrEvent);
   let req;
-  if (isLegacyEvent(reqOrEvent)) {
+  if (isLegacy) {
     req = legacyEventToRequest(reqOrEvent);
   } else if (reqOrEvent && typeof reqOrEvent.url === "string") {
     req = reqOrEvent;
   } else {
     req = new Request("https://localhost/", { method: "GET" });
   }
-  return honoHandler(req, context);
+  const res = await honoHandler(req, context);
+  return isLegacy ? responseToLegacy(res) : res;
 }
 var netlify_default = handler4;
 // Annotate the CommonJS export names for ESM import in node:
