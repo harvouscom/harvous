@@ -17,7 +17,6 @@ import type { Auth } from './types';
 const PUBLIC_PREFIXES = [
   '/api/shared/',
   '/api/og/',
-  '/api/debug/',
   '/api/webflow/',
   '/api/migrations/',
   '/api/test/',
