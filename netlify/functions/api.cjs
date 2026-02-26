@@ -95933,6 +95933,21 @@ function isLegacyEvent(arg) {
   const o = arg;
   return "path" in o && "httpMethod" in o && !("url" in o && typeof arg.url === "string");
 }
+function mergeHeaders(event) {
+  const out = { ...event.headers ?? {} };
+  const multi = event.multiValueHeaders;
+  if (!multi || typeof multi !== "object") return out;
+  for (const [key2, values] of Object.entries(multi)) {
+    if (!Array.isArray(values) || values.length === 0) continue;
+    const lower = key2.toLowerCase();
+    if (lower === "cookie") {
+      out[key2] = values.join("; ");
+    } else {
+      out[key2] = values[0];
+    }
+  }
+  return out;
+}
 function normalizePath(path) {
   if (path.startsWith("/.netlify/functions/api")) {
     return "/api" + path.slice("/.netlify/functions/api".length) || "/api";
@@ -95941,8 +95956,8 @@ function normalizePath(path) {
 }
 function legacyEventToRequest(event) {
   const path = normalizePath(event.path ?? "/");
-  const headers = event.headers ?? {};
-  const host = headers["x-forwarded-host"] ?? headers["host"] ?? "localhost";
+  const headers = mergeHeaders(event);
+  const host = headers["x-forwarded-host"] ?? headers["host"] ?? headers["Host"] ?? "localhost";
   const proto = headers["x-forwarded-proto"] ?? "https";
   const origin = `${proto}://${host}`;
   const search = event.queryStringParameters ? "?" + new URLSearchParams(event.queryStringParameters).toString() : "";

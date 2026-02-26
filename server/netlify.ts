@@ -14,10 +14,36 @@ import app from './app';
 
 const honoHandler = handle(app);
 
-function isLegacyEvent(arg: unknown): arg is { path?: string; httpMethod?: string; headers?: Record<string, string>; body?: string | null; queryStringParameters?: Record<string, string> } {
+type LegacyEvent = {
+  path?: string;
+  httpMethod?: string;
+  headers?: Record<string, string>;
+  multiValueHeaders?: Record<string, string[]>;
+  body?: string | null;
+  queryStringParameters?: Record<string, string>;
+};
+
+function isLegacyEvent(arg: unknown): arg is LegacyEvent {
   if (!arg || typeof arg !== 'object') return false;
   const o = arg as Record<string, unknown>;
   return 'path' in o && 'httpMethod' in o && !('url' in o && typeof (arg as Request).url === 'string');
+}
+
+/** Merge event.headers and event.multiValueHeaders so Cookie and other headers are never dropped (Lambda/Netlify legacy). */
+function mergeHeaders(event: LegacyEvent): Record<string, string> {
+  const out: Record<string, string> = { ...(event.headers ?? {}) };
+  const multi = event.multiValueHeaders;
+  if (!multi || typeof multi !== 'object') return out;
+  for (const [key, values] of Object.entries(multi)) {
+    if (!Array.isArray(values) || values.length === 0) continue;
+    const lower = key.toLowerCase();
+    if (lower === 'cookie') {
+      out[key] = values.join('; ');
+    } else {
+      out[key] = values[0];
+    }
+  }
+  return out;
 }
 
 /** Netlify redirect sends /api/* to /.netlify/functions/api/:splat; legacy event.path is the function path. Normalize so Hono sees /api/... */
@@ -28,10 +54,10 @@ function normalizePath(path: string): string {
   return path;
 }
 
-function legacyEventToRequest(event: { path?: string; httpMethod?: string; headers?: Record<string, string>; body?: string | null; queryStringParameters?: Record<string, string> }): Request {
+function legacyEventToRequest(event: LegacyEvent): Request {
   const path = normalizePath(event.path ?? '/');
-  const headers = event.headers ?? {};
-  const host = headers['x-forwarded-host'] ?? headers['host'] ?? 'localhost';
+  const headers = mergeHeaders(event);
+  const host = headers['x-forwarded-host'] ?? headers['host'] ?? headers['Host'] ?? 'localhost';
   const proto = headers['x-forwarded-proto'] ?? 'https';
   const origin = `${proto}://${host}`;
   const search = event.queryStringParameters

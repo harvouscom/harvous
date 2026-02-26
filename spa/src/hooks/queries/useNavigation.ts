@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../lib/api';
+import { api, APIError } from '../../lib/api';
 
 export interface NavThread {
   id: string;
@@ -33,9 +33,14 @@ export const navigationQueryKey = ['navigation'] as const;
 export function useNavigation() {
   return useQuery({
     queryKey: navigationQueryKey,
-    queryFn: () =>
-      fetch('/api/navigation/data', { credentials: 'include', cache: 'no-store' })
-        .then(r => r.json() as Promise<NavigationData>),
+    queryFn: async () => {
+      const res = await fetch('/api/navigation/data', { credentials: 'include', cache: 'no-store' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);
+      }
+      return res.json() as Promise<NavigationData>;
+    },
     staleTime: 30_000,
   });
 }
