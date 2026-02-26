@@ -63234,7 +63234,6 @@ var PUBLIC_PREFIXES = [
 var PUBLIC_EXACT = [
   "/api/health",
   "/api/webhooks/clerk",
-  "/api/seed-marketing",
   "/api/stats/user-count"
 ];
 function isPublicRoute(path) {
@@ -64726,8 +64725,10 @@ route8.get("/api/content/load-more", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
+      console.log("[api/content/load-more] No auth userId \u2014 returning 401");
       return c.json({ error: "Authentication required" }, 401);
     }
+    console.log("[api/content/load-more] auth.userId", auth.userId);
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const filter2 = c.req.query("filter") || "all";
@@ -64752,6 +64753,7 @@ route8.get("/api/content/load-more", async (c) => {
     }
     const limitedItems = filteredItems.slice(0, limit);
     const hasMore = limitedItems.length === limit && (items.length === fetchLimit || filteredItems.length > limit);
+    console.log("[api/content/load-more] items count", { returned: limitedItems.length, rawCount: items.length, filter: filter2, offset, limit });
     return c.json({
       items: limitedItems,
       hasMore,
@@ -88651,17 +88653,43 @@ route10.post("/api/notes/create", async (c) => {
     if (!rateLimit.allowed) {
       return c.json({ error: rateLimit.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
     }
-    const formData = await c.req.formData();
-    const content = formData.get("content");
-    const title = formData.get("title");
-    const threadId = formData.get("threadId");
-    const noteType = formData.get("noteType");
-    const scriptureReference = formData.get("scriptureReference");
-    const scriptureVersion = formData.get("scriptureVersion");
-    const resourceUrl = formData.get("resourceUrl");
-    const resourceMetadataStr = formData.get("resourceMetadata");
-    const spaceId = formData.get("spaceId");
-    const contentEncrypted = formData.get("contentEncrypted") === "true";
+    const contentType = c.req.raw.headers.get("content-type") ?? "";
+    let content;
+    let title;
+    let threadId;
+    let noteType;
+    let scriptureReference;
+    let scriptureVersion;
+    let resourceUrl;
+    let resourceMetadataStr;
+    let spaceId;
+    let contentEncrypted;
+    if (contentType.includes("application/json")) {
+      const body = await c.req.json().catch(() => ({}));
+      content = body.content ?? "";
+      title = body.title ?? "";
+      threadId = body.threadId ?? "";
+      noteType = body.noteType ?? "default";
+      scriptureReference = body.scriptureReference ?? null;
+      scriptureVersion = body.scriptureVersion ?? null;
+      resourceUrl = body.resourceUrl ?? null;
+      const meta = body.resourceMetadata;
+      resourceMetadataStr = typeof meta === "string" ? meta : meta != null ? JSON.stringify(meta) : null;
+      spaceId = body.spaceId ?? null;
+      contentEncrypted = body.contentEncrypted === true || body.contentEncrypted === "true";
+    } else {
+      const formData = await c.req.formData();
+      content = formData.get("content");
+      title = formData.get("title");
+      threadId = formData.get("threadId");
+      noteType = formData.get("noteType");
+      scriptureReference = formData.get("scriptureReference");
+      scriptureVersion = formData.get("scriptureVersion");
+      resourceUrl = formData.get("resourceUrl");
+      resourceMetadataStr = formData.get("resourceMetadata");
+      spaceId = formData.get("spaceId");
+      contentEncrypted = formData.get("contentEncrypted") === "true";
+    }
     let prefetchedResourceMetadata = null;
     if (resourceMetadataStr) {
       try {
@@ -91491,8 +91519,13 @@ app.get("/api/user/xp", async (c) => {
 app.get("/api/user/get-profile", async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    if (!auth.userId) {
+      console.log("[api/user/get-profile] No auth userId \u2014 returning 401");
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+    console.log("[api/user/get-profile] auth.userId", auth.userId);
     const userData = await getCachedUserData(auth.userId);
+    console.log("[api/user/get-profile] userData loaded", { displayName: userData.displayName });
     let churchData = { churchName: null, churchCity: null, churchState: null };
     try {
       const um = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
@@ -95968,7 +96001,18 @@ function legacyEventToRequest(event) {
   const search = event.queryStringParameters ? "?" + new URLSearchParams(event.queryStringParameters).toString() : "";
   const url = `${origin}${path}${search}`;
   const method = (event.httpMethod ?? "GET").toUpperCase();
-  const body = event.body != null && event.body !== "" ? event.body : void 0;
+  let body;
+  if (event.body != null && event.body !== "") {
+    if (event.isBase64Encoded === true) {
+      try {
+        body = Buffer.from(event.body, "base64");
+      } catch {
+        body = event.body;
+      }
+    } else {
+      body = event.body;
+    }
+  }
   return new Request(url, { method, headers: new Headers(headers), body });
 }
 async function responseToLegacy(res) {

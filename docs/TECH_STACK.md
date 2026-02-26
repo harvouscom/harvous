@@ -9,7 +9,7 @@ Complete technology stack documentation for Harvous, including versions, depende
 - **`/spa`** — React SPA (Vite): the full app users see. Handles all routes (dashboard, threads, notes, spaces, profile, sign-in, shared content, etc.). Built output is copied to `dist/` and served as static `index.html` + assets.
 - **`/server`** — Hono API: a single Node server that handles **all** `/api/*` requests. Bundled as one Netlify serverless function (`netlify/functions/api.cjs`). Database access, auth, and business logic live here.
 
-**Astro** is used for build tooling (e.g. Astro DB, schema in `db/config.ts`) and for **optional local development** (Astro SSR pages and legacy `src/pages/api/` routes). Astro is **not** served in production; the Netlify build runs `astro build` then `vite build` and overwrites `dist/` with `dist-spa/`, so production serves only the SPA and the Hono function.
+The Netlify build runs `npm run build` (inject SW + build:api + build:spa). Publish directory is `dist-spa/`. Database schema lives in `server/db/schema.ts` (Drizzle + Turso).
 
 Netlify routing: `public/_redirects` sends app paths to `/index.html` (SPA); `/api/*` is handled by the SSR function (Hono). Do not add a catch-all that would send API requests to the SPA.
 
@@ -23,7 +23,7 @@ TanStack Router       - Client-side routing within the SPA
 TanStack Query        - Server state management and caching
 TypeScript 5.9.2      - Type safety
 Vanilla CSS            - Semantic CSS classes (migrated from Tailwind)
-Astro                 - Build tooling, Astro DB, optional dev server (not served in prod)
+Drizzle ORM           - Schema and Turso access (server/db/)
 ```
 
 ### Hono API (`/server`)
@@ -61,9 +61,9 @@ Astro                 - Build tooling, Astro DB, optional dev server (not served
 
 ### React (shared components)
 
-- **Purpose**: Shared React components used by the SPA (and by Astro pages in local dev): editor, navigation, panels
+- **Purpose**: Shared React components used by the SPA: editor, navigation, panels
 - **Location**: `src/components/react/`
-- **Note**: The SPA imports these directly; Astro dev pages use `client:` hydration
+- **Note**: The SPA imports these directly
 
 ### TypeScript
 
@@ -75,7 +75,7 @@ Astro                 - Build tooling, Astro DB, optional dev server (not served
 ## Database & Auth
 
 ```
-Astro DB / Turso      - Serverless SQL database
+Turso (Drizzle)       - Serverless SQL database (server/db/schema.ts, ASTRO_DB_* env)
 Clerk                 - Authentication and user management
 ```
 

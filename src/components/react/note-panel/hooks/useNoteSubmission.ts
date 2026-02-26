@@ -311,48 +311,33 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      
-      // Set title based on note type (use currentNoteType which may have been updated by detection)
-      if (currentNoteType === 'default') {
-        formData.set('title', title);
-      } else if (currentNoteType === 'scripture') {
-        formData.set('title', currentScriptureReference);
-      } else if (currentNoteType === 'resource') {
-        formData.set('title', normalizedResourceUrl);
-      }
-      
-      formData.set('content', currentContent);
       // Allow threadId override (useful when state hasn't updated yet)
       const threadIdToUse = overrideThreadId || getSelectedThread().id;
-      
-      // Debug logging to verify threadId is being passed correctly
       if (overrideThreadId) {
         debug('[useNoteSubmission] Using overrideThreadId', { overrideThreadId });
       }
       debug('[useNoteSubmission] Thread ID selection', { threadIdToUse });
-      
-      formData.set('threadId', threadIdToUse);
-      
-      // Verify it was set correctly
-      const verifyThreadId = formData.get('threadId');
-      debug('[useNoteSubmission] Verified threadId in formData', { verifyThreadId });
-      formData.set('noteType', currentNoteType);
-      
-      if (addToSpace && currentSpace && currentSpace.id) {
-        formData.set('spaceId', currentSpace.id);
-      }
-      
+
+      const noteTitle =
+        currentNoteType === 'default'
+          ? title
+          : currentNoteType === 'scripture'
+            ? currentScriptureReference
+            : normalizedResourceUrl;
+      const payload: Record<string, unknown> = {
+        content: currentContent,
+        title: noteTitle,
+        threadId: threadIdToUse,
+        noteType: currentNoteType,
+        contentEncrypted: false,
+      };
+      if (addToSpace && currentSpace?.id) payload.spaceId = currentSpace.id;
       if (currentNoteType === 'scripture') {
-        const apiReference = formatReferenceForAPI(currentScriptureReference);
-        formData.set('scriptureReference', apiReference);
-        formData.set('scriptureVersion', currentScriptureVersion);
+        payload.scriptureReference = formatReferenceForAPI(currentScriptureReference);
+        payload.scriptureVersion = currentScriptureVersion;
       } else if (currentNoteType === 'resource') {
-        formData.set('resourceUrl', normalizedResourceUrl);
-        // Pass pre-fetched metadata to avoid re-fetching on the server
-        if (resourceMetadata) {
-          formData.set('resourceMetadata', JSON.stringify(resourceMetadata));
-        }
+        payload.resourceUrl = normalizedResourceUrl;
+        if (resourceMetadata) payload.resourceMetadata = resourceMetadata;
       }
 
       // OFFLINE-AWARE: Only create in IndexedDB if we're offline
@@ -464,7 +449,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       try {
         response = await fetch('/api/notes/create', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
           credentials: 'include'
         });
       } catch (error) {
@@ -1120,39 +1106,32 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     setIsSubmitting(true);
 
     try {
-      const formData = new FormData();
-      
-      if (noteType === 'default') {
-        formData.set('title', title);
-      } else if (noteType === 'scripture') {
-        formData.set('title', scriptureReference);
-      } else if (noteType === 'resource') {
-        // Use validated normalized URL
-        const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
-        formData.set('title', validatedUrl);
-      }
-      
-      formData.set('content', content);
-      formData.set('threadId', getSelectedThread().id);
-      formData.set('noteType', noteType);
-      
+      const noteTitle =
+        noteType === 'default'
+          ? title
+          : noteType === 'scripture'
+            ? scriptureReference
+            : resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
+      const payload: Record<string, unknown> = {
+        content,
+        title: noteTitle,
+        threadId: getSelectedThread().id,
+        noteType,
+        contentEncrypted: false,
+      };
       if (noteType === 'scripture') {
-        const apiReference = formatReferenceForAPI(scriptureReference);
-        formData.set('scriptureReference', apiReference);
-        formData.set('scriptureVersion', scriptureVersion);
+        payload.scriptureReference = formatReferenceForAPI(scriptureReference);
+        payload.scriptureVersion = scriptureVersion;
       } else if (noteType === 'resource') {
-        // Use validated normalized URL
         const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
-        formData.set('resourceUrl', validatedUrl);
-        // Pass pre-fetched metadata to avoid re-fetching on the server
-        if (resourceMetadata) {
-          formData.set('resourceMetadata', JSON.stringify(resourceMetadata));
-        }
+        payload.resourceUrl = validatedUrl;
+        if (resourceMetadata) payload.resourceMetadata = resourceMetadata;
       }
 
       const response = await fetch('/api/notes/create', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
         credentials: 'include'
       });
 

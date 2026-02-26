@@ -77,17 +77,19 @@ export async function getOrCreateScriptureNote(
   // Create new note with verse text as content
   // Use parentThreadId if provided, otherwise default to thread_unorganized
   const targetThreadId = parentThreadId || 'thread_unorganized';
-  const formData = new FormData();
-  formData.set('content', verseText);
-  formData.set('title', reference);
-  formData.set('threadId', targetThreadId);
-  formData.set('noteType', 'scripture');
-  formData.set('scriptureReference', normalizedRef);
-  formData.set('scriptureVersion', 'NET');
+  const payload = {
+    content: verseText,
+    title: reference,
+    threadId: targetThreadId,
+    noteType: 'scripture',
+    scriptureReference: normalizedRef,
+    scriptureVersion: 'NET',
+  };
 
   const createResponse = await fetch('/api/notes/create', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
     credentials: 'include'
   });
 

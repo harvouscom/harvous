@@ -26,7 +26,6 @@ const PUBLIC_PREFIXES = [
 const PUBLIC_EXACT = [
   '/api/health',
   '/api/webhooks/clerk',
-  '/api/seed-marketing',
   '/api/stats/user-count',
 ];
 

@@ -1,7 +1,7 @@
 // Service Worker for Harvous PWA
 // Simple, reliable caching with stale-while-revalidate strategy
 
-const CACHE_NAME = 'harvous-cache-v1-148-0';
+const CACHE_NAME = 'harvous-cache-v1-154-0';
 const NAV_API_CACHE = 'harvous-nav-api-v10';
 const CACHE_MAX_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -130,10 +130,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API routes - ensure credentials included
+  // API routes - always network, no cache (credentials included)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request, { credentials: 'include' }).catch(() =>
+      fetch(event.request, { credentials: 'include', cache: 'no-store' }).catch(() =>
         new Response(JSON.stringify({ error: 'Network error' }), {
           status: 503,
           statusText: 'Service Unavailable',
@@ -402,7 +402,7 @@ self.addEventListener('fetch', (event) => {
             <!DOCTYPE html>
             <html>
             <head>
-              <title>Connection Error - Harvous</title>
+              <title>Connection Error | Harvous</title>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <style>
@@ -488,7 +488,7 @@ self.addEventListener('fetch', (event) => {
               <!DOCTYPE html>
               <html>
               <head>
-                <title>Connection Error - Harvous</title>
+                <title>Connection Error | Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
@@ -553,7 +553,7 @@ self.addEventListener('fetch', (event) => {
               <!DOCTYPE html>
               <html>
               <head>
-                <title>Offline - Harvous</title>
+                <title>Offline | Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
@@ -631,7 +631,7 @@ self.addEventListener('fetch', (event) => {
               <!DOCTYPE html>
               <html>
               <head>
-                <title>Connection Error - Harvous</title>
+                <title>Connection Error | Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
@@ -693,7 +693,7 @@ self.addEventListener('fetch', (event) => {
                 <!DOCTYPE html>
                 <html>
                 <head>
-                  <title>Connection Error - Harvous</title>
+                  <title>Connection Error | Harvous</title>
                   <meta charset="utf-8">
                   <meta name="viewport" content="width=device-width, initial-scale=1">
                   <style>
@@ -746,7 +746,7 @@ self.addEventListener('fetch', (event) => {
               <!DOCTYPE html>
               <html>
               <head>
-                <title>Offline - Harvous</title>
+                <title>Offline | Harvous</title>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>

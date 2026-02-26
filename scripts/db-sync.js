@@ -17,21 +17,21 @@ try {
   // Check if we're in a git repository
   execSync('git rev-parse --is-inside-work-tree', { stdio: 'ignore' });
 
-  // Check if db/config.ts has changed
-  const gitStatus = execSync('git diff --name-only HEAD -- db/').toString().trim();
+  // Check if server/db/schema.ts has changed
+  const gitStatus = execSync('git diff --name-only HEAD -- server/db/').toString().trim();
   
-  if (gitStatus.includes('config.ts')) {
-    console.log('📝 Database schema changes detected!');
+  if (gitStatus.includes('schema.ts')) {
+    console.log('📝 Database schema changes detected (server/db/schema.ts)!');
     
     const answer = process.argv.includes('--auto-push') ? 'y' : 
-      prompt('Would you like to push these changes to the remote database? (y/n) ');
+      prompt('Would you like to push these changes to the database? (y/n) ');
     
     if (answer.toLowerCase() === 'y') {
-      console.log('🚀 Pushing database schema changes...');
+      console.log('🚀 Pushing schema...');
       execSync('npm run db:push', { stdio: 'inherit' });
       console.log('✅ Database schema synchronized successfully!');
     } else {
-      console.log('⚠️ Database schema changes not pushed. Your remote database may be out of sync.');
+      console.log('⚠️ Schema changes not pushed. Database may be out of sync.');
     }
   } else {
     console.log('✅ No database schema changes detected.');
