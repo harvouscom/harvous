@@ -95927,7 +95927,35 @@ app13.route("/", test_default);
 var app_default = app13;
 
 // server/netlify.ts
-var handler4 = handle(app_default);
+var honoHandler = handle(app_default);
+function isLegacyEvent(arg) {
+  if (!arg || typeof arg !== "object") return false;
+  const o = arg;
+  return "path" in o && "httpMethod" in o && !("url" in o && typeof arg.url === "string");
+}
+function legacyEventToRequest(event) {
+  const path = event.path ?? "/";
+  const headers = event.headers ?? {};
+  const host = headers["x-forwarded-host"] ?? headers["host"] ?? "localhost";
+  const proto = headers["x-forwarded-proto"] ?? "https";
+  const origin = `${proto}://${host}`;
+  const search = event.queryStringParameters ? "?" + new URLSearchParams(event.queryStringParameters).toString() : "";
+  const url = `${origin}${path}${search}`;
+  const method = (event.httpMethod ?? "GET").toUpperCase();
+  const body = event.body != null && event.body !== "" ? event.body : void 0;
+  return new Request(url, { method, headers: new Headers(headers), body });
+}
+async function handler4(reqOrEvent, context) {
+  let req;
+  if (isLegacyEvent(reqOrEvent)) {
+    req = legacyEventToRequest(reqOrEvent);
+  } else if (reqOrEvent && typeof reqOrEvent.url === "string") {
+    req = reqOrEvent;
+  } else {
+    req = new Request("https://localhost/", { method: "GET" });
+  }
+  return honoHandler(req, context);
+}
 var netlify_default = handler4;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
