@@ -8,7 +8,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { clerkAuth } from './middleware/auth';
-import { devResetUserOnce } from './middleware/dev-reset-user';
 
 // Routes
 import health from './routes/health';
@@ -40,7 +39,6 @@ const app = new Hono();
 // Global middleware
 app.use('/api/*', cors());
 app.use('/api/*', clerkAuth);
-app.use('/api/*', devResetUserOnce);
 
 // Register routes
 app.route('/', health);

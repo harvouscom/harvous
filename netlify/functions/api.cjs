@@ -63294,56 +63294,6 @@ function getAuth(c) {
   return c.get("auth");
 }
 
-// server/utils/reset-user-to-new.ts
-init_db2();
-async function resetUserToNew(userId) {
-  const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, userId)).all();
-  const noteIds = userNotes.map((n) => n.id);
-  if (noteIds.length > 0) {
-    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, noteIds));
-    await db.delete(NoteScriptureReferences).where(inArray(NoteScriptureReferences.noteId, noteIds));
-    await db.delete(NoteScriptureReferences).where(inArray(NoteScriptureReferences.scriptureNoteId, noteIds));
-    await db.delete(NoteTags).where(inArray(NoteTags.noteId, noteIds));
-    await db.delete(Comments).where(inArray(Comments.noteId, noteIds));
-    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds));
-    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, noteIds));
-  }
-  await db.delete(Notes).where(eq(Notes.userId, userId));
-  await db.delete(Threads).where(eq(Threads.userId, userId));
-  const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all();
-  const spaceIds = userSpaces.map((s2) => s2.id);
-  if (spaceIds.length > 0) {
-    await db.delete(Members).where(inArray(Members.spaceId, spaceIds));
-    await db.delete(SpaceInvitations).where(inArray(SpaceInvitations.spaceId, spaceIds));
-  }
-  await db.delete(Spaces).where(eq(Spaces.userId, userId));
-  await db.delete(Tags).where(eq(Tags.userId, userId));
-  await db.delete(UserMetadata).where(eq(UserMetadata.userId, userId));
-}
-
-// server/middleware/dev-reset-user.ts
-var devResetDone = false;
-async function devResetUserOnce(c, next) {
-  if (process.env.NODE_ENV === "production") {
-    return next();
-  }
-  const auth = getAuth(c);
-  if (!auth.userId) {
-    return next();
-  }
-  if (devResetDone) {
-    return next();
-  }
-  try {
-    await resetUserToNew(auth.userId);
-    devResetDone = true;
-    console.log(`Dev: reset user to new-user state (onboarding only).`);
-  } catch (err) {
-    console.error("Dev reset on first request failed:", err);
-  }
-  return next();
-}
-
 // server/routes/health.ts
 var route = new Hono2();
 route.get("/api/health", (c) => {
@@ -95867,6 +95817,33 @@ app11.get("/api/admin/list-threads", async (c) => {
 });
 var admin_default = app11;
 
+// server/utils/reset-user-to-new.ts
+init_db2();
+async function resetUserToNew(userId) {
+  const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, userId)).all();
+  const noteIds = userNotes.map((n) => n.id);
+  if (noteIds.length > 0) {
+    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, noteIds));
+    await db.delete(NoteScriptureReferences).where(inArray(NoteScriptureReferences.noteId, noteIds));
+    await db.delete(NoteScriptureReferences).where(inArray(NoteScriptureReferences.scriptureNoteId, noteIds));
+    await db.delete(NoteTags).where(inArray(NoteTags.noteId, noteIds));
+    await db.delete(Comments).where(inArray(Comments.noteId, noteIds));
+    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds));
+    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, noteIds));
+  }
+  await db.delete(Notes).where(eq(Notes.userId, userId));
+  await db.delete(Threads).where(eq(Threads.userId, userId));
+  const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all();
+  const spaceIds = userSpaces.map((s2) => s2.id);
+  if (spaceIds.length > 0) {
+    await db.delete(Members).where(inArray(Members.spaceId, spaceIds));
+    await db.delete(SpaceInvitations).where(inArray(SpaceInvitations.spaceId, spaceIds));
+  }
+  await db.delete(Spaces).where(eq(Spaces.userId, userId));
+  await db.delete(Tags).where(eq(Tags.userId, userId));
+  await db.delete(UserMetadata).where(eq(UserMetadata.userId, userId));
+}
+
 // server/routes/test.ts
 var app12 = new Hono2();
 app12.post("/api/test/reset-to-new-user", async (c) => {
@@ -95900,7 +95877,6 @@ var test_default = app12;
 var app13 = new Hono2();
 app13.use("/api/*", cors());
 app13.use("/api/*", clerkAuth);
-app13.use("/api/*", devResetUserOnce);
 app13.route("/", health_default);
 app13.route("/", navigation_default);
 app13.route("/", debug_default);
