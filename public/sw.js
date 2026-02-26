@@ -130,10 +130,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API routes - ensure credentials included
+  // API routes - always network, no cache (credentials included)
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(
-      fetch(event.request, { credentials: 'include' }).catch(() =>
+      fetch(event.request, { credentials: 'include', cache: 'no-store' }).catch(() =>
         new Response(JSON.stringify({ error: 'Network error' }), {
           status: 503,
           statusText: 'Service Unavailable',
