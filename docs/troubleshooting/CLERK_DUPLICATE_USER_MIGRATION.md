@@ -35,6 +35,8 @@ When **all** Turso data is under **test** (Development) user IDs and you have sw
 
 If a row has **devUserId = liveUserId** (e.g. UserMetadata had already been updated to the live ID when the populate script ran), correct it with `scripts/fix-clerk-mapping-row.ts`: set `CORRECT_DEV_USER_ID` to the ID that has the data in Turso (e.g. from Notes/Threads) and `CORRECT_LIVE_USER_ID` to the current Clerk Production ID, then run the script so the next login merges dev→live correctly.
 
+**If you fixed devUserId (in the DB or via the fix script) but old notes still didn’t carry over:** The row may already have had `migratedToLiveAt` set from an earlier request (when dev was wrong), so the middleware no longer runs the merge. Run the merge once manually: `LIVE_USER_ID=user_35FUJeL... npx tsx scripts/force-merge-one-user.ts` (with your current Clerk Production ID). That merges dev→live and sets `migratedToLiveAt`; after that, sign in again and you should see all notes.
+
 Legacy users **without** an email in `UserMetadata` are not in the mapping and will see empty data after signing in with live. You can add manual rows to `ClerkUserMapping` (devUserId, email from Clerk, and optionally liveUserId) or use a one-off script with Clerk test keys to backfill emails for those users.
 
 ## Fix: reassign data to the current Clerk user
