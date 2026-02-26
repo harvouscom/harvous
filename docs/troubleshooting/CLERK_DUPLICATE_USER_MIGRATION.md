@@ -33,6 +33,8 @@ When **all** Turso data is under **test** (Development) user IDs and you have sw
 2. **Populate once:** Run `npx tsx scripts/populate-clerk-user-mapping.ts` against the production DB (same `ASTRO_DB_*` env). This copies `userId` and `email` from `UserMetadata` (where email is set) into `ClerkUserMapping` as `devUserId` and normalized `email`.
 3. **Deploy:** The auth middleware (see `server/middleware/auth.ts`) will, for each authenticated request, look up the current (live) user ID in `ClerkUserMapping` by `liveUserId` or by email (via Clerk API). On **first** login for a mapped user, it merges all data from the dev user into the live user (same logic as `merge-test-user-into-live.ts`), sets `migratedToLiveAt` on the mapping row, and uses the **live** user ID for that and all future requests. So over time Turso ends up with pk_live (Production) user IDs as canonical; no manual per-user merge needed.
 
+If a row has **devUserId = liveUserId** (e.g. UserMetadata had already been updated to the live ID when the populate script ran), correct it with `scripts/fix-clerk-mapping-row.ts`: set `CORRECT_DEV_USER_ID` to the ID that has the data in Turso (e.g. from Notes/Threads) and `CORRECT_LIVE_USER_ID` to the current Clerk Production ID, then run the script so the next login merges dev→live correctly.
+
 Legacy users **without** an email in `UserMetadata` are not in the mapping and will see empty data after signing in with live. You can add manual rows to `ClerkUserMapping` (devUserId, email from Clerk, and optionally liveUserId) or use a one-off script with Clerk test keys to backfill emails for those users.
 
 ## Fix: reassign data to the current Clerk user
@@ -119,6 +121,9 @@ Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (e.g. production credentia
 ## Related
 
 - `scripts/populate-clerk-user-mapping.ts` – one-time populate of ClerkUserMapping from UserMetadata (for read-time live→dev resolution).
+- `scripts/audit-clerk-mapping-for-users-with-notes.ts` – list only users who have notes and their ClerkUserMapping row; flags rows where dev=live for manual fix.
+- `scripts/fix-clerk-mapping-row.ts` – correct a single mapping row when devUserId was wrongly set to the live ID (e.g. after populate; use CORRECT_DEV_USER_ID + CORRECT_LIVE_USER_ID).
+- `scripts/batch-merge-mapped-users-to-live.ts` – one-time batch merge of all unmigrated mapping rows (dev→live) so Turso has only live user IDs and no duplicate users.
 - `scripts/check-user-ids-in-db.ts` – list Notes/Threads counts per userId.
 - `scripts/migrate-clerk-user.ts` – reassign all rows from one Clerk userId to another (use when the *new* ID has no important metadata).
 - `scripts/merge-test-user-into-live.ts` – merge test user data into live user without overwriting live’s UserMetadata/UserLifetimeXP (single or batch via MERGE_PAIRS_CSV).
