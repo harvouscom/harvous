@@ -39,10 +39,11 @@ function getPrimaryEmail(user: ClerkUser): string | null {
   return email?.trim()?.toLowerCase() ?? null;
 }
 
-async function fetchAllUsers(secretKey: string): Promise<ClerkUser[]> {
+async function fetchAllUsers(secretKey: string): Promise<{ users: ClerkUser[]; totalCount: number }> {
   const users: ClerkUser[] = [];
   let offset = 0;
   const limit = 500;
+  let totalCount = 0;
   while (true) {
     const url = `https://api.clerk.com/v1/users?limit=${limit}&offset=${offset}`;
     const res = await fetch(url, {
@@ -51,14 +52,20 @@ async function fetchAllUsers(secretKey: string): Promise<ClerkUser[]> {
     if (!res.ok) {
       throw new Error(`Clerk API error: ${res.status} ${await res.text()}`);
     }
-    const body = (await res.json()) as { data?: ClerkUser[] } | ClerkUser[];
-    const data = Array.isArray(body) ? body : body.data ?? [];
+    const body = (await res.json()) as {
+      data?: ClerkUser[];
+      total_count?: number;
+      totalCount?: number;
+    };
+    const data = body.data ?? [];
+    const total = body.total_count ?? body.totalCount ?? 0;
+    if (total > 0) totalCount = total;
     if (data.length === 0) break;
     users.push(...data);
-    if (data.length < limit) break;
-    offset += limit;
+    offset += data.length;
+    if (data.length < limit || (totalCount > 0 && users.length >= totalCount)) break;
   }
-  return users;
+  return { users, totalCount: totalCount || users.length };
 }
 
 async function main() {
@@ -69,28 +76,42 @@ async function main() {
   }
 
   console.log('Fetching users from Clerk Live application...');
-  const liveUsers = await fetchAllUsers(LIVE_SECRET);
-  console.log('  Live:', liveUsers.length, 'users');
+  const { users: liveUsers, totalCount: liveTotal } = await fetchAllUsers(LIVE_SECRET);
+  console.log('  Live:', liveUsers.length, 'fetched (total in app:', liveTotal, ')');
 
   console.log('Fetching users from Clerk Test application...');
-  const testUsers = await fetchAllUsers(TEST_SECRET);
-  console.log('  Test:', testUsers.length, 'users');
+  const { users: testUsers, totalCount: testTotal } = await fetchAllUsers(TEST_SECRET);
+  console.log('  Test:', testUsers.length, 'fetched (total in app:', testTotal, ')');
 
   const liveByEmail = new Map<string, string>();
+  let liveNoEmail = 0;
   for (const u of liveUsers) {
     const email = getPrimaryEmail(u);
     if (email) liveByEmail.set(email, u.id);
+    else liveNoEmail++;
   }
 
   const pairs: Array<{ testId: string; liveId: string; email: string }> = [];
+  let testNoEmail = 0;
+  let testNoMatch = 0;
   for (const u of testUsers) {
     const email = getPrimaryEmail(u);
-    if (!email) continue;
+    if (!email) {
+      testNoEmail++;
+      continue;
+    }
     const liveId = liveByEmail.get(email);
-    if (liveId && liveId !== u.id) pairs.push({ testId: u.id, liveId, email });
+    if (!liveId) {
+      testNoMatch++;
+      continue;
+    }
+    if (liveId !== u.id) pairs.push({ testId: u.id, liveId, email });
   }
 
   console.log('Matched by email:', pairs.length, 'pairs');
+  if (testNoEmail > 0) console.log('  (Test users with no primary email:', testNoEmail + ')');
+  if (testNoMatch > 0) console.log('  (Test users with email but no matching Live user:', testNoMatch + ')');
+  if (liveNoEmail > 0) console.log('  (Live users with no primary email:', liveNoEmail + ')');
 
   const lines = ['test_user_id,live_user_id', ...pairs.map((p) => `${p.testId},${p.liveId}`)];
   fs.writeFileSync(OUTPUT_CSV, lines.join('\n') + '\n', 'utf-8');
