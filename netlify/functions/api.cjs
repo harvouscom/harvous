@@ -95933,8 +95933,14 @@ function isLegacyEvent(arg) {
   const o = arg;
   return "path" in o && "httpMethod" in o && !("url" in o && typeof arg.url === "string");
 }
+function normalizePath(path) {
+  if (path.startsWith("/.netlify/functions/api")) {
+    return "/api" + path.slice("/.netlify/functions/api".length) || "/api";
+  }
+  return path;
+}
 function legacyEventToRequest(event) {
-  const path = event.path ?? "/";
+  const path = normalizePath(event.path ?? "/");
   const headers = event.headers ?? {};
   const host = headers["x-forwarded-host"] ?? headers["host"] ?? "localhost";
   const proto = headers["x-forwarded-proto"] ?? "https";

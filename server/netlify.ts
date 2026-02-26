@@ -20,8 +20,16 @@ function isLegacyEvent(arg: unknown): arg is { path?: string; httpMethod?: strin
   return 'path' in o && 'httpMethod' in o && !('url' in o && typeof (arg as Request).url === 'string');
 }
 
+/** Netlify redirect sends /api/* to /.netlify/functions/api/:splat; legacy event.path is the function path. Normalize so Hono sees /api/... */
+function normalizePath(path: string): string {
+  if (path.startsWith('/.netlify/functions/api')) {
+    return '/api' + path.slice('/.netlify/functions/api'.length) || '/api';
+  }
+  return path;
+}
+
 function legacyEventToRequest(event: { path?: string; httpMethod?: string; headers?: Record<string, string>; body?: string | null; queryStringParameters?: Record<string, string> }): Request {
-  const path = event.path ?? '/';
+  const path = normalizePath(event.path ?? '/');
   const headers = event.headers ?? {};
   const host = headers['x-forwarded-host'] ?? headers['host'] ?? 'localhost';
   const proto = headers['x-forwarded-proto'] ?? 'https';
