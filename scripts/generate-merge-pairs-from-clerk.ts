@@ -52,13 +52,11 @@ async function fetchAllUsers(secretKey: string): Promise<{ users: ClerkUser[]; t
     if (!res.ok) {
       throw new Error(`Clerk API error: ${res.status} ${await res.text()}`);
     }
-    const body = (await res.json()) as {
-      data?: ClerkUser[];
-      total_count?: number;
-      totalCount?: number;
-    };
-    const data = body.data ?? [];
-    const total = body.total_count ?? body.totalCount ?? 0;
+    const body = (await res.json()) as
+      | { data?: ClerkUser[]; total_count?: number; totalCount?: number }
+      | ClerkUser[];
+    const data = Array.isArray(body) ? body : (body.data ?? []);
+    const total = Array.isArray(body) ? 0 : (body.total_count ?? body.totalCount ?? 0);
     if (total > 0) totalCount = total;
     if (data.length === 0) break;
     users.push(...data);
