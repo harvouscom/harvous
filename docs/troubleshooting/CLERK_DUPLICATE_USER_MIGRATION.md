@@ -61,10 +61,12 @@ When **all** (or most) current users are affected—for example production was o
    Run `npx tsx scripts/check-user-ids-in-db.ts` against the production DB. You’ll see Notes/Threads counts per userId. Any ID with data that is from the **test** Clerk app needs a matching **live** ID.
 
 2. **Build the test → live mapping**  
-   - In **Clerk Dashboard**, open your **Test** application and list users (user ID + primary email).  
-   - Open your **Live** application and list users (user ID + primary email).  
-   - Match by **email** (same person): test user ID → live user ID.  
-   - Create a CSV file (e.g. `merge-pairs.csv`) with one pair per line:
+   - **Option A (recommended for 50+ users):** Generate the CSV from Clerk with one command. Get your **Test** application secret key from Clerk Dashboard → Test application → API Keys (`sk_test_...`). Then run:
+     ```bash
+     CLERK_SECRET_KEY_TEST=sk_test_... npx tsx scripts/generate-merge-pairs-from-clerk.ts
+     ```
+     (Use your existing `CLERK_SECRET_KEY` in `.env` for live; the script fetches users from both apps and matches by email, then writes `merge-pairs.csv`.)
+   - **Option B (manual):** In **Clerk Dashboard**, open your **Test** application and list users (user ID + primary email). Open your **Live** application and list users (user ID + primary email). Match by **email** (same person): test user ID → live user ID. Create a CSV file (e.g. `merge-pairs.csv`) with one pair per line:
      ```csv
      test_user_id,live_user_id
      user_35FUJeLEI2L0gRjCJqIIbNWraRK,user_35TxUL3GoQDZYHUoj90FXDtJveX
@@ -110,4 +112,5 @@ Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (e.g. production credentia
 - `scripts/migrate-clerk-user.ts` – reassign all rows from one Clerk userId to another (use when the *new* ID has no important metadata).
 - `scripts/merge-test-user-into-live.ts` – merge test user data into live user without overwriting live’s UserMetadata/UserLifetimeXP (single or batch via MERGE_PAIRS_CSV).
 - `scripts/merge-pairs.csv.example` – example CSV for batch merge.
+- `scripts/generate-merge-pairs-from-clerk.ts` – build merge-pairs.csv from Clerk Test/Live users (match by email); use for 50+ users.
 - `server/routes/debug.ts` – `GET /api/debug/me` returns current auth userId and DB counts (for verifying which ID is in use and that migration worked).
