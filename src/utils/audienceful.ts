@@ -39,7 +39,7 @@ interface AudiencefulPersonResponse {
  * Get Audienceful API key from environment
  */
 function getApiKey(): string {
-  const apiKey = import.meta.env.AUDIENCEFUL_API_KEY;
+  const apiKey = import.meta?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
   if (!apiKey) {
     throw new Error('AUDIENCEFUL_API_KEY environment variable is not set');
   }
@@ -190,7 +190,7 @@ export async function tagAsAppUser(
 
   // Check if API key is configured before making any requests
   try {
-    const apiKey = import.meta.env.AUDIENCEFUL_API_KEY;
+    const apiKey = import.meta?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
     if (!apiKey) {
       throw new Error('AUDIENCEFUL_API_KEY environment variable is not set');
     }

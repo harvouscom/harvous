@@ -13,7 +13,7 @@ import { markdownToHtml } from '@/utils/markdown-to-html';
 
 // Read the markdown file once at module load time
 const founderLetterMarkdown = readFileSync(
-  resolve(import.meta.dirname || __dirname, '../../src/data/about/founder-letter.md'),
+  resolve((typeof __dirname !== 'undefined' ? __dirname : (import.meta as { dirname?: string })?.dirname) ?? '', '../../src/data/about/founder-letter.md'),
   'utf-8',
 );
 

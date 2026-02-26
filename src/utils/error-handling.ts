@@ -110,7 +110,7 @@ export function showErrorToUser(
   }
 
   // Fallback to console error (don't use alert in production)
-  if (import.meta.env.DEV) {
+  if (import.meta?.env?.DEV) {
     console.error('Error (would show toast in production):', message);
   }
 }

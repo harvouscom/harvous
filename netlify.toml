@@ -1,6 +1,6 @@
 [build]
   # 1. inject SW cache version (was handled by npm prebuild lifecycle, now explicit)
-  # 2. build:api — bundles Hono server as Netlify Function (netlify/functions/api.mjs)
+  # 2. build:api — bundles Hono server as Netlify Function (netlify/functions/api.cjs)
   # 3. build:spa — compiles the SPA into dist-spa/
   command = "npm ci && node scripts/inject-sw-cache-version.js && npm run build:api && npm run build:spa"
   publish = "dist-spa"
