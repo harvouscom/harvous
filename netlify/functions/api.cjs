@@ -7929,1239 +7929,6 @@ var init_config = __esm({
   }
 });
 
-// node_modules/@neon-rs/load/dist/index.js
-var require_dist2 = __commonJS({
-  "node_modules/@neon-rs/load/dist/index.js"(exports2) {
-    "use strict";
-    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k2, k22) {
-      if (k22 === void 0) k22 = k2;
-      var desc3 = Object.getOwnPropertyDescriptor(m2, k2);
-      if (!desc3 || ("get" in desc3 ? !m2.__esModule : desc3.writable || desc3.configurable)) {
-        desc3 = { enumerable: true, get: function() {
-          return m2[k2];
-        } };
-      }
-      Object.defineProperty(o, k22, desc3);
-    }) : (function(o, m2, k2, k22) {
-      if (k22 === void 0) k22 = k2;
-      o[k22] = m2[k2];
-    }));
-    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v2) {
-      Object.defineProperty(o, "default", { enumerable: true, value: v2 });
-    }) : function(o, v2) {
-      o["default"] = v2;
-    });
-    var __importStar = exports2 && exports2.__importStar || function(mod) {
-      if (mod && mod.__esModule) return mod;
-      var result = {};
-      if (mod != null) {
-        for (var k2 in mod) if (k2 !== "default" && Object.prototype.hasOwnProperty.call(mod, k2)) __createBinding(result, mod, k2);
-      }
-      __setModuleDefault(result, mod);
-      return result;
-    };
-    Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.load = exports2.currentTarget = void 0;
-    var path = __importStar(require("path"));
-    var fs = __importStar(require("fs"));
-    function currentTarget() {
-      let os = null;
-      switch (process.platform) {
-        case "android":
-          switch (process.arch) {
-            case "arm":
-              return "android-arm-eabi";
-            case "arm64":
-              return "android-arm64";
-          }
-          os = "Android";
-          break;
-        case "win32":
-          switch (process.arch) {
-            case "x64":
-              return "win32-x64-msvc";
-            case "arm64":
-              return "win32-arm64-msvc";
-            case "ia32":
-              return "win32-ia32-msvc";
-          }
-          os = "Windows";
-          break;
-        case "darwin":
-          switch (process.arch) {
-            case "x64":
-              return "darwin-x64";
-            case "arm64":
-              return "darwin-arm64";
-          }
-          os = "macOS";
-          break;
-        case "linux":
-          switch (process.arch) {
-            case "x64":
-            case "arm64":
-              return isGlibc() ? `linux-${process.arch}-gnu` : `linux-${process.arch}-musl`;
-            case "arm":
-              return "linux-arm-gnueabihf";
-          }
-          os = "Linux";
-          break;
-        case "freebsd":
-          if (process.arch === "x64") {
-            return "freebsd-x64";
-          }
-          os = "FreeBSD";
-          break;
-      }
-      if (os) {
-        throw new Error(`Neon: unsupported ${os} architecture: ${process.arch}`);
-      }
-      throw new Error(`Neon: unsupported system: ${process.platform}`);
-    }
-    exports2.currentTarget = currentTarget;
-    function isGlibc() {
-      const report = process.report?.getReport();
-      if (typeof report !== "object" || !report || !("header" in report)) {
-        return false;
-      }
-      const header = report.header;
-      return typeof header === "object" && !!header && "glibcVersionRuntime" in header;
-    }
-    function load(dirname2) {
-      const m2 = path.join(dirname2, "index.node");
-      return fs.existsSync(m2) ? require(m2) : null;
-    }
-    exports2.load = load;
-  }
-});
-
-// node_modules/libsql/node_modules/detect-libc/lib/process.js
-var require_process = __commonJS({
-  "node_modules/libsql/node_modules/detect-libc/lib/process.js"(exports2, module2) {
-    "use strict";
-    var isLinux = () => process.platform === "linux";
-    var report = null;
-    var getReport = () => {
-      if (!report) {
-        report = isLinux() && process.report ? process.report.getReport() : {};
-      }
-      return report;
-    };
-    module2.exports = { isLinux, getReport };
-  }
-});
-
-// node_modules/libsql/node_modules/detect-libc/lib/filesystem.js
-var require_filesystem = __commonJS({
-  "node_modules/libsql/node_modules/detect-libc/lib/filesystem.js"(exports2, module2) {
-    "use strict";
-    var fs = require("fs");
-    var LDD_PATH = "/usr/bin/ldd";
-    var readFileSync3 = (path) => fs.readFileSync(path, "utf-8");
-    var readFile = (path) => new Promise((resolve2, reject) => {
-      fs.readFile(path, "utf-8", (err, data) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve2(data);
-        }
-      });
-    });
-    module2.exports = {
-      LDD_PATH,
-      readFileSync: readFileSync3,
-      readFile
-    };
-  }
-});
-
-// node_modules/libsql/node_modules/detect-libc/lib/detect-libc.js
-var require_detect_libc = __commonJS({
-  "node_modules/libsql/node_modules/detect-libc/lib/detect-libc.js"(exports2, module2) {
-    "use strict";
-    var childProcess = require("child_process");
-    var { isLinux, getReport } = require_process();
-    var { LDD_PATH, readFile, readFileSync: readFileSync3 } = require_filesystem();
-    var cachedFamilyFilesystem;
-    var cachedVersionFilesystem;
-    var command = "getconf GNU_LIBC_VERSION 2>&1 || true; ldd --version 2>&1 || true";
-    var commandOut = "";
-    var safeCommand = () => {
-      if (!commandOut) {
-        return new Promise((resolve2) => {
-          childProcess.exec(command, (err, out) => {
-            commandOut = err ? " " : out;
-            resolve2(commandOut);
-          });
-        });
-      }
-      return commandOut;
-    };
-    var safeCommandSync = () => {
-      if (!commandOut) {
-        try {
-          commandOut = childProcess.execSync(command, { encoding: "utf8" });
-        } catch (_err) {
-          commandOut = " ";
-        }
-      }
-      return commandOut;
-    };
-    var GLIBC = "glibc";
-    var RE_GLIBC_VERSION = /GLIBC\s(\d+\.\d+)/;
-    var MUSL = "musl";
-    var GLIBC_ON_LDD = GLIBC.toUpperCase();
-    var MUSL_ON_LDD = MUSL.toLowerCase();
-    var isFileMusl = (f) => f.includes("libc.musl-") || f.includes("ld-musl-");
-    var familyFromReport = () => {
-      const report = getReport();
-      if (report.header && report.header.glibcVersionRuntime) {
-        return GLIBC;
-      }
-      if (Array.isArray(report.sharedObjects)) {
-        if (report.sharedObjects.some(isFileMusl)) {
-          return MUSL;
-        }
-      }
-      return null;
-    };
-    var familyFromCommand = (out) => {
-      const [getconf, ldd1] = out.split(/[\r\n]+/);
-      if (getconf && getconf.includes(GLIBC)) {
-        return GLIBC;
-      }
-      if (ldd1 && ldd1.includes(MUSL)) {
-        return MUSL;
-      }
-      return null;
-    };
-    var getFamilyFromLddContent = (content) => {
-      if (content.includes(MUSL_ON_LDD)) {
-        return MUSL;
-      }
-      if (content.includes(GLIBC_ON_LDD)) {
-        return GLIBC;
-      }
-      return null;
-    };
-    var familyFromFilesystem = async () => {
-      if (cachedFamilyFilesystem !== void 0) {
-        return cachedFamilyFilesystem;
-      }
-      cachedFamilyFilesystem = null;
-      try {
-        const lddContent = await readFile(LDD_PATH);
-        cachedFamilyFilesystem = getFamilyFromLddContent(lddContent);
-      } catch (e) {
-      }
-      return cachedFamilyFilesystem;
-    };
-    var familyFromFilesystemSync = () => {
-      if (cachedFamilyFilesystem !== void 0) {
-        return cachedFamilyFilesystem;
-      }
-      cachedFamilyFilesystem = null;
-      try {
-        const lddContent = readFileSync3(LDD_PATH);
-        cachedFamilyFilesystem = getFamilyFromLddContent(lddContent);
-      } catch (e) {
-      }
-      return cachedFamilyFilesystem;
-    };
-    var family = async () => {
-      let family2 = null;
-      if (isLinux()) {
-        family2 = await familyFromFilesystem();
-        if (!family2) {
-          family2 = familyFromReport();
-        }
-        if (!family2) {
-          const out = await safeCommand();
-          family2 = familyFromCommand(out);
-        }
-      }
-      return family2;
-    };
-    var familySync = () => {
-      let family2 = null;
-      if (isLinux()) {
-        family2 = familyFromFilesystemSync();
-        if (!family2) {
-          family2 = familyFromReport();
-        }
-        if (!family2) {
-          const out = safeCommandSync();
-          family2 = familyFromCommand(out);
-        }
-      }
-      return family2;
-    };
-    var isNonGlibcLinux = async () => isLinux() && await family() !== GLIBC;
-    var isNonGlibcLinuxSync = () => isLinux() && familySync() !== GLIBC;
-    var versionFromFilesystem = async () => {
-      if (cachedVersionFilesystem !== void 0) {
-        return cachedVersionFilesystem;
-      }
-      cachedVersionFilesystem = null;
-      try {
-        const lddContent = await readFile(LDD_PATH);
-        const versionMatch = lddContent.match(RE_GLIBC_VERSION);
-        if (versionMatch) {
-          cachedVersionFilesystem = versionMatch[1];
-        }
-      } catch (e) {
-      }
-      return cachedVersionFilesystem;
-    };
-    var versionFromFilesystemSync = () => {
-      if (cachedVersionFilesystem !== void 0) {
-        return cachedVersionFilesystem;
-      }
-      cachedVersionFilesystem = null;
-      try {
-        const lddContent = readFileSync3(LDD_PATH);
-        const versionMatch = lddContent.match(RE_GLIBC_VERSION);
-        if (versionMatch) {
-          cachedVersionFilesystem = versionMatch[1];
-        }
-      } catch (e) {
-      }
-      return cachedVersionFilesystem;
-    };
-    var versionFromReport = () => {
-      const report = getReport();
-      if (report.header && report.header.glibcVersionRuntime) {
-        return report.header.glibcVersionRuntime;
-      }
-      return null;
-    };
-    var versionSuffix = (s2) => s2.trim().split(/\s+/)[1];
-    var versionFromCommand = (out) => {
-      const [getconf, ldd1, ldd2] = out.split(/[\r\n]+/);
-      if (getconf && getconf.includes(GLIBC)) {
-        return versionSuffix(getconf);
-      }
-      if (ldd1 && ldd2 && ldd1.includes(MUSL)) {
-        return versionSuffix(ldd2);
-      }
-      return null;
-    };
-    var version3 = async () => {
-      let version4 = null;
-      if (isLinux()) {
-        version4 = await versionFromFilesystem();
-        if (!version4) {
-          version4 = versionFromReport();
-        }
-        if (!version4) {
-          const out = await safeCommand();
-          version4 = versionFromCommand(out);
-        }
-      }
-      return version4;
-    };
-    var versionSync = () => {
-      let version4 = null;
-      if (isLinux()) {
-        version4 = versionFromFilesystemSync();
-        if (!version4) {
-          version4 = versionFromReport();
-        }
-        if (!version4) {
-          const out = safeCommandSync();
-          version4 = versionFromCommand(out);
-        }
-      }
-      return version4;
-    };
-    module2.exports = {
-      GLIBC,
-      MUSL,
-      family,
-      familySync,
-      isNonGlibcLinux,
-      isNonGlibcLinuxSync,
-      version: version3,
-      versionSync
-    };
-  }
-});
-
-// node_modules/libsql/auth.js
-var require_auth = __commonJS({
-  "node_modules/libsql/auth.js"(exports2, module2) {
-    var Authorization = {
-      /**
-       * Allow access to a resource.
-       * @type {number}
-       */
-      ALLOW: 0,
-      /**
-       * Deny access to a resource and throw an error in `prepare()`.
-       * @type {number}
-       */
-      DENY: 1
-    };
-    module2.exports = Authorization;
-  }
-});
-
-// node_modules/libsql/sqlite-error.js
-var require_sqlite_error = __commonJS({
-  "node_modules/libsql/sqlite-error.js"(exports2, module2) {
-    "use strict";
-    var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
-    function SqliteError(message, code, rawCode) {
-      if (new.target !== SqliteError) {
-        return new SqliteError(message, code);
-      }
-      if (typeof code !== "string") {
-        throw new TypeError("Expected second argument to be a string");
-      }
-      Error.call(this, message);
-      descriptor.value = "" + message;
-      Object.defineProperty(this, "message", descriptor);
-      Error.captureStackTrace(this, SqliteError);
-      this.code = code;
-      this.rawCode = rawCode;
-    }
-    Object.setPrototypeOf(SqliteError, Error);
-    Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
-    Object.defineProperty(SqliteError.prototype, "name", descriptor);
-    module2.exports = SqliteError;
-  }
-});
-
-// node_modules/libsql/index.js
-var require_libsql = __commonJS({
-  "node_modules/libsql/index.js"(exports2, module2) {
-    "use strict";
-    var { load, currentTarget } = require_dist2();
-    var { familySync, GLIBC, MUSL } = require_detect_libc();
-    function requireNative() {
-      if (process.env.LIBSQL_JS_DEV) {
-        return load(__dirname);
-      }
-      let target = currentTarget();
-      if (familySync() == GLIBC) {
-        switch (target) {
-          case "linux-x64-musl":
-            target = "linux-x64-gnu";
-            break;
-          case "linux-arm64-musl":
-            target = "linux-arm64-gnu";
-            break;
-        }
-      }
-      if (target === "linux-arm-gnueabihf" && familySync() == MUSL) {
-        target = "linux-arm-musleabihf";
-      }
-      return require(`@libsql/${target}`);
-    }
-    var {
-      databaseOpen,
-      databaseOpenWithSync,
-      databaseInTransaction,
-      databaseInterrupt,
-      databaseClose,
-      databaseSyncSync,
-      databaseSyncUntilSync,
-      databaseExecSync,
-      databasePrepareSync,
-      databaseDefaultSafeIntegers,
-      databaseAuthorizer,
-      databaseLoadExtension,
-      databaseMaxWriteReplicationIndex,
-      statementRaw,
-      statementIsReader,
-      statementGet,
-      statementRun,
-      statementInterrupt,
-      statementRowsSync,
-      statementColumns,
-      statementSafeIntegers,
-      rowsNext
-    } = requireNative();
-    var Authorization = require_auth();
-    var SqliteError = require_sqlite_error();
-    function convertError(err) {
-      if (err.libsqlError) {
-        return new SqliteError(err.message, err.code, err.rawCode);
-      }
-      return err;
-    }
-    var Database2 = class {
-      /**
-       * Creates a new database connection. If the database file pointed to by `path` does not exists, it will be created.
-       *
-       * @constructor
-       * @param {string} path - Path to the database file.
-       */
-      constructor(path, opts) {
-        const encryptionCipher = opts?.encryptionCipher ?? "aes256cbc";
-        if (opts && opts.syncUrl) {
-          var authToken = "";
-          if (opts.syncAuth) {
-            console.warn("Warning: The `syncAuth` option is deprecated, please use `authToken` option instead.");
-            authToken = opts.syncAuth;
-          } else if (opts.authToken) {
-            authToken = opts.authToken;
-          }
-          const encryptionKey = opts?.encryptionKey ?? "";
-          const syncPeriod = opts?.syncPeriod ?? 0;
-          const readYourWrites = opts?.readYourWrites ?? true;
-          const offline = opts?.offline ?? false;
-          const remoteEncryptionKey = opts?.remoteEncryptionKey ?? "";
-          this.db = databaseOpenWithSync(path, opts.syncUrl, authToken, encryptionCipher, encryptionKey, syncPeriod, readYourWrites, offline, remoteEncryptionKey);
-        } else {
-          const authToken2 = opts?.authToken ?? "";
-          const encryptionKey = opts?.encryptionKey ?? "";
-          const timeout = opts?.timeout ?? 0;
-          const remoteEncryptionKey = opts?.remoteEncryptionKey ?? "";
-          this.db = databaseOpen(path, authToken2, encryptionCipher, encryptionKey, timeout, remoteEncryptionKey);
-        }
-        this.memory = path === ":memory:";
-        this.readonly = false;
-        this.name = "";
-        this.open = true;
-        const db2 = this.db;
-        Object.defineProperties(this, {
-          inTransaction: {
-            get() {
-              return databaseInTransaction(db2);
-            }
-          }
-        });
-      }
-      sync() {
-        return databaseSyncSync.call(this.db);
-      }
-      syncUntil(replicationIndex) {
-        return databaseSyncUntilSync.call(this.db, replicationIndex);
-      }
-      /**
-       * Prepares a SQL statement for execution.
-       *
-       * @param {string} sql - The SQL statement string to prepare.
-       */
-      prepare(sql2) {
-        try {
-          const stmt = databasePrepareSync.call(this.db, sql2);
-          return new Statement(stmt);
-        } catch (err) {
-          throw convertError(err);
-        }
-      }
-      /**
-       * Returns a function that executes the given function in a transaction.
-       *
-       * @param {function} fn - The function to wrap in a transaction.
-       */
-      transaction(fn) {
-        if (typeof fn !== "function")
-          throw new TypeError("Expected first argument to be a function");
-        const db2 = this;
-        const wrapTxn = (mode) => {
-          return (...bindParameters) => {
-            db2.exec("BEGIN " + mode);
-            try {
-              const result = fn(...bindParameters);
-              db2.exec("COMMIT");
-              return result;
-            } catch (err) {
-              db2.exec("ROLLBACK");
-              throw err;
-            }
-          };
-        };
-        const properties = {
-          default: { value: wrapTxn("") },
-          deferred: { value: wrapTxn("DEFERRED") },
-          immediate: { value: wrapTxn("IMMEDIATE") },
-          exclusive: { value: wrapTxn("EXCLUSIVE") },
-          database: { value: this, enumerable: true }
-        };
-        Object.defineProperties(properties.default.value, properties);
-        Object.defineProperties(properties.deferred.value, properties);
-        Object.defineProperties(properties.immediate.value, properties);
-        Object.defineProperties(properties.exclusive.value, properties);
-        return properties.default.value;
-      }
-      pragma(source, options) {
-        if (options == null) options = {};
-        if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
-        if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
-        const simple = options["simple"];
-        const stmt = this.prepare(`PRAGMA ${source}`, this, true);
-        return simple ? stmt.pluck().get() : stmt.all();
-      }
-      backup(filename, options) {
-        throw new Error("not implemented");
-      }
-      serialize(options) {
-        throw new Error("not implemented");
-      }
-      function(name, options, fn) {
-        if (options == null) options = {};
-        if (typeof options === "function") {
-          fn = options;
-          options = {};
-        }
-        if (typeof name !== "string")
-          throw new TypeError("Expected first argument to be a string");
-        if (typeof fn !== "function")
-          throw new TypeError("Expected last argument to be a function");
-        if (typeof options !== "object")
-          throw new TypeError("Expected second argument to be an options object");
-        if (!name)
-          throw new TypeError(
-            "User-defined function name cannot be an empty string"
-          );
-        throw new Error("not implemented");
-      }
-      aggregate(name, options) {
-        if (typeof name !== "string")
-          throw new TypeError("Expected first argument to be a string");
-        if (typeof options !== "object" || options === null)
-          throw new TypeError("Expected second argument to be an options object");
-        if (!name)
-          throw new TypeError(
-            "User-defined function name cannot be an empty string"
-          );
-        throw new Error("not implemented");
-      }
-      table(name, factory) {
-        if (typeof name !== "string")
-          throw new TypeError("Expected first argument to be a string");
-        if (!name)
-          throw new TypeError(
-            "Virtual table module name cannot be an empty string"
-          );
-        throw new Error("not implemented");
-      }
-      authorizer(rules) {
-        databaseAuthorizer.call(this.db, rules);
-      }
-      loadExtension(...args) {
-        databaseLoadExtension.call(this.db, ...args);
-      }
-      maxWriteReplicationIndex() {
-        return databaseMaxWriteReplicationIndex.call(this.db);
-      }
-      /**
-       * Executes a SQL statement.
-       *
-       * @param {string} sql - The SQL statement string to execute.
-       */
-      exec(sql2) {
-        try {
-          databaseExecSync.call(this.db, sql2);
-        } catch (err) {
-          throw convertError(err);
-        }
-      }
-      /**
-       * Interrupts the database connection.
-       */
-      interrupt() {
-        databaseInterrupt.call(this.db);
-      }
-      /**
-       * Closes the database connection.
-       */
-      close() {
-        databaseClose.call(this.db);
-        this.open = false;
-      }
-      /**
-       * Toggle 64-bit integer support.
-       */
-      defaultSafeIntegers(toggle) {
-        databaseDefaultSafeIntegers.call(this.db, toggle ?? true);
-        return this;
-      }
-      unsafeMode(...args) {
-        throw new Error("not implemented");
-      }
-    };
-    var Statement = class {
-      constructor(stmt) {
-        this.stmt = stmt;
-        this.pluckMode = false;
-      }
-      /**
-       * Toggle raw mode.
-       *
-       * @param raw Enable or disable raw mode. If you don't pass the parameter, raw mode is enabled.
-       */
-      raw(raw2) {
-        statementRaw.call(this.stmt, raw2 ?? true);
-        return this;
-      }
-      /**
-       * Toggle pluck mode.
-       *
-       * @param pluckMode Enable or disable pluck mode. If you don't pass the parameter, pluck mode is enabled.
-       */
-      pluck(pluckMode) {
-        this.pluckMode = pluckMode ?? true;
-        return this;
-      }
-      get reader() {
-        return statementIsReader.call(this.stmt);
-      }
-      /**
-       * Executes the SQL statement and returns an info object.
-       */
-      run(...bindParameters) {
-        try {
-          if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
-            return statementRun.call(this.stmt, bindParameters[0]);
-          } else {
-            return statementRun.call(this.stmt, bindParameters.flat());
-          }
-        } catch (err) {
-          throw convertError(err);
-        }
-      }
-      /**
-       * Executes the SQL statement and returns the first row.
-       *
-       * @param bindParameters - The bind parameters for executing the statement.
-       */
-      get(...bindParameters) {
-        try {
-          if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
-            return statementGet.call(this.stmt, bindParameters[0]);
-          } else {
-            return statementGet.call(this.stmt, bindParameters.flat());
-          }
-        } catch (err) {
-          throw convertError(err);
-        }
-      }
-      /**
-       * Executes the SQL statement and returns an iterator to the resulting rows.
-       *
-       * @param bindParameters - The bind parameters for executing the statement.
-       */
-      iterate(...bindParameters) {
-        var rows = void 0;
-        if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
-          rows = statementRowsSync.call(this.stmt, bindParameters[0]);
-        } else {
-          rows = statementRowsSync.call(this.stmt, bindParameters.flat());
-        }
-        const iter = {
-          nextRows: Array(100),
-          nextRowIndex: 100,
-          next() {
-            try {
-              if (this.nextRowIndex === 100) {
-                rowsNext.call(rows, this.nextRows);
-                this.nextRowIndex = 0;
-              }
-              const row = this.nextRows[this.nextRowIndex];
-              this.nextRows[this.nextRowIndex] = void 0;
-              if (!row) {
-                return { done: true };
-              }
-              this.nextRowIndex++;
-              return { value: row, done: false };
-            } catch (err) {
-              throw convertError(err);
-            }
-          },
-          [Symbol.iterator]() {
-            return this;
-          }
-        };
-        return iter;
-      }
-      /**
-       * Executes the SQL statement and returns an array of the resulting rows.
-       *
-       * @param bindParameters - The bind parameters for executing the statement.
-       */
-      all(...bindParameters) {
-        try {
-          const result = [];
-          for (const row of this.iterate(...bindParameters)) {
-            if (this.pluckMode) {
-              result.push(row[Object.keys(row)[0]]);
-            } else {
-              result.push(row);
-            }
-          }
-          return result;
-        } catch (err) {
-          throw convertError(err);
-        }
-      }
-      /**
-       * Interrupts the statement.
-       */
-      interrupt() {
-        statementInterrupt.call(this.stmt);
-      }
-      /**
-       * Returns the columns in the result set returned by this prepared statement.
-       */
-      columns() {
-        return statementColumns.call(this.stmt);
-      }
-      /**
-       * Toggle 64-bit integer support.
-       */
-      safeIntegers(toggle) {
-        statementSafeIntegers.call(this.stmt, toggle ?? true);
-        return this;
-      }
-    };
-    module2.exports = Database2;
-    module2.exports.Authorization = Authorization;
-    module2.exports.SqliteError = SqliteError;
-  }
-});
-
-// node_modules/@libsql/client/lib-esm/sqlite3.js
-function _createClient(config) {
-  if (config.scheme !== "file") {
-    throw new LibsqlError(`URL scheme ${JSON.stringify(config.scheme + ":")} is not supported by the local sqlite3 client. For more information, please read ${supportedUrlLink}`, "URL_SCHEME_NOT_SUPPORTED");
-  }
-  const authority = config.authority;
-  if (authority !== void 0) {
-    const host = authority.host.toLowerCase();
-    if (host !== "" && host !== "localhost") {
-      throw new LibsqlError(`Invalid host in file URL: ${JSON.stringify(authority.host)}. A "file:" URL with an absolute path should start with one slash ("file:/absolute/path.db") or with three slashes ("file:///absolute/path.db"). For more information, please read ${supportedUrlLink}`, "URL_INVALID");
-    }
-    if (authority.port !== void 0) {
-      throw new LibsqlError("File URL cannot have a port", "URL_INVALID");
-    }
-    if (authority.userinfo !== void 0) {
-      throw new LibsqlError("File URL cannot have username and password", "URL_INVALID");
-    }
-  }
-  let isInMemory = isInMemoryConfig(config);
-  if (isInMemory && config.syncUrl) {
-    throw new LibsqlError(`Embedded replica must use file for local db but URI with in-memory mode were provided instead: ${config.path}`, "URL_INVALID");
-  }
-  let path = config.path;
-  if (isInMemory) {
-    path = `${config.scheme}:${config.path}`;
-  }
-  const options = {
-    authToken: config.authToken,
-    encryptionKey: config.encryptionKey,
-    remoteEncryptionKey: config.remoteEncryptionKey,
-    syncUrl: config.syncUrl,
-    syncPeriod: config.syncInterval,
-    readYourWrites: config.readYourWrites,
-    offline: config.offline
-  };
-  const db2 = new import_libsql.default(path, options);
-  executeStmt(db2, "SELECT 1 AS checkThatTheDatabaseCanBeOpened", config.intMode);
-  return new Sqlite3Client(path, options, db2, config.intMode);
-}
-function executeStmt(db2, stmt, intMode) {
-  let sql2;
-  let args;
-  if (typeof stmt === "string") {
-    sql2 = stmt;
-    args = [];
-  } else {
-    sql2 = stmt.sql;
-    if (Array.isArray(stmt.args)) {
-      args = stmt.args.map((value) => valueToSql(value, intMode));
-    } else {
-      args = {};
-      for (const name in stmt.args) {
-        const argName = name[0] === "@" || name[0] === "$" || name[0] === ":" ? name.substring(1) : name;
-        args[argName] = valueToSql(stmt.args[name], intMode);
-      }
-    }
-  }
-  try {
-    const sqlStmt = db2.prepare(sql2);
-    sqlStmt.safeIntegers(true);
-    let returnsData = true;
-    try {
-      sqlStmt.raw(true);
-    } catch {
-      returnsData = false;
-    }
-    if (returnsData) {
-      const columns = Array.from(sqlStmt.columns().map((col) => col.name));
-      const columnTypes = Array.from(sqlStmt.columns().map((col) => col.type ?? ""));
-      const rows = sqlStmt.all(args).map((sqlRow) => {
-        return rowFromSql(sqlRow, columns, intMode);
-      });
-      const rowsAffected = 0;
-      const lastInsertRowid = void 0;
-      return new ResultSetImpl(columns, columnTypes, rows, rowsAffected, lastInsertRowid);
-    } else {
-      const info = sqlStmt.run(args);
-      const rowsAffected = info.changes;
-      const lastInsertRowid = BigInt(info.lastInsertRowid);
-      return new ResultSetImpl([], [], [], rowsAffected, lastInsertRowid);
-    }
-  } catch (e) {
-    throw mapSqliteError(e);
-  }
-}
-function rowFromSql(sqlRow, columns, intMode) {
-  const row = {};
-  Object.defineProperty(row, "length", { value: sqlRow.length });
-  for (let i = 0; i < sqlRow.length; ++i) {
-    const value = valueFromSql(sqlRow[i], intMode);
-    Object.defineProperty(row, i, { value });
-    const column = columns[i];
-    if (!Object.hasOwn(row, column)) {
-      Object.defineProperty(row, column, {
-        value,
-        enumerable: true,
-        configurable: true,
-        writable: true
-      });
-    }
-  }
-  return row;
-}
-function valueFromSql(sqlValue, intMode) {
-  if (typeof sqlValue === "bigint") {
-    if (intMode === "number") {
-      if (sqlValue < minSafeBigint || sqlValue > maxSafeBigint) {
-        throw new RangeError("Received integer which cannot be safely represented as a JavaScript number");
-      }
-      return Number(sqlValue);
-    } else if (intMode === "bigint") {
-      return sqlValue;
-    } else if (intMode === "string") {
-      return "" + sqlValue;
-    } else {
-      throw new Error("Invalid value for IntMode");
-    }
-  } else if (sqlValue instanceof import_node_buffer.Buffer) {
-    return sqlValue.buffer;
-  }
-  return sqlValue;
-}
-function valueToSql(value, intMode) {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) {
-      throw new RangeError("Only finite numbers (not Infinity or NaN) can be passed as arguments");
-    }
-    return value;
-  } else if (typeof value === "bigint") {
-    if (value < minInteger || value > maxInteger) {
-      throw new RangeError("bigint is too large to be represented as a 64-bit integer and passed as argument");
-    }
-    return value;
-  } else if (typeof value === "boolean") {
-    switch (intMode) {
-      case "bigint":
-        return value ? 1n : 0n;
-      case "string":
-        return value ? "1" : "0";
-      default:
-        return value ? 1 : 0;
-    }
-  } else if (value instanceof ArrayBuffer) {
-    return import_node_buffer.Buffer.from(value);
-  } else if (value instanceof Date) {
-    return value.valueOf();
-  } else if (value === void 0) {
-    throw new TypeError("undefined cannot be passed as argument to the database");
-  } else {
-    return value;
-  }
-}
-function executeMultiple(db2, sql2) {
-  try {
-    db2.exec(sql2);
-  } catch (e) {
-    throw mapSqliteError(e);
-  }
-}
-function mapSqliteError(e) {
-  if (e instanceof import_libsql.default.SqliteError) {
-    const extendedCode = e.code;
-    const code = mapToBaseCode(e.rawCode);
-    return new LibsqlError(e.message, code, extendedCode, e.rawCode, e);
-  }
-  return e;
-}
-function mapToBaseCode(rawCode) {
-  if (rawCode === void 0) {
-    return "SQLITE_UNKNOWN";
-  }
-  const baseCode = rawCode & 255;
-  return sqliteErrorCodes[baseCode] ?? `SQLITE_UNKNOWN_${baseCode.toString()}`;
-}
-var import_libsql, import_node_buffer, Sqlite3Client, Sqlite3Transaction, minSafeBigint, maxSafeBigint, minInteger, maxInteger, sqliteErrorCodes;
-var init_sqlite3 = __esm({
-  "node_modules/@libsql/client/lib-esm/sqlite3.js"() {
-    import_libsql = __toESM(require_libsql(), 1);
-    import_node_buffer = require("node:buffer");
-    init_api();
-    init_config();
-    init_util();
-    init_api();
-    Sqlite3Client = class {
-      #path;
-      #options;
-      #db;
-      #intMode;
-      closed;
-      protocol;
-      /** @private */
-      constructor(path, options, db2, intMode) {
-        this.#path = path;
-        this.#options = options;
-        this.#db = db2;
-        this.#intMode = intMode;
-        this.closed = false;
-        this.protocol = "file";
-      }
-      async execute(stmtOrSql, args) {
-        let stmt;
-        if (typeof stmtOrSql === "string") {
-          stmt = {
-            sql: stmtOrSql,
-            args: args || []
-          };
-        } else {
-          stmt = stmtOrSql;
-        }
-        this.#checkNotClosed();
-        return executeStmt(this.#getDb(), stmt, this.#intMode);
-      }
-      async batch(stmts, mode = "deferred") {
-        this.#checkNotClosed();
-        const db2 = this.#getDb();
-        try {
-          executeStmt(db2, transactionModeToBegin(mode), this.#intMode);
-          const resultSets = [];
-          for (let i = 0; i < stmts.length; i++) {
-            try {
-              if (!db2.inTransaction) {
-                throw new LibsqlBatchError("The transaction has been rolled back", i, "TRANSACTION_CLOSED");
-              }
-              const stmt = stmts[i];
-              const normalizedStmt = Array.isArray(stmt) ? { sql: stmt[0], args: stmt[1] || [] } : stmt;
-              resultSets.push(executeStmt(db2, normalizedStmt, this.#intMode));
-            } catch (e) {
-              if (e instanceof LibsqlBatchError) {
-                throw e;
-              }
-              if (e instanceof LibsqlError) {
-                throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
-              }
-              throw e;
-            }
-          }
-          executeStmt(db2, "COMMIT", this.#intMode);
-          return resultSets;
-        } finally {
-          if (db2.inTransaction) {
-            executeStmt(db2, "ROLLBACK", this.#intMode);
-          }
-        }
-      }
-      async migrate(stmts) {
-        this.#checkNotClosed();
-        const db2 = this.#getDb();
-        try {
-          executeStmt(db2, "PRAGMA foreign_keys=off", this.#intMode);
-          executeStmt(db2, transactionModeToBegin("deferred"), this.#intMode);
-          const resultSets = [];
-          for (let i = 0; i < stmts.length; i++) {
-            try {
-              if (!db2.inTransaction) {
-                throw new LibsqlBatchError("The transaction has been rolled back", i, "TRANSACTION_CLOSED");
-              }
-              resultSets.push(executeStmt(db2, stmts[i], this.#intMode));
-            } catch (e) {
-              if (e instanceof LibsqlBatchError) {
-                throw e;
-              }
-              if (e instanceof LibsqlError) {
-                throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
-              }
-              throw e;
-            }
-          }
-          executeStmt(db2, "COMMIT", this.#intMode);
-          return resultSets;
-        } finally {
-          if (db2.inTransaction) {
-            executeStmt(db2, "ROLLBACK", this.#intMode);
-          }
-          executeStmt(db2, "PRAGMA foreign_keys=on", this.#intMode);
-        }
-      }
-      async transaction(mode = "write") {
-        const db2 = this.#getDb();
-        executeStmt(db2, transactionModeToBegin(mode), this.#intMode);
-        this.#db = null;
-        return new Sqlite3Transaction(db2, this.#intMode);
-      }
-      async executeMultiple(sql2) {
-        this.#checkNotClosed();
-        const db2 = this.#getDb();
-        try {
-          return executeMultiple(db2, sql2);
-        } finally {
-          if (db2.inTransaction) {
-            executeStmt(db2, "ROLLBACK", this.#intMode);
-          }
-        }
-      }
-      async sync() {
-        this.#checkNotClosed();
-        const rep = await this.#getDb().sync();
-        return {
-          frames_synced: rep.frames_synced,
-          frame_no: rep.frame_no
-        };
-      }
-      async reconnect() {
-        try {
-          if (!this.closed && this.#db !== null) {
-            this.#db.close();
-          }
-        } finally {
-          this.#db = new import_libsql.default(this.#path, this.#options);
-          this.closed = false;
-        }
-      }
-      close() {
-        this.closed = true;
-        if (this.#db !== null) {
-          this.#db.close();
-          this.#db = null;
-        }
-      }
-      #checkNotClosed() {
-        if (this.closed) {
-          throw new LibsqlError("The client is closed", "CLIENT_CLOSED");
-        }
-      }
-      // Lazily creates the database connection and returns it
-      #getDb() {
-        if (this.#db === null) {
-          this.#db = new import_libsql.default(this.#path, this.#options);
-        }
-        return this.#db;
-      }
-    };
-    Sqlite3Transaction = class {
-      #database;
-      #intMode;
-      /** @private */
-      constructor(database, intMode) {
-        this.#database = database;
-        this.#intMode = intMode;
-      }
-      async execute(stmtOrSql, args) {
-        let stmt;
-        if (typeof stmtOrSql === "string") {
-          stmt = {
-            sql: stmtOrSql,
-            args: args || []
-          };
-        } else {
-          stmt = stmtOrSql;
-        }
-        this.#checkNotClosed();
-        return executeStmt(this.#database, stmt, this.#intMode);
-      }
-      async batch(stmts) {
-        const resultSets = [];
-        for (let i = 0; i < stmts.length; i++) {
-          try {
-            this.#checkNotClosed();
-            const stmt = stmts[i];
-            const normalizedStmt = Array.isArray(stmt) ? { sql: stmt[0], args: stmt[1] || [] } : stmt;
-            resultSets.push(executeStmt(this.#database, normalizedStmt, this.#intMode));
-          } catch (e) {
-            if (e instanceof LibsqlBatchError) {
-              throw e;
-            }
-            if (e instanceof LibsqlError) {
-              throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
-            }
-            throw e;
-          }
-        }
-        return resultSets;
-      }
-      async executeMultiple(sql2) {
-        this.#checkNotClosed();
-        return executeMultiple(this.#database, sql2);
-      }
-      async rollback() {
-        if (!this.#database.open) {
-          return;
-        }
-        this.#checkNotClosed();
-        executeStmt(this.#database, "ROLLBACK", this.#intMode);
-      }
-      async commit() {
-        this.#checkNotClosed();
-        executeStmt(this.#database, "COMMIT", this.#intMode);
-      }
-      close() {
-        if (this.#database.inTransaction) {
-          executeStmt(this.#database, "ROLLBACK", this.#intMode);
-        }
-      }
-      get closed() {
-        return !this.#database.inTransaction;
-      }
-      #checkNotClosed() {
-        if (this.closed) {
-          throw new LibsqlError("The transaction is closed", "TRANSACTION_CLOSED");
-        }
-      }
-    };
-    minSafeBigint = -9007199254740991n;
-    maxSafeBigint = 9007199254740991n;
-    minInteger = -9223372036854775808n;
-    maxInteger = 9223372036854775807n;
-    sqliteErrorCodes = {
-      1: "SQLITE_ERROR",
-      2: "SQLITE_INTERNAL",
-      3: "SQLITE_PERM",
-      4: "SQLITE_ABORT",
-      5: "SQLITE_BUSY",
-      6: "SQLITE_LOCKED",
-      7: "SQLITE_NOMEM",
-      8: "SQLITE_READONLY",
-      9: "SQLITE_INTERRUPT",
-      10: "SQLITE_IOERR",
-      11: "SQLITE_CORRUPT",
-      12: "SQLITE_NOTFOUND",
-      13: "SQLITE_FULL",
-      14: "SQLITE_CANTOPEN",
-      15: "SQLITE_PROTOCOL",
-      16: "SQLITE_EMPTY",
-      17: "SQLITE_SCHEMA",
-      18: "SQLITE_TOOBIG",
-      19: "SQLITE_CONSTRAINT",
-      20: "SQLITE_MISMATCH",
-      21: "SQLITE_MISUSE",
-      22: "SQLITE_NOLFS",
-      23: "SQLITE_AUTH",
-      24: "SQLITE_FORMAT",
-      25: "SQLITE_RANGE",
-      26: "SQLITE_NOTADB",
-      27: "SQLITE_NOTICE",
-      28: "SQLITE_WARNING"
-    };
-  }
-});
-
 // node_modules/ws/lib/constants.js
 var require_constants = __commonJS({
   "node_modules/ws/lib/constants.js"(exports2, module2) {
@@ -13377,7 +12144,7 @@ function valueToProto(value) {
     }
     return value;
   } else if (typeof value === "bigint") {
-    if (value < minInteger2 || value > maxInteger2) {
+    if (value < minInteger || value > maxInteger) {
       throw new RangeError("This bigint value is too large to be represented as a 64-bit integer and passed as argument");
     }
     return value;
@@ -13424,13 +12191,13 @@ function valueFromProto(value, intMode) {
     throw impossible(value, "Impossible type of Value");
   }
 }
-var minInteger2, maxInteger2;
+var minInteger, maxInteger;
 var init_value = __esm({
   "node_modules/@libsql/hrana-client/lib-esm/value.js"() {
     init_errors();
     init_util3();
-    minInteger2 = -9223372036854775808n;
-    maxInteger2 = 9223372036854775807n;
+    minInteger = -9223372036854775808n;
+    maxInteger = 9223372036854775807n;
   }
 });
 
@@ -19928,7 +18695,7 @@ var require_promise_limit = __commonJS({
 });
 
 // node_modules/@libsql/client/lib-esm/ws.js
-function _createClient2(config) {
+function _createClient(config) {
   if (config.scheme !== "wss" && config.scheme !== "ws") {
     throw new LibsqlError(`The WebSocket client supports only "libsql:", "wss:" and "ws:" URLs, got ${JSON.stringify(config.scheme + ":")}. For more information, please read ${supportedUrlLink}`, "URL_SCHEME_NOT_SUPPORTED");
   }
@@ -20234,7 +19001,7 @@ var init_ws = __esm({
 });
 
 // node_modules/@libsql/client/lib-esm/http.js
-function _createClient3(config) {
+function _createClient2(config) {
   if (config.scheme !== "https" && config.scheme !== "http") {
     throw new LibsqlError(`The HTTP client supports only "libsql:", "https:" and "http:" URLs, got ${JSON.stringify(config.scheme + ":")}. For more information, please read ${supportedUrlLink}`, "URL_SCHEME_NOT_SUPPORTED");
   }
@@ -20439,17 +19206,1274 @@ var init_http = __esm({
   }
 });
 
-// node_modules/@libsql/client/lib-esm/node.js
+// node_modules/@libsql/client/lib-esm/web.js
 function createClient(config) {
-  return _createClient4(expandConfig(config, true));
+  return _createClient3(expandConfig(config, true));
 }
-function _createClient4(config) {
-  if (config.scheme === "wss" || config.scheme === "ws") {
-    return _createClient2(config);
-  } else if (config.scheme === "https" || config.scheme === "http") {
-    return _createClient3(config);
-  } else {
+function _createClient3(config) {
+  if (config.scheme === "ws" || config.scheme === "wss") {
     return _createClient(config);
+  } else if (config.scheme === "http" || config.scheme === "https") {
+    return _createClient2(config);
+  } else {
+    throw new LibsqlError(`The client that uses Web standard APIs supports only "libsql:", "wss:", "ws:", "https:" and "http:" URLs, got ${JSON.stringify(config.scheme + ":")}. For more information, please read ${supportedUrlLink}`, "URL_SCHEME_NOT_SUPPORTED");
+  }
+}
+var init_web = __esm({
+  "node_modules/@libsql/client/lib-esm/web.js"() {
+    init_api();
+    init_config();
+    init_util();
+    init_ws();
+    init_http();
+    init_api();
+  }
+});
+
+// node_modules/@neon-rs/load/dist/index.js
+var require_dist2 = __commonJS({
+  "node_modules/@neon-rs/load/dist/index.js"(exports2) {
+    "use strict";
+    var __createBinding = exports2 && exports2.__createBinding || (Object.create ? (function(o, m2, k2, k22) {
+      if (k22 === void 0) k22 = k2;
+      var desc3 = Object.getOwnPropertyDescriptor(m2, k2);
+      if (!desc3 || ("get" in desc3 ? !m2.__esModule : desc3.writable || desc3.configurable)) {
+        desc3 = { enumerable: true, get: function() {
+          return m2[k2];
+        } };
+      }
+      Object.defineProperty(o, k22, desc3);
+    }) : (function(o, m2, k2, k22) {
+      if (k22 === void 0) k22 = k2;
+      o[k22] = m2[k2];
+    }));
+    var __setModuleDefault = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v2) {
+      Object.defineProperty(o, "default", { enumerable: true, value: v2 });
+    }) : function(o, v2) {
+      o["default"] = v2;
+    });
+    var __importStar = exports2 && exports2.__importStar || function(mod) {
+      if (mod && mod.__esModule) return mod;
+      var result = {};
+      if (mod != null) {
+        for (var k2 in mod) if (k2 !== "default" && Object.prototype.hasOwnProperty.call(mod, k2)) __createBinding(result, mod, k2);
+      }
+      __setModuleDefault(result, mod);
+      return result;
+    };
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.load = exports2.currentTarget = void 0;
+    var path = __importStar(require("path"));
+    var fs = __importStar(require("fs"));
+    function currentTarget() {
+      let os = null;
+      switch (process.platform) {
+        case "android":
+          switch (process.arch) {
+            case "arm":
+              return "android-arm-eabi";
+            case "arm64":
+              return "android-arm64";
+          }
+          os = "Android";
+          break;
+        case "win32":
+          switch (process.arch) {
+            case "x64":
+              return "win32-x64-msvc";
+            case "arm64":
+              return "win32-arm64-msvc";
+            case "ia32":
+              return "win32-ia32-msvc";
+          }
+          os = "Windows";
+          break;
+        case "darwin":
+          switch (process.arch) {
+            case "x64":
+              return "darwin-x64";
+            case "arm64":
+              return "darwin-arm64";
+          }
+          os = "macOS";
+          break;
+        case "linux":
+          switch (process.arch) {
+            case "x64":
+            case "arm64":
+              return isGlibc() ? `linux-${process.arch}-gnu` : `linux-${process.arch}-musl`;
+            case "arm":
+              return "linux-arm-gnueabihf";
+          }
+          os = "Linux";
+          break;
+        case "freebsd":
+          if (process.arch === "x64") {
+            return "freebsd-x64";
+          }
+          os = "FreeBSD";
+          break;
+      }
+      if (os) {
+        throw new Error(`Neon: unsupported ${os} architecture: ${process.arch}`);
+      }
+      throw new Error(`Neon: unsupported system: ${process.platform}`);
+    }
+    exports2.currentTarget = currentTarget;
+    function isGlibc() {
+      const report = process.report?.getReport();
+      if (typeof report !== "object" || !report || !("header" in report)) {
+        return false;
+      }
+      const header = report.header;
+      return typeof header === "object" && !!header && "glibcVersionRuntime" in header;
+    }
+    function load(dirname2) {
+      const m2 = path.join(dirname2, "index.node");
+      return fs.existsSync(m2) ? require(m2) : null;
+    }
+    exports2.load = load;
+  }
+});
+
+// node_modules/libsql/node_modules/detect-libc/lib/process.js
+var require_process = __commonJS({
+  "node_modules/libsql/node_modules/detect-libc/lib/process.js"(exports2, module2) {
+    "use strict";
+    var isLinux = () => process.platform === "linux";
+    var report = null;
+    var getReport = () => {
+      if (!report) {
+        report = isLinux() && process.report ? process.report.getReport() : {};
+      }
+      return report;
+    };
+    module2.exports = { isLinux, getReport };
+  }
+});
+
+// node_modules/libsql/node_modules/detect-libc/lib/filesystem.js
+var require_filesystem = __commonJS({
+  "node_modules/libsql/node_modules/detect-libc/lib/filesystem.js"(exports2, module2) {
+    "use strict";
+    var fs = require("fs");
+    var LDD_PATH = "/usr/bin/ldd";
+    var readFileSync3 = (path) => fs.readFileSync(path, "utf-8");
+    var readFile = (path) => new Promise((resolve2, reject) => {
+      fs.readFile(path, "utf-8", (err, data) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve2(data);
+        }
+      });
+    });
+    module2.exports = {
+      LDD_PATH,
+      readFileSync: readFileSync3,
+      readFile
+    };
+  }
+});
+
+// node_modules/libsql/node_modules/detect-libc/lib/detect-libc.js
+var require_detect_libc = __commonJS({
+  "node_modules/libsql/node_modules/detect-libc/lib/detect-libc.js"(exports2, module2) {
+    "use strict";
+    var childProcess = require("child_process");
+    var { isLinux, getReport } = require_process();
+    var { LDD_PATH, readFile, readFileSync: readFileSync3 } = require_filesystem();
+    var cachedFamilyFilesystem;
+    var cachedVersionFilesystem;
+    var command = "getconf GNU_LIBC_VERSION 2>&1 || true; ldd --version 2>&1 || true";
+    var commandOut = "";
+    var safeCommand = () => {
+      if (!commandOut) {
+        return new Promise((resolve2) => {
+          childProcess.exec(command, (err, out) => {
+            commandOut = err ? " " : out;
+            resolve2(commandOut);
+          });
+        });
+      }
+      return commandOut;
+    };
+    var safeCommandSync = () => {
+      if (!commandOut) {
+        try {
+          commandOut = childProcess.execSync(command, { encoding: "utf8" });
+        } catch (_err) {
+          commandOut = " ";
+        }
+      }
+      return commandOut;
+    };
+    var GLIBC = "glibc";
+    var RE_GLIBC_VERSION = /GLIBC\s(\d+\.\d+)/;
+    var MUSL = "musl";
+    var GLIBC_ON_LDD = GLIBC.toUpperCase();
+    var MUSL_ON_LDD = MUSL.toLowerCase();
+    var isFileMusl = (f) => f.includes("libc.musl-") || f.includes("ld-musl-");
+    var familyFromReport = () => {
+      const report = getReport();
+      if (report.header && report.header.glibcVersionRuntime) {
+        return GLIBC;
+      }
+      if (Array.isArray(report.sharedObjects)) {
+        if (report.sharedObjects.some(isFileMusl)) {
+          return MUSL;
+        }
+      }
+      return null;
+    };
+    var familyFromCommand = (out) => {
+      const [getconf, ldd1] = out.split(/[\r\n]+/);
+      if (getconf && getconf.includes(GLIBC)) {
+        return GLIBC;
+      }
+      if (ldd1 && ldd1.includes(MUSL)) {
+        return MUSL;
+      }
+      return null;
+    };
+    var getFamilyFromLddContent = (content) => {
+      if (content.includes(MUSL_ON_LDD)) {
+        return MUSL;
+      }
+      if (content.includes(GLIBC_ON_LDD)) {
+        return GLIBC;
+      }
+      return null;
+    };
+    var familyFromFilesystem = async () => {
+      if (cachedFamilyFilesystem !== void 0) {
+        return cachedFamilyFilesystem;
+      }
+      cachedFamilyFilesystem = null;
+      try {
+        const lddContent = await readFile(LDD_PATH);
+        cachedFamilyFilesystem = getFamilyFromLddContent(lddContent);
+      } catch (e) {
+      }
+      return cachedFamilyFilesystem;
+    };
+    var familyFromFilesystemSync = () => {
+      if (cachedFamilyFilesystem !== void 0) {
+        return cachedFamilyFilesystem;
+      }
+      cachedFamilyFilesystem = null;
+      try {
+        const lddContent = readFileSync3(LDD_PATH);
+        cachedFamilyFilesystem = getFamilyFromLddContent(lddContent);
+      } catch (e) {
+      }
+      return cachedFamilyFilesystem;
+    };
+    var family = async () => {
+      let family2 = null;
+      if (isLinux()) {
+        family2 = await familyFromFilesystem();
+        if (!family2) {
+          family2 = familyFromReport();
+        }
+        if (!family2) {
+          const out = await safeCommand();
+          family2 = familyFromCommand(out);
+        }
+      }
+      return family2;
+    };
+    var familySync = () => {
+      let family2 = null;
+      if (isLinux()) {
+        family2 = familyFromFilesystemSync();
+        if (!family2) {
+          family2 = familyFromReport();
+        }
+        if (!family2) {
+          const out = safeCommandSync();
+          family2 = familyFromCommand(out);
+        }
+      }
+      return family2;
+    };
+    var isNonGlibcLinux = async () => isLinux() && await family() !== GLIBC;
+    var isNonGlibcLinuxSync = () => isLinux() && familySync() !== GLIBC;
+    var versionFromFilesystem = async () => {
+      if (cachedVersionFilesystem !== void 0) {
+        return cachedVersionFilesystem;
+      }
+      cachedVersionFilesystem = null;
+      try {
+        const lddContent = await readFile(LDD_PATH);
+        const versionMatch = lddContent.match(RE_GLIBC_VERSION);
+        if (versionMatch) {
+          cachedVersionFilesystem = versionMatch[1];
+        }
+      } catch (e) {
+      }
+      return cachedVersionFilesystem;
+    };
+    var versionFromFilesystemSync = () => {
+      if (cachedVersionFilesystem !== void 0) {
+        return cachedVersionFilesystem;
+      }
+      cachedVersionFilesystem = null;
+      try {
+        const lddContent = readFileSync3(LDD_PATH);
+        const versionMatch = lddContent.match(RE_GLIBC_VERSION);
+        if (versionMatch) {
+          cachedVersionFilesystem = versionMatch[1];
+        }
+      } catch (e) {
+      }
+      return cachedVersionFilesystem;
+    };
+    var versionFromReport = () => {
+      const report = getReport();
+      if (report.header && report.header.glibcVersionRuntime) {
+        return report.header.glibcVersionRuntime;
+      }
+      return null;
+    };
+    var versionSuffix = (s2) => s2.trim().split(/\s+/)[1];
+    var versionFromCommand = (out) => {
+      const [getconf, ldd1, ldd2] = out.split(/[\r\n]+/);
+      if (getconf && getconf.includes(GLIBC)) {
+        return versionSuffix(getconf);
+      }
+      if (ldd1 && ldd2 && ldd1.includes(MUSL)) {
+        return versionSuffix(ldd2);
+      }
+      return null;
+    };
+    var version3 = async () => {
+      let version4 = null;
+      if (isLinux()) {
+        version4 = await versionFromFilesystem();
+        if (!version4) {
+          version4 = versionFromReport();
+        }
+        if (!version4) {
+          const out = await safeCommand();
+          version4 = versionFromCommand(out);
+        }
+      }
+      return version4;
+    };
+    var versionSync = () => {
+      let version4 = null;
+      if (isLinux()) {
+        version4 = versionFromFilesystemSync();
+        if (!version4) {
+          version4 = versionFromReport();
+        }
+        if (!version4) {
+          const out = safeCommandSync();
+          version4 = versionFromCommand(out);
+        }
+      }
+      return version4;
+    };
+    module2.exports = {
+      GLIBC,
+      MUSL,
+      family,
+      familySync,
+      isNonGlibcLinux,
+      isNonGlibcLinuxSync,
+      version: version3,
+      versionSync
+    };
+  }
+});
+
+// node_modules/libsql/auth.js
+var require_auth = __commonJS({
+  "node_modules/libsql/auth.js"(exports2, module2) {
+    var Authorization = {
+      /**
+       * Allow access to a resource.
+       * @type {number}
+       */
+      ALLOW: 0,
+      /**
+       * Deny access to a resource and throw an error in `prepare()`.
+       * @type {number}
+       */
+      DENY: 1
+    };
+    module2.exports = Authorization;
+  }
+});
+
+// node_modules/libsql/sqlite-error.js
+var require_sqlite_error = __commonJS({
+  "node_modules/libsql/sqlite-error.js"(exports2, module2) {
+    "use strict";
+    var descriptor = { value: "SqliteError", writable: true, enumerable: false, configurable: true };
+    function SqliteError(message, code, rawCode) {
+      if (new.target !== SqliteError) {
+        return new SqliteError(message, code);
+      }
+      if (typeof code !== "string") {
+        throw new TypeError("Expected second argument to be a string");
+      }
+      Error.call(this, message);
+      descriptor.value = "" + message;
+      Object.defineProperty(this, "message", descriptor);
+      Error.captureStackTrace(this, SqliteError);
+      this.code = code;
+      this.rawCode = rawCode;
+    }
+    Object.setPrototypeOf(SqliteError, Error);
+    Object.setPrototypeOf(SqliteError.prototype, Error.prototype);
+    Object.defineProperty(SqliteError.prototype, "name", descriptor);
+    module2.exports = SqliteError;
+  }
+});
+
+// node_modules/libsql/index.js
+var require_libsql = __commonJS({
+  "node_modules/libsql/index.js"(exports2, module2) {
+    "use strict";
+    var { load, currentTarget } = require_dist2();
+    var { familySync, GLIBC, MUSL } = require_detect_libc();
+    function requireNative() {
+      if (process.env.LIBSQL_JS_DEV) {
+        return load(__dirname);
+      }
+      let target = currentTarget();
+      if (familySync() == GLIBC) {
+        switch (target) {
+          case "linux-x64-musl":
+            target = "linux-x64-gnu";
+            break;
+          case "linux-arm64-musl":
+            target = "linux-arm64-gnu";
+            break;
+        }
+      }
+      if (target === "linux-arm-gnueabihf" && familySync() == MUSL) {
+        target = "linux-arm-musleabihf";
+      }
+      return require(`@libsql/${target}`);
+    }
+    var {
+      databaseOpen,
+      databaseOpenWithSync,
+      databaseInTransaction,
+      databaseInterrupt,
+      databaseClose,
+      databaseSyncSync,
+      databaseSyncUntilSync,
+      databaseExecSync,
+      databasePrepareSync,
+      databaseDefaultSafeIntegers,
+      databaseAuthorizer,
+      databaseLoadExtension,
+      databaseMaxWriteReplicationIndex,
+      statementRaw,
+      statementIsReader,
+      statementGet,
+      statementRun,
+      statementInterrupt,
+      statementRowsSync,
+      statementColumns,
+      statementSafeIntegers,
+      rowsNext
+    } = requireNative();
+    var Authorization = require_auth();
+    var SqliteError = require_sqlite_error();
+    function convertError(err) {
+      if (err.libsqlError) {
+        return new SqliteError(err.message, err.code, err.rawCode);
+      }
+      return err;
+    }
+    var Database2 = class {
+      /**
+       * Creates a new database connection. If the database file pointed to by `path` does not exists, it will be created.
+       *
+       * @constructor
+       * @param {string} path - Path to the database file.
+       */
+      constructor(path, opts) {
+        const encryptionCipher = opts?.encryptionCipher ?? "aes256cbc";
+        if (opts && opts.syncUrl) {
+          var authToken = "";
+          if (opts.syncAuth) {
+            console.warn("Warning: The `syncAuth` option is deprecated, please use `authToken` option instead.");
+            authToken = opts.syncAuth;
+          } else if (opts.authToken) {
+            authToken = opts.authToken;
+          }
+          const encryptionKey = opts?.encryptionKey ?? "";
+          const syncPeriod = opts?.syncPeriod ?? 0;
+          const readYourWrites = opts?.readYourWrites ?? true;
+          const offline = opts?.offline ?? false;
+          const remoteEncryptionKey = opts?.remoteEncryptionKey ?? "";
+          this.db = databaseOpenWithSync(path, opts.syncUrl, authToken, encryptionCipher, encryptionKey, syncPeriod, readYourWrites, offline, remoteEncryptionKey);
+        } else {
+          const authToken2 = opts?.authToken ?? "";
+          const encryptionKey = opts?.encryptionKey ?? "";
+          const timeout = opts?.timeout ?? 0;
+          const remoteEncryptionKey = opts?.remoteEncryptionKey ?? "";
+          this.db = databaseOpen(path, authToken2, encryptionCipher, encryptionKey, timeout, remoteEncryptionKey);
+        }
+        this.memory = path === ":memory:";
+        this.readonly = false;
+        this.name = "";
+        this.open = true;
+        const db2 = this.db;
+        Object.defineProperties(this, {
+          inTransaction: {
+            get() {
+              return databaseInTransaction(db2);
+            }
+          }
+        });
+      }
+      sync() {
+        return databaseSyncSync.call(this.db);
+      }
+      syncUntil(replicationIndex) {
+        return databaseSyncUntilSync.call(this.db, replicationIndex);
+      }
+      /**
+       * Prepares a SQL statement for execution.
+       *
+       * @param {string} sql - The SQL statement string to prepare.
+       */
+      prepare(sql2) {
+        try {
+          const stmt = databasePrepareSync.call(this.db, sql2);
+          return new Statement(stmt);
+        } catch (err) {
+          throw convertError(err);
+        }
+      }
+      /**
+       * Returns a function that executes the given function in a transaction.
+       *
+       * @param {function} fn - The function to wrap in a transaction.
+       */
+      transaction(fn) {
+        if (typeof fn !== "function")
+          throw new TypeError("Expected first argument to be a function");
+        const db2 = this;
+        const wrapTxn = (mode) => {
+          return (...bindParameters) => {
+            db2.exec("BEGIN " + mode);
+            try {
+              const result = fn(...bindParameters);
+              db2.exec("COMMIT");
+              return result;
+            } catch (err) {
+              db2.exec("ROLLBACK");
+              throw err;
+            }
+          };
+        };
+        const properties = {
+          default: { value: wrapTxn("") },
+          deferred: { value: wrapTxn("DEFERRED") },
+          immediate: { value: wrapTxn("IMMEDIATE") },
+          exclusive: { value: wrapTxn("EXCLUSIVE") },
+          database: { value: this, enumerable: true }
+        };
+        Object.defineProperties(properties.default.value, properties);
+        Object.defineProperties(properties.deferred.value, properties);
+        Object.defineProperties(properties.immediate.value, properties);
+        Object.defineProperties(properties.exclusive.value, properties);
+        return properties.default.value;
+      }
+      pragma(source, options) {
+        if (options == null) options = {};
+        if (typeof source !== "string") throw new TypeError("Expected first argument to be a string");
+        if (typeof options !== "object") throw new TypeError("Expected second argument to be an options object");
+        const simple = options["simple"];
+        const stmt = this.prepare(`PRAGMA ${source}`, this, true);
+        return simple ? stmt.pluck().get() : stmt.all();
+      }
+      backup(filename, options) {
+        throw new Error("not implemented");
+      }
+      serialize(options) {
+        throw new Error("not implemented");
+      }
+      function(name, options, fn) {
+        if (options == null) options = {};
+        if (typeof options === "function") {
+          fn = options;
+          options = {};
+        }
+        if (typeof name !== "string")
+          throw new TypeError("Expected first argument to be a string");
+        if (typeof fn !== "function")
+          throw new TypeError("Expected last argument to be a function");
+        if (typeof options !== "object")
+          throw new TypeError("Expected second argument to be an options object");
+        if (!name)
+          throw new TypeError(
+            "User-defined function name cannot be an empty string"
+          );
+        throw new Error("not implemented");
+      }
+      aggregate(name, options) {
+        if (typeof name !== "string")
+          throw new TypeError("Expected first argument to be a string");
+        if (typeof options !== "object" || options === null)
+          throw new TypeError("Expected second argument to be an options object");
+        if (!name)
+          throw new TypeError(
+            "User-defined function name cannot be an empty string"
+          );
+        throw new Error("not implemented");
+      }
+      table(name, factory) {
+        if (typeof name !== "string")
+          throw new TypeError("Expected first argument to be a string");
+        if (!name)
+          throw new TypeError(
+            "Virtual table module name cannot be an empty string"
+          );
+        throw new Error("not implemented");
+      }
+      authorizer(rules) {
+        databaseAuthorizer.call(this.db, rules);
+      }
+      loadExtension(...args) {
+        databaseLoadExtension.call(this.db, ...args);
+      }
+      maxWriteReplicationIndex() {
+        return databaseMaxWriteReplicationIndex.call(this.db);
+      }
+      /**
+       * Executes a SQL statement.
+       *
+       * @param {string} sql - The SQL statement string to execute.
+       */
+      exec(sql2) {
+        try {
+          databaseExecSync.call(this.db, sql2);
+        } catch (err) {
+          throw convertError(err);
+        }
+      }
+      /**
+       * Interrupts the database connection.
+       */
+      interrupt() {
+        databaseInterrupt.call(this.db);
+      }
+      /**
+       * Closes the database connection.
+       */
+      close() {
+        databaseClose.call(this.db);
+        this.open = false;
+      }
+      /**
+       * Toggle 64-bit integer support.
+       */
+      defaultSafeIntegers(toggle) {
+        databaseDefaultSafeIntegers.call(this.db, toggle ?? true);
+        return this;
+      }
+      unsafeMode(...args) {
+        throw new Error("not implemented");
+      }
+    };
+    var Statement = class {
+      constructor(stmt) {
+        this.stmt = stmt;
+        this.pluckMode = false;
+      }
+      /**
+       * Toggle raw mode.
+       *
+       * @param raw Enable or disable raw mode. If you don't pass the parameter, raw mode is enabled.
+       */
+      raw(raw2) {
+        statementRaw.call(this.stmt, raw2 ?? true);
+        return this;
+      }
+      /**
+       * Toggle pluck mode.
+       *
+       * @param pluckMode Enable or disable pluck mode. If you don't pass the parameter, pluck mode is enabled.
+       */
+      pluck(pluckMode) {
+        this.pluckMode = pluckMode ?? true;
+        return this;
+      }
+      get reader() {
+        return statementIsReader.call(this.stmt);
+      }
+      /**
+       * Executes the SQL statement and returns an info object.
+       */
+      run(...bindParameters) {
+        try {
+          if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
+            return statementRun.call(this.stmt, bindParameters[0]);
+          } else {
+            return statementRun.call(this.stmt, bindParameters.flat());
+          }
+        } catch (err) {
+          throw convertError(err);
+        }
+      }
+      /**
+       * Executes the SQL statement and returns the first row.
+       *
+       * @param bindParameters - The bind parameters for executing the statement.
+       */
+      get(...bindParameters) {
+        try {
+          if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
+            return statementGet.call(this.stmt, bindParameters[0]);
+          } else {
+            return statementGet.call(this.stmt, bindParameters.flat());
+          }
+        } catch (err) {
+          throw convertError(err);
+        }
+      }
+      /**
+       * Executes the SQL statement and returns an iterator to the resulting rows.
+       *
+       * @param bindParameters - The bind parameters for executing the statement.
+       */
+      iterate(...bindParameters) {
+        var rows = void 0;
+        if (bindParameters.length == 1 && typeof bindParameters[0] === "object") {
+          rows = statementRowsSync.call(this.stmt, bindParameters[0]);
+        } else {
+          rows = statementRowsSync.call(this.stmt, bindParameters.flat());
+        }
+        const iter = {
+          nextRows: Array(100),
+          nextRowIndex: 100,
+          next() {
+            try {
+              if (this.nextRowIndex === 100) {
+                rowsNext.call(rows, this.nextRows);
+                this.nextRowIndex = 0;
+              }
+              const row = this.nextRows[this.nextRowIndex];
+              this.nextRows[this.nextRowIndex] = void 0;
+              if (!row) {
+                return { done: true };
+              }
+              this.nextRowIndex++;
+              return { value: row, done: false };
+            } catch (err) {
+              throw convertError(err);
+            }
+          },
+          [Symbol.iterator]() {
+            return this;
+          }
+        };
+        return iter;
+      }
+      /**
+       * Executes the SQL statement and returns an array of the resulting rows.
+       *
+       * @param bindParameters - The bind parameters for executing the statement.
+       */
+      all(...bindParameters) {
+        try {
+          const result = [];
+          for (const row of this.iterate(...bindParameters)) {
+            if (this.pluckMode) {
+              result.push(row[Object.keys(row)[0]]);
+            } else {
+              result.push(row);
+            }
+          }
+          return result;
+        } catch (err) {
+          throw convertError(err);
+        }
+      }
+      /**
+       * Interrupts the statement.
+       */
+      interrupt() {
+        statementInterrupt.call(this.stmt);
+      }
+      /**
+       * Returns the columns in the result set returned by this prepared statement.
+       */
+      columns() {
+        return statementColumns.call(this.stmt);
+      }
+      /**
+       * Toggle 64-bit integer support.
+       */
+      safeIntegers(toggle) {
+        statementSafeIntegers.call(this.stmt, toggle ?? true);
+        return this;
+      }
+    };
+    module2.exports = Database2;
+    module2.exports.Authorization = Authorization;
+    module2.exports.SqliteError = SqliteError;
+  }
+});
+
+// node_modules/@libsql/client/lib-esm/sqlite3.js
+function _createClient4(config) {
+  if (config.scheme !== "file") {
+    throw new LibsqlError(`URL scheme ${JSON.stringify(config.scheme + ":")} is not supported by the local sqlite3 client. For more information, please read ${supportedUrlLink}`, "URL_SCHEME_NOT_SUPPORTED");
+  }
+  const authority = config.authority;
+  if (authority !== void 0) {
+    const host = authority.host.toLowerCase();
+    if (host !== "" && host !== "localhost") {
+      throw new LibsqlError(`Invalid host in file URL: ${JSON.stringify(authority.host)}. A "file:" URL with an absolute path should start with one slash ("file:/absolute/path.db") or with three slashes ("file:///absolute/path.db"). For more information, please read ${supportedUrlLink}`, "URL_INVALID");
+    }
+    if (authority.port !== void 0) {
+      throw new LibsqlError("File URL cannot have a port", "URL_INVALID");
+    }
+    if (authority.userinfo !== void 0) {
+      throw new LibsqlError("File URL cannot have username and password", "URL_INVALID");
+    }
+  }
+  let isInMemory = isInMemoryConfig(config);
+  if (isInMemory && config.syncUrl) {
+    throw new LibsqlError(`Embedded replica must use file for local db but URI with in-memory mode were provided instead: ${config.path}`, "URL_INVALID");
+  }
+  let path = config.path;
+  if (isInMemory) {
+    path = `${config.scheme}:${config.path}`;
+  }
+  const options = {
+    authToken: config.authToken,
+    encryptionKey: config.encryptionKey,
+    remoteEncryptionKey: config.remoteEncryptionKey,
+    syncUrl: config.syncUrl,
+    syncPeriod: config.syncInterval,
+    readYourWrites: config.readYourWrites,
+    offline: config.offline
+  };
+  const db2 = new import_libsql.default(path, options);
+  executeStmt(db2, "SELECT 1 AS checkThatTheDatabaseCanBeOpened", config.intMode);
+  return new Sqlite3Client(path, options, db2, config.intMode);
+}
+function executeStmt(db2, stmt, intMode) {
+  let sql2;
+  let args;
+  if (typeof stmt === "string") {
+    sql2 = stmt;
+    args = [];
+  } else {
+    sql2 = stmt.sql;
+    if (Array.isArray(stmt.args)) {
+      args = stmt.args.map((value) => valueToSql(value, intMode));
+    } else {
+      args = {};
+      for (const name in stmt.args) {
+        const argName = name[0] === "@" || name[0] === "$" || name[0] === ":" ? name.substring(1) : name;
+        args[argName] = valueToSql(stmt.args[name], intMode);
+      }
+    }
+  }
+  try {
+    const sqlStmt = db2.prepare(sql2);
+    sqlStmt.safeIntegers(true);
+    let returnsData = true;
+    try {
+      sqlStmt.raw(true);
+    } catch {
+      returnsData = false;
+    }
+    if (returnsData) {
+      const columns = Array.from(sqlStmt.columns().map((col) => col.name));
+      const columnTypes = Array.from(sqlStmt.columns().map((col) => col.type ?? ""));
+      const rows = sqlStmt.all(args).map((sqlRow) => {
+        return rowFromSql(sqlRow, columns, intMode);
+      });
+      const rowsAffected = 0;
+      const lastInsertRowid = void 0;
+      return new ResultSetImpl(columns, columnTypes, rows, rowsAffected, lastInsertRowid);
+    } else {
+      const info = sqlStmt.run(args);
+      const rowsAffected = info.changes;
+      const lastInsertRowid = BigInt(info.lastInsertRowid);
+      return new ResultSetImpl([], [], [], rowsAffected, lastInsertRowid);
+    }
+  } catch (e) {
+    throw mapSqliteError(e);
+  }
+}
+function rowFromSql(sqlRow, columns, intMode) {
+  const row = {};
+  Object.defineProperty(row, "length", { value: sqlRow.length });
+  for (let i = 0; i < sqlRow.length; ++i) {
+    const value = valueFromSql(sqlRow[i], intMode);
+    Object.defineProperty(row, i, { value });
+    const column = columns[i];
+    if (!Object.hasOwn(row, column)) {
+      Object.defineProperty(row, column, {
+        value,
+        enumerable: true,
+        configurable: true,
+        writable: true
+      });
+    }
+  }
+  return row;
+}
+function valueFromSql(sqlValue, intMode) {
+  if (typeof sqlValue === "bigint") {
+    if (intMode === "number") {
+      if (sqlValue < minSafeBigint || sqlValue > maxSafeBigint) {
+        throw new RangeError("Received integer which cannot be safely represented as a JavaScript number");
+      }
+      return Number(sqlValue);
+    } else if (intMode === "bigint") {
+      return sqlValue;
+    } else if (intMode === "string") {
+      return "" + sqlValue;
+    } else {
+      throw new Error("Invalid value for IntMode");
+    }
+  } else if (sqlValue instanceof import_node_buffer.Buffer) {
+    return sqlValue.buffer;
+  }
+  return sqlValue;
+}
+function valueToSql(value, intMode) {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new RangeError("Only finite numbers (not Infinity or NaN) can be passed as arguments");
+    }
+    return value;
+  } else if (typeof value === "bigint") {
+    if (value < minInteger2 || value > maxInteger2) {
+      throw new RangeError("bigint is too large to be represented as a 64-bit integer and passed as argument");
+    }
+    return value;
+  } else if (typeof value === "boolean") {
+    switch (intMode) {
+      case "bigint":
+        return value ? 1n : 0n;
+      case "string":
+        return value ? "1" : "0";
+      default:
+        return value ? 1 : 0;
+    }
+  } else if (value instanceof ArrayBuffer) {
+    return import_node_buffer.Buffer.from(value);
+  } else if (value instanceof Date) {
+    return value.valueOf();
+  } else if (value === void 0) {
+    throw new TypeError("undefined cannot be passed as argument to the database");
+  } else {
+    return value;
+  }
+}
+function executeMultiple(db2, sql2) {
+  try {
+    db2.exec(sql2);
+  } catch (e) {
+    throw mapSqliteError(e);
+  }
+}
+function mapSqliteError(e) {
+  if (e instanceof import_libsql.default.SqliteError) {
+    const extendedCode = e.code;
+    const code = mapToBaseCode(e.rawCode);
+    return new LibsqlError(e.message, code, extendedCode, e.rawCode, e);
+  }
+  return e;
+}
+function mapToBaseCode(rawCode) {
+  if (rawCode === void 0) {
+    return "SQLITE_UNKNOWN";
+  }
+  const baseCode = rawCode & 255;
+  return sqliteErrorCodes[baseCode] ?? `SQLITE_UNKNOWN_${baseCode.toString()}`;
+}
+var import_libsql, import_node_buffer, Sqlite3Client, Sqlite3Transaction, minSafeBigint, maxSafeBigint, minInteger2, maxInteger2, sqliteErrorCodes;
+var init_sqlite3 = __esm({
+  "node_modules/@libsql/client/lib-esm/sqlite3.js"() {
+    import_libsql = __toESM(require_libsql(), 1);
+    import_node_buffer = require("node:buffer");
+    init_api();
+    init_config();
+    init_util();
+    init_api();
+    Sqlite3Client = class {
+      #path;
+      #options;
+      #db;
+      #intMode;
+      closed;
+      protocol;
+      /** @private */
+      constructor(path, options, db2, intMode) {
+        this.#path = path;
+        this.#options = options;
+        this.#db = db2;
+        this.#intMode = intMode;
+        this.closed = false;
+        this.protocol = "file";
+      }
+      async execute(stmtOrSql, args) {
+        let stmt;
+        if (typeof stmtOrSql === "string") {
+          stmt = {
+            sql: stmtOrSql,
+            args: args || []
+          };
+        } else {
+          stmt = stmtOrSql;
+        }
+        this.#checkNotClosed();
+        return executeStmt(this.#getDb(), stmt, this.#intMode);
+      }
+      async batch(stmts, mode = "deferred") {
+        this.#checkNotClosed();
+        const db2 = this.#getDb();
+        try {
+          executeStmt(db2, transactionModeToBegin(mode), this.#intMode);
+          const resultSets = [];
+          for (let i = 0; i < stmts.length; i++) {
+            try {
+              if (!db2.inTransaction) {
+                throw new LibsqlBatchError("The transaction has been rolled back", i, "TRANSACTION_CLOSED");
+              }
+              const stmt = stmts[i];
+              const normalizedStmt = Array.isArray(stmt) ? { sql: stmt[0], args: stmt[1] || [] } : stmt;
+              resultSets.push(executeStmt(db2, normalizedStmt, this.#intMode));
+            } catch (e) {
+              if (e instanceof LibsqlBatchError) {
+                throw e;
+              }
+              if (e instanceof LibsqlError) {
+                throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
+              }
+              throw e;
+            }
+          }
+          executeStmt(db2, "COMMIT", this.#intMode);
+          return resultSets;
+        } finally {
+          if (db2.inTransaction) {
+            executeStmt(db2, "ROLLBACK", this.#intMode);
+          }
+        }
+      }
+      async migrate(stmts) {
+        this.#checkNotClosed();
+        const db2 = this.#getDb();
+        try {
+          executeStmt(db2, "PRAGMA foreign_keys=off", this.#intMode);
+          executeStmt(db2, transactionModeToBegin("deferred"), this.#intMode);
+          const resultSets = [];
+          for (let i = 0; i < stmts.length; i++) {
+            try {
+              if (!db2.inTransaction) {
+                throw new LibsqlBatchError("The transaction has been rolled back", i, "TRANSACTION_CLOSED");
+              }
+              resultSets.push(executeStmt(db2, stmts[i], this.#intMode));
+            } catch (e) {
+              if (e instanceof LibsqlBatchError) {
+                throw e;
+              }
+              if (e instanceof LibsqlError) {
+                throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
+              }
+              throw e;
+            }
+          }
+          executeStmt(db2, "COMMIT", this.#intMode);
+          return resultSets;
+        } finally {
+          if (db2.inTransaction) {
+            executeStmt(db2, "ROLLBACK", this.#intMode);
+          }
+          executeStmt(db2, "PRAGMA foreign_keys=on", this.#intMode);
+        }
+      }
+      async transaction(mode = "write") {
+        const db2 = this.#getDb();
+        executeStmt(db2, transactionModeToBegin(mode), this.#intMode);
+        this.#db = null;
+        return new Sqlite3Transaction(db2, this.#intMode);
+      }
+      async executeMultiple(sql2) {
+        this.#checkNotClosed();
+        const db2 = this.#getDb();
+        try {
+          return executeMultiple(db2, sql2);
+        } finally {
+          if (db2.inTransaction) {
+            executeStmt(db2, "ROLLBACK", this.#intMode);
+          }
+        }
+      }
+      async sync() {
+        this.#checkNotClosed();
+        const rep = await this.#getDb().sync();
+        return {
+          frames_synced: rep.frames_synced,
+          frame_no: rep.frame_no
+        };
+      }
+      async reconnect() {
+        try {
+          if (!this.closed && this.#db !== null) {
+            this.#db.close();
+          }
+        } finally {
+          this.#db = new import_libsql.default(this.#path, this.#options);
+          this.closed = false;
+        }
+      }
+      close() {
+        this.closed = true;
+        if (this.#db !== null) {
+          this.#db.close();
+          this.#db = null;
+        }
+      }
+      #checkNotClosed() {
+        if (this.closed) {
+          throw new LibsqlError("The client is closed", "CLIENT_CLOSED");
+        }
+      }
+      // Lazily creates the database connection and returns it
+      #getDb() {
+        if (this.#db === null) {
+          this.#db = new import_libsql.default(this.#path, this.#options);
+        }
+        return this.#db;
+      }
+    };
+    Sqlite3Transaction = class {
+      #database;
+      #intMode;
+      /** @private */
+      constructor(database, intMode) {
+        this.#database = database;
+        this.#intMode = intMode;
+      }
+      async execute(stmtOrSql, args) {
+        let stmt;
+        if (typeof stmtOrSql === "string") {
+          stmt = {
+            sql: stmtOrSql,
+            args: args || []
+          };
+        } else {
+          stmt = stmtOrSql;
+        }
+        this.#checkNotClosed();
+        return executeStmt(this.#database, stmt, this.#intMode);
+      }
+      async batch(stmts) {
+        const resultSets = [];
+        for (let i = 0; i < stmts.length; i++) {
+          try {
+            this.#checkNotClosed();
+            const stmt = stmts[i];
+            const normalizedStmt = Array.isArray(stmt) ? { sql: stmt[0], args: stmt[1] || [] } : stmt;
+            resultSets.push(executeStmt(this.#database, normalizedStmt, this.#intMode));
+          } catch (e) {
+            if (e instanceof LibsqlBatchError) {
+              throw e;
+            }
+            if (e instanceof LibsqlError) {
+              throw new LibsqlBatchError(e.message, i, e.code, e.extendedCode, e.rawCode, e.cause instanceof Error ? e.cause : void 0);
+            }
+            throw e;
+          }
+        }
+        return resultSets;
+      }
+      async executeMultiple(sql2) {
+        this.#checkNotClosed();
+        return executeMultiple(this.#database, sql2);
+      }
+      async rollback() {
+        if (!this.#database.open) {
+          return;
+        }
+        this.#checkNotClosed();
+        executeStmt(this.#database, "ROLLBACK", this.#intMode);
+      }
+      async commit() {
+        this.#checkNotClosed();
+        executeStmt(this.#database, "COMMIT", this.#intMode);
+      }
+      close() {
+        if (this.#database.inTransaction) {
+          executeStmt(this.#database, "ROLLBACK", this.#intMode);
+        }
+      }
+      get closed() {
+        return !this.#database.inTransaction;
+      }
+      #checkNotClosed() {
+        if (this.closed) {
+          throw new LibsqlError("The transaction is closed", "TRANSACTION_CLOSED");
+        }
+      }
+    };
+    minSafeBigint = -9007199254740991n;
+    maxSafeBigint = 9007199254740991n;
+    minInteger2 = -9223372036854775808n;
+    maxInteger2 = 9223372036854775807n;
+    sqliteErrorCodes = {
+      1: "SQLITE_ERROR",
+      2: "SQLITE_INTERNAL",
+      3: "SQLITE_PERM",
+      4: "SQLITE_ABORT",
+      5: "SQLITE_BUSY",
+      6: "SQLITE_LOCKED",
+      7: "SQLITE_NOMEM",
+      8: "SQLITE_READONLY",
+      9: "SQLITE_INTERRUPT",
+      10: "SQLITE_IOERR",
+      11: "SQLITE_CORRUPT",
+      12: "SQLITE_NOTFOUND",
+      13: "SQLITE_FULL",
+      14: "SQLITE_CANTOPEN",
+      15: "SQLITE_PROTOCOL",
+      16: "SQLITE_EMPTY",
+      17: "SQLITE_SCHEMA",
+      18: "SQLITE_TOOBIG",
+      19: "SQLITE_CONSTRAINT",
+      20: "SQLITE_MISMATCH",
+      21: "SQLITE_MISUSE",
+      22: "SQLITE_NOLFS",
+      23: "SQLITE_AUTH",
+      24: "SQLITE_FORMAT",
+      25: "SQLITE_RANGE",
+      26: "SQLITE_NOTADB",
+      27: "SQLITE_NOTICE",
+      28: "SQLITE_WARNING"
+    };
+  }
+});
+
+// node_modules/@libsql/client/lib-esm/node.js
+function createClient2(config) {
+  return _createClient5(expandConfig(config, true));
+}
+function _createClient5(config) {
+  if (config.scheme === "wss" || config.scheme === "ws") {
+    return _createClient(config);
+  } else if (config.scheme === "https" || config.scheme === "http") {
+    return _createClient2(config);
+  } else {
+    return _createClient4(config);
   }
 }
 var init_node2 = __esm({
@@ -26713,7 +26737,7 @@ var init_driver_core = __esm({
 // node_modules/drizzle-orm/libsql/driver.js
 function drizzle(...params) {
   if (typeof params[0] === "string") {
-    const instance = createClient({
+    const instance = createClient2({
       url: params[0]
     });
     return construct(instance, params[1]);
@@ -26721,7 +26745,7 @@ function drizzle(...params) {
   if (isConfig(params[0])) {
     const { connection, client, ...drizzleConfig } = params[0];
     if (client) return construct(client, drizzleConfig);
-    const instance = typeof connection === "string" ? createClient({ url: connection }) : createClient(connection);
+    const instance = typeof connection === "string" ? createClient2({ url: connection }) : createClient2(connection);
     return construct(instance, drizzleConfig);
   }
   return construct(params[0], params[1]);
@@ -27050,7 +27074,7 @@ var _db, db;
 var init_client4 = __esm({
   "server/db/client.ts"() {
     "use strict";
-    init_node2();
+    init_web();
     init_libsql();
     init_schema();
     _db = null;
