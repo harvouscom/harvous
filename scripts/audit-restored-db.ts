@@ -43,18 +43,29 @@ async function main() {
     .where(sql`lower(${UserMetadata.email}) = ${TARGET_EMAIL}`)
     .all();
 
-  const mapping = await db
-    .select()
-    .from(ClerkUserMapping)
-    .where(sql`lower(${ClerkUserMapping.email}) = ${TARGET_EMAIL}`)
-    .all();
+  let mapping: Array<{ devUserId: string; liveUserId: string | null; migratedToLiveAt: string | null }> = [];
+  try {
+    mapping = await db
+      .select()
+      .from(ClerkUserMapping)
+      .where(sql`lower(${ClerkUserMapping.email}) = ${TARGET_EMAIL}`)
+      .all();
+  } catch (e: any) {
+    if (e?.message?.includes('no such table: ClerkUserMapping') || e?.cause?.message?.includes('ClerkUserMapping')) {
+      console.log('ClerkUserMapping table not present (restore may be from before it was added).\n');
+    } else {
+      throw e;
+    }
+  }
 
   console.log('UserMetadata userIds with this email:', meta.length ? meta.map((r) => r.userId) : '(none)');
-  console.log('ClerkUserMapping rows:', mapping.length);
-  mapping.forEach((r) => console.log('  dev:', r.devUserId, ' live:', r.liveUserId, ' migrated:', r.migratedToLiveAt ? 'yes' : 'no'));
+  if (mapping.length) {
+    console.log('ClerkUserMapping rows:', mapping.length);
+    mapping.forEach((r) => console.log('  dev:', r.devUserId, ' live:', r.liveUserId, ' migrated:', r.migratedToLiveAt ? 'yes' : 'no'));
+  }
 
-  if (meta.length || mapping.length) {
-    const userIds = [...new Set([...meta.map((r) => r.userId), ...mapping.map((r) => r.devUserId), ...mapping.map((r) => r.liveUserId).filter(Boolean)])];
+  const userIds = [...new Set([...meta.map((r) => r.userId), ...mapping.map((r) => r.devUserId), ...mapping.map((r) => r.liveUserId).filter(Boolean)])];
+  if (userIds.length) {
     console.log('\nNote counts for those userIds:');
     for (const uid of userIds) {
       const noteCount = await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, uid)).get();
