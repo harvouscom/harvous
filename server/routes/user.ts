@@ -564,9 +564,14 @@ app.get('/api/user/xp', async (c) => {
 app.get('/api/user/get-profile', async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
+    if (!auth.userId) {
+      console.log('[api/user/get-profile] No auth userId — returning 401');
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+    console.log('[api/user/get-profile] auth.userId', auth.userId);
 
     const userData = await getCachedUserData(auth.userId);
+    console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
     let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null };
     try {

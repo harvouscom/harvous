@@ -16,8 +16,10 @@ route.get('/api/content/load-more', async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) {
+      console.log('[api/content/load-more] No auth userId — returning 401');
       return c.json({ error: 'Authentication required' }, 401);
     }
+    console.log('[api/content/load-more] auth.userId', auth.userId);
 
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
@@ -56,6 +58,8 @@ route.get('/api/content/load-more', async (c) => {
 
     // Check if there are more items
     const hasMore = limitedItems.length === limit && (items.length === fetchLimit || filteredItems.length > limit);
+
+    console.log('[api/content/load-more] items count', { returned: limitedItems.length, rawCount: items.length, filter, offset, limit });
 
     return c.json({
       items: limitedItems,

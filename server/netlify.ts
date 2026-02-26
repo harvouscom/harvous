@@ -20,6 +20,7 @@ type LegacyEvent = {
   headers?: Record<string, string>;
   multiValueHeaders?: Record<string, string[]>;
   body?: string | null;
+  isBase64Encoded?: boolean;
   queryStringParameters?: Record<string, string>;
 };
 
@@ -65,7 +66,19 @@ function legacyEventToRequest(event: LegacyEvent): Request {
     : '';
   const url = `${origin}${path}${search}`;
   const method = (event.httpMethod ?? 'GET').toUpperCase();
-  const body = event.body != null && event.body !== '' ? event.body : undefined;
+
+  let body: string | Buffer | undefined;
+  if (event.body != null && event.body !== '') {
+    if (event.isBase64Encoded === true) {
+      try {
+        body = Buffer.from(event.body, 'base64');
+      } catch {
+        body = event.body;
+      }
+    } else {
+      body = event.body;
+    }
+  }
   return new Request(url, { method, headers: new Headers(headers), body });
 }
 

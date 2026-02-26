@@ -84,18 +84,45 @@ route.post('/api/notes/create', async (c) => {
       return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
     }
 
-    // Parse form data
-    const formData = await c.req.formData();
-    const content = formData.get('content') as string;
-    const title = formData.get('title') as string;
-    const threadId = formData.get('threadId') as string;
-    const noteType = formData.get('noteType') as string;
-    const scriptureReference = formData.get('scriptureReference') as string | null;
-    const scriptureVersion = formData.get('scriptureVersion') as string | null;
-    const resourceUrl = formData.get('resourceUrl') as string | null;
-    const resourceMetadataStr = formData.get('resourceMetadata') as string | null;
-    const spaceId = formData.get('spaceId') as string | null;
-    const contentEncrypted = formData.get('contentEncrypted') === 'true';
+    // Parse body: support both JSON (serverless-friendly) and FormData
+    const contentType = c.req.raw.headers.get('content-type') ?? '';
+    let content: string;
+    let title: string;
+    let threadId: string;
+    let noteType: string;
+    let scriptureReference: string | null;
+    let scriptureVersion: string | null;
+    let resourceUrl: string | null;
+    let resourceMetadataStr: string | null;
+    let spaceId: string | null;
+    let contentEncrypted: boolean;
+
+    if (contentType.includes('application/json')) {
+      const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+      content = (body.content as string) ?? '';
+      title = (body.title as string) ?? '';
+      threadId = (body.threadId as string) ?? '';
+      noteType = (body.noteType as string) ?? 'default';
+      scriptureReference = (body.scriptureReference as string) ?? null;
+      scriptureVersion = (body.scriptureVersion as string) ?? null;
+      resourceUrl = (body.resourceUrl as string) ?? null;
+      const meta = body.resourceMetadata;
+      resourceMetadataStr = typeof meta === 'string' ? meta : (meta != null ? JSON.stringify(meta) : null);
+      spaceId = (body.spaceId as string) ?? null;
+      contentEncrypted = body.contentEncrypted === true || body.contentEncrypted === 'true';
+    } else {
+      const formData = await c.req.formData();
+      content = formData.get('content') as string;
+      title = formData.get('title') as string;
+      threadId = formData.get('threadId') as string;
+      noteType = formData.get('noteType') as string;
+      scriptureReference = formData.get('scriptureReference') as string | null;
+      scriptureVersion = formData.get('scriptureVersion') as string | null;
+      resourceUrl = formData.get('resourceUrl') as string | null;
+      resourceMetadataStr = formData.get('resourceMetadata') as string | null;
+      spaceId = formData.get('spaceId') as string | null;
+      contentEncrypted = formData.get('contentEncrypted') === 'true';
+    }
 
     let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
     if (resourceMetadataStr) {
