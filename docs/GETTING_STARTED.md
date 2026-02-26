@@ -29,13 +29,13 @@ npm install
 Create `.env` file in the root directory:
 
 ```env
-# Clerk Authentication (Astro layer)
+# Clerk Authentication (API / server)
 PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_SECRET_KEY=sk_test_...
 PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 
-# Astro DB (Turso)
+# Database (Astro DB / Turso)
 ASTRO_DB_REMOTE_URL=libsql://...
 ASTRO_DB_APP_TOKEN=...
 
@@ -59,15 +59,15 @@ npm run db:push     # Push to remote
 
 ### 5. Start development servers
 
-**Option A — Hono API + SPA (recommended on clear-split branch):**
+**Recommended — Hono API + SPA (production parity):**
 ```bash
 npm run dev:all
 ```
-Runs the Hono API on port 3001 and the SPA on port 4322. Open `http://localhost:4322`. If you run only `npm run dev:spa`, `/api` requests will return 500 because the API must be running on 3001.
+Runs the Hono API on port 3001 and the SPA on port 4322. Open `http://localhost:4322`. This matches production: the API is a single Hono server; the frontend is the React SPA. If you run only `npm run dev:spa`, `/api` requests will return 500 because the API must be running on 3001.
 
-**Option B — Astro + SPA (two terminals):**
+**Alternative — Astro + SPA (legacy dev, two terminals):**
 
-**Terminal 1 — Astro (API layer, port 4321):**
+**Terminal 1 — Astro (port 4321):**
 ```bash
 npm run dev
 ```
@@ -77,8 +77,7 @@ npm run dev
 npm run dev:spa
 ```
 
-- Astro dev server: `http://localhost:4321` — API routes, sign-in, shared pages
-- SPA dev server: `http://localhost:4322` — authenticated app (when using `dev:spa` or `dev:all`)
+Use this only if you need to work on Astro SSR pages or legacy API routes. Production serves the SPA and the Hono API only; Astro is not used in production.
 
 ---
 
@@ -86,13 +85,15 @@ npm run dev:spa
 
 ### Available Scripts
 
-**Root (Astro SSR layer):**
+**Root:**
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Start Astro dev server (port 4321) |
-| `npm run build` | Build Astro SSR output for production |
-| `npm run preview` | Preview Astro production build |
+| `npm run dev:all` | **Recommended.** Start Hono API (3001) + SPA (4322) — production parity |
+| `npm run dev` | Start Astro dev server (4321) — legacy dev only |
+| `npm run dev:spa` | Start SPA only (4322); API must run separately (e.g. `dev:all`) |
+| `npm run build` | Production build: Astro build + Vite build; `dist-spa/` is copied over `dist/` (SPA is what users get) |
+| `npm run preview` | Preview production build |
 | `npm run db:sync` | Sync database schema |
 | `npm run db:push` | Push schema to remote |
 | `npm run db:check` | Verify database state |
@@ -116,21 +117,19 @@ npm run dev:spa
    ```
 
 2. **Make changes**
-   - **SPA pages** (authenticated routes): `spa/src/pages/*.tsx`
+   - **SPA pages** (production routes): `spa/src/pages/*.tsx`
    - **SPA routing**: `spa/src/router.tsx`
    - **SPA layout/shell**: `spa/src/layouts/AppLayout.tsx`
-   - **Shared React components** (used by both SPA and Astro): `src/components/react/*.tsx`
-   - **API endpoints**: `src/pages/api/*/*.ts`
-   - **Astro public pages** (sign-in, shared views): `src/pages/*.astro`
+   - **Shared React components** (SPA + optional Astro dev): `src/components/react/*.tsx`
+   - **API endpoints (production)**: `server/` (Hono routes); legacy Astro API: `src/pages/api/*/*.ts` (dev only)
+   - **Astro pages** (dev only; not served in production): `src/pages/*.astro`
    - **Utilities**: `src/utils/*.ts`
    - **Styles**: `src/styles/*.css`
 
 3. **Test locally**
    ```bash
-   # Terminal 1: Astro API layer
-   npm run dev
-   # Terminal 2: SPA
-   cd spa && npm run dev
+   npm run dev:all
+   # Then open http://localhost:4322
    ```
 
 4. **Commit with conventional commits**
@@ -157,19 +156,21 @@ npm run dev:spa
 
 ### Architecture Decisions
 
-- **Dual-app monorepo**: Astro SSR handles API routes and public pages; React SPA handles the authenticated app shell
-- **Client-side routing**: TanStack Router in the SPA replaces Astro's file-based routing for authenticated routes
-- **Server state caching**: TanStack Query with tuned `staleTime` values prevents empty-state flashes on navigation
-- **Shared components**: `src/components/react/` is shared between the SPA and Astro pages — changes there affect both
-- **Event-Driven Communication**: CustomEvents (`astro:page-load`, `spaceCreated`, `threadCreated`, etc.) keep components in sync; the SPA dispatches `astro:page-load` on route changes for backward compatibility
-- **Database-First Design**: Source of truth is always the database; TanStack Query manages cache invalidation
+- **Production stack**: React SPA (Vite) + Hono API (`server/`). Netlify serves the SPA and a single serverless function that handles all `/api/*` requests. Astro is used for build tooling and optional local dev; it is **not** served in production.
+- **Client-side routing**: TanStack Router in the SPA for all app routes (dashboard, threads, notes, spaces, profile).
+- **Server state caching**: TanStack Query with tuned `staleTime` values prevents empty-state flashes on navigation.
+- **Shared components**: `src/components/react/` is used by the SPA (and by Astro pages in dev); UI changes for production should go in the SPA or these shared components.
+- **Event-Driven Communication**: CustomEvents (`astro:page-load`, `spaceCreated`, `threadCreated`, etc.) keep components in sync; the SPA dispatches `astro:page-load` on route changes for backward compatibility.
+- **Database-First Design**: Source of truth is always the database; TanStack Query manages cache invalidation.
 
 ### Development Servers
 
-Two servers run simultaneously in development:
+With `npm run dev:all`:
 
-- **Astro (port 4321)**: API routes (`/api/*`), sign-in/sign-up pages, shared/public pages. If port 4321 is busy: `lsof -ti:4321 | xargs kill -9`
-- **SPA (port 5173)**: Authenticated app shell (dashboard, threads, notes, spaces). Standard Vite dev server with HMR.
+- **Hono API (port 3001)**: All `/api/*` routes — matches production.
+- **SPA (port 4322)**: Authenticated app; open `http://localhost:4322`.
+
+Optional legacy dev: Astro on port 4321 (`npm run dev`) for working on Astro pages or legacy API routes; not required for production work.
 
 ## Related Documentation
 

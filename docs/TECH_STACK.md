@@ -4,35 +4,34 @@ Complete technology stack documentation for Harvous, including versions, depende
 
 ## Architecture Overview
 
-Harvous runs as a **dual-app monorepo**:
+**Production** is a **React SPA + Hono API**:
 
-- **`/` (root)** — Astro SSR app: handles API endpoints, database access, auth middleware, and public/shared pages (sign-in, shared notes, shared threads, invitations). Also serves as the static host for the SPA.
-- **`/spa`** — React SPA: the authenticated app shell. A Vite-built single-page app that handles all authenticated routes (`/`, `/thread/*`, `/note/*`, `/space/*`, `/profile`, etc.).
+- **`/spa`** — React SPA (Vite): the full app users see. Handles all routes (dashboard, threads, notes, spaces, profile, sign-in, shared content, etc.). Built output is copied to `dist/` and served as static `index.html` + assets.
+- **`/server`** — Hono API: a single Node server that handles **all** `/api/*` requests. Bundled as one Netlify serverless function (`netlify/functions/api.mjs`). Database access, auth, and business logic live here.
 
-At runtime, Netlify routes authenticated app paths to `spa/index.html`, while API routes and public pages are served by the Astro SSR layer. The `public/_redirects` file must include the root `/` and all SPA paths so they serve the SPA’s `index.html`.
+**Astro** is used for build tooling (e.g. Astro DB, schema in `db/config.ts`) and for **optional local development** (Astro SSR pages and legacy `src/pages/api/` routes). Astro is **not** served in production; the Netlify build runs `astro build` then `vite build` and overwrites `dist/` with `dist-spa/`, so production serves only the SPA and the Hono function.
+
+Netlify routing: `public/_redirects` sends app paths to `/index.html` (SPA); `/api/*` is handled by the SSR function (Hono). Do not add a catch-all that would send API requests to the SPA.
 
 ## Core Framework
 
 ```
-Astro 5.x             - SSR layer: API endpoints, auth middleware, public pages
-React 19.2.0          - Full SPA for authenticated app shell
+Hono (server/)        - Production API: all /api/* in one Netlify function
+React 19.2.0          - Full SPA (production frontend)
+Vite                  - SPA build tool
 TanStack Router       - Client-side routing within the SPA
 TanStack Query        - Server state management and caching
 TypeScript 5.9.2      - Type safety
 Vanilla CSS            - Semantic CSS classes (migrated from Tailwind)
+Astro                 - Build tooling, Astro DB, optional dev server (not served in prod)
 ```
 
-### Astro (SSR Layer)
+### Hono API (`/server`)
 
-- **Purpose**: API endpoints, database access, auth middleware, and public/unauthenticated pages
-- **Output**: SSR (Server-Side Rendering) via Netlify adapter
-- **Handles**:
-  - All `/api/*` routes
-  - `/sign-in`, `/sign-up`
-  - `/shared/note/*`, `/shared/thread/*`
-  - `/spaces/join/*`, `/invitations/*`
-  - `/upgrade`
-  - Serves `spa/dist/index.html` for SPA routes
+- **Purpose**: Production API — all `/api/*` endpoints, database access, auth, business logic
+- **Deployment**: Single Netlify serverless function (`netlify/functions/api.mjs`)
+- **Handles**: Notes, threads, spaces, user, referral, billing, shared content, invitations, webhooks, etc.
+- **Dev**: Run with `npm run dev:all` (API on 3001, SPA on 4322)
 
 ### React SPA (`/spa`)
 
@@ -60,11 +59,11 @@ Vanilla CSS            - Semantic CSS classes (migrated from Tailwind)
 - **staleTime tuning**: Thread queries 60s, note queries 30s — prevents empty-state flash on navigation
 - **Pattern**: Cache hit before network; `prefetch` endpoints preload data for instant navigation
 
-### React (within Astro — legacy pattern)
+### React (shared components)
 
-- **Purpose**: Shared React components used by both SPA and Astro pages (editor, navigation, panels)
+- **Purpose**: Shared React components used by the SPA (and by Astro pages in local dev): editor, navigation, panels
 - **Location**: `src/components/react/`
-- **Note**: The SPA imports these shared components directly; Astro pages use `client:` hydration directives
+- **Note**: The SPA imports these directly; Astro dev pages use `client:` hydration
 
 ### TypeScript
 
@@ -142,8 +141,8 @@ Font Awesome + Lucide - Icons
 
 ```
 Netlify               - Serverless hosting
-Output: SSR (Astro)   - API routes and public pages
-Output: SPA (Vite)    - Authenticated app shell (static HTML/JS/CSS)
+Output: SPA (Vite)    - Static index.html + JS/CSS (production frontend)
+Output: Hono (server/)- Single serverless function for all /api/*
 ```
 
 ### Netlify
@@ -152,15 +151,15 @@ Output: SPA (Vite)    - Authenticated app shell (static HTML/JS/CSS)
 - **Configuration**: `netlify.toml`
 - **Features**:
   - Automatic deployments
-  - Serverless functions (Astro API routes)
+  - One serverless function for the API (Hono from `server/`)
   - Environment variable management
-  - Redirect rules route SPA paths to `spa/dist/index.html`
+  - Redirect rules send app paths to `/index.html` (SPA); `/api/*` goes to the function
 
 ### Build Output
 
-- **Astro layer**: SSR serverless functions for all `/api/*` routes and public pages
-- **SPA layer**: Static `spa/dist/` — `index.html` + hashed JS/CSS bundles, served from CDN
-- **API Routes**: Netlify serverless functions (from Astro)
+- **Build order**: `astro build` (DB/schema tooling, legacy output) then `vite build` (SPA → `dist-spa/`); `dist-spa/` is copied over `dist/`, so **production serves the SPA**.
+- **SPA**: Static `index.html` + hashed JS/CSS from `spa/`, served from CDN.
+- **API**: Single Netlify function (`netlify/functions/api.mjs`) handles all `/api/*` (Hono app from `server/`).
 
 ## Development Tools
 
@@ -177,19 +176,19 @@ Output: SPA (Vite)    - Authenticated app shell (static HTML/JS/CSS)
 
 ### Build Tools
 
-- **Astro dev server**: `npm run dev` — Start Astro SSR dev server (port 4321)
-- **SPA dev server**: `cd spa && npm run dev` — Start Vite SPA dev server (port 5173)
-- **Build (Astro)**: `npm run build` — Build Astro SSR output
-- **Build (SPA)**: `cd spa && npm run build` — Build Vite SPA to `spa/dist/`
-- **Preview**: `npm run preview` — Preview Astro production build
+- **Recommended dev**: `npm run dev:all` — Hono API (3001) + SPA (4322), production parity
+- **Legacy Astro dev**: `npm run dev` — Astro dev server (port 4321), optional
+- **SPA only**: `npm run dev:spa` — Vite SPA (4322); API must be running separately
+- **Production build**: `npm run build` — Astro build + Vite build; `dist-spa/` copied to `dist/` (SPA is what gets served)
+- **Preview**: `npm run preview` — Preview production build
 
 ## Environment Variables
 
 ### Required for Production
 
-- `PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (used by Astro layer)
-- `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (used by the SPA/Vite build)
-- `CLERK_SECRET_KEY` - Clerk secret key (server-side Astro only)
+- `PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (server/API)
+- `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (SPA/Vite build)
+- `CLERK_SECRET_KEY` - Clerk secret key (server-side API)
 - `ASTRO_DB_REMOTE_URL` - Remote database connection URL
 - `ASTRO_DB_APP_TOKEN` - Database authentication token
 

@@ -94,7 +94,7 @@ Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](ht
 ## Technologies
 
 - **Frontend (production)**: [React](https://react.dev) SPA built with [Vite](https://vite.dev), [TanStack Router](https://tanstack.com/router), [TanStack Query](https://tanstack.com/query/latest) (React Query), [Clerk](https://clerk.com) (auth)
-- **Backend / API**: [Astro](https://astro.build) SSR and API routes deployed as [Netlify](https://netlify.com) serverless functions
+- **Backend / API**: [Hono](https://hono.dev) API in `server/` bundled as a single [Netlify](https://netlify.com) serverless function; all `/api/*` requests are handled there. (Astro is used only for local dev and build tooling; production does not serve Astro SSR.)
 - **Database**: [Astro DB](https://docs.astro.build/en/guides/astro-db/) with [Turso](https://turso.tech) (serverless SQL)
 - **Editing & UI**: [Tiptap](https://tiptap.dev) (rich text), [Radix UI](https://radix-ui.com) (primitives), [Lucide React](https://lucide.dev) (icons), [Vanilla CSS](https://developer.mozilla.org/en-US/docs/Web/CSS) (semantic classes, no Tailwind)
 - **Tooling**: [TypeScript](https://www.typescriptlang.org/), [Vitest](https://vitest.dev) (unit), [Playwright](https://playwright.dev) (e2e), [Capacitor](https://capacitorjs.com) (PWA/native)
@@ -103,5 +103,5 @@ For full stack details and versions, see [docs/TECH_STACK.md](./docs/TECH_STACK.
 
 ---
 
-**Version:** 1.152.0
+**Version:** 1.152.1
 **Status:** Official 1.0 Released January 8, 2026

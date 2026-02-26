@@ -80,6 +80,9 @@ Complete documentation index for the Harvous Bible study notes application.
 **Want to understand the system?**
 → Start with [ARCHITECTURE.md](./ARCHITECTURE.md), then explore [DATABASE.md](./DATABASE.md) and [COMPONENTS.md](./COMPONENTS.md)
 
+**Want to know what runs in production?**
+→ [TECH_STACK.md](./TECH_STACK.md) and [GETTING_STARTED.md](./GETTING_STARTED.md) — production is **React SPA + Hono API**; Astro is used for build tooling and optional dev only, not served in production.
+
 **Working on a feature?**
 → Check [FEATURES.md](./FEATURES.md) and related feature documentation
 
