@@ -1,7 +1,7 @@
 /**
  * Dev-only: reset the authenticated user to "new user" state once per server run
- * so dev:all shows only onboarding (no test/seed data) without setting DEV_RESET_USER_ID.
- * Never runs on Netlify (NODE_ENV is not set there, so we also check NETLIFY).
+ * so dev:all shows only onboarding (no test/seed data). Opt-in via DEV_RESET_ENABLED
+ * so production and Netlify never run it (we never set that env there).
  */
 
 import type { Context, Next } from 'hono';
@@ -10,8 +10,11 @@ import { resetUserToNew } from '../utils/reset-user-to-new';
 
 let devResetDone = false;
 
+const DEV_RESET_ENABLED =
+  process.env.DEV_RESET_ENABLED === '1' || process.env.DEV_RESET_ENABLED === 'true';
+
 export async function devResetUserOnce(c: Context, next: Next) {
-  if (process.env.NETLIFY === 'true' || process.env.NODE_ENV === 'production') {
+  if (!DEV_RESET_ENABLED) {
     return next();
   }
 

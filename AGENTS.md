@@ -14,7 +14,7 @@ npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data (local + remote) then run e2e
 ```
 
-**Clean new user on each dev run:** When using `dev:all`, the first authenticated request in a server run resets that user to "new user" state (onboarding only, no test/seed data). No env var or manual reset needed. Optional: set `DEV_RESET_USER_ID` in `.env` to reset a specific user on server startup instead.
+**Clean new user on dev (opt-in):** The dev-reset middleware only runs when `DEV_RESET_ENABLED=1` (or `true`) is set in `.env`. It is never set in production/Netlify, so user data is never erased there. To get "new user" state on each `dev:all` run, add `DEV_RESET_ENABLED=1` to `.env` locally.
 
 ## Architecture Overview
 
