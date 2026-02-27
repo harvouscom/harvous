@@ -850,43 +850,42 @@ export default function OrganizedContentList({
     return null;
   }, []);
 
-  // Handle filter changes - fetch fresh data for every tab switch.
-  // In SPA context (initialItems=[]) this also handles all tab loads.
-  // On SSR, only re-fetch when the filter actually changes (not on first mount
-  // with fresh SSR data), so we don't wipe server-rendered content.
+  // Handle filter changes. When parent (e.g. DashboardPage React Query) provides
+  // initialItems for this filter, use them and do not clear or refetch. When
+  // initialItems are empty, show loading and rely on parent to pass data when
+  // its fetch completes (no duplicate refreshContent()).
   const prevFilterRef2 = useRef<string>(filter);
   useEffect(() => {
     if (!isMountedRef.current) return;
     const filterChanged = prevFilterRef2.current !== filter;
     prevFilterRef2.current = filter;
+    // Sync filterRef so any later refreshContent uses the correct filter.
+    filterRef.current = filter;
     // On first mount with fresh SSR data, skip — the initialItems handler covers it
     const hasFreshSSRData = (initialItems || []).length > 0 && !isDataFromStaleCache;
     if (!filterChanged && hasFreshSSRData) {
-      setIsLoadingFilter(false); // SSR data is already loaded, no fetch needed
+      setIsLoadingFilter(false);
       return;
     }
-    // Sync filterRef immediately so refreshContent captures the correct filter value.
-    filterRef.current = filter;
-    // Reset isRefreshing and lastRefreshKey so a new fetch always goes through.
+    const hasCachedItems = (initialItems || []).length > 0;
+    if (hasCachedItems) {
+      // Parent already has data for this filter (e.g. React Query cache). Don't
+      // clear, don't show loading, don't refetch — initialItems sync effect will
+      // apply the data if needed.
+      setIsLoadingFilter(false);
+      return;
+    }
+    // No cache: show loading and clear list. Parent will fetch and pass
+    // initialItems; initialItems sync effect will populate and clear loading.
     refreshStateRef.current.isRefreshing = false;
     refreshStateRef.current.lastRefreshKey = '';
-    // Bypass the 2s debounce for explicit tab-switch fetches.
     refreshStateRef.current.shouldBypassDebounce = true;
     setIsLoadingFilter(true);
     setCurrentItems([]);
     currentItemsRef.current = [];
     setHasMore(false);
     hasMoreRef.current = false;
-    refreshContent()
-      .then((ok) => {
-        setIsLoadingFilter(false);
-        setRefreshError(ok ? null : 'Couldn\'t load content');
-      })
-      .catch(() => {
-        setIsLoadingFilter(false);
-        setRefreshError('Couldn\'t load content');
-      });
-  }, [filter, refreshContent]);
+  }, [filter, initialItems]);
 
   // Removed mount refresh to prevent race conditions with initialItems updates
   // initialItems from SSR are fresh, and the initialItems change handler (below)
@@ -935,11 +934,12 @@ export default function OrganizedContentList({
       });
       
       const sorted = sortItems(filteredScriptureRefs);
-      
+
       setHasMore(sorted.length >= 20);
       hasMoreRef.current = sorted.length >= 20;
       setCurrentItems(sorted);
       currentItemsRef.current = sorted;
+      setIsLoadingFilter(false); // Parent (e.g. React Query) supplied data; clear loading
     }
   }, [initialItems, filter]); // Removed deletedItemIds from dependencies to prevent list reset on deletion
 
