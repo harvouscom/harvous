@@ -94,12 +94,12 @@ export default function FindSearchInput({
     onBeforeSearchNavigate?.(trimmedQuery);
 
     // Navigate to search results (no view transition for instant feedback)
-    safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace', viewTransition: false });
+    safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
   };
 
   const handleClear = () => {
     setSearchQuery('');
-    safeNavigate('/search', { history: 'replace', viewTransition: false });
+    safeNavigate('/search', { history: 'replace' });
   };
 
   return (

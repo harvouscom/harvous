@@ -37,6 +37,7 @@ interface Space {
   title: string;
   totalItemCount: number;
   backgroundGradient: string;
+  isShared?: boolean;
 }
 
 interface ActiveThread {
@@ -418,6 +419,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           title: space.title!,
           totalItemCount: typeof space.totalItemCount === 'number' ? space.totalItemCount : 0,
           backgroundGradient: space.backgroundGradient || 'var(--color-paper)',
+          isShared: space.isShared ?? false,
         };
         byId.set(next.id, next);
         return Array.from(byId.values());
@@ -1021,6 +1023,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                         className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
                         onClick={() => setSelectedSpaceId(s.id)}
                       >
+                        <span className="space-switcher-dropdown__icon-prefix" aria-hidden="true">
+                          <Icon name={s.isShared ? 'user-group' : 'user'} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                        </span>
                         <span className="space-switcher-dropdown__label">{s.title}</span>
                         <span className="space-switcher-dropdown__icon-slot" aria-hidden={isActive ? 'true' : undefined}>
                           {isActive ? (
@@ -1074,6 +1079,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                               setIsShowingExistingSpaces(false);
                             }}
                           >
+                            <span className="space-switcher-dropdown__icon-prefix" aria-hidden="true">
+                              <Icon name={s.isShared ? 'user-group' : 'user'} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                            </span>
                             <span className="space-switcher-dropdown__label">{s.title}</span>
                           </a>
                         );

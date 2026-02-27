@@ -249,14 +249,21 @@ export default function AppLayout() {
 
   // Build spaces list (owned + member) — must come before currentSpace derivation
   const allSpaces = [
-    ...(nav?.spaces ?? []),
-    ...(nav?.memberOfSpaces ?? []),
-  ].map(s => ({
-    id: s.id,
-    title: s.title,
-    totalItemCount: 0,
-    backgroundGradient: s.backgroundGradient,
-  }));
+    ...(nav?.spaces ?? []).map(s => ({
+      id: s.id,
+      title: s.title,
+      totalItemCount: 0,
+      backgroundGradient: s.backgroundGradient,
+      isShared: s.isPublic ?? false,
+    })),
+    ...(nav?.memberOfSpaces ?? []).map(s => ({
+      id: s.id,
+      title: s.title,
+      totalItemCount: 0,
+      backgroundGradient: s.backgroundGradient,
+      isShared: true,
+    })),
+  ];
 
   const allThreads = nav?.threads ?? [];
 
@@ -272,24 +279,49 @@ export default function AppLayout() {
 
   // Enrich with page-level data when available so nav shows correct thread color
   // (nav/cache can be stale or missing backgroundGradient; useThread/useNote load shortly after)
+  // Fallback: when viewing a thread in a shared space as member, it's not in nav.threads — build from currentThread/parent
   const activeThread = (() => {
     const base = activeThreadFromNav;
-    if (!base) return null;
-    if (isThread && currentThread?.backgroundGradient) {
-      return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
+    if (base) {
+      if (isThread && currentThread?.backgroundGradient) {
+        return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
+      }
+      const noteParent = currentNote?.threads?.[0];
+      if (isNote && noteParent) {
+        const parentWithCount = noteParent as { count?: number; spaceId?: string | null };
+        return {
+          ...base,
+          backgroundGradient: noteParent.backgroundGradient ?? base.backgroundGradient,
+          title: noteParent.title ?? base.title,
+          noteCount: parentWithCount.count ?? base.noteCount,
+          spaceId: parentWithCount.spaceId ?? base.spaceId,
+        };
+      }
+      return base;
     }
-    const noteParent = currentNote?.threads?.[0];
-    if (isNote && noteParent) {
-      const parentWithCount = noteParent as { count?: number; spaceId?: string | null };
+    // Member view-only: thread not in nav; build from page data so mobile nav shows current thread
+    if (isThread && currentThread?.id) {
       return {
-        ...base,
-        backgroundGradient: noteParent.backgroundGradient ?? base.backgroundGradient,
-        title: noteParent.title ?? base.title,
-        noteCount: parentWithCount.count ?? base.noteCount,
-        spaceId: parentWithCount.spaceId ?? base.spaceId,
+        id: currentThread.id,
+        title: currentThread.title ?? 'Thread',
+        noteCount: currentThread.noteCount ?? 0,
+        backgroundGradient: currentThread.backgroundGradient ?? 'var(--color-paper)',
+        spaceId: currentThread.spaceId ?? null,
       };
     }
-    return base;
+    const noteParent = currentNote?.threads?.[0];
+    const parentData = noteParent ?? parentThreadData;
+    if (isNote && parentData?.id) {
+      const withCount = parentData as { count?: number; noteCount?: number };
+      return {
+        id: parentData.id,
+        title: parentData.title ?? 'Thread',
+        noteCount: withCount.count ?? withCount.noteCount ?? 0,
+        backgroundGradient: parentData.backgroundGradient ?? 'var(--color-paper)',
+        spaceId: (parentData as { spaceId?: string | null }).spaceId ?? null,
+      };
+    }
+    return null;
   })();
 
   // Enrich currentSpace with title/gradient from nav so navigation components can display it
@@ -334,14 +366,6 @@ export default function AppLayout() {
     }
     return null;
   })();
-  const threadOwnerId: string | undefined =
-    isThread ? (currentThread?.userId ?? undefined)
-    : isNote ? (parentThreadData?.userId ?? undefined)
-    : undefined;
-  const canShowAddNote =
-    (effectiveSpaceRole !== 'member') ||
-    (effectiveSpaceRole === 'member' && threadOwnerId === user?.id);
-
   const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' | 'search' | 'new-space' =
     isNote ? 'note' :
     isThread ? 'thread' :
@@ -351,6 +375,10 @@ export default function AppLayout() {
     pathname === '/profile' ? 'profile' :
     pathname === '/new-space' ? 'new-space' :
     'dashboard';
+  const canShowAddNote =
+    contentType === 'dashboard' ||
+    effectiveSpaceRole === 'owner' ||
+    effectiveSpaceRole === 'member';
 
   // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)
   const layoutDataReadyForContent =

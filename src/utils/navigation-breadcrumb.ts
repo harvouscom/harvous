@@ -94,7 +94,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
   // If we're on a note page and navigating to a thread/space, always navigate directly
   // This ensures fresh data is loaded and prevents "Content not found" errors from stale cached pages
   // Use safeNavigate so app:route-change fires and refresh logic runs
-  // Fallback to full page reload only if View Transitions fails
+  // Fallback to full page reload if client navigation fails
   if (isOnNotePage && isNavigatingToThreadOrSpace) {
     const targetUrl = idToUrl(targetItemId);
     debug('[handleBreadcrumbNavigation] Navigating from note to thread/space', { targetItemId, targetUrl });
@@ -111,10 +111,10 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
 
     // Use safeNavigate so app:route-change fires and refresh logic works
     // This allows ThreadNotesList to refresh and show newly created notes
-    debug('[handleBreadcrumbNavigation] Executing navigation with View Transitions', { targetUrl });
+    debug('[handleBreadcrumbNavigation] Executing client navigation', { targetUrl });
     safeNavigate(targetUrl).catch((error) => {
-      // If View Transitions fails, fallback to full page reload
-      console.warn('[handleBreadcrumbNavigation] View Transitions failed, using full page reload:', error);
+      // If client navigation fails, fallback to full page reload
+      console.warn('[handleBreadcrumbNavigation] Client navigation failed, using full page reload:', error);
       window.location.href = targetUrl;
     });
     return;

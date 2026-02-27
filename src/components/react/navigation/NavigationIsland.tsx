@@ -6,6 +6,7 @@ type Space = {
   title: string;
   totalItemCount: number;
   backgroundGradient: string;
+  isShared?: boolean;
 };
 
 type ActiveThread = {

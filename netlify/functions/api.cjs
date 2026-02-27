@@ -25586,42 +25586,50 @@ var init_schema = __esm({
       shareToken: text("shareToken"),
       shareTokenCreatedAt: text("shareTokenCreatedAt")
     });
-    Threads = sqliteTable("Threads", {
-      id: text("id").primaryKey(),
-      title: text("title").notNull(),
-      subtitle: text("subtitle"),
-      spaceId: text("spaceId"),
-      createdAt: text("createdAt").notNull(),
-      updatedAt: text("updatedAt"),
-      lastVisited: text("lastVisited"),
-      userId: text("userId").notNull(),
-      isPublic: integer("isPublic", { mode: "boolean" }).notNull().default(false),
-      isPinned: integer("isPinned", { mode: "boolean" }).notNull().default(false),
-      color: text("color"),
-      order: integer("order").notNull().default(0),
-      shareToken: text("shareToken"),
-      shareTokenCreatedAt: text("shareTokenCreatedAt")
-    });
-    Notes = sqliteTable("Notes", {
-      id: text("id").primaryKey(),
-      title: text("title"),
-      content: text("content").notNull(),
-      threadId: text("threadId").notNull(),
-      spaceId: text("spaceId"),
-      simpleNoteId: integer("simpleNoteId"),
-      noteType: text("noteType").notNull().default("default"),
-      addedBy: text("addedBy").notNull().default("user"),
-      createdAt: text("createdAt").notNull(),
-      updatedAt: text("updatedAt"),
-      lastVisited: text("lastVisited"),
-      userId: text("userId").notNull(),
-      isPublic: integer("isPublic", { mode: "boolean" }).notNull().default(false),
-      isFeatured: integer("isFeatured", { mode: "boolean" }).notNull().default(false),
-      order: integer("order").notNull().default(0),
-      shareToken: text("shareToken"),
-      shareTokenCreatedAt: text("shareTokenCreatedAt"),
-      contentEncrypted: integer("contentEncrypted", { mode: "boolean" }).notNull().default(false)
-    });
+    Threads = sqliteTable(
+      "Threads",
+      {
+        id: text("id").primaryKey(),
+        title: text("title").notNull(),
+        subtitle: text("subtitle"),
+        spaceId: text("spaceId"),
+        createdAt: text("createdAt").notNull(),
+        updatedAt: text("updatedAt"),
+        lastVisited: text("lastVisited"),
+        userId: text("userId").notNull(),
+        isPublic: integer("isPublic", { mode: "boolean" }).notNull().default(false),
+        isPinned: integer("isPinned", { mode: "boolean" }).notNull().default(false),
+        color: text("color"),
+        order: integer("order").notNull().default(0),
+        shareToken: text("shareToken"),
+        shareTokenCreatedAt: text("shareTokenCreatedAt")
+      },
+      (table) => [index("Threads_userIdIndex").on(table.userId)]
+    );
+    Notes = sqliteTable(
+      "Notes",
+      {
+        id: text("id").primaryKey(),
+        title: text("title"),
+        content: text("content").notNull(),
+        threadId: text("threadId").notNull(),
+        spaceId: text("spaceId"),
+        simpleNoteId: integer("simpleNoteId"),
+        noteType: text("noteType").notNull().default("default"),
+        addedBy: text("addedBy").notNull().default("user"),
+        createdAt: text("createdAt").notNull(),
+        updatedAt: text("updatedAt"),
+        lastVisited: text("lastVisited"),
+        userId: text("userId").notNull(),
+        isPublic: integer("isPublic", { mode: "boolean" }).notNull().default(false),
+        isFeatured: integer("isFeatured", { mode: "boolean" }).notNull().default(false),
+        order: integer("order").notNull().default(0),
+        shareToken: text("shareToken"),
+        shareTokenCreatedAt: text("shareTokenCreatedAt"),
+        contentEncrypted: integer("contentEncrypted", { mode: "boolean" }).notNull().default(false)
+      },
+      (table) => [index("Notes_userIdIndex").on(table.userId)]
+    );
     NoteThreads = sqliteTable("NoteThreads", {
       id: text("id").primaryKey(),
       noteId: text("noteId").notNull(),
@@ -77049,53 +77057,70 @@ route7.get("/api/search", async (c) => {
       return c.json({ results: [] });
     }
     const searchTerm = `%${query2.trim()}%`;
-    let results = [];
-    if (type === "all" || type === "notes") {
-      const notes = await db.select().from(Notes).where(
-        and(
-          eq(Notes.userId, userId),
-          not(eq(Notes.contentEncrypted, true)),
-          or(
-            like(Notes.title, searchTerm),
-            like(Notes.content, searchTerm)
-          )
+    const searchNotes = type === "all" || type === "notes";
+    const searchThreads = type === "all" || type === "threads";
+    const notesQuery = searchNotes && db.select({
+      id: Notes.id,
+      title: Notes.title,
+      content: Notes.content,
+      noteType: Notes.noteType,
+      threadId: Notes.threadId,
+      spaceId: Notes.spaceId,
+      createdAt: Notes.createdAt,
+      updatedAt: Notes.updatedAt
+    }).from(Notes).where(
+      and(
+        eq(Notes.userId, userId),
+        not(eq(Notes.contentEncrypted, true)),
+        or(
+          like(Notes.title, searchTerm),
+          like(Notes.content, searchTerm)
         )
-      ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
-      const noteResults = notes.map((note) => ({
-        id: note.id,
-        type: "note",
-        title: note.title || "Untitled Note",
-        content: note.content.substring(0, 200) + (note.content.length > 200 ? "..." : ""),
-        contentEncrypted: false,
-        noteType: note.noteType || "default",
-        threadId: note.threadId,
-        spaceId: note.spaceId,
-        lastUpdated: note.updatedAt || note.createdAt,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt
-      }));
-      results = [...results, ...noteResults];
-    }
-    if (type === "all" || type === "threads") {
-      const threads = await db.select().from(Threads).where(
-        and(
-          eq(Threads.userId, userId),
-          like(Threads.title, searchTerm)
-        )
-      ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit);
-      const threadResults = threads.map((thread) => ({
-        id: thread.id,
-        type: "thread",
-        title: thread.title,
-        subtitle: thread.subtitle || "",
-        spaceId: thread.spaceId,
-        color: thread.color,
-        lastUpdated: thread.updatedAt || thread.createdAt,
-        createdAt: thread.createdAt,
-        updatedAt: thread.updatedAt
-      }));
-      results = [...results, ...threadResults];
-    }
+      )
+    ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
+    const threadsQuery = searchThreads && db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      spaceId: Threads.spaceId,
+      color: Threads.color,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt
+    }).from(Threads).where(
+      and(
+        eq(Threads.userId, userId),
+        like(Threads.title, searchTerm)
+      )
+    ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit);
+    const [notesRows, threadsRows] = await Promise.all([
+      searchNotes ? notesQuery : Promise.resolve([]),
+      searchThreads ? threadsQuery : Promise.resolve([])
+    ]);
+    const noteResults = notesRows.map((note) => ({
+      id: note.id,
+      type: "note",
+      title: note.title || "Untitled Note",
+      content: note.content.substring(0, 200) + (note.content.length > 200 ? "..." : ""),
+      contentEncrypted: false,
+      noteType: note.noteType || "default",
+      threadId: note.threadId,
+      spaceId: note.spaceId,
+      lastUpdated: note.updatedAt || note.createdAt,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt
+    }));
+    const threadResults = threadsRows.map((thread) => ({
+      id: thread.id,
+      type: "thread",
+      title: thread.title,
+      subtitle: thread.subtitle || "",
+      spaceId: thread.spaceId,
+      color: thread.color,
+      lastUpdated: thread.updatedAt || thread.createdAt,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt
+    }));
+    let results = [...noteResults, ...threadResults];
     results.sort(
       (a, b2) => new Date(b2.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
     );

@@ -344,80 +344,12 @@ nav a,
 }
 
 
-/* View Transitions Loading States */
-/* Prevent white flash during view transitions */
-::view-transition {
-  background-color: var(--color-light-paper) !important;
-}
-
-/* Subtle loading indicator during page transitions */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation-duration: 0.2s;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  background-color: var(--color-light-paper) !important;
-}
-
-::view-transition-old(main-content),
-::view-transition-new(main-content) {
-  animation-duration: 0.15s;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* Ensure view transition container maintains background to prevent black flash */
-::view-transition-group(root) {
-  background-color: var(--color-light-paper) !important;
-}
-
-::view-transition-image-pair(root) {
-  background-color: var(--color-light-paper) !important;
-}
-
-/* Loading skeleton for content areas */
-.view-transition-loading {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-/* Smooth content transitions */
-[slot="main"],
-[data-view-transition="main-content"] {
-  view-transition-name: main-content;
-}
-
-/* Optimize navigation components to prevent flash during transitions */
-[slot="navigation"],
-[slot="navigation"] > * {
-  contain: layout style paint;
-  will-change: contents;
-}
-
-/* Ensure navigation persists during view transitions */
-/* Only the active navigation element should have the view-transition-name */
-/* During transitions, both old and new elements exist briefly - we only want one */
-[slot="navigation"][data-navigation-active="true"] {
-  view-transition-name: navigation;
-}
-
-/* Fallback: if no active attribute, don't use view-transition-name to avoid duplicates */
-[slot="navigation"]:not([data-navigation-active]) {
-  view-transition-name: none;
-}
-
-/* Additional view transition optimizations */
 html {
-  view-transition-name: root;
   background-color: var(--color-light-paper) !important;
 }
 
 body {
   background-color: var(--color-light-paper) !important;
-}
-
-/* Prevent flash during view transition preparation */
-::view-transition-group(*) {
-  contain: layout style paint;
-  background-color: var(--color-light-paper);
 }
 
 /* Loading indicator styles */

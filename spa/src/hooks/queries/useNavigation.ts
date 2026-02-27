@@ -19,6 +19,7 @@ export interface NavSpace {
   backgroundGradient: string;
   ownerId: string;
   memberCount: number;
+  isPublic?: boolean;
 }
 
 export interface NavigationData {

@@ -114,7 +114,7 @@ export default function SharedThreadPage() {
         sessionStorage.setItem('harvous_pending_redirect', window.location.href);
       } catch { /* ignore */ }
       const redirectUrl = encodeURIComponent(window.location.href);
-      navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any, viewTransition: false });
+      navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
       return;
     }
     await doAdd();

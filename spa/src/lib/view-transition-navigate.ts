@@ -1,4 +1,8 @@
 /**
+ * UNUSED: View Transitions API wrapper was removed to reduce navigation lag.
+ * Route transitions now use CSS-only route-fade-in in AppLayout.
+ * Kept for reference; re-enable by importing and calling wrapNavigateWithViewTransition(router) in router.tsx.
+ *
  * Wraps router.navigate with the View Transitions API when supported.
  * Provides smooth crossfade/transition on route change (Chrome, Safari 18+, Edge).
  * Falls back to instant navigation when unsupported (e.g. Firefox).

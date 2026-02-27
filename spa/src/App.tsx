@@ -435,7 +435,33 @@ function SpaToaster() {
   );
 }
 
+/** Intercept in-app <a> clicks so navigation is client-side (instant) instead of full page load. */
+function useInAppLinkInterceptor() {
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement).closest('a');
+      if (!anchor || !anchor.href) return;
+      try {
+        const url = new URL(anchor.href);
+        if (url.origin !== window.location.origin) return;
+        if (anchor.target === '_blank' || anchor.rel?.includes('external')) return;
+        if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+        const path = url.pathname + url.search + url.hash;
+        if (path === window.location.pathname + window.location.search + (window.location.hash || '')) return;
+        e.preventDefault();
+        router.navigate({ to: path as any });
+      } catch {
+        /* ignore */
+      }
+    };
+    document.addEventListener('click', handleClick, true);
+    return () => document.removeEventListener('click', handleClick, true);
+  }, []);
+}
+
 export default function App() {
+  useInAppLinkInterceptor();
+
   return (
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>

@@ -7,7 +7,7 @@ import { router } from '../router';
 
 export function navigate(
   href: string,
-  options?: { history?: 'push' | 'replace' | 'auto'; viewTransition?: boolean },
+  options?: { history?: 'push' | 'replace' | 'auto' },
 ): Promise<void> {
   let cleanHref = href;
   try {
@@ -34,7 +34,6 @@ export function navigate(
   router.navigate({
     to: cleanHref as any,
     replace: options?.history === 'replace',
-    viewTransition: options?.viewTransition,
   } as any);
   return Promise.resolve();
 }

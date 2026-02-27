@@ -18,7 +18,6 @@ if (typeof window !== 'undefined') {
 
 interface NavigateOptions {
   history?: 'replace' | 'push';
-  viewTransition?: boolean;
 }
 
 let navigateFunction: ((path: string, options?: NavigateOptions) => void) | null = null;

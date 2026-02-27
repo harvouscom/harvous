@@ -98,7 +98,7 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
                 onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
-                  safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace', viewTransition: false });
+                  safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
                 <span className="font-sans text-[18px] font-semibold truncate">
