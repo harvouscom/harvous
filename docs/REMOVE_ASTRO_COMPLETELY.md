@@ -1,23 +1,22 @@
 # Remove Astro Completely
 
-This document is a step-by-step guide to **fully remove Astro** from the Harvous repo. Production already runs **SPA + Hono API only**; Astro remains in the build pipeline, dev app, and DB tooling. Completing this work gives a single mental model: one frontend (Vite SPA), one API (Hono), and one schema/tooling story (Drizzle + Turso).
+**Status: COMPLETED.** Astro has been fully removed. The repo is SPA + Hono API + Drizzle/Turso only. This doc is kept as a historical checklist.
 
-**Related:** [CLEAR_SPLIT_MIGRATION.md](./CLEAR_SPLIT_MIGRATION.md) describes the original vision; this doc is the concrete checklist for removal.
+**Related:** [CLEAR_SPLIT_MIGRATION.md](./CLEAR_SPLIT_MIGRATION.md) described the original vision; this doc was the concrete removal checklist.
 
 ---
 
-## Current State (After Clear-Split Work)
+## Current State (Post-Removal)
 
 | Area | Status |
 |------|--------|
 | **Production frontend** | Vite SPA only (`spa/`). Served from `dist-spa/`. |
 | **Production API** | Hono in `server/`, bundled as `netlify/functions/api.cjs`. All `/api/*` go there. |
-| **Netlify build** | Already runs `build:api` + `build:spa` (see `netlify.toml`). **No `astro build` in deploy.** |
-| **Root `npm run build`** | Still runs `astro build --remote` then (conceptually) SPA; not used by Netlify. |
-| **Dev** | `dev:all` = Hono API + SPA. `npm run dev` = Astro SSR (port 4321), optional. |
-| **DB schema** | Two definitions: `db/config.ts` (Astro) and `server/db/schema.ts` (Drizzle). API uses Drizzle. |
-| **DB commands** | `db:sync`, `db:push`, `db:check` use `astro db`. E2E seed uses `astro db execute`. |
-| **Astro app** | 58 `.astro` files in `src/pages/`, `src/layouts/`, `src/components/`. Dev-only. |
+| **Root `npm run build`** | `inject-sw` + `build:api` + `build:spa`. No Astro. |
+| **Dev** | `npm run dev` / `dev:all` = Hono API (3001) + SPA (4322). No Astro dev server. |
+| **DB schema** | Single source: `server/db/schema.ts` (Drizzle). |
+| **DB commands** | `db:sync`, `db:push`, `db:check` use Drizzle Kit. E2E seed uses Node + Turso. |
+| **Astro** | Removed: no `.astro` files, no Astro packages or config. |
 
 ---
 

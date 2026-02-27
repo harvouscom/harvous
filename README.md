@@ -71,7 +71,7 @@ You are welcome—and encouraged—to modify Harvous to your liking. Please see 
 
 ## How to Contribute
 
-We welcome contributions! Please read our [development guide](./docs/GETTING_STARTED.md) and [architecture documentation](./docs/ARCHITECTURE.md) before submitting code. For code style and patterns, see our [refactoring plan](./docs/REFACTORING_PLAN.md) and [React Islands strategy](./docs/REACT_ISLANDS_STRATEGY.md).
+We welcome contributions! Please read our [development guide](./docs/GETTING_STARTED.md) and [architecture documentation](./docs/ARCHITECTURE.md) before submitting code. For code style and patterns, see our [refactoring plan](./docs/REFACTORING_PLAN.md), [component docs](./docs/COMPONENTS.md), and [tech stack](./docs/TECH_STACK.md).
 
 ---
 

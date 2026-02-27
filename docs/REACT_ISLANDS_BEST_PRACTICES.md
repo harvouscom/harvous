@@ -1,5 +1,7 @@
 # React Islands Best Practices for Harvous
 
+**Legacy / historical.** This doc described Astro-first, React Islands patterns. Astro has been removed; production is a **React SPA** only. Keep for reference; for current patterns see [COMPONENTS.md](./COMPONENTS.md), [TECH_STACK.md](./TECH_STACK.md), and [AGENTS.md](../AGENTS.md).
+
 ## Core Principles
 
 1. **Island Minimalism**: Only use React for truly interactive components

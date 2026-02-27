@@ -20,7 +20,7 @@ Complete documentation index for the Harvous Bible study notes application.
 
 ### API & Development
 - **[API.md](./API.md)** - Complete API reference with endpoints and examples
-- **[REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md)** - React Islands patterns and best practices
+- **[REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md)** - Legacy React Islands notes (historical; production is SPA-only)
 - **[REFACTORING_PLAN.md](./REFACTORING_PLAN.md)** - Refactoring guidelines and best practices
 
 ### Feature Documentation
@@ -52,7 +52,7 @@ Complete documentation index for the Harvous Bible study notes application.
 
 ### Specialized Guides
 - **[TYPESCRIPT_INLINE_SCRIPTS.md](./TYPESCRIPT_INLINE_SCRIPTS.md)** - TypeScript syntax in inline scripts
-- **[TYPESCRIPT_JSX_CONFIGURATION.md](./TYPESCRIPT_JSX_CONFIGURATION.md)** - ⚠️ Critical: JSX/TypeScript config for Astro + React (prevents runtime errors)
+- **[TYPESCRIPT_JSX_CONFIGURATION.md](./TYPESCRIPT_JSX_CONFIGURATION.md)** - Legacy: JSX/TypeScript config for Astro + React (Astro removed; kept for reference)
 - **[KEYBOARD_SHORTCUTS.md](./KEYBOARD_SHORTCUTS.md)** - Keyboard shortcuts reference
 - **[PWA_INITIAL_LOAD_OPTIMIZATIONS.md](./PWA_INITIAL_LOAD_OPTIMIZATIONS.md)** - PWA optimization strategies
 

@@ -1,22 +1,23 @@
 # Component System
 
-Complete documentation of Harvous's component architecture, including component hierarchy, organization, and communication patterns.
+Complete documentation of Harvous's component architecture. **Production** is the React SPA in `spa/` using shared components from `src/components/react/`.
 
 ## Component Hierarchy
 
 ```mermaid
 graph TD
-    Layout[Layout.astro] --> Dashboard[dashboard.astro]
-    Layout --> ThreadPage["[...slug].astro - Thread View"]
-    Layout --> NotePage["[...slug].astro - Note View"]
-    Layout --> Profile[profile.astro]
+    AppLayout[AppLayout.tsx] --> Dashboard[DashboardPage.tsx]
+    AppLayout --> ThreadPage[ThreadPage.tsx]
+    AppLayout --> NotePage[NotePage.tsx]
+    AppLayout --> SpacePage[SpacePage.tsx]
+    AppLayout --> Profile[ProfilePage.tsx]
 
     Dashboard --> Nav[NavigationColumn.tsx]
     Dashboard --> InboxList[InboxItemsList.tsx]
-    Dashboard --> CardStack[CardStack.astro]
+    Dashboard --> CardStack[CardStack - dashboard cards]
 
     ThreadPage --> Nav2[NavigationColumn.tsx]
-    ThreadPage --> ThreadView[Thread Content]
+    ThreadPage --> ThreadView[Thread content]
     ThreadPage --> Panels[Panel Components]
 
     NotePage --> Nav3[NavigationColumn.tsx]
@@ -28,18 +29,14 @@ graph TD
     Panels --> NewThread[NewThreadPanel.tsx]
     Panels --> EditThread[EditThreadPanel.tsx]
 
-    Nav --> SpaceButtons[SpaceButton.astro]
     Nav --> ThreadButtons[ThreadButton.tsx]
     Nav --> PersistentNav[PersistentNavigation.tsx]
-
-    CardStack --> CardNote[CardNote.astro]
-    CardStack --> CardThread[CardThread.astro]
 
     NewNote --> Editor2[TiptapEditor.tsx]
     NewNote --> ThreadCombo[ThreadCombobox.tsx]
 
-    style Layout fill:#ff5a03,stroke:#333,stroke-width:2px
-    style Dashboard fill:#ff5a03,stroke:#333,stroke-width:2px
+    style AppLayout fill:#333,stroke:#333,stroke-width:2px
+    style Dashboard fill:#333,stroke:#333,stroke-width:2px
     style Nav fill:#61dafb,stroke:#333,stroke-width:2px
     style Editor fill:#61dafb,stroke:#333,stroke-width:2px
     style NewNote fill:#61dafb,stroke:#333,stroke-width:2px
@@ -47,35 +44,21 @@ graph TD
 
 ## Component Organization
 
-Many interactive components have been migrated to React; see [REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md) for patterns and the full list.
+### SPA pages (`spa/src/pages/`)
 
-### Astro Components (Server-Rendered)
+- `DashboardPage.tsx` - Main dashboard (cards, inbox, navigation)
+- `ThreadPage.tsx` - Thread view
+- `NotePage.tsx` - Single-note view with editor
+- `SpacePage.tsx` - Space view
+- `ProfilePage.tsx` - User profile
+- Other routes: sign-in, sign-up, join/invite flows, etc.
 
-**Pages:**
-- `dashboard.astro` - Main dashboard view
-- `[...slug].astro` - Dynamic thread/note/space view (catch-all route)
-- `profile.astro` - User profile page
+### Layouts (`spa/src/layouts/`)
 
-**Cards:**
-- `CardNote.astro` - Note preview cards
-- `CardThread.astro` - Thread preview cards
-- `CardStack.astro` - Stacked card container
-- `CardFeat.astro` - Featured content cards
+- `AppLayout.tsx` - Authenticated app shell (nav + outlet)
+- `AuthLayout.tsx` - Sign-in/sign-up layout
 
-**Buttons:**
-- `Button.astro` - Standard button component
-- `ActionButton.astro` - Action-specific button
-- `SquareButton.astro` - Astro wrapper; primary implementation is `react/SquareButton.tsx` for context menus
-
-**Layout:**
-- `Layout.astro` - Main application layout
-- `DashboardShell.astro` - Dashboard shell wrapper
-
-**Other:**
-- `SpaceButton.astro` - Space navigation button
-- Context-aware menus: React `Menu.tsx` (used by SquareButton and others)
-
-### React Islands (Client-Hydrated)
+### Shared React components (`src/components/react/`)
 
 **Navigation:**
 - `navigation/NavigationColumn.tsx` - Main navigation column
@@ -104,28 +87,27 @@ Many interactive components have been migrated to React; see [REACT_ISLANDS_STRA
 ```mermaid
 graph LR
     subgraph "Communication Methods"
-        Props[Props from Astro]
+        Props[Props from SPA pages/layout]
         Events[CustomEvents]
         Context[React Context]
         Storage[localStorage]
     end
 
-    Props --> ReactIsland[React Component]
-    ReactIsland --> Events
-    Events --> OtherIsland[Other Components]
-    ReactIsland --> Context
+    Props --> ReactComp[React Component]
+    ReactComp --> Events
+    Events --> OtherComp[Other Components]
+    ReactComp --> Context
     Context --> ChildComponent[Child Components]
-    ReactIsland --> Storage
-    Storage --> ReactIsland
+    ReactComp --> Storage
+    Storage --> ReactComp
 
     style Events fill:#ffd700,stroke:#333,stroke-width:2px
 ```
 
 ### Communication Patterns
 
-1. **Props** - Astro pages → React islands (initial data)
-   - Server-rendered data passed as props to React components
-   - Enables SSR with client-side interactivity
+1. **Props** - SPA pages/layout → React components (initial data and route params)
+   - Data from TanStack Query or route params passed into shared components
 
 2. **CustomEvents** - Cross-component communication
    - Panel open/close events
@@ -211,11 +193,9 @@ function stripHtml(html: string): string {
 ```
 
 **Implementation Locations:**
-- `src/components/CardNote.astro` - Note preview cards
-- `src/components/CardFeat.astro` - Featured content cards
-- `src/utils/dashboard-data.ts` - Dashboard data processing
-- `src/pages/find.astro` - Find/search results processing
-- `src/pages/[...slug].astro` - Thread page content processing
+- Dashboard and card components - Note/thread previews and card stacks
+- `src/utils/` - Dashboard data processing and shared utilities
+- `spa/src/pages/` - Page-level content and find/search
 - `src/components/react/NewThreadPanel.tsx` - Recent notes and search results
 
 **Benefits:**
@@ -239,25 +219,10 @@ function stripHtml(html: string): string {
 - **UI Colors**: `--color-paper`, `--color-stone-grey`, `--color-deep-grey`, etc.
 - **Gradients**: `--color-gradient-gray` for button backgrounds
 
-## React Islands Pattern
-
-Harvous uses **React Islands architecture** - pages are rendered server-side by Astro, with interactive React components hydrated on demand:
-
-**Benefits:**
-- ⚡ Fast initial page load (SSR HTML)
-- 🎯 Interactive components only where needed
-- 🔄 Best of both worlds: server + client rendering
-
-**Client Directives:**
-- `client:load` - Critical interactive components (navigation, auth, forms in view) - loads immediately
-- `client:visible` - Components below the fold - loads when scrolled into view
-- `client:idle` - Non-critical features (analytics, widgets) - loads when browser is idle
-- `client:only="react"` - Skip SSR if component relies on browser APIs
-
 ## Related Documentation
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md) - Overall system architecture
-- [REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md) - React Islands patterns and best practices
+- [REACT_ISLANDS_STRATEGY.md](./REACT_ISLANDS_STRATEGY.md) - Legacy React Islands notes (historical; production is SPA-only)
 - [FONT_AWESOME_REACT_GUIDE.md](./FONT_AWESOME_REACT_GUIDE.md) - FontAwesome integration guide
 - [VANILLA_CSS_CLASS_SYSTEM.md](./VANILLA_CSS_CLASS_SYSTEM.md) - CSS class system documentation
 

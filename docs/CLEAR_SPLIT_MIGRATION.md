@@ -1,6 +1,8 @@
 # Clear-Split Migration: Backend + SPA (No Astro in the Middle)
 
-This document outlines a path to simplify the Harvous build and architecture by moving to a **clear split**: a standalone Node API backend plus the existing Vite React SPA as the only frontend. Astro would be removed from the pipeline, reducing complexity and improving long-term expansion and performance.
+**Status: COMPLETED.** The migration is done. Production is React SPA + Hono API only. For current architecture see [AGENTS.md](../AGENTS.md), [TECH_STACK.md](./TECH_STACK.md), and [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md).
+
+This document originally outlined the path to simplify the Harvous build by moving to a **clear split**: a standalone Node API backend plus the Vite React SPA as the only frontend, with Astro removed from the pipeline.
 
 ## Goal
 

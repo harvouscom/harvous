@@ -55,5 +55,5 @@ So “something happened again” is: **the branch that was merged had a product
 ## References
 
 - **Root cause (502)**: `.cursor/plans/fix-production-502-bundle-api.plan.md`
-- **Architecture**: `docs/CLEAR_SPLIT_MIGRATION.md`, `docs/REMOVE_ASTRO_COMPLETELY.md`
+- **Architecture**: `docs/CLEAR_SPLIT_MIGRATION.md`, `docs/REMOVE_ASTRO_COMPLETELY.md` (migration completed; those docs are now historical)
 - **Debug endpoint**: `GET /api/debug/me` (when logged in) to verify auth and Turso counts in production

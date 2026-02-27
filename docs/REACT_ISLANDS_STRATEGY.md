@@ -1,6 +1,6 @@
 # React Islands Strategy for Harvous
 
-**Note:** Production now serves the **React SPA** (`spa/src/`), not the Astro SSR app. This document describes the React Islands approach used in the **Astro SSR app** (e.g. `npm run dev`). For production UI work, see `spa/src/` and `AGENTS.md`.
+**Legacy / historical.** The Astro SSR app has been removed. Production is **React SPA only** (`spa/src/`). This document describes the former React Islands approach used when the app was Astro-based. For current UI work see `spa/src/`, `src/components/react/`, and [AGENTS.md](../AGENTS.md).
 
 ## Overview
 
