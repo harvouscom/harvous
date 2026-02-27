@@ -1236,8 +1236,8 @@ button.space-btn .space-btn__text {
 }
 
 .space-switcher-dropdown__icon-prefix {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -1245,8 +1245,8 @@ button.space-btn .space-btn__text {
 }
 
 .space-switcher-dropdown__icon-prefix svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
 }
 
 .space-switcher-dropdown__label {

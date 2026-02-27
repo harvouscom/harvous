@@ -2,6 +2,86 @@
 
 This doc captures what to think through when implementing **Clerk Organizations for Churches**: church sign-up, users (new and existing) joining a church, and evolution of **MyChurchPanel**. It complements [CHURCH_ORG_AND_CURRICULUM.md](./CHURCH_ORG_AND_CURRICULUM.md) and [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md).
 
+## Decisions (recorded)
+
+The following decisions were captured for implementation. The list of churches on Harvous is **not public** (invite-only; no “Find your church” search of all churches).
+
+### Church sign-up and how users join
+
+- **Church onboarding:** Both — dedicated flow the first time (e.g. “Register your church”), then “Create organization” in profile for creating another later.
+- **One church = one org:** Yes, 1:1 for now.
+- **Church verification:** Self-serve (no verification).
+- **Existing users linking to a church:** Match-first only — we find them when a church joins; they accept a connection request.
+- **New users:** Free-text church only; get matched when their church joins.
+- **Join route:** Yes — add `/churches/join/[token]` (invite link).
+
+**V1 (20-person limit):** For v1 we should **not** allow any user to freely “join” a church org, given Clerk’s 20-person org limit. Instead the journey is **church-controlled**: the church sees a **list of people who said that is their church** (matched from UserMetadata free-text). The church can **accept all or select which** of those people can join their church shared spaces. Only church-accepted users get added to the org / get access; no open join.
+
+### MyChurchPanel and policies
+
+- **MyChurchPanel:** Primary flow: user is part of a church and gets **invited** → then their free-text church (and link) is updated. Panel stays focused on “my church” (free-text + linked org when they joined via invite).
+- **Leave church:** Allowed; clear link and remove from Clerk org; keep existing inbox items.
+- **One church per user:** Yes, one only.
+- **User joins another church:** Block — they must leave the current church first.
+- **Matching:** All matches get a connection request (no auto-join).
+- **Church deactivated:** Inbox items that referenced that org are kept but marked as from an inactive church (read-only).
+
+### Church curriculum & shared spaces (the magic)
+
+From the church org, admins/leaders can **create and manage multiple shared spaces** and **control who is in each of those spaces**. This is the core value: the church isn’t just “everyone in the org”—they curate distinct spaces (e.g. by ministry, class, or study) and manage membership per space.
+
+- **Multiple shared spaces per church:** Church creates shared spaces (e.g. “Youth Romans Study,” “Women’s Bible Study,” “Sunday School – Grade 3”). Each space has its own roster; church decides who’s in which.
+- **Curriculum builder:** When creating threads and notes, church authors can attach **links, PDFs, and docs** so that curriculum is full-featured—not just inline text. That makes Harvous a **full curriculum builder** for church education across ministries and the church as a whole (kids, youth, adults, small groups, etc.).
+- **Flow:** Connect-to-church (org + connection requests) gets people “in the church”; then the church uses shared spaces + curriculum (threads/notes + attachments) to deliver and manage actual education.
+
+### Tech and UX
+
+- **Frontend “linked church”:** Own API that returns the user’s linked church from UserMetadata + Churches (no Clerk org context as source of truth in the app).
+- **Church dashboard:** Both — visible to Clerk org admins and to users who are church admins in our DB (e.g. `Churches.adminUserId` or equivalent).
+- **XP:** Both — free-text add and linking to an org can each award (with no double-dip when both apply).
+- **Shared spaces and tier:** The top tier (currently “unlimited”; likely renamed **Max** or **Plus**) would allow more from a group standpoint—i.e. more shared-space functionality or higher limits. PCO integration is limited to **churches** (church orgs), not to shared spaces in general; shared spaces stay as they are, just with more you can do on the higher tier.
+
+### Church billing & Clerk org limits
+
+Clerk’s **free plan for organizations is limited to 20 people**. So for churches (which often exceed that), we need **paid church plans** and will need to set up additional features in **Clerk billing** to support them. For v1, Church Starter effectively lives at this 20-person cap; we should add a **lower plan** (e.g. for very small churches or trial) that fits the 20-person limit before or alongside Starter.
+
+- **Lower plan (TBD name, v1)** — fits 20-person Clerk limit; for small churches or trial. Details TBD.
+- **Church Starter**
+  - **Monthly:** $19 / org · **Annual (20% off):** $182 / org
+  - **Intended size (guideline):** Up to ~75 active adults (v1 may cap at 20 until Clerk billing is in place)
+  - **Included:** Unlimited shared spaces, PCO sync, MyChurchPanel content, uploads (PDFs/docs/links), 1–2 admins
+- **Church Growth**
+  - **Monthly:** $39 / org · **Annual (20% off):** $374 / org
+  - **Intended size (guideline):** ~75–300 active adults
+  - **Included:** Everything in Church Starter, plus richer analytics, 3–5 admins, priority email support
+
+**Principle:** Unlimited spaces and unlimited notes inside an org; pricing scales by **church size**, not by feature gates. Implementation will require configuring Clerk billing (plans, limits, webhooks) for these church tiers.
+
+### Planning Center (PCO) integration
+
+Fully native integration with **Planning Center (PCO) Groups** via their OAuth API is the target—pull groups/rosters directly, no middleware. From church/member views, it’s seamless “one-click connect” that feels like PCO built it.
+
+- **Product reference:** [Planning Center Groups](https://www.planningcenter.com/groups) — community organization, attendance, group chat, events, and Church Center app; Harvous would act as a “Bible Study add-on” to this flow.
+- **API:** The PCO API would need to be researched to implement this integration (OAuth scopes, Groups/People endpoints, token storage/refresh, and any rate limits or webhooks).
+
+**Church admin/leader perspective**
+
+Admins (PCO users) treat Harvous as a “Bible Study add-on” in their PCO dashboard flow.
+
+1. **Connect once:** In Harvous settings → “Connect Planning Center” → OAuth login (PCO prompts scopes: Groups read/write, People read). Gets access token stored in Turso (refresh auto).
+2. **Auto-sync groups:** Harvous lists PCO groups (`GET /groups/v2/groups`) → One-click “Enable Bible Hub” creates matching shared space (plan/discussions prepped).
+3. **Manage in PCO:** Create/edit group in PCO → Harvous syncs roster (`GET /groups/{id}/people`), adds to space. Track attendance in PCO; Harvous feeds study progress back (`POST /groups/{id}/events` or custom field).
+4. **Dashboard view:** Harvous “PCO Groups” tab: Completion %, top discussions. Leaders get notified: “Your Romans group is 80% on plan—start chat!”
+
+**Member perspective**
+
+Zero friction—stays in familiar PCO/Church Center, discovers Harvous organically.
+
+1. **Discovery:** PCO group page → “Join Bible Study Notes” button (Harvous deep link via PCO custom link field). Or Church Center app shows “Study Hub Active.”
+2. **Join space:** Auto-invite if on PCO roster → Harvous login (or PCO SSO if you add later). Lands in space with plan loaded (API.Bible verses).
+3. **Daily use:** Check verse/read → Log note/discuss. Progress syncs to PCO profile (e.g., badge: “Week 2 Complete”).
+4. **Mobile:** PWA from Harvous; optional PCO calendar event links to daily plan.
+
 ---
 
 ## 1. Product & User Flows

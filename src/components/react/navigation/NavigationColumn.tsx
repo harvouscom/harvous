@@ -1024,7 +1024,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                         onClick={() => setSelectedSpaceId(s.id)}
                       >
                         <span className="space-switcher-dropdown__icon-prefix" aria-hidden="true">
-                          <Icon name={s.isShared ? 'user-group' : 'user'} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                          <Icon name={s.isShared ? 'user-group' : 'user'} size={16} style={{ color: 'var(--color-deep-grey)' }} />
                         </span>
                         <span className="space-switcher-dropdown__label">{s.title}</span>
                         <span className="space-switcher-dropdown__icon-slot" aria-hidden={isActive ? 'true' : undefined}>
@@ -1080,7 +1080,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                             }}
                           >
                             <span className="space-switcher-dropdown__icon-prefix" aria-hidden="true">
-                              <Icon name={s.isShared ? 'user-group' : 'user'} size={20} style={{ color: 'var(--color-deep-grey)' }} />
+                              <Icon name={s.isShared ? 'user-group' : 'user'} size={16} style={{ color: 'var(--color-deep-grey)' }} />
                             </span>
                             <span className="space-switcher-dropdown__label">{s.title}</span>
                           </a>
