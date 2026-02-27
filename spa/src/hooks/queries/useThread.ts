@@ -31,41 +31,47 @@ interface NotesPage {
   limit: number;
 }
 
+function normalizeThreadId(id: string): string {
+  return id.startsWith('thread/') ? 'thread_' + id.slice(7) : id;
+}
+
 export function useThread(threadId: string) {
+  const normalizedId = normalizeThreadId(threadId);
   return useQuery({
-    queryKey: ['thread', threadId],
-    // Prefetch endpoint returns { thread: ThreadDetail, notes, noteTypeCounts }
+    queryKey: ['thread', normalizedId],
     queryFn: async () => {
-      const res = await api.get<{ thread: ThreadDetail }>(`/api/threads/${threadId}/prefetch`);
+      const res = await api.get<{ thread: ThreadDetail }>(`/api/threads/${normalizedId}/prefetch`);
       if (res.thread === undefined) throw new Error('Thread not found');
       return res.thread;
     },
-    enabled: !!threadId,
+    enabled: !!normalizedId,
     staleTime: 60_000,
   });
 }
 
 export function useThreadNotes(threadId: string, limit = 20) {
+  const normalizedId = normalizeThreadId(threadId);
   return useInfiniteQuery({
-    queryKey: ['thread', threadId, 'notes'],
+    queryKey: ['thread', normalizedId, 'notes'],
     queryFn: ({ pageParam = 0 }) =>
-      api.get<NotesPage>(`/api/threads/${threadId}/notes`, { offset: pageParam, limit }),
+      api.get<NotesPage>(`/api/threads/${normalizedId}/notes`, { offset: pageParam, limit }),
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
-    enabled: !!threadId,
+    enabled: !!normalizedId,
     staleTime: 30_000,
   });
 }
 
 export function useThreadNoteTypeCounts(threadId: string) {
+  const normalizedId = normalizeThreadId(threadId);
   return useQuery({
-    queryKey: ['thread', threadId, 'noteTypeCounts'],
+    queryKey: ['thread', normalizedId, 'noteTypeCounts'],
     queryFn: () =>
       api.get<{ default: number; scripture: number; resource: number }>(
-        `/api/threads/${threadId}/note-type-counts`
+        `/api/threads/${normalizedId}/note-type-counts`
       ),
-    enabled: !!threadId,
+    enabled: !!normalizedId,
     staleTime: 30_000,
   });
 }

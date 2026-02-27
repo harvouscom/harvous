@@ -41,12 +41,14 @@ export default function AppLayout() {
   const isNoteEarly = pathname.startsWith('/note/');
   const isThreadEarly = pathname.startsWith('/thread/');
   const isSpaceEarly = pathname.startsWith('/space/');
-  const noteIdForHook = isNoteEarly
+  let noteIdForHook = isNoteEarly
     ? (pathSlugEarly.startsWith('note_') ? pathSlugEarly : `note_${pathSlugEarly}`)
     : '';
-  const threadIdForHook = isThreadEarly
+  let threadIdForHook = isThreadEarly
     ? (pathSlugEarly.startsWith('thread_') ? pathSlugEarly : `thread_${pathSlugEarly}`)
     : '';
+  if (threadIdForHook.startsWith('thread/')) threadIdForHook = 'thread_' + threadIdForHook.slice(7);
+  if (noteIdForHook.startsWith('note/')) noteIdForHook = 'note_' + noteIdForHook.slice(5);
   const spaceIdForHook = isSpaceEarly
     ? (pathSlugEarly.startsWith('space_') ? pathSlugEarly : `space_${pathSlugEarly}`)
     : '';

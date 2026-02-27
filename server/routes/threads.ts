@@ -425,15 +425,31 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
-    const threadId = c.req.param('threadId');
+    let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID required' }, 400);
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
-    const [thread, notesResult, noteTypeCounts] = await Promise.all([
-      getThreadWithCount(threadId, auth.userId),
-      getNotesForThread(threadId, auth.userId),
-      getThreadNoteTypeCounts(threadId, auth.userId),
-    ]);
+    let thread = await getThreadWithCount(threadId, auth.userId);
+    let notesResult: { notes: any[]; hasMore: boolean } | any = await getNotesForThread(threadId, auth.userId, 20, 0);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
 
+    if (!thread) {
+      const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
+      if (threadRow.spaceId) {
+        try {
+          const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+          thread = await getThreadWithCount(threadId, space.userId);
+          const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+          notesResult = memberNotes;
+          noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+        } catch {
+          return c.json({ error: 'Thread not found' }, 404);
+        }
+      } else {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
 
@@ -464,10 +480,21 @@ route.get('/api/threads/:threadId/note-type-counts', async (c) => {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
-    const threadId = c.req.param('threadId');
+    let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
-    const noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
+    if (threadRow.userId !== auth.userId && threadRow.spaceId) {
+      try {
+        const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+        noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
     return c.json({ noteTypeCounts });
   } catch (error: any) {
     const standardError = handleAPIError(error, {
@@ -479,14 +506,42 @@ route.get('/api/threads/:threadId/note-type-counts', async (c) => {
   }
 });
 
+// ─── POST /api/threads/:threadId/visit ──────────────────────────────────────
+route.post('/api/threads/:threadId/visit', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    let threadId = c.req.param('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID required' }, 400);
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
+
+    const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
+    if (thread.userId !== auth.userId && thread.spaceId) {
+      try {
+        await requireSpaceAccess(thread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Thread not found' }, 404);
+      }
+    }
+    await db.update(Threads).set({ lastVisited: nowISO() }).where(eq(Threads.id, threadId));
+    return c.json({ ok: true });
+  } catch (error: any) {
+    console.error('[visit] Error updating thread lastVisited:', error);
+    return c.json({ error: error.message || 'Failed to update visit' }, 500);
+  }
+});
+
 // ─── GET /api/threads/:threadId/notes ───────────────────────────────────────
 route.get('/api/threads/:threadId/notes', async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
-    const threadId = c.req.param('threadId');
+    let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+    if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);

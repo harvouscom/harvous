@@ -1065,6 +1065,33 @@ route.post('/api/notes/:id/process-scripture-references', async (c) => {
   }
 });
 
+// ─── POST /api/notes/:noteId/visit ──────────────────────────────────────────
+route.post('/api/notes/:noteId/visit', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    let noteId = c.req.param('noteId');
+    if (!noteId) return c.json({ error: 'Note ID required' }, 400);
+    if (noteId.startsWith('note/')) noteId = 'note_' + noteId.slice(5);
+
+    const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
+    if (!note) return c.json({ error: 'Note not found' }, 404);
+    if (note.userId !== auth.userId && note.spaceId) {
+      try {
+        await requireSpaceAccess(note.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: 'Note not found' }, 404);
+      }
+    }
+    await db.update(Notes).set({ lastVisited: nowISO() }).where(eq(Notes.id, noteId));
+    return c.json({ ok: true });
+  } catch (error: any) {
+    console.error('[visit] Error updating note lastVisited:', error);
+    return c.json({ error: error.message || 'Failed to update visit' }, 500);
+  }
+});
+
 // ─── GET /api/notes/:noteId/share ───────────────────────────────────────────
 route.get('/api/notes/:noteId/share', async (c) => {
   try {
