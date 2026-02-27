@@ -73,6 +73,18 @@
     // Expose version to window for debugging
     window.__APP_VERSION__ = getAppVersion();
 
+    // Don't show update toasts on upgrade, auth, or shared/join/invitation pages
+    function isNoUpdateToastPath() {
+      var p = window.location.pathname;
+      return p === '/upgrade' ||
+        p.indexOf('/sign-in') === 0 ||
+        p.indexOf('/sign-up') === 0 ||
+        p.indexOf('/spaces/join/') === 0 ||
+        p.indexOf('/shared/note/') === 0 ||
+        p.indexOf('/shared/thread/') === 0 ||
+        p.indexOf('/invitations/') === 0;
+    }
+
     // --- iOS PWA silent-update detection ---
     // On iOS, when the PWA is killed and relaunched, the new service worker is
     // already the controller before this script runs, so 'controllerchange' is
@@ -93,6 +105,7 @@
       // Always persist the current version for next comparison
       localStorage.setItem(SW_VERSION_KEY, currentVersion);
       if (lastVersion && lastVersion !== currentVersion) {
+        if (isNoUpdateToastPath()) return;
         // App updated silently (iOS killed + relaunch scenario).
         // Don't reload — the page is already running the new code.
         // Just show the "updated" toast so the user knows.
@@ -142,7 +155,7 @@
       var isAppLayoutPage = document.querySelector('.app-layout') !== null;
 
       // Minor/patch update - show toast on app layout only, then auto-reload
-      if (isAppLayoutPage && window.toast && typeof window.toast.info === 'function') {
+      if (isAppLayoutPage && !isNoUpdateToastPath() && window.toast && typeof window.toast.info === 'function') {
         try {
           window.toast.info('Updating Harvous for you');
           // Wait 1600ms (matches toast duration) before reloading
