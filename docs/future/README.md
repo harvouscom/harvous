@@ -71,6 +71,11 @@ These were designed here and are now live. The stub files in this folder point t
   - How curriculum flows (publish to org → inbox / “From your church” for org members)
   - References CHURCH_CONNECTION_SYSTEM, SHARING_AND_GROUPS_INFRASTRUCTURE
 
+- **`CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md`** - Implementation checklist for Clerk Organizations for churches
+  - What to think through: church sign-up, users joining (new/existing), MyChurchPanel evolution
+  - Product flows, schema, auth/backend, invites/join, edge cases, UI/UX, migration
+  - Summary table and pointers to CHURCH_CONNECTION_SYSTEM, CHURCH_ORG_AND_CURRICULUM
+
 ### Sharing & Collaboration
 
 - **`SHARING_SYSTEM_DESIGN.md`** - Complete sharing system design
