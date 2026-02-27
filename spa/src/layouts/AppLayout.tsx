@@ -279,8 +279,15 @@ export default function AppLayout() {
       return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
     }
     const noteParent = currentNote?.threads?.[0];
-    if (isNote && noteParent?.backgroundGradient) {
-      return { ...base, backgroundGradient: noteParent.backgroundGradient, title: noteParent.title };
+    if (isNote && noteParent) {
+      const parentWithCount = noteParent as { count?: number; spaceId?: string | null };
+      return {
+        ...base,
+        backgroundGradient: noteParent.backgroundGradient ?? base.backgroundGradient,
+        title: noteParent.title ?? base.title,
+        noteCount: parentWithCount.count ?? base.noteCount,
+        spaceId: parentWithCount.spaceId ?? base.spaceId,
+      };
     }
     return base;
   })();

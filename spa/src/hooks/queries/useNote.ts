@@ -67,11 +67,13 @@ export function useNote(noteId: string) {
       const parentThread = note.threads?.[0];
       if (parentThread?.id) {
         try { localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id); } catch { /* ignore */ }
+        const threadWithCount = parentThread as { count?: number; spaceId?: string | null };
         setCachedNoteParentThread(noteId, {
           id: parentThread.id,
           title: parentThread.title,
-          noteCount: 0,
+          noteCount: threadWithCount.count ?? 0,
           backgroundGradient: parentThread.backgroundGradient ?? '',
+          spaceId: threadWithCount.spaceId ?? null,
         });
       }
       return note;

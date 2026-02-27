@@ -837,17 +837,38 @@ route.get('/api/notes/:id/details', async (c) => {
     // Junction threads
     let allThreads: any[] = [];
     try {
-      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
+      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
         .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
       allThreads = junctionThreads.filter(t => t.title !== 'Unorganized');
     } catch { allThreads = []; }
 
+    if (isMemberView) {
+      try {
+        const memberSpaceThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
+          .from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).all();
+        const accessibleSpaceIds = new Set<string>();
+        for (const t of memberSpaceThreads) {
+          if (!t.spaceId) continue;
+          try {
+            await requireSpaceAccess(t.spaceId, auth.userId!);
+            accessibleSpaceIds.add(t.spaceId);
+          } catch {}
+        }
+        const memberThreads = memberSpaceThreads.filter(t => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.title !== 'Unorganized');
+        allThreads = [...memberThreads, ...allThreads];
+      } catch {}
+    }
+
     // Format threads with counts and backgroundGradient for nav/NotePage
     const formattedThreads = await Promise.all(allThreads.map(async (thread: any) => {
-      const junctionCountResult = await db.select({ count: count() }).from(Notes)
-        .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-        .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
+      const useTotalCount = isMemberView && thread.spaceId;
+      const junctionCountResult = useTotalCount
+        ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get()
+        : await db.select({ count: count() }).from(Notes)
+            .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+            .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
       return {
         ...thread,
         subtitle: thread.subtitle || 'Thread',
@@ -1059,6 +1080,29 @@ route.post('/api/notes/:id/process-scripture-references', async (c) => {
     const noteId = c.req.param('id');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
+    const noteRow = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).get();
+    if (!noteRow) return c.json({ error: 'Note not found' }, 404);
+
+    if (noteRow.userId !== auth.userId) {
+      let spaceIdForAccess = noteRow.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+          .from(NoteThreads)
+          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
+          .limit(1)
+          .get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
+      try {
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
+      } catch {
+        return c.json({ error: 'Note not found' }, 404);
+      }
+      return c.json({ results: [], updatedContent: noteRow.content ?? '' });
+    }
+
     let threadId: string | undefined;
     let contentOverride: string | undefined;
     try {
@@ -1088,9 +1132,20 @@ route.post('/api/notes/:noteId/visit', async (c) => {
 
     const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
     if (!note) return c.json({ error: 'Note not found' }, 404);
-    if (note.userId !== auth.userId && note.spaceId) {
+    if (note.userId !== auth.userId) {
+      let spaceIdForAccess = note.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+          .from(NoteThreads)
+          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
+          .limit(1)
+          .get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
       try {
-        await requireSpaceAccess(note.spaceId, auth.userId);
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
       } catch {
         return c.json({ error: 'Note not found' }, 404);
       }
