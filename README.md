@@ -103,5 +103,5 @@ For full stack details and versions, see [docs/TECH_STACK.md](./docs/TECH_STACK.
 
 ---
 
-**Version:** 1.155.3
+**Version:** 1.156.0
 **Status:** Official 1.0 Released January 8, 2026
