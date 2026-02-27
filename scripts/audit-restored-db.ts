@@ -4,11 +4,11 @@
  * that might be your account (e.g. high note count but email not set).
  *
  * Usage (restored DB):
- *   ASTRO_DB_REMOTE_URL="libsql://harvous-db-restored-heyderekj.aws-us-east-1.turso.io" \
- *   ASTRO_DB_APP_TOKEN="your-restored-token" \
+ *   TURSO_DATABASE_URL="libsql://harvous-db-restored-heyderekj.aws-us-east-1.turso.io" \
+ *   TURSO_AUTH_TOKEN="your-restored-token" \
  *   npx tsx scripts/audit-restored-db.ts
  *
- * Or with .env pointing at restored DB.
+ * Or with .env pointing at restored DB (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, Notes, UserMetadata, ClerkUserMapping, Threads } from '../server/db';

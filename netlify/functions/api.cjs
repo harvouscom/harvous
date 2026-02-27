@@ -25835,13 +25835,13 @@ var init_schema = __esm({
 
 // server/db/client.ts
 function createDb() {
-  const url = process.env.ASTRO_DB_REMOTE_URL;
-  const authToken = process.env.ASTRO_DB_APP_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
   if (!url) {
-    throw new Error("Missing ASTRO_DB_REMOTE_URL environment variable");
+    throw new Error("Missing TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL) environment variable");
   }
   if (!authToken) {
-    throw new Error("Missing ASTRO_DB_APP_TOKEN environment variable");
+    throw new Error("Missing TURSO_AUTH_TOKEN (or ASTRO_DB_APP_TOKEN) environment variable");
   }
   const tursoClient = createClient({ url, authToken });
   return drizzle(tursoClient, { schema: schema_exports });
@@ -66380,13 +66380,29 @@ route9.get("/api/threads/:threadId/prefetch", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const threadId = c.req.param("threadId");
+    let threadId = c.req.param("threadId");
     if (!threadId) return c.json({ error: "Thread ID required" }, 400);
-    const [thread, notesResult, noteTypeCounts] = await Promise.all([
-      getThreadWithCount(threadId, auth.userId),
-      getNotesForThread(threadId, auth.userId),
-      getThreadNoteTypeCounts(threadId, auth.userId)
-    ]);
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    let thread = await getThreadWithCount(threadId, auth.userId);
+    let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    if (!thread) {
+      const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      if (!threadRow) return c.json({ error: "Thread not found" }, 404);
+      if (threadRow.spaceId) {
+        try {
+          const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+          thread = await getThreadWithCount(threadId, space.userId);
+          const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+          notesResult = memberNotes;
+          noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+        } catch {
+          return c.json({ error: "Thread not found" }, 404);
+        }
+      } else {
+        return c.json({ error: "Thread not found" }, 404);
+      }
+    }
     if (!thread) return c.json({ error: "Thread not found" }, 404);
     const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
     return c.json({
@@ -66397,7 +66413,8 @@ route9.get("/api/threads/:threadId/prefetch", async (c) => {
         color: thread.color,
         noteCount: thread.noteCount,
         backgroundGradient: thread.backgroundGradient,
-        userId: thread.userId
+        userId: thread.userId,
+        spaceId: thread.spaceId ?? null
       },
       notes,
       noteTypeCounts
@@ -66413,9 +66430,20 @@ route9.get("/api/threads/:threadId/note-type-counts", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const threadId = c.req.param("threadId");
+    let threadId = c.req.param("threadId");
     if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
-    const noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
+    const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    if (!threadRow) return c.json({ error: "Thread not found" }, 404);
+    if (threadRow.userId !== auth.userId && threadRow.spaceId) {
+      try {
+        const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+        noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+      } catch {
+        return c.json({ error: "Thread not found" }, 404);
+      }
+    }
     return c.json({ noteTypeCounts });
   } catch (error) {
     const standardError = handleAPIError(error, {
@@ -66426,12 +66454,36 @@ route9.get("/api/threads/:threadId/note-type-counts", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
+route9.post("/api/threads/:threadId/visit", async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    let threadId = c.req.param("threadId");
+    if (!threadId) return c.json({ error: "Thread ID required" }, 400);
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
+    const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    if (thread.userId !== auth.userId && thread.spaceId) {
+      try {
+        await requireSpaceAccess(thread.spaceId, auth.userId);
+      } catch {
+        return c.json({ error: "Thread not found" }, 404);
+      }
+    }
+    await db.update(Threads).set({ lastVisited: nowISO() }).where(eq(Threads.id, threadId));
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error("[visit] Error updating thread lastVisited:", error);
+    return c.json({ error: error.message || "Failed to update visit" }, 500);
+  }
+});
 route9.get("/api/threads/:threadId/notes", async (c) => {
   try {
     const auth = getAuth(c);
     if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const threadId = c.req.param("threadId");
+    let threadId = c.req.param("threadId");
     if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
     let result = await getNotesForThread(threadId, auth.userId, limit, offset);
@@ -89379,9 +89431,15 @@ route10.get("/api/notes/:id/details", async (c) => {
     let isMemberView = false;
     if (!note) {
       const noteById = await db.select().from(Notes).where(eq(Notes.id, noteId)).get();
-      if (!noteById || !noteById.spaceId) return c.json({ error: "Note not found or access denied" }, 404);
+      if (!noteById) return c.json({ error: "Note not found or access denied" }, 404);
+      let spaceIdForAccess = noteById.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).limit(1).get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: "Note not found or access denied" }, 404);
       try {
-        await requireSpaceAccess(noteById.spaceId, auth.userId);
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
       } catch (err) {
         if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
         throw err;
@@ -89411,13 +89469,31 @@ route10.get("/api/notes/:id/details", async (c) => {
     const allUserThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color, isPublic: Threads.isPublic, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).where(eq(Threads.userId, auth.userId)).all();
     let allThreads = [];
     try {
-      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
+      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
       allThreads = junctionThreads.filter((t) => t.title !== "Unorganized");
     } catch {
       allThreads = [];
     }
+    if (isMemberView) {
+      try {
+        const memberSpaceThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).all();
+        const accessibleSpaceIds = /* @__PURE__ */ new Set();
+        for (const t of memberSpaceThreads) {
+          if (!t.spaceId) continue;
+          try {
+            await requireSpaceAccess(t.spaceId, auth.userId);
+            accessibleSpaceIds.add(t.spaceId);
+          } catch {
+          }
+        }
+        const memberThreads = memberSpaceThreads.filter((t) => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.title !== "Unorganized");
+        allThreads = [...memberThreads, ...allThreads];
+      } catch {
+      }
+    }
     const formattedThreads = await Promise.all(allThreads.map(async (thread) => {
-      const junctionCountResult = await db.select({ count: count() }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
+      const useTotalCount = isMemberView && thread.spaceId;
+      const junctionCountResult = useTotalCount ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get() : await db.select({ count: count() }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
       return {
         ...thread,
         subtitle: thread.subtitle || "Thread",
@@ -89586,6 +89662,22 @@ route10.post("/api/notes/:id/process-scripture-references", async (c) => {
     if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
     const noteId = c.req.param("id");
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const noteRow = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).get();
+    if (!noteRow) return c.json({ error: "Note not found" }, 404);
+    if (noteRow.userId !== auth.userId) {
+      let spaceIdForAccess = noteRow.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).limit(1).get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: "Note not found" }, 404);
+      try {
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
+      } catch {
+        return c.json({ error: "Note not found" }, 404);
+      }
+      return c.json({ results: [], updatedContent: noteRow.content ?? "" });
+    }
     let threadId;
     let contentOverride;
     try {
@@ -89599,6 +89691,35 @@ route10.post("/api/notes/:id/process-scripture-references", async (c) => {
   } catch (error) {
     console.error("Error processing scripture references:", error);
     return c.json({ error: error.message || "Error processing scripture references" }, 500);
+  }
+});
+route10.post("/api/notes/:noteId/visit", async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    let noteId = c.req.param("noteId");
+    if (!noteId) return c.json({ error: "Note ID required" }, 400);
+    if (noteId.startsWith("note/")) noteId = "note_" + noteId.slice(5);
+    const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
+    if (!note) return c.json({ error: "Note not found" }, 404);
+    if (note.userId !== auth.userId) {
+      let spaceIdForAccess = note.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).limit(1).get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: "Note not found" }, 404);
+      try {
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
+      } catch {
+        return c.json({ error: "Note not found" }, 404);
+      }
+    }
+    await db.update(Notes).set({ lastVisited: nowISO() }).where(eq(Notes.id, noteId));
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error("[visit] Error updating note lastVisited:", error);
+    return c.json({ error: error.message || "Failed to update visit" }, 500);
   }
 });
 route10.get("/api/notes/:noteId/share", async (c) => {

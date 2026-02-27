@@ -68,16 +68,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       setRenderKey(prev => prev + 1);
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
-    document.addEventListener('astro:after-swap', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     window.addEventListener('navigationHistoryUpdated', handleNavigationUpdate);
     window.addEventListener('threadUpdated', handleThreadUpdated);
     window.addEventListener('spaceUpdated', handleSpaceUpdated);
 
     return () => {
       if (timeoutRef) clearTimeout(timeoutRef);
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      document.removeEventListener('astro:after-swap', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
       window.removeEventListener('navigationHistoryUpdated', handleNavigationUpdate);
       window.removeEventListener('threadUpdated', handleThreadUpdated);
       window.removeEventListener('spaceUpdated', handleSpaceUpdated);

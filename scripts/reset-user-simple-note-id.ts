@@ -9,7 +9,7 @@
  *   Default (reconcile): Set highestSimpleNoteId = MAX(Notes.simpleNoteId) for that user (or 0 if no notes).
  *   RESET_TO_ZERO=true:  Set highestSimpleNoteId = 0. Use only when the user has no notes.
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, UserMetadata, Notes } from '../server/db';

@@ -6,7 +6,7 @@
  * Usage (from repo root, with .env or env vars set):
  *   npx tsx scripts/check-user-ids-in-db.ts
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN (same as production).
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*, same as production).
  */
 import 'dotenv/config';
 import { db, Notes, Threads } from '../server/db';

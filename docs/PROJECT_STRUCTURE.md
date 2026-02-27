@@ -125,7 +125,7 @@ Database: Drizzle schema and Turso client.
 
 **Key Files:**
 - `schema.ts` - Single source of truth for tables (Drizzle)
-- `client.ts` - Turso connection (ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN)
+- `client.ts` - Turso connection (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN; fallback ASTRO_DB_*)
 - `dates.ts` - nowISO(), toDate(), fromDate()
 
 ### `public/`

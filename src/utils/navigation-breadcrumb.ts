@@ -93,7 +93,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
 
   // If we're on a note page and navigating to a thread/space, always navigate directly
   // This ensures fresh data is loaded and prevents "Content not found" errors from stale cached pages
-  // Use View Transitions (safeNavigate) to trigger astro:page-load events so refresh logic works
+  // Use safeNavigate so app:route-change fires and refresh logic runs
   // Fallback to full page reload only if View Transitions fails
   if (isOnNotePage && isNavigatingToThreadOrSpace) {
     const targetUrl = idToUrl(targetItemId);
@@ -109,7 +109,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       return;
     }
 
-    // Use View Transitions to ensure astro:page-load events fire and refresh logic works
+    // Use safeNavigate so app:route-change fires and refresh logic works
     // This allows ThreadNotesList to refresh and show newly created notes
     debug('[handleBreadcrumbNavigation] Executing navigation with View Transitions', { targetUrl });
     safeNavigate(targetUrl).catch((error) => {
@@ -133,8 +133,8 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       // Fallback: navigate directly if no history
       const fallbackUrl = idToUrl(targetItemId);
       debug('[handleBreadcrumbNavigation] In context but no history - navigating directly', { fallbackUrl });
-      if ((window as any).astroNavigate) {
-        (window as any).astroNavigate(fallbackUrl);
+      if ((window as any).appNavigate) {
+        (window as any).appNavigate(fallbackUrl);
       } else {
         window.location.href = fallbackUrl;
       }
@@ -143,8 +143,8 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
     // Not in context - navigate directly
     const directUrl = idToUrl(targetItemId);
     debug('[handleBreadcrumbNavigation] Not in context - navigating directly', { directUrl });
-    if ((window as any).astroNavigate) {
-      (window as any).astroNavigate(directUrl);
+    if ((window as any).appNavigate) {
+      (window as any).appNavigate(directUrl);
     } else {
       window.location.href = directUrl;
     }

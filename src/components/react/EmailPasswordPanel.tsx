@@ -109,7 +109,7 @@ export default function EmailPasswordPanel({
     setIsSubmitting(true);
 
     try {
-      // Dispatch custom event to trigger API call from Astro page
+      // Dispatch custom event so the app can trigger the API call
       const event = new CustomEvent('updateCredentialsRequest', {
         detail: {
           newEmail: formData.newEmail.trim(),

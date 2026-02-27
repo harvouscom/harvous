@@ -8,7 +8,7 @@
  * Or with both IDs:
  *   DEV_USER_ID=user_35TxUL... LIVE_USER_ID=user_35FUJeL... npx tsx scripts/force-merge-one-user.ts
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, ClerkUserMapping } from '../server/db';

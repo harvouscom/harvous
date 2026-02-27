@@ -61,7 +61,7 @@ npx tsx scripts/migrate-clerk-user.ts
 - `OLD_CLERK_USER_ID` = the ID that currently has the data (e.g. ~80 notes).
 - `NEW_CLERK_USER_ID` = the ID they’re logged in with now (the one that should own everything after the script).
 
-Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (same as production).
+Requires: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (or ASTRO_DB_*; same as production).
 
 ### 3. Verify
 
@@ -144,7 +144,7 @@ npx tsx scripts/merge-test-user-into-live.ts
 **Batch (all affected users):** Create `merge-pairs.csv` with one `test_user_id,live_user_id` per line (see "If this is affecting many users" above and `scripts/merge-pairs.csv.example`), then run:
 `MERGE_PAIRS_CSV=merge-pairs.csv npx tsx scripts/merge-test-user-into-live.ts`
 
-Requires: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN` (e.g. production credentials in `.env`).
+Requires: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (or ASTRO_DB_*; e.g. production credentials in `.env`).
 
 ## Related
 

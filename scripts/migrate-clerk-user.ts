@@ -8,7 +8,7 @@
  *   NEW_CLERK_USER_ID=user_35FUJeLEI2L0gRjCJqIIbNWraRK \
  *   npx tsx scripts/migrate-clerk-user.ts
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN (e.g. from .env).
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*, e.g. from .env).
  *
  * Tables updated: Spaces, Threads, Notes, Comments, Members, SpaceInvitations
  * (invitedBy, invitedUserId), UserMetadata, UserXP, UserSeasonalXP,

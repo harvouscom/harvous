@@ -33,11 +33,11 @@ export default function FindSearchInput({
     
     // Listen for URL changes (for View Transitions)
     window.addEventListener('popstate', updateSearchQuery);
-    document.addEventListener('astro:page-load', updateSearchQuery);
+    document.addEventListener('app:route-change', updateSearchQuery);
     
     return () => {
       window.removeEventListener('popstate', updateSearchQuery);
-      document.removeEventListener('astro:page-load', updateSearchQuery);
+      document.removeEventListener('app:route-change', updateSearchQuery);
     };
   }, []);
 
@@ -54,10 +54,10 @@ export default function FindSearchInput({
     focusInput();
 
     // Focus on View Transitions page load
-    document.addEventListener('astro:page-load', focusInput);
+    document.addEventListener('app:route-change', focusInput);
 
     return () => {
-      document.removeEventListener('astro:page-load', focusInput);
+      document.removeEventListener('app:route-change', focusInput);
     };
   }, []);
 

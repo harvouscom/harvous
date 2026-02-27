@@ -460,17 +460,17 @@ export default function NewNotePanel({
     }
   }, [checkSubscriptionStatus]);
 
-  // Listen for Astro navigation events to re-check subscription
+  // Re-check subscription when the route changes
   useEffect(() => {
     const handlePageLoad = () => {
       console.log('[NewNotePanel] Page loaded, checking subscription status...');
       checkSubscriptionStatus();
     };
     
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [checkSubscriptionStatus]);
 
@@ -612,7 +612,7 @@ export default function NewNotePanel({
     };
   }, [threadSelection]);
 
-  // Font Awesome is loaded globally via CDN in Layout.astro
+  // Font Awesome is loaded globally via CDN in the app shell
 
   // Listen for keyboard shortcut to save (Cmd+S)
   useEffect(() => {

@@ -12,5 +12,5 @@ function hideUnorganizedThread() {
 // Run immediately and on page events
 hideUnorganizedThread();
 document.addEventListener('DOMContentLoaded', hideUnorganizedThread);
-document.addEventListener('astro:page-load', hideUnorganizedThread);
+document.addEventListener('app:route-change', hideUnorganizedThread);
 

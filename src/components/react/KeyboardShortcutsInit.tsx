@@ -3,13 +3,12 @@ import { initKeyboardShortcuts, cleanupKeyboardShortcuts } from '@/utils/keyboar
 import { safeNavigate } from '@/utils/safe-navigate';
 
 /**
- * Client-side component to initialize keyboard shortcuts and Astro navigation
- * This is needed because dynamic imports in script tags don't work with Astro path aliases
+ * Initializes keyboard shortcuts and exposes appNavigate for scripts that need SPA navigation.
  */
 export default function KeyboardShortcutsInit() {
   useEffect(() => {
     // Set up safe navigate function for View Transitions (with error handling)
-    (window as any).astroNavigate = (path: string, options?: any) => {
+    (window as any).appNavigate = (path: string, options?: any) => {
       safeNavigate(path, options);
     };
     
@@ -22,12 +21,12 @@ export default function KeyboardShortcutsInit() {
       initKeyboardShortcuts();
     };
     
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     
     // Cleanup on unmount
     return () => {
       cleanupKeyboardShortcuts();
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, []);
   

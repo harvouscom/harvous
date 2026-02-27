@@ -19,7 +19,7 @@ dotenv.config({ path: resolve(process.cwd(), '.env') });
 export default async function globalSetup() {
   // Idempotent E2E seed: space_test_2, invitation, reset non-owner members.
   // Run for both local and remote so tests pass regardless of which DB the dev server uses.
-  const remote = process.env.ASTRO_DB_REMOTE_URL ? '--remote' : '';
+  const remote = (process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL) ? '--remote' : '';
   for (const flag of ['', '--remote']) {
     try {
       execSync(`npx astro db execute db/seed-e2e.ts ${flag}`.trim(), {

@@ -563,9 +563,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }, 100);
 });
 
-// Listen for astro:page-load events
-document.addEventListener('astro:page-load', () => {
-  // Only run Astro tracking if React NavigationProvider hasn't loaded yet
+// Listen for SPA route changes
+document.addEventListener('app:route-change', () => {
   setTimeout(() => {
     if (!window.addToNavigationHistory || typeof window.addToNavigationHistory !== 'function') {
       if (typeof initTracking === 'function') {

@@ -227,7 +227,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
 
   useEffect(() => {
-    // Expose the logout handler to the window for the Astro button
+    // Expose the logout handler to the window for the profile header button
     // @ts-ignore
     window.profilePage = { handleLogout };
 

@@ -144,10 +144,10 @@ export function setupViewTransitionsRefresh(
     refreshHandler();
   };
   
-  document.addEventListener('astro:page-load', handlePageLoad);
+  document.addEventListener('app:route-change', handlePageLoad);
   
   return () => {
-    document.removeEventListener('astro:page-load', handlePageLoad);
+    document.removeEventListener('app:route-change', handlePageLoad);
     if (cleanup) {
       cleanup();
     }
@@ -175,30 +175,18 @@ export function setupNavigationAwareRefresh(
   
   const debouncedRefresh = createDebouncedRefresh(refreshHandler, debounceMs);
   
-  const handleBeforeNavigation = () => {
-    isNavigating = true;
-    if (refreshTimeout) {
-      clearTimeout(refreshTimeout);
-      refreshTimeout = null;
-    }
-  };
-  
   const handlePageLoad = () => {
-    isNavigating = false;
-    
     if (skipDuringNavigation && isNavigating) {
       return;
     }
-    
+    isNavigating = false;
     debouncedRefresh();
   };
   
-  document.addEventListener('astro:before-preparation', handleBeforeNavigation);
-  document.addEventListener('astro:page-load', handlePageLoad);
+  document.addEventListener('app:route-change', handlePageLoad);
   
   return () => {
-    document.removeEventListener('astro:before-preparation', handleBeforeNavigation);
-    document.removeEventListener('astro:page-load', handlePageLoad);
+    document.removeEventListener('app:route-change', handlePageLoad);
     if (refreshTimeout) {
       clearTimeout(refreshTimeout);
     }

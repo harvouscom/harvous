@@ -104,12 +104,16 @@ declare global {
 }
 
 interface ImportMetaEnv {
-  /** https://docs.astro.build/en/guides/astro-db/#libsql */
-  readonly ASTRO_DB_REMOTE_URL: string;
-  /** https://docs.astro.build/en/guides/astro-db/#libsql */
-  readonly ASTRO_DB_APP_TOKEN: string;
-  
-  // Astro Environment Variables
+  /** Turso database URL (fallback: ASTRO_DB_REMOTE_URL) */
+  readonly TURSO_DATABASE_URL?: string;
+  /** Turso auth token (fallback: ASTRO_DB_APP_TOKEN) */
+  readonly TURSO_AUTH_TOKEN?: string;
+  /** @deprecated Use TURSO_DATABASE_URL */
+  readonly ASTRO_DB_REMOTE_URL?: string;
+  /** @deprecated Use TURSO_AUTH_TOKEN */
+  readonly ASTRO_DB_APP_TOKEN?: string;
+
+  // Vite / build
   readonly DEV: boolean;
   readonly PROD: boolean;
   readonly MODE: string;

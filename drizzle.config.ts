@@ -1,14 +1,14 @@
 /**
  * Drizzle Kit config for Turso (push / introspect).
- * Uses same env vars as the app: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Env: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (fallback: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
  */
 import { defineConfig } from 'drizzle-kit';
 
-const url = process.env.ASTRO_DB_REMOTE_URL;
-const authToken = process.env.ASTRO_DB_APP_TOKEN;
+const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
 
 if (!url || !authToken) {
-  throw new Error('ASTRO_DB_REMOTE_URL and ASTRO_DB_APP_TOKEN must be set (e.g. in .env)');
+  throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or ASTRO_DB_*) must be set (e.g. in .env)');
 }
 
 export default defineConfig({

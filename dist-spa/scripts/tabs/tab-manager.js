@@ -252,11 +252,11 @@
     initTabs();
   }
   
-  // Re-initialize tabs after View Transitions page loads
-  document.addEventListener('astro:page-load', () => {
+  // Re-initialize tabs after SPA route change
+  document.addEventListener('app:route-change', () => {
     setTimeout(function() {
       initTabs();
-      // Restore active tab after View Transitions
+      // Restore active tab after route change
       setTimeout(function() {
         const storageKey = (function() {
           const path = window.location.pathname;
@@ -277,11 +277,6 @@
         }
       }, 100);
     }, 50);
-  });
-  
-  // Also re-initialize after DOM swap for View Transitions
-  document.addEventListener('astro:after-swap', () => {
-    setTimeout(initTabs, 50);
   });
   
   // Also initialize when Alpine.js is ready (if it's being used)

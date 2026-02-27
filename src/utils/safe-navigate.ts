@@ -1,18 +1,15 @@
 /**
- * Safe navigation utility for astro:transitions/client
- * Handles errors when the module fails to load or network issues occur
+ * Safe navigation utility for the SPA (app-navigate module).
+ * Handles errors when the module fails to load or network issues occur.
  */
 
 // Import PostHog for error tracking (lazy import to avoid circular dependencies)
 let captureException: ((error: Error, properties?: Record<string, any>) => void) | null = null;
 
-// Lazy load PostHog captureException to avoid circular dependencies
 if (typeof window !== 'undefined') {
   import('@/utils/posthog').then((module) => {
     captureException = module.captureException;
   }).catch((error) => {
-    // PostHog not available, continue without it
-    // Only log in development to avoid console noise in production
     if (import.meta.env.DEV) {
       console.warn('[safe-navigate] PostHog not available:', error);
     }
@@ -24,17 +21,14 @@ interface NavigateOptions {
 }
 
 let navigateFunction: ((path: string, options?: NavigateOptions) => void) | null = null;
-let navigatePromise: Promise<typeof import('astro:transitions/client')> | null = null;
+let navigatePromise: Promise<{ navigate: (path: string, options?: NavigateOptions) => Promise<void> }> | null = null;
 
-// Preload View Transitions module when browser is idle to avoid blocking initial load
 if (typeof window !== 'undefined') {
-  const preloadViewTransitions = () => {
-    navigatePromise = import('astro:transitions/client').catch((error) => {
-      // Log error for debugging but don't break the app
+  const preloadNavigate = () => {
+    navigatePromise = import('app-navigate').catch((error) => {
       if (import.meta.env.DEV) {
-        console.warn('[safe-navigate] Failed to preload astro:transitions/client:', error);
+        console.warn('[safe-navigate] Failed to preload app-navigate:', error);
       }
-      // Track error in PostHog if available (but don't wait for it)
       if (captureException) {
         try {
           captureException(error instanceof Error ? error : new Error(String(error)), {
@@ -42,41 +36,34 @@ if (typeof window !== 'undefined') {
             action: 'preload-module'
           });
         } catch {
-          // Ignore PostHog errors
+          // ignore
         }
       }
       return null;
     });
-    
     navigatePromise.then((module) => {
-      if (module) {
-        navigateFunction = module.navigate;
-      }
+      if (module) navigateFunction = module.navigate;
     }).catch((error) => {
-      // Log error for debugging but don't break the app
       if (import.meta.env.DEV) {
         console.warn('[safe-navigate] Failed to initialize navigate function:', error);
       }
     });
   };
-  
-  // Preload when browser is idle to avoid blocking initial page load
   if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(preloadViewTransitions, { timeout: 2000 });
+    (window as any).requestIdleCallback(preloadNavigate, { timeout: 2000 });
   } else {
-    // Fallback for browsers without requestIdleCallback
-    setTimeout(preloadViewTransitions, 1000);
+    setTimeout(preloadNavigate, 1000);
   }
 }
 
 /**
- * Start loading the View Transitions module if not already loading/loaded.
- * Call when the user is likely to navigate soon (e.g. when opening the nav sheet) to reduce delay on first tap.
+ * Preload the navigate module when the user is likely to navigate soon
+ * (e.g. when opening the nav sheet) to reduce delay on first tap.
  */
 export function preloadSafeNavigate(): void {
   if (navigateFunction) return;
   if (!navigatePromise) {
-    navigatePromise = import('astro:transitions/client').catch((err) => {
+    navigatePromise = import('app-navigate').catch((err) => {
       if (import.meta.env.DEV) console.warn('[safe-navigate] preload failed:', err);
       return null;
     });
@@ -85,24 +72,21 @@ export function preloadSafeNavigate(): void {
 }
 
 /**
- * Safely navigate using Astro's View Transitions
- * Falls back to window.location if astro:transitions/client fails
+ * Navigate within the SPA. Falls back to window.location if the navigate module fails.
  */
 export async function safeNavigate(path: string, options?: { history?: 'replace' | 'push' }): Promise<void> {
   try {
-    // Try to get navigate function if we haven't loaded it yet
     if (!navigateFunction) {
       if (!navigatePromise) {
-        navigatePromise = import('astro:transitions/client');
+        navigatePromise = import('app-navigate');
       }
       
       try {
         const module = await navigatePromise;
-        navigateFunction = module.navigate;
+        if (module) navigateFunction = module.navigate;
       } catch (error) {
-        // Module failed to load - fall back to window.location
         const errorObj = error instanceof Error ? error : new Error(String(error));
-        console.warn('[Safe Navigate] Failed to load astro:transitions/client, using window.location:', errorObj);
+        console.warn('[Safe Navigate] Failed to load app-navigate, using window.location:', errorObj);
         
         // Track error in PostHog if available
         if (captureException) {

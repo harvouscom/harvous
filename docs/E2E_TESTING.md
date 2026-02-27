@@ -8,11 +8,11 @@ The `e2e/shared-space-join.spec.ts` suite covers the shared space join flow. It 
 
 ### Which DB is used
 
-The **same** database your dev server uses must be seeded before e2e. If `ASTRO_DB_REMOTE_URL` is set in `.env`, the dev server uses the remote Turso DB; otherwise it uses the local DB. Global setup runs the seed against that DB (remote if the env var is set).
+The **same** database your dev server uses must be seeded before e2e. If `TURSO_DATABASE_URL` (or `ASTRO_DB_REMOTE_URL`) is set in `.env`, the dev server uses the remote Turso DB; otherwise it uses the local DB. Global setup runs the seed against that DB (remote if the env var is set).
 
 ### Seeding before e2e
 
-- **Automatic**: Global setup (`e2e/global-setup.ts`) runs `astro db execute db/seed.ts` (with `--remote` when `ASTRO_DB_REMOTE_URL` is set) before any test. If the seed fails (e.g. rows already exist), setup continues and Clerk is configured anyway.
+- **Automatic**: Global setup (`e2e/global-setup.ts`) runs the e2e seed (with `--remote` when `TURSO_DATABASE_URL` or `ASTRO_DB_REMOTE_URL` is set) before any test. If the seed fails (e.g. rows already exist), setup continues and Clerk is configured anyway.
 - **Manual (remote)**: Run `npm run test:e2e:setup` to seed the remote DB and then run e2e. Or run `npx astro db execute db/seed.ts --remote` once, then `npm run test:e2e`.
 - **Manual (local)**: Run `npx astro db execute db/seed.ts` (no `--remote`) before e2e if your dev server uses the local DB.
 

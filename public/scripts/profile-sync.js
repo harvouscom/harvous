@@ -34,7 +34,6 @@
     syncProfileData();
   }
   
-  // Also run after View Transitions
-  document.addEventListener('astro:page-load', syncProfileData);
+  document.addEventListener('app:route-change', syncProfileData);
 })();
 

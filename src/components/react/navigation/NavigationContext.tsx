@@ -616,7 +616,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           window.location.href = targetUrl;
           return;
         }
-        import('astro:transitions/client')
+        import('app-navigate')
           .then(({ navigate }) => {
             navigate(targetUrl, { history: 'replace' });
           })
@@ -1935,7 +1935,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
     };
     
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     document.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     document.addEventListener('threadCreated', handleThreadCreated as EventListener);
@@ -1960,7 +1960,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (validationTimeoutRef.current) {
         clearTimeout(validationTimeoutRef.current);
       }
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
       document.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
       document.removeEventListener('threadCreated', handleThreadCreated as EventListener);

@@ -97,7 +97,7 @@ function IosPwaClass() {
 
 function ToastSetup() {
   useEffect(() => {
-    // Make toast available globally (same as Layout.astro)
+    // Make toast available globally (app shell)
     window.toast = windowToast;
 
     // Expose app version globally so GetSupportPanel can read it
@@ -109,7 +109,7 @@ function ToastSetup() {
       return p === '/upgrade' || p.startsWith('/sign-in') || p.startsWith('/sign-up');
     }
 
-    // Handle ?toast=success&message=... URL params (same as public/scripts/toast-handler.js in Astro)
+    // Handle ?toast=success&message=... URL params (toast-handler.js also handles these on app:route-change)
     function handleUrlToast() {
       const params = new URLSearchParams(window.location.search);
       const toastType = params.get('toast');

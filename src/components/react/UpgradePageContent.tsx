@@ -74,11 +74,11 @@ export default function UpgradePageContent({
         checkStatus();
       }
     };
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
 
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleUpgrade);
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, []);
 

@@ -6,20 +6,20 @@
  *
  * Run with: npx tsx server/db/validate-schema.ts
  *
- * Requires ASTRO_DB_REMOTE_URL and ASTRO_DB_APP_TOKEN env vars.
+ * Requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN) env vars.
  * Tip: use `dotenv` or pass them inline:
- *   ASTRO_DB_REMOTE_URL=... ASTRO_DB_APP_TOKEN=... npx tsx server/db/validate-schema.ts
+ *   TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npx tsx server/db/validate-schema.ts
  */
 
 import { createClient } from '@libsql/client';
 
 async function main() {
-  const url = process.env.ASTRO_DB_REMOTE_URL;
-  const authToken = process.env.ASTRO_DB_APP_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
 
   if (!url || !authToken) {
-    console.error('Missing ASTRO_DB_REMOTE_URL or ASTRO_DB_APP_TOKEN env vars.');
-    console.error('Usage: ASTRO_DB_REMOTE_URL=... ASTRO_DB_APP_TOKEN=... npx tsx server/db/validate-schema.ts');
+    console.error('Missing TURSO_DATABASE_URL or TURSO_AUTH_TOKEN (or ASTRO_DB_*) env vars.');
+    console.error('Usage: TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npx tsx server/db/validate-schema.ts');
     process.exit(1);
   }
 

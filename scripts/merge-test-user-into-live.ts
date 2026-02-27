@@ -14,7 +14,7 @@
  *
  * Optional: SKIP_TEST_USER_IDS=user_1,user_2,... to skip merging those Test (Development) user IDs.
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import * as fs from 'fs';

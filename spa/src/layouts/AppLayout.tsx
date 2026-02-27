@@ -140,7 +140,7 @@ export default function AppLayout() {
     window.dispatchEvent(new CustomEvent('closeAllPanels'));
   }, [pathname]);
 
-  // Smooth fade-in on route transitions (replaces Astro View Transitions)
+  // Smooth fade-in on route transitions
   const desktopContentRef = useRef<HTMLElement>(null);
   const mobileContentRef = useRef<HTMLDivElement>(null);
   const prevPathnameRef = useRef(pathname);
@@ -162,11 +162,9 @@ export default function AppLayout() {
       el.classList.remove('route-pending');
     }
 
-    // Emit Astro View Transition lifecycle events so shared components (content
-    // lists, navigation, etc.) that listen for them still get notified of route
-    // changes in the SPA. Match Astro order: after-swap then page-load.
-    document.dispatchEvent(new Event('astro:after-swap'));
-    document.dispatchEvent(new Event('astro:page-load'));
+    // Notify shared components and scripts that the route changed (content lists,
+    // navigation, toasts, etc. use this to refresh or re-run on navigation).
+    document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
 
   // Invalidate navigation cache when spaces/threads are created, updated, or deleted

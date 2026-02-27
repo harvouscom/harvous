@@ -33,7 +33,7 @@ The database contains duplicate rows that violate a unique constraint being adde
    
    **Option B: Run the cleanup script locally**:
    ```bash
-   # Make sure ASTRO_DB_REMOTE_URL points to your production database
+   # Make sure TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL) points to your production database
    npx astro db execute db/cleanup-note-threads-duplicates.mts
    ```
 

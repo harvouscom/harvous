@@ -3,7 +3,7 @@
  *
  * In the Netlify build, --alias:@libsql/client=@libsql/client/web redirects
  * this import to the HTTP-only client (no native @libsql/linux-x64-gnu).
- * Same env vars (ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
+ * Env: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (fallback: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
  */
 
 import { createClient } from '@libsql/client';
@@ -11,14 +11,14 @@ import { drizzle } from 'drizzle-orm/libsql';
 import * as schema from './schema';
 
 function createDb() {
-  const url = process.env.ASTRO_DB_REMOTE_URL;
-  const authToken = process.env.ASTRO_DB_APP_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
 
   if (!url) {
-    throw new Error('Missing ASTRO_DB_REMOTE_URL environment variable');
+    throw new Error('Missing TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL) environment variable');
   }
   if (!authToken) {
-    throw new Error('Missing ASTRO_DB_APP_TOKEN environment variable');
+    throw new Error('Missing TURSO_AUTH_TOKEN (or ASTRO_DB_APP_TOKEN) environment variable');
   }
 
   const tursoClient = createClient({ url, authToken });

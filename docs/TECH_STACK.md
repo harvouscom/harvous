@@ -44,7 +44,7 @@ Drizzle ORM           - Schema and Turso access (server/db/)
   - Server state via TanStack Query (with caching and stale-time tuning)
   - Persistent navigation state via localStorage
   - Route transition animations (CSS `routeFadeIn`)
-  - `astro:page-load` events dispatched on route change for backward-compatible component updates
+  - `app:route-change` event dispatched on route change so components and scripts can refresh
 
 ### TanStack Router
 
@@ -189,8 +189,8 @@ Output: Hono (server/)- Single serverless function for all /api/*
 - `PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (server/API)
 - `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (SPA/Vite build)
 - `CLERK_SECRET_KEY` - Clerk secret key (server-side API)
-- `ASTRO_DB_REMOTE_URL` - Remote database connection URL
-- `ASTRO_DB_APP_TOKEN` - Database authentication token
+- `TURSO_DATABASE_URL` - Turso database connection URL (fallback: ASTRO_DB_REMOTE_URL)
+- `TURSO_AUTH_TOKEN` - Turso auth token (fallback: ASTRO_DB_APP_TOKEN)
 
 ### Optional
 

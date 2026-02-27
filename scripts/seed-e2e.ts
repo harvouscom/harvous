@@ -2,9 +2,9 @@
  * Idempotent E2E seed: ensures space_test_2, invitation, and clean member state
  * so join/invite Playwright tests pass every run.
  *
- * Run for both local and remote (e.g. ASTRO_DB_REMOTE_URL for remote, or a local Turso URL).
+ * Run for both local and remote (e.g. TURSO_DATABASE_URL for remote, or a local Turso URL).
  * Usage: tsx scripts/seed-e2e.ts
- * For remote-only: set ASTRO_DB_REMOTE_URL and ASTRO_DB_APP_TOKEN in .env.
+ * For remote-only: set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or ASTRO_DB_*) in .env.
  */
 import 'dotenv/config';
 import { db, Spaces, SpaceInvitations, Members } from '../server/db';

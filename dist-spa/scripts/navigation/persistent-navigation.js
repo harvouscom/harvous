@@ -719,11 +719,8 @@ document.addEventListener('DOMContentLoaded', () => {
   loadPersistentNavigation();
 });
 
-// On astro:page-load, wait a brief moment to ensure React components have hydrated
-// This is especially important in production where hydration might take longer
-document.addEventListener('astro:page-load', () => {
-  // Small delay to ensure React hydration and DOM are ready
-  // The retry logic in loadPersistentNavigation will handle cases where DOM isn't ready yet
+// On app:route-change, wait a brief moment to ensure React components have hydrated
+document.addEventListener('app:route-change', () => {
   setTimeout(() => {
     loadPersistentNavigation();
   }, 50);

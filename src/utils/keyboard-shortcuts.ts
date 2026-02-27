@@ -113,8 +113,8 @@ function navigateTo(path: string): void {
   if (typeof window === 'undefined') return;
   
   // Use Astro's navigate function if available (for View Transitions)
-  if ((window as any).astroNavigate) {
-    (window as any).astroNavigate(path);
+  if ((window as any).appNavigate) {
+    (window as any).appNavigate(path);
   } else {
     window.location.href = path;
   }

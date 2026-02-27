@@ -44,11 +44,9 @@ function UpgradeCheckoutButtonInner({
       }
     };
 
-    document.addEventListener('astro:page-load', handleViewTransition);
-    document.addEventListener('astro:after-swap', handleViewTransition);
+    document.addEventListener('app:route-change', handleViewTransition);
     return () => {
-      document.removeEventListener('astro:page-load', handleViewTransition);
-      document.removeEventListener('astro:after-swap', handleViewTransition);
+      document.removeEventListener('app:route-change', handleViewTransition);
     };
   }, []);
 
@@ -460,9 +458,9 @@ export default function UpgradeCheckoutButton({
       setEffectiveKey(key);
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [publishableKey]);
 
@@ -555,9 +553,9 @@ export default function UpgradeCheckoutButton({
       }
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, []);
 

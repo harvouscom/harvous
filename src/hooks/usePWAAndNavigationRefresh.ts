@@ -207,10 +207,6 @@ export function usePWAAndNavigationRefresh(options: UsePWAAndNavigationRefreshOp
       previousPathnameRef.current = currentPath;
     };
 
-    const handleBeforePreparation = () => {
-      previousPathnameRef.current = window.location.pathname;
-    };
-
     // Initialize previous pathname on mount
     if (previousPathnameRef.current === '') {
       previousPathnameRef.current = window.location.pathname;
@@ -229,12 +225,10 @@ export function usePWAAndNavigationRefresh(options: UsePWAAndNavigationRefreshOp
       }, delay);
     }
 
-    document.addEventListener('astro:page-load', handlePageLoad);
-    document.addEventListener('astro:before-preparation', handleBeforePreparation);
+    document.addEventListener('app:route-change', handlePageLoad);
 
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      document.removeEventListener('astro:before-preparation', handleBeforePreparation);
+      document.removeEventListener('app:route-change', handlePageLoad);
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
         refreshTimeoutRef.current = null;

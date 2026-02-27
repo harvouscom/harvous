@@ -6,7 +6,7 @@
  * Usage (from repo root, with production DB credentials in .env):
  *   npx tsx scripts/batch-merge-mapped-users-to-live.ts
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, ClerkUserMapping } from '../server/db';

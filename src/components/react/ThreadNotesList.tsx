@@ -896,7 +896,7 @@ export default function ThreadNotesList({
 
     // Check if we're coming from a note page (full page reload scenario)
     // This handles the case where navigation used window.location.href (full reload)
-    // or when View Transitions didn't fire astro:page-load
+    // or when route change didn't fire app:route-change
     // Works for both regular threads and unorganized thread
     // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
@@ -970,16 +970,10 @@ export default function ThreadNotesList({
     // Check on mount (for full page reloads)
     checkAndRefreshOnMount();
 
-    document.addEventListener('astro:page-load', handlePageLoad);
-    // Also listen for before-preparation to track navigation start
-    const handleBeforePreparation = () => {
-      previousPathnameRef.current = window.location.pathname;
-    };
-    document.addEventListener('astro:before-preparation', handleBeforePreparation);
+    document.addEventListener('app:route-change', handlePageLoad);
 
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      document.removeEventListener('astro:before-preparation', handleBeforePreparation);
+      document.removeEventListener('app:route-change', handlePageLoad);
       if (refreshTimeout) {
         clearTimeout(refreshTimeout);
       }

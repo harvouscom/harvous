@@ -85,10 +85,10 @@ export default function UpgradeSuccessHandler() {
     handleUpgradeSuccess();
     
     // Also listen for View Transitions to handle subsequent visits
-    document.addEventListener('astro:page-load', handleUpgradeSuccess);
+    document.addEventListener('app:route-change', handleUpgradeSuccess);
     
     return () => {
-      document.removeEventListener('astro:page-load', handleUpgradeSuccess);
+      document.removeEventListener('app:route-change', handleUpgradeSuccess);
     };
   }, []);
 

@@ -769,8 +769,8 @@ For Harvous, use **Option 1 (Build-Time Injection)** because:
 ```env
 PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...  # Production key
 CLERK_SECRET_KEY=sk_live_...  # Server-side only
-ASTRO_DB_REMOTE_URL=libsql://...  # Production database
-ASTRO_DB_APP_TOKEN=...  # Production token
+TURSO_DATABASE_URL=libsql://...  # Production database
+TURSO_AUTH_TOKEN=...  # Production token
 ```
 
 ### Authentication for Capacitor

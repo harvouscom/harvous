@@ -1,8 +1,8 @@
 PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_bXV0dWFsLXNwaWRlci0xOC5jbGVyay5hY2NvdW50cy5kZXYk
 # Clerk Billing plan ID for unlimited notes (set in production environment variables)
 CLERK_UNLIMITED_PLAN_ID=
-# ASTRO_DB_REMOTE_URL=""
-# ASTRO_DB_APP_TOKEN=""
+# TURSO_DATABASE_URL=""
+# TURSO_AUTH_TOKEN=""
 # Webflow CMS API token for syncing inbox items (inbox/webhook operations)
 WEBFLOW_INBOX_API_TOKEN=""
 # Webflow CMS API token for changelog sync (requires cms:write scope)

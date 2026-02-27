@@ -1168,16 +1168,8 @@ export default function OrganizedContentList({
   useEffect(() => {
     if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
-    const handleBeforeNavigation = () => {
-      refreshStateRef.current.isNavigating = true;
-      previousPathnameRef.current = window.location.pathname;
-      if (refreshStateRef.current.pendingTimeout) {
-        clearTimeout(refreshStateRef.current.pendingTimeout);
-        refreshStateRef.current.pendingTimeout = null;
-      }
-    };
-
     const handlePageLoad = () => {
+      refreshStateRef.current.isNavigating = false;
       refreshStateRef.current.isNavigating = false;
 
       const isDashboard = isDashboardPath();
@@ -1295,12 +1287,10 @@ export default function OrganizedContentList({
 
     checkAndRefreshOnMount();
 
-    document.addEventListener('astro:before-preparation', handleBeforeNavigation);
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
 
     return () => {
-      document.removeEventListener('astro:before-preparation', handleBeforeNavigation);
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
       if (refreshStateRef.current.pendingTimeout) {
         clearTimeout(refreshStateRef.current.pendingTimeout);
         refreshStateRef.current.pendingTimeout = null;

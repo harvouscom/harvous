@@ -16,8 +16,8 @@ import { test, expect as authExpect } from './fixtures/auth';
  * Prerequisites (the DB the dev server uses must be seeded before e2e):
  * 1. Add test user credentials to .env (see e2e/fixtures/auth.ts): TEST_USER_A_EMAIL, TEST_USER_A_PASSWORD, TEST_USER_B_EMAIL, TEST_USER_B_PASSWORD.
  * 2. Seed the same DB your dev server uses:
- *    - If dev uses remote DB (e.g. ASTRO_DB_REMOTE_URL set): run `npx astro db execute db/seed.ts --remote` before e2e, or use `npm run test:e2e:setup`.
- *    - If dev uses local DB: ensure `npm run dev` has been run so local DB is seeded, or run `npx astro db execute db/seed.ts` before e2e.
+ *    - If dev uses remote DB (e.g. TURSO_DATABASE_URL set): run `npm run test:e2e:setup` or seed manually before e2e.
+ *    - If dev uses local DB: ensure `npm run dev` has been run so local DB is seeded, or run `tsx scripts/seed-e2e.ts` before e2e.
  * 3. For test 5 ("Owner sees increased member count"): set TEST_USER_A_CLERK_ID in .env to the Clerk user ID of the account used as TEST_USER_A_EMAIL (from Clerk Dashboard → Users). Then re-run the seed so space_test_2 is owned by User A.
  * 4. Start (or let Playwright start) the dev server; tests use baseURL http://localhost:4321.
  */

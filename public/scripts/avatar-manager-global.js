@@ -82,8 +82,7 @@
     initializeAvatarManager();
   }
 
-  // Also initialize on page transitions (for SPA-like behavior)
-  document.addEventListener('astro:page-load', () => {
+  document.addEventListener('app:route-change', () => {
     initializeAvatarManager();
   });
 })();

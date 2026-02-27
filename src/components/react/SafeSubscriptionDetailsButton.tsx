@@ -80,9 +80,9 @@ export default function SafeSubscriptionDetailsButton({
       }
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [publishableKey]);
 

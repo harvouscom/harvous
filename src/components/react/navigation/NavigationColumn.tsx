@@ -579,15 +579,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       });
     };
 
-    // Listen for Astro page transitions
-    document.addEventListener('astro:page-load', handlePageLoad);
-    // Also listen for after-swap to catch early updates
-    document.addEventListener('astro:after-swap', handlePageLoad);
-    
+    document.addEventListener('app:route-change', handlePageLoad);
     return () => {
       if (timeoutRef) clearTimeout(timeoutRef);
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      document.removeEventListener('astro:after-swap', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [pathname, activeThread]);
 
@@ -616,11 +611,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
 
     syncFromLocation();
-    document.addEventListener('astro:page-load', syncFromLocation);
-    document.addEventListener('astro:after-swap', syncFromLocation);
+    document.addEventListener('app:route-change', syncFromLocation);
     return () => {
-      document.removeEventListener('astro:page-load', syncFromLocation);
-      document.removeEventListener('astro:after-swap', syncFromLocation);
+      document.removeEventListener('app:route-change', syncFromLocation);
     };
   }, [pathname, search]);
 

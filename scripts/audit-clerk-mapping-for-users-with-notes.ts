@@ -6,7 +6,7 @@
  * Usage (from repo root, with .env or env vars set):
  *   npx tsx scripts/audit-clerk-mapping-for-users-with-notes.ts
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, Notes, UserMetadata, ClerkUserMapping } from '../server/db';

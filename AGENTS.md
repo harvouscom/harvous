@@ -40,7 +40,7 @@ spa/                         # PRODUCTION FRONTEND (Vite SPA)
     router.tsx               # TanStack Router route definitions
     main.tsx                 # Entry point, global CSS imports
     lib/api.ts               # API client wrapper
-    shims/                   # Shims (e.g. astro-transitions for safeNavigate)
+    shims/                   # Shims (e.g. app-navigate for safeNavigate)
 src/
   components/react/          # Shared React components (used by SPA)
   utils/                     # Shared utilities
@@ -87,9 +87,9 @@ Playwright tests for **join** and **invite** flows live in `e2e/shared-space-joi
 
 ## Database
 
-Turso via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN`. Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
+Turso via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (fallback: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN`). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
 
-**Production data verification (no user data showing):** The API reads from the same Turso DB. If the app shows no data: (1) In Netlify, confirm `ASTRO_DB_REMOTE_URL` and `ASTRO_DB_APP_TOKEN` are set and point to the Turso DB that has your data. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
+**Production data verification (no user data showing):** The API reads from the same Turso DB. If the app shows no data: (1) In Netlify, confirm `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (or `ASTRO_DB_*`) are set and point to the Turso DB that has your data. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
 
 ## Auth (Clerk)
 

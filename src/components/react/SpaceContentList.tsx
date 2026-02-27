@@ -773,14 +773,7 @@ export default function SpaceContentList({
       return path === `/${spaceId}` || path === spaPath;
     };
 
-    const handleBeforeNavigation = () => {
-      isNavigatingRef.current = true;
-      // Store current pathname before navigation
-      previousPathnameRef.current = window.location.pathname;
-    };
-
     const handlePageLoad = () => {
-      // Reset navigation flag after page loads
       isNavigatingRef.current = false;
 
       const currentPath = window.location.pathname;
@@ -793,7 +786,7 @@ export default function SpaceContentList({
         const referrer = document.referrer;
         const cameFromThreadOrNote = referrerMatchesPattern('/thread/') || referrerMatchesPattern('/note/');
 
-        // Also check if previous pathname was a thread/note (for View Transitions scenarios)
+        // Also check if previous pathname was a thread/note (for SPA route changes)
         const previousWasThreadOrNote = previousPathnameRef.current.startsWith('/thread/') || 
                                         previousPathnameRef.current.startsWith('/note/');
 
@@ -872,7 +865,7 @@ export default function SpaceContentList({
       previousPathnameRef.current = window.location.pathname;
     };
 
-    // Check on mount if we're coming from a thread/note page (for full page reloads or when View Transitions don't fire)
+    // Check on mount if we're coming from a thread/note page (full page reloads or when app:route-change did not run)
     // Also check for PWA context and stale data
     const checkAndRefreshOnMount = () => {
       const currentPath = window.location.pathname;
@@ -967,14 +960,10 @@ export default function SpaceContentList({
     // Check on mount (for full page reloads)
     checkAndRefreshOnMount();
 
-    // Listen for navigation start to skip refreshes during navigation
-    document.addEventListener('astro:before-preparation', handleBeforeNavigation);
-    // Listen for View Transitions page load
-    document.addEventListener('astro:page-load', handlePageLoad);
+    document.addEventListener('app:route-change', handlePageLoad);
 
     return () => {
-      document.removeEventListener('astro:before-preparation', handleBeforeNavigation);
-      document.removeEventListener('astro:page-load', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, [spaceId, refreshSpaceContent, optimisticUpdateLastVisited, extractItemIdFromPath]);
 

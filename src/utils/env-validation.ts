@@ -20,19 +20,15 @@ export function validateEnvironmentVariables(): ValidationResult {
   const warnings: string[] = [];
 
   // Required environment variables
-  const required = {
-    PUBLIC_CLERK_PUBLISHABLE_KEY: import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY,
-    CLERK_SECRET_KEY: import.meta.env.CLERK_SECRET_KEY,
-    ASTRO_DB_REMOTE_URL: import.meta.env.ASTRO_DB_REMOTE_URL,
-    ASTRO_DB_APP_TOKEN: import.meta.env.ASTRO_DB_APP_TOKEN,
-  };
+  const clerkKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
+  const clerkSecret = import.meta.env.CLERK_SECRET_KEY;
+  const dbUrl = import.meta.env.TURSO_DATABASE_URL ?? import.meta.env.ASTRO_DB_REMOTE_URL;
+  const dbToken = import.meta.env.TURSO_AUTH_TOKEN ?? import.meta.env.ASTRO_DB_APP_TOKEN;
 
-  // Check required variables
-  for (const [key, value] of Object.entries(required)) {
-    if (!value || value.trim() === '') {
-      missing.push(key);
-    }
-  }
+  if (!clerkKey || String(clerkKey).trim() === '') missing.push('PUBLIC_CLERK_PUBLISHABLE_KEY');
+  if (!clerkSecret || String(clerkSecret).trim() === '') missing.push('CLERK_SECRET_KEY');
+  if (!dbUrl || String(dbUrl).trim() === '') missing.push('TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL)');
+  if (!dbToken || String(dbToken).trim() === '') missing.push('TURSO_AUTH_TOKEN (or ASTRO_DB_APP_TOKEN)');
 
   // Recommended but optional variables
   const recommended = {

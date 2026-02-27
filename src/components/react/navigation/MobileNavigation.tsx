@@ -241,11 +241,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (typeof window === 'undefined') return;
 
     readActiveThreadFromDom();
-    document.addEventListener('astro:page-load', readActiveThreadFromDom);
-    document.addEventListener('astro:after-swap', readActiveThreadFromDom);
+    document.addEventListener('app:route-change', readActiveThreadFromDom);
     return () => {
-      document.removeEventListener('astro:page-load', readActiveThreadFromDom);
-      document.removeEventListener('astro:after-swap', readActiveThreadFromDom);
+      document.removeEventListener('app:route-change', readActiveThreadFromDom);
     };
   }, [readActiveThreadFromDom]);
 
@@ -324,12 +322,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       }
     };
 
-    document.addEventListener('astro:page-load', handlePageLoad);
-    document.addEventListener('astro:after-swap', handlePageLoad);
-    
+    document.addEventListener('app:route-change', handlePageLoad);
     return () => {
-      document.removeEventListener('astro:page-load', handlePageLoad);
-      document.removeEventListener('astro:after-swap', handlePageLoad);
+      document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, []);
 
@@ -354,11 +349,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
 
     syncFromLocation();
-    document.addEventListener('astro:page-load', syncFromLocation);
-    document.addEventListener('astro:after-swap', syncFromLocation);
+    document.addEventListener('app:route-change', syncFromLocation);
     return () => {
-      document.removeEventListener('astro:page-load', syncFromLocation);
-      document.removeEventListener('astro:after-swap', syncFromLocation);
+      document.removeEventListener('app:route-change', syncFromLocation);
     };
   }, []);
 

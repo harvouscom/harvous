@@ -7,7 +7,7 @@
  *
  * Optional: EMAIL=derekj@hey.com if you want to ensure the row is keyed by that email.
  *
- * Requires: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN.
+ * Requires: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (or ASTRO_DB_*).
  */
 import 'dotenv/config';
 import { db, ClerkUserMapping } from '../server/db';

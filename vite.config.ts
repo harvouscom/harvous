@@ -46,8 +46,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      // Shim Astro-only modules so shared React components build cleanly in Vite
-      'astro:transitions/client': path.resolve(__dirname, 'spa/src/shims/astro-transitions.ts'),
+      'app-navigate': path.resolve(__dirname, 'spa/src/shims/app-navigate.ts'),
     },
     dedupe: ['react', 'react-dom'],
   },

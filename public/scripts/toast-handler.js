@@ -129,12 +129,8 @@ if (document.readyState === 'loading') {
   checkAndShowToast();
 }
 
-// Re-run after View Transitions (client-side navigation)
-// Reset processedUrlBase when navigating to allow new toasts
-document.addEventListener('astro:before-preparation', () => {
+// Re-run after SPA route change (client-side navigation)
+document.addEventListener('app:route-change', () => {
   processedUrlBase = null;
-});
-
-document.addEventListener('astro:page-load', () => {
   checkAndShowToast();
 });

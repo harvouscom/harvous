@@ -138,7 +138,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
                           if (currentSpaceId === item.id) {
                             setSelectedSpaceId(null);
                             try {
-                              import('astro:transitions/client')
+                              import('app-navigate')
                                 .then(({ navigate }) => navigate('/', { history: 'replace' }))
                                 .catch(() => (window.location.href = '/'));
                             } catch {
