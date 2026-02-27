@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { useNavigation } from '../hooks/queries/useNavigation';
@@ -12,9 +13,14 @@ export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
   // URL param is the slug (e.g. "def456"); DB + API need the full prefixed ID
   const noteId = noteSlug.startsWith('note_') ? noteSlug : `note_${noteSlug}`;
+  const { user } = useUser();
   const { data: note, isLoading } = useNote(noteId);
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
   const queryClient = useQueryClient();
+
+  // Notes in shared spaces that the current user did not add are view-only (member view).
+  const isNoteOwner = !!(user?.id && note?.userId && note.userId === user.id);
+  const isEditable = isNoteOwner;
 
   // Invalidate the note query when lock state changes (e.g. after removeLock)
   // so the fresh contentEncrypted value is fetched and CardFullEditable doesn't loop.
@@ -175,8 +181,8 @@ export default function NotePage() {
         resourceDescription={note.resourceDescription ?? undefined}
         resourceImage={note.resourceImage ?? undefined}
         resourceUrl={note.resourceUrl ?? undefined}
-        isEditable={true}
         contentEncrypted={note.contentEncrypted ?? false}
+        isEditable={isEditable}
         className="h-full flex-1 min-h-0"
       />
     </div>

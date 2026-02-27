@@ -86,7 +86,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     };
   }, [isMounted, userId]);
 
-  // Format sync timestamp
+  // Format sync timestamp and footer message
   // Use hard-coded arrays instead of toLocaleString to avoid iOS PWA ignoring 'en-US' locale.
   const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const formatSyncTimestamp = (): string => {
@@ -107,6 +107,13 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     }
     return '';
   };
+
+  const syncFooterMessage = ((): string => {
+    const ts = formatSyncTimestamp();
+    if (ts) return `All synced as of ${ts}`;
+    if (syncState?.syncError) return 'Sync issue — will retry when online.';
+    return 'Not yet synced';
+  })();
 
   // Prevent body scroll when dialog is open
   useEffect(() => {
@@ -515,9 +522,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
                 {/* Sync status text */}
                 <div className="panel__footer">
-                  <p>
-                    {formatSyncTimestamp() ? `All synced as of ${formatSyncTimestamp()}` : 'Not yet synced'}
-                  </p>
+                  <p>{syncFooterMessage}</p>
                 </div>
               </div>
             </div>
