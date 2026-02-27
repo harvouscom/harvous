@@ -1448,6 +1448,36 @@ export default function EditSpacePanel({
                   </div>
                 )}
 
+                {/* About Space: meta bar – created by and date, centered (member view only) */}
+                {!isOwner && (
+                  <div className="w-full shrink-0">
+                    {isLoadingMembers ? (
+                      <div className="panel__metadata-row panel__metadata-row--center">
+                        <div className="panel__metadata-row__right">
+                          <span className="text-metadata">Loading…</span>
+                        </div>
+                      </div>
+                    ) : (() => {
+                      const owner = members.find((m: any) => m.role === 'owner');
+                      if (!owner) return null;
+                      const displayName = owner.displayName || 'Unknown';
+                      return (
+                        <div className="panel__metadata-row panel__metadata-row--center">
+                          <div className="panel__metadata-row__right">
+                            <span className="leading-[normal] text-nowrap text-metadata">
+                              Created by {displayName}
+                            </span>
+                            <span className="leading-[normal]" style={{ color: 'rgba(136, 134, 128, 0.3)' }}>|</span>
+                            <span className="leading-[normal] text-nowrap text-metadata">
+                              {formatDate(owner.joinedAt)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Tab navigation */}
                 <TabNav
                   tabs={[
