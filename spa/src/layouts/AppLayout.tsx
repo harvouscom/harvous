@@ -60,6 +60,11 @@ export default function AppLayout() {
   const { data: currentThread } = useThread(threadIdForHook);
   const { data: currentSpaceDetail } = useSpace(spaceIdForHook);
 
+  // For note pages, parent thread id (for nav highlight and for add-note permission)
+  const noteParentThreadId = currentNote?.threads?.[0]?.id
+    ?? (isNoteEarly ? getCachedNoteParentThreadId(noteIdForHook) : null);
+  const { data: parentThreadData } = useThread(noteParentThreadId ?? '');
+
   // Redirect to sign-in if not authenticated
   useEffect(() => {
     if (isLoaded && !isSignedIn) {
@@ -254,12 +259,6 @@ export default function AppLayout() {
 
   const allThreads = nav?.threads ?? [];
 
-  // For note pages, the "active thread" in the nav is the note's parent thread.
-  // Fall back to the localStorage-cached value so the thread is highlighted immediately
-  // on first render before useNote finishes loading.
-  const noteParentThreadId = currentNote?.threads?.[0]?.id
-    ?? (isNote ? getCachedNoteParentThreadId(noteIdForHook) : null);
-
   // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
   const activeThreadFromNav = isThread
     ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
@@ -318,6 +317,29 @@ export default function AppLayout() {
   // Space role — used by ActionStrip menu to show owner vs member options
   const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
   const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
+
+  // Effective space role for add-note gating (thread/note inside a shared space, not only on space URL)
+  const memberOfSpaceIds = (nav?.memberOfSpaces ?? []).map(s => s.id);
+  const ownedSpaceIds = (nav?.spaces ?? []).map(s => s.id);
+  const effectiveSpaceRole: 'owner' | 'member' | null = (() => {
+    if (isSpace) return spaceRole;
+    if (isThread && currentThread?.spaceId) {
+      if (memberOfSpaceIds.includes(currentThread.spaceId)) return 'member';
+      if (ownedSpaceIds.includes(currentThread.spaceId)) return 'owner';
+    }
+    if (isNote && parentThreadData?.spaceId) {
+      if (memberOfSpaceIds.includes(parentThreadData.spaceId)) return 'member';
+      if (ownedSpaceIds.includes(parentThreadData.spaceId)) return 'owner';
+    }
+    return null;
+  })();
+  const threadOwnerId: string | undefined =
+    isThread ? (currentThread?.userId ?? undefined)
+    : isNote ? (parentThreadData?.userId ?? undefined)
+    : undefined;
+  const canShowAddNote =
+    (effectiveSpaceRole !== 'member') ||
+    (effectiveSpaceRole === 'member' && threadOwnerId === user?.id);
 
   const contentType: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' | 'search' | 'new-space' =
     isNote ? 'note' :
@@ -386,11 +408,11 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
-            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
+            {/* CreateNoteButton: hide for members when viewing another's thread/space */}
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
               <CreateNoteButton />
             )}
-            {contentType === 'note' && (
+            {contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
                 <NotePageAddButton />
               </div>
@@ -467,11 +489,11 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
-            {/* CreateNoteButton: show for dashboard, thread, space (including space as member — do not gate on spaceRole) */}
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && (
+            {/* CreateNoteButton: hide for members when viewing another's thread/space */}
+            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
               <CreateNoteButton />
             )}
-            {contentType === 'note' && (
+            {contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
                 <NotePageAddButton />
               </div>

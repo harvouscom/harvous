@@ -462,6 +462,7 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
         noteCount: thread.noteCount,
         backgroundGradient: thread.backgroundGradient,
         userId: thread.userId,
+        spaceId: thread.spaceId ?? null,
       },
       notes,
       noteTypeCounts,
