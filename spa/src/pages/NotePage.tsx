@@ -6,6 +6,7 @@ import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
+import { debug } from '@/utils/logger';
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -68,6 +69,29 @@ export default function NotePage() {
   // The parent thread is the first thread this note belongs to (if any)
   const parentThread = note?.threads?.[0];
   const parentThreadId = parentThread?.id ?? undefined;
+
+  // Update navigation history with parent thread count/spaceId when note loads
+  // so the left nav badge shows the correct count (e.g. when opening note without visiting thread page first).
+  useEffect(() => {
+    const parent = note?.threads?.[0];
+    if (!parent?.id || typeof (window as any).addToNavigationHistory !== 'function') return;
+    const threadWithMeta = parent as { count?: number; spaceId?: string | null };
+    (window as any).addToNavigationHistory({
+      id: parent.id,
+      title: parent.title ?? 'Thread',
+      count: threadWithMeta.count ?? 0,
+      backgroundGradient: parent.backgroundGradient ?? '',
+      spaceId: threadWithMeta.spaceId ?? null,
+    });
+  }, [note]);
+
+  // Diagnostic (dev): log whether note content has scripture pill markup (helps distinguish "no pills in content" vs "pills not rendering" for member view).
+  useEffect(() => {
+    if (!note?.content) return;
+    const content = note.content;
+    const hasPillMarkup = typeof content === 'string' && content.includes('data-scripture-reference');
+    debug('[NotePage] scripture pill diagnostic', { noteId, hasPillMarkup, contentLength: content?.length });
+  }, [noteId, note?.content]);
 
   // Set up the global save callback that CardFullEditable relies on
   useEffect(() => {
@@ -134,6 +158,8 @@ export default function NotePage() {
         'data-parent-thread-id': parentThreadId,
         'data-parent-thread-title': parentThread?.title ?? '',
         'data-parent-thread-background-gradient': parentThread?.backgroundGradient ?? '',
+        'data-parent-thread-count': String((parentThread as { count?: number }).count ?? 0),
+        'data-parent-thread-space-id': (parentThread as { spaceId?: string | null }).spaceId ?? '',
       } : {})}
       className="content-fade-in"
       style={{ display: 'contents' }}
