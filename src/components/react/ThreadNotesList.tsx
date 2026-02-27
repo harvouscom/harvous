@@ -132,6 +132,8 @@ export default function ThreadNotesList({
   // State for delete confirmation dialog
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  // True until first load completes (or timeout); used to show progress bar instead of full loading block
+  const [isInitialLoadPending, setIsInitialLoadPending] = useState(() => initialNotes.length === 0);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -824,8 +826,17 @@ export default function ThreadNotesList({
 
   // SPA context: when no initial notes are provided (no SSR pre-fetch), load immediately on mount
   useEffect(() => {
-    if (initialNotes.length > 0) return; // Already have data, skip
-    refreshNotesList();
+    if (initialNotes.length > 0) {
+      setIsInitialLoadPending(false);
+      return;
+    }
+    setIsInitialLoadPending(true);
+    const timeoutId = setTimeout(() => setIsInitialLoadPending(false), 3000);
+    refreshNotesList().finally(() => {
+      setIsInitialLoadPending(false);
+      clearTimeout(timeoutId);
+    });
+    return () => clearTimeout(timeoutId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]); // Only re-run when threadId changes, not on every refreshNotesList recreation
 
@@ -1488,6 +1499,12 @@ export default function ThreadNotesList({
             initialHasMore={initialHasMore}
             minimumExpectedCount={totalCountForFilter}
           />
+        ) : isInitialLoadPending ? (
+          <div style={{ position: 'relative', minHeight: 0 }}>
+            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+              <div className="panel__progress-fill" />
+            </div>
+          </div>
         ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>

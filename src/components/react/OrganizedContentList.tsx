@@ -1657,13 +1657,14 @@ export default function OrganizedContentList({
     );
   }
 
+  const isLoadingEmpty = (isWaitingForFreshData || isLoadingFilter || parentIsLoading) && displayItems.length === 0;
+
   return (
     <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
-      {(isWaitingForFreshData || isLoadingFilter || parentIsLoading) && displayItems.length === 0 ? (
-        // Show loading state when waiting for fresh data from stale cache OR during filter/initial fetch OR parent (e.g. React Query) loading
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
-          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
-            Loading...
+      {isLoadingEmpty ? (
+        <div style={{ position: 'relative', minHeight: 0 }}>
+          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+            <div className="panel__progress-fill" />
           </div>
         </div>
       ) : displayItems.length > 0 ? (

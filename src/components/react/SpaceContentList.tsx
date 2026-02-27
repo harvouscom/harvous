@@ -1111,33 +1111,35 @@ export default function SpaceContentList({
     : items.filter(item => item.itemType === 'note');
 
   if (filteredItems.length === 0) {
-    if (parentIsLoading || !hasResolvedFirstLoad) {
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
-          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
-            Loading...
-          </div>
-        </div>
-      );
-    }
+    const isLoadingEmpty = parentIsLoading || !hasResolvedFirstLoad;
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
-        <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--color-deep-grey)', fontSize: '18px', lineHeight: '1.2', marginBottom: '8px' }}>
-          <p style={{ margin: 0 }}>
-            {filter === 'threads' ? 'No threads yet' :
-             filter === 'notes' ? 'No notes yet' :
-             filter === 'scripture' ? 'No scripture notes yet' :
-             'Nothing here yet'}
-          </p>
-        </div>
-        <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'var(--color-pebble-grey)', fontSize: '14px', lineHeight: '1.3', maxWidth: '280px' }}>
-          <p style={{ margin: 0 }}>
-            {filter === 'threads' ? 'Add a thread to get started' :
-             filter === 'notes' ? 'Add a note to get started' :
-             filter === 'scripture' ? 'Add a scripture note to get started' :
-             'Add something to get started'}
-          </p>
-        </div>
+      <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
+        {isLoadingEmpty ? (
+          <div style={{ position: 'relative', minHeight: 0 }}>
+            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+              <div className="panel__progress-fill" />
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--color-deep-grey)', fontSize: '18px', lineHeight: '1.2', marginBottom: '8px' }}>
+              <p style={{ margin: 0 }}>
+                {filter === 'threads' ? 'No threads yet' :
+                 filter === 'notes' ? 'No notes yet' :
+                 filter === 'scripture' ? 'No scripture notes yet' :
+                 'Nothing here yet'}
+              </p>
+            </div>
+            <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: 'var(--color-pebble-grey)', fontSize: '14px', lineHeight: '1.3', maxWidth: '280px' }}>
+              <p style={{ margin: 0 }}>
+                {filter === 'threads' ? 'Add a thread to get started' :
+                 filter === 'notes' ? 'Add a note to get started' :
+                 filter === 'scripture' ? 'Add a scripture note to get started' :
+                 'Add something to get started'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
