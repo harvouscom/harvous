@@ -790,8 +790,19 @@ route.get('/api/notes/:id/details', async (c) => {
 
     if (!note) {
       const noteById = await db.select().from(Notes).where(eq(Notes.id, noteId)).get();
-      if (!noteById || !noteById.spaceId) return c.json({ error: 'Note not found or access denied' }, 404);
-      try { await requireSpaceAccess(noteById.spaceId, auth.userId); } catch (err) {
+      if (!noteById) return c.json({ error: 'Note not found or access denied' }, 404);
+      let spaceIdForAccess = noteById.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+          .from(NoteThreads)
+          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
+          .limit(1)
+          .get();
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: 'Note not found or access denied' }, 404);
+      try { await requireSpaceAccess(spaceIdForAccess, auth.userId); } catch (err) {
         if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
         throw err;
       }

@@ -17,6 +17,7 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
+import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
 import { api } from '../lib/api';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
@@ -323,7 +324,29 @@ export default function AppLayout() {
 
   // Unorganized thread is virtual — it has no editable options, so hide the ActionStrip dock
   const isUnorganized = isThread && currentId === 'thread_unorganized';
-  const showActionStrip = (contentType === 'thread' || contentType === 'note' || contentType === 'space') && !isUnorganized;
+  const actionStripOptions = getMenuOptions(
+    contentType,
+    currentId,
+    noteType,
+    contentEncrypted,
+    contentEncryptedServer,
+    noteSimpleId,
+    spaceRole,
+    contentOwnerId,
+    user?.id ?? null,
+    spaceIsShared
+  );
+  const hasVisibleMoreButton = shouldShowMoreButton(
+    contentType,
+    currentId,
+    contentOwnerId,
+    user?.id ?? null
+  );
+  const showActionStrip =
+    (contentType === 'thread' || contentType === 'note' || contentType === 'space') &&
+    !isUnorganized &&
+    actionStripOptions.length > 0 &&
+    hasVisibleMoreButton;
 
   return (
     <div className="app-layout">

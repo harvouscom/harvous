@@ -25,10 +25,10 @@ export default function ThreadPage() {
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
-  // from the navigation API so the left-column badge shows the real number.
+  // (from nav for owned threads, or from thread prefetch for member threads not in nav).
   useEffect(() => {
     const navThread = nav?.threads.find(t => t.id === threadId);
-    const count = navThread?.noteCount ?? 0;
+    const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
     if (typeof window !== 'undefined' && (window as any).addToNavigationHistory) {
@@ -37,7 +37,7 @@ export default function ThreadPage() {
         title,
         count,
         backgroundGradient: gradient,
-        spaceId: navThread?.spaceId ?? null,
+        spaceId: navThread?.spaceId ?? thread?.spaceId ?? null,
       });
     }
   }, [threadId, thread, nav, isUnorganized]);
