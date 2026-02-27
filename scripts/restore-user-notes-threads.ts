@@ -81,6 +81,22 @@ function loadTable(path: string): unknown[] {
   return [data];
 }
 
+/** When loading a single-table Drizzle export { "Threads": [...] } or { "Notes": [...] }, unwrap to the array. */
+function normalizeLoadedTable(loaded: unknown[], kind: 'threads' | 'notes'): Record<string, unknown>[] {
+  if (Array.isArray(loaded) && loaded.length > 0) {
+    const first = loaded[0];
+    if (typeof first === 'object' && first !== null && !Array.isArray(first)) {
+      const o = first as Record<string, unknown>;
+      if (kind === 'threads' && Array.isArray(o.Threads)) return o.Threads as Record<string, unknown>[];
+      if (kind === 'threads' && Array.isArray(o.threads)) return o.threads as Record<string, unknown>[];
+      if (kind === 'notes' && Array.isArray(o.Notes)) return o.Notes as Record<string, unknown>[];
+      if (kind === 'notes' && Array.isArray(o.notes)) return o.notes as Record<string, unknown>[];
+    }
+    return loaded as Record<string, unknown>[];
+  }
+  return loaded as Record<string, unknown>[];
+}
+
 // ─── Normalize row: ensure required fields, coerce types ──────────────────────
 function toThreadRow(row: Record<string, unknown>, userId: string) {
   const id = String(row.id ?? '').trim();
@@ -169,20 +185,26 @@ async function main() {
     const abs = resolve(singlePath);
     const raw = readFileSync(abs, 'utf-8');
     const data = JSON.parse(raw);
+    // Support { threads, notes }, { Threads, Notes } (Drizzle), or root-level array of notes
     if (Array.isArray(data.threads)) threads = data.threads;
     if (Array.isArray(data.notes)) notes = data.notes;
-    if (threads.length === 0 && notes.length === 0 && Array.isArray(data)) {
-      console.error('Single file must contain { threads: [...], notes: [...] }. For separate arrays use --threads and --notes.');
+    if (Array.isArray(data.Threads)) threads = data.Threads;
+    if (Array.isArray(data.Notes)) notes = data.Notes;
+    if (Array.isArray(data) && threads.length === 0 && notes.length === 0) {
+      notes = data as Record<string, unknown>[];
+    }
+    if (threads.length === 0 && notes.length === 0) {
+      console.error('Single file must contain threads/notes (e.g. { threads: [...], notes: [...] } or { Threads: [...], Notes: [...] }) or a root-level array of note objects.');
       process.exit(1);
     }
   } else {
     if (threadsPath) {
       const loaded = loadTable(threadsPath);
-      threads = loaded as Record<string, unknown>[];
+      threads = normalizeLoadedTable(loaded as unknown[], 'threads');
     }
     if (notesPath) {
       const loaded = loadTable(notesPath);
-      notes = loaded as Record<string, unknown>[];
+      notes = normalizeLoadedTable(loaded as unknown[], 'notes');
     }
   }
 

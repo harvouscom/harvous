@@ -75,21 +75,17 @@ Drizzle ORM           - Schema and Turso access (server/db/)
 ## Database & Auth
 
 ```
-Turso (Drizzle)       - Serverless SQL database (server/db/schema.ts, ASTRO_DB_* env)
+Turso (Drizzle)       - Serverless SQL database (server/db/schema.ts; TURSO_* or ASTRO_DB_* env)
 Clerk                 - Authentication and user management
 ```
 
-### Astro DB / Turso
+### Turso + Drizzle
 
-- **Purpose**: Serverless SQL database
-- **Environment**: 
-  - Development: Local SQLite
-  - Production: Remote Turso database
-- **Schema Management**: Defined in `db/config.ts`
-- **Key Features**:
-  - Type-safe database queries
-  - Automatic migrations
-  - Remote sync capabilities
+- **Purpose**: Serverless SQL database (SQLite-compatible)
+- **Schema**: `server/db/schema.ts` (Drizzle ORM)
+- **Client**: `server/db/client.ts` — uses `@libsql/client` (web build for Netlify)
+- **Env**: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (fallback: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN`)
+- **Migrations**: `npm run db:push` (Drizzle Kit push to Turso)
 
 ### Clerk
 
@@ -157,7 +153,7 @@ Output: Hono (server/)- Single serverless function for all /api/*
 
 ### Build Output
 
-- **Build order**: `astro build` (DB/schema tooling, legacy output) then `vite build` (SPA → `dist-spa/`); `dist-spa/` is copied over `dist/`, so **production serves the SPA**.
+- **Build**: `npm run build` — inject SW version, then `build:api` (Hono → `netlify/functions/api.cjs`) and `build:spa` (Vite → `dist-spa/`). Publish directory is `dist-spa/`.
 - **SPA**: Static `index.html` + hashed JS/CSS from `spa/`, served from CDN.
 - **API**: Single Netlify function (`netlify/functions/api.cjs`) handles all `/api/*` (Hono app from `server/`).
 
@@ -165,7 +161,7 @@ Output: Hono (server/)- Single serverless function for all /api/*
 
 ### Node.js
 
-- **Required Version**: >=20.6.1 (specified in `package.json` engines)
+- **Required Version**: >=22.0.0 (specified in `package.json` engines)
 - **Package Manager**: npm or pnpm
 
 ### Database Tools
@@ -176,11 +172,10 @@ Output: Hono (server/)- Single serverless function for all /api/*
 
 ### Build Tools
 
-- **Recommended dev**: `npm run dev:all` — Hono API (3001) + SPA (4322), production parity
-- **Legacy Astro dev**: `npm run dev` — Astro dev server (port 4321), optional
-- **SPA only**: `npm run dev:spa` — Vite SPA (4322); API must be running separately
-- **Production build**: `npm run build` — Astro build + Vite build; `dist-spa/` copied to `dist/` (SPA is what gets served)
-- **Preview**: `npm run preview` — Preview production build
+- **Dev**: `npm run dev` / `npm run dev:all` — Hono API (3001) + SPA (4322); full-stack with production parity
+- **SPA only**: `npm run dev:spa` — Vite SPA (4322); API must be running for `/api` to work
+- **Production build**: `npm run build` — inject SW + build:api + build:spa (no Astro)
+- **Preview**: `npm run preview` — Preview SPA build (port 4322)
 
 ## Environment Variables
 

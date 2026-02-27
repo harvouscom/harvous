@@ -1,5 +1,7 @@
 # User data backups
 
+**Admin restore:** To restore one user’s notes/threads from exported JSON or CSV and fix the note-ID counter, see [RESTORE_AND_RESET_SCRIPTS.md](RESTORE_AND_RESET_SCRIPTS.md).
+
 ## Current state
 
 - **Turso PITR:** Production DB has point-in-time recovery (retention depends on plan: 24h free, 10/30/90 days on paid). Use for disaster recovery of the whole DB.
