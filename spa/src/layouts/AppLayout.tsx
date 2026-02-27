@@ -149,14 +149,17 @@ export default function AppLayout() {
     if (prevPathnameRef.current === pathname) return;
     prevPathnameRef.current = pathname;
 
-    // Restart the fade-in animation on both content containers
     const targets = [desktopContentRef.current, mobileContentRef.current];
     for (const el of targets) {
       if (!el) continue;
+      el.classList.add('route-pending');
       el.classList.remove('route-fade-in');
-      // Force reflow so removing + re-adding the class restarts the animation
-      void el.offsetWidth;
+    }
+    void desktopContentRef.current?.offsetWidth; // Force reflow
+    for (const el of targets) {
+      if (!el) continue;
       el.classList.add('route-fade-in');
+      el.classList.remove('route-pending');
     }
 
     // Emit Astro View Transition lifecycle events so shared components (content
@@ -351,6 +354,13 @@ export default function AppLayout() {
     pathname === '/new-space' ? 'new-space' :
     'dashboard';
 
+  // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)
+  const layoutDataReadyForContent =
+    contentType === 'dashboard' || contentType === 'profile' || contentType === 'search' || contentType === 'new-space' ||
+    (contentType === 'space' && (currentSpaceDetail != null || nav != null)) ||
+    (contentType === 'thread' && (currentThread != null || nav != null)) ||
+    (contentType === 'note' && (parentThreadData != null || currentNote != null));
+
   // Unorganized thread is virtual — it has no editable options, so hide the ActionStrip dock
   const isUnorganized = isThread && currentId === 'thread_unorganized';
   const actionStripOptions = getMenuOptions(
@@ -409,10 +419,10 @@ export default function AppLayout() {
               <Outlet key={pathname} />
             </div>
             {/* CreateNoteButton: hide for members when viewing another's thread/space */}
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
+            {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
               <CreateNoteButton />
             )}
-            {contentType === 'note' && canShowAddNote && (
+            {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
                 <NotePageAddButton />
               </div>
@@ -426,7 +436,7 @@ export default function AppLayout() {
                 Logout
               </button>
             )}
-            {showActionStrip && (
+            {layoutDataReadyForContent && showActionStrip && (
               <div id="square-buttons-container" className="action-strip-dock">
                 <ActionStrip
                   variant="desktop"
@@ -484,16 +494,16 @@ export default function AppLayout() {
         </div>
 
         {/* Main content + CreateNoteButton + mobile-action-strip-dock (matches SSR mobile-main) */}
-        <div className={`mobile-main main-column-with-cta route-fade-in ${showActionStrip ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`} ref={mobileContentRef}>
+        <div className={`mobile-main main-column-with-cta route-fade-in ${layoutDataReadyForContent && showActionStrip ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`} ref={mobileContentRef}>
           <div className="mobile-main__body">
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
             {/* CreateNoteButton: hide for members when viewing another's thread/space */}
-            {contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
+            {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
               <CreateNoteButton />
             )}
-            {contentType === 'note' && canShowAddNote && (
+            {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
                 <NotePageAddButton />
               </div>
@@ -507,7 +517,7 @@ export default function AppLayout() {
                 Logout
               </button>
             )}
-            {showActionStrip && (
+            {layoutDataReadyForContent && showActionStrip && (
               <div className="mobile-action-strip-dock">
                 <ActionStrip
                   variant="mobile"

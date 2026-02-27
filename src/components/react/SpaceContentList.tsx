@@ -99,6 +99,7 @@ export default function SpaceContentList({
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
   const hasRefreshedOnMountRef = useRef(false); // Track if mount refresh happened
+  const [hasResolvedFirstLoad, setHasResolvedFirstLoad] = useState(false); // Avoid empty-state flash: show loading until first fetch completes
   // Track optimistically added items that haven't been confirmed by API yet
   const optimisticUpdates = useOptimisticUpdates<SpaceItem>();
   // Track visibility changes for PWA foreground refresh
@@ -107,6 +108,8 @@ export default function SpaceContentList({
   const isRefreshingRef = useRef(false);
   // Track pending optimistic updates (when list is empty)
   const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
+  // Skip refreshes after this space was deleted (avoids 404s before unmount)
+  const spaceDeletedRef = useRef(false);
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: SpaceItem uses lastUpdated (string) instead of updatedAt, so we need to map it
@@ -129,9 +132,11 @@ export default function SpaceContentList({
       const sorted = sortItemsByLastVisited(initialItems);
       setItems(sorted);
       itemsRef.current = sorted;
+      setHasResolvedFirstLoad(true); // Parent supplied data, no loading flash
     } else {
       setItems([]);
       itemsRef.current = [];
+      setHasResolvedFirstLoad(false); // New space or no data yet; wait for first refresh
     }
   }, [initialItems, spaceId, sortItemsByLastVisited]);
 
@@ -146,6 +151,15 @@ export default function SpaceContentList({
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    const handleSpaceDeleted = (e: Event) => {
+      const deletedId = (e as CustomEvent).detail?.spaceId;
+      if (deletedId === spaceId) spaceDeletedRef.current = true;
+    };
+    window.addEventListener('spaceDeleted', handleSpaceDeleted);
+    return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted);
+  }, [spaceId]);
 
   // Optimistic update: immediately update lastVisited and re-sort items
   // Queues update in ref if list is empty, processed by useEffect when items load
@@ -269,6 +283,7 @@ export default function SpaceContentList({
   // Verification-based refresh function
   const refreshSpaceContent = useCallback(async (expectedItemId?: string, expectedItemType?: 'thread' | 'note'): Promise<boolean> => {
     if (!isMountedRef.current) return false;
+    if (spaceDeletedRef.current) return false;
 
     const verifyAndRefresh = async (maxAttempts = 3): Promise<boolean> => {
       const delays = [100, 200, 400]; // Exponential backoff in ms
@@ -281,6 +296,10 @@ export default function SpaceContentList({
           });
 
           if (!response.ok) {
+            if (response.status === 404) {
+              debug('[SpaceContentList] Space not found (404), skipping refresh');
+              return false;
+            }
             console.error('[SpaceContentList] Failed to refresh content:', response.status);
             if (attempt < maxAttempts - 1) {
               await new Promise(resolve => setTimeout(resolve, delays[attempt]));
@@ -451,6 +470,7 @@ export default function SpaceContentList({
           }
 
           setItems(filteredItems);
+          setHasResolvedFirstLoad(true); // First load resolved; stop showing loading, show list or empty state
           return true; // Success
         } catch (error) {
           console.error('[SpaceContentList] Error refreshing content:', error);
@@ -459,7 +479,8 @@ export default function SpaceContentList({
           }
         }
       }
-      
+
+      setHasResolvedFirstLoad(true); // Show empty state on failure instead of loading forever
       return false; // Failed after all attempts
     };
 
@@ -1031,6 +1052,15 @@ export default function SpaceContentList({
     : items.filter(item => item.itemType === 'note');
 
   if (filteredItems.length === 0) {
+    if (!hasResolvedFirstLoad) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
+          <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
+            Loading...
+          </div>
+        </div>
+      );
+    }
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
         <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--color-deep-grey)', fontSize: '18px', lineHeight: '1.2', marginBottom: '8px' }}>

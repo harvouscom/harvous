@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from '@tanstack/react-router';
+import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpace } from '../hooks/queries/useSpace';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
@@ -19,11 +19,17 @@ const TABS: Array<{ id: SpaceFilter; label: string }> = [
 
 export default function SpacePage() {
   const { spaceId: spaceSlug } = useParams({ strict: false }) as { spaceId: string };
+  const navigate = useNavigate();
   // URL param is the slug (e.g. "ghi789"); DB + API need the full prefixed ID
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
   const { data: space, isLoading, isError } = useSpace(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
+
+  // Redirect when space no longer exists (e.g. deleted) so we don't render SpaceContentList for a 404 space
+  useEffect(() => {
+    if (isError) navigate({ to: '/', replace: true });
+  }, [isError, navigate]);
 
   // Track this space visit in navigation history so NavigationColumn shows it in the dropdown.
   // (NavigationContext isn't mounted in the SPA, so trackNavigationAccess() never runs.)
