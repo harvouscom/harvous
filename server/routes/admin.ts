@@ -4,6 +4,7 @@
  * Endpoints:
  *   POST /api/admin/aggregate-analytics
  *   GET  /api/admin/aggregate-analytics
+ *   POST /api/admin/backup-exports
  *   GET  /api/admin/cleanup-duplicate-note-threads
  *   GET  /api/admin/cleanup-duplicate-scripture-refs
  *   GET  /api/admin/debug-thread-counts
@@ -11,6 +12,7 @@
  */
 
 import { Hono } from 'hono';
+import { getStore } from '@netlify/blobs';
 import { getAuth } from '../middleware/auth';
 import {
   db,
@@ -23,6 +25,7 @@ import {
   and,
 } from '../db';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '../utils/analytics-aggregator';
+import { generateUserExport } from '../utils/export-user-data';
 
 const app = new Hono();
 
@@ -66,6 +69,71 @@ async function handleAggregateAnalytics(c: any) {
 
 app.post('/api/admin/aggregate-analytics', handleAggregateAnalytics);
 app.get('/api/admin/aggregate-analytics', handleAggregateAnalytics);
+
+// ─── POST /api/admin/backup-exports ────────────────────────────────────
+// Scheduled job: export each user with notes to Netlify Blob (CSV), then run retention.
+// Env: BACKUP_CRON_SECRET. Retention: BACKUP_RETENTION_DAYS (default 30).
+
+const BACKUP_STORE_NAME = 'user-exports';
+const DEFAULT_RETENTION_DAYS = 30;
+
+app.post('/api/admin/backup-exports', async (c) => {
+  try {
+    const secret = process.env.BACKUP_CRON_SECRET;
+    const authHeader = c.req.header('authorization');
+    const hasValidSecret = !!secret && authHeader === `Bearer ${secret}`;
+    if (!hasValidSecret) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const retentionDays = Math.max(1, parseInt(process.env.BACKUP_RETENTION_DAYS || String(DEFAULT_RETENTION_DAYS), 10) || DEFAULT_RETENTION_DAYS);
+    const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    const store = getStore({ name: BACKUP_STORE_NAME });
+    const userIdRows = await db.select({ userId: Notes.userId }).from(Notes).all();
+    const userIds = [...new Set(userIdRows.map((r) => r.userId))];
+
+    let exported = 0;
+    const errors: string[] = [];
+    for (const userId of userIds) {
+      try {
+        const { content, fileExtension } = await generateUserExport(userId, 'csv-threads');
+        const key = `${userId}/${date}.${fileExtension}`;
+        await store.set(key, content, { metadata: { contentType: 'text/csv' } });
+        exported++;
+      } catch (e) {
+        errors.push(`${userId}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - retentionDays);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    let deleted = 0;
+    const listResult = await store.list();
+    for (const blob of listResult.blobs ?? []) {
+      const key = blob.key;
+      const match = key.match(/^[^/]+\/(\d{4}-\d{2}-\d{2})\.(csv|md)$/);
+      if (match && match[1] < cutoffStr) {
+        await store.delete(key);
+        deleted++;
+      }
+    }
+
+    return c.json({
+      success: true,
+      date,
+      usersWithNotes: userIds.length,
+      exported,
+      retentionDays,
+      deletedOld: deleted,
+      errors: errors.length ? errors : undefined,
+    });
+  } catch (error: any) {
+    console.error('Backup exports error:', error);
+    return c.json({ error: error.message || 'Backup failed', success: false }, 500);
+  }
+});
 
 // ─── GET /api/admin/cleanup-duplicate-note-threads ────────────────────
 

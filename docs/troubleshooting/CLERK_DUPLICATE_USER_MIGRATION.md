@@ -97,11 +97,37 @@ When **all** (or most) current users are affected—for example production was o
 
 **Single-user fallback:** For one-off cases, use `TEST_CLERK_USER_ID` and `LIVE_CLERK_USER_ID` as in the “Merge test user into live” section below; no CSV needed.
 
+## For other users (pk_test → pk_live): how the migration protects them
+
+After the switch to **pk_live**, **other users** do not need manual merges as long as the read-time mapping is in place:
+
+1. **ClerkUserMapping** was populated from `UserMetadata` (e.g. via `scripts/populate-clerk-user-mapping.ts`), so each user with an email has a row: `devUserId` = the ID that had their data (test), `liveUserId` = their current Clerk Production ID (or filled on first lookup).
+2. **Auth middleware** (`server/middleware/auth.ts`) looks up the current (live) user ID in the mapping. On **first** request for a mapped user where `migratedToLiveAt` is null, it runs **merge dev → live** (same logic as `merge-test-user-into-live.ts`), sets `migratedToLiveAt`, and uses the live ID from then on.
+3. So when a user signs in with pk_live, their old data (under the test ID) is merged into their live ID automatically on first load. No per-user script run required.
+
+**If a user reports missing data:** Check that they have a mapping row (e.g. run `scripts/audit-clerk-mapping-for-users-with-notes.ts` or `scripts/find-user-by-email.ts`). If the row had wrong `devUserId` (e.g. same as live), fix with `scripts/fix-clerk-mapping-row.ts` then have them sign in again, or run `scripts/force-merge-one-user.ts` once with their live ID. See also `docs/USER_DATA_BACKUPS.md` for adding scheduled backups as a safety net.
+
 ## Prevention
 
 - Use a single Clerk application and key set for production so the same person always gets the same user ID.
 - In Clerk Dashboard, consider merging duplicate users (if both exist) so only one identity remains.
 - Encourage "Sign in" instead of creating a second account when the user already has one (e.g. copy and sign-in flow).
+
+## Cleanup: what to keep vs remove
+
+**Keep (needed for pk_live and ongoing):**
+
+- **ClerkUserMapping** table and **auth middleware** read-time resolution + merge-on-first-login. This is how other users’ old data is found and merged; do not remove.
+- **merge-user-into-live** logic (`server/utils/merge-user-into-live.ts`) — used by middleware and scripts.
+- **Scripts to fix one-off cases:** `fix-clerk-mapping-row.ts`, `force-merge-one-user.ts`, `find-user-by-email.ts`, `audit-clerk-mapping-for-users-with-notes.ts`, `check-user-ids-in-db.ts` — keep in `scripts/` for support; they are run manually when a user reports missing data.
+
+**Optional (one-off migration; keep for reference or archive):**
+
+- `populate-clerk-user-mapping.ts` — already run once; keep for re-runs or new envs.
+- `merge-test-user-into-live.ts`, `batch-merge-mapped-users-to-live.ts`, `generate-merge-pairs-from-clerk.ts`, `migrate-clerk-user.ts` — used for batch or single-user migration. Keep for reference; can move to `scripts/archive/` later if you want to slim the root scripts folder.
+- `audit-restored-db.ts`, `explore-user-notes-threads.ts`, `list-users-with-notes-and-email.ts` — diagnostic; keep for support.
+
+**Remove:** Nothing critical. Do not remove ClerkUserMapping, the middleware merge, or the merge utility; other users rely on that for their old data to appear after the pk_test → pk_live switch.
 
 ## Merge test user into live (pk_test mistake)
 

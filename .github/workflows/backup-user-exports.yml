@@ -1,0 +1,30 @@
+name: Backup User Exports
+
+on:
+  schedule:
+    # Daily at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  backup-exports:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger backup exports
+        env:
+          SITE_URL: ${{ secrets.BACKUP_SITE_URL || 'https://app.harvous.com' }}
+          BACKUP_CRON_SECRET: ${{ secrets.BACKUP_CRON_SECRET }}
+        run: |
+          if [ -z "$BACKUP_CRON_SECRET" ]; then
+            echo "BACKUP_CRON_SECRET not set; skipping backup."
+            exit 0
+          fi
+          response=$(curl -s -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/backup-exports" \
+            -H "Authorization: Bearer $BACKUP_CRON_SECRET")
+          code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          echo "$body"
+          if [ "$code" != "200" ]; then
+            echo "Backup returned HTTP $code"
+            exit 1
+          fi
