@@ -43,6 +43,8 @@ export default function DashboardPage() {
         onNavigate={(href) => navigate({ to: href as any })}
         parentIsLoading={isInitialLoading}
       />
+      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+      <div data-cta-spacer className="create-note-cta-spacer" />
     </CardStack>
   );
 }

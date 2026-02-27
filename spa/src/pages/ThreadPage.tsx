@@ -87,6 +87,8 @@ export default function ThreadPage() {
           noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
         />
       </div>
+      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+      <div data-cta-spacer className="create-note-cta-spacer" />
     </CardStack>
   );
 }

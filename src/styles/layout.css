@@ -267,7 +267,13 @@
   min-width: unset;
 }
 
-/* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
+/* Spacer for the "Add a note" button: injected via JS in CreateNoteButton on dashboard;
+   Space/Thread pages use an explicit .create-note-cta-spacer in the DOM. */
+.create-note-cta-spacer {
+  height: 64px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
 
 /* Note page only: small Add button (plus) in bottom right; 20px from bottom */
 .note-page-add-button {
