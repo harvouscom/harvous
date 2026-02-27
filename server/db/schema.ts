@@ -31,45 +31,53 @@ export const Spaces = sqliteTable('Spaces', {
 
 // ─── Threads ───────────────────────────────────────────────────────────────────
 
-export const Threads = sqliteTable('Threads', {
-  id: text('id').primaryKey(),
-  title: text('title').notNull(),
-  subtitle: text('subtitle'),
-  spaceId: text('spaceId'),
-  createdAt: text('createdAt').notNull(),
-  updatedAt: text('updatedAt'),
-  lastVisited: text('lastVisited'),
-  userId: text('userId').notNull(),
-  isPublic: integer('isPublic', { mode: 'boolean' }).notNull().default(false),
-  isPinned: integer('isPinned', { mode: 'boolean' }).notNull().default(false),
-  color: text('color'),
-  order: integer('order').notNull().default(0),
-  shareToken: text('shareToken'),
-  shareTokenCreatedAt: text('shareTokenCreatedAt'),
-});
+export const Threads = sqliteTable(
+  'Threads',
+  {
+    id: text('id').primaryKey(),
+    title: text('title').notNull(),
+    subtitle: text('subtitle'),
+    spaceId: text('spaceId'),
+    createdAt: text('createdAt').notNull(),
+    updatedAt: text('updatedAt'),
+    lastVisited: text('lastVisited'),
+    userId: text('userId').notNull(),
+    isPublic: integer('isPublic', { mode: 'boolean' }).notNull().default(false),
+    isPinned: integer('isPinned', { mode: 'boolean' }).notNull().default(false),
+    color: text('color'),
+    order: integer('order').notNull().default(0),
+    shareToken: text('shareToken'),
+    shareTokenCreatedAt: text('shareTokenCreatedAt'),
+  },
+  (table) => [index('Threads_userIdIndex').on(table.userId)],
+);
 
 // ─── Notes ─────────────────────────────────────────────────────────────────────
 
-export const Notes = sqliteTable('Notes', {
-  id: text('id').primaryKey(),
-  title: text('title'),
-  content: text('content').notNull(),
-  threadId: text('threadId').notNull(),
-  spaceId: text('spaceId'),
-  simpleNoteId: integer('simpleNoteId'),
-  noteType: text('noteType').notNull().default('default'),
-  addedBy: text('addedBy').notNull().default('user'),
-  createdAt: text('createdAt').notNull(),
-  updatedAt: text('updatedAt'),
-  lastVisited: text('lastVisited'),
-  userId: text('userId').notNull(),
-  isPublic: integer('isPublic', { mode: 'boolean' }).notNull().default(false),
-  isFeatured: integer('isFeatured', { mode: 'boolean' }).notNull().default(false),
-  order: integer('order').notNull().default(0),
-  shareToken: text('shareToken'),
-  shareTokenCreatedAt: text('shareTokenCreatedAt'),
-  contentEncrypted: integer('contentEncrypted', { mode: 'boolean' }).notNull().default(false),
-});
+export const Notes = sqliteTable(
+  'Notes',
+  {
+    id: text('id').primaryKey(),
+    title: text('title'),
+    content: text('content').notNull(),
+    threadId: text('threadId').notNull(),
+    spaceId: text('spaceId'),
+    simpleNoteId: integer('simpleNoteId'),
+    noteType: text('noteType').notNull().default('default'),
+    addedBy: text('addedBy').notNull().default('user'),
+    createdAt: text('createdAt').notNull(),
+    updatedAt: text('updatedAt'),
+    lastVisited: text('lastVisited'),
+    userId: text('userId').notNull(),
+    isPublic: integer('isPublic', { mode: 'boolean' }).notNull().default(false),
+    isFeatured: integer('isFeatured', { mode: 'boolean' }).notNull().default(false),
+    order: integer('order').notNull().default(0),
+    shareToken: text('shareToken'),
+    shareTokenCreatedAt: text('shareTokenCreatedAt'),
+    contentEncrypted: integer('contentEncrypted', { mode: 'boolean' }).notNull().default(false),
+  },
+  (table) => [index('Notes_userIdIndex').on(table.userId)],
+);
 
 // ─── NoteThreads (junction table) ──────────────────────────────────────────────
 

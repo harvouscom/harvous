@@ -1,4 +1,5 @@
 import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/react-router';
+import { wrapNavigateWithViewTransition } from './lib/view-transition-navigate';
 import AppLayout from './layouts/AppLayout';
 import AuthLayout from './layouts/AuthLayout';
 
@@ -177,6 +178,7 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export const router = createRouter({ routeTree });
+wrapNavigateWithViewTransition(router);
 
 declare module '@tanstack/react-router' {
   interface Register {

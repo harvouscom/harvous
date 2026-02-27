@@ -1,4 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouterState } from '@tanstack/react-router';
 import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
@@ -6,76 +8,31 @@ import CardNote from '../../../src/components/react/CardNote';
 import CardThread from '../../../src/components/react/CardThread';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { idToUrl } from '../../../src/utils/url-helpers';
-
-interface SearchResult {
-  id: string;
-  type: 'note' | 'thread';
-  title: string;
-  content?: string;
-  subtitle?: string;
-  color?: string;
-  threadId?: string;
-  spaceId?: string;
-  noteType?: string;
-  lastUpdated?: string;
-}
+import { useSearch, type SearchResult } from '../hooks/queries/useSearch';
+import { api } from '../lib/api';
 
 function SearchResults({ query }: { query: string }) {
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const trimmed = query.trim();
+  const { data, isLoading, isError, error } = useSearch(trimmed);
 
+  // Update recent search count in localStorage when results load
   useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      return;
-    }
-
-    // Abort any in-flight request
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setIsLoading(true);
-    setError(null);
-
-    fetch(`/api/search?q=${encodeURIComponent(query.trim())}&type=all`, {
-      credentials: 'include',
-      signal: controller.signal,
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (!controller.signal.aborted) {
-          const items: SearchResult[] = data.results || [];
-          setResults(items);
-
-          // Update recent search count in localStorage
-          try {
-            const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-            const updated = stored.map((s: any) => {
-              const term = typeof s === 'string' ? s : s.term;
-              if (term === query.trim()) return { term, count: items.length };
-              return s;
-            });
-            localStorage.setItem('harvous-recent-searches', JSON.stringify(updated));
-            window.dispatchEvent(new CustomEvent('recent-searches-updated'));
-          } catch {}
-
-          setIsLoading(false);
-        }
-      })
-      .catch(err => {
-        if (err.name !== 'AbortError') {
-          setError('Search failed. Try again.');
-          setIsLoading(false);
-        }
+    if (!trimmed || !data?.results) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+      const updated = stored.map((s: any) => {
+        const term = typeof s === 'string' ? s : s.term;
+        if (term === trimmed) return { term, count: data.results.length };
+        return s;
       });
+      localStorage.setItem('harvous-recent-searches', JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent('recent-searches-updated'));
+    } catch {}
+  }, [trimmed, data?.results]);
 
-    return () => controller.abort();
-  }, [query]);
+  const results: SearchResult[] = data?.results ?? [];
 
-  if (!query.trim()) return null;
+  if (!trimmed) return null;
 
   if (isLoading) {
     return (
@@ -85,10 +42,10 @@ function SearchResults({ query }: { query: string }) {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-pebble-grey)', fontSize: '14px', fontFamily: 'var(--font-sans)' }}>
-        {error}
+        {error instanceof Error ? error.message : 'Search failed. Try again.'}
       </div>
     );
   }
@@ -158,47 +115,37 @@ function SearchResults({ query }: { query: string }) {
   );
 }
 
+function getSearchQueryFromRouter(search: string | Record<string, unknown> | undefined): string {
+  if (search == null) return '';
+  if (typeof search === 'object' && 'q' in search && typeof (search as { q?: string }).q === 'string') {
+    return (search as { q: string }).q;
+  }
+  if (typeof search !== 'string') return '';
+  const params = new URLSearchParams(search.startsWith('?') ? search : `?${search}`);
+  return params.get('q') || '';
+}
+
 export default function FindPage() {
-  // Read ?q= from the URL (TanStack Router doesn't auto-parse search params here,
-  // so we read window.location directly and listen for changes)
-  const [query, setQuery] = useState(() => {
-    if (typeof window === 'undefined') return '';
-    return new URLSearchParams(window.location.search).get('q') || '';
-  });
+  const queryClient = useQueryClient();
+  const locationSearch = useRouterState({ select: (s) => s.location.search });
+  const query = getSearchQueryFromRouter(locationSearch);
 
-  useEffect(() => {
-    const sync = () => {
-      setQuery(new URLSearchParams(window.location.search).get('q') || '');
-    };
-    window.addEventListener('popstate', sync);
-    // TanStack Router fires this on navigation
-    const unsubscribe = (window as any).__tanstackRouter?.subscribe?.(() => sync()) ?? (() => {});
-    return () => {
-      window.removeEventListener('popstate', sync);
-      unsubscribe();
-    };
-  }, []);
-
-  // Also poll for URL changes since TanStack Router may use history.pushState/replaceState
-  useEffect(() => {
-    let last = window.location.search;
-    const interval = setInterval(() => {
-      if (window.location.search !== last) {
-        last = window.location.search;
-        setQuery(new URLSearchParams(last).get('q') || '');
-      }
-    }, 100);
-    return () => clearInterval(interval);
-  }, []);
+  const prefetchSearch = (term: string) => {
+    if (!term.trim()) return;
+    queryClient.prefetchQuery({
+      queryKey: ['search', term.trim()],
+      queryFn: () => api.get<{ results: SearchResult[] }>('/api/search', { q: term.trim() }),
+    });
+  };
 
   return (
     <CardStack title="Search" headerBgColor="var(--color-paper)" centerTitle>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <FindSearchInput initialQuery={query} />
+        <FindSearchInput initialQuery={query} onBeforeSearchNavigate={prefetchSearch} />
         {query ? (
           <SearchResults query={query} />
         ) : (
-          <RecentSearches />
+          <RecentSearches onPrefetchSearch={prefetchSearch} />
         )}
       </div>
     </CardStack>

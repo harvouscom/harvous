@@ -3,16 +3,21 @@ import { toast } from '@/utils/toast';
 
 interface CreateNoteButtonProps {
   className?: string;
+  /** When set (e.g. on space page), click opens Add to Space panel instead of New Note panel */
+  addToSpaceSpaceId?: string | null;
 }
 
 const SPACER_ATTR = 'data-cta-spacer';
 
-export default function CreateNoteButton({ className = '' }: CreateNoteButtonProps) {
+export default function CreateNoteButton({ className = '', addToSpaceSpaceId = null }: CreateNoteButtonProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [isNewNotePanelOpen, setIsNewNotePanelOpen] = useState(false);
+  const [isAddToSpacePanelOpen, setIsAddToSpacePanelOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [noteLimitReached, setNoteLimitReached] = useState(false);
   const [noteLimit, setNoteLimit] = useState(200);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleEditModeChange = (e: Event) => {
@@ -33,21 +38,58 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
 
     const handleOpen = () => { if (isDesktop()) setIsNewNotePanelOpen(true); };
     const handleClose = () => setIsNewNotePanelOpen(false);
+    const handleAddToSpaceOpen = () => setIsAddToSpacePanelOpen(true);
+    const handleAddToSpaceClose = () => setIsAddToSpacePanelOpen(false);
+    const handleCloseAll = () => {
+      setIsNewNotePanelOpen(false);
+      setIsAddToSpacePanelOpen(false);
+    };
     window.addEventListener('openNewNotePanel', handleOpen);
     window.addEventListener('closeNewNotePanel', handleClose);
-    window.addEventListener('closeAllPanels', handleClose);
+    window.addEventListener('openAddToSpacePanel', handleAddToSpaceOpen);
+    window.addEventListener('closeAddToSpacePanel', handleAddToSpaceClose);
+    window.addEventListener('closeAllPanels', handleCloseAll);
     return () => {
       window.removeEventListener('openNewNotePanel', handleOpen);
       window.removeEventListener('closeNewNotePanel', handleClose);
-      window.removeEventListener('closeAllPanels', handleClose);
+      window.removeEventListener('openAddToSpacePanel', handleAddToSpaceOpen);
+      window.removeEventListener('closeAddToSpacePanel', handleAddToSpaceClose);
+      window.removeEventListener('closeAllPanels', handleCloseAll);
     };
   }, []);
+
+  // Close CTA menu when other menus open or when clicking outside / Escape
+  useEffect(() => {
+    if (!addToSpaceSpaceId) return;
+    const handleCloseMoreMenu = () => setMenuOpen(false);
+    window.addEventListener('closeMoreMenu', handleCloseMoreMenu);
+    return () => window.removeEventListener('closeMoreMenu', handleCloseMoreMenu);
+  }, [addToSpaceSpaceId]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
+        setMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuOpen]);
 
   // Inject a spacer inside the card's content area so the last item
   // can scroll above this floating button. Remove when button is hidden.
   // MutationObserver fallback handles SPA where Outlet content mounts after this effect runs.
   useEffect(() => {
-    if (isEditMode || isNewNotePanelOpen) return;
+    if (isEditMode || isNewNotePanelOpen || isAddToSpacePanelOpen) return;
     const btn = btnRef.current;
     if (!btn) return;
     const body = btn.closest('.main-column__body') || btn.closest('.mobile-main__body');
@@ -87,7 +129,7 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
       spacer?.remove();
       observer?.disconnect();
     };
-  }, [isEditMode, isNewNotePanelOpen]);
+  }, [isEditMode, isNewNotePanelOpen, isAddToSpacePanelOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +154,15 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
   }, []);
 
   const handleClick = () => {
+    if (addToSpaceSpaceId) {
+      if (menuOpen) {
+        setMenuOpen(false);
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      setMenuOpen(true);
+      return;
+    }
     if (noteLimitReached) {
       toast.warning(`You've used all ${noteLimit.toLocaleString()} notes. Upgrade for unlimited.`);
       return;
@@ -119,20 +170,72 @@ export default function CreateNoteButton({ className = '' }: CreateNoteButtonPro
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
   };
 
-  if (isEditMode || isNewNotePanelOpen) {
+  const handleAddNote = () => {
+    if (noteLimitReached) {
+      toast.warning(`You've used all ${noteLimit.toLocaleString()} notes. Upgrade for unlimited.`);
+      return;
+    }
+    setMenuOpen(false);
+    window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+  };
+
+  const handleAddToSpace = () => {
+    if (!addToSpaceSpaceId) return;
+    setMenuOpen(false);
+    window.dispatchEvent(new CustomEvent('openAddToSpacePanel', { detail: { spaceId: addToSpaceSpaceId } }));
+  };
+
+  if (isEditMode || isNewNotePanelOpen || isAddToSpacePanelOpen) {
     return null;
   }
 
   return (
-    <button
-      ref={btnRef}
-      type="button"
-      className={`btn btn--lg btn--primary create-note-button ${className}`}
-      onClick={handleClick}
-      aria-label="Add a note"
-    >
-      <div className="btn__content">Add a note</div>
-      <div className="btn__shadow-overlay" />
-    </button>
+    <div ref={wrapperRef} className={`create-note-button-wrapper ${className}`.trim()}>
+      {addToSpaceSpaceId && menuOpen && (
+        <div
+          className="create-note-button-menu-container"
+          style={{ position: 'absolute', bottom: 'calc(100% + 12px)', left: 0, right: 0 }}
+        >
+          <div
+            className="menu create-note-button-menu menu-enter"
+            role="menu"
+            aria-label="Add options"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={handleAddNote}
+            >
+              <span className="menu-item__label">Add a note</span>
+            </button>
+            <div className="menu-separator" />
+            <button
+              type="button"
+              role="menuitem"
+              className="menu-item"
+              onClick={handleAddToSpace}
+            >
+              <span className="menu-item__label">Add to space</span>
+            </button>
+          </div>
+        </div>
+      )}
+      <button
+        ref={btnRef}
+        type="button"
+        className={`btn btn--lg ${addToSpaceSpaceId && menuOpen ? 'btn--secondary' : 'btn--primary'} create-note-button${addToSpaceSpaceId && menuOpen ? ' create-note-button--menu-open' : ''}`}
+        onClick={handleClick}
+        onMouseDown={(e) => {
+          if (addToSpaceSpaceId && menuOpen) e.stopPropagation();
+        }}
+        aria-label={addToSpaceSpaceId && menuOpen ? 'Close' : 'Add a note'}
+        aria-expanded={addToSpaceSpaceId ? menuOpen : undefined}
+        aria-haspopup={addToSpaceSpaceId ? 'menu' : undefined}
+      >
+        <div className="btn__content">{addToSpaceSpaceId && menuOpen ? 'Close' : 'Add a note'}</div>
+        <div className="btn__shadow-overlay" />
+      </button>
+    </div>
   );
 }

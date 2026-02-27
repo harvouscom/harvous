@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
-import { useSpace } from '../hooks/queries/useSpace';
+import { useSpace, useSpaceItems } from '../hooks/queries/useSpace';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
@@ -24,7 +24,11 @@ export default function SpacePage() {
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
   const { data: space, isLoading, isError } = useSpace(spaceId);
+  const { data: spaceItems, isFetching: isFetchingItems } = useSpaceItems(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
+
+  const initialItems = spaceItems ?? [];
+  const parentIsLoading = initialItems.length === 0 && isFetchingItems;
 
   // Redirect when space no longer exists (e.g. deleted) so we don't render SpaceContentList for a 404 space
   useEffect(() => {
@@ -95,9 +99,13 @@ export default function SpacePage() {
         className="content-tabs"
       />
       <SpaceContentList
-        initialItems={[]}
+        initialItems={initialItems}
         spaceId={spaceId}
         filter={filter}
+        spaceIsShared={space?.isPublic}
+        isOwner={space?.ownerId === user?.id}
+        currentUserId={user?.id ?? null}
+        parentIsLoading={parentIsLoading}
       />
     </CardStack>
   );

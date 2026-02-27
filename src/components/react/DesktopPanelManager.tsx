@@ -38,6 +38,7 @@ const NewThreadPanel = createLazyComponent(() => import('./NewThreadPanel'), 'Ne
 const NoteDetailsPanel = createLazyComponent(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
 const EditThreadPanel = createLazyComponent(() => import('./EditThreadPanel'), 'EditThreadPanel');
 const EditSpacePanel = createLazyComponent(() => import('./EditSpacePanel'), 'EditSpacePanel');
+const AddToSpacePanel = createLazyComponent(() => import('./AddToSpacePanel'), 'AddToSpacePanel');
 const EditSpacePeoplePanel = createLazyComponent(() => import('./EditSpacePeoplePanel'), 'EditSpacePeoplePanel');
 const InboxItemPreviewPanel = createLazyComponent(() => import('./InboxItemPreviewPanel'), 'InboxItemPreviewPanel');
 const MySpacesPanel = createLazyComponent(() => import('./MySpacesPanel'), 'MySpacesPanel');
@@ -110,6 +111,7 @@ type PanelType =
   | 'noteDetails'
   | 'editThread'
   | 'editSpace'
+  | 'addToSpace'
   | 'editSpacePeople'
   | 'inboxPreview'
   | 'mySpaces'
@@ -162,6 +164,8 @@ type PanelAction =
   | { type: 'CLOSE_EDIT_THREAD' }
   | { type: 'OPEN_EDIT_SPACE' }
   | { type: 'CLOSE_EDIT_SPACE' }
+  | { type: 'OPEN_ADD_TO_SPACE' }
+  | { type: 'CLOSE_ADD_TO_SPACE' }
   | { type: 'OPEN_EDIT_SPACE_PEOPLE' }
   | { type: 'CLOSE_EDIT_SPACE_PEOPLE' }
   | { type: 'OPEN_INBOX_PREVIEW' }
@@ -254,6 +258,12 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       return { activePanel: 'editSpace', panelKey: state.panelKey + 1 };
     
     case 'CLOSE_EDIT_SPACE':
+      return { activePanel: null, panelKey: state.panelKey };
+
+    case 'OPEN_ADD_TO_SPACE':
+      return { activePanel: 'addToSpace', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_ADD_TO_SPACE':
       return { activePanel: null, panelKey: state.panelKey };
 
     case 'OPEN_EDIT_SPACE_PEOPLE':
@@ -502,16 +512,18 @@ export default function DesktopPanelManager({
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
+  const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
 
   // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
   useEffect(() => {
     preloadPanelChunks();
   }, []);
 
-  // Eager preload EditSpacePanel when on a space page so first open is instant
+  // Eager preload EditSpacePanel and AddToSpacePanel when on a space page so first open is instant
   useEffect(() => {
     if (contentType === 'space' && currentSpace?.id) {
       import('./EditSpacePanel').catch(() => {});
+      import('./AddToSpacePanel').catch(() => {});
       import('./EditSpacePeoplePanel').catch(() => {});
     }
   }, [contentType, currentSpace?.id]);
@@ -619,6 +631,20 @@ export default function DesktopPanelManager({
       dispatch({ type: 'CLOSE_EDIT_SPACE' });
     };
 
+    const handleOpenAddToSpacePanel = (event: Event) => {
+      const detail = (event as CustomEvent<{ spaceId?: string }>)?.detail;
+      if (detail?.spaceId) {
+        setAddToSpaceSpaceId(detail.spaceId);
+        dispatch({ type: 'OPEN_ADD_TO_SPACE' });
+        window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+      }
+    };
+
+    const handleCloseAddToSpacePanel = () => {
+      setAddToSpaceSpaceId(null);
+      dispatch({ type: 'CLOSE_ADD_TO_SPACE' });
+    };
+
     const handleOpenEditSpacePeople = () => {
       dispatch({ type: 'OPEN_EDIT_SPACE_PEOPLE' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
@@ -710,6 +736,8 @@ export default function DesktopPanelManager({
     window.addEventListener('closeEditThreadPanel', handleCloseEditThread);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
     window.addEventListener('closeEditSpacePanel', handleCloseEditSpace);
+    window.addEventListener('openAddToSpacePanel', handleOpenAddToSpacePanel as EventListener);
+    window.addEventListener('closeAddToSpacePanel', handleCloseAddToSpacePanel);
     window.addEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeople as EventListener);
     window.addEventListener('closeEditSpacePeoplePanel', handleCloseEditSpacePeople);
     window.addEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
@@ -724,6 +752,7 @@ export default function DesktopPanelManager({
     // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
     const handleCloseAllPanels = () => {
       setRequestedSpaceId(null);
+      setAddToSpaceSpaceId(null);
       dispatch({ type: 'CLOSE_ALL' });
     };
     window.addEventListener('closeAllPanels', handleCloseAllPanels);
@@ -742,6 +771,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeEditThreadPanel', handleCloseEditThread);
       window.removeEventListener('openEditSpacePanel', handleOpenEditSpace as EventListener);
       window.removeEventListener('closeEditSpacePanel', handleCloseEditSpace);
+      window.removeEventListener('openAddToSpacePanel', handleOpenAddToSpacePanel as EventListener);
+      window.removeEventListener('closeAddToSpacePanel', handleCloseAddToSpacePanel);
       window.removeEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeople as EventListener);
       window.removeEventListener('closeEditSpacePeoplePanel', handleCloseEditSpacePeople);
       window.removeEventListener('openInboxPreview', handleOpenInboxPreview as EventListener);
@@ -784,6 +815,13 @@ export default function DesktopPanelManager({
   // Handler for closing EditSpacePanel
   const handleCloseEditSpace = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
+  }, []);
+
+  // Handler for closing AddToSpacePanel (passed as onClose to panel; also notify global listeners e.g. CreateNoteButton)
+  const handleCloseAddToSpace = useCallback(() => {
+    dispatch({ type: 'CLOSE_ADD_TO_SPACE' });
+    setAddToSpaceSpaceId(null);
+    window.dispatchEvent(new CustomEvent('closeAddToSpacePanel'));
   }, []);
 
   // Handler for closing EditSpacePeoplePanel
@@ -987,6 +1025,20 @@ export default function DesktopPanelManager({
           </PanelErrorBoundary>
         );
       })()}
+
+      {/* Add to Space Panel - Desktop Only */}
+      {state.activePanel === 'addToSpace' && addToSpaceSpaceId && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block content-fade-in">
+              <AddToSpacePanel
+                spaceId={addToSpaceSpaceId}
+                onClose={handleCloseAddToSpace}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
 
       {/* Edit Space People Panel (spaces only) - Desktop Only */}
       {state.activePanel === 'editSpacePeople' && contentType === 'space' && currentSpace && (

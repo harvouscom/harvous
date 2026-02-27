@@ -89,7 +89,7 @@ export default function JoinSpacePage() {
       try {
         sessionStorage.setItem('harvous_pending_redirect', window.location.href);
       } catch { /* ignore */ }
-      navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
+      navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any, viewTransition: false });
       return;
     }
     setIsJoining(true);

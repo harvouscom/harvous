@@ -18,6 +18,7 @@ if (typeof window !== 'undefined') {
 
 interface NavigateOptions {
   history?: 'replace' | 'push';
+  viewTransition?: boolean;
 }
 
 let navigateFunction: ((path: string, options?: NavigateOptions) => void) | null = null;
@@ -74,7 +75,7 @@ export function preloadSafeNavigate(): void {
 /**
  * Navigate within the SPA. Falls back to window.location if the navigate module fails.
  */
-export async function safeNavigate(path: string, options?: { history?: 'replace' | 'push' }): Promise<void> {
+export async function safeNavigate(path: string, options?: NavigateOptions): Promise<void> {
   try {
     if (!navigateFunction) {
       if (!navigatePromise) {
@@ -147,7 +148,7 @@ export async function safeNavigate(path: string, options?: { history?: 'replace'
  * Synchronous version that uses navigate if already loaded, otherwise falls back
  * Use this when you need immediate navigation without async/await
  */
-export function safeNavigateSync(path: string, options?: { history?: 'replace' | 'push' }): void {
+export function safeNavigateSync(path: string, options?: NavigateOptions): void {
   if (navigateFunction) {
     try {
       navigateFunction(path, options);

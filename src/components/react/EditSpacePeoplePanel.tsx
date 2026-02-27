@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
@@ -35,6 +35,17 @@ export default function EditSpacePeoplePanel({
   const [isLoadingShareLink, setIsLoadingShareLink] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Normalize share URL to current origin (SPA) so copy/link is correct when API is on a different host (e.g. dev API port)
+  const displayShareUrl = useMemo(() => {
+    if (!shareUrl) return null;
+    try {
+      const u = new URL(shareUrl);
+      return typeof window !== 'undefined' ? window.location.origin + u.pathname : shareUrl;
+    } catch {
+      return shareUrl;
+    }
+  }, [shareUrl]);
+
   const fetchMemberInfo = async () => {
     try {
       setIsLoadingMembers(true);
@@ -70,9 +81,10 @@ export default function EditSpacePeoplePanel({
   };
 
   const handleCopyLink = async () => {
-    if (!shareUrl) return;
+    const urlToCopy = displayShareUrl ?? shareUrl;
+    if (!urlToCopy) return;
     try {
-      await navigator.clipboard.writeText(shareUrl);
+      await navigator.clipboard.writeText(urlToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -266,7 +278,7 @@ export default function EditSpacePeoplePanel({
                       <input
                         type="text"
                         readOnly
-                        value={shareUrl}
+                        value={displayShareUrl ?? shareUrl ?? ''}
                         className="space-share-link__input"
                         onClick={(e) => (e.target as HTMLInputElement).select()}
                       />

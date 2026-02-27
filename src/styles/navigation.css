@@ -595,6 +595,20 @@
   background-color: var(--color-soft-gray);
 }
 
+.mobile-nav__space-panel-icon-prefix {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-nav__space-panel-icon-prefix svg {
+  width: 14px;
+  height: 14px;
+}
+
 .mobile-nav__space-panel-label {
   flex: 1 1 auto;
   flex-shrink: 1;
@@ -1219,6 +1233,20 @@ button.space-btn .space-btn__text {
 .space-switcher-dropdown__divider {
   height: 1px;
   background-color: var(--color-soft-gray);
+}
+
+.space-switcher-dropdown__icon-prefix {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.space-switcher-dropdown__icon-prefix svg {
+  width: 18px;
+  height: 18px;
 }
 
 .space-switcher-dropdown__label {

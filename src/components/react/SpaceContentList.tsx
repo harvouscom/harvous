@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
+import ActionButton from './ActionButton';
 import { debug } from '@/utils/logger';
 import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
@@ -36,6 +37,8 @@ interface SpaceItem {
   contentEncrypted?: boolean;
   /** Set for notes (thread they belong to); for threads use id. Used for onboarding section fallback. */
   threadId?: string | null;
+  /** Owner userId for remove-from-space visibility (shared: only own items). */
+  userId?: string;
 }
 
 interface SpaceContentListProps {
@@ -43,6 +46,12 @@ interface SpaceContentListProps {
   spaceId: string;
   filter?: 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
   spaceIsShared?: boolean;
+  /** When true, current user owns the space (can remove any item). */
+  isOwner?: boolean;
+  /** Current user id for remove-from-space (shared: only show remove on items where item.userId === currentUserId). */
+  currentUserId?: string | null;
+  /** When true (e.g. parent React Query fetching), show loading until initialItems arrive. */
+  parentIsLoading?: boolean;
 }
 
 // Helper function to strip HTML tags
@@ -67,7 +76,10 @@ export default function SpaceContentList({
   initialItems,
   spaceId,
   filter = 'all' as 'all' | 'threads' | 'notes' | 'scripture' | 'resources',
-  spaceIsShared = false
+  spaceIsShared = false,
+  isOwner = false,
+  currentUserId = null,
+  parentIsLoading = false,
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
   const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
@@ -110,6 +122,62 @@ export default function SpaceContentList({
   const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
   // Skip refreshes after this space was deleted (avoids 404s before unmount)
   const spaceDeletedRef = useRef(false);
+  const [isRemovingItem, setIsRemovingItem] = useState(false);
+
+  // Remove item from space (private: all; shared: only own items — visibility enforced by parent via isOwner/currentUserId)
+  const handleRemoveFromSpace = useCallback(
+    async (itemId: string, itemType: 'thread' | 'note') => {
+      setIsRemovingItem(true);
+      try {
+        const noteIds = itemType === 'note' ? [itemId] : [];
+        const threadIds = itemType === 'thread' ? [itemId] : [];
+        const response = await fetch(`/api/spaces/${spaceId}/remove-items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ noteIds, threadIds }),
+          credentials: 'include',
+        });
+        if (response.ok) {
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: itemType === 'note' ? 'Note removed from space' : 'Thread removed from space',
+                type: 'success',
+              },
+            })
+          );
+          window.dispatchEvent(
+            new CustomEvent('itemRemovedFromSpace', { detail: { itemId, itemType, spaceId } })
+          );
+          setItems(prev => prev.filter(item => item.id !== itemId));
+          setDeletedItemIds(prev => new Set(prev).add(itemId));
+        } else {
+          const error = await response.json();
+          window.dispatchEvent(
+            new CustomEvent('toast', {
+              detail: {
+                message: error.error || `Error removing ${itemType} from space`,
+                type: 'error',
+              },
+            })
+          );
+        }
+      } catch (error) {
+        console.error('Error removing item from space:', error);
+        window.dispatchEvent(
+          new CustomEvent('toast', {
+            detail: {
+              message: 'Error removing item from space. Please try again.',
+              type: 'error',
+            },
+          })
+        );
+      } finally {
+        setIsRemovingItem(false);
+      }
+    },
+    [spaceId]
+  );
 
   // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
   // Note: SpaceItem uses lastUpdated (string) instead of updatedAt, so we need to map it
@@ -493,14 +561,16 @@ export default function SpaceContentList({
     }
   }, [spaceId, filter]);
 
-  // Re-fetch and re-filter when filter changes (tab switching)
+  // When filter changes: if parent already provided items (e.g. React Query cache), don't refetch;
+  // list filters in render via filteredItems. Only refetch when we have no cached items.
   const prevFilterRef = useRef<string>(filter);
   useEffect(() => {
     const filterChanged = prevFilterRef.current !== filter;
     prevFilterRef.current = filter;
     if (!filterChanged) return;
+    if ((initialItems?.length ?? 0) > 0) return; // Use parent cache; no refetch
     refreshSpaceContent();
-  }, [filter, refreshSpaceContent]);
+  }, [filter, initialItems, refreshSpaceContent]);
 
   // Check sessionStorage on mount for recently created items
   useEffect(() => {
@@ -1041,7 +1111,7 @@ export default function SpaceContentList({
     : items.filter(item => item.itemType === 'note');
 
   if (filteredItems.length === 0) {
-    if (!hasResolvedFirstLoad) {
+    if (parentIsLoading || !hasResolvedFirstLoad) {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '200px', width: '100%', paddingTop: '48px', paddingBottom: '48px' }}>
           <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 400, color: '#78766f', fontSize: '14px' }}>
@@ -1083,69 +1153,92 @@ export default function SpaceContentList({
     bySection.get(key)!.push(item);
   }
 
-  const renderItem = (item: (typeof filteredItems)[number], index: number) => (
-    <div
-      key={item.id}
-      className={`content-item ${item.itemType}-item mb-3 card-enter`}
-      style={{ animationDelay: `${index * 50}ms` }}
-    >
-      {item.itemType === 'thread' ? (
-        <a
-          href={threadHref(item.id)}
-          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-          onClick={handleSelectSpace}
-        >
-          <CardThread
-            thread={{
-              id: item.id,
-              title: item.title,
-              subtitle: item.subtitle || `${item.noteCount || 0} notes`,
-              count: item.noteCount,
-              accentColor: item.accentColor,
-              lastUpdated: item.lastUpdated,
-              isPrivate: !item.isPublic,
-              icon: spaceIsShared ? 'layer-group' : undefined
-            }}
-          />
-        </a>
-      ) : item.noteType === 'scripture' ? (
-        <CondensedNoteItem
-          title={item.title || "Untitled Note"}
-          noteType={item.noteType || 'default'}
-          href={noteHref(item.id)}
-          onClick={handleSelectSpace}
-          threadColors={item.threadColors}
-          noteId={item.id}
-        />
-      ) : (
-        <a
-          href={noteHref(item.id)}
-          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-          onClick={handleSelectSpace}
-        >
-          <CardNote
-            title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
-            content={(() => {
-              if (item.contentEncrypted) return '';
-              if (item.noteType === 'resource' && item.resourceDescription) {
-                return item.resourceDescription;
-              }
-              const cleanContent = stripHtml(item.content || '');
-              return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
-            })()}
-            contentEncrypted={item.contentEncrypted === true}
-            noteType={item.noteType || 'default'}
-            imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
-            resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
-            resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
-            resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
-            threadColors={item.threadColors}
-            noteId={item.id}
-          />
-        </a>
-      )}
-    </div>
-  );
+  const renderItem = (item: (typeof filteredItems)[number], index: number) => {
+    const canRemove = isOwner || (currentUserId != null && item.userId === currentUserId);
+    return (
+      <div
+        key={item.id}
+        className={`content-item ${item.itemType}-item mb-3 card-enter`}
+        style={{ animationDelay: `${index * 50}ms` }}
+      >
+        <div className="relative group">
+          {item.itemType === 'thread' ? (
+            <a
+              href={threadHref(item.id)}
+              className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+              onClick={handleSelectSpace}
+            >
+              <CardThread
+                thread={{
+                  id: item.id,
+                  title: item.title,
+                  subtitle: item.subtitle || `${item.noteCount || 0} notes`,
+                  count: item.noteCount,
+                  accentColor: item.accentColor,
+                  lastUpdated: item.lastUpdated,
+                  isPrivate: !item.isPublic,
+                  icon: spaceIsShared ? 'layer-group' : undefined
+                }}
+              />
+            </a>
+          ) : item.noteType === 'scripture' ? (
+            <CondensedNoteItem
+              title={item.title || "Untitled Note"}
+              noteType={item.noteType || 'default'}
+              href={noteHref(item.id)}
+              onClick={handleSelectSpace}
+              threadColors={item.threadColors}
+              noteId={item.id}
+            />
+          ) : (
+            <a
+              href={noteHref(item.id)}
+              className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+              onClick={handleSelectSpace}
+            >
+              <CardNote
+                title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}
+                content={(() => {
+                  if (item.contentEncrypted) return '';
+                  if (item.noteType === 'resource' && item.resourceDescription) {
+                    return item.resourceDescription;
+                  }
+                  const cleanContent = stripHtml(item.content || '');
+                  return cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");
+                })()}
+                contentEncrypted={item.contentEncrypted === true}
+                noteType={item.noteType || 'default'}
+                imageUrl={item.noteType === 'resource' && item.resourceImage ? item.resourceImage : undefined}
+                resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
+                resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
+                resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
+                threadColors={item.threadColors}
+                noteId={item.id}
+              />
+            </a>
+          )}
+          {canRemove && (
+            <div
+              className="absolute top-0 right-0 w-12 h-full"
+              style={{ pointerEvents: 'none', zIndex: 10 }}
+            >
+              <ActionButton
+                variant="Remove"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleRemoveFromSpace(item.id, item.itemType);
+                }}
+                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
+                disabled={isRemovingItem}
+                style={{ pointerEvents: 'auto', zIndex: 11 }}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   let runningIndex = 0;
   return (

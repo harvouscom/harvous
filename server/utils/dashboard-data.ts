@@ -459,7 +459,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     let allNotes: any[] = [];
 
     if (threadId === 'thread_unorganized') {
-      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
+      const unorganizedNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
         .orderBy(
@@ -478,7 +478,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(unorganizedNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
+          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture'))).all();
         }
       }
@@ -486,7 +486,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       [...unorganizedNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
       allNotes = Array.from(notesMap.values());
     } else {
-      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
+      const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
         .orderBy(
@@ -505,7 +505,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(junctionNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
+          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture'))).all();
         }
       }
@@ -577,7 +577,7 @@ export async function getNotesForThreadForMember(
 ): Promise<{ notes: any[]; hasMore: boolean }> {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
+    const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
@@ -895,8 +895,8 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
   try {
     const threads = await db.select({
       id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
-      color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic,
-      isPinned: Threads.isPinned, createdAt: Threads.createdAt,
+      color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
+      isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
     }).from(Threads)
       .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
@@ -918,8 +918,8 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
 
     return threads.map(thread => ({
       id: thread.id, title: thread.title, subtitle: thread.subtitle,
-      color: thread.color, spaceId: thread.spaceId, isPublic: thread.isPublic,
-      isPinned: thread.isPinned, createdAt: thread.createdAt,
+      color: thread.color, spaceId: thread.spaceId, userId: thread.userId,
+      isPublic: thread.isPublic, isPinned: thread.isPinned, createdAt: thread.createdAt,
       updatedAt: thread.updatedAt, lastVisited: thread.lastVisited,
       noteCount: noteCountsMap.get(thread.id) || 0,
       lastUpdated: thread.lastVisited || thread.updatedAt || thread.createdAt,
@@ -974,7 +974,7 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
 export async function getNotesForSpace(spaceId: string, userId: string, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select(NOTE_SELECT_COLUMNS)
+    const allNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
       .from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),

@@ -39,6 +39,7 @@ interface Space {
   title: string;
   totalItemCount: number;
   backgroundGradient: string;
+  isShared?: boolean;
 }
 
 interface Thread {
@@ -1525,6 +1526,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             closeSheet();
                           }}
                         >
+                          <span className="mobile-nav__space-panel-icon-prefix" aria-hidden="true">
+                            <Icon name={s.isShared ? 'user-group' : 'user'} size={14} style={{ color: 'var(--color-deep-grey)' }} />
+                          </span>
                           <span className="mobile-nav__space-panel-label">{s.title}</span>
                           <span className="mobile-nav__space-panel-actions">
                             {isActive ? (
@@ -1598,6 +1602,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                 closeSheet();
                               }}
                             >
+                              <span className="mobile-nav__space-panel-icon-prefix" aria-hidden="true">
+                                <Icon name={s.isShared ? 'user-group' : 'user'} size={14} style={{ color: 'var(--color-deep-grey)' }} />
+                              </span>
                               <span className="mobile-nav__space-panel-label">{s.title}</span>
                             </div>
                           );

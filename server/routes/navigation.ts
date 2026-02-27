@@ -9,6 +9,7 @@
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
+import { getCachedUserData } from '../utils/user-cache';
 import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces } from '../utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
@@ -24,6 +25,10 @@ route.get('/api/navigation/data', async (c) => {
     if (!userId) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
+
+    // Ensure user cache (and onboarding thread for new users) exists before reading thread list,
+    // so the first load shows onboarding without a refresh.
+    await getCachedUserData(userId);
 
     // Fetch navigation data in parallel
     const [threads, spaces, inboxCount, unorganizedThreadData, memberSpaces] = await Promise.all([

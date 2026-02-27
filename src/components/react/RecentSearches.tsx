@@ -6,7 +6,12 @@ interface RecentSearch {
   count: number;
 }
 
-const RecentSearches: React.FC = () => {
+interface RecentSearchesProps {
+  /** Called when user hovers a recent search; use to prefetch so click shows results instantly. */
+  onPrefetchSearch?: (term: string) => void;
+}
+
+const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => {
   // Always start with empty array to avoid hydration mismatch
   // Will be populated from localStorage in useEffect after mount
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -90,9 +95,10 @@ const RecentSearches: React.FC = () => {
                 type="button"
                 className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer transition-[scale,shadow] duration-300"
                 style={{ color: 'var(--color-deep-grey)' }}
+                onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
-                  safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
+                  safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace', viewTransition: false });
                 }}
               >
                 <span className="font-sans text-[18px] font-semibold truncate">

@@ -235,6 +235,38 @@
   width: auto;
 }
 
+/* Wrapper for CTA + menu (space page): same slot as button, button fills wrapper */
+.create-note-button-wrapper {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  z-index: 2;
+}
+
+.create-note-button-wrapper .create-note-button {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+}
+
+/* When menu is open, keep button above menu so Close click is received */
+.create-note-button-wrapper .create-note-button--menu-open {
+  z-index: 2;
+}
+
+.create-note-button-menu-container {
+  z-index: 1;
+}
+
+/* Full-width menu above CTA (space page): match button width */
+.create-note-button-menu {
+  width: 100%;
+  min-width: unset;
+}
+
 /* Spacer for the "Add a note" button is injected via JS in CreateNoteButton */
 
 /* Note page only: small Add button (plus) in bottom right; 20px from bottom */

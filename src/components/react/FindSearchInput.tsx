@@ -5,12 +5,15 @@ interface FindSearchInputProps {
   className?: string;
   placeholder?: string;
   initialQuery?: string;
+  /** Called before navigating to search results; use to prefetch (fire-and-forget). */
+  onBeforeSearchNavigate?: (term: string) => void;
 }
 
 export default function FindSearchInput({
   className = "",
   placeholder = "Search my Harvous...",
-  initialQuery = ""
+  initialQuery = "",
+  onBeforeSearchNavigate,
 }: FindSearchInputProps) {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -86,14 +89,17 @@ export default function FindSearchInput({
     
     // Trigger event for RecentSearches component to update
     window.dispatchEvent(new CustomEvent('recent-searches-updated'));
-    
-    // Navigate to search results
-    safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
+
+    // Start prefetch so results may be ready when the page mounts
+    onBeforeSearchNavigate?.(trimmedQuery);
+
+    // Navigate to search results (no view transition for instant feedback)
+    safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace', viewTransition: false });
   };
 
   const handleClear = () => {
     setSearchQuery('');
-    safeNavigate('/search', { history: 'replace' });
+    safeNavigate('/search', { history: 'replace', viewTransition: false });
   };
 
   return (

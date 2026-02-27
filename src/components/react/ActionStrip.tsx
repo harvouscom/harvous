@@ -10,6 +10,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
 import { getMenuOptions } from '@/utils/menu-options';
 import { shouldShowMoreButton } from '@/utils/menu-options';
+import Icon from './Icon';
 
 export interface ActionStripItem {
   action: string;
@@ -367,7 +368,9 @@ export default function ActionStrip({
 
   const isDesktop = variant === 'desktop';
   const className = isDesktop ? 'action-strip action-strip--desktop' : 'action-strip action-strip--mobile';
-  const showMeta = contentType === 'note' && (noteSimpleId != null || (noteCreatedAt != null && noteCreatedAt !== ''));
+  const showMeta =
+    (contentType === 'note' && (noteSimpleId != null || (noteCreatedAt != null && noteCreatedAt !== ''))) ||
+    (contentType === 'space' && spaceIsShared !== undefined);
 
   const buttons = stripItems.map((item) => (
     <button
@@ -394,6 +397,20 @@ export default function ActionStrip({
         >
           <span className="action-strip__label">{`#N${String(noteSimpleId).padStart(3, '0')}`}</span>
         </button>
+      )}
+      {contentType === 'space' && spaceIsShared !== undefined && (
+        <span
+          className="action-strip__meta-item action-strip__meta-item--space-visibility"
+          aria-label={spaceIsShared ? 'Shared space' : 'Private space'}
+        >
+          <span aria-hidden="true">
+            <Icon
+              name={spaceIsShared ? 'user-group' : 'user'}
+              size={14}
+              style={{ color: 'var(--color-deep-grey)', opacity: 0.5, flexShrink: 0 }}
+            />
+          </span>
+        </span>
       )}
     </div>
   ) : null;

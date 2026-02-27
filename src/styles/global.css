@@ -380,7 +380,8 @@ nav a,
 }
 
 /* Smooth content transitions */
-[slot="main"] {
+[slot="main"],
+[data-view-transition="main-content"] {
   view-transition-name: main-content;
 }
 

@@ -32,13 +32,22 @@ route.get('/api/search', async (c) => {
     }
 
     const searchTerm = `%${query.trim()}%`;
-    let results: any[] = [];
+    const searchNotes = type === 'all' || type === 'notes';
+    const searchThreads = type === 'all' || type === 'threads';
 
-    // Search notes if requested
-    // Exclude encrypted notes from search (server can't read their content)
-    if (type === 'all' || type === 'notes') {
-      const notes = await db
-        .select()
+    const notesQuery =
+      searchNotes &&
+      db
+        .select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          noteType: Notes.noteType,
+          threadId: Notes.threadId,
+          spaceId: Notes.spaceId,
+          createdAt: Notes.createdAt,
+          updatedAt: Notes.updatedAt,
+        })
         .from(Notes)
         .where(
           and(
@@ -53,27 +62,18 @@ route.get('/api/search', async (c) => {
         .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
         .limit(limit);
 
-      const noteResults = notes.map((note) => ({
-        id: note.id,
-        type: 'note',
-        title: note.title || 'Untitled Note',
-        content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
-        contentEncrypted: false,
-        noteType: note.noteType || 'default',
-        threadId: note.threadId,
-        spaceId: note.spaceId,
-        lastUpdated: note.updatedAt || note.createdAt,
-        createdAt: note.createdAt,
-        updatedAt: note.updatedAt,
-      }));
-
-      results = [...results, ...noteResults];
-    }
-
-    // Search threads if requested
-    if (type === 'all' || type === 'threads') {
-      const threads = await db
-        .select()
+    const threadsQuery =
+      searchThreads &&
+      db
+        .select({
+          id: Threads.id,
+          title: Threads.title,
+          subtitle: Threads.subtitle,
+          spaceId: Threads.spaceId,
+          color: Threads.color,
+          createdAt: Threads.createdAt,
+          updatedAt: Threads.updatedAt,
+        })
         .from(Threads)
         .where(
           and(
@@ -84,20 +84,38 @@ route.get('/api/search', async (c) => {
         .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
         .limit(limit);
 
-      const threadResults = threads.map((thread) => ({
-        id: thread.id,
-        type: 'thread',
-        title: thread.title,
-        subtitle: thread.subtitle || '',
-        spaceId: thread.spaceId,
-        color: thread.color,
-        lastUpdated: thread.updatedAt || thread.createdAt,
-        createdAt: thread.createdAt,
-        updatedAt: thread.updatedAt,
-      }));
+    const [notesRows, threadsRows] = await Promise.all([
+      searchNotes ? notesQuery : Promise.resolve([]),
+      searchThreads ? threadsQuery : Promise.resolve([]),
+    ]);
 
-      results = [...results, ...threadResults];
-    }
+    const noteResults = notesRows.map((note) => ({
+      id: note.id,
+      type: 'note',
+      title: note.title || 'Untitled Note',
+      content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
+      contentEncrypted: false,
+      noteType: note.noteType || 'default',
+      threadId: note.threadId,
+      spaceId: note.spaceId,
+      lastUpdated: note.updatedAt || note.createdAt,
+      createdAt: note.createdAt,
+      updatedAt: note.updatedAt,
+    }));
+
+    const threadResults = threadsRows.map((thread) => ({
+      id: thread.id,
+      type: 'thread',
+      title: thread.title,
+      subtitle: thread.subtitle || '',
+      spaceId: thread.spaceId,
+      color: thread.color,
+      lastUpdated: thread.updatedAt || thread.createdAt,
+      createdAt: thread.createdAt,
+      updatedAt: thread.updatedAt,
+    }));
+
+    let results: any[] = [...noteResults, ...threadResults];
 
     // Sort all results by last updated
     results.sort(
