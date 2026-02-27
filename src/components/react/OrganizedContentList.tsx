@@ -895,9 +895,9 @@ export default function OrganizedContentList({
   // Track previous initialItems to detect actual changes from server
   const prevPropsInitialItemsRef = useRef<string>('');
 
-  // Handle initialItems changes (server-side props update)
+  // Handle initialItems changes (server-side props update).
+  // Include scripture filter so switching to Scripture tab applies parent's scripture items.
   useEffect(() => {
-    if (filter === 'scripture') return;
     if (!initialItems || !Array.isArray(initialItems)) {
       setCurrentItems([]);
       currentItemsRef.current = [];
