@@ -444,9 +444,9 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
-            {/* CreateNoteButton: hide for members when viewing another's thread/space */}
+            {/* CreateNoteButton: on space page opens menu (Add a note / Add to space); elsewhere opens New Note */}
             {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
-              <CreateNoteButton />
+              <CreateNoteButton addToSpaceSpaceId={contentType === 'space' ? currentId : undefined} />
             )}
             {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
@@ -525,9 +525,9 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
-            {/* CreateNoteButton: hide for members when viewing another's thread/space */}
+            {/* CreateNoteButton: on space page opens menu (Add a note / Add to space); elsewhere opens New Note */}
             {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
-              <CreateNoteButton />
+              <CreateNoteButton addToSpaceSpaceId={contentType === 'space' ? currentId : undefined} />
             )}
             {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
               <div className="note-page-add-button">
