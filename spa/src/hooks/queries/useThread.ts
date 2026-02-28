@@ -35,17 +35,26 @@ function normalizeThreadId(id: string): string {
   return id.startsWith('thread/') ? 'thread_' + id.slice(7) : id;
 }
 
-export function useThread(threadId: string) {
+const THREAD_STALE_TIME = 60_000;
+
+export function getThreadQueryOptions(threadId: string) {
   const normalizedId = normalizeThreadId(threadId);
-  return useQuery({
-    queryKey: ['thread', normalizedId],
-    queryFn: async () => {
+  return {
+    queryKey: ['thread', normalizedId] as const,
+    queryFn: async (): Promise<ThreadDetail> => {
       const res = await api.get<{ thread: ThreadDetail }>(`/api/threads/${normalizedId}/prefetch`);
       if (res.thread === undefined) throw new Error('Thread not found');
       return res.thread;
     },
-    enabled: !!normalizedId,
-    staleTime: 60_000,
+    staleTime: THREAD_STALE_TIME,
+  };
+}
+
+export function useThread(threadId: string) {
+  const options = getThreadQueryOptions(threadId);
+  return useQuery({
+    ...options,
+    enabled: !!threadId,
   });
 }
 

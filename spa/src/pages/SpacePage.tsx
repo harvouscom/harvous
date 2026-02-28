@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpace, useSpaceItems } from '../hooks/queries/useSpace';
 import { useNavigation } from '../hooks/queries/useNavigation';
+import { getThreadQueryOptions } from '../hooks/queries/useThread';
+import { getNoteQueryOptions } from '../hooks/queries/useNote';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
@@ -24,10 +27,30 @@ export default function SpacePage() {
   // URL param is the slug (e.g. "ghi789"); DB + API need the full prefixed ID
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
+  const queryClient = useQueryClient();
   const { data: space, isLoading, isError } = useSpace(spaceId);
   const { data: nav } = useNavigation();
   const { data: spaceItems, isFetching: isFetchingItems } = useSpaceItems(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
+
+  // Prefetch thread details for threads in this space that aren't in nav (e.g. joined space)
+  // so the thread page header shows title/color immediately when the user clicks a thread.
+  const PREFETCH_THREAD_LIMIT = 15;
+  useEffect(() => {
+    if (!spaceId || !spaceItems?.length || !nav) return;
+    const navThreadIds = new Set((nav.threads ?? []).map((t) => t.id));
+    const threadIds = spaceItems
+      .filter((item) => item.itemType === 'thread' && item.id && item.id !== 'thread_unorganized' && !navThreadIds.has(item.id))
+      .slice(0, PREFETCH_THREAD_LIMIT)
+      .map((item) => item.id);
+    threadIds.forEach((threadId) => {
+      queryClient.prefetchQuery(getThreadQueryOptions(threadId));
+    });
+  }, [spaceId, spaceItems, nav, queryClient]);
+
+  const prefetchNote = (noteId: string) => {
+    queryClient.prefetchQuery(getNoteQueryOptions(noteId));
+  };
 
   const navSpace = nav?.spaces?.find(s => s.id === spaceId) ?? nav?.memberOfSpaces?.find(s => s.id === spaceId);
   const resolvedSpaceTitle = space?.title ?? navSpace?.title ?? 'Space';
@@ -121,6 +144,7 @@ export default function SpacePage() {
           isOwner={space?.ownerId === user?.id}
           currentUserId={user?.id ?? null}
           parentIsLoading={parentIsLoading}
+          onPrefetchNote={prefetchNote}
         />
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />

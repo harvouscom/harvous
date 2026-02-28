@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
 import { useNavigation } from '../hooks/queries/useNavigation';
+import { getNoteQueryOptions } from '../hooks/queries/useNote';
 import ThreadNotesList from '../../../src/components/react/ThreadNotesList';
 import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
@@ -17,12 +19,16 @@ const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
 
 export default function ThreadPage() {
   const { threadId: threadSlug } = useParams({ strict: false }) as { threadId: string };
-  // URL param is the slug (e.g. "abc123"); DB + API need the full prefixed ID
   const threadId = threadSlug.startsWith('thread_') ? threadSlug : `thread_${threadSlug}`;
   const isUnorganized = threadId === 'thread_unorganized';
+  const queryClient = useQueryClient();
   const { data: thread, isLoading } = useThread(threadId);
   const { data: nav } = useNavigation();
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
+
+  const prefetchNote = (noteId: string) => {
+    queryClient.prefetchQuery(getNoteQueryOptions(noteId));
+  };
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
   // (from nav for owned threads, or from thread prefetch for member threads not in nav).
@@ -84,6 +90,7 @@ export default function ThreadPage() {
           threadId={threadId}
           threadColor={thread?.color ?? undefined}
           noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
+          onPrefetchNote={prefetchNote}
         />
       </div>
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}

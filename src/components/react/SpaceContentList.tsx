@@ -52,6 +52,8 @@ interface SpaceContentListProps {
   currentUserId?: string | null;
   /** When true (e.g. parent React Query fetching), show loading until initialItems arrive. */
   parentIsLoading?: boolean;
+  /** Optional callback to prefetch note details (e.g. on hover) so the note page loads instantly. */
+  onPrefetchNote?: (noteId: string) => void;
 }
 
 // Helper function to strip HTML tags
@@ -80,6 +82,7 @@ export default function SpaceContentList({
   isOwner = false,
   currentUserId = null,
   parentIsLoading = false,
+  onPrefetchNote,
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
   const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
@@ -1185,6 +1188,9 @@ export default function SpaceContentList({
               noteType={item.noteType || 'default'}
               href={noteHref(item.id)}
               onClick={handleSelectSpace}
+              onMouseEnter={() => onPrefetchNote?.(item.id)}
+              onFocus={() => onPrefetchNote?.(item.id)}
+              onMouseDown={() => onPrefetchNote?.(item.id)}
               threadColors={item.threadColors}
               noteId={item.id}
             />
@@ -1193,6 +1199,9 @@ export default function SpaceContentList({
               href={noteHref(item.id)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
               onClick={handleSelectSpace}
+              onMouseEnter={() => onPrefetchNote?.(item.id)}
+              onFocus={() => onPrefetchNote?.(item.id)}
+              onMouseDown={() => onPrefetchNote?.(item.id)}
             >
               <CardNote
                 title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : (item.title || "Untitled Note")}

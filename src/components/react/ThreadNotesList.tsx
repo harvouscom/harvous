@@ -53,6 +53,8 @@ interface ThreadNotesListProps {
   threadColor?: string | null;
   noteTypeFilter?: 'all' | 'default' | 'scripture' | 'resource';
   noteTypeCounts?: NoteTypeCounts;
+  /** Optional callback to prefetch note details (e.g. on hover) so the note page loads instantly. */
+  onPrefetchNote?: (noteId: string) => void;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -107,12 +109,13 @@ function sortNotesByTime(notes: Note[], threadId: string): Note[] {
   return sortByLastVisited(notes);
 }
 
-export default function ThreadNotesList({ 
-  initialNotes, 
+export default function ThreadNotesList({
+  initialNotes,
   threadId,
   threadColor,
   noteTypeFilter = 'all',
-  noteTypeCounts
+  noteTypeCounts,
+  onPrefetchNote,
 }: ThreadNotesListProps) {
   debug('[ThreadNotesList] Component mounted/rendered', { threadId, noteTypeFilter, initialNotesCount: initialNotes.length });
   
@@ -1372,10 +1375,13 @@ export default function ThreadNotesList({
         className={`content-item note-item card-enter ${isUnorganizedThread ? 'panel__item-list-item' : ''}`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
-        <a 
+        <a
           href={idToUrl(note.id, threadId)}
           className={`block transition-transform duration-200 active:scale-[0.99] ${isUnorganizedThread ? 'panel__item-list-item-link' : ''}`}
           style={{ touchAction: 'manipulation' }}
+          onMouseEnter={() => onPrefetchNote?.(note.id)}
+          onFocus={() => onPrefetchNote?.(note.id)}
+          onMouseDown={() => onPrefetchNote?.(note.id)}
         >
           {isScriptureNote ? (
             // Condensed/mini version for scripture notes (matching AddToSpaceSection NoteItem)

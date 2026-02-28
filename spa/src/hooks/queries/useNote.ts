@@ -53,17 +53,18 @@ function setCachedNoteParentThread(noteId: string, thread: CachedThread) {
   try { localStorage.setItem(`harvous-note-thread-data-${noteId}`, JSON.stringify(thread)); } catch { /* ignore */ }
 }
 
-export function useNote(noteId: string) {
-  return useQuery({
-    queryKey: ['note', noteId],
-    queryFn: async () => {
+const NOTE_STALE_TIME = 10_000;
+
+export function getNoteQueryOptions(noteId: string) {
+  return {
+    queryKey: ['note', noteId] as const,
+    queryFn: async (): Promise<NoteDetail> => {
       const res = await api.get<NoteDetailResponse>(`/api/notes/${noteId}/details`);
       const note = {
         ...res.note,
         threads: res.threads ?? [],
         tags: res.tags ?? [],
       } as NoteDetail;
-      // Cache the parent thread so AppLayout can highlight it immediately on next visit
       const parentThread = note.threads?.[0];
       if (parentThread?.id) {
         try { localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id); } catch { /* ignore */ }
@@ -78,7 +79,14 @@ export function useNote(noteId: string) {
       }
       return note;
     },
+    staleTime: NOTE_STALE_TIME,
+  };
+}
+
+export function useNote(noteId: string) {
+  const options = getNoteQueryOptions(noteId);
+  return useQuery({
+    ...options,
     enabled: !!noteId,
-    staleTime: 10_000,
   });
 }

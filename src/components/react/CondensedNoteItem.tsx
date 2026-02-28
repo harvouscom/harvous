@@ -9,6 +9,9 @@ interface CondensedNoteItemProps {
   href?: string;
   className?: string;
   onClick?: React.MouseEventHandler<HTMLAnchorElement>;
+  onMouseEnter?: React.MouseEventHandler<HTMLAnchorElement>;
+  onFocus?: React.FocusEventHandler<HTMLAnchorElement>;
+  onMouseDown?: React.MouseEventHandler<HTMLAnchorElement>;
   // Thread colors for mesh gradient background
   threadColors?: Array<{ color: string; frequency: number }>;
   // Note ID for deterministic gradient variation
@@ -29,6 +32,9 @@ export default function CondensedNoteItem({
   href,
   className = '',
   onClick,
+  onMouseEnter,
+  onFocus,
+  onMouseDown,
   threadColors,
   noteId,
   action,
@@ -138,6 +144,9 @@ export default function CondensedNoteItem({
     <a
       href={href ?? '#'}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
+      onFocus={onFocus}
+      onMouseDown={onMouseDown}
       className={`block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99] ${className}`}
       style={{ touchAction: 'manipulation' }}
     >
