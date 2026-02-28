@@ -1466,45 +1466,36 @@ export default function EditSpacePanel({
                   </div>
                 )}
 
-                {/* About Space: meta bar – created by and date, centered (member view only) */}
-                {!isLoadingMembers && !isOwner && (
-                  <div className="w-full shrink-0">
-                    {isLoadingMembers ? (
-                      <div className="panel__metadata-row panel__metadata-row--center">
-                        <div className="panel__metadata-row__right">
-                          <span className="text-metadata">Loading…</span>
-                        </div>
-                      </div>
-                    ) : (() => {
-                      const owner = members.find((m: any) => m.role === 'owner');
-                      if (!owner) return null;
-                      const displayName = owner.displayName || 'Unknown';
-                      return (
-                        <div className="panel__metadata-row panel__metadata-row--center">
-                          <div className="panel__metadata-row__right">
-                            <span className="leading-[normal] text-nowrap text-metadata">
-                              Created by {displayName}
-                            </span>
-                            <span className="leading-[normal]" style={{ color: 'rgba(136, 134, 128, 0.3)' }}>|</span>
-                            <span className="leading-[normal] text-nowrap text-metadata">
-                              {formatDate(owner.joinedAt)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
-
-                {/* Tab navigation */}
-                <TabNav
-                  tabs={[
-                    { id: 'added', label: 'Added', isActive: activeTab === 'added', count: (currentSpaceNotes.length + currentSpaceThreads.length) || undefined },
-                    { id: 'search', label: 'Add', isActive: activeTab === 'all' }
-                  ]}
-                  onTabChange={(id) => setActiveTab(id === 'search' ? 'all' : 'added')}
-                  className="content-tabs"
-                />
+                {/* Tab navigation and Created by (same row, justify-between); Created by only for members */}
+                <div className="flex items-center justify-between gap-2 w-full shrink-0">
+                  <TabNav
+                    tabs={[
+                      { id: 'added', label: 'Added', isActive: activeTab === 'added', count: (currentSpaceNotes.length + currentSpaceThreads.length) || undefined },
+                      { id: 'search', label: 'Add', isActive: activeTab === 'all' }
+                    ]}
+                    onTabChange={(id) => setActiveTab(id === 'search' ? 'all' : 'added')}
+                    className="content-tabs"
+                  />
+                  {!isLoadingMembers && !isOwner && (() => {
+                    const owner = members.find((m: any) => m.role === 'owner');
+                    if (!owner) return null;
+                    const displayName = owner.displayName || 'Unknown';
+                    return (
+                      <span
+                        className="leading-[normal] text-nowrap text-metadata shrink-0"
+                        style={{
+                          display: 'inline-block',
+                          height: '36px',
+                          paddingTop: 0,
+                          paddingBottom: '8px',
+                          boxSizing: 'border-box'
+                        }}
+                      >
+                        Created by {displayName}
+                      </span>
+                    );
+                  })()}
+                </div>
 
                 {/* Added tab: current items in the space */}
                 {activeTab === 'added' && (
