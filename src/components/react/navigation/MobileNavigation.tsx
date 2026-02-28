@@ -1549,7 +1549,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     <div
                       className="nav-link"
                       style={{ display: 'block', width: '100%', cursor: 'pointer' }}
-                      onClick={() => {
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest?.('.space-switcher-anchor__toggle')) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setIsSpacePanelOpen((v) => !v);
+                          return;
+                        }
                         navigate(displaySelectedSpaceId ? idToUrl(displaySelectedSpaceId) : '/');
                         closeSheet();
                       }}

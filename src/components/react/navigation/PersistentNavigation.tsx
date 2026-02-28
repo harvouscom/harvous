@@ -121,6 +121,21 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
   const getPersistentItems = () => {
     if (typeof window === 'undefined') return [];
 
+    const isRecentlyClosed = (itemId: string, withinMs = 2500): boolean => {
+      try {
+        const raw = window.sessionStorage?.getItem('harvous-recently-closed-items');
+        if (!raw) return false;
+        const entries: Array<{ itemId?: string; closedAt?: number }> = JSON.parse(raw);
+        if (!Array.isArray(entries)) return false;
+        const since = Date.now() - withinMs;
+        return entries.some(
+          (e) => e?.itemId === itemId && typeof e?.closedAt === 'number' && e.closedAt >= since
+        );
+      } catch {
+        return false;
+      }
+    };
+
     const GRAY_FALLBACK = 'var(--color-gradient-gray)';
     const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
     const isRealGradient = (g: string | undefined): boolean =>
@@ -196,6 +211,10 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       }
       return true;
     });
+
+    // Exclude recently closed items so they never appear (e.g. when closing the active thread,
+    // state/refresh can lag and the item may still be in navigationHistory; this hides it).
+    persistentItems = persistentItems.filter((item) => !isRecentlyClosed(item.id));
 
     // Compute the active parent thread *before* scoping so we can always include it.
     // First priority: SSR-provided activeThread (same as mobile's currentThread) - most stable, avoids View Transition timing.
@@ -302,7 +321,12 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       // Also check if "Unorganized" already exists by title (not just ID)
       const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
       
-      if (activeThreadItem && !isUnorganizedTitleWithWrongId && !unorganizedAlreadyExists) {
+      if (
+        activeThreadItem &&
+        !isUnorganizedTitleWithWrongId &&
+        !unorganizedAlreadyExists &&
+        !isRecentlyClosed(activeThreadItem.id)
+      ) {
         // Collapse same-title duplicates in favor of current page's thread
         persistentItems = persistentItems.filter(
           (i) => !(i.title === activeThreadItem.title && i.id !== activeThreadItem.id)
@@ -339,7 +363,11 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       // Also check if "Unorganized" already exists by title (not just ID)
       const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
       
-      if (!isUnorganizedTitleWithWrongId && !unorganizedAlreadyExists) {
+      if (
+        !isUnorganizedTitleWithWrongId &&
+        !unorganizedAlreadyExists &&
+        !isRecentlyClosed(activeParentThread.id)
+      ) {
         persistentItems = [activeParentThread, ...persistentItems];
       }
     }
