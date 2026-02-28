@@ -10,7 +10,6 @@
 
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { fileURLToPath } from 'url';
 import { Hono } from 'hono';
 import { markdownToHtml } from '@/utils/markdown-to-html';
 
@@ -21,8 +20,7 @@ async function getFounderLetterMarkdown(): Promise<string> {
     const mod = await import('./founder-letter.inline');
     return mod.default;
   }
-  const dir = typeof import.meta.dirname !== 'undefined' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url));
-  const path = join(dir, '..', '..', 'src', 'data', 'about', 'founder-letter.md');
+  const path = join(process.cwd(), 'src', 'data', 'about', 'founder-letter.md');
   return readFileSync(path, 'utf-8');
 }
 

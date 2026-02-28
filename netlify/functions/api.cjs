@@ -37793,7 +37793,7 @@ var require_input = __commonJS({
     var { nanoid } = require_non_secure();
     var { isAbsolute, resolve } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
-    var { fileURLToPath: fileURLToPath3, pathToFileURL } = require("url");
+    var { fileURLToPath: fileURLToPath2, pathToFileURL } = require("url");
     var CssSyntaxError = require_css_syntax_error();
     var PreviousMap = require_previous_map();
     var terminalHighlight = require_terminal_highlight();
@@ -37974,8 +37974,8 @@ var require_input = __commonJS({
           url: fromUrl.toString()
         };
         if (fromUrl.protocol === "file:") {
-          if (fileURLToPath3) {
-            result.file = fileURLToPath3(fromUrl);
+          if (fileURLToPath2) {
+            result.file = fileURLToPath2(fromUrl);
           } else {
             throw new Error(`file: protocol is not available in this PostCSS build`);
           }
@@ -77024,17 +77024,14 @@ var debug_default = route3;
 // server/routes/about.ts
 var import_fs2 = require("fs");
 var import_path2 = require("path");
-var import_url9 = require("url");
 init_markdown_to_html();
-var import_meta2 = {};
 var route4 = new Hono2();
 async function getFounderLetterMarkdown() {
   if (process.env.NODE_ENV === "production") {
     const mod = await Promise.resolve().then(() => (init_founder_letter_inline(), founder_letter_inline_exports));
     return mod.default;
   }
-  const dir = typeof import_meta2.dirname !== "undefined" ? import_meta2.dirname : (0, import_url9.fileURLToPath)(new URL(".", import_meta2.url));
-  const path = (0, import_path2.join)(dir, "..", "..", "src", "data", "about", "founder-letter.md");
+  const path = (0, import_path2.join)(process.cwd(), "src", "data", "about", "founder-letter.md");
   return (0, import_fs2.readFileSync)(path, "utf-8");
 }
 route4.get("/api/about/founder-letter", async (c) => {
@@ -93669,9 +93666,8 @@ init_ids();
 init_unorganized_thread();
 
 // src/utils/webflow-verification.ts
-var import_meta3 = {};
 async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0edd9bab40a4eb397") {
-  const webflowToken = import_meta3?.env?.WEBFLOW_INBOX_API_TOKEN ?? process.env?.WEBFLOW_INBOX_API_TOKEN;
+  const webflowToken = process.env?.WEBFLOW_INBOX_API_TOKEN;
   if (!webflowToken) {
     console.warn("Webflow API token not configured - skipping verification");
     return { isValid: true, reason: "No API token configured" };
@@ -94806,7 +94802,7 @@ init_chunk_YBVFDYDR();
 init_chunk_3SCGTTJP();
 
 // node_modules/@clerk/shared/dist/runtime/getEnvVariable-BSXrgsT3.mjs
-var import_meta4 = {};
+var import_meta2 = {};
 var hasCloudflareProxyContext = (context) => {
   return !!context?.cloudflare?.env;
 };
@@ -94815,7 +94811,7 @@ var hasCloudflareContext = (context) => {
 };
 var getEnvVariable = (name, context) => {
   if (typeof process !== "undefined" && process.env && typeof process.env[name] === "string") return process.env[name];
-  if (typeof import_meta4 !== "undefined" && import_meta4.env && typeof import_meta4.env[name] === "string") return import_meta4.env[name];
+  if (typeof import_meta2 !== "undefined" && import_meta2.env && typeof import_meta2.env[name] === "string") return import_meta2.env[name];
   if (hasCloudflareProxyContext(context)) return context.cloudflare.env[name] || "";
   if (hasCloudflareContext(context)) return context.env[name] || "";
   if (context && typeof context[name] === "string") return context[name];
@@ -94890,10 +94886,9 @@ async function verifyWebhook(request, options = {}) {
 }
 
 // src/utils/audienceful.ts
-var import_meta5 = {};
 var AUDIENCEFUL_API_BASE = "https://app.audienceful.com/api";
 function getApiKey() {
-  const apiKey = import_meta5?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
+  const apiKey = process.env?.AUDIENCEFUL_API_KEY;
   if (!apiKey) {
     throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
   }
@@ -94971,7 +94966,7 @@ async function tagAsAppUser(email, clerkUserId, firstName, lastName) {
     timestamp: (/* @__PURE__ */ new Date()).toISOString()
   });
   try {
-    const apiKey = import_meta5?.env?.AUDIENCEFUL_API_KEY ?? process.env?.AUDIENCEFUL_API_KEY;
+    const apiKey = process.env?.AUDIENCEFUL_API_KEY;
     if (!apiKey) {
       throw new Error("AUDIENCEFUL_API_KEY environment variable is not set");
     }

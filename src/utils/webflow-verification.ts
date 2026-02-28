@@ -9,7 +9,7 @@ export async function verifyInboxItemInWebflow(
   webflowItemId: string,
   collectionId: string = '690ed2f0edd9bab40a4eb397'
 ): Promise<{ isValid: boolean; reason?: string }> {
-  const webflowToken = import.meta?.env?.WEBFLOW_INBOX_API_TOKEN ?? process.env?.WEBFLOW_INBOX_API_TOKEN;
+  const webflowToken = process.env?.WEBFLOW_INBOX_API_TOKEN;
   
   if (!webflowToken) {
     // If no token, we can't verify - assume valid to avoid blocking user creation
