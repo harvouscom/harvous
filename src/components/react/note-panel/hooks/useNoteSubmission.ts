@@ -582,14 +582,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           debug('[useNoteSubmission] Cached simpleNoteId', { simpleNoteId: result.note.simpleNoteId });
         }
         
-        // Build scripture toast message for redirect (only for 'created' actions - these are non-obvious)
-        // 'added' and 'unorganized' actions are visible when viewing the thread, so we skip those
+        // Build scripture toast message for redirect
         let scriptureToastMessage = '';
-        if (result.scriptureResults && Array.isArray(result.scriptureResults)) {
+        if (result.scriptureProcessingError) {
+          scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
+        } else if (result.scriptureResults && Array.isArray(result.scriptureResults)) {
           const createdScriptures = result.scriptureResults.filter(
             (r: any) => r.action === 'created'
           );
-          
           if (createdScriptures.length === 1) {
             scriptureToastMessage = `Created scripture note: ${createdScriptures[0].reference}`;
           } else if (createdScriptures.length > 1) {
@@ -849,7 +849,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           let redirectUrl = idToUrl(result.note.id);
           // Add toast message if applicable
           if (scriptureToastMessage) {
-            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+            const toastType = result.scriptureProcessingError ? 'warning' : 'info';
+            redirectUrl += `?toast=${toastType}&message=${encodeURIComponent(scriptureToastMessage)}`;
           } else if (overrideThreadId && overrideThreadId !== 'thread_unorganized') {
             // If note was added to a thread, show a success message
             const threadData = threadOptions.find(thread => thread.id === overrideThreadId);
@@ -1171,13 +1172,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           debug('[useNoteSubmission] Cached simpleNoteId (save and close)', { simpleNoteId: result.note.simpleNoteId });
         }
 
-        // Build scripture toast message for redirect (only for 'created' actions)
+        // Build scripture toast message for redirect
         let scriptureToastMessage = '';
-        if (result.scriptureResults && result.scriptureResults.length > 0) {
+        if (result.scriptureProcessingError) {
+          scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
+        } else if (result.scriptureResults && result.scriptureResults.length > 0) {
           const createdScriptures = result.scriptureResults.filter(
             (r: any) => r.action === 'created'
           );
-          
           if (createdScriptures.length === 1) {
             scriptureToastMessage = `Created scripture note: ${createdScriptures[0].reference}`;
           } else if (createdScriptures.length > 1) {
@@ -1188,7 +1190,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         if (result.note && result.note.id) {
           let redirectUrl = idToUrl(result.note.id);
           if (scriptureToastMessage) {
-            redirectUrl += `?toast=info&message=${encodeURIComponent(scriptureToastMessage)}`;
+            const toastType = result.scriptureProcessingError ? 'warning' : 'info';
+            redirectUrl += `?toast=${toastType}&message=${encodeURIComponent(scriptureToastMessage)}`;
           }
           
           // OPTIMIZATION: Prefetch the destination page before navigating

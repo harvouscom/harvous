@@ -186,7 +186,7 @@
 
 /* Action strip dock: cream-colored panel behind the card, right edge peeks out.
    Extends 24px under the card (matching card border-radius) so the card
-   visually sits on top of the panel. */
+   visually sits on top of the panel. Use --showing or --hiding for animation. */
 .action-strip-dock {
   position: absolute;
   right: -2.75rem;
@@ -201,16 +201,43 @@
   background-color: #ebe8e0;
   border-top-right-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
+}
+
+/* Dock slides out to reveal tabs (0.35s ease-out); use when visible or when re-showing after edit mode */
+.action-strip-dock--showing {
   animation: action-strip-dock-slide-in 0.35s ease-out both;
+}
+
+/* Dock slides back behind card then fades out (reverse of slide-in); use when hiding for edit mode or navigate away */
+.action-strip-dock--hiding {
+  animation: action-strip-dock-slide-out 0.2s ease-out both;
+  pointer-events: none;
 }
 
 /* Dock starts fully behind the card, then slides out to reveal tabs (0.35s ease-out) */
 @keyframes action-strip-dock-slide-in {
   from {
     transform: translateX(-2.75rem);
+    opacity: 0;
   }
   to {
     transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes action-strip-dock-slide-out {
+  0% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  70% {
+    transform: translateX(-2.75rem);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-2.75rem);
+    opacity: 0;
   }
 }
 
@@ -324,7 +351,7 @@ button.new-space-floating-button {
 }
 
 /* Mobile action strip dock: cream panel behind the card, bottom edge peeks out.
-   Mirrors the desktop dock but at the bottom instead of the right. */
+   Mirrors the desktop dock but at the bottom instead of the right. Use --showing or --hiding for animation. */
 .mobile-action-strip-dock {
   position: absolute;
   left: 0;
@@ -341,16 +368,41 @@ button.new-space-floating-button {
   background-color: #ebe8e0;
   border-bottom-left-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
+}
+
+.mobile-action-strip-dock--showing {
   animation: mobile-dock-slide-in 0.35s ease-out both;
+}
+
+.mobile-action-strip-dock--hiding {
+  animation: mobile-dock-slide-out 0.2s ease-out both;
+  pointer-events: none;
 }
 
 /* Dock starts fully behind the card, then slides down to reveal actions */
 @keyframes mobile-dock-slide-in {
   from {
     transform: translateY(-3.5rem);
+    opacity: 0;
   }
   to {
     transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes mobile-dock-slide-out {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(-3.5rem);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-3.5rem);
+    opacity: 0;
   }
 }
 

@@ -7,6 +7,7 @@ import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
 import { toast } from '@/utils/toast';
+import { getCachedPanelData, setCachedPanelData, invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 type SharingFilter = 'all' | 'threads' | 'notes' | 'spaces';
 
@@ -59,8 +60,8 @@ export default function MySharingPanel({
     }
   };
 
-  const fetchShared = useCallback(async () => {
-    setIsLoading(true);
+  const fetchShared = useCallback(async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     setError(null);
     try {
       const [sharingRes, spacesRes] = await Promise.all([
@@ -69,18 +70,23 @@ export default function MySharingPanel({
       ]);
       const sharingData = await sharingRes.json();
       if (!sharingRes.ok) throw new Error(sharingData.error || 'Failed to load');
-      setThreads(sharingData.threads ?? []);
-      setNotes(sharingData.notes ?? []);
+      const newThreads = sharingData.threads ?? [];
+      const newNotes = sharingData.notes ?? [];
+      setThreads(newThreads);
+      setNotes(newNotes);
 
+      let newOwnedSpaces: OwnedSharedSpace[] = [];
       if (spacesRes.ok) {
         const spacesData = await spacesRes.json();
-        setOwnedSpaces(spacesData.owned ?? []);
+        newOwnedSpaces = spacesData.owned ?? [];
+        setOwnedSpaces(newOwnedSpaces);
       } else {
         const spacesData = await spacesRes.json().catch(() => ({}));
         const msg = (spacesData as { error?: string }).error || 'Failed to load shared spaces';
         toast.error(msg);
         setOwnedSpaces([]);
       }
+      setCachedPanelData(PANEL_CACHE_KEYS.sharing, { threads: newThreads, notes: newNotes, ownedSpaces: newOwnedSpaces });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Something went wrong';
       setError(message);
@@ -94,12 +100,21 @@ export default function MySharingPanel({
   }, []);
 
   useEffect(() => {
-    fetchShared();
+    const cached = getCachedPanelData<{ threads: SharedThread[]; notes: SharedNote[]; ownedSpaces: OwnedSharedSpace[] }>(PANEL_CACHE_KEYS.sharing);
+    if (cached) {
+      setThreads(cached.threads ?? []);
+      setNotes(cached.notes ?? []);
+      setOwnedSpaces(cached.ownedSpaces ?? []);
+      setIsLoading(false);
+      fetchShared(true);
+    } else {
+      fetchShared(false);
+    }
   }, [fetchShared]);
 
   // Refetch when sharing is changed elsewhere (e.g. share link generated in EditSpacePanel)
   useEffect(() => {
-    const handleInvalidate = () => fetchShared();
+    const handleInvalidate = () => fetchShared(true);
     window.addEventListener('mySharingInvalidate', handleInvalidate);
     return () => window.removeEventListener('mySharingInvalidate', handleInvalidate);
   }, [fetchShared]);
@@ -108,7 +123,7 @@ export default function MySharingPanel({
   useEffect(() => {
     const handlePanelOpened = (event: CustomEvent) => {
       if (event.detail?.panelName === 'mySharing') {
-        fetchShared();
+        fetchShared(true);
       }
     };
     window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
@@ -126,6 +141,7 @@ export default function MySharingPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to turn off sharing');
+      invalidatePanelDataCache(PANEL_CACHE_KEYS.sharing);
       setThreads((prev) => prev.filter((t) => t.id !== thread.id));
       toast.success('Thread is now private');
     } catch (err) {
@@ -146,6 +162,7 @@ export default function MySharingPanel({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to turn off sharing');
+      invalidatePanelDataCache(PANEL_CACHE_KEYS.sharing);
       setNotes((prev) => prev.filter((n) => n.id !== note.id));
       toast.success('Note is now private');
     } catch (err) {
@@ -190,12 +207,7 @@ export default function MySharingPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       <div className={inBottomSheet ? 'flex-1 flex flex-col min-h-0' : 'flex flex-col'} style={{ position: 'relative' }}>
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        )}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
               <p>My Sharing</p>

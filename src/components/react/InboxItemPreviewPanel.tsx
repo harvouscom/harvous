@@ -401,11 +401,6 @@ export default function InboxItemPreviewPanel({
       `}</style>
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`} style={{ height: '100%', maxHeight: '100%', minHeight: 0 }}>
       {/* Loading indicator - progress bar at top */}
-      {isLoading && (
-        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-          <div className="panel__progress-fill"></div>
-        </div>
-      )}
       {/* Content area that expands to fill available space - matches NewNotePanel structure */}
       <div className="flex-1 flex flex-col min-h-0 mb-3.5 overflow-hidden">
         {/* Note Detail View - matches NewNotePanel card structure */}

@@ -74757,6 +74757,85 @@ async function fetchWithTimeout(url, options = {}) {
   throw lastError || new Error("Unknown error occurred");
 }
 
+// server/utils/fetch-verse-text.ts
+async function fetchVerseText(reference) {
+  const cleanReference = reference.replace(/,\s+/g, ",");
+  const parsed = parseScriptureReference(cleanReference);
+  if (!parsed) {
+    return "";
+  }
+  let verseGroups = parseVerseGroups(cleanReference);
+  if (verseGroups.length === 0) {
+    const v2 = parsed.verse;
+    if (v2 !== void 0 && v2 !== null) {
+      const start = Array.isArray(v2) ? v2[0] : v2;
+      const end = Array.isArray(v2) ? v2[1] ?? v2[0] : v2;
+      if (typeof start === "number" && typeof end === "number") {
+        verseGroups = [{ start, end }];
+      }
+    }
+  }
+  if (verseGroups.length === 0) {
+    return "";
+  }
+  for (const group of verseGroups) {
+    if (group.start === group.end) {
+      if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
+        return "";
+      }
+    } else {
+      if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
+        return "";
+      }
+    }
+  }
+  let verses = [];
+  try {
+    if (verseGroups.length > 1) {
+      const versePromises = verseGroups.map(async (group) => {
+        const groupReference = `${parsed.book} ${parsed.chapter}:${group.start}-${group.end}`;
+        const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(groupReference)}&formatting=plain&type=json`;
+        const response = await fetchWithTimeout(apiUrl, { timeout: 1e4, retries: 2, retryTimeout: 5e3 });
+        if (!response.ok) throw new Error(`Bible.org API error for ${groupReference}: ${response.status}`);
+        return await response.json();
+      });
+      const verseArrays = await Promise.all(versePromises);
+      verses = verseArrays.flat();
+    } else {
+      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(cleanReference)}&formatting=plain&type=json`;
+      const response = await fetchWithTimeout(apiUrl, { timeout: 1e4, retries: 2, retryTimeout: 5e3 });
+      if (!response.ok) throw new Error(`Bible.org API error: ${response.status}`);
+      verses = await response.json();
+    }
+  } catch (err) {
+    console.error(`[fetchVerseText] Error for ${reference}:`, err?.message ?? err);
+    return "";
+  }
+  if (!verses || verses.length === 0) {
+    return "";
+  }
+  if (verseGroups.length > 1) {
+    const formattedParts = [];
+    verseGroups.forEach((group, index2) => {
+      const groupVerses = verses.filter((v2) => {
+        const verseNum = parseInt(v2.verse);
+        return verseNum >= group.start && verseNum <= group.end;
+      });
+      if (groupVerses.length > 0) {
+        const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
+        formattedParts.push(`<p><strong>${label}</strong></p>`);
+        const groupText = groupVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+        formattedParts.push(`<p>${groupText}</p>`);
+        if (index2 < verseGroups.length - 1) {
+          formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
+        }
+      }
+    });
+    return formattedParts.join("");
+  }
+  return verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+}
+
 // server/utils/process-scripture-references.ts
 async function processScriptureReferences(noteId, userId, threadId, contentOverride) {
   const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).get();
@@ -74951,28 +75030,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
       }
       if (!existingScripture) {
         try {
-          let verseText = "";
-          try {
-            const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-            const verseResponse = await fetchWithTimeout(apiUrl, {
-              timeout: 1e4,
-              // 10 seconds for initial attempt
-              retries: 2,
-              // 2 retries
-              retryTimeout: 5e3
-              // 5 seconds for retries
-            });
-            if (verseResponse.ok) {
-              const verses = await verseResponse.json();
-              if (Array.isArray(verses) && verses.length > 0) {
-                verseText = verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
-              }
-            } else {
-              console.error(`Bible.org API returned error for ${reference}: ${verseResponse.status} ${verseResponse.statusText}`);
-            }
-          } catch (verseError) {
-            console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
-          }
+          const verseText = await fetchVerseText(normalizedReference);
           let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
           if (!userMetadata) {
             const existingNotes = await db.select({
@@ -75089,6 +75147,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
                 threadId: actualThreadId,
                 createdAt: (/* @__PURE__ */ new Date()).toISOString()
               });
+              await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, scriptureNote.id));
             } catch (error) {
             }
           }
@@ -75292,23 +75351,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
           );
         } else {
           try {
-            let verseText = "";
-            try {
-              const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-              const verseResponse = await fetchWithTimeout(apiUrl, {
-                timeout: 1e4,
-                retries: 2,
-                retryTimeout: 5e3
-              });
-              if (verseResponse.ok) {
-                const verses = await verseResponse.json();
-                if (Array.isArray(verses) && verses.length > 0) {
-                  verseText = verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
-                }
-              }
-            } catch (verseError) {
-              console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
-            }
+            const verseText = await fetchVerseText(normalizedRef);
             let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
             if (!userMetadata) {
               const existingNotes = await db.select({
@@ -75415,6 +75458,18 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
               new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
               `data-note-id="${newScriptureNote.id}"`
             );
+            if (actualThreadId !== "thread_unorganized") {
+              try {
+                await db.insert(NoteThreads).values({
+                  id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  noteId: newScriptureNote.id,
+                  threadId: actualThreadId,
+                  createdAt: (/* @__PURE__ */ new Date()).toISOString()
+                });
+                await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, newScriptureNote.id));
+              } catch (error) {
+              }
+            }
             results.push({
               action: "created",
               noteId: newScriptureNote.id,
@@ -89376,6 +89431,7 @@ route10.post("/api/notes/create", async (c) => {
       }
     }
     let scriptureResults = [];
+    let scriptureProcessingError = false;
     if (!contentEncrypted) {
       try {
         const actualThreadId = threadId && threadId !== "thread_unorganized" ? threadId : "thread_unorganized";
@@ -89390,12 +89446,13 @@ route10.post("/api/notes/create", async (c) => {
         const scriptureResult = await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess);
         scriptureResults = scriptureResult.results ?? [];
       } catch (error) {
+        scriptureProcessingError = true;
         console.error("[api/notes/create] Scripture processing failed:", error?.message);
         console.error("[api/notes/create] Scripture processing error stack:", error?.stack);
         console.error("[api/notes/create] Scripture processing error string:", String(error));
       }
     }
-    return c.json({ success: "Note created!", note: newNote, scriptureResults });
+    return c.json({ success: "Note created!", note: newNote, scriptureResults, scriptureProcessingError });
   } catch (error) {
     console.error("[api/notes/create] Error:", error);
     return c.json({ error: error.message || "Failed to create note" }, 500);
@@ -89453,6 +89510,7 @@ route10.put("/api/notes/update", async (c) => {
     }
     let scriptureResults = [];
     let processedContent = null;
+    let scriptureProcessingError = false;
     if (!isEncrypted) {
       try {
         let actualThreadId = "thread_unorganized";
@@ -89462,10 +89520,11 @@ route10.put("/api/notes/update", async (c) => {
         scriptureResults = scriptureResult.results || [];
         processedContent = scriptureResult.updatedContent || null;
       } catch (error) {
+        scriptureProcessingError = true;
         console.error("[api/notes/update] Scripture processing failed:", error?.message);
       }
     }
-    return c.json({ success: "Note updated!", note: updatedNote, scriptureResults, processedContent });
+    return c.json({ success: "Note updated!", note: updatedNote, scriptureResults, processedContent, scriptureProcessingError });
   } catch (error) {
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
@@ -92477,59 +92536,9 @@ app2.post("/api/scripture/fetch-verse", async (c) => {
     if (!parsed) {
       return c.json({ error: "Invalid scripture reference format" }, 400);
     }
-    const verseGroups = parseVerseGroups(cleanReference);
-    for (const group of verseGroups) {
-      if (group.start === group.end) {
-        if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
-          return c.json({ error: `Invalid verse number: ${parsed.book} ${parsed.chapter}:${group.start} does not exist` }, 400);
-        }
-      } else {
-        if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
-          return c.json({ error: `Invalid verse range: ${parsed.book} ${parsed.chapter}:${group.start}-${group.end} is not valid` }, 400);
-        }
-      }
-    }
-    let verses = [];
-    if (verseGroups.length > 1) {
-      const versePromises = verseGroups.map(async (group) => {
-        const groupReference = `${parsed.book} ${parsed.chapter}:${group.start}-${group.end}`;
-        const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(groupReference)}&formatting=plain&type=json`;
-        const response = await fetchWithTimeout(apiUrl, { timeout: 1e4, retries: 2, retryTimeout: 5e3 });
-        if (!response.ok) throw new Error(`Bible.org API error for ${groupReference}: ${response.status} ${response.statusText}`);
-        return await response.json();
-      });
-      const verseArrays = await Promise.all(versePromises);
-      verses = verseArrays.flat();
-    } else {
-      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-      const response = await fetchWithTimeout(apiUrl, { timeout: 1e4, retries: 2, retryTimeout: 5e3 });
-      if (!response.ok) throw new Error(`Bible.org API error: ${response.status} ${response.statusText}`);
-      verses = await response.json();
-    }
-    if (!verses || verses.length === 0) {
+    const verseText = await fetchVerseText(cleanReference);
+    if (!verseText) {
       return c.json({ error: "No verses found for this reference" }, 404);
-    }
-    let verseText;
-    if (verseGroups.length > 1) {
-      const formattedParts = [];
-      verseGroups.forEach((group, index2) => {
-        const groupVerses = verses.filter((v2) => {
-          const verseNum = parseInt(v2.verse);
-          return verseNum >= group.start && verseNum <= group.end;
-        });
-        if (groupVerses.length > 0) {
-          const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
-          formattedParts.push(`<p><strong>${label}</strong></p>`);
-          const groupText = groupVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
-          formattedParts.push(`<p>${groupText}</p>`);
-          if (index2 < verseGroups.length - 1) {
-            formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
-          }
-        }
-      });
-      verseText = formattedParts.join("");
-    } else {
-      verseText = verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
     }
     const verseNumber = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
     const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;

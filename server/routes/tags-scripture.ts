@@ -20,11 +20,8 @@ import {
   getPrimaryReference,
   parseScriptureReference,
   normalizeScriptureReference,
-  parseVerseGroups,
-  validateVerseNumber,
-  validateVerseRange,
 } from '@/utils/scripture-detector';
-import { fetchWithTimeout } from '@/utils/fetch-helpers';
+import { fetchVerseText } from '../utils/fetch-verse-text';
 import { nowISO } from '../db/dates';
 
 const app = new Hono();
@@ -262,13 +259,6 @@ app.post('/api/scripture/detect', async (c) => {
   }
 });
 
-interface BibleOrgVerse {
-  bookname: string;
-  chapter: string;
-  verse: string;
-  text: string;
-}
-
 /** POST /api/scripture/fetch-verse */
 app.post('/api/scripture/fetch-verse', async (c) => {
   try {
@@ -284,65 +274,9 @@ app.post('/api/scripture/fetch-verse', async (c) => {
       return c.json({ error: 'Invalid scripture reference format' }, 400);
     }
 
-    const verseGroups = parseVerseGroups(cleanReference);
-
-    // Validate verse numbers
-    for (const group of verseGroups) {
-      if (group.start === group.end) {
-        if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
-          return c.json({ error: `Invalid verse number: ${parsed.book} ${parsed.chapter}:${group.start} does not exist` }, 400);
-        }
-      } else {
-        if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
-          return c.json({ error: `Invalid verse range: ${parsed.book} ${parsed.chapter}:${group.start}-${group.end} is not valid` }, 400);
-        }
-      }
-    }
-
-    let verses: BibleOrgVerse[] = [];
-
-    if (verseGroups.length > 1) {
-      const versePromises = verseGroups.map(async (group) => {
-        const groupReference = `${parsed.book} ${parsed.chapter}:${group.start}-${group.end}`;
-        const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(groupReference)}&formatting=plain&type=json`;
-        const response = await fetchWithTimeout(apiUrl, { timeout: 10000, retries: 2, retryTimeout: 5000 });
-        if (!response.ok) throw new Error(`Bible.org API error for ${groupReference}: ${response.status} ${response.statusText}`);
-        return (await response.json()) as BibleOrgVerse[];
-      });
-      const verseArrays = await Promise.all(versePromises);
-      verses = verseArrays.flat();
-    } else {
-      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-      const response = await fetchWithTimeout(apiUrl, { timeout: 10000, retries: 2, retryTimeout: 5000 });
-      if (!response.ok) throw new Error(`Bible.org API error: ${response.status} ${response.statusText}`);
-      verses = await response.json();
-    }
-
-    if (!verses || verses.length === 0) {
+    const verseText = await fetchVerseText(cleanReference);
+    if (!verseText) {
       return c.json({ error: 'No verses found for this reference' }, 404);
-    }
-
-    let verseText: string;
-    if (verseGroups.length > 1) {
-      const formattedParts: string[] = [];
-      verseGroups.forEach((group, index) => {
-        const groupVerses = verses.filter((v) => {
-          const verseNum = parseInt(v.verse);
-          return verseNum >= group.start && verseNum <= group.end;
-        });
-        if (groupVerses.length > 0) {
-          const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
-          formattedParts.push(`<p><strong>${label}</strong></p>`);
-          const groupText = groupVerses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
-          formattedParts.push(`<p>${groupText}</p>`);
-          if (index < verseGroups.length - 1) {
-            formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
-          }
-        }
-      });
-      verseText = formattedParts.join('');
-    } else {
-      verseText = verses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
     }
 
     const verseNumber = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;

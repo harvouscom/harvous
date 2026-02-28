@@ -1500,11 +1500,7 @@ export default function ThreadNotesList({
             minimumExpectedCount={totalCountForFilter}
           />
         ) : isInitialLoadPending ? (
-          <div style={{ position: 'relative', minHeight: 0 }}>
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          </div>
+          <div style={{ minHeight: '48px' }} aria-hidden="true" />
         ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>

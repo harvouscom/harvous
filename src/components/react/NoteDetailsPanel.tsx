@@ -11,6 +11,7 @@ import { toast } from '@/utils/toast';
 import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { usePersistedUserId } from '@/utils/user-id';
+import { getCachedNoteDetails, setCachedNoteDetails } from '@/utils/note-details-cache';
 
 interface Thread {
   id: string;
@@ -95,26 +96,45 @@ export default function NoteDetailsPanel({
   // Check if this is a scripture note (to show the Notes tab)
   const isScriptureNote = noteType === 'scripture';
 
-  // Fetch data when component mounts
+  // Fetch data when component mounts; use cache to avoid loading when we have recent data
   useEffect(() => {
-    if (noteId) {
-      setIsInitialLoad(true);
-      fetchNoteDetails();
+    if (!noteId) return;
+
+    setIsInitialLoad(true);
+    const cached = getCachedNoteDetails(noteId);
+
+    if (cached) {
+      setLocalThreads((cached.threads as Thread[]) || []);
+      setLocalAllUserThreads((cached.allUserThreads as Thread[]) || []);
+      setLocalComments((cached.comments as Comment[]) || []);
+      setLocalTags((cached.tags as Tag[]) || []);
+      setLocalReferencingNotes((cached.referencingNotes as ReferencingNote[]) || []);
+      if (cached.note) {
+        setNoteCreatedAt(cached.note.createdAt ? new Date(cached.note.createdAt) : null);
+        setNoteSimpleId(cached.note.simpleNoteId ?? null);
+        setNoteVersion(cached.note.version ?? null);
+        setNoteAddedBy(cached.note.addedBy || 'user');
+        setNoteType(cached.note.noteType || 'default');
+        setNoteUserId(cached.note.userId ?? null);
+        if (cached.note.noteType === 'scripture' && !initialTab) setActiveTab('notes');
+      }
+      setIsLoading(false);
+      fetchNoteDetails(false, true);
+    } else {
+      fetchNoteDetails(false, false);
     }
   }, [noteId]);
 
-  const fetchNoteDetails = async (preserveTab: boolean = false) => {
-    setIsLoading(true);
+  const fetchNoteDetails = async (preserveTab: boolean = false, backgroundRefetch: boolean = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     try {
       const response = await fetch(`/api/notes/${noteId}/details`);
       if (response.ok) {
         const data = await response.json();
-        // Use the new threads array from the API response
         setLocalThreads(data.threads || []);
         setLocalAllUserThreads(data.allUserThreads || []);
         setLocalComments(data.comments || []);
         setLocalTags(data.tags || []);
-        // Store note metadata
         if (data.note) {
           setNoteCreatedAt(data.note.createdAt ? new Date(data.note.createdAt) : null);
           setNoteSimpleId(data.note.simpleNoteId || null);
@@ -122,16 +142,26 @@ export default function NoteDetailsPanel({
           setNoteAddedBy(data.note.addedBy || 'user');
           setNoteType(data.note.noteType || 'default');
           setNoteUserId(data.note.userId ?? null);
-          
-          // Set default tab to 'notes' for scripture notes only on initial load
-          // Preserve current tab during refreshes (e.g., after tag operations)
-          // But don't override if initialTab was explicitly provided
           if (!preserveTab && isInitialLoad && data.note.noteType === 'scripture' && !initialTab) {
             setActiveTab('notes');
           }
         }
-        // Set referencing notes (only for scripture notes)
         setLocalReferencingNotes(data.referencingNotes || []);
+        setCachedNoteDetails(noteId, {
+          threads: data.threads || [],
+          allUserThreads: data.allUserThreads || [],
+          comments: data.comments || [],
+          tags: data.tags || [],
+          referencingNotes: data.referencingNotes || [],
+          note: data.note ? {
+            createdAt: data.note.createdAt,
+            simpleNoteId: data.note.simpleNoteId,
+            version: data.note.version,
+            addedBy: data.note.addedBy,
+            noteType: data.note.noteType,
+            userId: data.note.userId
+          } : null
+        });
       }
     } catch (error) {
       // Error fetching note details
@@ -170,7 +200,7 @@ export default function NoteDetailsPanel({
         const result = await response.json();
         
         // Refresh the note details to show updated threads, preserving current tab
-        await fetchNoteDetails(true);
+        await fetchNoteDetails(true, true);
         
         // Dispatch note added to thread event
         window.dispatchEvent(new CustomEvent('noteAddedToThread', {
@@ -243,7 +273,7 @@ export default function NoteDetailsPanel({
           remainingThreadIds = (data.threads || []).map((t: Thread) => t.id);
         } else {
           // Fallback: update state from current localThreads, preserving current tab
-          await fetchNoteDetails(true);
+          await fetchNoteDetails(true, true);
           remainingThreadIds = localThreads
             .filter((t: Thread) => t.id !== threadId)
             .map((t: Thread) => t.id);
@@ -317,7 +347,7 @@ export default function NoteDetailsPanel({
           remainingThreadIds = (data.threads || []).map((t: Thread) => t.id);
         } else {
           // Fallback: update state from current localThreads, preserving current tab
-          await fetchNoteDetails(true);
+          await fetchNoteDetails(true, true);
           remainingThreadIds = localThreads
             .filter((t: Thread) => t.id !== threadToRemove)
             .map((t: Thread) => t.id);
@@ -368,7 +398,7 @@ export default function NoteDetailsPanel({
 
   const handleTagCreated = async () => {
     // Refresh the note details to show the new tag, preserving current tab
-    await fetchNoteDetails(true);
+    await fetchNoteDetails(true, true);
   };
 
   const addNewThread = () => {
@@ -385,7 +415,7 @@ export default function NoteDetailsPanel({
     // Ensure we're on the threads tab
     setActiveTab('threads');
     // Refresh the note details to show updated threads
-    await fetchNoteDetails();
+    await fetchNoteDetails(false, true);
   };
 
   const handleCloseNewThreadPanel = () => {
@@ -406,7 +436,7 @@ export default function NoteDetailsPanel({
         toast.success('Tag removed from note');
         
         // Refresh the note details to show updated tags, preserving current tab
-        await fetchNoteDetails(true);
+        await fetchNoteDetails(true, true);
       } else {
         const error = await response.json();
         toast.error(error.error || 'Error removing tag from note');
@@ -489,11 +519,6 @@ export default function NoteDetailsPanel({
       <div className={`note-details-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area that expands to fill available space */}
       <div className="form-layout--expand w-full" style={{ position: 'relative' }}>
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        )}
         {/* Panel container */}
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
           {/* Header section */}

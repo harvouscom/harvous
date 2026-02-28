@@ -23,20 +23,20 @@ export default function EmailPasswordPanel({
   const [currentEmail, setCurrentEmail] = useState('');
   const [emailVerified, setEmailVerified] = useState(false);
 
-  // Load current user data when component mounts
+  // Load current user data when component mounts (background refetch when cache hit)
   useEffect(() => {
-    // Check cache first
     const cached = getCachedProfileData();
     if (cached && cached.email) {
       setCurrentEmail(cached.email);
       setEmailVerified(cached.emailVerified || false);
+      loadUserData(true); // Refetch in background to stay fresh
     } else {
-      loadUserData();
+      loadUserData(false);
     }
   }, []);
 
-  const loadUserData = async () => {
-    setIsLoading(true);
+  const loadUserData = async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     try {
       const response = await fetch('/api/user/get-profile');
       if (response.ok) {
@@ -163,11 +163,6 @@ export default function EmailPasswordPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       {/* Loading indicator - progress bar at top */}
-      {isLoading && (
-        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-          <div className="panel__progress-fill"></div>
-        </div>
-      )}
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>

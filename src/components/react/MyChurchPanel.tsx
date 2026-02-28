@@ -263,7 +263,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information saved!',
+            message: 'Added your church',
             type: 'success'
           }
         }));
@@ -411,7 +411,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information saved!',
+            message: 'Added your church',
             type: 'success'
           }
         }));
@@ -492,7 +492,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Church information removed!',
+            message: 'Removed church',
             type: 'success'
           }
         }));
@@ -535,12 +535,6 @@ export default function MyChurchPanel({
     
     return (
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
-        {/* Loading indicator - progress bar at top */}
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill"></div>
-          </div>
-        )}
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
           {/* Panel container */}
@@ -624,12 +618,6 @@ export default function MyChurchPanel({
   // Edit mode - show form
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
-      {/* Loading indicator - progress bar at top */}
-      {isLoading && (
-        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-          <div className="panel__progress-fill"></div>
-        </div>
-      )}
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>

@@ -56,24 +56,23 @@ export default function ThreadPage() {
 
   const headerBgColor = `var(--color-${resolvedColor})`;
 
-  // Content is ready once thread detail has loaded (or this is the unorganized thread)
-  const contentReady = isUnorganized || !isLoading;
-
+  // Always use ThreadCardStackHeader for non-unorganized so the header never shifts.
+  // Nav data (navThread) provides title/color immediately; thread detail updates when loaded.
   return (
     <CardStack
       title={resolvedTitle}
       headerBgColor={headerBgColor}
       threadId={threadId}
-      centerTitle={isUnorganized}
-      header={!isUnorganized && thread ? (
+      centerTitle={true}
+      header={!isUnorganized ? (
         <ThreadCardStackHeader
-          initialTitle={thread.title}
-          initialColor={(thread.color ?? 'paper') as any}
+          initialTitle={resolvedTitle || 'Thread'}
+          initialColor={resolvedColor as any}
           threadId={threadId}
         />
       ) : undefined}
     >
-      <div className={contentReady ? 'content-fade-in' : undefined}>
+      <div>
         <TabNav
           tabs={tabs}
           onTabChange={(id) => setNoteTypeFilter(id as NoteTypeFilter)}

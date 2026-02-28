@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpace, useSpaceItems } from '../hooks/queries/useSpace';
+import { useNavigation } from '../hooks/queries/useNavigation';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
@@ -24,8 +25,13 @@ export default function SpacePage() {
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
   const { data: space, isLoading, isError } = useSpace(spaceId);
+  const { data: nav } = useNavigation();
   const { data: spaceItems, isFetching: isFetchingItems } = useSpaceItems(spaceId);
   const [filter, setFilter] = useState<SpaceFilter>('all');
+
+  const navSpace = nav?.spaces?.find(s => s.id === spaceId) ?? nav?.memberOfSpaces?.find(s => s.id === spaceId);
+  const resolvedSpaceTitle = space?.title ?? navSpace?.title ?? 'Space';
+  const resolvedSpaceColor = (space?.color ?? navSpace?.color ?? 'paper') as 'paper' | 'blue' | 'green' | 'red' | 'yellow' | 'orange' | 'purple' | 'pink';
 
   const initialItems = spaceItems ?? [];
   const parentIsLoading = initialItems.length === 0 && isFetchingItems;
@@ -57,16 +63,24 @@ export default function SpacePage() {
     }
   }, [spaceId, space]);
 
-  const headerBgColor = space?.color
-    ? `var(--color-${space.color})`
-    : 'var(--color-paper)';
+  const headerBgColor = `var(--color-${resolvedSpaceColor})`;
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
   if (isLoading) {
     return (
-      <CardStack title="Loading..." headerBgColor="var(--color-paper)" centerTitle>
-        <div className="page-loading" />
+      <CardStack
+        headerBgColor={headerBgColor}
+        header={
+          <SpaceCardStackHeader
+            initialTitle={resolvedSpaceTitle}
+            initialColor={resolvedSpaceColor}
+            spaceId={spaceId}
+            currentUserId={user?.id}
+          />
+        }
+      >
+        {/* Body empty while loading; content fades in when space loads */}
       </CardStack>
     );
   }
@@ -93,22 +107,24 @@ export default function SpacePage() {
         />
       ) : undefined}
     >
-      <TabNav
-        tabs={tabs}
-        onTabChange={(id) => setFilter(id as SpaceFilter)}
-        className="content-tabs"
-      />
-      <SpaceContentList
-        initialItems={initialItems}
-        spaceId={spaceId}
-        filter={filter}
-        spaceIsShared={space?.isPublic}
-        isOwner={space?.ownerId === user?.id}
-        currentUserId={user?.id ?? null}
-        parentIsLoading={parentIsLoading}
-      />
-      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
-      <div data-cta-spacer className="create-note-cta-spacer" />
+      <div>
+        <TabNav
+          tabs={tabs}
+          onTabChange={(id) => setFilter(id as SpaceFilter)}
+          className="content-tabs"
+        />
+        <SpaceContentList
+          initialItems={initialItems}
+          spaceId={spaceId}
+          filter={filter}
+          spaceIsShared={space?.isPublic}
+          isOwner={space?.ownerId === user?.id}
+          currentUserId={user?.id ?? null}
+          parentIsLoading={parentIsLoading}
+        />
+        {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+        <div data-cta-spacer className="create-note-cta-spacer" />
+      </div>
     </CardStack>
   );
 }

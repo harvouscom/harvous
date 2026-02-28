@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { updateCachedProfileData } from '@/utils/profile-cache';
 
 const USER_COLOR_KEY = 'harvous-user-color';
 
@@ -37,9 +38,20 @@ export function useProfile() {
   return useQuery({
     queryKey: ['profile'],
     queryFn: () =>
-      api.get<Omit<UserProfile, 'displayName'> & { displayName?: string }>('/api/user/get-profile')
+      api.get<Omit<UserProfile, 'displayName'> & { displayName?: string; emailVerified?: boolean; churchName?: string | null; churchCity?: string | null; churchState?: string | null; hasLockPinSet?: boolean }>('/api/user/get-profile')
         .then(data => {
           if (data.userColor) setCachedUserColor(data.userColor);
+          updateCachedProfileData({
+            firstName: data.firstName ?? '',
+            lastName: data.lastName ?? '',
+            userColor: data.userColor ?? 'paper',
+            email: data.email ?? '',
+            emailVerified: data.emailVerified ?? false,
+            churchName: data.churchName ?? null,
+            churchCity: data.churchCity ?? null,
+            churchState: data.churchState ?? null,
+            hasLockPinSet: data.hasLockPinSet
+          });
           return {
             ...data,
             // API doesn't return displayName — compute it from firstName + lastName

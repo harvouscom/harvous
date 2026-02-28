@@ -438,12 +438,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                     <span className="font-sans text-[18px] font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
                       {isClearingData ? 'Erasing...' : 'Erase all notes, threads, and spaces'}
                     </span>
-                    {/* Progress bar */}
-                    {isClearingData && (
-                      <div className="panel__progress-bar">
-                        <div className="panel__progress-fill"></div>
-                      </div>
-                    )}
                   </button>
                 </div>
 
@@ -479,11 +473,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                             </div>
                           </div>
                         </div>
-                        {isImporting === 'csv-threads' && (
-                          <div className="panel__progress-bar">
-                            <div className="panel__progress-fill"></div>
-                          </div>
-                        )}
                       </button>
 
                       <button
@@ -510,11 +499,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                             </div>
                           </div>
                         </div>
-                        {isImporting === 'markdown' && (
-                          <div className="panel__progress-bar">
-                            <div className="panel__progress-fill"></div>
-                          </div>
-                        )}
                       </button>
                     </div>
                   </>

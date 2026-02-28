@@ -1,6 +1,6 @@
 /**
  * UNUSED: View Transitions API wrapper was removed to reduce navigation lag.
- * Route transitions now use CSS-only route-fade-in in AppLayout.
+ * Route transitions were removed from AppLayout to avoid main-column flash.
  * Kept for reference; re-enable by importing and calling wrapNavigateWithViewTransition(router) in router.tsx.
  *
  * Wraps router.navigate with the View Transitions API when supported.

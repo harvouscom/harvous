@@ -7,6 +7,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { error as logError } from '@/utils/logger';
 import { toast } from '@/utils/toast';
+import { getCachedPanelData, setCachedPanelData, invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface Space {
   id: string;
@@ -104,12 +105,11 @@ export default function MySpacesPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const lastFetchTimeRef = useRef<number>(0);
   const hasFetchedRef = useRef<boolean>(false); // Track if we've fetched at least once
-  const fetchSpacesRef = useRef<((force?: boolean) => Promise<void>) | null>(null); // Store latest fetchSpaces function
+  const fetchSpacesRef = useRef<((force?: boolean, backgroundRefetch?: boolean) => Promise<void>) | null>(null); // Store latest fetchSpaces function
   const hasFetchedFreshDataRef = useRef<boolean>(false); // Track if we've fetched fresh data to prevent stale initialSpaces override
 
-  const fetchSpaces = useCallback(async (force = false) => {
+  const fetchSpaces = useCallback(async (force = false, backgroundRefetch = false) => {
     // Debounce: prevent duplicate fetches within 2 seconds (unless forced)
-    // Increased from 500ms to prevent rapid reloads on mobile
     const now = Date.now();
     if (!force && now - lastFetchTimeRef.current < 2000) {
       return;
@@ -118,9 +118,7 @@ export default function MySpacesPanel({
     hasFetchedRef.current = true;
 
     try {
-      // Only show loading state on first load (no fresh data yet) — prevents
-      // re-open flicker when refreshing in the background with existing spaces visible
-      if (!hasFetchedFreshDataRef.current) setIsLoading(true);
+      if (!backgroundRefetch && !hasFetchedFreshDataRef.current) setIsLoading(true);
       setError(null);
 
       const [navResponse, sharedResponse] = await Promise.all([
@@ -140,25 +138,30 @@ export default function MySpacesPanel({
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper')
       }));
 
-      // Always merge with existing spaces to preserve optimistically added spaces
-      // Deduplication will prefer the version with correct counts; sort by lastVisited for display order
-      setSpaces(prevSpaces => {
-        const mergedSpaces = deduplicateSpaces([...prevSpaces, ...spacesWithGradients]);
-        return sortSpacesByLastVisited(mergedSpaces);
-      });
-
+      let nextSharedIds: Set<string> = new Set();
+      let nextMemberOf: MemberOfSpace[] = [];
       if (sharedResponse.ok) {
         const sharedData = await sharedResponse.json();
         const owned = sharedData.owned ?? [];
-        setSharedSpaceIds(new Set(owned.map((s: { id: string }) => s.id)));
-        setMemberOfSpaces(sharedData.memberOf ?? []);
-      } else {
-        setSharedSpaceIds(new Set());
-        setMemberOfSpaces([]);
+        nextSharedIds = new Set(owned.map((s: { id: string }) => s.id));
+        nextMemberOf = sharedData.memberOf ?? [];
       }
-      setSharedCountsReady(true);
 
-      hasFetchedFreshDataRef.current = true; // Mark that we've fetched fresh data
+      setSharedSpaceIds(nextSharedIds);
+      setMemberOfSpaces(nextMemberOf);
+      setSharedCountsReady(true);
+      hasFetchedFreshDataRef.current = true;
+
+      setSpaces(prevSpaces => {
+        const mergedSpaces = deduplicateSpaces([...prevSpaces, ...spacesWithGradients]);
+        const sorted = sortSpacesByLastVisited(mergedSpaces);
+        setCachedPanelData(PANEL_CACHE_KEYS.mySpaces, {
+          spaces: sorted,
+          sharedSpaceIds: Array.from(nextSharedIds),
+          memberOfSpaces: nextMemberOf
+        });
+        return sorted;
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load spaces';
       logError('Error fetching spaces:', { error: err });
@@ -197,10 +200,23 @@ export default function MySpacesPanel({
     return () => { cancelled = true; };
   }, []);
 
-  // Initialize on mount and always fetch fresh data (fixes stale list when opening panel after creating/editing spaces)
+  // Initialize on mount: use cache if fresh, then fetch (background if cache hit)
   useEffect(() => {
+    type Cached = { spaces: Space[]; sharedSpaceIds: string[]; memberOfSpaces: MemberOfSpace[] };
+    const cached = getCachedPanelData<Cached>(PANEL_CACHE_KEYS.mySpaces);
+
+    if (cached && Array.isArray(cached.spaces)) {
+      setSpaces(sortSpacesByLastVisited(cached.spaces));
+      setSharedSpaceIds(new Set(cached.sharedSpaceIds ?? []));
+      setMemberOfSpaces(cached.memberOfSpaces ?? []);
+      setSharedCountsReady(true);
+      hasFetchedFreshDataRef.current = true;
+      setIsLoading(false);
+      fetchSpaces(true, true);
+      return;
+    }
+
     if (initialSpaces.length > 0 && !hasFetchedFreshDataRef.current) {
-      // Use initial data for first paint, then fetch will replace with fresh data
       setSpaces(prevSpaces => {
         const merged = prevSpaces.length === 0
           ? deduplicateSpaces(initialSpaces)
@@ -209,8 +225,7 @@ export default function MySpacesPanel({
       });
       setIsLoading(false);
     }
-    // Always fetch on mount so we see updated list (new spaces, shared/private changes) without manual refresh
-    fetchSpaces(true);
+    fetchSpaces(true, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
@@ -238,9 +253,8 @@ export default function MySpacesPanel({
             // Increased threshold to 2 seconds to prevent rapid reloads
             if (timeSinceMount > 2000) {
               hasFetchedOnVisible = true;
-              // Force fetch to bypass debounce
               timeoutId = setTimeout(() => {
-                fetchSpaces(true);
+                fetchSpaces(true, true);
               }, 100);
             }
           } else if (!entry.isIntersecting) {
@@ -297,10 +311,10 @@ export default function MySpacesPanel({
           return; // Skip if we just fetched
         }
         
-        // Small delay to ensure panel is mounted before fetching, force to bypass debounce
+        // Small delay to ensure panel is mounted before fetching; background refetch to avoid loading flicker
         timeoutId = setTimeout(() => {
           if (fetchSpacesRef.current) {
-            fetchSpacesRef.current(true);
+            fetchSpacesRef.current(true, true);
           }
           // Reset flag after a delay to allow future events
           setTimeout(() => {
@@ -321,18 +335,15 @@ export default function MySpacesPanel({
   }, []); // Empty deps - use ref pattern instead
 
   // Listen for space deletion events to refresh the list
-  // Use ref pattern to avoid dependency on fetchSpaces
   useEffect(() => {
     const handleSpaceDeleted = (event: CustomEvent) => {
       const spaceId = event.detail?.spaceId;
       if (spaceId) {
-        // Optimistically remove the space from the list immediately
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.mySpaces);
         setSpaces(prevSpaces => prevSpaces.filter(space => space.id !== spaceId));
-        
-        // Refetch spaces after a delay to ensure database is committed
         setTimeout(() => {
           if (fetchSpacesRef.current) {
-            fetchSpacesRef.current();
+            fetchSpacesRef.current(true, true);
           }
         }, 300);
       }
@@ -341,39 +352,28 @@ export default function MySpacesPanel({
     const handleSpaceCreated = (event: CustomEvent) => {
       const space = event.detail?.space;
       const isOffline = event.detail?.isOffline;
-      
       if (space) {
-        // Don't add offline spaces optimistically - they'll be synced and appear via fetch
-        // Offline spaces have local IDs that will be replaced by server IDs when synced
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.mySpaces);
         if (isOffline) {
-          // Just refetch to get spaces from IndexedDB if needed
           setTimeout(() => {
             if (fetchSpacesRef.current) {
-              fetchSpacesRef.current(true);
+              fetchSpacesRef.current(true, true);
             }
           }, 300);
           return;
         }
-        
-        // Only add server-created spaces optimistically
         setSpaces(prevSpaces => {
-          // Check if already exists
-          if (prevSpaces.some(s => s.id === space.id)) {
-            return prevSpaces; // Already exists, don't add
-          }
-          // Add new space with backgroundGradient
+          if (prevSpaces.some(s => s.id === space.id)) return prevSpaces;
           const newSpace: Space = {
             ...space,
             backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
-            totalItemCount: space.totalItemCount || 0 // Ensure it has totalItemCount
+            totalItemCount: space.totalItemCount || 0
           };
           return deduplicateSpaces([...prevSpaces, newSpace]);
         });
-        
-        // Refetch to get proper counts
         setTimeout(() => {
           if (fetchSpacesRef.current) {
-            fetchSpacesRef.current(true);
+            fetchSpacesRef.current(true, true);
           }
         }, 300);
       }
@@ -465,14 +465,7 @@ export default function MySpacesPanel({
     const iconClass = "block max-w-none size-full text-[var(--color-deep-grey)] opacity-30";
 
     return (
-      <div
-        key={space.id}
-        className="relative group"
-        style={{
-          animation: 'fadeIn 0.3s ease-out forwards',
-          opacity: 0
-        }}
-      >
+      <div key={space.id} className="relative group">
         <button
           onClick={() => handleSpaceClick(space.id)}
           className="relative rounded-xl h-[48px] cursor-pointer transition-transform duration-200 w-full text-left overflow-hidden hover:scale-[1.002]"
@@ -530,16 +523,10 @@ export default function MySpacesPanel({
   return (
     <div ref={containerRef} className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       {/* Loading indicator - progress bar at top */}
-      {isLoading && (
-        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-          <div className="panel__progress-fill"></div>
-        </div>
-      )}
-      
       {/* Content area - expands on mobile, fits content on desktop */}
       <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
         {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
@@ -586,7 +573,7 @@ export default function MySpacesPanel({
               {!isLoading && !error && filteredSpaces.length > 0 && (
                 <div className="flex flex-col gap-2 w-full">
                   <div className="flex flex-col gap-2">
-                    {filteredSpaces.map(space => renderSpaceItem(space))}
+                    {filteredSpaces.map((space) => renderSpaceItem(space))}
                   </div>
                 </div>
               )}
@@ -613,19 +600,6 @@ export default function MySpacesPanel({
           <div className="btn-cta__shadow" />
         </button>
       </div>
-
-      <style>{`
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(4px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }

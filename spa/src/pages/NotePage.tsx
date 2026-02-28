@@ -157,7 +157,6 @@ export default function NotePage() {
 
   return (
     // Wrapper div provides data attributes that CardFullEditable reads from the DOM
-    // content-fade-in smoothly bridges the skeleton → content transition
     <div
       data-note-id={noteId}
       {...(parentThreadId ? {
@@ -167,7 +166,6 @@ export default function NotePage() {
         'data-parent-thread-count': String((parentThread as { count?: number }).count ?? 0),
         'data-parent-thread-space-id': (parentThread as { spaceId?: string | null }).spaceId ?? '',
       } : {})}
-      className="content-fade-in"
       style={{ display: 'contents' }}
     >
       <CardFullEditable

@@ -341,6 +341,7 @@ route.post('/api/notes/create', async (c) => {
 
     // Process scripture references before responding so the note has pill content when the user lands on the note page
     let scriptureResults: any[] = [];
+    let scriptureProcessingError = false;
     if (!contentEncrypted) {
       try {
         const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
@@ -359,13 +360,14 @@ route.post('/api/notes/create', async (c) => {
         const scriptureResult = await processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess);
         scriptureResults = scriptureResult.results ?? [];
       } catch (error: any) {
+        scriptureProcessingError = true;
         console.error('[api/notes/create] Scripture processing failed:', error?.message);
         console.error('[api/notes/create] Scripture processing error stack:', error?.stack);
         console.error('[api/notes/create] Scripture processing error string:', String(error));
       }
     }
 
-    return c.json({ success: 'Note created!', note: newNote, scriptureResults });
+    return c.json({ success: 'Note created!', note: newNote, scriptureResults, scriptureProcessingError });
   } catch (error: any) {
     console.error('[api/notes/create] Error:', error);
     return c.json({ error: error.message || 'Failed to create note' }, 500);
@@ -438,6 +440,7 @@ route.put('/api/notes/update', async (c) => {
     // Process scripture references (awaited)
     let scriptureResults: any[] = [];
     let processedContent: string | null = null;
+    let scriptureProcessingError = false;
     if (!isEncrypted) {
       try {
         let actualThreadId = 'thread_unorganized';
@@ -447,11 +450,12 @@ route.put('/api/notes/update', async (c) => {
         scriptureResults = scriptureResult.results || [];
         processedContent = scriptureResult.updatedContent || null;
       } catch (error: any) {
+        scriptureProcessingError = true;
         console.error('[api/notes/update] Scripture processing failed:', error?.message);
       }
     }
 
-    return c.json({ success: 'Note updated!', note: updatedNote, scriptureResults, processedContent });
+    return c.json({ success: 'Note updated!', note: updatedNote, scriptureResults, processedContent, scriptureProcessingError });
   } catch (error: any) {
     return c.json({ error: error.message || 'Failed to update note' }, 500);
   }

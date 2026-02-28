@@ -1115,11 +1115,7 @@ export default function SpaceContentList({
     return (
       <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
         {isLoadingEmpty ? (
-          <div style={{ position: 'relative', minHeight: 0 }}>
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          </div>
+          <div style={{ minHeight: '48px' }} aria-hidden="true" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <div style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, color: 'var(--color-deep-grey)', fontSize: '18px', lineHeight: '1.2', marginBottom: '8px' }}>

@@ -13,6 +13,7 @@ import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { updateSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
+import { getCachedPanelData, setCachedPanelData, getSpaceMembersCacheKey, type SpaceMembersCache } from '@/utils/panel-data-cache';
 
 interface Note {
   id: string;
@@ -38,6 +39,8 @@ interface EditSpacePanelProps {
   initialTitle?: string;
   initialColor?: ThreadColor;
   initialTab?: 'added' | 'all';
+  /** When opening from current space page, layout knows owner vs member so panel can show correct title without fetch */
+  initialIsOwner?: boolean;
   onClose?: () => void;
   inBottomSheet?: boolean;
 }
@@ -47,10 +50,14 @@ export default function EditSpacePanel({
   initialTitle = '', 
   initialColor = 'paper',
   initialTab: initialTabProp,
+  initialIsOwner,
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
   const userId = usePersistedUserId();
+  const cachedMembers = getCachedPanelData<SpaceMembersCache>(getSpaceMembersCacheKey(spaceId));
+  const hasKnownOwnership = initialIsOwner !== undefined || !!cachedMembers;
+
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
@@ -77,14 +84,14 @@ export default function EditSpacePanel({
   const [isAddingItems, setIsAddingItems] = useState(false);
   const [isRemovingItem, setIsRemovingItem] = useState(false);
 
-  // Member management state
-  const [memberCount, setMemberCount] = useState(1); // Default to 1 (owner)
-  const [memberLimit, setMemberLimit] = useState<number | null>(null); // Plan limit (owners only)
-  const [isOwner, setIsOwner] = useState(false);
+  // Member management state (initialized from prefetch cache when on a space page)
+  const [memberCount, setMemberCount] = useState(cachedMembers?.totalMembers ?? 1);
+  const [memberLimit, setMemberLimit] = useState<number | null>(cachedMembers?.memberLimit ?? null);
+  const [isOwner, setIsOwner] = useState(initialIsOwner ?? cachedMembers?.isOwner ?? false);
   const [sharedTab, setSharedTab] = useState('invite');
-  const [members, setMembers] = useState<any[]>([]);
-  const [pendingInvitations, setPendingInvitations] = useState<any[]>([]);
-  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [members, setMembers] = useState<any[]>(cachedMembers?.members ?? []);
+  const [pendingInvitations, setPendingInvitations] = useState<any[]>(cachedMembers?.pendingInvitations ?? []);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(!hasKnownOwnership);
 
   // Share link state (simplified approach like ThreadVisibilityDropdown)
   const [shareLink, setShareLink] = useState<string | null>(null);
@@ -188,11 +195,23 @@ export default function EditSpacePanel({
 
       if (response.ok) {
         const data = await response.json();
-        setMemberCount(data.totalMembers || data.members?.length || 1);
-        setIsOwner(data.isOwner || false);
-        setMemberLimit(data.isOwner ? (data.memberLimit ?? null) : null);
-        setMembers(data.members || []);
-        setPendingInvitations(data.pendingInvitations || []);
+        const total = data.memberCount ?? data.members?.length ?? 1;
+        const owner = data.isOwner ?? false;
+        const limit = owner ? (data.memberLimit ?? data.limits?.membersPerSpace ?? null) : null;
+        const memberList = data.members ?? [];
+        const pending = data.pendingInvitations ?? [];
+        setMemberCount(total);
+        setIsOwner(owner);
+        setMemberLimit(limit);
+        setMembers(memberList);
+        setPendingInvitations(pending);
+        setCachedPanelData(getSpaceMembersCacheKey(spaceId), {
+          totalMembers: total,
+          isOwner: owner,
+          memberLimit: limit,
+          members: memberList,
+          pendingInvitations: pending,
+        });
       }
     } catch (error) {
       console.error('Error fetching member info:', error);
@@ -1338,11 +1357,6 @@ export default function EditSpacePanel({
       <div className="form-layout">
         {/* Content area that expands to fill available space */}
         <div className="form-layout--expand" style={{ position: 'relative' }}>
-          {isPanelLoading && (
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          )}
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isPanelLoading ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section with dynamic background */}
@@ -1354,7 +1368,11 @@ export default function EditSpacePanel({
               }}
             >
               <div className="panel__title">
-                <p>{isOwner ? 'Edit Space' : 'About Space'}</p>
+                <p>
+                  {(hasKnownOwnership || !isLoadingMembers)
+                    ? (isOwner ? 'Edit Space' : 'About Space')
+                    : ''}
+                </p>
               </div>
             </div>
             
@@ -1449,7 +1467,7 @@ export default function EditSpacePanel({
                 )}
 
                 {/* About Space: meta bar – created by and date, centered (member view only) */}
-                {!isOwner && (
+                {!isLoadingMembers && !isOwner && (
                   <div className="w-full shrink-0">
                     {isLoadingMembers ? (
                       <div className="panel__metadata-row panel__metadata-row--center">

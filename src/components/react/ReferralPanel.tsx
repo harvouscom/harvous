@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ButtonSmall from './ButtonSmall';
 import SquareButton from './SquareButton';
 import { safeFetch } from '@/utils/safe-fetch';
+import { getCachedPanelData, setCachedPanelData, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface ReferralPanelProps {
   onClose?: () => void;
@@ -22,26 +23,37 @@ export default function ReferralPanel({
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const response = await safeFetch('/api/referral/status', { retries: 1 });
-        if (response.ok) {
-          const data = await response.json();
-          setStatus({
-            referralBonusNotes: data.referralBonusNotes ?? 0,
-            referralCode: data.referralCode ?? null,
-            limit: data.limit ?? null
-          });
-        }
-      } catch (error) {
-        console.error('ReferralPanel: Error loading status', error);
-      } finally {
-        setIsLoading(false);
+  const fetchStatus = useCallback(async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
+    try {
+      const response = await safeFetch('/api/referral/status', { retries: 1 });
+      if (response.ok) {
+        const data = await response.json();
+        const next: ReferralStatus = {
+          referralBonusNotes: data.referralBonusNotes ?? 0,
+          referralCode: data.referralCode ?? null,
+          limit: data.limit ?? null
+        };
+        setStatus(next);
+        setCachedPanelData(PANEL_CACHE_KEYS.referral, next);
       }
-    };
-    fetchStatus();
+    } catch (error) {
+      console.error('ReferralPanel: Error loading status', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const cached = getCachedPanelData<ReferralStatus>(PANEL_CACHE_KEYS.referral);
+    if (cached) {
+      setStatus(cached);
+      setIsLoading(false);
+      fetchStatus(true);
+    } else {
+      fetchStatus(false);
+    }
+  }, [fetchStatus]);
 
   const handleClose = () => {
     if (onClose) {
@@ -82,12 +94,7 @@ export default function ReferralPanel({
   return (
     <div className={`referral-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       <div className={inBottomSheet ? 'flex-1 flex flex-col min-h-0' : 'flex flex-col'} style={{ position: 'relative' }}>
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        )}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
               <p>Refer My Friends</p>

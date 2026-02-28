@@ -262,13 +262,14 @@ export default function CardFullEditable({
     return () => window.removeEventListener('pinEntryComplete', handler);
   }, [noteId]);
 
-  // Notify layout (e.g. MobileAdditional) to hide footer when in edit mode
+  // Notify layout (e.g. ActionStrip dock) to hide when in edit mode (content or title)
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: isContentEditing } }));
+    const editing = isContentEditing || isTitleEditing;
+    window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing } }));
     return () => {
       window.dispatchEvent(new CustomEvent('contentEditModeChange', { detail: { editing: false } }));
     };
-  }, [isContentEditing]);
+  }, [isContentEditing, isTitleEditing]);
 
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
@@ -883,42 +884,57 @@ export default function CardFullEditable({
       }
 
       // Handle scripture results from the update endpoint
-      // Show a single summary toast for created scripture notes
-      if (saveResult && saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
-        const createdScriptures = saveResult.scriptureResults.filter(
-          (r: any) => r.action === 'created'
-        );
-        
-        if (createdScriptures.length > 0 && window.toast) {
-          const message = createdScriptures.length === 1
-            ? `Created scripture note: ${createdScriptures[0].reference}`
-            : `Created ${createdScriptures.length} scripture notes`;
-          window.toast.info(message);
+      if (saveResult && window.toast) {
+        if (saveResult.scriptureProcessingError) {
+          window.toast.warning('Note saved. Some scripture links couldn\'t be created.');
+        } else if (saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
+          const createdScriptures = saveResult.scriptureResults.filter(
+            (r: any) => r.action === 'created'
+          );
+          const linkedScriptures = saveResult.scriptureResults.filter(
+            (r: any) => r.action === 'added'
+          );
+          if (createdScriptures.length > 0) {
+            const message = createdScriptures.length === 1
+              ? `Created scripture note: ${createdScriptures[0].reference}`
+              : `Created ${createdScriptures.length} scripture notes`;
+            window.toast.info(message);
+          } else if (linkedScriptures.length > 0) {
+            const message = linkedScriptures.length === 1
+              ? `Linked to scripture: ${linkedScriptures[0].reference}`
+              : `Linked to ${linkedScriptures.length} scripture notes`;
+            window.toast.info(message);
+          }
+          // Notify lists to refetch (e.g. thread notes, dashboard) when scripture was created or linked
+          const hasCreatedOrAdded = createdScriptures.length > 0 || linkedScriptures.length > 0;
+          if (hasCreatedOrAdded && typeof window !== 'undefined') {
+            const wrapper = document.querySelector(`[data-note-id="${noteId}"]`);
+            const parentThreadId = wrapper?.getAttribute('data-parent-thread-id') ?? undefined;
+            window.dispatchEvent(new CustomEvent('scriptureNotesUpdated', {
+              detail: { noteId, threadId: parentThreadId || undefined, results: saveResult.scriptureResults }
+            }));
+          }
         }
       }
 
       // After save, update editor with processedContent (which has all pills as HTML spans)
       // Then convert those HTML spans to marks so they display correctly
       if (saveResult.processedContent && editorInstanceRef.current) {
-        // Update editor with processed content (has pills as HTML spans)
-        editorInstanceRef.current.commands.setContent(saveResult.processedContent, { emitUpdate: false });
-        
-        // Convert HTML spans to marks after a short delay, then update display
-        setTimeout(async () => {
+        const editor = editorInstanceRef.current;
+        editor.commands.setContent(saveResult.processedContent, { emitUpdate: false });
+        // Run conversion after the editor has applied content (next frame)
+        requestAnimationFrame(async () => {
           if (editorInstanceRef.current) {
             const { convertNoteLinksToScripturePills } = await import('./TiptapEditor');
             await convertNoteLinksToScripturePills(editorInstanceRef.current);
-            // Get updated HTML with marks
             const finalContent = editorInstanceRef.current.getHTML();
-            
-            // Update display content with the final content
             setDisplayTitle(editTitle);
             setDisplayContent(finalContent);
             setIsTitleEditing(false);
             setIsContentEditing(false);
             setHasChanges(false);
           }
-        }, 200);
+        });
       } else {
         // No processed content, just use editor's current HTML
         if (editorInstanceRef.current) {

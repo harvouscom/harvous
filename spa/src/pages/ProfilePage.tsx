@@ -1,9 +1,11 @@
+import { useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { useProfile, useXP } from '../hooks/queries/useProfile';
 import CardStack from '../components/CardStack';
 import ProfileCardStackHeader from '../../../src/components/react/ProfileCardStackHeader';
 import ProfileOptionsList from '../../../src/components/react/ProfileOptionsList';
 import { getSeasonDisplayName } from '../../../src/utils/season-helpers';
+import { prefetchProfilePanelData } from '../../../src/utils/prefetch-profile-panels';
 
 // Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -25,9 +27,10 @@ export default function ProfilePageWrapper() {
   const seasonalXP = xp?.seasonalXP ?? 0;
   const seasonName = getSeasonDisplayName();
 
-  // Render the card shell immediately — avoids a hard layout swap while profile loads.
-  // Content fades in once both Clerk user and profile data are ready.
-  const contentReady = !profileLoading && !!user;
+  // Prefetch subscription, sharing, referral, achievements so opening those panels shows cached data immediately
+  useEffect(() => {
+    if (user) prefetchProfilePanelData();
+  }, [user]);
 
   return (
     <div className="page-flex-column">
@@ -44,7 +47,7 @@ export default function ProfilePageWrapper() {
             />
           }
         >
-          <div className={contentReady ? 'content-fade-in' : undefined}>
+          <div>
             {/* Info cards: joined date + XP */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
               {/* Joined Date */}

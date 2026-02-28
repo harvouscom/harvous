@@ -75,7 +75,7 @@ export default function ThreadCardStackHeader({
         color: textColor
       }}
     >
-      <div className="page-heading page-heading--center">
+      <div className="page-heading page-heading--center card-stack__header-inner">
         <p>{title}</p>
       </div>
     </div>

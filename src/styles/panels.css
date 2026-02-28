@@ -430,34 +430,6 @@
 }
 
 /* ==========================================================================
-   Panel Progress Bar
-   ========================================================================== */
-
-.panel__progress-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background-color: var(--color-gray);
-  overflow: hidden;
-  border-bottom-left-radius: 0.75rem;
-  border-bottom-right-radius: 0.75rem;
-}
-
-.panel__progress-fill {
-  height: 100%;
-  background-color: var(--color-bold-blue);
-  animation: progress 2s ease-in-out infinite;
-}
-
-@keyframes progress {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(0); }
-  100% { transform: translateX(100%); }
-}
-
-/* ==========================================================================
    Panel Grid (for XP cards, etc.)
    ========================================================================== */
 

@@ -1606,11 +1606,6 @@ export default function EditThreadPanel({
       <div className="flex-1 flex flex-col min-h-0">
         {/* Content area that expands to fill available space */}
         <div className="flex-1 flex flex-col min-h-0" style={{ position: 'relative' }}>
-          {isLoadingItems && (
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          )}
           {/* Single unified panel using CardStack structure */}
           <div className={`bg-white box-border flex flex-col min-h-0 flex-1 items-start justify-between overflow-clip pb-6 pt-0 px-0 relative rounded-[24px] shadow-[0px_3px_20px_0px_rgba(120,118,111,0.1)] w-full mb-3.5 ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section with dynamic background */}
@@ -1719,8 +1714,8 @@ export default function EditThreadPanel({
                               }
                               return true;
                             })
-                            .map(note => (
-                            <div key={note.id} className="relative group">
+                            .map((note, index) => (
+                            <div key={note.id} className="relative group card-enter" style={{ animationDelay: `${index * 50}ms` }}>
                               <a
                                 href={idToUrl(note.id)}
                                 className="block"

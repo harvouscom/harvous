@@ -222,6 +222,11 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [onClose]);
 
+  // Notify layout to run action strip exit animation when mobile sheet opens/closes
+  useEffect(() => {
+    if (!isMobile) return;
+    window.dispatchEvent(new CustomEvent('actionStripPanelOpen', { detail: { open: isVisible } }));
+  }, [isMobile, isVisible]);
 
   const registerActiveCloseHandler = useCallback((handler: SheetCloseHandler | null) => {
     activeCloseHandlerRef.current = handler;
@@ -803,7 +808,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   key={`mobile-edit-space-${panelKey}`}
                   spaceId={currentSpace.id}
                   initialTitle={currentSpace.title}
-                  initialColor={currentSpace.color}
+                  initialColor={(currentSpace as { color?: string }).color}
+                  initialIsOwner={(currentSpace as { isOwner?: boolean }).isOwner}
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
                   }}

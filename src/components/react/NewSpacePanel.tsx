@@ -836,11 +836,6 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       <form id="new-space-form" onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
         <div className="form-layout--expand" style={isDesktopPage ? { position: 'relative', overflow: 'hidden' } : { position: 'relative' }}>
-          {isLoadingItems && (
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          )}
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`} style={isDesktopPage ? { overflow: 'hidden', marginBottom: 0 } : undefined}>
             {/* Header section with space name input */}
@@ -916,13 +911,13 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 {selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
                     <div className="flex flex-col gap-2">
-                      {selectedItems.map(itemId => {
+                      {selectedItems.map((itemId, index) => {
                         const thread = allThreads.find(t => t.id === itemId);
                         const note = allNotes.find(n => n.id === itemId);
                         
                         if (thread) {
                           return (
-                            <div key={thread.id} className="relative group">
+                            <div key={thread.id} className="relative group card-enter" style={{ animationDelay: `${index * 50}ms` }}>
                               <a 
                                 href={idToUrl(thread.id)}
                                 className="block"
@@ -945,7 +940,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                           );
                         } else if (note) {
                           return (
-                            <div key={note.id} className="relative group">
+                            <div key={note.id} className="relative group card-enter" style={{ animationDelay: `${index * 50}ms` }}>
                               <a 
                                 href={idToUrl(note.id)}
                                 className="block"

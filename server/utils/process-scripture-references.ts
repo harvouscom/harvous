@@ -10,7 +10,7 @@ import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from './xp-system';
 import { generateAutoTags, applyAutoTags } from './auto-tag-generator';
-import { fetchWithTimeout } from '@/utils/fetch-helpers';
+import { fetchVerseText } from './fetch-verse-text';
 
 export interface ProcessingResult {
   action: 'created' | 'added' | 'unorganized' | 'skipped';
@@ -250,7 +250,7 @@ export async function processScriptureReferences(
 
   // OPTIMIZATION: Batch fetch all user scripture notes once at the start
   // This prevents N+1 query problem when processing multiple references
-  // Create a normalized lookup map for efficient reference matching
+  // Duplicate detection: we match by normalized reference so the same verse (e.g. "John 3:16" / "Jn 3:16") links to one scripture note.
   const normalizedScriptureMap = new Map<string, { noteId: string; reference: string }>();
 
   // Fetch all user scripture notes once (before the loop)
@@ -327,29 +327,8 @@ export async function processScriptureReferences(
       if (!existingScripture) {
         // New scripture - create it
         try {
-          // Fetch verse text from Bible.org API with superscript formatting
-          // Use timeout-enabled fetch to prevent hangs on slow mobile networks
-          let verseText = '';
-          try {
-            const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-            const verseResponse = await fetchWithTimeout(apiUrl, {
-              timeout: 10000, // 10 seconds for initial attempt
-              retries: 2, // 2 retries
-              retryTimeout: 5000, // 5 seconds for retries
-            });
-            if (verseResponse.ok) {
-              const verses = await verseResponse.json();
-              // Format verse text with superscript verse numbers
-              if (Array.isArray(verses) && verses.length > 0) {
-                verseText = verses.map((v: any) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
-              }
-            } else {
-              console.error(`Bible.org API returned error for ${reference}: ${verseResponse.status} ${verseResponse.statusText}`);
-            }
-          } catch (verseError: any) {
-            // Log error but don't fail note creation - graceful degradation
-            console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
-          }
+          // Fetch verse text via shared helper (normalized reference for consistent results)
+          const verseText = await fetchVerseText(normalizedReference);
 
           // Get user metadata for simpleNoteId
           let userMetadata = await db.select()
@@ -501,6 +480,7 @@ export async function processScriptureReferences(
                 threadId: actualThreadId,
                 createdAt: new Date().toISOString()
               });
+              await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, scriptureNote.id));
             } catch (error) {
               // Ignore if already exists
             }
@@ -796,24 +776,8 @@ export async function processScriptureReferences(
           // Create a new scripture note for this reference
           // This follows the same logic as the main processing loop
           try {
-            // Fetch verse text
-            let verseText = '';
-            try {
-              const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(reference)}&formatting=plain&type=json`;
-              const verseResponse = await fetchWithTimeout(apiUrl, {
-                timeout: 10000,
-                retries: 2,
-                retryTimeout: 5000,
-              });
-              if (verseResponse.ok) {
-                const verses = await verseResponse.json();
-                if (Array.isArray(verses) && verses.length > 0) {
-                  verseText = verses.map((v: any) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
-                }
-              }
-            } catch (verseError: any) {
-              console.error(`Error fetching verse for ${reference}:`, verseError.message || verseError);
-            }
+            // Fetch verse text via shared helper (normalized reference for consistent results)
+            const verseText = await fetchVerseText(normalizedRef);
 
             // Get user metadata
             let userMetadata = await db.select()
@@ -955,6 +919,21 @@ export async function processScriptureReferences(
               new RegExp(`data-note-id=["']${scriptureNoteId}["']`, 'g'),
               `data-note-id="${newScriptureNote.id}"`
             );
+
+            // Add new scripture note to parent's thread (same as main creation path)
+            if (actualThreadId !== 'thread_unorganized') {
+              try {
+                await db.insert(NoteThreads).values({
+                  id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                  noteId: newScriptureNote.id,
+                  threadId: actualThreadId,
+                  createdAt: new Date().toISOString()
+                });
+                await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, newScriptureNote.id));
+              } catch (error) {
+                // Ignore if already exists
+              }
+            }
 
             results.push({
               action: 'created',

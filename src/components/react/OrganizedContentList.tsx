@@ -1132,6 +1132,12 @@ export default function OrganizedContentList({
       }
     };
 
+    const handleScriptureNotesUpdated = () => {
+      if (isDashboardPath()) {
+        refreshContent();
+      }
+    };
+
     const handleThreadUpdated = () => {
       if (isDashboardPath()) {
         refreshContent();
@@ -1147,6 +1153,7 @@ export default function OrganizedContentList({
     window.addEventListener('noteCreated', handleNoteCreated as EventListener);
     window.addEventListener('threadCreated', handleThreadCreated as EventListener);
     window.addEventListener('noteUpdated', handleNoteUpdated as EventListener);
+    window.addEventListener('scriptureNotesUpdated', handleScriptureNotesUpdated as EventListener);
     window.addEventListener('threadUpdated', handleThreadUpdated as EventListener);
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
 
@@ -1154,6 +1161,7 @@ export default function OrganizedContentList({
       window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
       window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
       window.removeEventListener('noteUpdated', handleNoteUpdated as EventListener);
+      window.removeEventListener('scriptureNotesUpdated', handleScriptureNotesUpdated as EventListener);
       window.removeEventListener('threadUpdated', handleThreadUpdated as EventListener);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     };
@@ -1662,11 +1670,7 @@ export default function OrganizedContentList({
   return (
     <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
       {isLoadingEmpty ? (
-        <div style={{ position: 'relative', minHeight: 0 }}>
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        </div>
+        <div style={{ minHeight: '48px' }} aria-hidden="true" />
       ) : displayItems.length > 0 ? (
         <InfiniteScrollList<VirtualEntry>
           initialItems={virtualList}

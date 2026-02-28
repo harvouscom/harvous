@@ -14,6 +14,7 @@ import { stripHtmlForPreview } from '@/utils/html-stripper';
 import { safeURL } from '@/utils/safe-url';
 import { createThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
+import { invalidateNoteDetailsCache } from '@/utils/note-details-cache';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
@@ -469,6 +470,7 @@ export default function NewThreadPanel({
               });
               
               if (addNoteResponse.ok) {
+                invalidateNoteDetailsCache(noteIdToAdd);
                 // Dispatch noteAddedToThread event so UI updates
                 window.dispatchEvent(new CustomEvent('noteAddedToThread', {
                   detail: { noteId: noteIdToAdd, threadId: result.thread.id }
@@ -755,11 +757,6 @@ export default function NewThreadPanel({
       <form onSubmit={handleSubmit} onKeyDown={handleFormKeyDown} className="form-layout">
         {/* Content area that expands to fill available space */}
         <div className="form-layout--expand" style={{ position: 'relative' }}>
-          {isLoadingItems && (
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          )}
           {/* Panel container */}
           <div className={`panel panel--bottom-sheet ${isLoadingItems ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section with thread name input */}
@@ -869,12 +866,12 @@ export default function NewThreadPanel({
                 {!isEditMode && selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
                     <div className="panel__item-list">
-                      {selectedItems.map(itemId => {
+                      {selectedItems.map((itemId, index) => {
                         const note = allNotes.find(n => n.id === itemId);
                         
                         if (note) {
                           return (
-                            <div key={note.id} className="panel__item-list-item">
+                            <div key={note.id} className="panel__item-list-item card-enter" style={{ animationDelay: `${index * 50}ms` }}>
                               <a 
                                 href={idToUrl(note.id)}
                                 className="panel__item-list-item-link"

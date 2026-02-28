@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
+import { getCachedPanelData, setCachedPanelData, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
@@ -24,18 +25,29 @@ export default function ManageBillingPanel({
 
   // Load subscription info when component mounts and on View Transitions
   useEffect(() => {
-    // Load on initial mount
-    loadSubscriptionInfo();
+    const cached = getCachedPanelData<{ hasUnlimited: boolean; currentCount: number; limit: number | null; referralBonusNotes?: number }>(PANEL_CACHE_KEYS.subscription);
+    if (cached) {
+      setSubscriptionInfo({
+        hasUnlimited: cached.hasUnlimited,
+        currentCount: cached.currentCount,
+        limit: cached.limit,
+        referralBonusNotes: cached.referralBonusNotes ?? 0
+      });
+      setIsLoading(false);
+      loadSubscriptionInfo(true);
+    } else {
+      loadSubscriptionInfo(false);
+    }
 
-    // Listen for subscription upgrade events to refresh
+    // Listen for subscription upgrade events to refresh (background, no loading)
     const handleSubscriptionUpgraded = () => {
-      loadSubscriptionInfo();
+      loadSubscriptionInfo(true);
     };
     window.addEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
 
-    // Also refresh on View Transitions (for subsequent visits)
+    // Also refresh on View Transitions (for subsequent visits; background)
     const handlePageLoad = () => {
-      loadSubscriptionInfo();
+      loadSubscriptionInfo(true);
     };
     document.addEventListener('app:route-change', handlePageLoad);
 
@@ -135,18 +147,20 @@ export default function ManageBillingPanel({
     };
   }, []);
 
-  const loadSubscriptionInfo = async () => {
-    setIsLoading(true);
+  const loadSubscriptionInfo = async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     try {
       const subRes = await fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' });
       if (subRes.ok) {
         const data = await subRes.json();
-        setSubscriptionInfo({
+        const info = {
           hasUnlimited: data.hasUnlimited,
           currentCount: data.currentCount || 0,
           limit: data.limit || null,
           referralBonusNotes: data.referralBonusNotes ?? 0
-        });
+        };
+        setSubscriptionInfo(info);
+        setCachedPanelData(PANEL_CACHE_KEYS.subscription, info);
       }
     } catch (error) {
       console.error('ManageBillingPanel: Error loading subscription info:', error);
@@ -360,13 +374,8 @@ export default function ManageBillingPanel({
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"} style={{ position: 'relative' }}>
-          {isLoading && (
-            <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-              <div className="panel__progress-fill" />
-            </div>
-          )}
           {/* Panel container */}
-          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section */}
             <div className="panel__header">
               <div className="panel__title">

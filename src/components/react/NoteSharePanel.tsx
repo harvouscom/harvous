@@ -205,11 +205,6 @@ export default function NoteSharePanel({
     <div className={`note-share-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area - expands on mobile, fits content on desktop */}
       <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"} style={{ position: 'relative' }}>
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        )}
         {/* Panel container */}
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
           {/* Header section */}

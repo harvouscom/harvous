@@ -34,7 +34,7 @@ export default function EditNameColorPanel({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
 
-  // Check cache first, then load from API if needed
+  // Check cache first, then load from API if needed (background refetch when cache hit)
   useEffect(() => {
     // Check unified cache first
     const cached = getCachedProfileData();
@@ -46,7 +46,8 @@ export default function EditNameColorPanel({
       };
       setFormData(newData);
       setInitialData(newData);
-      return; // Don't load from API if we have cached data
+      loadUserData(true); // Refetch in background to stay fresh
+      return;
     }
     
     // Fallback: Check old sessionStorage for backward compatibility
@@ -70,21 +71,22 @@ export default function EditNameColorPanel({
           lastName: profileData.lastName || '',
           userColor: profileData.color || 'paper'
         });
+        loadUserData(true); // Refetch in background
         return;
       } catch (error) {
         console.error('EditNameColorPanel: Error parsing legacy sessionStorage data:', error);
       }
     }
     
-    // If no cache, load from API
-    loadUserData();
+    // If no cache, load from API (show loading)
+    loadUserData(false);
   }, []);
 
   // Note: Header resize handling is now done by ProfileCardStackHeader React component
   // which manages its own state and persists across resizes automatically
 
-  const loadUserData = async () => {
-    setIsLoading(true);
+  const loadUserData = async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     try {
       const response = await fetch('/api/user/get-profile');
       if (response.ok) {
@@ -272,11 +274,6 @@ export default function EditNameColorPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       {/* Loading indicator - progress bar at top */}
-      {isLoading && (
-        <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
-          <div className="panel__progress-fill"></div>
-        </div>
-      )}
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
         {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>

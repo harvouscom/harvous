@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { formatBadgeCount } from '@/utils/badge-count';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
+import { getCachedPanelData, setCachedPanelData, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface MyAchievementsPanelProps {
   onClose?: () => void;
@@ -34,12 +35,8 @@ export default function MyAchievementsPanel({
   const [showPastSeasons, setShowPastSeasons] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadAchievements();
-  }, []);
-
-  const loadAchievements = async () => {
-    setIsLoading(true);
+  const loadAchievements = useCallback(async (backgroundRefetch = false) => {
+    if (!backgroundRefetch) setIsLoading(true);
     try {
       const response = await fetch('/api/user/achievements', {
         credentials: 'include'
@@ -47,19 +44,32 @@ export default function MyAchievementsPanel({
       
       if (response.ok) {
         const data = await response.json();
-        setXpData({
+        const next: XPData = {
           seasonalXP: data.seasonalXP || 0,
           lifetimeXP: data.lifetimeXP || 0,
           seasonName: data.seasonName || '',
           allSeasons: data.allSeasons || []
-        });
+        };
+        setXpData(next);
+        setCachedPanelData(PANEL_CACHE_KEYS.achievements, next);
       }
     } catch (error) {
       console.error('Error loading achievements:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const cached = getCachedPanelData<XPData>(PANEL_CACHE_KEYS.achievements);
+    if (cached) {
+      setXpData(cached);
+      setIsLoading(false);
+      loadAchievements(true);
+    } else {
+      loadAchievements(false);
+    }
+  }, [loadAchievements]);
 
   const handleClose = () => {
     if (onClose) {
@@ -73,13 +83,8 @@ export default function MyAchievementsPanel({
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       {/* Content area - expands on mobile, fits content on desktop */}
       <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"} style={{ position: 'relative' }}>
-        {isLoading && (
-          <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
-            <div className="panel__progress-fill" />
-          </div>
-        )}
         {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">

@@ -98,7 +98,7 @@ export default function SharedNotePage() {
             ) : (
               <>
                 {/* Creator info (above card) */}
-                <div className="shared-page__creator shared-page__fade-in" style={{ animationDelay: '0ms' }}>
+                <div className="shared-page__creator">
                   <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
                 </div>
 
@@ -126,7 +126,7 @@ export default function SharedNotePage() {
                 </div>
 
                 {/* Footer */}
-                <div className="shared-page__footer shared-page__fade-in" style={{ animationDelay: '200ms' }}>
+                <div className="shared-page__footer">
                   <p>Harvous is a notes app designed for Bible study.</p>
                   <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
                 </div>

@@ -8,7 +8,7 @@ import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
 import { NavigationProvider } from '../../../src/components/react/navigation/NavigationContext';
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
@@ -140,27 +140,11 @@ export default function AppLayout() {
     window.dispatchEvent(new CustomEvent('closeAllPanels'));
   }, [pathname]);
 
-  // Smooth fade-in on route transitions
-  const desktopContentRef = useRef<HTMLElement>(null);
-  const mobileContentRef = useRef<HTMLDivElement>(null);
   const prevPathnameRef = useRef(pathname);
 
   useEffect(() => {
     if (prevPathnameRef.current === pathname) return;
     prevPathnameRef.current = pathname;
-
-    const targets = [desktopContentRef.current, mobileContentRef.current];
-    for (const el of targets) {
-      if (!el) continue;
-      el.classList.add('route-pending');
-      el.classList.remove('route-fade-in');
-    }
-    void desktopContentRef.current?.offsetWidth; // Force reflow
-    for (const el of targets) {
-      if (!el) continue;
-      el.classList.add('route-fade-in');
-      el.classList.remove('route-pending');
-    }
 
     // Notify shared components and scripts that the route changed (content lists,
     // navigation, toasts, etc. use this to refresh or re-run on navigation).
@@ -221,19 +205,7 @@ export default function AppLayout() {
     };
   }, [queryClient, refreshNavigation]);
 
-  if (!isLoaded) {
-    return (
-      <div className="app-loading">
-        <div className="app-loading__spinner" />
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return null;
-  }
-
-  // Derive nav state from current route
+  // Derive nav state from current route (before early return so hook order is stable)
   // URL slugs are bare IDs (e.g. /thread/abc123), DB uses prefixed IDs (thread_abc123)
   const pathSlug = pathname.split('/').pop() || '';
   const isNote = pathname.startsWith('/note/');
@@ -266,6 +238,12 @@ export default function AppLayout() {
   ];
 
   const allThreads = nav?.threads ?? [];
+
+  // Space role and owned/member IDs (needed for currentSpace enrichment so Edit Space panel shows correct title without fetch)
+  const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
+  const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
+  const memberOfSpaceIds = (nav?.memberOfSpaces ?? []).map(s => s.id);
+  const ownedSpaceIds = (nav?.spaces ?? []).map(s => s.id);
 
   // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
   const activeThreadFromNav = isThread
@@ -324,10 +302,25 @@ export default function AppLayout() {
     return null;
   })();
 
-  // Enrich currentSpace with title/gradient from nav so navigation components can display it
-  const currentSpace = spaceId
+  // Enrich currentSpace with title/gradient from nav so navigation components can display it.
+  // When on space page, merge currentSpaceDetail (title, color) and isOwner so Edit Space panel paints correctly without waiting for fetch.
+  const currentSpaceBase = spaceId
     ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
     : (activeThread?.spaceId ? (allSpaces.find(s => s.id === activeThread.spaceId) ?? { id: activeThread.spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
+  const currentSpace = (() => {
+    if (!currentSpaceBase) return currentSpaceBase;
+    const isOwnerForSpace =
+      isSpace && spaceId
+        ? spaceRole === 'owner'
+        : currentSpaceBase.id && (ownedSpaceIds.includes(currentSpaceBase.id) || memberOfSpaceIds.includes(currentSpaceBase.id))
+          ? ownedSpaceIds.includes(currentSpaceBase.id)
+          : undefined;
+    return {
+      ...currentSpaceBase,
+      ...(isSpace && currentSpaceDetail ? { title: currentSpaceDetail.title, color: currentSpaceDetail.color ?? 'paper', backgroundGradient: currentSpaceDetail.backgroundGradient ?? currentSpaceBase.backgroundGradient } : {}),
+      ...(isOwnerForSpace !== undefined ? { isOwner: isOwnerForSpace } : {}),
+    };
+  })();
 
   // Note-specific data for ActionStrip
   const noteType = isNote ? (currentNote?.noteType ?? 'default') : undefined;
@@ -347,13 +340,7 @@ export default function AppLayout() {
     : isSpace ? (currentSpaceDetail?.ownerId ?? undefined)
     : undefined;
 
-  // Space role — used by ActionStrip menu to show owner vs member options
-  const isMemberSpace = isSpace && spaceId ? (nav?.memberOfSpaces ?? []).some(s => s.id === spaceId) : false;
-  const spaceRole: 'owner' | 'member' | null = isSpace ? (isMemberSpace ? 'member' : 'owner') : null;
-
   // Effective space role for add-note gating (thread/note inside a shared space, not only on space URL)
-  const memberOfSpaceIds = (nav?.memberOfSpaces ?? []).map(s => s.id);
-  const ownedSpaceIds = (nav?.spaces ?? []).map(s => s.id);
   const effectiveSpaceRole: 'owner' | 'member' | null = (() => {
     if (isSpace) return spaceRole;
     if (isThread && currentThread?.spaceId) {
@@ -413,6 +400,58 @@ export default function AppLayout() {
     actionStripOptions.length > 0 &&
     hasVisibleMoreButton;
 
+  // Action strip dock: hide with slide-out animation when entering note edit mode, when a panel opens, or when navigating away
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [exiting, setExiting] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const prevShowActionStripRef = useRef(showActionStrip);
+
+  useEffect(() => {
+    const handleEditModeChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setIsEditMode(detail?.editing === true);
+    };
+    window.addEventListener('contentEditModeChange', handleEditModeChange);
+    return () => window.removeEventListener('contentEditModeChange', handleEditModeChange);
+  }, []);
+
+  useEffect(() => {
+    const handlePanelOpen = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setPanelOpen(detail?.open === true);
+    };
+    window.addEventListener('actionStripPanelOpen', handlePanelOpen);
+    return () => window.removeEventListener('actionStripPanelOpen', handlePanelOpen);
+  }, []);
+
+  useEffect(() => {
+    if (prevShowActionStripRef.current && !showActionStrip) {
+      setExiting(true);
+    }
+    prevShowActionStripRef.current = showActionStrip;
+  }, [showActionStrip]);
+
+  const dockHiding = (contentType === 'note' && isEditMode) || exiting || panelOpen;
+  const showDock = (showActionStrip || exiting) && layoutDataReadyForContent;
+
+  const handleDockAnimationEnd = useCallback((e: React.AnimationEvent) => {
+    if (exiting && (e.animationName === 'action-strip-dock-slide-out' || e.animationName === 'mobile-dock-slide-out')) {
+      setExiting(false);
+    }
+  }, [exiting]);
+
+  if (!isLoaded) {
+    return (
+      <div className="app-loading">
+        <div className="app-loading__spinner" />
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return null;
+  }
+
   return (
     <div className="app-layout">
       <NavigationProvider>
@@ -439,7 +478,7 @@ export default function AppLayout() {
         </section>
 
         {/* Column 2: Main content + CreateNoteButton + action-strip-dock (matches SSR main-column-with-cta) */}
-        <section className="layout-column main-column-with-cta route-fade-in" ref={desktopContentRef}>
+        <section className="layout-column main-column-with-cta">
           <div className="main-column__body">
             <div className="main-column__scroll">
               <Outlet key={pathname} />
@@ -462,8 +501,12 @@ export default function AppLayout() {
                 Logout
               </button>
             )}
-            {layoutDataReadyForContent && showActionStrip && (
-              <div id="square-buttons-container" className="action-strip-dock">
+            {showDock && (
+              <div
+                id="square-buttons-container"
+                className={`action-strip-dock ${dockHiding ? 'action-strip-dock--hiding' : 'action-strip-dock--showing'}`}
+                onAnimationEnd={handleDockAnimationEnd}
+              >
                 <ActionStrip
                   variant="desktop"
                   contentType={contentType}
@@ -520,7 +563,7 @@ export default function AppLayout() {
         </div>
 
         {/* Main content + CreateNoteButton + mobile-action-strip-dock (matches SSR mobile-main) */}
-        <div className={`mobile-main main-column-with-cta route-fade-in ${layoutDataReadyForContent && showActionStrip ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`} ref={mobileContentRef}>
+        <div className={`mobile-main main-column-with-cta ${showDock ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`}>
           <div className="mobile-main__body">
             <div className="main-column__scroll">
               <Outlet key={pathname} />
@@ -543,8 +586,11 @@ export default function AppLayout() {
                 Logout
               </button>
             )}
-            {layoutDataReadyForContent && showActionStrip && (
-              <div className="mobile-action-strip-dock">
+            {showDock && (
+              <div
+                className={`mobile-action-strip-dock ${dockHiding ? 'mobile-action-strip-dock--hiding' : 'mobile-action-strip-dock--showing'}`}
+                onAnimationEnd={handleDockAnimationEnd}
+              >
                 <ActionStrip
                   variant="mobile"
                   contentType={contentType}
