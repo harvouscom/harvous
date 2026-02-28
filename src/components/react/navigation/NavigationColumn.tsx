@@ -277,6 +277,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     }
   };
 
+  // Space IDs the user has closed from the switcher (so they stay out of the dropdown)
+  const getClosedSpaceIds = (): Set<string> => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = safeGetItem('harvous-closed-navigation-items');
+      const parsed = stored ? (JSON.parse(stored) as unknown) : [];
+      const ids = Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+      return new Set(ids.filter((id) => id.startsWith('space_')));
+    } catch {
+      return new Set();
+    }
+  };
+
   // Force re-render when navigation history updates (critical for View Transitions)
   const [, forceUpdate] = useState(0);
   
@@ -356,9 +369,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       const fromLocal = localSpaces.find((s) => s.id === spaceIdToInclude);
       if (fromLocal) spacesById.set(spaceIdToInclude, fromLocal);
     }
-    
-    // Convert back to array
-    return Array.from(spacesById.values());
+
+    // Exclude spaces the user has closed from the switcher (so they stay removed after re-renders/sync)
+    const closedSpaceIds = getClosedSpaceIds();
+    return Array.from(spacesById.values()).filter((s) => !closedSpaceIds.has(s.id));
   }, [filteredSpaces, selectedSpace, currentSpace, spaces, localSpaces, isHydrated, isDashboard, effectiveSelectedSpaceId]);
 
   // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when the space is in the dropdown but not in localSpaces (e.g. find page).
@@ -481,24 +495,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const eventUpdatedCountRef = useRef<number | null>(null);
   const spaceSwitcherDetailsRef = useRef<HTMLDetailsElement>(null);
 
-  // Close space dropdown on click outside or Escape (desktop)
+  // Close space dropdown on click outside or Escape (desktop).
+  // Read ref inside handlers so listeners are always attached and we always use the current element.
   useEffect(() => {
-    const detailsEl = spaceSwitcherDetailsRef.current;
-    if (!detailsEl) return;
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && detailsEl.open) {
-        event.preventDefault();
-        detailsEl.removeAttribute('open');
-      }
+      const detailsEl = spaceSwitcherDetailsRef.current;
+      if (!detailsEl || event.key !== 'Escape' || !detailsEl.open) return;
+      event.preventDefault();
+      detailsEl.removeAttribute('open');
     };
 
     const handlePointerDown = (event: Event) => {
       const target = event.target as Node | null;
       if (!target) return;
-      if (detailsEl.open && !detailsEl.contains(target)) {
-        detailsEl.removeAttribute('open');
-      }
+      const detailsEl = spaceSwitcherDetailsRef.current;
+      if (!detailsEl?.open) return;
+      if ((target as HTMLElement).closest?.('.space-switcher-anchor__toggle')) return;
+      if (detailsEl.contains(target)) return;
+      detailsEl.removeAttribute('open');
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -884,6 +898,22 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     if (typeof window === 'undefined') return;
     
     try {
+      // When (re-)adding a space to the opened list, remove it from the closed list so it shows in the dropdown
+      try {
+        const closedStored = safeGetItem('harvous-closed-navigation-items');
+        const closedParsed = closedStored ? (JSON.parse(closedStored) as unknown) : [];
+        const closedIds = Array.isArray(closedParsed) ? closedParsed.filter((x) => typeof x === 'string') : [];
+        const filtered = closedIds.filter((id) => id !== space.id);
+        if (filtered.length !== closedIds.length) {
+          safeSetItem('harvous-closed-navigation-items', JSON.stringify(filtered), {
+            cleanupOldest: true,
+            fallbackToSession: true,
+          });
+        }
+      } catch {
+        // ignore
+      }
+
       const stored = safeGetItem('harvous-navigation-history-v2');
       const history = stored ? JSON.parse(stored) : [];
       

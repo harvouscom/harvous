@@ -8,7 +8,7 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { safeGetItem } from '@/utils/safe-storage';
+import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
@@ -120,6 +120,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const [itemsInCloseMode, setItemsInCloseMode] = useState<Set<string>>(new Set());
   // Track items explicitly closed this session so they stay hidden until nav history propagates
   const [closedItemIds, setClosedItemIds] = useState<Set<string>>(new Set());
+  // IDs of spaces deleted this session so dropdown and "Add Existing Space" don't show them (match desktop)
+  const deletedSpaceIdsRef = useRef<Set<string>>(new Set());
   // Profile data state for avatar updates
   const [profileData, setProfileData] = useState({
     initials: initials,
@@ -129,6 +131,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   useEffect(() => {
     setProfileData({ initials, userColor });
   }, [initials, userColor]);
+
+  // Keep localSpaces in sync with spaces prop (match desktop: merge, never re-add deleted)
+  useEffect(() => {
+    const deleted = deletedSpaceIdsRef.current;
+    setLocalSpaces((prev) => {
+      const byId = new Map<string, Space>();
+      for (const s of spaces) {
+        if (!deleted.has(s.id)) byId.set(s.id, s);
+      }
+      for (const s of prev) {
+        if (!deleted.has(s.id)) byId.set(s.id, s);
+      }
+      return Array.from(byId.values());
+    });
+  }, [spaces]);
 
   // Sync updatedCurrentThread when currentThread prop changes
   useEffect(() => {
@@ -1127,22 +1144,45 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
   };
 
+  // Space IDs the user has closed from the switcher (match desktop so opened/available lists stay in sync)
+  const getClosedSpaceIds = (): Set<string> => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const stored = safeGetItem('harvous-closed-navigation-items');
+      const parsed = stored ? (JSON.parse(stored) as unknown) : [];
+      const ids = Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+      return new Set(ids.filter((id) => id.startsWith('space_')));
+    } catch {
+      return new Set();
+    }
+  };
+
   // Force re-render when navigation history updates
   const [, forceUpdate] = useState(0);
 
-  // Filter spaces to only show those in navigation history (spaces that have been opened/visited)
-  // Use raw navigation history from storage since NavigationContext filters out spaces
+  // Filter spaces to only show those in navigation history (match desktop: fromLocal + fromRaw, exclude deleted)
   const filteredSpaces = useMemo(() => {
     const rawHistory = getRawNavigationHistory();
-    // Get space IDs from raw navigation history (includes spaces that NavigationContext filters out)
-    const navigationSpaceIds = new Set(
-      rawHistory
-        .filter((item: any) => item.id && item.id.startsWith('space_'))
-        .map((item: any) => item.id)
+    const rawSpaceItems = rawHistory.filter(
+      (item: any) => item.id && item.id.startsWith('space_')
     );
-    
-    // Only show spaces that are in navigation history
-    return localSpaces.filter(space => navigationSpaceIds.has(space.id));
+    const navigationSpaceIds = new Set(rawSpaceItems.map((item: any) => item.id));
+
+    const fromLocal = localSpaces.filter((space) => navigationSpaceIds.has(space.id));
+    const localIds = new Set(fromLocal.map((s) => s.id));
+    const fromRaw = rawSpaceItems
+      .filter((item: any) => !localIds.has(item.id))
+      .map((item: any) => ({
+        id: item.id,
+        title: item.title || 'Space',
+        totalItemCount: typeof item.count === 'number' ? item.count : 0,
+        backgroundGradient: item.backgroundGradient || 'var(--color-paper)',
+        isShared: (item as any).isShared,
+      } satisfies Space));
+
+    const combined = [...fromLocal, ...fromRaw];
+    const deleted = deletedSpaceIdsRef.current;
+    return deleted.size === 0 ? combined : combined.filter((s) => !deleted.has(s.id));
   }, [localSpaces, forceUpdate]);
 
   // Listen for navigation history updates to trigger recalculation
@@ -1167,13 +1207,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
   }, []);
 
-  // Remove deleted space from dropdown when user erases a space
+  // Remove deleted space from dropdown and "Add Existing Space" when user erases a space
   useEffect(() => {
     const handleSpaceDeleted = (event: CustomEvent) => {
       const spaceId = event.detail?.spaceId;
       if (!spaceId) return;
-      setLocalSpaces(prev => prev.filter(s => s.id !== spaceId));
-      forceUpdate(prev => prev + 1);
+      deletedSpaceIdsRef.current.add(spaceId);
+      setLocalSpaces((prev) => prev.filter((s) => s.id !== spaceId));
+      forceUpdate((prev) => prev + 1);
     };
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
@@ -1204,22 +1245,78 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       const fromLocal = localSpaces.find((s) => s.id === effectiveSelectedSpaceId);
       if (fromLocal) spacesById.set(effectiveSelectedSpaceId, fromLocal);
     }
-    
-    // Convert back to array
-    return Array.from(spacesById.values());
-  }, [filteredSpaces, currentSpace, effectiveSelectedSpaceId, localSpaces]);
 
-  // Calculate available spaces that aren't in the dropdown
+    // Exclude spaces the user has closed from the switcher (match desktop)
+    const closedSpaceIds = getClosedSpaceIds();
+    return Array.from(spacesById.values()).filter((s) => !closedSpaceIds.has(s.id));
+  }, [filteredSpaces, currentSpace, effectiveSelectedSpaceId, localSpaces, isDashboard]);
+
+  // Calculate available spaces that aren't in the dropdown (exclude deleted, match desktop)
   const availableSpaces = useMemo(() => {
-    const dropdownSpaceIds = new Set(spacesForDropdown.map(s => s.id));
+    const dropdownSpaceIds = new Set(spacesForDropdown.map((s) => s.id));
+    const deleted = deletedSpaceIdsRef.current;
     return localSpaces
-      .filter(space => !dropdownSpaceIds.has(space.id))
+      .filter((space) => !dropdownSpaceIds.has(space.id) && !deleted.has(space.id))
       .sort((a, b) => {
-        const titleA = (a.title || "").toLowerCase();
-        const titleB = (b.title || "").toLowerCase();
+        const titleA = (a.title || '').toLowerCase();
+        const titleB = (b.title || '').toLowerCase();
         return titleA.localeCompare(titleB);
       });
   }, [localSpaces, spacesForDropdown]);
+
+  // Add space to opened list and remove from closed when user selects from "Add Existing Space" (match desktop)
+  const addSpaceToNavigationHistory = useCallback((space: Space) => {
+    if (typeof window === 'undefined') return;
+    try {
+      try {
+        const closedStored = safeGetItem('harvous-closed-navigation-items');
+        const closedParsed = closedStored ? (JSON.parse(closedStored) as unknown) : [];
+        const closedIds = Array.isArray(closedParsed) ? closedParsed.filter((x) => typeof x === 'string') : [];
+        const filtered = closedIds.filter((id) => id !== space.id);
+        if (filtered.length !== closedIds.length) {
+          safeSetItem('harvous-closed-navigation-items', JSON.stringify(filtered), {
+            cleanupOldest: true,
+            fallbackToSession: true,
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+      const stored = safeGetItem('harvous-navigation-history-v2');
+      const history = stored ? JSON.parse(stored) : [];
+      const existingIndex = history.findIndex((item: any) => item.id === space.id);
+      if (existingIndex !== -1) {
+        history[existingIndex] = {
+          ...history[existingIndex],
+          title: space.title,
+          backgroundGradient: space.backgroundGradient,
+          lastAccessed: Date.now(),
+        };
+      } else {
+        history.push({
+          id: space.id,
+          title: space.title,
+          backgroundGradient: space.backgroundGradient,
+          firstAccessed: Date.now(),
+          lastAccessed: Date.now(),
+        });
+      }
+      history.sort((a: any, b: any) => {
+        const aFirst = (a.firstAccessed != null) ? a.firstAccessed : Number.MAX_SAFE_INTEGER;
+        const bFirst = (b.firstAccessed != null) ? b.firstAccessed : Number.MAX_SAFE_INTEGER;
+        return aFirst - bFirst;
+      });
+      const limited = history.length > 10 ? history.slice(0, 10) : history;
+      safeSetItem('harvous-navigation-history-v2', JSON.stringify(limited), {
+        cleanupOldest: true,
+        fallbackToSession: true,
+      });
+      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+      forceUpdate((p) => p + 1);
+    } catch (err) {
+      console.error('Error adding space to navigation history:', err);
+    }
+  }, []);
 
   const isThreadPage = currentItemId.startsWith('thread_');
   const threadSpaceId = (updatedCurrentThread || currentThread)?.spaceId || null;
@@ -1596,6 +1693,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                               className="mobile-nav__space-panel-item"
                               style={{ cursor: 'pointer' }}
                               onClick={() => {
+                                addSpaceToNavigationHistory(s);
                                 navigate(idToUrl(s.id));
                                 setSelectedSpaceId(s.id);
                                 setIsShowingExistingSpaces(false);
@@ -1630,8 +1728,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 )}
               </div>
 
-              {/* Scrollable Nav Items */}
-              <div className="mobile-nav__dropdown-scroll">
+              {/* Scrollable Nav Items — tapping here while space panel is open closes the space panel */}
+              <div
+                className="mobile-nav__dropdown-scroll"
+                onClick={() => {
+                  if (isSpacePanelOpen) setIsSpacePanelOpen(false);
+                }}
+              >
                 {showSpaceMismatchPrompt ? (
                   <div className="space-mismatch-banner" style={{ margin: '8px 12px 12px' }}>
                     <div className="space-mismatch-banner__text">
