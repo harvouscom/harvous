@@ -676,8 +676,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {getDrawerTitle(drawerType)}
         </button>
         
-        {/* Content */}
-        <div ref={sheetContentRef} className="bottom-sheet__inner h-full flex flex-col min-h-0">
+        {/* Content - flex-1 so it fills the sheet (no h-full) and footer stays 16px from bottom */}
+        <div ref={sheetContentRef} className="bottom-sheet__inner flex-1 flex flex-col min-h-0">
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">

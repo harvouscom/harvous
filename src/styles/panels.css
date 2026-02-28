@@ -79,15 +79,16 @@
   flex-shrink: 0;
 }
 
-/* Inner takes remaining space so editor area has bounded height and can scroll */
+/* Inner takes remaining space so editor area has bounded height and can scroll.
+   Must fill the sheet so the footer sits 16px from the bottom (no extra gap). */
 .bottom-sheet-content .bottom-sheet__inner {
   box-sizing: border-box;
   padding: 0 0 16px;
   min-height: 0;
   flex: 1 1 0%;
   overflow: hidden;
-  max-height: var(--sheet-viewport-height, 89vh);
-  max-height: var(--sheet-viewport-height, 89svh);
+  /* Don't cap height so inner fills the sheet; otherwise ~60px gap appears below footer on PWA */
+  max-height: none;
 }
 
 /* New note panel inside bottom sheet only: strict flex chain so .tiptap-content gets a height and scrolls */

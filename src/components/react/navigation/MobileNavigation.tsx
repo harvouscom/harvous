@@ -664,6 +664,33 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return () => window.removeEventListener('spaceUpdated', handleSpaceUpdated as EventListener);
   }, []);
 
+  // When a new space is created, add it to localSpaces and set updatedCurrentSpace so the top bar
+  // shows the correct color immediately (nav refetch is async).
+  useEffect(() => {
+    const handleSpaceCreated = (event: CustomEvent) => {
+      const space = event.detail?.space as { id?: string; title?: string; color?: string; backgroundGradient?: string; totalItemCount?: number; isShared?: boolean } | undefined;
+      if (!space?.id || !space.title) return;
+      const backgroundGradient = space.backgroundGradient ?? getThreadGradientCSS(space.color ?? 'paper');
+      const nextSpace: Space = {
+        id: space.id,
+        title: space.title,
+        totalItemCount: typeof space.totalItemCount === 'number' ? space.totalItemCount : 0,
+        backgroundGradient,
+        isShared: space.isShared ?? false,
+      };
+      setLocalSpaces((prev) => {
+        const byId = new Map<string, Space>();
+        for (const s of prev) byId.set(s.id, s);
+        byId.set(nextSpace.id, nextSpace);
+        return Array.from(byId.values());
+      });
+      lastEventUpdateRef.current = { spaceId: space.id, timestamp: Date.now() };
+      setUpdatedCurrentSpace(nextSpace);
+    };
+    window.addEventListener('spaceCreated', handleSpaceCreated as EventListener);
+    return () => window.removeEventListener('spaceCreated', handleSpaceCreated as EventListener);
+  }, []);
+
   // Separate useEffect for spaceUpdated event - works even when currentSpace is null
   useEffect(() => {
     const handleSpaceUpdated = (event?: Event) => {
