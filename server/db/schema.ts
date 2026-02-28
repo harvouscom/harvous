@@ -155,6 +155,8 @@ export const UserMetadata = sqliteTable('UserMetadata', {
   currentSeason: text('currentSeason'),
   lastMonthlyVisit: text('lastMonthlyVisit'),
   churchAddedAt: text('churchAddedAt'),
+  connectedChurchId: text('connectedChurchId'),
+  connectedOrgId: text('connectedOrgId'),
   referralBonusNotes: integer('referralBonusNotes').notNull().default(0),
   referralCode: text('referralCode').unique(),
   lockPinSalt: text('lockPinSalt'),
@@ -162,6 +164,26 @@ export const UserMetadata = sqliteTable('UserMetadata', {
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt'),
 });
+
+// ─── Churches (Clerk org-linked church records) ─────────────────────────────────
+
+export const Churches = sqliteTable(
+  'Churches',
+  {
+    id: text('id').primaryKey(),
+    orgId: text('orgId').notNull().unique(),
+    churchName: text('churchName'),
+    churchCity: text('churchCity'),
+    churchState: text('churchState'),
+    churchCountry: text('churchCountry'),
+    adminUserId: text('adminUserId').notNull(),
+    subscriptionTier: text('subscriptionTier'),
+    isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
+    createdAt: text('createdAt').notNull(),
+    updatedAt: text('updatedAt'),
+  },
+  (table) => [index('Churches_orgIdIndex').on(table.orgId)],
+);
 
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 

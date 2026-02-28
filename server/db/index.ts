@@ -18,6 +18,7 @@ export {
   Members,
   SpaceInvitations,
   UserMetadata,
+  Churches,
   ClerkUserMapping,
   UserXP,
   UserSeasonalXP,

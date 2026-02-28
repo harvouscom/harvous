@@ -4,6 +4,12 @@ import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
 
+interface LinkedChurch {
+  churchId: string;
+  orgId: string;
+  churchName: string | null;
+}
+
 interface MyChurchPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
@@ -12,13 +18,16 @@ interface MyChurchPanelProps {
     churchCity: string | null;
     churchState: string | null;
   };
+  /** When provided (e.g. from Profile), used when initialChurchData is also provided so we don't fetch. */
+  initialLinkedChurch?: LinkedChurch | null;
 }
 
 
-export default function MyChurchPanel({ 
+export default function MyChurchPanel({
   onClose,
   inBottomSheet = false,
-  initialChurchData
+  initialChurchData,
+  initialLinkedChurch = null,
 }: MyChurchPanelProps) {
   // Initialize form data from props if provided, otherwise empty
   const getInitialFormData = () => {
@@ -57,6 +66,7 @@ export default function MyChurchPanel({
     return 'edit';
   });
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [linkedChurch, setLinkedChurch] = useState<LinkedChurch | null>(initialLinkedChurch ?? null);
 
   // Load existing church data when component mounts
   useEffect(() => {
@@ -77,7 +87,7 @@ export default function MyChurchPanel({
         churchCity: initialChurchData.churchCity,
         churchState: initialChurchData.churchState
       });
-      
+      if (initialLinkedChurch !== undefined) setLinkedChurch(initialLinkedChurch ?? null);
       return; // Don't fetch if we have initial data
     }
     
@@ -108,7 +118,7 @@ export default function MyChurchPanel({
       // No cache, fetch from API (backward compatibility)
       loadChurchData();
     }
-  }, [initialChurchData]);
+  }, [initialChurchData, initialLinkedChurch]);
 
   // Prevent body scroll when dialog is open
   useEffect(() => {
@@ -149,13 +159,12 @@ export default function MyChurchPanel({
         setFormData(formData);
         // Store original form data for unsaved changes detection
         setOriginalFormData(formData);
-        
+        setLinkedChurch(data.linkedChurch ?? null);
         // Check if any church data exists (not null/undefined/empty)
         const hasData = !!(apiChurchName || apiChurchCity || apiChurchState);
         setHasExistingData(hasData);
         // Set view mode based on whether data exists
         setViewMode(hasData ? 'view' : 'edit');
-        
         // Update cache with actual API values (preserve null, not empty strings)
         updateCachedProfileData({
           churchName: apiChurchName,
@@ -555,7 +564,7 @@ export default function MyChurchPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                
+
                 {/* Church Button - Clickable to edit */}
                 <button
                   type="button"
@@ -624,28 +633,20 @@ export default function MyChurchPanel({
   // Edit mode - show form
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
-      {/* Loading indicator - progress bar at top */}
       {isLoading && (
         <div className="panel__progress-bar" style={{ position: 'absolute', top: 0, zIndex: 50 }}>
           <div className="panel__progress-fill"></div>
         </div>
       )}
       <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
-        {/* Content area - expands on mobile, fits content on desktop */}
         <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
-          {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
-            {/* Header section */}
             <div className="panel__header">
-              <div className="panel__title">
-                <p>My Church</p>
-              </div>
+              <div className="panel__title"><p>My Church</p></div>
             </div>
-            
-            {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                
+
                 {/* Church Name Input - Full Width */}
                 <div className="w-full">
                   <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">

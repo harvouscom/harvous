@@ -27,7 +27,7 @@
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import {
-  db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
+  db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata, Churches,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
   eq, and, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
@@ -493,9 +493,20 @@ app.get('/api/user/get-profile', async (c) => {
     console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
     let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null };
+    let linkedChurch: { churchId: string; orgId: string; churchName: string | null } | null = null;
     try {
       const um = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
-      if (um) churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
+      if (um) {
+        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
+        if (um.connectedChurchId || um.connectedOrgId) {
+          const church = await db.select().from(Churches).where(
+            um.connectedChurchId ? eq(Churches.id, um.connectedChurchId) : eq(Churches.orgId, um.connectedOrgId!),
+          ).get();
+          if (church?.isActive) {
+            linkedChurch = { churchId: church.id, orgId: church.orgId, churchName: church.churchName ?? null };
+          }
+        }
+      }
     } catch (_) { /* non-fatal */ }
 
     let hasLockPinSet = false;
@@ -523,6 +534,7 @@ app.get('/api/user/get-profile', async (c) => {
       firstName: userData.firstName, lastName: userData.lastName,
       userColor: userData.userColor, email: userData.email, emailVerified,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState,
+      linkedChurch,
       hasLockPinSet
     });
   } catch (error) {
