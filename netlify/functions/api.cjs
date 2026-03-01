@@ -8590,7 +8590,7 @@ var init_sql = __esm({
         return new SQL([new StringChunk(str)]);
       }
       sql2.raw = raw2;
-      function join3(chunks, separator) {
+      function join2(chunks, separator) {
         const result = [];
         for (const [i, chunk] of chunks.entries()) {
           if (i > 0 && separator !== void 0) {
@@ -8600,7 +8600,7 @@ var init_sql = __esm({
         }
         return new SQL(result);
       }
-      sql2.join = join3;
+      sql2.join = join2;
       function identifier(value) {
         return new Name(value);
       }
@@ -23273,7 +23273,7 @@ var init_select2 = __esm({
           const baseTableName = this.tableName;
           const tableName = getTableLikeName(table);
           for (const item of extractUsedTable(table)) this.usedTables.add(item);
-          if (typeof tableName === "string" && this.config.joins?.some((join3) => join3.alias === tableName)) {
+          if (typeof tableName === "string" && this.config.joins?.some((join2) => join2.alias === tableName)) {
             throw new Error(`Alias "${tableName}" is already used in this query`);
           }
           if (!this.isPartialSelect) {
@@ -24159,7 +24159,7 @@ var init_update = __esm({
       createJoin(joinType) {
         return (table, on) => {
           const tableName = getTableLikeName(table);
-          if (typeof tableName === "string" && this.config.joins.some((join3) => join3.alias === tableName)) {
+          if (typeof tableName === "string" && this.config.joins.some((join2) => join2.alias === tableName)) {
             throw new Error(`Alias "${tableName}" is already used in this query`);
           }
           if (typeof on === "function") {
@@ -27555,28 +27555,6 @@ var init_load_onboarding_notes = __esm({
     import_url8 = require("url");
     import_meta = {};
     onboardingModules = loadMarkdownFiles();
-  }
-});
-
-// src/data/about/founder-letter.md
-var founder_letter_default;
-var init_founder_letter = __esm({
-  "src/data/about/founder-letter.md"() {
-    founder_letter_default = "It means a lot that you're here.\n\nI started making Harvous first and foremost for me. I needed a notes app for my Bible study that was designed in a way where the more you used it the more you'd remember. \n\nHarvous 1.0 is the start of this goal to be the home for your Bible study. For right now it's a simple notes app with features to make it more designed for Bible study like threads instead of folders, auto-generated scripture, and selecting text to create a new note.\n\nThere's a lot more to come. Until then, my prayer and hope is that Harvous helps your Bible study journey.\n\nIf you ever have feedback, questions, or just want to say hey, I'd love to hear from you at derek@harvous.com.\n\nGodspeed,";
-  }
-});
-
-// server/routes/founder-letter.inline.ts
-var founder_letter_inline_exports = {};
-__export(founder_letter_inline_exports, {
-  default: () => founder_letter_inline_default
-});
-var founder_letter_inline_default;
-var init_founder_letter_inline = __esm({
-  "server/routes/founder-letter.inline.ts"() {
-    "use strict";
-    init_founder_letter();
-    founder_letter_inline_default = founder_letter_default;
   }
 });
 
@@ -35984,7 +35962,7 @@ var require_util = __commonJS({
       return path;
     });
     exports2.normalize = normalize2;
-    function join3(aRoot, aPath) {
+    function join2(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -36016,7 +35994,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports2.join = join3;
+    exports2.join = join2;
     exports2.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -36230,7 +36208,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index2 + 1);
           }
         }
-        sourceURL = join3(urlGenerate(parsed), sourceURL);
+        sourceURL = join2(urlGenerate(parsed), sourceURL);
       }
       return normalize2(sourceURL);
     }
@@ -37670,8 +37648,8 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports2, module2) {
     "use strict";
-    var { existsSync, readFileSync: readFileSync3 } = require("fs");
-    var { dirname: dirname2, join: join3 } = require("path");
+    var { existsSync, readFileSync: readFileSync2 } = require("fs");
+    var { dirname: dirname2, join: join2 } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -37735,7 +37713,7 @@ var require_previous_map = __commonJS({
         this.root = dirname2(path);
         if (existsSync(path)) {
           this.mapFile = path;
-          return readFileSync3(path, "utf-8").toString().trim();
+          return readFileSync2(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -37769,7 +37747,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join3(dirname2(file), map);
+          if (file) map = join2(dirname2(file), map);
           return this.loadFile(map);
         }
       }
@@ -60301,14 +60279,14 @@ var require_turndown_cjs = __commonJS({
         } else if (node.nodeType === 1) {
           replacement = replacementForNode.call(self, node);
         }
-        return join3(output2, replacement);
+        return join2(output2, replacement);
       }, "");
     }
     function postProcess(output2) {
       var self = this;
       this.rules.forEach(function(rule) {
         if (typeof rule.append === "function") {
-          output2 = join3(output2, rule.append(self.options));
+          output2 = join2(output2, rule.append(self.options));
         }
       });
       return output2.replace(/^[\t\r\n]+/, "").replace(/[\t\r\n\s]+$/, "");
@@ -60320,7 +60298,7 @@ var require_turndown_cjs = __commonJS({
       if (whitespace2.leading || whitespace2.trailing) content = content.trim();
       return whitespace2.leading + rule.replacement(content, node, this.options) + whitespace2.trailing;
     }
-    function join3(output2, replacement) {
+    function join2(output2, replacement) {
       var s1 = trimTrailingNewlines(output2);
       var s2 = trimLeadingNewlines(replacement);
       var nls = Math.max(output2.length - s1.length, replacement.length - s2.length);
@@ -77022,21 +77000,18 @@ route3.get("/api/debug/me", async (c) => {
 var debug_default = route3;
 
 // server/routes/about.ts
-var import_fs2 = require("fs");
-var import_path2 = require("path");
 init_markdown_to_html();
+
+// server/routes/founder-letter.inline.generated.ts
+var founder_letter_inline_generated_default = "It means a lot that you're here.\n\nI started making Harvous first and foremost for me. I needed a notes app for my Bible study that was designed in a way where the more you used it the more you'd remember. \n\nHarvous 1.0 is the start of this goal to be the home for your Bible study. For right now it's a simple notes app with features to make it more designed for Bible study like threads instead of folders, auto-generated scripture, and selecting text to create a new note.\n\nThere's a lot more to come. Until then, my prayer and hope is that Harvous helps your Bible study journey.\n\nIf you ever have feedback, questions, or just want to say hey, I'd love to hear from you at derek@harvous.com.\n\nGodspeed,";
+
+// server/routes/founder-letter.inline.ts
+var founder_letter_inline_default = founder_letter_inline_generated_default;
+
+// server/routes/about.ts
 var route4 = new Hono2();
-async function getFounderLetterMarkdown() {
-  if (process.env.NODE_ENV === "production") {
-    const mod = await Promise.resolve().then(() => (init_founder_letter_inline(), founder_letter_inline_exports));
-    return mod.default;
-  }
-  const path = (0, import_path2.join)(process.cwd(), "src", "data", "about", "founder-letter.md");
-  return (0, import_fs2.readFileSync)(path, "utf-8");
-}
 route4.get("/api/about/founder-letter", async (c) => {
-  const founderLetterMarkdown = await getFounderLetterMarkdown();
-  const html = markdownToHtml(founderLetterMarkdown);
+  const html = markdownToHtml(founder_letter_inline_default);
   return c.json(
     { html },
     200,

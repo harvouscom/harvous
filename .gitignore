@@ -3,6 +3,7 @@ dist/
 
 # generated types
 .astro/
+server/routes/founder-letter.inline.generated.ts
 
 # dependencies
 node_modules/

@@ -1,7 +1,7 @@
 /**
- * Used only by the production API bundle (esbuild --loader:.md=text).
- * Do not import this in dev; server/routes/about.ts reads the .md from disk in dev.
+ * Founder letter content for the API. In production and dev we use the
+ * generated file (from scripts/generate-founder-letter.js) so the content
+ * is bundled into api.cjs and no runtime .md loader or dynamic import is needed.
  */
-// @ts-expect-error - .md resolved by esbuild loader at build time
-import founderLetterMarkdown from '@/data/about/founder-letter.md';
-export default founderLetterMarkdown as string;
+import founderLetterMarkdown from './founder-letter.inline.generated';
+export default founderLetterMarkdown;
