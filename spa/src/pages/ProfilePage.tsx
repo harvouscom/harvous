@@ -25,7 +25,7 @@ export default function ProfilePageWrapper() {
   const userColor = profile?.userColor ?? 'blue';
   const joinDate = formatJoinDate(user?.createdAt);
   const seasonalXP = xp?.seasonalXP ?? 0;
-  const seasonName = getSeasonDisplayName();
+  const seasonName = xp?.seasonName ?? getSeasonDisplayName();
 
   // Prefetch subscription, sharing, referral, achievements so opening those panels shows cached data immediately
   useEffect(() => {
