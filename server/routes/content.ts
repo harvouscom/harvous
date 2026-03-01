@@ -34,14 +34,14 @@ route.get('/api/content/load-more', async (c) => {
     // For other filters, use the existing getContentItems function
     const fetchLimit = filter === 'all' ? limit : limit * 3;
     const filterExcludeReferencedScripture = filter === 'all';
+    const needReferencedScripture = filter === 'all' && offset === 0;
 
-    const items = await getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture);
-
-    // For 'all' filter on initial load (offset === 0), also fetch referenced scripture notes without lastVisited
-    let referencedScriptureNotes: any[] = [];
-    if (filter === 'all' && offset === 0) {
-      referencedScriptureNotes = await getReferencedScriptureNotesWithoutLastVisited(auth.userId);
-    }
+    const [items, referencedScriptureNotes] = needReferencedScripture
+      ? await Promise.all([
+          getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture),
+          getReferencedScriptureNotesWithoutLastVisited(auth.userId),
+        ])
+      : [await getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture), [] as any[]];
 
     // Filter by type if needed
     let filteredItems = items;
@@ -66,7 +66,7 @@ route.get('/api/content/load-more', async (c) => {
       hasMore,
       offset,
       limit,
-      referencedScriptureNotes: filter === 'all' && offset === 0 ? referencedScriptureNotes : undefined,
+      referencedScriptureNotes: needReferencedScripture ? referencedScriptureNotes : undefined,
     });
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error(String(error));

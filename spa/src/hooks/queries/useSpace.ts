@@ -1,6 +1,8 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { normalizeDate } from '../../../../src/utils/sorting';
+
+const bootstrapQueryKey = (spaceId: string) => ['space', spaceId, 'bootstrap'] as const;
 
 export interface SpaceDetail {
   id: string;
@@ -52,10 +54,12 @@ interface SpaceItemsPage {
 }
 
 export function useSpace(spaceId: string) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['space', spaceId],
-    // Prefetch endpoint returns { space: SpaceDetail }
     queryFn: async () => {
+      const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
+      if (bootstrap?.space) return bootstrap.space;
       const res = await api.get<{ space: SpaceDetail }>(`/api/spaces/${spaceId}/prefetch`);
       if (res.space === undefined) throw new Error('Space not found');
       return res.space;
@@ -151,11 +155,30 @@ function mapSpaceItemsResponse(data: SpaceItemsResponse): SpaceContentItem[] {
 }
 
 export function useSpaceItems(spaceId: string) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ['space', spaceId, 'items'],
     queryFn: async () => {
+      const bootstrap = queryClient.getQueryData<{ space: SpaceDetail; items: SpaceContentItem[] }>(bootstrapQueryKey(spaceId));
+      if (bootstrap?.items) return bootstrap.items;
       const data = await api.get<SpaceItemsResponse>(`/api/spaces/${spaceId}/items`);
       return mapSpaceItemsResponse(data);
+    },
+    enabled: !!spaceId,
+    staleTime: 30_000,
+  });
+}
+
+/** Single request for space + items; use on SpacePage for one round-trip. Populates cache for useSpace/useSpaceItems. */
+export function useSpaceBootstrap(spaceId: string) {
+  return useQuery({
+    queryKey: bootstrapQueryKey(spaceId),
+    queryFn: async () => {
+      const data = await api.get<{ space: SpaceDetail; items: SpaceItemsResponse }>(`/api/spaces/${spaceId}/bootstrap`);
+      const space = data.space;
+      const items = mapSpaceItemsResponse(data.items);
+      if (!space) throw new Error('Space not found');
+      return { space, items };
     },
     enabled: !!spaceId,
     staleTime: 30_000,

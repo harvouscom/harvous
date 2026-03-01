@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
-import { useSpace, useSpaceItems } from '../hooks/queries/useSpace';
+import { useSpaceBootstrap } from '../hooks/queries/useSpace';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getThreadQueryOptions } from '../hooks/queries/useThread';
 import { getNoteQueryOptions } from '../hooks/queries/useNote';
@@ -28,9 +28,10 @@ export default function SpacePage() {
   const spaceId = spaceSlug.startsWith('space_') ? spaceSlug : `space_${spaceSlug}`;
   const { user } = useUser();
   const queryClient = useQueryClient();
-  const { data: space, isLoading, isError } = useSpace(spaceId);
+  const { data: bootstrap, isLoading, isError, isFetching } = useSpaceBootstrap(spaceId);
   const { data: nav } = useNavigation();
-  const { data: spaceItems, isFetching: isFetchingItems } = useSpaceItems(spaceId);
+  const space = bootstrap?.space;
+  const spaceItems = bootstrap?.items;
   const [filter, setFilter] = useState<SpaceFilter>('all');
 
   // Prefetch thread details for threads in this space that aren't in nav (e.g. joined space)
@@ -57,7 +58,7 @@ export default function SpacePage() {
   const resolvedSpaceColor = (space?.color ?? navSpace?.color ?? 'paper') as 'paper' | 'blue' | 'green' | 'red' | 'yellow' | 'orange' | 'purple' | 'pink';
 
   const initialItems = spaceItems ?? [];
-  const parentIsLoading = initialItems.length === 0 && isFetchingItems;
+  const parentIsLoading = initialItems.length === 0 && isFetching;
 
   // Redirect when space no longer exists (e.g. deleted) so we don't render SpaceContentList for a 404 space
   useEffect(() => {

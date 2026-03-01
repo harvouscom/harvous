@@ -8,6 +8,7 @@
  *   POST   /api/spaces/:spaceId/update
  *   GET    /api/spaces/:spaceId/notes
  *   GET    /api/spaces/:spaceId/items
+ *   GET    /api/spaces/:spaceId/bootstrap
  *   GET    /api/spaces/:spaceId/prefetch
  *   POST   /api/spaces/:spaceId/add-note
  *   POST   /api/spaces/:spaceId/add-thread
@@ -341,6 +342,55 @@ route.get('/api/spaces/:spaceId/items', async (c) => {
     }
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/items', action: 'get_space_items' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+// ─── GET /api/spaces/:spaceId/bootstrap ──────────────────────────────────────
+// Returns space metadata + items in one response for faster initial load (one round-trip).
+route.get('/api/spaces/:spaceId/bootstrap', async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
+
+    const spaceId = c.req.param('spaceId');
+    let accessInfo: { role: string; space: any };
+    try {
+      accessInfo = await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      throw err;
+    }
+
+    const spaceRow = accessInfo.space;
+    const spaceDetail = {
+      id: spaceRow.id,
+      title: spaceRow.title,
+      color: spaceRow.color,
+      backgroundGradient: spaceRow.backgroundGradient || getThreadGradientCSS(spaceRow.color || 'paper'),
+      ownerId: spaceRow.userId,
+      memberCount: 0,
+      isPublic: spaceRow.isPublic,
+    };
+
+    const [notesResult, threads] =
+      accessInfo.role === 'owner'
+        ? await Promise.all([
+            getNotesForSpace(spaceId, auth.userId),
+            getThreadsForSpace(spaceId, auth.userId),
+          ])
+        : await Promise.all([
+            getNotesForSpaceForMember(spaceId, spaceRow.userId),
+            getThreadsForSpaceBySpaceId(spaceId),
+          ]);
+
+    return c.json(
+      { space: spaceDetail, items: { threads, notes: notesResult.notes } },
+      200,
+      { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' }
+    );
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/bootstrap', action: 'get_space_bootstrap' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

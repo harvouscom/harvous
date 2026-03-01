@@ -1568,10 +1568,24 @@ export default function OrganizedContentList({
             onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
           />
         ) : item.type === 'note' ? (
-          <a
-            href={href}
+          <div
+            role="link"
+            tabIndex={0}
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-            onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
+            style={{ cursor: 'pointer' }}
+            data-href={href}
+            aria-label="Open note"
+            onClick={() => {
+              if (onNavigate) onNavigate(href);
+              else window.location.href = href;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (onNavigate) onNavigate(href);
+                else window.location.href = href;
+              }
+            }}
           >
             <CardNote
               title={item.noteType === 'resource' && item.resourceTitle ? item.resourceTitle : item.title}
@@ -1587,7 +1601,7 @@ export default function OrganizedContentList({
               isPendingSync={item.syncStatus === 'pending'}
               contentEncrypted={item.contentEncrypted === true}
             />
-          </a>
+          </div>
         ) : (
           <a
             href={href}

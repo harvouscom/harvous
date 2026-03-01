@@ -224,10 +224,27 @@ const CardNote: React.FC<CardNoteProps> = ({
                         {/* Scripture refs trigger inline with excerpt */}
                         {hasScriptureRefs && (
                           <div
+                            role="button"
+                            tabIndex={0}
                             onClick={(e) => {
-                              e.preventDefault(); // Prevent link navigation
-                              e.stopPropagation(); // Prevent card click
+                              e.preventDefault();
+                              e.stopPropagation();
                               setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
+                            }}
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onPointerDownCapture={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsScriptureRefsExpanded(prev => !prev);
+                              }
                             }}
                             style={{
                               cursor: 'pointer',
@@ -514,10 +531,27 @@ const CardNote: React.FC<CardNoteProps> = ({
                         {/* Scripture refs trigger inline with excerpt */}
                         {hasScriptureRefs && (
                           <div
+                            role="button"
+                            tabIndex={0}
                             onClick={(e) => {
-                              e.preventDefault(); // Prevent link navigation
-                              e.stopPropagation(); // Prevent card click
+                              e.preventDefault();
+                              e.stopPropagation();
                               setIsScriptureRefsExpanded(!isScriptureRefsExpanded);
+                            }}
+                            onPointerDown={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onPointerDownCapture={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setIsScriptureRefsExpanded(prev => !prev);
+                              }
                             }}
                             style={{
                               cursor: 'pointer',

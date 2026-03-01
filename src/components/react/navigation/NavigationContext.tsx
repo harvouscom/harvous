@@ -1294,7 +1294,36 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // Refresh immediately - single refresh is sufficient
     refreshHistory();
-    
+
+    // One-time migration: clear likely-seeded thread list (old code used to seed nav from API when empty).
+    // If history has many threads and we haven't migrated yet, keep only the current page's thread (or none).
+    const MIGRATION_KEY = 'harvous-nav-migrated-no-seed-v1';
+    const MAX_THREADS_BEFORE_CONSIDER_SEEDED = 3;
+    try {
+      if (typeof window !== 'undefined' && !safeGetItem(MIGRATION_KEY)) {
+        const rawHistory = getRawNavigationHistory();
+        const threadItems = rawHistory.filter((item: any) => item?.id?.startsWith('thread_'));
+        if (threadItems.length > MAX_THREADS_BEFORE_CONSIDER_SEEDED) {
+          const pathname = window.location.pathname || '';
+          const threadMatch = pathname.match(/^\/thread\/(.+)$/);
+          const keepThreadId = threadMatch ? 'thread_' + threadMatch[1] : null;
+          const nonThreads = rawHistory.filter((item: any) => !item?.id?.startsWith('thread_'));
+          const threadsToKeep = keepThreadId
+            ? threadItems.filter((item: any) => item.id === keepThreadId)
+            : [];
+          const migrated = [...nonThreads, ...threadsToKeep];
+          saveNavigationHistory(migrated);
+          setNavigationHistory(getNavigationHistory());
+          safeSetItem(MIGRATION_KEY, '1', { cleanupOldest: false, fallbackToSession: false });
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        } else {
+          safeSetItem(MIGRATION_KEY, '1', { cleanupOldest: false, fallbackToSession: false });
+        }
+      }
+    } catch {
+      // non-critical
+    }
+
     // Track current page access
     trackNavigationAccess();
 
@@ -1883,8 +1912,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     (window as any).refreshNavigation = refreshNavigation;
     
     return () => {
-      window.clearTimeout(seedRetry1);
-      window.clearTimeout(seedRetry2);
       // Clean up validation timeout if it exists
       if (validationTimeoutRef.current) {
         clearTimeout(validationTimeoutRef.current);

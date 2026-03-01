@@ -22,7 +22,7 @@ export default function DashboardPage() {
 
   // Use React Query as single source of truth for initial load. OrganizedContentList
   // does not refresh on mount when we have no data (relies on parent to pass initialItems).
-  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 100);
+  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 30);
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;

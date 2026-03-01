@@ -118,3 +118,4 @@ Turso via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `TURSO_DATABASE_URL
 - ❌ Blocking navigation waiting for events
 - ❌ Complex retry logic when simpler fallback mechanisms exist
 - ❌ "Robust" solutions that add complexity without solving the root problem
+- ❌ **Skeleton UI**: Never introduce skeleton loaders or skeleton placeholders. Use real loading states (e.g. existing parentIsLoading, empty states, or spinners) instead.
