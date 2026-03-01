@@ -582,9 +582,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           debug('[useNoteSubmission] Cached simpleNoteId', { simpleNoteId: result.note.simpleNoteId });
         }
         
-        // Build scripture toast message for redirect
+        // Build scripture toast message for redirect (when scriptureDeferred, results are empty and we show a short message)
         let scriptureToastMessage = '';
-        if (result.scriptureProcessingError) {
+        if (result.scriptureDeferred) {
+          scriptureToastMessage = 'Note created. Scripture links are being added.';
+        } else if (result.scriptureProcessingError) {
           scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
         } else if (result.scriptureResults && Array.isArray(result.scriptureResults)) {
           const createdScriptures = result.scriptureResults.filter(
@@ -1172,9 +1174,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           debug('[useNoteSubmission] Cached simpleNoteId (save and close)', { simpleNoteId: result.note.simpleNoteId });
         }
 
-        // Build scripture toast message for redirect
+        // Build scripture toast message for redirect (when scriptureDeferred, results are empty)
         let scriptureToastMessage = '';
-        if (result.scriptureProcessingError) {
+        if (result.scriptureDeferred) {
+          scriptureToastMessage = 'Note created. Scripture links are being added.';
+        } else if (result.scriptureProcessingError) {
           scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
         } else if (result.scriptureResults && result.scriptureResults.length > 0) {
           const createdScriptures = result.scriptureResults.filter(

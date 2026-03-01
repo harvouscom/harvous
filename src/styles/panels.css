@@ -141,6 +141,16 @@
   padding-bottom: 56px;
 }
 
+/* In-sheet + keyboard open: cap editor container height so no gap between content and fixed toolbar */
+.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-editor-container {
+  max-height: var(--editor-scroll-max-height);
+}
+
+/* In-sheet + keyboard open: keep selection/caret above fixed toolbar when scrolling into view */
+.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-content .ProseMirror {
+  scroll-margin-bottom: 60px;
+}
+
 /* Bottom-sheet panels should use tighter header gutters */
 .bottom-sheet-content .panel__header {
   padding-left: 12px;

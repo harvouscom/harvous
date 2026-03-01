@@ -43,7 +43,7 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 
 **Where:**
 
-- [src/components/react/BottomSheet.tsx](src/components/react/BottomSheet.tsx) – Effect for note/resource sheet on mobile: reads `visualViewport`, sets `--toolbar-bottom` and `data-keyboard-open` when `viewport.height < window.innerHeight * 0.75`; clears on close. Also runs on `resize`/`scroll` and on `focusin` (with short delays) so it updates when the keyboard opens.
+- [src/components/react/BottomSheet.tsx](src/components/react/BottomSheet.tsx) – Effect for note/resource sheet on mobile: reads `visualViewport`, sets `--toolbar-bottom` and `data-keyboard-open` when `viewport.height < window.innerHeight * 0.75`; clears on close. Runs on `resize`/`scroll` and on `focusin` (100ms, 300ms; on iOS also 400ms and 600ms so layout updates after the keyboard animation). On iOS, an estimated viewport height (55% of `innerHeight`) is applied at 50ms on focus so vars are usable before `visualViewport` resize fires.
 - [src/styles/panels.css](src/styles/panels.css) – `.bottom-sheet-content[data-keyboard-open] .tiptap-toolbar--bottom` with `position: fixed !important`, `bottom: var(--toolbar-bottom, 12px) !important`, `left/right: 12px`, `z-index: 21`.
 
 ### 3. Editor scroll area and footer
@@ -56,13 +56,15 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 **CSS:**
 
 - `.bottom-sheet-content .new-note-panel--in-sheet .tiptap-content` uses `max-height: var(--editor-scroll-max-height, none)` so the editor body scrolls when the var is set.
+- `.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-editor-container` gets `max-height: var(--editor-scroll-max-height)` so the editor wrapper does not grow past the scroll area; this removes the gap between the bottom of the content and the fixed toolbar.
 - `.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .panel__footer--buttons` hides the footer.
 - `.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-content` gets `padding-bottom: 56px` so the last line can scroll above the fixed toolbar.
+- `.bottom-sheet-content[data-keyboard-open] .new-note-panel--in-sheet .tiptap-content .ProseMirror` gets `scroll-margin-bottom: 60px` so when the selection is scrolled into view, it stays above the fixed toolbar.
 
 **Where:**
 
 - Same BottomSheet effect sets `--editor-scroll-max-height` and `data-keyboard-open`.
-- [src/styles/panels.css](src/styles/panels.css) – Rules above for `.tiptap-content` and footer.
+- [src/styles/panels.css](src/styles/panels.css) – Rules above for `.tiptap-content`, `.tiptap-editor-container`, `.ProseMirror` scroll-margin, and footer.
 
 ### 4. Viewport meta (Android)
 
@@ -70,7 +72,11 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 
 ### 5. Toolbar placement
 
-- The formatting toolbar is at the **bottom** of the editor (above the keyboard) for both mobile and desktop in the new-note panel: [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) passes `toolbarAtBottom={true}` to DefaultNoteForm/ScriptureNoteForm, and [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) renders the toolbar below the scroll area when `toolbarAtBottom` is true.
+- The formatting toolbar is at the **bottom** of the editor (above the keyboard) for both mobile and desktop in the new-note panel: [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) passes `toolbarAtBottom={true}` and `inBottomSheet={inBottomSheet}` to DefaultNoteForm/ScriptureNoteForm, and [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) renders the toolbar below the scroll area when `toolbarAtBottom` is true.
+
+### 6. Scroll selection into view (iOS / keyboard open)
+
+- When the editor is in the bottom sheet (`inBottomSheet`) with the bottom toolbar, TiptapEditor scrolls the selection/caret into view so it stays above the fixed toolbar: on focus (after 350ms, once `data-keyboard-open` is set) and on `selectionUpdate`. The CSS `scroll-margin-bottom: 60px` on `.ProseMirror` ensures the caret is not hidden behind the toolbar when scrolled into view.
 
 ## Flow When Keyboard Opens
 
@@ -91,8 +97,8 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 
 ## Constants You Might Tweak
 
-- In BottomSheet effect: `RESERVE_EDITOR_PX = 130`. Smaller value = more editor height (more lines visible); larger = more reserved for header/title. Adjust if one line is cut off or there’s too much gap.
-- In panels.css: toolbar `left/right: 12px`; editor `padding-bottom: 56px` when keyboard open. Change if layout or toolbar height changes.
+- In BottomSheet effect: `RESERVE_EDITOR_PX = 130`. Smaller value = more editor height (more lines visible); larger = more reserved for header/title. Adjust if one line is cut off, there’s too much gap, or content is still covered by the toolbar.
+- In panels.css: toolbar `left/right: 12px`; editor `padding-bottom: 56px` when keyboard open; `.ProseMirror` `scroll-margin-bottom: 60px` when keyboard open. Change if layout or toolbar height changes.
 
 ## Files Summary
 
@@ -101,6 +107,6 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 | [src/layouts/Layout.astro](src/layouts/Layout.astro) | `id="layout-root"` on main content; viewport meta with `interactive-widget=resizes-content` |
 | [src/components/react/BottomSheet.tsx](src/components/react/BottomSheet.tsx) | Scroll lock on `#layout-root`; when note/resource sheet on mobile, sets `--toolbar-bottom`, `--editor-scroll-max-height`, `data-keyboard-open` from `visualViewport` |
 | [src/styles/global.css](src/styles/global.css) | `#layout-root.bottom-sheet-open` scroll lock (not body) |
-| [src/styles/panels.css](src/styles/panels.css) | Toolbar fixed when `data-keyboard-open`; editor max-height and padding-bottom; footer hidden when `data-keyboard-open` |
-| [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) | Toolbar at bottom when `toolbarAtBottom`; 12px spacing |
-| [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) | Passes `toolbarAtBottom={true}` to note forms |
+| [src/styles/panels.css](src/styles/panels.css) | Toolbar fixed when `data-keyboard-open`; editor and container max-height; padding-bottom and scroll-margin-bottom; footer hidden when `data-keyboard-open` |
+| [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) | Toolbar at bottom when `toolbarAtBottom`; 12px spacing; when `inBottomSheet`, scrolls selection into view above toolbar on focus and selection update |
+| [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) | Passes `toolbarAtBottom={true}` and `inBottomSheet` to note forms; iOS focusin scroll reset |

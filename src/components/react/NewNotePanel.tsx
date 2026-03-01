@@ -1307,6 +1307,7 @@ export default function NewNotePanel({
                         parentThreadId={threadSelection.getSelectedThread()?.id}
                         toolbarAtBottom={true}
                         toolbarBottomMargin={12}
+                        inBottomSheet={inBottomSheet}
                       />
                     )}
                     {form.noteType === 'scripture' && (
@@ -1320,6 +1321,7 @@ export default function NewNotePanel({
                         parentThreadId={threadSelection.getSelectedThread()?.id}
                         toolbarAtBottom={true}
                         toolbarBottomMargin={12}
+                        inBottomSheet={inBottomSheet}
                       />
                     )}
                     {form.noteType === 'resource' && (

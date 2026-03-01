@@ -45,6 +45,8 @@ interface TiptapEditorProps {
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
+  /** When true (e.g. new-note bottom sheet), scroll selection into view above toolbar when keyboard is open. */
+  inBottomSheet?: boolean;
 }
 
 // Helper function to find text positions in ProseMirror document
@@ -2270,7 +2272,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   parentThreadId,
   sourceNoteId,
   onEditorReady,
-  onEditorInstanceReady
+  onEditorInstanceReady,
+  inBottomSheet = false
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -2303,6 +2306,18 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     // Check if docView exists - this becomes null when editor is destroyed
     if (!editorInstance.view.docView) return false;
     return true;
+  };
+
+  // When in bottom sheet with keyboard open, scroll selection into view above the fixed toolbar (scroll-margin-bottom in CSS)
+  const scrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
+    if (!isEditorValid(editorInstance)) return;
+    const sheet = document.querySelector('.bottom-sheet-content[data-keyboard-open]');
+    if (!sheet) return;
+    const { from } = editorInstance.state.selection;
+    const { node } = editorInstance.view.domAtPos(from);
+    if (node && typeof (node as HTMLElement).scrollIntoView === 'function') {
+      (node as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }
   };
 
   // Restore scroll position when provided
@@ -3501,23 +3516,21 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid
       if (!isEditorValid(editor)) return;
       
-      // Prevent unwanted scroll jumps on mobile by maintaining scroll position
-      // ProseMirror will handle cursor placement naturally at tap location
-      const editorElement = editor.view.dom;
-      const contentContainer = editorElement?.closest('.tiptap-content') as HTMLElement;
-      
-      if (contentContainer) {
-        // Store scroll position to prevent jumps when keyboard opens
-        const scrollTop = contentContainer.scrollTop;
-        
-        // Use requestAnimationFrame to maintain scroll after browser potentially scrolls
-        requestAnimationFrame(() => {
-          if (contentContainer && Math.abs(contentContainer.scrollTop - scrollTop) > 10) {
-            // Only restore if there was a significant jump (>10px)
-            // This prevents interference with intentional scrolling
-            contentContainer.scrollTop = scrollTop;
-          }
-        });
+      if (inBottomSheet && toolbarAtBottom) {
+        // In sheet with bottom toolbar: after keyboard-open is set, scroll selection into view above toolbar
+        setTimeout(() => scrollSelectionIntoViewAboveToolbar(editor), 350);
+      } else {
+        // Prevent unwanted scroll jumps on mobile by maintaining scroll position
+        const editorElement = editor.view.dom;
+        const contentContainer = editorElement?.closest('.tiptap-content') as HTMLElement;
+        if (contentContainer) {
+          const scrollTop = contentContainer.scrollTop;
+          requestAnimationFrame(() => {
+            if (contentContainer && Math.abs(contentContainer.scrollTop - scrollTop) > 10) {
+              contentContainer.scrollTop = scrollTop;
+            }
+          });
+        }
       }
       
       setIsEditorFocused(true);
@@ -3548,6 +3561,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('focus', handleFocus);
     editor.on('blur', handleBlur);
 
+    const handleSelectionUpdate = () => {
+      if (inBottomSheet && toolbarAtBottom) scrollSelectionIntoViewAboveToolbar(editor);
+    };
+    editor.on('selectionUpdate', handleSelectionUpdate);
+
     // Set initial focus state
     if (isEditorValid(editor)) {
       setIsEditorFocused(editor.isFocused);
@@ -3557,9 +3575,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (editor && !editor.isDestroyed) {
         editor.off('focus', handleFocus);
         editor.off('blur', handleBlur);
+        editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor]);
+  }, [editor, inBottomSheet, toolbarAtBottom]);
 
   // Update active states when editor changes
   useEffect(() => {

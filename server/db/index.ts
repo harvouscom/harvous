@@ -27,6 +27,7 @@ export {
   NoteTags,
   ScriptureMetadata,
   NoteScriptureReferences,
+  VerseTextCache,
   ResourceMetadata,
   InboxItems,
   InboxItemNotes,

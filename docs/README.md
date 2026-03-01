@@ -28,6 +28,7 @@ Complete documentation index for the Harvous Bible study notes application.
 - **[LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md)** - Locked notes: AES-GCM 256-bit, PBKDF2-SHA256 310k iterations (transparency)
 - **[REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md)** - Referral bonus (100 notes per friend), ReferralPanel, billing limit
 - **[SCRIPTURE_PILL_IMPLEMENTATION.md](./SCRIPTURE_PILL_IMPLEMENTATION.md)** - Scripture detection and pill system
+- **[SCRIPTURE_FLOW.md](./SCRIPTURE_FLOW.md)** - End-to-end scripture flow: create (deferred), verse cache, reprocess on view, update
 - **[NOTE_TYPES_SYSTEM.md](./NOTE_TYPES_SYSTEM.md)** - Note types (default, scripture, resource)
 - **[AUTO_TAG_DEBUGGING_GUIDE.md](./AUTO_TAG_DEBUGGING_GUIDE.md)** - Auto-tagging system details
 - **[CAPTURE_SYSTEM_DESIGN.md](./CAPTURE_SYSTEM_DESIGN.md)** - Capture flow design

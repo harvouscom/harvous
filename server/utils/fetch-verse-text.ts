@@ -2,6 +2,7 @@
  * Shared server helper to fetch verse text from Bible.org API.
  * Used by process-scripture-references and the /api/scripture/fetch-verse route.
  * Pass a normalized reference for consistent results.
+ * Results are cached in VerseTextCache so each reference is fetched at most once.
  */
 
 import { fetchWithTimeout } from '@/utils/fetch-helpers';
@@ -10,7 +11,10 @@ import {
   parseVerseGroups,
   validateVerseNumber,
   validateVerseRange,
+  normalizeScriptureReference,
 } from '@/utils/scripture-detector';
+import { db, VerseTextCache, eq } from '../db';
+import { nowISO } from '../db/dates';
 
 interface BibleOrgVerse {
   bookname: string;
@@ -20,14 +24,24 @@ interface BibleOrgVerse {
 }
 
 /**
- * Fetches verse text for a scripture reference. Uses normalized reference for consistent API calls.
+ * Fetches verse text for a scripture reference. Uses normalized reference for cache key and API.
  * Returns formatted HTML with superscript verse numbers, or empty string on parse/fetch error.
+ * Cache hit: returns immediately from DB. Cache miss: fetches from Bible.org, stores in cache, returns.
  */
 export async function fetchVerseText(reference: string): Promise<string> {
   const cleanReference = reference.replace(/,\s+/g, ',');
   const parsed = parseScriptureReference(cleanReference);
   if (!parsed) {
     return '';
+  }
+
+  const normalizedKey = normalizeScriptureReference(cleanReference);
+  const cached = await db.select({ content: VerseTextCache.content })
+    .from(VerseTextCache)
+    .where(eq(VerseTextCache.reference, normalizedKey))
+    .get();
+  if (cached?.content && cached.content.length > 0) {
+    return cached.content;
   }
 
   let verseGroups = parseVerseGroups(cleanReference);
@@ -85,6 +99,7 @@ export async function fetchVerseText(reference: string): Promise<string> {
     return '';
   }
 
+  let formatted: string;
   if (verseGroups.length > 1) {
     const formattedParts: string[] = [];
     verseGroups.forEach((group, index) => {
@@ -102,8 +117,22 @@ export async function fetchVerseText(reference: string): Promise<string> {
         }
       }
     });
-    return formattedParts.join('');
+    formatted = formattedParts.join('');
+  } else {
+    formatted = verses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
   }
 
-  return verses.map((v) => `<sup>${v.verse}</sup>${v.text}`).join(' ');
+  try {
+    await db.insert(VerseTextCache).values({
+      reference: normalizedKey,
+      content: formatted,
+      createdAt: nowISO(),
+    }).onConflictDoUpdate({
+      target: VerseTextCache.reference,
+      set: { content: formatted, createdAt: nowISO() },
+    });
+  } catch (cacheErr: any) {
+    console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey}:`, cacheErr?.message ?? cacheErr);
+  }
+  return formatted;
 }

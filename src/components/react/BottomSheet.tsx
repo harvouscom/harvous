@@ -489,6 +489,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const vv = window.visualViewport;
     if (!vv) return;
     const RESERVE_EDITOR_PX = 130;
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
     const clearOverrides = (element: HTMLDivElement) => {
       element.style.removeProperty('--toolbar-bottom');
@@ -496,15 +497,17 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       element.removeAttribute('data-keyboard-open');
     };
 
-    const apply = () => {
+    const apply = (estimatedViewportHeight?: number) => {
       const el = sheetContentElRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
-      const keyboardOpen = viewport.height < window.innerHeight * 0.75;
+      const effectiveHeight = estimatedViewportHeight ?? viewport.height;
+      const keyboardOpen = effectiveHeight < window.innerHeight * 0.75;
 
       if (keyboardOpen) {
-        const toolbarBottom = (window.innerHeight - viewport.height) + 12;
-        const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
+        const keyboardHeight = window.innerHeight - effectiveHeight;
+        const toolbarBottom = keyboardHeight + 12;
+        const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
         el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
         el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
         el.setAttribute('data-keyboard-open', '');
@@ -519,8 +522,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     vv.addEventListener('scroll', apply);
 
     const onFocusIn = () => {
+      // Immediate and short delays for all platforms
       setTimeout(apply, 100);
       setTimeout(apply, 300);
+      // iOS: visualViewport can update 600–700ms after keyboard opens; run apply again so layout catches up
+      if (isIOS) {
+        setTimeout(apply, 400);
+        setTimeout(apply, 600);
+      }
+      // iOS: estimate keyboard height on focus so toolbar/editor vars are usable before resize fires
+      if (isIOS) {
+        const estimatedHeight = Math.round(window.innerHeight * 0.55);
+        if (estimatedHeight < window.innerHeight * 0.75) {
+          setTimeout(() => apply(estimatedHeight), 50);
+        }
+      }
     };
     let focusEl: HTMLDivElement | null = null;
     const rafFocus = requestAnimationFrame(() => {

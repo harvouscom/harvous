@@ -339,35 +339,26 @@ route.post('/api/notes/create', async (c) => {
       }
     }
 
-    // Process scripture references before responding so the note has pill content when the user lands on the note page
-    let scriptureResults: any[] = [];
-    let scriptureProcessingError = false;
+    // Defer scripture processing so create responds in ~1–2s; run in background and update note content when done
+    const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
+    const latestNote = finalNoteType === 'resource'
+      ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
+      : null;
+    const contentToProcess = latestNote?.content || newNote.content;
+
     if (!contentEncrypted) {
-      try {
-        const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
-        const latestNote = finalNoteType === 'resource'
-          ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
-          : null;
-        const contentToProcess = latestNote?.content || newNote.content;
-        const preview = typeof contentToProcess === 'string'
-          ? contentToProcess.slice(0, 80).replace(/\s+/g, ' ').trim()
-          : '';
-        console.log('[api/notes/create] About to run scripture processing', {
-          noteId: newNote.id,
-          contentLength: contentToProcess?.length ?? 0,
-          contentPreview: preview || '(empty)'
-        });
-        const scriptureResult = await processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess);
-        scriptureResults = scriptureResult.results ?? [];
-      } catch (error: any) {
-        scriptureProcessingError = true;
-        console.error('[api/notes/create] Scripture processing failed:', error?.message);
-        console.error('[api/notes/create] Scripture processing error stack:', error?.stack);
-        console.error('[api/notes/create] Scripture processing error string:', String(error));
-      }
+      processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess).catch((err: any) => {
+        console.error('[api/notes/create] Deferred scripture processing failed:', err?.message ?? err);
+      });
     }
 
-    return c.json({ success: 'Note created!', note: newNote, scriptureResults, scriptureProcessingError });
+    return c.json({
+      success: 'Note created!',
+      note: newNote,
+      scriptureResults: [],
+      scriptureProcessingError: false,
+      scriptureDeferred: true
+    });
   } catch (error: any) {
     console.error('[api/notes/create] Error:', error);
     return c.json({ error: error.message || 'Failed to create note' }, 500);

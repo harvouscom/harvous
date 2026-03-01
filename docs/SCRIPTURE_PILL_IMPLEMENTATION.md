@@ -4,6 +4,8 @@
 
 The scripture pill system in Harvous automatically detects Bible references in notes and converts them into interactive, styled pills. This document explains how the detection, creation, and formatting prevention systems work.
 
+**End-to-end scripture flow:** For how create (deferred processing), verse text cache, reprocess on view, and update fit together, see **[SCRIPTURE_FLOW.md](./SCRIPTURE_FLOW.md)**.
+
 ## Table of Contents
 
 - [How It Works](#how-it-works)
@@ -45,16 +47,16 @@ The scripture pill system in Harvous automatically detects Bible references in n
 
 ### 1. Note Creation/Update
 
-When a note is created or updated, the API endpoints call `processScriptureReferences`:
+- **Create:** The create API returns immediately (fast path) and runs `processScriptureReferences` in the background. The client receives `scriptureDeferred: true` and shows a short toast. See [SCRIPTURE_FLOW.md](./SCRIPTURE_FLOW.md#note-create-flow-fast-path).
+- **Update:** The update API still awaits `processScriptureReferences` and returns `scriptureResults` and `processedContent` so the editor can apply pill HTML.
 
 ```typescript
-// src/pages/api/notes/create.ts
-const result = await processScriptureReferences(noteId, userId, content);
+// server/routes/notes.ts — create: fire-and-forget, return with scriptureDeferred
+processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess).catch(...);
+return c.json({ ..., scriptureDeferred: true });
 
-// src/pages/api/notes/update.ts
-const result = await processScriptureReferences(noteId, userId, content, {
-  contentOverride: capitalizedContent // Preserves existing pills
-});
+// server/routes/notes.ts — update: await and return results
+const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent);
 ```
 
 ### 2. Scripture Processing

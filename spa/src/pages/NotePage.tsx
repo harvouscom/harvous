@@ -36,40 +36,51 @@ export default function NotePage() {
   }, [noteId, queryClient]);
 
   // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),
-  // run scripture processing once so pills and scripture notes are created, then refetch.
+  // or has pending pills (from deferred create), run scripture processing once then refetch.
   const reprocessAttemptedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!note || isLoading || note.contentEncrypted) return;
     const content = note.content ?? '';
     if (!content || typeof content !== 'string') return;
-    if (content.includes('data-scripture-reference')) return; // Already has pills
     if (reprocessAttemptedRef.current === noteId) return;
 
+    const hasPills = content.includes('data-scripture-reference');
+    const hasPendingPills = content.includes('data-note-id="pending"');
+    if (hasPills && !hasPendingPills) return; // Already has real pill IDs
+
+    const runReprocess = () => {
+      reprocessAttemptedRef.current = noteId;
+      const parentThread = note.threads?.[0];
+      const threadId = parentThread?.id ?? undefined;
+      fetch(`/api/notes/${noteId}/process-scripture-references`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ contentOverride: content, threadId }),
+      })
+        .then((res) => {
+          if (res.ok) {
+            queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+          }
+        })
+        .catch(() => {
+          reprocessAttemptedRef.current = null; // Allow retry on next mount
+        });
+    };
+
+    if (hasPendingPills) {
+      runReprocess();
+      return;
+    }
+
+    // No pills: check for plain-text scripture refs (legacy/onboarding)
     const plainText = content
       .replace(/<[^>]*>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
-
-    reprocessAttemptedRef.current = noteId;
-    const parentThread = note.threads?.[0];
-    const threadId = parentThread?.id ?? undefined;
-
-    fetch(`/api/notes/${noteId}/process-scripture-references`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ contentOverride: content, threadId }),
-    })
-      .then((res) => {
-        if (res.ok) {
-          queryClient.invalidateQueries({ queryKey: ['note', noteId] });
-        }
-      })
-      .catch(() => {
-        reprocessAttemptedRef.current = null; // Allow retry on next mount
-      });
+    runReprocess();
   }, [note, noteId, isLoading, queryClient]);
 
   // The parent thread is the first thread this note belongs to (if any)

@@ -883,9 +883,11 @@ export default function CardFullEditable({
         }
       }
 
-      // Handle scripture results from the update endpoint
+      // Handle scripture results from the update endpoint (scriptureDeferred when create/update defers processing)
       if (saveResult && window.toast) {
-        if (saveResult.scriptureProcessingError) {
+        if (saveResult.scriptureDeferred) {
+          window.toast.info('Note saved. Scripture links are being added.');
+        } else if (saveResult.scriptureProcessingError) {
           window.toast.warning('Note saved. Some scripture links couldn\'t be created.');
         } else if (saveResult.scriptureResults && saveResult.scriptureResults.length > 0) {
           const createdScriptures = saveResult.scriptureResults.filter(

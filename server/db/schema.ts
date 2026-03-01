@@ -276,6 +276,14 @@ export const NoteScriptureReferences = sqliteTable('NoteScriptureReferences', {
   uniqueIndex('NoteScriptureReferences_uniqueNoteScripture').on(table.noteId, table.scriptureNoteId),
 ]);
 
+// ─── VerseTextCache (Bible.org verse text cache, keyed by normalized reference) ─
+
+export const VerseTextCache = sqliteTable('VerseTextCache', {
+  reference: text('reference').primaryKey(),
+  content: text('content').notNull(),
+  createdAt: text('createdAt').notNull(),
+});
+
 // ─── ResourceMetadata ──────────────────────────────────────────────────────────
 
 export const ResourceMetadata = sqliteTable('ResourceMetadata', {
