@@ -345,7 +345,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const handleOpenNoteDetailsPanel = (event: CustomEvent) => {
       if (isMobile) {
         if (event.detail?.tab) setNoteDetailsTab(event.detail.tab);
-        setNoteDetailsNote(currentNote ?? null);
+        const contentId = event.detail?.contentId;
+        const noteToShow =
+          contentId != null
+            ? currentNote && String(currentNote.id) === String(contentId)
+              ? currentNote
+              : { id: contentId, title: 'Note Details' }
+            : currentNote ?? null;
+        setNoteDetailsNote(noteToShow);
         openBottomSheet('noteDetails');
       }
     };

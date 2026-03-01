@@ -499,6 +499,7 @@ export default function DesktopPanelManager({
   const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
+  const [requestedNoteId, setRequestedNoteId] = useState<string | null>(null);
   const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
 
   // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
@@ -587,14 +588,17 @@ export default function DesktopPanelManager({
     };
     
     const handleOpenNoteDetails = (event?: Event) => {
-      const customEvent = event as CustomEvent;
+      const customEvent = event as CustomEvent<{ contentId?: string; tab?: string }>;
       const tab = customEvent?.detail?.tab;
+      const contentId = customEvent?.detail?.contentId;
       setNoteDetailsTab(tab);
+      setRequestedNoteId(contentId ?? null);
       dispatch({ type: 'OPEN_NOTE_DETAILS' });
       window.dispatchEvent(new CustomEvent('closeMoreMenu'));
     };
-    
+
     const handleCloseNoteDetails = () => {
+      setRequestedNoteId(null);
       dispatch({ type: 'CLOSE_NOTE_DETAILS' });
     };
     
@@ -740,6 +744,7 @@ export default function DesktopPanelManager({
     // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
     const handleCloseAllPanels = () => {
       setRequestedSpaceId(null);
+      setRequestedNoteId(null);
       setAddToSpaceSpaceId(null);
       dispatch({ type: 'CLOSE_ALL' });
     };
@@ -950,13 +955,13 @@ export default function DesktopPanelManager({
       )}
 
       {/* Note Details Panel (notes only) - Desktop Only */}
-      {state.activePanel === 'noteDetails' && contentType === 'note' && currentNote && (
+      {state.activePanel === 'noteDetails' && contentType === 'note' && (currentNote || requestedNoteId) && (
         <PanelErrorBoundary>
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
-              <NoteDetailsPanel 
-                noteId={currentNote.id} 
-                noteTitle={currentNote.title || "Note Details"}
+              <NoteDetailsPanel
+                noteId={currentNote?.id ?? requestedNoteId ?? ''}
+                noteTitle={currentNote?.title ?? 'Note Details'}
                 threads={[]}
                 comments={[]}
                 tags={[]}
