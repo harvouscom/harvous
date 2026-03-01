@@ -178,52 +178,55 @@ export async function getAllThreadsWithCounts(userId: string) {
 
 export async function getSpacesWithCounts(userId: string) {
   try {
-    const spacesWithThreadCounts = await db.select({
-      id: Spaces.id, title: Spaces.title, description: Spaces.description,
-      color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
-      isPublic: Spaces.isPublic, isActive: Spaces.isActive,
-      createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
-      lastVisited: Spaces.lastVisited,
-      threadCount: count(Threads.id),
-    })
-    .from(Spaces)
-    .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
-    .where(eq(Spaces.userId, userId))
-    .groupBy(Spaces.id)
-    .orderBy(
-      desc(Spaces.isActive),
-      asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-      desc(Spaces.lastVisited),
-      desc(Spaces.updatedAt),
-      desc(Spaces.createdAt)
-    )
-    .all();
+    // Run all three independent count queries in parallel
+    const [spacesWithThreadCounts, standaloneNoteCounts, totalNoteCounts] = await Promise.all([
+      db.select({
+        id: Spaces.id, title: Spaces.title, description: Spaces.description,
+        color: Spaces.color, backgroundGradient: Spaces.backgroundGradient,
+        isPublic: Spaces.isPublic, isActive: Spaces.isActive,
+        createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
+        lastVisited: Spaces.lastVisited,
+        threadCount: count(Threads.id),
+      })
+      .from(Spaces)
+      .leftJoin(Threads, eq(Spaces.id, Threads.spaceId))
+      .where(eq(Spaces.userId, userId))
+      .groupBy(Spaces.id)
+      .orderBy(
+        desc(Spaces.isActive),
+        asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Spaces.lastVisited),
+        desc(Spaces.updatedAt),
+        desc(Spaces.createdAt)
+      )
+      .all(),
 
-    const standaloneNoteCounts = await db.select({
-      spaceId: Notes.spaceId,
-      standaloneNoteCount: count(Notes.id),
-    })
-    .from(Notes)
-    .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-    .where(and(
-      eq(Notes.userId, userId),
-      isNull(NoteThreads.id),
-      isNotNull(Notes.spaceId)
-    ))
-    .groupBy(Notes.spaceId)
-    .all();
+      db.select({
+        spaceId: Notes.spaceId,
+        standaloneNoteCount: count(Notes.id),
+      })
+      .from(Notes)
+      .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(
+        eq(Notes.userId, userId),
+        isNull(NoteThreads.id),
+        isNotNull(Notes.spaceId)
+      ))
+      .groupBy(Notes.spaceId)
+      .all(),
 
-    const totalNoteCounts = await db.select({
-      spaceId: Notes.spaceId,
-      totalNoteCount: count(Notes.id),
-    })
-    .from(Notes)
-    .where(and(
-      eq(Notes.userId, userId),
-      isNotNull(Notes.spaceId)
-    ))
-    .groupBy(Notes.spaceId)
-    .all();
+      db.select({
+        spaceId: Notes.spaceId,
+        totalNoteCount: count(Notes.id),
+      })
+      .from(Notes)
+      .where(and(
+        eq(Notes.userId, userId),
+        isNotNull(Notes.spaceId)
+      ))
+      .groupBy(Notes.spaceId)
+      .all(),
+    ]);
 
     const standaloneCountMap = new Map(standaloneNoteCounts.map(item => [item.spaceId, item.standaloneNoteCount]));
     const totalCountMap = new Map(totalNoteCounts.map(item => [item.spaceId, item.totalNoteCount]));
@@ -248,33 +251,26 @@ export async function getSpacesWithCounts(userId: string) {
 
 export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number }>> {
   try {
-    const memberships = await db
-      .select({ spaceId: Members.spaceId })
-      .from(Members)
-      .where(eq(Members.userId, userId))
-      .all();
-
-    const ownedSpaceIds = await db
-      .select({ id: Spaces.id })
-      .from(Spaces)
-      .where(eq(Spaces.userId, userId))
-      .all();
+    const [memberships, ownedSpaceIds] = await Promise.all([
+      db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, userId)).all(),
+      db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all(),
+    ]);
     const ownedSet = new Set(ownedSpaceIds.map((r) => r.id));
 
-    const memberOf: Array<{ id: string; title: string | null; color: string | null; memberCount: number }> = [];
-    for (const m of memberships) {
-      if (ownedSet.has(m.spaceId)) continue;
-      const spaceRow = await db
-        .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-        .from(Spaces)
-        .where(eq(Spaces.id, m.spaceId))
-        .get();
-      if (spaceRow) {
+    const nonOwnedMemberships = memberships.filter(m => !ownedSet.has(m.spaceId));
+    const results = await Promise.all(
+      nonOwnedMemberships.map(async (m) => {
+        const spaceRow = await db
+          .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
+          .from(Spaces)
+          .where(eq(Spaces.id, m.spaceId))
+          .get();
+        if (!spaceRow) return null;
         const memberCount = await getSpaceMemberCount(spaceRow.id);
-        memberOf.push({ id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount });
-      }
-    }
-    return memberOf;
+        return { id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount };
+      })
+    );
+    return results.filter((r): r is NonNullable<typeof r> => r !== null);
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];
@@ -528,25 +524,29 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
-    // Fetch ResourceMetadata for resource notes
+    // Fetch resource metadata and thread colors in parallel (independent queries)
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
-    let resourceMetadataMap: Record<string, any> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc: any, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_) { /* continue without resource metadata */ }
-    }
-
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+
+    const [resourceMetadataMap, threadColorsMap] = await Promise.all([
+      // Resource metadata
+      (async () => {
+        if (resourceNoteIds.length === 0) return {} as Record<string, any>;
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc: any, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {} as Record<string, any>);
+        } catch (_) { return {} as Record<string, any>; }
+      })(),
+      // Thread colors
+      getThreadColorsForNotesBatch(noteIds, userId),
+    ]);
 
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
@@ -593,23 +593,25 @@ export async function getNotesForThreadForMember(
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
-    let resourceMetadataMap: Record<string, any> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc: any, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_) { /* continue without resource metadata */ }
-    }
-
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
+
+    const [resourceMetadataMap, threadColorsMap] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {} as Record<string, any>;
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc: any, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {} as Record<string, any>);
+        } catch (_) { return {} as Record<string, any>; }
+      })(),
+      getThreadColorsForNotesBatch(noteIds, ownerUserId),
+    ]);
 
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;

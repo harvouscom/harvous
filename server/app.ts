@@ -40,6 +40,16 @@ const app = new Hono();
 app.use('/api/*', cors());
 app.use('/api/*', clerkAuth);
 
+// Default cache headers for GET responses — individual endpoints can override
+// by setting Cache-Control before returning. This avoids redundant refetches
+// for endpoints that return user-specific data unlikely to change within seconds.
+app.use('/api/*', async (c, next) => {
+  await next();
+  if (c.req.method === 'GET' && !c.res.headers.has('Cache-Control')) {
+    c.res.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+  }
+});
+
 // Register routes
 app.route('/', health);
 app.route('/', navigation);

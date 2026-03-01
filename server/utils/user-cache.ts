@@ -5,7 +5,7 @@
  * Dates stored as ISO text strings.
  */
 
-import { db, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and } from '../db';
+import { db, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and, inArray } from '../db';
 import { nowISO } from '../db/dates';
 import { generateReferralCode } from './referral-code';
 import { getCurrentSeason } from '@/utils/season-helpers';
@@ -164,28 +164,32 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
           )
         );
 
-      for (const inboxItem of allUserInboxItems) {
-        if (!inboxItem.webflowItemId) continue;
-
-        const existing = await db
-          .select()
+      const validItems = allUserInboxItems.filter(item => item.webflowItemId);
+      if (validItems.length > 0) {
+        // Batch check existing assignments in one query
+        const existingAssignments = await db
+          .select({ inboxItemId: UserInboxItems.inboxItemId })
           .from(UserInboxItems)
           .where(
             and(
               eq(UserInboxItems.userId, userId),
-              eq(UserInboxItems.inboxItemId, inboxItem.id)
+              inArray(UserInboxItems.inboxItemId, validItems.map(i => i.id))
             )
-          )
-          .get();
+          );
+        const existingIds = new Set(existingAssignments.map(e => e.inboxItemId));
 
-        if (!existing) {
-          await db.insert(UserInboxItems).values({
-            id: `user_inbox_${userId}_${inboxItem.id}_${Date.now()}`,
+        const newItems = validItems
+          .filter(item => !existingIds.has(item.id))
+          .map((item, idx) => ({
+            id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
             userId: userId,
-            inboxItemId: inboxItem.id,
-            status: 'inbox',
+            inboxItemId: item.id,
+            status: 'inbox' as const,
             createdAt: nowISO(),
-          });
+          }));
+
+        if (newItems.length > 0) {
+          await db.insert(UserInboxItems).values(newItems);
         }
       }
     } catch (error) {
@@ -220,45 +224,49 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
           lastVisited: ts,
         });
 
-        let currentSimpleNoteId = 1;
-        for (const noteData of onboardingNotes) {
+        // Prepare all note and junction records upfront for batch insertion
+        const noteRecords = onboardingNotes.map((noteData, idx) => {
           const noteId = generateNoteId();
-          const capitalizedNoteTitle = noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1);
-
-          await db.insert(Notes).values({
+          return {
             id: noteId,
-            title: capitalizedNoteTitle,
+            title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
             content: noteData.content,
             threadId: onboardingThreadId,
             spaceId: null,
-            simpleNoteId: currentSimpleNoteId,
+            simpleNoteId: idx + 1,
             userId: userId,
             isPublic: false,
-            addedBy: 'system',
+            addedBy: 'system' as const,
             createdAt: ts,
             lastVisited: ts,
-          });
+          };
+        });
 
-          const junctionId = `note-thread-${noteId}-${Date.now()}`;
-          await db.insert(NoteThreads).values({
-            id: junctionId,
-            noteId: noteId,
-            threadId: onboardingThreadId,
-            createdAt: nowISO()
-          });
+        const junctionRecords = noteRecords.map(note => ({
+          id: `note-thread-${note.id}-${Date.now()}`,
+          noteId: note.id,
+          threadId: onboardingThreadId,
+          createdAt: nowISO(),
+        }));
 
-          try {
-            await processScriptureReferences(noteId, userId, onboardingThreadId, noteData.content);
-          } catch (e) {
-            console.error('Error processing scripture for onboarding note', noteId, e);
-          }
+        // Batch insert notes and junctions
+        await db.insert(Notes).values(noteRecords);
+        await db.insert(NoteThreads).values(junctionRecords);
 
-          currentSimpleNoteId++;
-        }
+        // Process scripture references in parallel (notes already exist in DB)
+        await Promise.all(
+          noteRecords.map(async (note, idx) => {
+            try {
+              await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
+            } catch (e) {
+              console.error('Error processing scripture for onboarding note', note.id, e);
+            }
+          })
+        );
 
         await db.update(UserMetadata)
           .set({
-            highestSimpleNoteId: currentSimpleNoteId - 1,
+            highestSimpleNoteId: onboardingNotes.length,
             updatedAt: nowISO()
           })
           .where(eq(UserMetadata.userId, userId));

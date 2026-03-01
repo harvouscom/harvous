@@ -745,26 +745,23 @@ export async function convertScriptureReferencesToPills(
     
     // If no results, remove all pending pills (they weren't validated)
     if (!scriptureResults || scriptureResults.length === 0) {
-      // Remove all pending pills
       const pendingPills: Array<{from: number, to: number}> = [];
-      
+
       doc.descendants((node: any, pos: number) => {
         if (node.marks) {
           const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill');
           if (pillMark && pillMark.attrs.noteId === 'pending') {
-            pendingPills.push({
-              from: pos,
-              to: pos + node.nodeSize
-            });
+            pendingPills.push({ from: pos, to: pos + node.nodeSize });
           }
         }
       });
-      
-      // Remove invalid pending pills
-      for (let i = pendingPills.length - 1; i >= 0; i--) {
-        const pill = pendingPills[i];
+
+      // Batch all removals into a single transaction (one view update)
+      if (pendingPills.length > 0) {
         const tr = editor.state.tr;
-        tr.removeMark(pill.from, pill.to, editor.state.schema.marks.scripturePill);
+        for (let i = pendingPills.length - 1; i >= 0; i--) {
+          tr.removeMark(pendingPills[i].from, pendingPills[i].to, editor.state.schema.marks.scripturePill);
+        }
         editor.view.dispatch(tr);
       }
       return;
@@ -792,162 +789,101 @@ export async function convertScriptureReferencesToPills(
       }
     });
     
-    // Remove invalid pending pills
-    for (let i = pendingPillsToRemove.length - 1; i >= 0; i--) {
-      const pill = pendingPillsToRemove[i];
+    // Batch remove invalid pending pills in a single transaction
+    if (pendingPillsToRemove.length > 0) {
       const tr = editor.state.tr;
-      tr.removeMark(pill.from, pill.to, editor.state.schema.marks.scripturePill);
+      for (let i = pendingPillsToRemove.length - 1; i >= 0; i--) {
+        tr.removeMark(pendingPillsToRemove[i].from, pendingPillsToRemove[i].to, editor.state.schema.marks.scripturePill);
+      }
       editor.view.dispatch(tr);
     }
     
-    // Step 2: Update pending pills with real noteIds or create new pills
+    // Step 2: Collect all mark operations, then apply in a single transaction
+    // This avoids dispatching per-pill (each dispatch triggers a full view update).
+    type MarkOp = { from: number; to: number; normalizedRef: string; noteId: string };
+    const markOps: MarkOp[] = [];
+
     for (const result of scriptureResults) {
       const { reference, noteId } = result;
-      if (!reference || !noteId) {
-        continue;
-      }
+      if (!reference || !noteId) continue;
 
       const normalizedRef = normalizeScriptureReference(reference);
-      
-      // Find all positions of this reference in the document (don't skip marked - we need to update pending ones)
       const positions = findAllTextPositions(doc, reference, false);
-      
-      if (positions.length === 0) {
-        continue;
-      }
-      
-      // Convert each occurrence to a scripture pill
+      if (positions.length === 0) continue;
+
       for (let i = positions.length - 1; i >= 0; i--) {
         const pos = positions[i];
-        
-        // Check if this position already has a scripture pill mark
+
         try {
           const $from = doc.resolve(pos.from);
           const marks = $from.marks();
           const pillMark = marks.find((m: any) => m.type.name === 'scripturePill');
-          
+
           if (pillMark) {
-            // Already has a pill - check if it's pending and needs updating
             if (pillMark.attrs.noteId === 'pending') {
-              // Update pending pill with real noteId
-              const tr = editor.state.tr;
-              tr.removeMark(pos.from, pos.to, editor.state.schema.marks.scripturePill);
-              tr.addMark(pos.from, pos.to, editor.state.schema.marks.scripturePill.create({
-                reference: normalizedRef,
-                noteId: noteId
-              }));
-              editor.view.dispatch(tr);
+              markOps.push({ from: pos.from, to: pos.to, normalizedRef, noteId });
             }
-            // If it already has a real noteId, skip it
             continue;
           }
-          
-          // Validate that the position doesn't span across paragraph boundaries
-          // This prevents line breaks from being lost when scripture pills are created
-          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) {
-            // Skip this position if it spans across paragraphs
-            // This ensures paragraph breaks are preserved
-            continue;
-          }
-          
-          // Adjust position to ensure it doesn't extend beyond paragraph boundaries
-          // This prevents marks from affecting paragraph breaks
+
+          if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
+
           const adjustedPos = adjustPositionForParagraphBoundary(doc, pos.from, pos.to);
-          
-          // Validate again after adjustment
-          if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) {
-            continue;
-          }
-          
-          // CRITICAL: Verify the text at this position actually matches the reference
-          // This ensures we're not applying marks to text that spans paragraphs
-          // Also ensure we don't include trailing whitespace/newlines in the mark
+          if (!isWithinSingleParagraph(doc, adjustedPos.from, adjustedPos.to)) continue;
+
+          // Verify text matches and trim trailing whitespace
           try {
             let textAtPosition = doc.textBetween(adjustedPos.from, adjustedPos.to);
-            // Remove trailing whitespace/newlines from the text before matching
-            // This ensures marks don't consume line breaks
             const trimmedText = textAtPosition.trimEnd();
-            const normalizedPositionText = normalizeScriptureReference(trimmedText);
-            const normalizedSearchRef = normalizeScriptureReference(reference);
-            
-            // If the text doesn't match (might include paragraph breaks), skip it
-            if (normalizedPositionText !== normalizedSearchRef) {
-              continue;
-            }
-            
-            // If there's trailing whitespace/newline, adjust the 'to' position to exclude it
-            // This prevents the mark from consuming the line break
+            if (normalizeScriptureReference(trimmedText) !== normalizeScriptureReference(reference)) continue;
+
             if (textAtPosition !== trimmedText) {
-              const trailingWhitespaceLength = textAtPosition.length - trimmedText.length;
-              adjustedPos.to = adjustedPos.to - trailingWhitespaceLength;
-              // Validate the adjusted position is still valid
-              if (adjustedPos.to <= adjustedPos.from) {
-                continue;
-              }
+              adjustedPos.to -= (textAtPosition.length - trimmedText.length);
+              if (adjustedPos.to <= adjustedPos.from) continue;
             }
-          } catch (e) {
-            // If we can't verify, skip to be safe
-            continue;
-          }
-          
-          // CRITICAL: Check if there's content after the mark in the same paragraph
-          // If the mark ends at the end of the paragraph, skip it to prevent affecting paragraph breaks
-          // But allow marks that end before hard breaks (<br>) - these should be preserved
+          } catch (e) { continue; }
+
+          // Check paragraph end boundary
           try {
             const $to = doc.resolve(adjustedPos.to);
             const paragraphStart = $to.start($to.depth);
             const paragraphEnd = paragraphStart + $to.node($to.depth).nodeSize;
-            
-            // Check if there's any content after the mark in this paragraph
-            if (adjustedPos.to >= paragraphEnd - 1) {
-              // Mark ends at or very close to paragraph end - skip it
-              continue;
-            }
-            
-            // Check if there's a line break (hard break or newline) right after the mark (these should be preserved)
-            if (hasLineBreakAfter(doc, adjustedPos.to, paragraphEnd)) {
-              // There's a line break after the mark - this is fine, allow it
-              // The line break will be preserved
-            } else {
-              // Check if there's actual text content after the mark
+
+            if (adjustedPos.to >= paragraphEnd - 1) continue;
+
+            if (!hasLineBreakAfter(doc, adjustedPos.to, paragraphEnd)) {
               const textAfterMark = doc.textBetween(adjustedPos.to, Math.min(adjustedPos.to + 10, paragraphEnd - 1));
-              // If there's no text after the mark (or only whitespace), and we're near the paragraph end, skip
-              if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) {
-                continue;
-              }
+              if (!textAfterMark.trim() && adjustedPos.to >= paragraphEnd - 5) continue;
             }
-          } catch (e) {
-            // If we can't check, skip to be safe
-            continue;
-          }
-          
-          // Apply scripture pill mark using transaction API directly to avoid selection issues
-          try {
-            const tr = editor.state.tr;
-            const markType = editor.state.schema.marks.scripturePill;
-            if (markType) {
-              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
-              // Remove noteLink mark if present
-              const noteLinkMark = editor.state.schema.marks.noteLink;
-              if (noteLinkMark) {
-                tr.removeMark(adjustedPos.from, adjustedPos.to, noteLinkMark);
-              }
-              editor.view.dispatch(tr);
-            }
-          } catch (e) {
-            // If transaction fails, fall back to chain API
-            editor.chain()
-              .setTextSelection(adjustedPos)
-              .unsetMark('noteLink')
-              .setMark('scripturePill', { reference: normalizedRef, noteId })
-              .run();
-          }
+          } catch (e) { continue; }
+
+          markOps.push({ from: adjustedPos.from, to: adjustedPos.to, normalizedRef, noteId });
         } catch (e) {
-          console.error('Error converting position to pill:', e);
-          // Skip if we can't resolve the position
           continue;
         }
+      }
+    }
+
+    // Apply all mark operations in a single transaction (one view update)
+    if (markOps.length > 0) {
+      try {
+        const tr = editor.state.tr;
+        const markType = editor.state.schema.marks.scripturePill;
+        const noteLinkMark = editor.state.schema.marks.noteLink;
+        if (markType) {
+          // Sort by position descending so earlier operations don't shift later positions
+          markOps.sort((a, b) => b.from - a.from);
+          for (const op of markOps) {
+            tr.removeMark(op.from, op.to, markType);
+            tr.addMark(op.from, op.to, markType.create({ reference: op.normalizedRef, noteId: op.noteId }));
+            if (noteLinkMark) {
+              tr.removeMark(op.from, op.to, noteLinkMark);
+            }
+          }
+          editor.view.dispatch(tr);
+        }
+      } catch (e) {
+        console.error('Error batching scripture pill marks:', e);
       }
     }
   } catch (error) {
@@ -2380,25 +2316,27 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
 
       // Auto-capitalize first letter (post-input transformation)
-      // This replaces the keydown-based approach which caused double letters on mobile keyboards
+      // Only run when the cursor is near the start of the document to avoid
+      // traversing doc.firstChild on every keystroke throughout the document.
       try {
-        const doc = editor.state.doc;
-        const firstChild = doc.firstChild;
-        if (firstChild && firstChild.isTextblock && firstChild.textContent.length >= 1) {
-          const firstChar = firstChild.textContent[0];
-          // Only transform if first character is lowercase letter
-          if (/^[a-z]$/.test(firstChar)) {
-            // Get the position of the first character (position 1 in the document)
-            const from = 1;
-            const to = 2;
-            // Replace with uppercase version
-            editor.commands.command(({ tr, dispatch }) => {
-              if (dispatch) {
-                tr.replaceWith(from, to, editor.state.schema.text(firstChar.toUpperCase()));
-                dispatch(tr);
-              }
-              return true;
-            });
+        const { from: cursorPos } = editor.state.selection;
+        // Only check when cursor is within the first 3 positions (typing at start)
+        if (cursorPos <= 3) {
+          const doc = editor.state.doc;
+          const firstChild = doc.firstChild;
+          if (firstChild && firstChild.isTextblock && firstChild.textContent.length >= 1) {
+            const firstChar = firstChild.textContent[0];
+            if (/^[a-z]$/.test(firstChar)) {
+              const from = 1;
+              const to = 2;
+              editor.commands.command(({ tr, dispatch }) => {
+                if (dispatch) {
+                  tr.replaceWith(from, to, editor.state.schema.text(firstChar.toUpperCase()));
+                  dispatch(tr);
+                }
+                return true;
+              });
+            }
           }
         }
       } catch (e) {
@@ -2414,7 +2352,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (mobileScriptureDetectionTimer.current) {
           clearTimeout(mobileScriptureDetectionTimer.current);
         }
-        // Short delay (50ms) to let the DOM settle after input
+        // Debounce to avoid running regex on every keystroke
         mobileScriptureDetectionTimer.current = setTimeout(() => {
           if (!editor || editor.isDestroyed) return;
           try {
@@ -2440,29 +2378,32 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           } catch (e) {
             // Silently ignore errors
           }
-        }, 50);
+        }, 250);
       }
 
       // Scroll cursor into view when content changes
-      // Ensures the cursor stays visible above the toolbar/footer
-      try {
-        const view = editor.view;
-        const { from } = editor.state.selection;
-        const coords = view.coordsAtPos(from);
-        if (coords) {
-          const editorDom = view.dom;
-          const scrollContainer = editorDom.closest('.tiptap-content') || editorDom.closest('.card-stack__inner');
-          if (scrollContainer) {
-            const scrollRect = scrollContainer.getBoundingClientRect();
-            // If cursor is below the visible area (with 80px buffer for footer)
-            if (coords.bottom > scrollRect.bottom - 80) {
-              scrollContainer.scrollTop += (coords.bottom - scrollRect.bottom + 100);
+      // Use rAF to batch with the browser's next paint instead of forcing layout synchronously
+      requestAnimationFrame(() => {
+        try {
+          const view = editor.view;
+          if (!view || editor.isDestroyed) return;
+          const { from } = editor.state.selection;
+          const coords = view.coordsAtPos(from);
+          if (coords) {
+            const editorDom = view.dom;
+            const scrollContainer = editorDom.closest('.tiptap-content') || editorDom.closest('.card-stack__inner');
+            if (scrollContainer) {
+              const scrollRect = scrollContainer.getBoundingClientRect();
+              // If cursor is below the visible area (with 80px buffer for footer)
+              if (coords.bottom > scrollRect.bottom - 80) {
+                scrollContainer.scrollTop += (coords.bottom - scrollRect.bottom + 100);
+              }
             }
           }
+        } catch (e) {
+          // Silently ignore scroll errors
         }
-      } catch (e) {
-        // Silently ignore scroll errors
-      }
+      });
     },
     editable: true,
     editorProps: {
@@ -2964,53 +2905,15 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   // Store editor reference on DOM for fallback event injection (backup method)
   useEffect(() => {
     if (!editor || !editor.view || !editor.view.dom) return;
-    
+
     const dom = editor.view.dom as HTMLElement;
     const editorId = dom.id;
-    
+
     // Only store for new-note-content editor
     if (editorId !== 'new-note-content') return;
-    
+
     // Store editor reference on DOM element so fallback can access it
     (dom as any).__tiptapEditor = editor;
-    
-    
-    // Also verify the reference can be accessed - check multiple times to catch DOM replacement
-    const verifyRef = () => {
-      if (!editor || editor.isDestroyed) return;
-      if (!editor.view || !editor.view.dom) return;
-      
-      const currentDom = editor.view.dom as HTMLElement;
-      const storedEditor = (currentDom as any).__tiptapEditor;
-      
-      if (storedEditor !== editor) {
-        // Re-store if mismatch
-        (currentDom as any).__tiptapEditor = editor;
-      }
-    };
-    
-    // Verify multiple times to catch any DOM replacement
-    const verifyTimeout1 = setTimeout(verifyRef, 100);
-    const verifyTimeout2 = setTimeout(verifyRef, 500);
-    const verifyTimeout3 = setTimeout(verifyRef, 1000);
-    
-    // Also set up a MutationObserver to watch for DOM changes
-    const observer = new MutationObserver(() => {
-      verifyRef();
-    });
-    
-    if (dom.parentNode) {
-      observer.observe(dom.parentNode, { childList: true, subtree: true });
-    }
-    
-    return () => {
-      clearTimeout(verifyTimeout1);
-      clearTimeout(verifyTimeout2);
-      clearTimeout(verifyTimeout3);
-      observer.disconnect();
-      // Don't delete on cleanup - let it persist for fallback access
-      // delete (dom as any).__tiptapEditor;
-    };
   }, [editor, id]);
 
   // Update content from props, but only if it's different and editor is not focused
@@ -3060,48 +2963,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     }
   }, [editor, content]);
 
-  // Add comprehensive event listeners at multiple levels to trace event propagation
-  useEffect(() => {
-    if (!editor || !editor.view || !editor.view.dom) return;
-    
-    const dom = editor.view.dom as HTMLElement;
-    const editorId = dom.id;
-    
-    // Only add listener for new-note-content editor
-    if (editorId !== 'new-note-content') return;
-    
-    const contentEditable = dom.querySelector('[contenteditable="true"]') as HTMLElement;
-    
-    // Direct DOM event listeners removed - no longer needed for debugging
-    const handleKeyDownCapture = () => {};
-    const handleKeyDownBubble = () => {};
-    const handleKeyPress = () => {};
-    const handleInput = () => {};
-    
-    // Add listeners with both capture and bubble phases
-    dom.addEventListener('keydown', handleKeyDownCapture, true); // Capture
-    dom.addEventListener('keydown', handleKeyDownBubble, false); // Bubble
-    
-    if (contentEditable) {
-      contentEditable.addEventListener('keydown', handleKeyDownCapture, true);
-      contentEditable.addEventListener('keydown', handleKeyDownBubble, false);
-    }
-    
-    dom.addEventListener('keypress', handleKeyPress, true);
-    dom.addEventListener('input', handleInput, true);
-    
-    return () => {
-      dom.removeEventListener('keydown', handleKeyDownCapture, true);
-      dom.removeEventListener('keydown', handleKeyDownBubble, false);
-      if (contentEditable) {
-        contentEditable.removeEventListener('keydown', handleKeyDownCapture, true);
-        contentEditable.removeEventListener('keydown', handleKeyDownBubble, false);
-      }
-      dom.removeEventListener('keypress', handleKeyPress, true);
-      dom.removeEventListener('input', handleInput, true);
-    };
-  }, [editor, id]);
-  
   // Ensure editor is focused and editable
   useEffect(() => {
     if (editor) {
