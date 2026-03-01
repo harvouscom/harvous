@@ -95,7 +95,7 @@ export async function generateAutoTags(
       return suggestion;
     });
     enhancedSuggestions.sort((a, b) => b.confidence - a.confidence);
-    const topSuggestions = enhancedSuggestions.slice(0, 8);
+    const topSuggestions = enhancedSuggestions.slice(0, 12);
     return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
   } catch (error: unknown) {
     console.error('Error generating auto tags:', error instanceof Error ? error.message : String(error));

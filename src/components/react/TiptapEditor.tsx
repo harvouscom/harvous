@@ -2900,14 +2900,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
             }
             
-            // Handle Backspace/Delete - only allow if entire pill is selected
+            // Handle Backspace/Delete - remove entire pill when cursor inside (avoid partial-pill state)
             if (event.key === 'Backspace' || event.key === 'Delete') {
-              if (!isEntirePillSelected(view.state.doc, from, to)) {
-                // Prevent partial deletion - move cursor to end of pill
+              if (!isEntirePillSelected(view.state.doc, from, to) && boundaries) {
                 event.preventDefault();
                 editor.chain()
+                  .setTextSelection({ from: boundaries.start, to: boundaries.end })
+                  .unsetMark('scripturePill')
                   .setTextSelection(boundaries.end)
-                  .unsetAllMarks()
                   .run();
                 return true;
               }

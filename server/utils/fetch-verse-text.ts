@@ -85,7 +85,9 @@ export async function fetchVerseText(reference: string): Promise<string> {
       const verseArrays = await Promise.all(versePromises);
       verses = verseArrays.flat();
     } else {
-      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(cleanReference)}&formatting=plain&type=json`;
+      // Use normalized key so chapter-only refs (e.g. "John 16") become "John 16:1-33" for the API
+      const passage = normalizedKey;
+      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&formatting=plain&type=json`;
       const response = await fetchWithTimeout(apiUrl, { timeout: 10000, retries: 2, retryTimeout: 5000 });
       if (!response.ok) throw new Error(`Bible.org API error: ${response.status}`);
       verses = await response.json();

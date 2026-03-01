@@ -1167,11 +1167,12 @@ export default function CardFullEditable({
     const effectiveContent = displayContent || resourceDescription || '';
 
     return (
-      <div 
+      <div
         ref={cardRootRef}
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%' }}
         data-card-full-editable
+        {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
       >
         <div className="card-image-link" style={{ gap: '1rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Full-width image at top */}
@@ -1416,11 +1417,12 @@ export default function CardFullEditable({
           hideButton={true}
         />
       )}
-      <div 
+      <div
         ref={cardRootRef}
         className={`card-full-editable ${className}`}
         style={{ maxHeight: '100%', gap: 0, display: 'flex', flexDirection: 'column' }}
         data-card-full-editable
+        {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
       >
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="box-border content-stretch flex gap-3 items-start px-3 py-0 relative shrink-0 w-full">

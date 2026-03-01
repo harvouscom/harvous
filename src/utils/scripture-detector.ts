@@ -305,7 +305,18 @@ const parseReference = (match: string): ScriptureReference | null => {
             });
           }
         } else if (matchResult.length === 3) {
-          // Chapter only
+          // Chapter only: treat as full chapter (e.g. "John 16" → "John 16:1-33")
+          const range = getChapterVerseRange(canonicalBook, chapter);
+          if (range) {
+            const fullChapterRef = normalizeChapterReference(canonicalBook, chapter);
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter,
+              verse: [range.start, range.end] as [number, number],
+              reference: fullChapterRef!
+            });
+          }
+          // Fallback if chapter unknown
           return validateAndWarn({
             book: canonicalBook,
             chapter,

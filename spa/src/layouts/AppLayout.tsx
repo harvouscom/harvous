@@ -446,6 +446,22 @@ export default function AppLayout() {
     }
   }, [exiting]);
 
+  // Force reflow when dock becomes visible on mobile so margin/padding apply (fixes action bar partially hidden under note content)
+  const prevShowDockRef = useRef(showDock);
+  useEffect(() => {
+    if (showDock && !prevShowDockRef.current && typeof window !== 'undefined') {
+      const isMobile = window.matchMedia('(max-width: 1159px)').matches;
+      if (isMobile) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            void document.body.offsetHeight;
+          });
+        });
+      }
+    }
+    prevShowDockRef.current = showDock;
+  }, [showDock]);
+
   if (!isLoaded) {
     return (
       <div className="app-loading">

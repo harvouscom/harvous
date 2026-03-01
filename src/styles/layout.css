@@ -144,6 +144,14 @@
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: 0;
   }
+  /* Reserve space so scroll content never extends under the action strip dock */
+  .mobile-main--with-dock .main-column__scroll {
+    padding-bottom: 5rem;
+  }
+  /* Edit mode: ensure Tiptap editor content can scroll above the dock when it is still visible (e.g. before hide animation completes) */
+  .mobile-main--with-dock .card-full-editable[data-editing="true"] .tiptap-content {
+    padding-bottom: 5rem;
+  }
 }
 
 /* PWA standalone: 12px + safe area when dock present; top stays 0 (set by rule above). */

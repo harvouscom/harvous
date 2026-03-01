@@ -200,23 +200,26 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
       return { start: pillStart, end: pillEnd };
     };
 
-    return {
-      'Backspace': ({ editor }) => {
-        const { state } = editor;
-        const { selection } = state;
-        const { $from, from, to } = selection;
-        
-        const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
-        
-        if (scripturePillMark && from === to) {
-          const boundaries = findPillBoundaries(state.doc, from);
-          if (boundaries) {
-            editor.chain().setTextSelection({ from: boundaries.start, to: boundaries.end }).unsetMark('scripturePill').run();
-            return true;
-          }
+    const removePillWhenInside = ({ editor }: { editor: any }) => {
+      const { state } = editor;
+      const { selection } = state;
+      const { $from, from, to } = selection;
+
+      const scripturePillMark = $from.marks().find((mark: any) => mark.type.name === 'scripturePill');
+
+      if (scripturePillMark && from === to) {
+        const boundaries = findPillBoundaries(state.doc, from);
+        if (boundaries) {
+          editor.chain().setTextSelection({ from: boundaries.start, to: boundaries.end }).unsetMark('scripturePill').run();
+          return true;
         }
-        return false;
-      },
+      }
+      return false;
+    };
+
+    return {
+      'Backspace': removePillWhenInside,
+      'Delete': removePillWhenInside,
     };
   },
 
