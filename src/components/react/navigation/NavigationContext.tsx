@@ -1298,79 +1298,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Track current page access
     trackNavigationAccess();
 
-    // Seed navigation history from API when empty (e.g. first load in production, new device).
-    // Ensures mobile dropdown shows threads/spaces even before user has navigated to them.
-    // In production Clerk may not be ready on first mount, so retry after short delays.
-    const seedFromApiWhenEmpty = async () => {
-      try {
-        if (typeof window === 'undefined' || !navigator.onLine) return;
-        const rawHistory = getRawNavigationHistory();
-        const hasThreads = rawHistory.some((item: any) => item?.id?.startsWith('thread_'));
-        if (hasThreads) return;
-        if (!isAuthReady()) return;
-
-        const response = await safeFetch('/api/navigation/data');
-        if (!response?.ok) return;
-        const data = await response.json();
-        const threadsFromApi = data.threads ?? [];
-        const spacesFromApi = data.spaces ?? [];
-        const existingIds = new Set(rawHistory.map((item: any) => item.id));
-
-        // When seeding from API (empty history), only add a minimal "recent" thread set,
-        // not all threads, so nav reflects "last opened" instead of "all available."
-        const MAX_RECENT_THREADS_TO_SEED = 2;
-        let recentThreadsAdded = 0;
-
-        const now = Date.now();
-        const newItems: any[] = [];
-
-        for (const s of spacesFromApi) {
-          if (!s?.id || existingIds.has(s.id)) continue;
-          existingIds.add(s.id);
-          newItems.push({
-            id: s.id,
-            title: s.title || 'Space',
-            backgroundGradient: s.backgroundGradient || 'var(--color-paper)',
-            count: s.totalItemCount ?? s.itemCount ?? 0,
-            firstAccessed: now,
-            lastAccessed: now,
-          });
-        }
-        for (const t of threadsFromApi) {
-          if (!t?.id || existingIds.has(t.id)) continue;
-          // Always seed Unorganized; for other threads, only seed up to MAX_RECENT_THREADS_TO_SEED
-          if (t.id !== 'thread_unorganized' && recentThreadsAdded >= MAX_RECENT_THREADS_TO_SEED) continue;
-          existingIds.add(t.id);
-          if (t.id !== 'thread_unorganized') recentThreadsAdded += 1;
-          const spaceId = t.spaceId ?? null;
-          newItems.push({
-            id: t.id,
-            title: t.title || 'Thread',
-            count: t.noteCount ?? 0,
-            backgroundGradient: t.backgroundGradient || 'var(--color-gradient-gray)',
-            spaceId,
-            openedInSpaceIds: spaceId != null ? [spaceId] : [null],
-            openedInSpaceId: spaceId,
-            firstAccessed: now,
-            lastAccessed: now,
-          });
-        }
-
-        if (newItems.length === 0) return;
-        const combined = [...rawHistory, ...newItems];
-        const limited = combined.length > 10 ? combined.slice(-10) : combined;
-        saveNavigationHistory(limited);
-        setNavigationHistory(getNavigationHistory());
-        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-      } catch {
-        // non-critical
-      }
-    };
-
-    seedFromApiWhenEmpty();
-    // Retry when auth becomes ready (production: Clerk often loads after first paint)
-    const seedRetry1 = window.setTimeout(seedFromApiWhenEmpty, 1500);
-    const seedRetry2 = window.setTimeout(seedFromApiWhenEmpty, 3500);
+    // We do not seed navigation from API when history is empty. Threads/spaces only appear
+    // in the nav when the user has opened them (trackNavigationAccess adds the current page).
 
     // Backfill thread spaceIds for existing navigation history entries (once per session as needed).
     const backfillThreadSpaceIds = async () => {
