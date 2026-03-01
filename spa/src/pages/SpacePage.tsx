@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
 import { useSpaceBootstrap } from '../hooks/queries/useSpace';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getThreadQueryOptions } from '../hooks/queries/useThread';
-import { getNoteQueryOptions } from '../hooks/queries/useNote';
+import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
@@ -52,6 +52,28 @@ export default function SpacePage() {
   const prefetchNote = (noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   };
+
+  const onNotesLoaded = useCallback(
+    (notes: ListNoteForSeed[]) => {
+      notes.forEach((n) => {
+        const threadId = n.threadId ?? spaceId;
+        seedNoteFromList(queryClient, n, {
+          id: threadId,
+          title: 'Thread',
+          color: null,
+          backgroundGradient: 'var(--color-gradient-gray)',
+        });
+      });
+    },
+    [queryClient, spaceId]
+  );
+
+  // Seed note cache from initial bootstrap items so opening a note shows content immediately
+  useEffect(() => {
+    if (!spaceItems?.length) return;
+    const notes = spaceItems.filter((i: { itemType?: string }) => i.itemType === 'note') as ListNoteForSeed[];
+    if (notes.length) onNotesLoaded(notes);
+  }, [spaceItems, onNotesLoaded]);
 
   const navSpace = nav?.spaces?.find(s => s.id === spaceId) ?? nav?.memberOfSpaces?.find(s => s.id === spaceId);
   const resolvedSpaceTitle = space?.title ?? navSpace?.title ?? 'Space';
@@ -146,6 +168,7 @@ export default function SpacePage() {
           currentUserId={user?.id ?? null}
           parentIsLoading={parentIsLoading}
           onPrefetchNote={prefetchNote}
+          onNotesLoaded={onNotesLoaded}
         />
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />

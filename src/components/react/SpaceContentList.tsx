@@ -54,6 +54,8 @@ interface SpaceContentListProps {
   parentIsLoading?: boolean;
   /** Optional callback to prefetch note details (e.g. on hover) so the note page loads instantly. */
   onPrefetchNote?: (noteId: string) => void;
+  /** Optional callback when notes are loaded from the API; used to seed the note detail cache so opening a note shows content immediately. */
+  onNotesLoaded?: (notes: { id: string; title?: string | null; content?: string | null; [key: string]: any }[]) => void;
 }
 
 // Helper function to strip HTML tags
@@ -83,6 +85,7 @@ export default function SpaceContentList({
   currentUserId = null,
   parentIsLoading = false,
   onPrefetchNote,
+  onNotesLoaded,
 }: SpaceContentListProps) {
   const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
   const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
@@ -383,6 +386,9 @@ export default function SpaceContentList({
 
           if (!isMountedRef.current) return false;
 
+          // Seed note detail cache so opening a note shows content immediately
+          onNotesLoaded?.(notes);
+
           // Combine threads and notes into sorted items with normalized dates
           const allItems: SpaceItem[] = [
             ...threads.map((thread: any) => ({
@@ -562,7 +568,7 @@ export default function SpaceContentList({
       // Verify item exists with retries
       return await verifyAndRefresh(3);
     }
-  }, [spaceId, filter]);
+  }, [spaceId, filter, onNotesLoaded]);
 
   // When filter changes: if parent already provided items (e.g. React Query cache), don't refetch;
   // list filters in render via filteredItems. Only refetch when we have no cached items.

@@ -150,8 +150,8 @@ export default function NotePage() {
     };
   }, [noteId]);
 
-  if (isLoading) {
-    // Skeleton that matches card-full shape so there's no layout jump when note loads
+  if (isLoading && !note) {
+    // Skeleton only when we have no cached data; if we have cached note (e.g. from list seed or prefetch), show it while refetching
     return <div className="card-full h-full flex-1 min-h-0" />;
   }
 

@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
 import { useNavigation } from '../hooks/queries/useNavigation';
-import { getNoteQueryOptions } from '../hooks/queries/useNote';
+import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import ThreadNotesList from '../../../src/components/react/ThreadNotesList';
 import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
@@ -28,6 +28,16 @@ export default function ThreadPage() {
 
   const prefetchNote = (noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
+  };
+
+  const threadContext = {
+    id: threadId,
+    title: isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread'),
+    color: isUnorganized ? 'paper' : (thread?.color ?? navThread?.color ?? 'paper'),
+    backgroundGradient: thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)',
+  };
+  const onNotesLoaded = (notes: ListNoteForSeed[]) => {
+    notes.forEach((n) => seedNoteFromList(queryClient, n, threadContext));
   };
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
@@ -91,6 +101,7 @@ export default function ThreadPage() {
           threadColor={thread?.color ?? undefined}
           noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
           onPrefetchNote={prefetchNote}
+          onNotesLoaded={onNotesLoaded}
         />
       </div>
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}

@@ -1,5 +1,29 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, QueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+
+/** Thread context when seeding note cache from a list (thread/space page). */
+export interface NoteSeedThreadContext {
+  id: string;
+  title: string;
+  color: string | null;
+  backgroundGradient: string;
+}
+
+/** List note shape from GET /api/threads/:id/notes (or similar). */
+export interface ListNoteForSeed {
+  id: string;
+  title?: string | null;
+  content?: string | null;
+  contentEncrypted?: boolean;
+  noteType?: string;
+  threadId?: string;
+  spaceId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  resourceTitle?: string | null;
+  resourceDescription?: string | null;
+  resourceImage?: string | null;
+}
 
 export interface NoteDetail {
   id: string;
@@ -54,6 +78,52 @@ function setCachedNoteParentThread(noteId: string, thread: CachedThread) {
 }
 
 const NOTE_STALE_TIME = 10_000;
+
+/**
+ * Converts a list note (from thread/space notes API) into NoteDetail shape
+ * so it can be used as cached data for the note detail query.
+ */
+export function listNoteToNoteDetail(
+  listNote: ListNoteForSeed,
+  threadContext: NoteSeedThreadContext
+): NoteDetail {
+  const threadId = listNote.threadId ?? threadContext.id;
+  const thread = {
+    id: threadId,
+    title: threadContext.title,
+    color: threadContext.color,
+    backgroundGradient: threadContext.backgroundGradient,
+  };
+  return {
+    id: listNote.id,
+    title: listNote.title ?? null,
+    content: listNote.content ?? null,
+    noteType: listNote.noteType ?? 'default',
+    contentEncrypted: listNote.contentEncrypted ?? false,
+    isPublic: false,
+    createdAt: listNote.createdAt ?? new Date().toISOString(),
+    updatedAt: listNote.updatedAt ?? listNote.createdAt ?? new Date().toISOString(),
+    threads: [thread],
+    tags: [],
+    resourceTitle: listNote.resourceTitle ?? null,
+    resourceDescription: listNote.resourceDescription ?? null,
+    resourceImage: listNote.resourceImage ?? null,
+  };
+}
+
+/**
+ * Seeds the note detail cache from a list response so that opening the note
+ * shows content immediately. Call when thread/space/dashboard notes are loaded.
+ */
+export function seedNoteFromList(
+  queryClient: QueryClient,
+  listNote: ListNoteForSeed,
+  threadContext: NoteSeedThreadContext
+): void {
+  if (!listNote?.id) return;
+  const detail = listNoteToNoteDetail(listNote, threadContext);
+  queryClient.setQueryData(['note', listNote.id], detail);
+}
 
 export function getNoteQueryOptions(noteId: string) {
   return {

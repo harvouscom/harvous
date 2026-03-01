@@ -55,6 +55,8 @@ interface ThreadNotesListProps {
   noteTypeCounts?: NoteTypeCounts;
   /** Optional callback to prefetch note details (e.g. on hover) so the note page loads instantly. */
   onPrefetchNote?: (noteId: string) => void;
+  /** Optional callback when notes are loaded from the API; used to seed the note detail cache so opening a note shows content immediately. */
+  onNotesLoaded?: (notes: Note[]) => void;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -116,6 +118,7 @@ export default function ThreadNotesList({
   noteTypeFilter = 'all',
   noteTypeCounts,
   onPrefetchNote,
+  onNotesLoaded,
 }: ThreadNotesListProps) {
   debug('[ThreadNotesList] Component mounted/rendered', { threadId, noteTypeFilter, initialNotesCount: initialNotes.length });
   
@@ -357,6 +360,9 @@ export default function ThreadNotesList({
 
           if (!isMountedRef.current) return false;
 
+          // Seed note detail cache so opening a note shows content immediately
+          onNotesLoaded?.(freshNotesRaw);
+
           // Normalize dates in fresh notes
           const freshNotes = freshNotesRaw.map((note: any) => ({
             ...note,
@@ -446,7 +452,7 @@ export default function ThreadNotesList({
       // PHASE 4: Return success status so caller can clean up sessionStorage
       return success;
     }
-  }, [threadId, noteTypeFilter, optimisticUpdates]);
+  }, [threadId, noteTypeFilter, optimisticUpdates, onNotesLoaded]);
 
   // Unified event handler for all note-related events
   useEffect(() => {
@@ -1294,7 +1300,10 @@ export default function ThreadNotesList({
     }
 
     const data = await response.json();
-    
+
+    // Seed note detail cache so opening a note shows content immediately
+    onNotesLoaded?.(data.notes || []);
+
     // Update database offset to reflect how many notes we've now fetched total
     databaseOffsetRef.current = dbOffset + data.notes.length;
     
@@ -1339,7 +1348,7 @@ export default function ThreadNotesList({
       items: filteredByType,
       hasMore
     };
-  }, [threadId, noteTypeFilter]);
+  }, [threadId, noteTypeFilter, onNotesLoaded]);
 
   // Handle items change from InfiniteScrollList (when loading more)
   const handleItemsChange = useCallback((newItems: Note[]) => {
