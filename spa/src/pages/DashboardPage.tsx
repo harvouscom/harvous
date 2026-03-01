@@ -24,6 +24,8 @@ export default function DashboardPage() {
   // does not refresh on mount when we have no data (relies on parent to pass initialItems).
   const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 100);
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
+  const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
+  const initialHasMoreFromParent = lastPage?.hasMore;
   const isInitialLoading = cachedItems.length === 0 && isFetching;
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
@@ -42,6 +44,7 @@ export default function DashboardPage() {
         dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
         onNavigate={(href) => navigate({ to: href as any })}
         parentIsLoading={isInitialLoading}
+        initialHasMoreFromParent={initialHasMoreFromParent}
       />
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}
       <div data-cta-spacer className="create-note-cta-spacer" />

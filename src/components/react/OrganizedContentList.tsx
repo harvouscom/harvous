@@ -58,6 +58,8 @@ interface OrganizedContentListProps {
   onNavigate?: (href: string) => void;
   /** When true (e.g. parent React Query fetching), show loading until initialItems arrive. Avoids duplicate fetch on mount. */
   parentIsLoading?: boolean;
+  /** When provided, use the API's hasMore from the parent (e.g. last page of dashboard query) instead of inferring from item count. */
+  initialHasMoreFromParent?: boolean;
 }
 
 // Helper to normalize dates once at API boundary
@@ -138,6 +140,7 @@ export default function OrganizedContentList({
   dataGeneratedAt,
   onNavigate,
   parentIsLoading = false,
+  initialHasMoreFromParent,
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -183,6 +186,7 @@ export default function OrganizedContentList({
     return merged;
   });
   const [hasMore, setHasMore] = useState<boolean>(() => {
+    if (initialHasMoreFromParent !== undefined) return initialHasMoreFromParent;
     if (filter === 'scripture') return true;
     return (initialItems || []).length >= 20;
   });
@@ -935,13 +939,14 @@ export default function OrganizedContentList({
       
       const sorted = sortItems(filteredScriptureRefs);
 
-      setHasMore(sorted.length >= 20);
-      hasMoreRef.current = sorted.length >= 20;
+      const nextHasMore = initialHasMoreFromParent !== undefined ? initialHasMoreFromParent : sorted.length >= 20;
+      setHasMore(nextHasMore);
+      hasMoreRef.current = nextHasMore;
       setCurrentItems(sorted);
       currentItemsRef.current = sorted;
       setIsLoadingFilter(false); // Parent (e.g. React Query) supplied data; clear loading
     }
-  }, [initialItems, filter]); // Removed deletedItemIds from dependencies to prevent list reset on deletion
+  }, [initialItems, filter, initialHasMoreFromParent]); // Removed deletedItemIds from dependencies to prevent list reset on deletion
 
   // Listen for deletion events (client-only)
   useEffect(() => {
