@@ -293,7 +293,7 @@ Church content distribution can leverage the sharing infrastructure:
 1. Create InboxItem (already exists)
 2. Create SharedContent with sharingType='organization'
 3. Link to church's orgId
-4. Auto-add to all org members' UserInboxItems
+4. Auto-add to all connected users' UserInboxItems (users with UserMetadata.connectedChurchId = this church, and/or members of church-owned spaces—our DB; congregants are not Clerk org members). See CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md for the 20-person Clerk org limit design (staff/volunteers only in the org).
 ```
 
 This allows:

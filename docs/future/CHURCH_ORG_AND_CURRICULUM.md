@@ -18,8 +18,8 @@ A day when **churches have organization accounts** on Harvous for **education an
 
 ### Layer 2: Church organization (future)
 
-- **Church org accounts:** Church has a Clerk Organization (and corresponding Harvous church/org record). Church staff publish **threads and notes** as org-level curriculum.
-- **Distribution:** Content is pushed to **org members** (attendees who have linked to the church via MyChurchPanel). Uses existing inbox/sharing infrastructure (e.g. `InboxItem` + `sharingType='organization'` / orgId).
+- **Church org accounts:** Church has a Clerk Organization (and corresponding Harvous church/org record). Only church staff/volunteers (≤20) are Clerk org members; they publish **threads and notes** as org-level curriculum. Congregants are not added to the Clerk org.
+- **Distribution:** Content is pushed to **connected users** (our DB: `UserMetadata.connectedChurchId`) and/or **members of church-owned shared spaces** (`Members` table). Only staff/volunteers (≤20) are Clerk org members; congregants get access via our DB. Uses existing inbox/sharing infrastructure (e.g. `InboxItem` + `sharingType='organization'` / orgId).
 - **Use case:** “Our church publishes this quarter’s study; everyone who’s connected to our church sees it.”
 - **Docs:** [CHURCH_CONNECTION_SYSTEM.md](./CHURCH_CONNECTION_SYSTEM.md), [SHARING_AND_GROUPS_INFRASTRUCTURE.md](./SHARING_AND_GROUPS_INFRASTRUCTURE.md).
 
@@ -38,7 +38,7 @@ Individual sharing (3 → unlimited spaces) stays the “I share my space” sto
 ### Future (with Clerk Organizations)
 
 - **Sync with “available church organizations”:** MyChurchPanel (or a successor flow) calls Clerk (and/or Harvous backend) to list **organizations** the user could join—e.g. churches that have created a Clerk Organization and registered as a church on Harvous.
-- **User selects their church:** User picks from that list (or searches). Linking = set `UserMetadata.connectedChurchId` / `connectedOrgId` and add user to the Clerk org as member (see CHURCH_CONNECTION_SYSTEM.md).
+- **User selects their church:** User picks from that list (or searches). Linking = set `UserMetadata.connectedChurchId` / `connectedOrgId` in our DB. Congregants are not added to the Clerk org (only staff/volunteers are; see CHURCH_CONNECTION_SYSTEM.md and CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
 - **Result:** User is an org member; church-published curriculum can be delivered to them (inbox, “From your church,” etc.) without counting against their 3 shared spaces.
 
 Optional: keep free-text church fields for **discovery** (matching when a church first creates an org), and add a separate “Link to church organization” block that shows **available orgs** and connects the account. That way both “my church name” (for matching) and “my church org” (for content) are represented.
@@ -50,7 +50,7 @@ Optional: keep free-text church fields for **discovery** (matching when a church
 1. **Church has an org account** (Clerk Organization + Harvous church record, e.g. `Churches` table with `orgId`).
 2. **Staff create threads/notes** in an org context (or mark existing content as “church curriculum”). Implementation can use existing note/thread model with an org/church scope or a dedicated curriculum content type.
 3. **Publish to org:** When church publishes a thread or note, create an **InboxItem** (or equivalent) with `sharingType='organization'` and link to the church’s `orgId`.
-4. **Delivery to members:** All users with `UserMetadata.connectedOrgId` (or `connectedChurchId`) equal to that church get the item—e.g. auto-add to **UserInboxItems** or show in a “From your church” section. Same pattern as in SHARING_AND_GROUPS_INFRASTRUCTURE.md (church content → InboxItem → UserInboxItems for org members).
+4. **Delivery to members:** All users with `UserMetadata.connectedChurchId` (or `connectedOrgId`) equal to that church get the item (recipients from our DB, not Clerk org membership; congregants are not in the Clerk org)—e.g. auto-add to **UserInboxItems** or show in a “From your church” section. Same pattern as in SHARING_AND_GROUPS_INFRASTRUCTURE.md (church content → InboxItem → UserInboxItems for connected users).
 
 This makes it easy to **share threads and notes from the church** to everyone who attends, without each person needing a personal shared-space link.
 
@@ -83,6 +83,7 @@ No new schema is proposed here; this doc describes how those pieces support the 
 ## Summary
 
 - **Vision:** Church org accounts for education/curriculum management; curriculum (threads and notes) shared from church to attendees.
+- **Clerk org and 20-person limit:** The Clerk org is used only for **church staff/volunteers** (≤20). Congregants get access via our DB (`connectedChurchId`, shared space membership); they are never added to the Clerk org.
 - **MyChurchPanel:** Evolves to sync with **available church organizations** (Clerk) so users can link to their church and receive that church’s content.
-- **Two layers:** Individual shared spaces (3 → unlimited) for personal/group sharing; church org layer for church-wide curriculum distribution.
-- **Implementation:** Builds on CHURCH_CONNECTION_SYSTEM.md (connection flow, schema) and SHARING_AND_GROUPS_INFRASTRUCTURE.md (org-scoped content delivery).
+- **Two layers:** Individual shared spaces (3 → unlimited) for personal/group sharing; church org layer for church-wide curriculum distribution (delivery by our DB: connected users + space members).
+- **Implementation:** Builds on CHURCH_CONNECTION_SYSTEM.md (connection flow, schema) and SHARING_AND_GROUPS_INFRASTRUCTURE.md (org-scoped content delivery). See CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md for the full 20-person-limit design.

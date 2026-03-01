@@ -15,12 +15,14 @@ The following decisions were captured for implementation. The list of churches o
 - **New users:** Free-text church only; get matched when their church joins.
 - **Join route:** Yes — add `/churches/join/[token]` (invite link).
 
-**V1 (20-person limit):** For v1 we should **not** allow any user to freely “join” a church org, given Clerk’s 20-person org limit. Instead the journey is **church-controlled**: the church sees a **list of people who said that is their church** (matched from UserMetadata free-text). The church can **accept all or select which** of those people can join their church shared spaces. Only church-accepted users get added to the org / get access; no open join.
+**V1 (20-person limit):** For v1 we should **not** allow any user to freely “join” a church org, given Clerk’s 20-person org limit. Instead the journey is **church-controlled**: the church sees a **list of people who said that is their church** (matched from UserMetadata free-text). The church can **accept all or select which** of those people get access to church content and shared spaces.
+
+**Clerk org = staff/volunteers only:** The 20 Clerk org slots are reserved for **church staff or volunteers** who manage the Bible education side (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** They get access via (1) **shared space membership** (your DB: `Members` table—invite links, join tokens, PCO roster sync) and/or (2) **linked church** in your DB (`UserMetadata.connectedChurchId`). When a user accepts a connection request, we set `connectedChurchId`/`connectedOrgId` and optionally add them to church-owned spaces; we do **not** call Clerk to add them to the org. Curriculum and "From your church" inbox delivery use your DB (connected users + space membership), not Clerk org membership. This keeps unlimited congregants while staying within the 20-member limit.
 
 ### MyChurchPanel and policies
 
 - **MyChurchPanel:** Primary flow: user is part of a church and gets **invited** → then their free-text church (and link) is updated. Panel stays focused on “my church” (free-text + linked org when they joined via invite).
-- **Leave church:** Allowed; clear link and remove from Clerk org; keep existing inbox items.
+- **Leave church:** Allowed; clear `connectedChurchId`/`connectedOrgId` in UserMetadata and remove from Clerk org only if they were an org member (e.g. staff); keep existing inbox items.
 - **One church per user:** Yes, one only.
 - **User joins another church:** Block — they must leave the current church first.
 - **Matching:** All matches get a connection request (no auto-join).
@@ -118,8 +120,7 @@ Zero friction—stays in familiar PCO/Church Center, discovers Harvous organical
 
 ### Sync with Clerk
 
-- **Source of truth:** Clerk holds org membership; your DB holds “which church (Harvous record) this user is linked to” and optionally pending requests. On each request you can validate “user in Clerk org X” vs “UserMetadata.connectedOrgId = X” and fix drift (e.g. leave org → clear `connectedChurchId`/`connectedOrgId`).
-
+- **Source of truth:** Clerk holds org membership **only for staff/volunteers** (≤20). Your DB holds “which church this user is linked to” and space membership (`Members`); congregants are linked and get content via your DB only—they are not added to the Clerk org. On leave, clear `connectedChurchId`/`connectedOrgId`; if the user was in the Clerk org (staff), remove them from the org via Clerk API. 
 ---
 
 ## 3. Auth & Backend
@@ -128,8 +129,8 @@ Zero friction—stays in familiar PCO/Church Center, discovers Harvous organical
 
 - **Backend:** Use `@clerk/backend` (or existing `createClerkClient`) for:
   - `organizations.createOrganization` (church sign-up),
-  - `organizations.createOrganizationInvitation` / `createOrganizationInvitationBulk` (invite by email),
-  - `organizations.createOrganizationMembership` (add member, e.g. when user accepts connection request).
+  - `organizations.createOrganizationInvitation` / `createOrganizationInvitationBulk` (invite staff/volunteers by email),
+  - `organizations.createOrganizationMembership` (add **staff/volunteers** to the org only—not when a congregant accepts a connection request; congregants get access via your DB).
 - **Frontend:** No `useOrganization` / `OrganizationSwitcher` yet. For “My Church” you’ll need either **Clerk’s org context** (`useOrganization`, `useUser`) so the app knows “current org” when the user is in a church context, or **your own API** that returns “user’s linked church” from `UserMetadata` + Churches (simpler for a single-church-per-user model).
 - **Session / JWT:** Confirm whether org membership is in the session (e.g. `sessionClaims`) so the API can enforce “user must be in org X” for church-scoped actions without extra Clerk calls every time.
 

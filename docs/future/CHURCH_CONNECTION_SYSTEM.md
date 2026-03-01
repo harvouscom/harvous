@@ -19,9 +19,13 @@ This system allows users to set their church, churches to create Clerk Organizat
 
 ### 3. Automatic Connection
 - System finds users with matching church info
-- Sends invitation to join organization
-- User accepts → becomes org member
-- Church content automatically appears in their inbox
+- Sends connection request (invitation to link to church)
+- User accepts → linked in our DB (`UserMetadata.connectedChurchId`/`connectedOrgId`); church content appears in their inbox
+- **Congregants are not added to the Clerk org.** Only church staff/volunteers (≤20) are Clerk org members; congregants get access via our DB and/or shared space membership (see CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md).
+
+## Clerk Organization Limit (20 People)
+
+Clerk's free plan limits organizations to 20 members. We stay within this by **reserving the Clerk org for church staff/volunteers only** (admins, curriculum authors, small group leaders who need the church dashboard). **Congregants/attendees are never added to the Clerk org.** When a user accepts a connection request, we only update `UserMetadata.connectedChurchId`/`connectedOrgId` and optionally add them to church-owned shared spaces (via the `Members` table). Curriculum and "From your church" inbox delivery use our DB (connected users and/or space membership), not Clerk org membership. See CLERK_ORGANIZATIONS_CHURCHES_CHECKLIST.md for the full design.
 
 ## Database Schema Updates
 
@@ -328,7 +332,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     })
     .where(eq(ChurchConnectionRequests.id, connectionRequestId));
 
-  // Update user metadata
+  // Update user metadata (do NOT add user to Clerk org—congregants get access via our DB only; Clerk org is for staff/volunteers only, ≤20)
   await db
     .update(UserMetadata)
     .set({
@@ -336,20 +340,6 @@ export const POST: APIRoute = async ({ request, locals }) => {
       connectedOrgId: church.orgId
     })
     .where(eq(UserMetadata.userId, userId));
-
-  // Add user to Clerk organization (via Clerk API)
-  const clerkSecretKey = import.meta.env.CLERK_SECRET_KEY;
-  await fetch(`https://api.clerk.com/v1/organizations/${church.orgId}/memberships`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${clerkSecretKey}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      userId,
-      role: 'org:member'
-    })
-  });
 
   return new Response(JSON.stringify({ 
     success: true,
@@ -436,17 +426,17 @@ export async function pushChurchContentToInbox(
 1. **User sets church** in Profile → My Church
 2. **Church joins Harvous** later
 3. **User sees notification**: "First Baptist Church joined Harvous! Connect?"
-4. **User clicks "Connect"** → Automatically added to org
-5. **Church content appears** in their "For You" inbox automatically
+4. **User clicks "Connect"** → Linked to church in our DB (not added to Clerk org); optionally added to church-owned shared spaces
+5. **Church content appears** in their "For You" inbox (delivery via `connectedChurchId`, not Clerk org membership)
 
 ### For Churches
 
 1. **Church admin signs up** for Harvous
-2. **Creates organization** with church info
+2. **Creates organization** with church info (staff/volunteers are added to Clerk org, ≤20)
 3. **System finds matching users** automatically
 4. **Sends connection requests** to high-confidence matches
-5. **Users accept** → Become org members
-6. **Church can push content** → Appears in all members' inboxes
+5. **Users accept** → Linked in our DB; church can push content to them and add them to shared spaces (congregants are not Clerk org members)
+6. **Church can push content** → Appears in all connected users' inboxes (and/or space members)
 
 ## UI Components Needed
 
@@ -477,7 +467,7 @@ export async function pushChurchContentToInbox(
 ✅ **Seamless Connection**: One-click to connect
 ✅ **Content Delivery**: Church content automatically appears in inbox
 ✅ **Privacy**: Users control their connection
-✅ **Scalable**: Works for churches of any size
+✅ **Scalable**: Works for churches of any size (congregants access via our DB and shared spaces; only staff count toward the 20-person Clerk org limit)
 
 ## Future Enhancements
 

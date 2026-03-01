@@ -949,6 +949,11 @@
   }
 }
 
+/* In bottom sheet (e.g. PWA): ensure content area gets height when viewport/flex chain differs */
+.panel__content--bottom-sheet.about-harvous-panel__content {
+  min-height: 50vh;
+}
+
 .about-harvous-paper-stack {
   position: relative;
   width: 100%;
@@ -974,6 +979,9 @@
   width: 90%;
   max-width: 540px;
   margin: 12px auto;
+  /* Fill scroll container height so the white card uses full area (fixes PWA mobile) */
+  min-height: 100%;
+  box-sizing: border-box;
 }
 
 /* Initial state - hidden until animation triggers */
