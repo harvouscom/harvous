@@ -389,12 +389,17 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [getSelectedSpaceId()]);
 
     if (existingIndex !== -1) {
-      // Item already exists - update lastAccessed time but keep position
+      // Item already exists - update lastAccessed time but keep position; never overwrite a positive count with 0 so badge persists
       const existingItem = rawHistory[existingIndex];
       const preservedFirstAccessed = (existingItem.firstAccessed != null) ? existingItem.firstAccessed : Date.now();
+      const incomingCount = (item as any).count != null ? Number((item as any).count) : undefined;
+      const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
+        ? incomingCount
+        : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
+        count: preservedCount,
         openedInSpaceIds: mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), getItemOpenedInSpaceIds(item)),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,

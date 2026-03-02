@@ -194,11 +194,16 @@ function addToNavigationHistory(item) {
   const now = Date.now();
   
   if (existingIndex !== -1) {
-    // Item already exists - merge incoming data (e.g. count, title, backgroundGradient) so nav badge stays correct
+    // Item already exists - merge incoming data but never overwrite a positive count with 0 so badge count persists
     const existing = history[existingIndex];
+    const incomingCount = item.count != null ? Number(item.count) : undefined;
+    const keepCount = typeof incomingCount === 'number' && incomingCount > 0
+      ? incomingCount
+      : (existing.count != null ? existing.count : incomingCount);
     history[existingIndex] = {
       ...existing,
       ...item,
+      count: keepCount,
       firstAccessed: existing.firstAccessed || now,
       lastAccessed: now
     };
