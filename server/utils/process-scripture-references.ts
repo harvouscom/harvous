@@ -397,6 +397,8 @@ export async function processScriptureReferences(
           const now = new Date().toISOString();
           const shareToken = generateShareToken();
 
+          // Do not set lastVisited on creation: scripture notes are excluded from the dashboard
+          // list until the user visits them; they still appear inside the parent note card (refs/pills).
           const scriptureNote = await db.insert(Notes)
             .values({
               id: generateNoteId(),
@@ -412,7 +414,6 @@ export async function processScriptureReferences(
               shareTokenCreatedAt: now,
               addedBy: 'harvous',
               createdAt: now,
-              lastVisited: now // Set lastVisited so newly created notes appear at top
             })
             .returning()
             .get();
