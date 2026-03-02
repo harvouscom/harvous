@@ -8590,7 +8590,7 @@ var init_sql = __esm({
         return new SQL([new StringChunk(str)]);
       }
       sql2.raw = raw2;
-      function join2(chunks, separator) {
+      function join(chunks, separator) {
         const result = [];
         for (const [i, chunk] of chunks.entries()) {
           if (i > 0 && separator !== void 0) {
@@ -8600,7 +8600,7 @@ var init_sql = __esm({
         }
         return new SQL(result);
       }
-      sql2.join = join2;
+      sql2.join = join;
       function identifier(value) {
         return new Name(value);
       }
@@ -23273,7 +23273,7 @@ var init_select2 = __esm({
           const baseTableName = this.tableName;
           const tableName = getTableLikeName(table);
           for (const item of extractUsedTable(table)) this.usedTables.add(item);
-          if (typeof tableName === "string" && this.config.joins?.some((join2) => join2.alias === tableName)) {
+          if (typeof tableName === "string" && this.config.joins?.some((join) => join.alias === tableName)) {
             throw new Error(`Alias "${tableName}" is already used in this query`);
           }
           if (!this.isPartialSelect) {
@@ -24159,7 +24159,7 @@ var init_update = __esm({
       createJoin(joinType) {
         return (table, on) => {
           const tableName = getTableLikeName(table);
-          if (typeof tableName === "string" && this.config.joins.some((join2) => join2.alias === tableName)) {
+          if (typeof tableName === "string" && this.config.joins.some((join) => join.alias === tableName)) {
             throw new Error(`Alias "${tableName}" is already used in this query`);
           }
           if (typeof on === "function") {
@@ -25563,9 +25563,10 @@ __export(schema_exports, {
   UserMetadata: () => UserMetadata,
   UserSeasonalXP: () => UserSeasonalXP,
   UserXP: () => UserXP,
+  VerseTextCache: () => VerseTextCache,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, MonthlyAnalytics;
+var Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, MonthlyAnalytics;
 var init_schema = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -25785,6 +25786,11 @@ var init_schema = __esm({
     }, (table) => [
       uniqueIndex("NoteScriptureReferences_uniqueNoteScripture").on(table.noteId, table.scriptureNoteId)
     ]);
+    VerseTextCache = sqliteTable("VerseTextCache", {
+      reference: text("reference").primaryKey(),
+      content: text("content").notNull(),
+      createdAt: text("createdAt").notNull()
+    });
     ResourceMetadata = sqliteTable("ResourceMetadata", {
       id: text("id").primaryKey(),
       noteId: text("noteId").notNull(),
@@ -27448,38 +27454,75 @@ var init_markdown_to_html = __esm({
   }
 });
 
+// src/data/onboarding/01-welcome.md
+var welcome_default;
+var init_welcome = __esm({
+  "src/data/onboarding/01-welcome.md"() {
+    welcome_default = "# Note from the Founder\n\nHey, I\u2019m Derek! I started Harvous with the mission to help us who are curious about Jesus stay curious and remember our journey\u2014our Bible study. \n\nMy journey with God started in 2016. It took a friend of mine asking me if I go to church and then a pastor and the church to open my eyes, ears, and heart. After 3 visits I got saved and since then my life has been one wild ride. 5 years later I'd get a calling from God centered around Proverbs 25:2 to build a tool with my creativity that only I knew how to make.\n\nFast forward to now. \n\nI\u2019ve only dreamed of making something people (especially those I don\u2019t know) would try out and use. I\u2019m grateful and blessed that you are one of those people. My hope and prayer is that this tool I call Harvous helps you stay curious about God\u2019s Word (The Bible) and over time remember your study, better.\n\nIn this \u201CWelcome to Harvous\u201D thread are other notes where I go through some of the basics of what you can do in the app. It all should be pretty straightforward. If not, well that\u2019s my bad considering I\u2019m the designer haha.\n\nSeriously, thanks again for trying out Harvous. If you have any questions or have any feedback for me just email me derek@harvous.com \n\n-Derek Castelli\n\n";
+  }
+});
+
+// src/data/onboarding/02-create-organize.md
+var create_organize_default;
+var init_create_organize = __esm({
+  "src/data/onboarding/02-create-organize.md"() {
+    create_organize_default = `# Notes, threads, and spaces oh my!
+
+First and foremost this is a notes app. But because it\u2019s designed for Bible study there some some unique things worth mentioning. 
+
+## Spaces
+Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You'll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).
+
+There two places to find spaces:
+1. At the top by selecting "My Home" and this will expand to see any existing spaces to visit
+2. In Profile (your initials) within "My Spaces."
+
+You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).
+
+Spaces can be **private** (just you) or **shared**. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.
+
+When you erase a space, your notes and threads stay safe\u2014you're just removing the grouping.
+
+## Threads
+Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.
+
+You create threads from the big blue plus button at the bottom.
+When you erase a thread the notes don't get erased (expect for this thread). Any note that doesn't belong to a another thread moves into a default thread called Unorganized.
+
+## Notes
+Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):
+
+1. Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
+2. To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.
+3. If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text (NET version only for right now) as another note. Harvous keeps track of where your scripture was captured with what notes and threads. 
+4. Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.
+5. Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.
+6. Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on note it was highlight to create a link between the two. (This one is my favorite)
+`;
+  }
+});
+
+// src/data/onboarding/03-find.md
+var find_default;
+var init_find = __esm({
+  "src/data/onboarding/03-find.md"() {
+    find_default = "# Finding your way around\n\nWithin Harvous you can of course create notes, threads, and spaces like we covered in the other note. And well you can also of course find said notes, threads, and spaces, edit your info, connect your church, and much more. \n\n## Navigation\nFor large screens, on the left you will see \u201CMy Home\u201D and then \u201CWelcome to Harvous\u201D. This is your navigation and here will appear either spaces or threads. When you open a note that thread it belongs to will show up in the navigation. \n\nFor small screens, this is all at the top. Within the navigation on mobile you will also see the \u201CNew Space\u201D button (it\u2019s bottom left on larger screens).\n\n## Edit, Add, and Find\nThere are square buttons with icons for these actions. The (...) is to edit said space, thread, or note. The (+) is to add a thread or note (reminder: adding a new space is done within navigation). And finally the magnifying glass is to find your threads, and notes (you find spaces in My Spaces on profile).\n\n## Profile & Settings\nTo edit your name, password, avatar color, your church, and see your spaces and more this is all within your profile. Find the circle with your initials. That\u2019s where.\n\n";
+  }
+});
+
+// src/data/onboarding/04-add-to-homescreen.md
+var add_to_homescreen_default;
+var init_add_to_homescreen = __esm({
+  "src/data/onboarding/04-add-to-homescreen.md"() {
+    add_to_homescreen_default = "# Works on any device\n\nHarvous runs in a modern web browser, so you can use it on your laptop, tablet, or phone\u2014whatever you\u2019ve got. For a better experience on your tablet or phone, use your browser\u2019s **share menu** and choose **\u201CAdd to Home Screen.\u201D** Harvous then opens from an icon on your home screen and feels more like an app (no address bar, full screen).\n\nHere are help articles for [iOS](https://support.apple.com/guide/shortcuts/add-a-shortcut-to-the-home-screen-apd735880972/ios) and [Android](https://support.google.com/android/answer/9450271?hl=en). \n\nSo you know, there a future plans to have standalone apps to download from the App Store or Google Play Store.\n\n";
+  }
+});
+
 // src/utils/load-onboarding-notes.ts
 var load_onboarding_notes_exports = {};
 __export(load_onboarding_notes_exports, {
   loadOnboardingNotes: () => loadOnboardingNotes
 });
-function loadMarkdownFiles() {
-  try {
-    const __filename = (0, import_url8.fileURLToPath)(import_meta.url);
-    const __dirname = (0, import_path.dirname)(__filename);
-    const onboardingDir = (0, import_path.join)(__dirname, "..", "data", "onboarding");
-    console.log("[loadOnboardingNotes] Looking for files in:", onboardingDir);
-    const files = (0, import_fs.readdirSync)(onboardingDir).filter((file) => file.endsWith(".md") && file !== "README.md").sort();
-    console.log("[loadOnboardingNotes] Found files:", files);
-    const modules = {};
-    for (const file of files) {
-      const filePath = (0, import_path.join)(onboardingDir, file);
-      const content = (0, import_fs.readFileSync)(filePath, "utf-8");
-      modules[`../data/onboarding/${file}`] = content;
-      console.log(`[loadOnboardingNotes] Loaded file: ${file} (${content.length} chars)`);
-    }
-    return modules;
-  } catch (error) {
-    console.error("[loadOnboardingNotes] Error reading onboarding directory:", error);
-    console.error("[loadOnboardingNotes] Error details:", {
-      message: error.message,
-      code: error.code,
-      path: error.path,
-      stack: error.stack
-    });
-    return {};
-  }
-}
 function parseMarkdownNote(markdown, order) {
   const lines = markdown.split("\n");
   let title = "";
@@ -27504,25 +27547,12 @@ function parseMarkdownNote(markdown, order) {
 }
 function loadOnboardingNotes() {
   try {
-    const notes = [];
-    console.log("[loadOnboardingNotes] onboardingModules keys:", Object.keys(onboardingModules));
-    console.log("[loadOnboardingNotes] Number of files:", Object.keys(onboardingModules).length);
-    for (const [filePath, markdownContent] of Object.entries(onboardingModules)) {
-      try {
-        const fileName = filePath.split("/").pop() || "";
-        const orderMatch = fileName.match(/^(\d+)-/);
-        const order = orderMatch ? parseInt(orderMatch[1], 10) : notes.length + 1;
-        const note = parseMarkdownNote(markdownContent, order);
-        notes.push(note);
-      } catch (error) {
-        console.error(`[loadOnboardingNotes] Error processing onboarding file ${filePath}:`, error);
-      }
-    }
-    console.log(`[loadOnboardingNotes] Successfully loaded ${notes.length} notes`);
+    const notes = onboardingFiles.map(
+      ({ markdown, order }) => parseMarkdownNote(markdown, order)
+    );
     return notes.sort((a, b2) => a.order - b2.order);
   } catch (error) {
     console.error("[loadOnboardingNotes] Error loading onboarding notes:", error);
-    console.error("[loadOnboardingNotes] Error stack:", error.stack);
     return getDefaultOnboardingNotes();
   }
 }
@@ -27545,16 +27575,21 @@ function getDefaultOnboardingNotes() {
     }
   ];
 }
-var import_fs, import_path, import_url8, import_meta, onboardingModules;
+var onboardingFiles;
 var init_load_onboarding_notes = __esm({
   "src/utils/load-onboarding-notes.ts"() {
     "use strict";
     init_markdown_to_html();
-    import_fs = require("fs");
-    import_path = require("path");
-    import_url8 = require("url");
-    import_meta = {};
-    onboardingModules = loadMarkdownFiles();
+    init_welcome();
+    init_create_organize();
+    init_find();
+    init_add_to_homescreen();
+    onboardingFiles = [
+      { markdown: welcome_default, order: 1 },
+      { markdown: create_organize_default, order: 2 },
+      { markdown: find_default, order: 3 },
+      { markdown: add_to_homescreen_default, order: 4 }
+    ];
   }
 });
 
@@ -35962,7 +35997,7 @@ var require_util = __commonJS({
       return path;
     });
     exports2.normalize = normalize2;
-    function join2(aRoot, aPath) {
+    function join(aRoot, aPath) {
       if (aRoot === "") {
         aRoot = ".";
       }
@@ -35994,7 +36029,7 @@ var require_util = __commonJS({
       }
       return joined;
     }
-    exports2.join = join2;
+    exports2.join = join;
     exports2.isAbsolute = function(aPath) {
       return aPath.charAt(0) === "/" || urlRegexp.test(aPath);
     };
@@ -36208,7 +36243,7 @@ var require_util = __commonJS({
             parsed.path = parsed.path.substring(0, index2 + 1);
           }
         }
-        sourceURL = join2(urlGenerate(parsed), sourceURL);
+        sourceURL = join(urlGenerate(parsed), sourceURL);
       }
       return normalize2(sourceURL);
     }
@@ -37648,8 +37683,8 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports2, module2) {
     "use strict";
-    var { existsSync, readFileSync: readFileSync2 } = require("fs");
-    var { dirname: dirname2, join: join2 } = require("path");
+    var { existsSync, readFileSync } = require("fs");
+    var { dirname, join } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase64(str) {
       if (Buffer) {
@@ -37668,7 +37703,7 @@ var require_previous_map = __commonJS({
         if (!this.mapFile && opts.from) {
           this.mapFile = opts.from;
         }
-        if (this.mapFile) this.root = dirname2(this.mapFile);
+        if (this.mapFile) this.root = dirname(this.mapFile);
         if (text2) this.text = text2;
       }
       consumer() {
@@ -37710,10 +37745,10 @@ var require_previous_map = __commonJS({
         }
       }
       loadFile(path) {
-        this.root = dirname2(path);
+        this.root = dirname(path);
         if (existsSync(path)) {
           this.mapFile = path;
-          return readFileSync2(path, "utf-8").toString().trim();
+          return readFileSync(path, "utf-8").toString().trim();
         }
       }
       loadMap(file, prev) {
@@ -37747,7 +37782,7 @@ var require_previous_map = __commonJS({
           return this.decodeInline(this.annotation);
         } else if (this.annotation) {
           let map = this.annotation;
-          if (file) map = join2(dirname2(file), map);
+          if (file) map = join(dirname(file), map);
           return this.loadFile(map);
         }
       }
@@ -37771,7 +37806,7 @@ var require_input = __commonJS({
     var { nanoid } = require_non_secure();
     var { isAbsolute, resolve } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
-    var { fileURLToPath: fileURLToPath2, pathToFileURL } = require("url");
+    var { fileURLToPath, pathToFileURL } = require("url");
     var CssSyntaxError = require_css_syntax_error();
     var PreviousMap = require_previous_map();
     var terminalHighlight = require_terminal_highlight();
@@ -37952,8 +37987,8 @@ var require_input = __commonJS({
           url: fromUrl.toString()
         };
         if (fromUrl.protocol === "file:") {
-          if (fileURLToPath2) {
-            result.file = fileURLToPath2(fromUrl);
+          if (fileURLToPath) {
+            result.file = fileURLToPath(fromUrl);
           } else {
             throw new Error(`file: protocol is not available in this PostCSS build`);
           }
@@ -38183,12 +38218,12 @@ var require_fromJSON = __commonJS({
 var require_map_generator = __commonJS({
   "node_modules/postcss/lib/map-generator.js"(exports2, module2) {
     "use strict";
-    var { dirname: dirname2, relative, resolve, sep } = require("path");
+    var { dirname, relative, resolve, sep } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     var { pathToFileURL } = require("url");
     var Input = require_input();
     var sourceMapAvailable = Boolean(SourceMapConsumer && SourceMapGenerator);
-    var pathAvailable = Boolean(dirname2 && resolve && relative && sep);
+    var pathAvailable = Boolean(dirname && resolve && relative && sep);
     var MapGenerator = class {
       constructor(stringify2, root, opts, cssString) {
         this.stringify = stringify2;
@@ -38220,7 +38255,7 @@ var require_map_generator = __commonJS({
       applyPrevMaps() {
         for (let prev of this.previous()) {
           let from = this.toUrl(this.path(prev.file));
-          let root = prev.root || dirname2(prev.file);
+          let root = prev.root || dirname(prev.file);
           let map;
           if (this.mapOpts.sourcesContent === false) {
             map = new SourceMapConsumer(prev.text);
@@ -38407,9 +38442,9 @@ var require_map_generator = __commonJS({
         if (/^\w+:\/\//.test(file)) return file;
         let cached = this.memoizedPaths.get(file);
         if (cached) return cached;
-        let from = this.opts.to ? dirname2(this.opts.to) : ".";
+        let from = this.opts.to ? dirname(this.opts.to) : ".";
         if (typeof this.mapOpts.annotation === "string") {
-          from = dirname2(resolve(from, this.mapOpts.annotation));
+          from = dirname(resolve(from, this.mapOpts.annotation));
         }
         let path = relative(from, file);
         this.memoizedPaths.set(file, path);
@@ -60279,14 +60314,14 @@ var require_turndown_cjs = __commonJS({
         } else if (node.nodeType === 1) {
           replacement = replacementForNode.call(self, node);
         }
-        return join2(output2, replacement);
+        return join(output2, replacement);
       }, "");
     }
     function postProcess(output2) {
       var self = this;
       this.rules.forEach(function(rule) {
         if (typeof rule.append === "function") {
-          output2 = join2(output2, rule.append(self.options));
+          output2 = join(output2, rule.append(self.options));
         }
       });
       return output2.replace(/^[\t\r\n]+/, "").replace(/[\t\r\n\s]+$/, "");
@@ -60298,7 +60333,7 @@ var require_turndown_cjs = __commonJS({
       if (whitespace2.leading || whitespace2.trailing) content = content.trim();
       return whitespace2.leading + rule.replacement(content, node, this.options) + whitespace2.trailing;
     }
-    function join2(output2, replacement) {
+    function join(output2, replacement) {
       var s1 = trimTrailingNewlines(output2);
       var s2 = trimLeadingNewlines(replacement);
       var nls = Math.max(output2.length - s1.length, replacement.length - s2.length);
@@ -63640,16 +63675,16 @@ var BIBLE_STUDY_KEYWORDS = [
   { name: "Jude", category: "book", synonyms: [], confidence: 0.9 },
   { name: "Revelation", category: "book", synonyms: ["rev", "apocalypse"], confidence: 0.9 },
   // Biblical Characters
-  { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord", "savior", "messiah"], confidence: 0.95 },
-  { name: "God", category: "character", synonyms: ["lord", "father", "almighty", "creator"], confidence: 0.95 },
+  { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord", "savior", "messiah", "jesus's", "jesus'"], confidence: 0.95 },
+  { name: "God", category: "character", synonyms: ["lord", "father", "almighty", "creator", "god's"], confidence: 0.95 },
   { name: "Holy Spirit", category: "character", synonyms: ["spirit", "holy ghost", "comforter"], confidence: 0.9 },
-  { name: "Moses", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Moses", category: "character", synonyms: ["moses'", "moses's"], confidence: 0.9 },
   { name: "Abraham", category: "character", synonyms: ["abram"], confidence: 0.9 },
-  { name: "David", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Paul", category: "character", synonyms: ["apostle paul", "saul"], confidence: 0.9 },
-  { name: "Peter", category: "character", synonyms: ["simon peter", "simon"], confidence: 0.9 },
-  { name: "John", category: "character", synonyms: ["apostle john", "john the apostle"], confidence: 0.9 },
-  { name: "Mary", category: "character", synonyms: ["virgin mary", "mary mother of jesus"], confidence: 0.9 },
+  { name: "David", category: "character", synonyms: ["david's"], confidence: 0.9 },
+  { name: "Paul", category: "character", synonyms: ["apostle paul", "saul", "paul's"], confidence: 0.9 },
+  { name: "Peter", category: "character", synonyms: ["simon peter", "simon", "peter's"], confidence: 0.9 },
+  { name: "John", category: "character", synonyms: ["apostle john", "john the apostle", "john's"], confidence: 0.9 },
+  { name: "Mary", category: "character", synonyms: ["virgin mary", "mary mother of jesus", "mary's"], confidence: 0.9 },
   { name: "Noah", category: "character", synonyms: [], confidence: 0.9 },
   { name: "Adam", category: "character", synonyms: [], confidence: 0.9 },
   { name: "Eve", category: "character", synonyms: [], confidence: 0.9 },
@@ -63675,6 +63710,14 @@ var BIBLE_STUDY_KEYWORDS = [
   { name: "Thomas", category: "character", synonyms: ["doubting thomas"], confidence: 0.9 },
   { name: "Judas", category: "character", synonyms: ["judas iscariot"], confidence: 0.9 },
   { name: "Pilate", category: "character", synonyms: ["pontius pilate"], confidence: 0.9 },
+  { name: "James", category: "character", synonyms: ["james brother of jesus", "james the just"], confidence: 0.9 },
+  { name: "Stephen", category: "character", synonyms: ["stephen the martyr"], confidence: 0.9 },
+  { name: "Barnabas", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Timothy", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Nicodemus", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Martha", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Lazarus", category: "character", synonyms: [], confidence: 0.9 },
+  { name: "Aaron", category: "character", synonyms: [], confidence: 0.9 },
   // Biblical Places
   { name: "Jerusalem", category: "place", synonyms: ["holy city", "zion"], confidence: 0.9 },
   { name: "Bethlehem", category: "place", synonyms: [], confidence: 0.9 },
@@ -63696,6 +63739,11 @@ var BIBLE_STUDY_KEYWORDS = [
   { name: "Philippi", category: "place", synonyms: [], confidence: 0.9 },
   { name: "Thessalonica", category: "place", synonyms: [], confidence: 0.9 },
   { name: "Antioch", category: "place", synonyms: [], confidence: 0.9 },
+  { name: "Egypt", category: "place", synonyms: [], confidence: 0.9 },
+  { name: "Babylon", category: "place", synonyms: [], confidence: 0.9 },
+  { name: "Samaria", category: "place", synonyms: [], confidence: 0.9 },
+  { name: "Damascus", category: "place", synonyms: [], confidence: 0.9 },
+  { name: "Athens", category: "place", synonyms: [], confidence: 0.9 },
   // Spiritual Themes
   { name: "Prayer", category: "spiritual", synonyms: ["praying", "intercession", "petition"], confidence: 0.8 },
   { name: "Faith", category: "spiritual", synonyms: ["belief", "trust", "confidence"], confidence: 0.8 },
@@ -63721,7 +63769,7 @@ var BIBLE_STUDY_KEYWORDS = [
   { name: "Covenant", category: "biblical", synonyms: ["agreement", "promise", "pact"], confidence: 0.8 },
   { name: "Redemption", category: "biblical", synonyms: ["salvation", "deliverance", "ransom"], confidence: 0.8 },
   { name: "Atonement", category: "biblical", synonyms: ["reconciliation", "propitiation"], confidence: 0.8 },
-  { name: "Resurrection", category: "biblical", synonyms: ["rising", "new life"], confidence: 0.8 },
+  { name: "Resurrection", category: "biblical", synonyms: ["rising", "new life", "resurrected"], confidence: 0.8 },
   { name: "Incarnation", category: "biblical", synonyms: ["god becoming man", "enfleshment"], confidence: 0.8 },
   { name: "Trinity", category: "biblical", synonyms: ["godhead", "three in one"], confidence: 0.8 },
   { name: "Kingdom of God", category: "biblical", synonyms: ["kingdom of heaven", "god's kingdom"], confidence: 0.8 },
@@ -63735,9 +63783,16 @@ var BIBLE_STUDY_KEYWORDS = [
   { name: "Sacrifice", category: "biblical", synonyms: ["offering", "giving up"], confidence: 0.8 },
   { name: "Temple", category: "biblical", synonyms: ["sanctuary", "holy place"], confidence: 0.8 },
   { name: "Sabbath", category: "biblical", synonyms: ["rest", "day of rest"], confidence: 0.8 },
-  { name: "Baptism", category: "biblical", synonyms: ["immersion", "washing"], confidence: 0.8 },
+  { name: "Baptism", category: "biblical", synonyms: ["immersion", "washing", "baptized", "baptize"], confidence: 0.8 },
   { name: "Communion", category: "biblical", synonyms: ["lord's supper", "eucharist"], confidence: 0.8 },
   { name: "Marriage", category: "biblical", synonyms: ["wedding", "union"], confidence: 0.8 },
+  { name: "Satan", category: "biblical", synonyms: ["devil", "evil one", "tempter"], confidence: 0.85 },
+  { name: "Angels", category: "biblical", synonyms: ["angel", "heavenly host", "messenger"], confidence: 0.85 },
+  { name: "Sin", category: "biblical", synonyms: ["sinful", "transgression", "iniquity"], confidence: 0.8 },
+  { name: "Judgment", category: "biblical", synonyms: ["judgement", "judge", "day of judgment"], confidence: 0.8 },
+  { name: "Heaven", category: "biblical", synonyms: ["eternal life", "paradise", "kingdom of heaven"], confidence: 0.8 },
+  { name: "Hell", category: "biblical", synonyms: ["gehenna", "eternal punishment"], confidence: 0.85 },
+  { name: "Righteousness", category: "biblical", synonyms: ["righteous", "righteousness"], confidence: 0.8 },
   // Life Themes
   { name: "Family", category: "life", synonyms: ["relatives", "household"], confidence: 0.7 },
   { name: "Marriage", category: "life", synonyms: ["wedding", "union", "relationship"], confidence: 0.7 },
@@ -73390,6 +73445,13 @@ function validateVerseRange(book, chapter, startVerse, endVerse) {
   }
   return startVerse >= range.start && startVerse <= range.end && endVerse >= range.start && endVerse <= range.end && startVerse <= endVerse;
 }
+function normalizeChapterReference(book, chapter) {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return null;
+  }
+  return `${book} ${chapter}:${range.start}-${range.end}`;
+}
 var getBookNameVariations = () => {
   const variations = [];
   BIBLE_STUDY_KEYWORDS.filter((k2) => k2.category === "book").forEach((k2) => {
@@ -73525,6 +73587,16 @@ var parseReference = (match3) => {
             });
           }
         } else if (matchResult.length === 3) {
+          const range = getChapterVerseRange(canonicalBook, chapter);
+          if (range) {
+            const fullChapterRef = normalizeChapterReference(canonicalBook, chapter);
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter,
+              verse: [range.start, range.end],
+              reference: fullChapterRef
+            });
+          }
           return validateAndWarn({
             book: canonicalBook,
             chapter,
@@ -74596,7 +74668,7 @@ async function generateAutoTags(noteTitle, noteContent, userId, confidenceThresh
       return suggestion;
     });
     enhancedSuggestions.sort((a, b2) => b2.confidence - a.confidence);
-    const topSuggestions = enhancedSuggestions.slice(0, 8);
+    const topSuggestions = enhancedSuggestions.slice(0, 12);
     return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
   } catch (error) {
     console.error("Error generating auto tags:", error instanceof Error ? error.message : String(error));
@@ -74736,11 +74808,18 @@ async function fetchWithTimeout(url, options = {}) {
 }
 
 // server/utils/fetch-verse-text.ts
+init_db2();
+init_dates();
 async function fetchVerseText(reference) {
   const cleanReference = reference.replace(/,\s+/g, ",");
   const parsed = parseScriptureReference(cleanReference);
   if (!parsed) {
     return "";
+  }
+  const normalizedKey = normalizeScriptureReference(cleanReference);
+  const cached = await db.select({ content: VerseTextCache.content }).from(VerseTextCache).where(eq(VerseTextCache.reference, normalizedKey)).get();
+  if (cached?.content && cached.content.length > 0) {
+    return cached.content;
   }
   let verseGroups = parseVerseGroups(cleanReference);
   if (verseGroups.length === 0) {
@@ -74780,7 +74859,8 @@ async function fetchVerseText(reference) {
       const verseArrays = await Promise.all(versePromises);
       verses = verseArrays.flat();
     } else {
-      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(cleanReference)}&formatting=plain&type=json`;
+      const passage = normalizedKey;
+      const apiUrl = `https://labs.bible.org/api/?passage=${encodeURIComponent(passage)}&formatting=plain&type=json`;
       const response = await fetchWithTimeout(apiUrl, { timeout: 1e4, retries: 2, retryTimeout: 5e3 });
       if (!response.ok) throw new Error(`Bible.org API error: ${response.status}`);
       verses = await response.json();
@@ -74792,6 +74872,7 @@ async function fetchVerseText(reference) {
   if (!verses || verses.length === 0) {
     return "";
   }
+  let formatted;
   if (verseGroups.length > 1) {
     const formattedParts = [];
     verseGroups.forEach((group, index2) => {
@@ -74809,9 +74890,23 @@ async function fetchVerseText(reference) {
         }
       }
     });
-    return formattedParts.join("");
+    formatted = formattedParts.join("");
+  } else {
+    formatted = verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
   }
-  return verses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+  try {
+    await db.insert(VerseTextCache).values({
+      reference: normalizedKey,
+      content: formatted,
+      createdAt: nowISO()
+    }).onConflictDoUpdate({
+      target: VerseTextCache.reference,
+      set: { content: formatted, createdAt: nowISO() }
+    });
+  } catch (cacheErr) {
+    console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey}:`, cacheErr?.message ?? cacheErr);
+  }
+  return formatted;
 }
 
 // server/utils/process-scripture-references.ts
@@ -75612,22 +75707,24 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
           eq(InboxItems.isActive, true)
         )
       );
-      for (const inboxItem of allUserInboxItems) {
-        if (!inboxItem.webflowItemId) continue;
-        const existing = await db.select().from(UserInboxItems).where(
+      const validItems = allUserInboxItems.filter((item) => item.webflowItemId);
+      if (validItems.length > 0) {
+        const existingAssignments = await db.select({ inboxItemId: UserInboxItems.inboxItemId }).from(UserInboxItems).where(
           and(
             eq(UserInboxItems.userId, userId),
-            eq(UserInboxItems.inboxItemId, inboxItem.id)
+            inArray(UserInboxItems.inboxItemId, validItems.map((i) => i.id))
           )
-        ).get();
-        if (!existing) {
-          await db.insert(UserInboxItems).values({
-            id: `user_inbox_${userId}_${inboxItem.id}_${Date.now()}`,
-            userId,
-            inboxItemId: inboxItem.id,
-            status: "inbox",
-            createdAt: nowISO()
-          });
+        );
+        const existingIds = new Set(existingAssignments.map((e) => e.inboxItemId));
+        const newItems = validItems.filter((item) => !existingIds.has(item.id)).map((item, idx) => ({
+          id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
+          userId,
+          inboxItemId: item.id,
+          status: "inbox",
+          createdAt: nowISO()
+        }));
+        if (newItems.length > 0) {
+          await db.insert(UserInboxItems).values(newItems);
         }
       }
     } catch (error) {
@@ -75656,39 +75753,41 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
           updatedAt: ts,
           lastVisited: ts
         });
-        let currentSimpleNoteId = 1;
-        for (const noteData of onboardingNotes) {
+        const noteRecords = onboardingNotes.map((noteData, idx) => {
           const noteId = generateNoteId2();
-          const capitalizedNoteTitle = noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1);
-          await db.insert(Notes).values({
+          return {
             id: noteId,
-            title: capitalizedNoteTitle,
+            title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
             content: noteData.content,
             threadId: onboardingThreadId,
             spaceId: null,
-            simpleNoteId: currentSimpleNoteId,
+            simpleNoteId: idx + 1,
             userId,
             isPublic: false,
             addedBy: "system",
             createdAt: ts,
             lastVisited: ts
-          });
-          const junctionId = `note-thread-${noteId}-${Date.now()}`;
-          await db.insert(NoteThreads).values({
-            id: junctionId,
-            noteId,
-            threadId: onboardingThreadId,
-            createdAt: nowISO()
-          });
-          try {
-            await processScriptureReferences(noteId, userId, onboardingThreadId, noteData.content);
-          } catch (e) {
-            console.error("Error processing scripture for onboarding note", noteId, e);
-          }
-          currentSimpleNoteId++;
-        }
+          };
+        });
+        const junctionRecords = noteRecords.map((note) => ({
+          id: `note-thread-${note.id}-${Date.now()}`,
+          noteId: note.id,
+          threadId: onboardingThreadId,
+          createdAt: nowISO()
+        }));
+        await db.insert(Notes).values(noteRecords);
+        await db.insert(NoteThreads).values(junctionRecords);
+        await Promise.all(
+          noteRecords.map(async (note, idx) => {
+            try {
+              await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
+            } catch (e) {
+              console.error("Error processing scripture for onboarding note", note.id, e);
+            }
+          })
+        );
         await db.update(UserMetadata).set({
-          highestSimpleNoteId: currentSimpleNoteId - 1,
+          highestSimpleNoteId: onboardingNotes.length,
           updatedAt: nowISO()
         }).where(eq(UserMetadata.userId, userId));
         console.log(`Created onboarding thread with ${onboardingNotes.length} notes for user ${userId}`);
@@ -75986,40 +76085,42 @@ async function getAllThreadsWithCounts(userId) {
 }
 async function getSpacesWithCounts(userId) {
   try {
-    const spacesWithThreadCounts = await db.select({
-      id: Spaces.id,
-      title: Spaces.title,
-      description: Spaces.description,
-      color: Spaces.color,
-      backgroundGradient: Spaces.backgroundGradient,
-      isPublic: Spaces.isPublic,
-      isActive: Spaces.isActive,
-      createdAt: Spaces.createdAt,
-      updatedAt: Spaces.updatedAt,
-      lastVisited: Spaces.lastVisited,
-      threadCount: count(Threads.id)
-    }).from(Spaces).leftJoin(Threads, eq(Spaces.id, Threads.spaceId)).where(eq(Spaces.userId, userId)).groupBy(Spaces.id).orderBy(
-      desc(Spaces.isActive),
-      asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-      desc(Spaces.lastVisited),
-      desc(Spaces.updatedAt),
-      desc(Spaces.createdAt)
-    ).all();
-    const standaloneNoteCounts = await db.select({
-      spaceId: Notes.spaceId,
-      standaloneNoteCount: count(Notes.id)
-    }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(
-      eq(Notes.userId, userId),
-      isNull(NoteThreads.id),
-      isNotNull(Notes.spaceId)
-    )).groupBy(Notes.spaceId).all();
-    const totalNoteCounts = await db.select({
-      spaceId: Notes.spaceId,
-      totalNoteCount: count(Notes.id)
-    }).from(Notes).where(and(
-      eq(Notes.userId, userId),
-      isNotNull(Notes.spaceId)
-    )).groupBy(Notes.spaceId).all();
+    const [spacesWithThreadCounts, standaloneNoteCounts, totalNoteCounts] = await Promise.all([
+      db.select({
+        id: Spaces.id,
+        title: Spaces.title,
+        description: Spaces.description,
+        color: Spaces.color,
+        backgroundGradient: Spaces.backgroundGradient,
+        isPublic: Spaces.isPublic,
+        isActive: Spaces.isActive,
+        createdAt: Spaces.createdAt,
+        updatedAt: Spaces.updatedAt,
+        lastVisited: Spaces.lastVisited,
+        threadCount: count(Threads.id)
+      }).from(Spaces).leftJoin(Threads, eq(Spaces.id, Threads.spaceId)).where(eq(Spaces.userId, userId)).groupBy(Spaces.id).orderBy(
+        desc(Spaces.isActive),
+        asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Spaces.lastVisited),
+        desc(Spaces.updatedAt),
+        desc(Spaces.createdAt)
+      ).all(),
+      db.select({
+        spaceId: Notes.spaceId,
+        standaloneNoteCount: count(Notes.id)
+      }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(
+        eq(Notes.userId, userId),
+        isNull(NoteThreads.id),
+        isNotNull(Notes.spaceId)
+      )).groupBy(Notes.spaceId).all(),
+      db.select({
+        spaceId: Notes.spaceId,
+        totalNoteCount: count(Notes.id)
+      }).from(Notes).where(and(
+        eq(Notes.userId, userId),
+        isNotNull(Notes.spaceId)
+      )).groupBy(Notes.spaceId).all()
+    ]);
     const standaloneCountMap = new Map(standaloneNoteCounts.map((item) => [item.spaceId, item.standaloneNoteCount]));
     const totalCountMap = new Map(totalNoteCounts.map((item) => [item.spaceId, item.totalNoteCount]));
     return spacesWithThreadCounts.map((space) => ({
@@ -76046,19 +76147,21 @@ async function getSpacesWithCounts(userId) {
 }
 async function getMemberOfSpaces(userId) {
   try {
-    const memberships = await db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, userId)).all();
-    const ownedSpaceIds = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all();
+    const [memberships, ownedSpaceIds] = await Promise.all([
+      db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, userId)).all(),
+      db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all()
+    ]);
     const ownedSet = new Set(ownedSpaceIds.map((r) => r.id));
-    const memberOf = [];
-    for (const m2 of memberships) {
-      if (ownedSet.has(m2.spaceId)) continue;
-      const spaceRow = await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color }).from(Spaces).where(eq(Spaces.id, m2.spaceId)).get();
-      if (spaceRow) {
+    const nonOwnedMemberships = memberships.filter((m2) => !ownedSet.has(m2.spaceId));
+    const results = await Promise.all(
+      nonOwnedMemberships.map(async (m2) => {
+        const spaceRow = await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color }).from(Spaces).where(eq(Spaces.id, m2.spaceId)).get();
+        if (!spaceRow) return null;
         const memberCount = await getSpaceMemberCount(spaceRow.id);
-        memberOf.push({ id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount });
-      }
-    }
-    return memberOf;
+        return { id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount };
+      })
+    );
+    return results.filter((r) => r !== null);
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];
@@ -76209,14 +76312,15 @@ var NOTE_SELECT_COLUMNS = {
   isFeatured: Notes.isFeatured,
   createdAt: Notes.createdAt,
   updatedAt: Notes.updatedAt,
-  lastVisited: Notes.lastVisited
+  lastVisited: Notes.lastVisited,
+  userId: Notes.userId
 };
 async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
     let allNotes = [];
     if (threadId === "thread_unorganized") {
-      const unorganizedNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
+      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
@@ -76231,7 +76335,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         const alreadyIds = new Set(unorganizedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id));
         const additionalIds = uniqueIds.filter((id) => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
+          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
         }
       }
       const notesMap = /* @__PURE__ */ new Map();
@@ -76240,7 +76344,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       });
       allNotes = Array.from(notesMap.values());
     } else {
-      const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
+      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
@@ -76255,7 +76359,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         const alreadyIds = new Set(junctionNotes.filter((n) => n.noteType === "scripture").map((n) => n.id));
         const additionalIds = uniqueIds.filter((id) => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
+          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
         }
       }
       const notesMap = /* @__PURE__ */ new Map();
@@ -76276,29 +76380,49 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
-    let resourceMetadataMap = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId,
-          sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription,
-          sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain,
-          sourceName: ResourceMetadata.sourceName
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_3) {
-      }
-    }
+    const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      // Resource metadata
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+            sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain,
+            sourceName: ResourceMetadata.sourceName
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      // Scripture version (translation) for scripture notes
+      (async () => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      // Thread colors
+      getThreadColorsForNotesBatch(noteIds, userId)
+    ]);
     const notesWithThreadColors = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version3 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -76306,7 +76430,8 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        version: version3
       };
     });
     return { notes: notesWithThreadColors, hasMore };
@@ -76318,7 +76443,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
 async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(
+    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -76333,29 +76458,46 @@ async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, of
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
-    let resourceMetadataMap = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId,
-          sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription,
-          sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain,
-          sourceName: ResourceMetadata.sourceName
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_3) {
-      }
-    }
+    const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+            sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain,
+            sourceName: ResourceMetadata.sourceName
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      (async () => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      getThreadColorsForNotesBatch(noteIds, ownerUserId)
+    ]);
     const notesWithThreadColors = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version3 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -76363,7 +76505,8 @@ async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, of
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        version: version3
       };
     });
     return { notes: notesWithThreadColors, hasMore };
@@ -76428,6 +76571,7 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
     const threadsToUse = Array.isArray(threadsData) ? threadsData : [];
     let assignedNotes = assignedNotesRaw;
     let unorganizedNotes = unorganizedNotesRaw;
+    const threadLookup = new Map(threadsToUse.map((t) => [t.id, t]));
     const threadItems = threadsToUse.map((thread) => ({
       id: thread.id,
       type: "thread",
@@ -76445,24 +76589,44 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
       color: thread.color
     }));
     const resourceNoteIds = [...assignedNotes, ...unorganizedNotes].filter((n) => n.noteType === "resource").map((n) => n.id);
+    const scriptureNoteIds = [...assignedNotes, ...unorganizedNotes].filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     let resourceMetadataMap = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId,
-          sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription,
-          sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain,
-          sourceName: ResourceMetadata.sourceName
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc, meta) => {
-          acc[meta.noteId] = meta;
-          return acc;
-        }, {});
-      } catch (_3) {
-      }
-    }
+    let scriptureVersionMap = {};
+    const [resourceResult, scriptureResult] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+            sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain,
+            sourceName: ResourceMetadata.sourceName
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc, meta) => {
+            acc[meta.noteId] = meta;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      (async () => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })()
+    ]);
+    resourceMetadataMap = resourceResult;
+    scriptureVersionMap = scriptureResult;
     let scriptureReferencesMap = {};
     const defaultNoteIds = [...assignedNotes, ...unorganizedNotes].filter((n) => n.noteType === "default" || !n.noteType).map((n) => n.id);
     if (defaultNoteIds.length > 0) {
@@ -76471,16 +76635,16 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
           noteId: NoteScriptureReferences.noteId,
           scriptureNoteId: NoteScriptureReferences.scriptureNoteId
         }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
-        const scriptureNoteIds = [...new Set(junctionEntries.map((e) => e.scriptureNoteId))];
+        const scriptureNoteIds2 = [...new Set(junctionEntries.map((e) => e.scriptureNoteId))];
         let scriptureMetadataMap = {};
-        if (scriptureNoteIds.length > 0) {
-          const sm = await db.select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+        if (scriptureNoteIds2.length > 0) {
+          const sm = await db.select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds2)).all();
           scriptureMetadataMap = sm.reduce((acc, m2) => {
             acc[m2.noteId] = m2.reference;
             return acc;
           }, {});
         }
-        const scriptureNoteIdsArray = scriptureNoteIds.filter(Boolean);
+        const scriptureNoteIdsArray = scriptureNoteIds2.filter(Boolean);
         const scriptureThreadColorsBatchMap = scriptureNoteIdsArray.length > 0 ? await getThreadColorsForNotesBatch(scriptureNoteIdsArray, userId) : /* @__PURE__ */ new Map();
         for (const entry of junctionEntries) {
           const reference = scriptureMetadataMap[entry.scriptureNoteId];
@@ -76516,11 +76680,16 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const isEncrypted = note.contentEncrypted === true;
+      const version3 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
+      const noteThread = threadLookup.get(note.threadId);
       return {
         id: note.id,
         type: "note",
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
         content: isEncrypted ? "" : (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        // Full HTML content for seeding the note detail cache so opening a note shows content instantly
+        rawContent: isEncrypted ? "" : note.content || "",
+        rawTitle: note.title || "Untitled Note",
         contentEncrypted: isEncrypted,
         noteId: note.id,
         threadId: note.threadId,
@@ -76534,7 +76703,12 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: note.threadColors,
-        scriptureReferences: scriptureReferencesMap[note.id] || void 0
+        scriptureReferences: scriptureReferencesMap[note.id] || void 0,
+        version: version3,
+        userId: note.userId,
+        threadTitle: note.threadId === "thread_unorganized" ? "Unorganized" : noteThread?.title ?? null,
+        threadColor: noteThread?.color ?? null,
+        threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null)
       };
     };
     const allItemsMap = /* @__PURE__ */ new Map();
@@ -76559,7 +76733,21 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
     const notes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(inArray(Notes.id, referencedIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"), isNull(Notes.lastVisited))).all();
     if (notes.length === 0) return [];
     const noteIds = notes.map((n) => n.id);
-    const threadColorsMap = await getThreadColorsForNotesAsRecord(noteIds, userId);
+    const [threadColorsMap, scriptureVersionMap] = await Promise.all([
+      getThreadColorsForNotesAsRecord(noteIds, userId),
+      (async () => {
+        if (noteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })()
+    ]);
     return notes.map((note) => {
       const cleanContent = stripHtml(note.content);
       return {
@@ -76567,6 +76755,8 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
         type: "note",
         title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        rawContent: note.content || "",
+        rawTitle: note.title || "Untitled Note",
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
@@ -76575,7 +76765,8 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
         updatedAt: note.updatedAt || note.createdAt,
         lastVisited: null,
         createdAt: note.createdAt,
-        threadColors: threadColorsMap[note.id] || void 0
+        threadColors: threadColorsMap[note.id] || void 0,
+        version: scriptureVersionMap[note.id] ?? void 0
       };
     });
   } catch (error) {
@@ -76596,7 +76787,21 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
     const sortedNotes = sortByLastVisited(notes.map((n) => ({ ...n, updatedAt: n.updatedAt || n.createdAt, id: n.id || "" })));
     const limitedNotes = sortedNotes.slice(0, limit);
     const noteIds = limitedNotes.map((n) => n.id);
-    const threadColorsMap = await getThreadColorsForNotesAsRecord(noteIds, userId);
+    const [threadColorsMap, scriptureVersionMap] = await Promise.all([
+      getThreadColorsForNotesAsRecord(noteIds, userId),
+      (async () => {
+        if (noteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })()
+    ]);
     const noteItems = limitedNotes.map((note) => {
       const cleanContent = stripHtml(note.content);
       return {
@@ -76604,6 +76809,8 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
         type: "note",
         title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        rawContent: note.content || "",
+        rawTitle: note.title || "Untitled Note",
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
@@ -76612,7 +76819,8 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
         updatedAt: note.updatedAt || note.createdAt,
         lastVisited: note.lastVisited,
         createdAt: note.createdAt,
-        threadColors: threadColorsMap[note.id] || void 0
+        threadColors: threadColorsMap[note.id] || void 0,
+        version: scriptureVersionMap[note.id] ?? void 0
       };
     });
     return { items: noteItems, hasMore: sortedNotes.length > limit };
@@ -76724,7 +76932,7 @@ async function getThreadsForSpaceBySpaceId(spaceId) {
 async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+    const allNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
@@ -76739,29 +76947,46 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
-    let resourceMetadataMap = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId,
-          sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription,
-          sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain,
-          sourceName: ResourceMetadata.sourceName
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_3) {
-      }
-    }
+    const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+            sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain,
+            sourceName: ResourceMetadata.sourceName
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      (async () => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {});
+        } catch (_3) {
+          return {};
+        }
+      })(),
+      getThreadColorsForNotesBatch(noteIds, userId)
+    ]);
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version3 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -76769,7 +76994,8 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        version: version3
       };
     });
     return { notes: notesWithMeta, hasMore };
@@ -77182,11 +77408,11 @@ route8.get("/api/content/load-more", async (c) => {
     }
     const fetchLimit = filter2 === "all" ? limit : limit * 3;
     const filterExcludeReferencedScripture = filter2 === "all";
-    const items = await getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture);
-    let referencedScriptureNotes = [];
-    if (filter2 === "all" && offset === 0) {
-      referencedScriptureNotes = await getReferencedScriptureNotesWithoutLastVisited(auth.userId);
-    }
+    const needReferencedScripture = filter2 === "all" && offset === 0;
+    const [items, referencedScriptureNotes] = needReferencedScripture ? await Promise.all([
+      getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture),
+      getReferencedScriptureNotesWithoutLastVisited(auth.userId)
+    ]) : [await getContentItems(auth.userId, fetchLimit, offset, filterExcludeReferencedScripture), []];
     let filteredItems = items;
     if (filter2 === "threads") {
       filteredItems = items.filter((item) => item.type === "thread");
@@ -77203,7 +77429,7 @@ route8.get("/api/content/load-more", async (c) => {
       hasMore,
       offset,
       limit,
-      referencedScriptureNotes: filter2 === "all" && offset === 0 ? referencedScriptureNotes : void 0
+      referencedScriptureNotes: needReferencedScripture ? referencedScriptureNotes : void 0
     });
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -78090,20 +78316,34 @@ route9.get("/api/threads/:threadId/prefetch", async (c) => {
     let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
     if (!thread) {
-      const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
-      if (!threadRow) return c.json({ error: "Thread not found" }, 404);
-      if (threadRow.spaceId) {
-        try {
-          const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
-          thread = await getThreadWithCount(threadId, space.userId);
-          const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
-          notesResult = memberNotes;
-          noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
-        } catch {
+      if (threadId === "thread_unorganized") {
+        const notes2 = Array.isArray(notesResult) ? [] : notesResult.notes;
+        thread = {
+          id: "thread_unorganized",
+          title: "Unorganized",
+          subtitle: "Notes that haven't been organized into threads yet",
+          color: null,
+          userId: auth.userId,
+          spaceId: null,
+          noteCount: noteTypeCounts?.all ?? notes2?.length ?? 0,
+          backgroundGradient: getThreadGradientCSS("paper")
+        };
+      } else {
+        const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+        if (!threadRow) return c.json({ error: "Thread not found" }, 404);
+        if (threadRow.spaceId) {
+          try {
+            const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+            thread = await getThreadWithCount(threadId, space.userId);
+            const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+            notesResult = memberNotes;
+            noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+          } catch {
+            return c.json({ error: "Thread not found" }, 404);
+          }
+        } else {
           return c.json({ error: "Thread not found" }, 404);
         }
-      } else {
-        return c.json({ error: "Thread not found" }, 404);
       }
     }
     if (!thread) return c.json({ error: "Thread not found" }, 404);
@@ -89402,29 +89642,21 @@ route10.post("/api/notes/create", async (c) => {
         console.error("Error creating ResourceMetadata (non-critical):", error);
       }
     }
-    let scriptureResults = [];
-    let scriptureProcessingError = false;
+    const actualThreadId = threadId && threadId !== "thread_unorganized" ? threadId : "thread_unorganized";
+    const latestNote = finalNoteType === "resource" ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get() : null;
+    const contentToProcess = latestNote?.content || newNote.content;
     if (!contentEncrypted) {
-      try {
-        const actualThreadId = threadId && threadId !== "thread_unorganized" ? threadId : "thread_unorganized";
-        const latestNote = finalNoteType === "resource" ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get() : null;
-        const contentToProcess = latestNote?.content || newNote.content;
-        const preview = typeof contentToProcess === "string" ? contentToProcess.slice(0, 80).replace(/\s+/g, " ").trim() : "";
-        console.log("[api/notes/create] About to run scripture processing", {
-          noteId: newNote.id,
-          contentLength: contentToProcess?.length ?? 0,
-          contentPreview: preview || "(empty)"
-        });
-        const scriptureResult = await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess);
-        scriptureResults = scriptureResult.results ?? [];
-      } catch (error) {
-        scriptureProcessingError = true;
-        console.error("[api/notes/create] Scripture processing failed:", error?.message);
-        console.error("[api/notes/create] Scripture processing error stack:", error?.stack);
-        console.error("[api/notes/create] Scripture processing error string:", String(error));
-      }
+      processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess).catch((err) => {
+        console.error("[api/notes/create] Deferred scripture processing failed:", err?.message ?? err);
+      });
     }
-    return c.json({ success: "Note created!", note: newNote, scriptureResults, scriptureProcessingError });
+    return c.json({
+      success: "Note created!",
+      note: newNote,
+      scriptureResults: [],
+      scriptureProcessingError: false,
+      scriptureDeferred: true
+    });
   } catch (error) {
     console.error("[api/notes/create] Error:", error);
     return c.json({ error: error.message || "Failed to create note" }, 500);
@@ -89822,9 +90054,23 @@ route10.get("/api/notes/:id/details", async (c) => {
     let allThreads = [];
     try {
       const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
-      allThreads = junctionThreads.filter((t) => t.title !== "Unorganized");
+      allThreads = junctionThreads;
     } catch {
       allThreads = [];
+    }
+    if (!isMemberView && allThreads.length === 0 && note.threadId === "thread_unorganized") {
+      await ensureUnorganizedThread(auth.userId);
+      const unorganizedRow = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).where(and(eq(Threads.id, "thread_unorganized"), eq(Threads.userId, auth.userId))).get();
+      if (unorganizedRow) {
+        const unorganizedCountResult = await db.select({ count: count() }).from(Notes).where(and(eq(Notes.threadId, "thread_unorganized"), eq(Notes.userId, auth.userId))).get();
+        allThreads = [{
+          ...unorganizedRow,
+          title: "Unorganized",
+          subtitle: unorganizedRow.subtitle || "Thread",
+          count: unorganizedCountResult?.count || 0,
+          backgroundGradient: getThreadGradientCSS(unorganizedRow.color || "paper")
+        }];
+      }
     }
     if (isMemberView) {
       try {
@@ -89844,12 +90090,19 @@ route10.get("/api/notes/:id/details", async (c) => {
       }
     }
     const formattedThreads = await Promise.all(allThreads.map(async (thread) => {
-      const useTotalCount = isMemberView && thread.spaceId;
-      const junctionCountResult = useTotalCount ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get() : await db.select({ count: count() }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
+      let threadCount = 0;
+      if (thread.id === "thread_unorganized") {
+        const unorganizedCountResult = await db.select({ count: count() }).from(Notes).where(and(eq(Notes.threadId, "thread_unorganized"), eq(Notes.userId, auth.userId))).get();
+        threadCount = unorganizedCountResult?.count || 0;
+      } else {
+        const useTotalCount = isMemberView && thread.spaceId;
+        const junctionCountResult = useTotalCount ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get() : await db.select({ count: count() }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
+        threadCount = junctionCountResult?.count || 0;
+      }
       return {
         ...thread,
         subtitle: thread.subtitle || "Thread",
-        count: junctionCountResult?.count || 0,
+        count: thread.count != null ? thread.count : threadCount,
         backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color)
       };
     }));
@@ -90575,6 +90828,45 @@ route11.get("/api/spaces/:spaceId/items", async (c) => {
     }
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/items", action: "get_space_items" });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+route11.get("/api/spaces/:spaceId/bootstrap", async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const spaceId = c.req.param("spaceId");
+    let accessInfo;
+    try {
+      accessInfo = await requireSpaceAccess(spaceId, auth.userId);
+    } catch (err) {
+      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      throw err;
+    }
+    const spaceRow = accessInfo.space;
+    const spaceDetail = {
+      id: spaceRow.id,
+      title: spaceRow.title,
+      color: spaceRow.color,
+      backgroundGradient: spaceRow.backgroundGradient || getThreadGradientCSS(spaceRow.color || "paper"),
+      ownerId: spaceRow.userId,
+      memberCount: 0,
+      isPublic: spaceRow.isPublic
+    };
+    const [notesResult, threads] = accessInfo.role === "owner" ? await Promise.all([
+      getNotesForSpace(spaceId, auth.userId),
+      getThreadsForSpace(spaceId, auth.userId)
+    ]) : await Promise.all([
+      getNotesForSpaceForMember(spaceId, spaceRow.userId),
+      getThreadsForSpaceBySpaceId(spaceId)
+    ]);
+    return c.json(
+      { space: spaceDetail, items: { threads, notes: notesResult.notes } },
+      200,
+      { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" }
+    );
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/bootstrap", action: "get_space_bootstrap" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
@@ -94777,7 +95069,7 @@ init_chunk_YBVFDYDR();
 init_chunk_3SCGTTJP();
 
 // node_modules/@clerk/shared/dist/runtime/getEnvVariable-BSXrgsT3.mjs
-var import_meta2 = {};
+var import_meta = {};
 var hasCloudflareProxyContext = (context) => {
   return !!context?.cloudflare?.env;
 };
@@ -94786,7 +95078,7 @@ var hasCloudflareContext = (context) => {
 };
 var getEnvVariable = (name, context) => {
   if (typeof process !== "undefined" && process.env && typeof process.env[name] === "string") return process.env[name];
-  if (typeof import_meta2 !== "undefined" && import_meta2.env && typeof import_meta2.env[name] === "string") return import_meta2.env[name];
+  if (typeof import_meta !== "undefined" && import_meta.env && typeof import_meta.env[name] === "string") return import_meta.env[name];
   if (hasCloudflareProxyContext(context)) return context.cloudflare.env[name] || "";
   if (hasCloudflareContext(context)) return context.env[name] || "";
   if (context && typeof context[name] === "string") return context[name];
@@ -97057,6 +97349,12 @@ var test_default = app12;
 var app13 = new Hono2();
 app13.use("/api/*", cors());
 app13.use("/api/*", clerkAuth);
+app13.use("/api/*", async (c, next) => {
+  await next();
+  if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
+    c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
+  }
+});
 app13.route("/", health_default);
 app13.route("/", navigation_default);
 app13.route("/", debug_default);
