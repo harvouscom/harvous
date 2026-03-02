@@ -1966,6 +1966,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     };
   }, []);
 
+  // Sync from localStorage when any code (e.g. history-tracker script) updates and dispatches navigationHistoryUpdated
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => {
+      setNavigationHistory(getNavigationHistory());
+    };
+    window.addEventListener('navigationHistoryUpdated', handler);
+    return () => window.removeEventListener('navigationHistoryUpdated', handler);
+  }, []);
+
   // Memoize filtered navigation history to prevent recalculation on unrelated renders
   const filteredNavigationHistory = useMemo(() => {
     const testItemTitles = ['Test Space', 'Test Close Icon', 'Test Immediate Nav', 'Test Event Dispatch'];

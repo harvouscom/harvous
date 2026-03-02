@@ -191,16 +191,23 @@ function addToNavigationHistory(item) {
   
   // Check if item already exists
   const existingIndex = history.findIndex(h => h.id === item.id);
+  const now = Date.now();
   
   if (existingIndex !== -1) {
-    // Item already exists - this shouldn't happen if called correctly
-    return;
+    // Item already exists - merge incoming data (e.g. count, title, backgroundGradient) so nav badge stays correct
+    const existing = history[existingIndex];
+    history[existingIndex] = {
+      ...existing,
+      ...item,
+      firstAccessed: existing.firstAccessed || now,
+      lastAccessed: now
+    };
   } else {
-    // Item doesn't exist - add to end first, then sort
+    // Item doesn't exist - add to end
     const newItem = {
       ...item,
-      firstAccessed: Date.now(),
-      lastAccessed: Date.now()
+      firstAccessed: now,
+      lastAccessed: now
     };
     history.push(newItem);
   }
@@ -213,7 +220,12 @@ function addToNavigationHistory(item) {
   
   saveNavigationHistory(limitedHistory);
   
-  // Re-render persistent navigation
+  // Notify React NavigationContext to re-read from localStorage so desktop/mobile nav update
+  try {
+    window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+  } catch (e) {}
+  
+  // Re-render persistent navigation (legacy)
   if (window.renderPersistentNavigation) {
     window.renderPersistentNavigation();
   }
