@@ -34,9 +34,9 @@ export default function AppLayout() {
   const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
-  // Prefer profile-first so onboarding exists; if get-profile fails, still enable nav so user is not stuck.
+  // Run nav as soon as user is signed in (parallel with profile). Server is hardened so onboarding init is safe when multiple requests run.
   const { data: nav } = useNavigation({
-    enabled: (profileSuccess && !!profile) || profileError,
+    enabled: (isLoaded && isSignedIn) || (profileSuccess && !!profile) || profileError,
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();

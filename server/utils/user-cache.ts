@@ -267,71 +267,86 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       .where(eq(UserMetadata.userId, userId));
   } else {
     userCreatedAt = nowISO();
-    await db.insert(UserMetadata).values({
-      id: `user_metadata_${userId}`,
-      userId: userId,
-      firstName,
-      lastName,
-      email,
-      profileImageUrl,
-      userColor,
-      highestSimpleNoteId: 0,
-      currentSeason: getCurrentSeason(),
-      churchName: null,
-      churchCity: null,
-      churchState: null,
-      referralCode: generateReferralCode(firstName || null, userId),
-      createdAt: userCreatedAt,
-      updatedAt: nowISO(),
-      clerkDataUpdatedAt: nowISO(),
-    });
-
-    // Auto-assign inbox items for new users
+    let insertSucceeded = true;
     try {
-      const allUserInboxItems = await db
-        .select()
-        .from(InboxItems)
-        .where(
-          and(
-            eq(InboxItems.targetAudience, 'all_users'),
-            eq(InboxItems.isActive, true)
-          )
-        );
-
-      const validItems = allUserInboxItems.filter(item => item.webflowItemId);
-      if (validItems.length > 0) {
-        // Batch check existing assignments in one query
-        const existingAssignments = await db
-          .select({ inboxItemId: UserInboxItems.inboxItemId })
-          .from(UserInboxItems)
-          .where(
-            and(
-              eq(UserInboxItems.userId, userId),
-              inArray(UserInboxItems.inboxItemId, validItems.map(i => i.id))
-            )
-          );
-        const existingIds = new Set(existingAssignments.map(e => e.inboxItemId));
-
-        const newItems = validItems
-          .filter(item => !existingIds.has(item.id))
-          .map((item, idx) => ({
-            id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
-            userId: userId,
-            inboxItemId: item.id,
-            status: 'inbox' as const,
-            createdAt: nowISO(),
-          }));
-
-        if (newItems.length > 0) {
-          await db.insert(UserInboxItems).values(newItems);
-        }
+      await db.insert(UserMetadata).values({
+        id: `user_metadata_${userId}`,
+        userId: userId,
+        firstName,
+        lastName,
+        email,
+        profileImageUrl,
+        userColor,
+        highestSimpleNoteId: 0,
+        currentSeason: getCurrentSeason(),
+        churchName: null,
+        churchCity: null,
+        churchState: null,
+        referralCode: generateReferralCode(firstName || null, userId),
+        createdAt: userCreatedAt,
+        updatedAt: nowISO(),
+        clerkDataUpdatedAt: nowISO(),
+      });
+    } catch (insertErr: unknown) {
+      const isUnique =
+        (insertErr as { code?: string })?.code === 'SQLITE_CONSTRAINT' ||
+        (insertErr as { cause?: { code?: string } })?.cause?.code === 'SQLITE_CONSTRAINT' ||
+        (insertErr as Error)?.message?.includes('UNIQUE constraint failed');
+      if (isUnique) {
+        insertSucceeded = false;
+        console.log('[user-cache] UserMetadata already created by concurrent request', { userId });
+      } else {
+        throw insertErr;
       }
-    } catch (error) {
-      console.error('Error assigning inbox items to new user:', error);
     }
 
-    // Create onboarding thread with sample notes for new users.
-    // On failure, log and continue so get-profile still returns 200 and the user can load the app.
+    if (insertSucceeded) {
+      // Auto-assign inbox items for new users
+      try {
+        const allUserInboxItems = await db
+          .select()
+          .from(InboxItems)
+          .where(
+            and(
+              eq(InboxItems.targetAudience, 'all_users'),
+              eq(InboxItems.isActive, true)
+            )
+          );
+
+        const validItems = allUserInboxItems.filter(item => item.webflowItemId);
+        if (validItems.length > 0) {
+          // Batch check existing assignments in one query
+          const existingAssignments = await db
+            .select({ inboxItemId: UserInboxItems.inboxItemId })
+            .from(UserInboxItems)
+            .where(
+              and(
+                eq(UserInboxItems.userId, userId),
+                inArray(UserInboxItems.inboxItemId, validItems.map(i => i.id))
+              )
+            );
+          const existingIds = new Set(existingAssignments.map(e => e.inboxItemId));
+
+          const newItems = validItems
+            .filter(item => !existingIds.has(item.id))
+            .map((item, idx) => ({
+              id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
+              userId: userId,
+              inboxItemId: item.id,
+              status: 'inbox' as const,
+              createdAt: nowISO(),
+            }));
+
+          if (newItems.length > 0) {
+            await db.insert(UserInboxItems).values(newItems);
+          }
+        }
+      } catch (error) {
+        console.error('Error assigning inbox items to new user:', error);
+      }
+    }
+
+    // Create onboarding thread (idempotent; safe if we or another request already created user)
     try {
       await ensureOnboardingThreadIfMissing(userId);
     } catch (error) {

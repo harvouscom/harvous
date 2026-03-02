@@ -27,9 +27,9 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<DashboardFilter>('all');
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
 
-  // Prefer profile-first so onboarding exists; if get-profile fails, still load content so user is not stuck.
+  // Load content as soon as user is signed in (parallel with profile). Server is hardened so onboarding exists before content runs.
   const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 30, {
-    enabled: (profileSuccess && !!profile) || profileError,
+    enabled: (profileSuccess && !!profile) || profileError || !!user?.id,
   });
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
