@@ -24,7 +24,6 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'clerk': ['@clerk/clerk-react'],
-          'router': ['@tanstack/react-router'],
           'query': ['@tanstack/react-query'],
           'tiptap': [
             '@tiptap/react',

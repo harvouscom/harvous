@@ -793,6 +793,9 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         id: note.id, type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
         content: isEncrypted ? "" : (resourceMeta?.sourceDescription || cleanContent).substring(0, 150) + ((resourceMeta?.sourceDescription || cleanContent).length > 150 ? "..." : ""),
+        // Full HTML content for seeding the note detail cache so opening a note shows content instantly
+        rawContent: isEncrypted ? "" : (note.content || ""),
+        rawTitle: note.title || "Untitled Note",
         contentEncrypted: isEncrypted, noteId: note.id, threadId: note.threadId, spaceId: note.spaceId,
         noteType: note.noteType || 'default', lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt, lastVisited: note.lastVisited || null, createdAt: note.createdAt,
@@ -841,6 +844,8 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
       return {
         id: note.id, type: "note" as const, title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        rawContent: note.content || "",
+        rawTitle: note.title || "Untitled Note",
         noteId: note.id, threadId: note.threadId, spaceId: note.spaceId,
         noteType: note.noteType || 'scripture',
         lastUpdated: note.updatedAt || note.createdAt, updatedAt: note.updatedAt || note.createdAt,
@@ -876,6 +881,8 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
       return {
         id: note.id, type: "note" as const, title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
+        rawContent: note.content || "",
+        rawTitle: note.title || "Untitled Note",
         noteId: note.id, threadId: note.threadId, spaceId: note.spaceId,
         noteType: note.noteType || 'scripture',
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,

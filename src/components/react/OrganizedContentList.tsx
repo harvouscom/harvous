@@ -60,6 +60,8 @@ interface OrganizedContentListProps {
   parentIsLoading?: boolean;
   /** When provided, use the API's hasMore from the parent (e.g. last page of dashboard query) instead of inferring from item count. */
   initialHasMoreFromParent?: boolean;
+  /** Called on pointer enter for note items — use to prefetch note data before click */
+  onNotePrefetch?: (noteId: string) => void;
 }
 
 // Helper to normalize dates once at API boundary
@@ -141,6 +143,7 @@ export default function OrganizedContentList({
   onNavigate,
   parentIsLoading = false,
   initialHasMoreFromParent,
+  onNotePrefetch,
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -1559,14 +1562,16 @@ export default function OrganizedContentList({
         data-thread-id={item.type === 'thread' ? item.threadId : undefined}
       >
         {item.type === 'note' && isScriptureNote ? (
-          <CondensedNoteItem
-            title={item.title}
-            noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
-            href={href}
-            threadColors={item.threadColors || undefined}
-            noteId={item.noteId}
-            onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
-          />
+          <div onPointerEnter={onNotePrefetch && item.noteId ? () => onNotePrefetch(item.noteId!) : undefined}>
+            <CondensedNoteItem
+              title={item.title}
+              noteType={(item.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
+              href={href}
+              threadColors={item.threadColors || undefined}
+              noteId={item.noteId}
+              onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
+            />
+          </div>
         ) : item.type === 'note' ? (
           <div
             role="link"
@@ -1575,6 +1580,7 @@ export default function OrganizedContentList({
             style={{ cursor: 'pointer' }}
             data-href={href}
             aria-label="Open note"
+            onPointerEnter={onNotePrefetch && item.noteId ? () => onNotePrefetch(item.noteId!) : undefined}
             onClick={() => {
               if (onNavigate) onNavigate(href);
               else window.location.href = href;
