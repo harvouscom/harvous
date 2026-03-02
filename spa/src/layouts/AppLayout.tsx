@@ -295,7 +295,7 @@ export default function AppLayout() {
         id: parentData.id,
         title: parentData.title ?? 'Thread',
         noteCount: withCount.count ?? withCount.noteCount ?? 0,
-        backgroundGradient: parentData.backgroundGradient ?? 'var(--color-paper)',
+        backgroundGradient: parentData.backgroundGradient || 'var(--color-paper)',
         spaceId: (parentData as { spaceId?: string | null }).spaceId ?? null,
       };
     }

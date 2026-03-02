@@ -143,7 +143,7 @@ export function getNoteQueryOptions(noteId: string) {
           id: parentThread.id,
           title: parentThread.title,
           noteCount: threadWithCount.count ?? 0,
-          backgroundGradient: parentThread.backgroundGradient ?? '',
+          backgroundGradient: parentThread.backgroundGradient ?? 'var(--color-gradient-gray)',
           spaceId: threadWithCount.spaceId ?? null,
         });
       }

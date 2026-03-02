@@ -381,10 +381,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Check if item already exists - use strict equality check
     const existingIndex = rawHistory.findIndex((h: any) => h.id === item.id);
 
-    const itemOpenedInSpaceIds = mergeOpenedInSpaceIds(
-      getItemOpenedInSpaceIds(item),
-      [getSelectedSpaceId()]
-    );
+    const hasExplicitOpenedInSpaceIds =
+      (item as any).openedInSpaceIds !== undefined && Array.isArray((item as any).openedInSpaceIds);
+    const itemOpenedInSpaceIds =
+      hasExplicitOpenedInSpaceIds && existingIndex === -1
+        ? getItemOpenedInSpaceIds(item)
+        : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [getSelectedSpaceId()]);
 
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position

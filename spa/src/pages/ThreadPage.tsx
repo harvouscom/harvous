@@ -51,13 +51,15 @@ export default function ThreadPage() {
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
+    const spaceId = navThread?.spaceId ?? thread?.spaceId ?? null;
     if (typeof window !== 'undefined' && (window as any).addToNavigationHistory) {
       (window as any).addToNavigationHistory({
         id: threadId,
         title,
         count,
         backgroundGradient: gradient,
-        spaceId: navThread?.spaceId ?? thread?.spaceId ?? null,
+        spaceId,
+        openedInSpaceIds: [spaceId],
       });
     }
   }, [threadId, thread, nav, isUnorganized]);

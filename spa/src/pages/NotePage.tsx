@@ -97,8 +97,9 @@ export default function NotePage() {
       id: parent.id,
       title: parent.title ?? 'Thread',
       count: threadWithMeta.count ?? 0,
-      backgroundGradient: parent.backgroundGradient ?? '',
+      backgroundGradient: parent.backgroundGradient ?? 'var(--color-gradient-gray)',
       spaceId: threadWithMeta.spaceId ?? null,
+      openedInSpaceIds: [threadWithMeta.spaceId ?? null],
     });
   }, [note]);
 
