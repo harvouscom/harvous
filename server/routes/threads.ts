@@ -434,20 +434,36 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
 
     if (!thread) {
-      const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
-      if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
-      if (threadRow.spaceId) {
-        try {
-          const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
-          thread = await getThreadWithCount(threadId, space.userId);
-          const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
-          notesResult = memberNotes;
-          noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
-        } catch {
+      // thread_unorganized: only one row exists (id PK); other users get null from getThreadWithCount.
+      // Return a synthetic thread for auth.userId so CTAs show for all users (no 404).
+      if (threadId === 'thread_unorganized') {
+        const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
+        thread = {
+          id: 'thread_unorganized',
+          title: 'Unorganized',
+          subtitle: 'Notes that haven\'t been organized into threads yet',
+          color: null,
+          userId: auth.userId,
+          spaceId: null,
+          noteCount: noteTypeCounts?.all ?? notes?.length ?? 0,
+          backgroundGradient: getThreadGradientCSS('paper'),
+        };
+      } else {
+        const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+        if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
+        if (threadRow.spaceId) {
+          try {
+            const { space } = await requireSpaceAccess(threadRow.spaceId, auth.userId);
+            thread = await getThreadWithCount(threadId, space.userId);
+            const memberNotes = await getNotesForThreadForMember(threadId, space.userId, 20, 0);
+            notesResult = memberNotes;
+            noteTypeCounts = await getThreadNoteTypeCounts(threadId, space.userId);
+          } catch {
+            return c.json({ error: 'Thread not found' }, 404);
+          }
+        } else {
           return c.json({ error: 'Thread not found' }, 404);
         }
-      } else {
-        return c.json({ error: 'Thread not found' }, 404);
       }
     }
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
