@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router';
 import React, { useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster, toast as sonnerToast } from 'sonner';
+import { WebHaptics } from 'web-haptics';
 import { router } from './router';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
@@ -91,6 +92,25 @@ function IosPwaClass() {
       document.documentElement.classList.add('ios-pwa');
       return () => document.documentElement.classList.remove('ios-pwa');
     }
+  }, []);
+  return null;
+}
+
+/** Create WebHaptics on mount and expose on window for global haptics-handler.js and src/utils/haptics.ts */
+function WebHapticsSetup() {
+  useEffect(() => {
+    const haptics = new WebHaptics();
+    window.__webHaptics = haptics;
+    window.__hapticsTriggerShadow = (ms: number) => {
+      if (WebHaptics.isSupported) {
+        const intensity = Math.min(1, ms / 30);
+        haptics.trigger([{ duration: ms, intensity }]);
+      }
+    };
+    return () => {
+      delete (window as any).__webHaptics;
+      delete (window as any).__hapticsTriggerShadow;
+    };
   }, []);
   return null;
 }
@@ -466,6 +486,7 @@ export default function App() {
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
         <IosPwaClass />
+        <WebHapticsSetup />
         <ToastSetup />
         <UserIdSync />
         <SpaToaster />

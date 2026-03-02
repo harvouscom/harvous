@@ -1,3 +1,6 @@
+// iOS 18+ Safari: polyfill navigator.vibrate so web-haptics (and fallback) can trigger Taptic Engine
+import 'ios-vibrator-pro-max';
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -10,6 +13,15 @@ import App from './App';
 // infinite reload loops in case the reload itself still fails.
 window.addEventListener('vite:preloadError', () => {
   const KEY = 'vite_preload_reload_attempted';
+  // Report chunk load failure for correlation with Netlify 404s and deploys
+  try {
+    if (typeof (window as any).posthog?.capture === 'function') {
+      (window as any).posthog.capture('chunk_load_failed', {
+        reload_attempted: !!sessionStorage.getItem(KEY),
+      });
+    }
+  } catch (_) {}
+
   if (!sessionStorage.getItem(KEY)) {
     sessionStorage.setItem(KEY, '1');
     window.location.reload();

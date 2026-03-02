@@ -18,9 +18,9 @@
     "db:check": "node scripts/db-sync.js",
     "predeploy": "npm run db:push",
     "deploy": "npm run build",
-    "dev:api": "node scripts/generate-founder-letter.js && tsx watch server/dev.ts",
+    "dev:api": "node scripts/generate-founder-letter.js && tsx scripts/generate-onboarding-notes.ts && tsx watch server/dev.ts",
     "dev:all": "concurrently --names api,spa -c green,yellow \"npm run dev:api\" \"npm run dev:spa\"",
-    "build:api": "node scripts/generate-founder-letter.js && esbuild server/netlify.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:@libsql/client=@libsql/client/web --loader:.md=text --outfile=netlify/functions/api.cjs",
+    "build:api": "node scripts/generate-founder-letter.js && tsx scripts/generate-onboarding-notes.ts && esbuild server/netlify.ts --bundle --platform=node --target=node22 --format=cjs --alias:@=src --alias:@libsql/client=@libsql/client/web --loader:.md=text --outfile=netlify/functions/api.cjs",
     "dev:spa": "vite",
     "build:spa": "vite build",
     "preview:spa": "vite preview --port 4322",
@@ -102,6 +102,7 @@
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "turndown": "^7.2.2",
+    "web-haptics": "^0.0.6",
     "typescript": "^5.9.2"
   },
   "devDependencies": {

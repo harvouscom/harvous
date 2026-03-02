@@ -37,7 +37,7 @@
     return 'HEAVY';
   }
 
-  // Simple vibrate wrapper - uses Capacitor Haptics on native, navigator.vibrate as fallback
+  // Simple vibrate wrapper - uses Capacitor Haptics on native, web-haptics or navigator.vibrate on web
   function vibrate(duration) {
     // Native: use Capacitor Haptics plugin (works on iOS where navigator.vibrate is blocked)
     if (isNative() && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics) {
@@ -49,7 +49,17 @@
       return;
     }
 
-    // Web/PWA fallback: navigator.vibrate (Android, no-op on iOS)
+    // Web/PWA: use web-haptics (shadow-based intensity) when SPA has set it; else fallback to navigator.vibrate
+    if (typeof window.__hapticsTriggerShadow === 'function') {
+      try {
+        window.__hapticsTriggerShadow(duration);
+      } catch (e) {
+        // Silently fail
+      }
+      return;
+    }
+
+    // Fallback: navigator.vibrate (e.g. before React has mounted)
     try {
       if (navigator.vibrate) {
         navigator.vibrate(duration);

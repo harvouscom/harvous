@@ -49,10 +49,17 @@
   [headers.values]
     Cache-Control = "no-store, no-cache, must-revalidate"
 
-# Security Headers
+# SPA assets (hashed filenames) — long cache so CDN/browser don't revalidate
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Security Headers + prevent stale index.html after deploy (reduces chunk 404s)
 [[headers]]
   for = "/*"
   [headers.values]
+    Cache-Control = "no-cache, must-revalidate"
     # Content Security Policy
     Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.com https://clerk.harvous.com https://*.js.stripe.com https://js.stripe.com https://*.posthog.com https://*.us.posthog.com https://challenges.cloudflare.com; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.clerk.com https://clerk.harvous.com https://*.clerk.accounts.dev https://api.stripe.com https://*.posthog.com https://*.us.posthog.com https://api.bible.org; frame-src 'self' https://*.clerk.com https://clerk.harvous.com https://challenges.cloudflare.com https://*.js.stripe.com https://js.stripe.com https://hooks.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests;"
     # Prevent clickjacking

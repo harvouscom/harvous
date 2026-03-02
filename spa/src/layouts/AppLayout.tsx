@@ -152,7 +152,7 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
 
-  // Invalidate nav when auth identity changes so the new user never sees the previous user's cached threads
+  // Invalidate nav and dashboard when auth identity changes so the new user never sees the previous user's cached data
   const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
@@ -160,6 +160,7 @@ export default function AppLayout() {
     prevUserIdRef.current = user.id;
     if (prev != null && prev !== user.id) {
       queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
   }, [isLoaded, isSignedIn, user?.id, queryClient]);
 
