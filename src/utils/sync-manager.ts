@@ -14,7 +14,7 @@ import {
   ensureDatabaseOpen,
   retryIndexedDBOperation
 } from './offline-db';
-import { cacheHighestSimpleNoteId } from './offline-mutations';
+import { cacheHighestSimpleNoteId } from './offline-db';
 import { getCurrentSeason } from './season-helpers';
 import { THREAD_COLORS } from './colors';
 import { safeFetch } from './safe-fetch';

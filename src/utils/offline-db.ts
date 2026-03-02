@@ -294,6 +294,35 @@ export async function retryIndexedDBOperation<T>(
   throw lastError || new Error('Operation failed after retries');
 }
 
+/**
+ * localStorage cache key prefix for highestSimpleNoteId
+ */
+const HIGHEST_NOTE_ID_KEY = 'harvous_highestSimpleNoteId';
+
+/**
+ * Cache the highest simple note ID in localStorage for instant offline access
+ */
+export function cacheHighestSimpleNoteId(userId: string, id: number): void {
+  try {
+    localStorage.setItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`, String(id));
+  } catch (error) {
+    console.warn('[cacheHighestSimpleNoteId] Failed to cache ID:', error);
+  }
+}
+
+/**
+ * Get the cached highest simple note ID from localStorage
+ */
+export function getCachedHighestSimpleNoteId(userId: string): number | null {
+  try {
+    const cached = localStorage.getItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`);
+    return cached ? parseInt(cached, 10) : null;
+  } catch (error) {
+    console.warn('[getCachedHighestSimpleNoteId] Failed to read cache:', error);
+    return null;
+  }
+}
+
 // Helper function to get user-specific data
 export async function getUserId(): Promise<string | null> {
   // This will be set by the sync manager or auth context

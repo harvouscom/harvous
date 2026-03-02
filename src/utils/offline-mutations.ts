@@ -11,41 +11,13 @@ import {
   ensureUserPartition 
 } from './offline-db';
 import { enqueueMutation } from './sync-manager';
+import { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from './offline-db';
 import { getCurrentSeason } from './season-helpers';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
 import { isOfflineModeEnabled } from './posthog';
 
-/**
- * localStorage cache key prefix for highestSimpleNoteId
- */
-const HIGHEST_NOTE_ID_KEY = 'harvous_highestSimpleNoteId';
-
-/**
- * Cache the highest simple note ID in localStorage for instant offline access
- */
-export function cacheHighestSimpleNoteId(userId: string, id: number): void {
-  try {
-    localStorage.setItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`, String(id));
-  } catch (error) {
-    // localStorage might be unavailable (private browsing, quota exceeded, etc.)
-    console.warn('[cacheHighestSimpleNoteId] Failed to cache ID:', error);
-  }
-}
-
-/**
- * Get the cached highest simple note ID from localStorage
- * Returns null if not cached or if localStorage is unavailable
- */
-export function getCachedHighestSimpleNoteId(userId: string): number | null {
-  try {
-    const cached = localStorage.getItem(`${HIGHEST_NOTE_ID_KEY}_${userId}`);
-    return cached ? parseInt(cached, 10) : null;
-  } catch (error) {
-    // localStorage might be unavailable
-    console.warn('[getCachedHighestSimpleNoteId] Failed to read cache:', error);
-    return null;
-  }
-}
+// Re-export from offline-db so existing consumers don't need to change imports
+export { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId };
 
 /**
  * Get a preview of the next SimpleNoteId that would be allocated offline
