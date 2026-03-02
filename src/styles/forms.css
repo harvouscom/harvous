@@ -715,9 +715,13 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   box-shadow: var(--shadow-small) !important;
 }
 
-/* Reduce gaps between Clerk form fields to 12px */
+/* Reduce gaps between Clerk form fields to 12px.
+   Clerk wraps fields in internal divs (cl-internal-*) with 24px gap
+   that can't be targeted via the appearance API, so we use structural selectors. */
 .cl-form,
+.cl-form > *,
 .cl-main,
+.cl-main > *,
 .cl-card,
 .cl-formContainer,
 .cl-formFieldRow {
@@ -730,6 +734,18 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   margin-top: 0 !important;
   padding-bottom: 0 !important;
   padding-top: 0 !important;
+}
+
+/* Hide labels and zero out the internal field wrapper gap (label + input container)
+   so labels don't add extra spacing. */
+.cl-formFieldLabel,
+.cl-formFieldLabelRow {
+  display: none !important;
+}
+
+.cl-formField,
+.cl-formField > * {
+  gap: 0 !important;
 }
 
 .clerk-form-error {

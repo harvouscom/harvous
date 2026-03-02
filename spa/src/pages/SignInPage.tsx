@@ -79,7 +79,10 @@ export default function SignInPage() {
                   headerSubtitle: 'clerk-form-header-subtitle',
                   formButtonPrimary: 'clerk-form-button-primary primary-button',
                   formFieldInput: 'clerk-form-input',
-                  formFieldLabel: 'hidden',
+                  formFieldLabel: {
+                    className: 'hidden',
+                    style: { display: 'none' },
+                  },
                   formFieldError: { className: 'clerk-form-error' },
                   formFieldAlert: {
                     className: 'clerk-form-alert',
