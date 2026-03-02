@@ -134,11 +134,13 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
   const pending = pendingInit.get(userId);
   if (pending) return pending;
 
+  let hadMetadata = false;
   try {
     const userMetadata = await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
       .get();
+    hadMetadata = !!userMetadata;
 
     const now = new Date();
     const cacheAge = userMetadata?.clerkDataUpdatedAt
@@ -186,7 +188,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
     pendingInit.delete(userId);
     console.error('Error getting user data:', error);
     // Do not swallow errors for new-user init: caller should get 500 and can retry
-    if (!userMetadata) {
+    if (!hadMetadata) {
       throw error;
     }
     return {
