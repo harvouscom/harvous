@@ -671,7 +671,7 @@
 /* Subtle pulse when CardStack is in loading state (dashboard/space initial load) */
 @keyframes card-stack-loading-pulse {
   0%, 100% {
-    opacity: 0.96;
+    opacity: 0.82;
   }
   50% {
     opacity: 1;
@@ -679,7 +679,7 @@
 }
 
 .card-stack[data-loading] .card-stack__container {
-  animation: card-stack-loading-pulse 1.2s ease-in-out infinite;
+  animation: card-stack-loading-pulse 1s ease-in-out infinite;
 }
 
 .card-stack__header {
