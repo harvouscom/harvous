@@ -25,9 +25,14 @@ interface ContentPage {
   limit: number;
 }
 
-export function useDashboardContent(filter: DashboardFilter = 'all', limit = 20) {
+export function useDashboardContent(
+  filter: DashboardFilter = 'all',
+  limit = 20,
+  options?: { enabled?: boolean }
+) {
   return useInfiniteQuery({
     queryKey: ['dashboard', 'content', filter],
+    enabled: options?.enabled !== false,
     queryFn: ({ pageParam = 0 }) =>
       api.get<ContentPage>('/api/content/load-more', { offset: pageParam, limit, filter }),
     getNextPageParam: (lastPage) =>

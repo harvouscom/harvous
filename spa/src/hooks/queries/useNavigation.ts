@@ -31,9 +31,10 @@ export interface NavigationData {
 
 export const navigationQueryKey = ['navigation'] as const;
 
-export function useNavigation() {
+export function useNavigation(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: navigationQueryKey,
+    enabled: options?.enabled !== false,
     queryFn: async () => {
       const res = await fetch('/api/navigation/data', { credentials: 'include', cache: 'no-store' });
       if (!res.ok) {

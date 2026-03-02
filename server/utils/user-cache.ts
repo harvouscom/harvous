@@ -51,19 +51,33 @@ async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
   }
 
   const ts = nowISO();
-  await db.insert(Threads).values({
-    id: onboardingThreadId,
-    title: 'Welcome to Harvous',
-    subtitle: `${onboardingNotes.length} notes to get you started`,
-    color: 'blue',
-    spaceId: null,
-    userId,
-    isPublic: false,
-    isPinned: false,
-    createdAt: ts,
-    updatedAt: ts,
-    lastVisited: ts,
-  });
+  try {
+    await db.insert(Threads).values({
+      id: onboardingThreadId,
+      title: 'Welcome to Harvous',
+      subtitle: `${onboardingNotes.length} notes to get you started`,
+      color: 'blue',
+      spaceId: null,
+      userId,
+      isPublic: false,
+      isPinned: false,
+      createdAt: ts,
+      updatedAt: ts,
+      lastVisited: ts,
+    });
+  } catch (insertError: unknown) {
+    // Another request already created the onboarding thread (e.g. parallel get-profile + nav).
+    // Treat as idempotent and return so we don't throw UNIQUE constraint to the caller.
+    const isUnique =
+      (insertError as { code?: string })?.code === 'SQLITE_CONSTRAINT' ||
+      (insertError as { cause?: { code?: string } })?.cause?.code === 'SQLITE_CONSTRAINT' ||
+      (insertError as Error)?.message?.includes('UNIQUE constraint failed');
+    if (isUnique) {
+      console.log('[onboarding] thread already created by concurrent request, skipping', { userId });
+      return;
+    }
+    throw insertError;
+  }
 
   const noteRecords = onboardingNotes.map((noteData, idx) => {
     const noteId = generateNoteId();

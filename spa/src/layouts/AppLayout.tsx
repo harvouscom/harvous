@@ -33,10 +33,10 @@ export default function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
-  const { data: nav } = useNavigation();
+  const { data: profile, isSuccess: profileSuccess } = useProfile();
+  const { data: nav } = useNavigation({ enabled: profileSuccess && !!profile });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
-  const { data: profile } = useProfile();
 
   // Derive current IDs from path before hooks (hooks must be called unconditionally)
   const pathSlugEarly = pathname.split('/').pop() || '';
@@ -161,6 +161,7 @@ export default function AppLayout() {
     const isFirstUser = prev === null;
     const userChanged = prev != null && prev !== user.id;
     if (isFirstUser || userChanged) {
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: navigationQueryKey });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }

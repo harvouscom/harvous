@@ -7,6 +7,7 @@ import TabNav from '../../../src/components/react/TabNav';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import { useDashboardContent } from '../hooks/queries/useDashboard';
+import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -24,10 +25,12 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardFilter>('all');
+  const { data: profile, isSuccess: profileSuccess } = useProfile();
 
-  // Use React Query as single source of truth for initial load. OrganizedContentList
-  // does not refresh on mount when we have no data (relies on parent to pass initialItems).
-  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 30);
+  // Wait for profile so get-profile has run and onboarding exists; then load content (avoids empty first load).
+  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 30, {
+    enabled: profileSuccess && !!profile,
+  });
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
