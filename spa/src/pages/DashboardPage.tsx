@@ -34,19 +34,23 @@ export default function DashboardPage() {
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
-  // Keep loading animation until we have content: while waiting for profile (content not started) or while content is fetching
-  const isInitialLoading = cachedItems.length === 0 && (isFetching || profilePending);
 
   // One-time refetch after first content load when profile succeeded, so we pick up scripture refs if the first response didn't have them (e.g. cross-instance timing).
   const didRefetchForScriptureRef = useRef(false);
+  const [isRefetchingForScripture, setIsRefetchingForScripture] = useState(false);
   useEffect(() => {
     if (!profileSuccess || !cachedItems.length || didRefetchForScriptureRef.current) return;
     didRefetchForScriptureRef.current = true;
     const t = setTimeout(() => {
-      refetchContent();
+      setIsRefetchingForScripture(true);
+      refetchContent().finally(() => setIsRefetchingForScripture(false));
     }, 400);
     return () => clearTimeout(t);
   }, [profileSuccess, cachedItems.length, refetchContent]);
+
+  // Keep loading animation until we have content and (if we ran it) the scripture refetch is done, so pills are loaded in card notes
+  const isInitialLoading =
+    (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
