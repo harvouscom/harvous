@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardFilter>('all');
-  const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
+  const { data: profile, isSuccess: profileSuccess, isError: profileError, isPending: profilePending } = useProfile();
 
   // Load content only after profile has completed so get-profile (and NoteScriptureReferences) are committed before load-more; first response then includes scripture refs/pills.
   const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30, {
@@ -34,7 +34,8 @@ export default function DashboardPage() {
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
-  const isInitialLoading = cachedItems.length === 0 && isFetching;
+  // Keep loading animation until we have content: while waiting for profile (content not started) or while content is fetching
+  const isInitialLoading = cachedItems.length === 0 && (isFetching || profilePending);
 
   // One-time refetch after first content load when profile succeeded, so we pick up scripture refs if the first response didn't have them (e.g. cross-instance timing).
   const didRefetchForScriptureRef = useRef(false);
