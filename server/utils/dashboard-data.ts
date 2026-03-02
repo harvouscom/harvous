@@ -818,22 +818,22 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
           }
         }
 
-        if (filterExcludeReferencedScripture) {
-          const referencedScriptureNoteIds = new Set(junctionEntries.map(e => e.scriptureNoteId));
-          assignedNotes = assignedNotes.filter(note => {
-            if (note.noteType !== 'scripture') return true;
-            if (!referencedScriptureNoteIds.has(note.id)) return true;
-            return note.lastVisited != null;
-          });
-          unorganizedNotes = unorganizedNotes.filter(note => {
-            if (note.noteType !== 'scripture') return true;
-            if (!referencedScriptureNoteIds.has(note.id)) return true;
-            return note.lastVisited != null;
-          });
-        }
       } catch (error) {
         console.error('Error fetching scripture references:', error);
       }
+    }
+
+    // Exclude all unvisited scripture notes from the list when filter is "all" so they never show as cards on initial load
+    // (they still appear inside parent notes via scriptureReferencesMap). Does not depend on junction timing.
+    if (filterExcludeReferencedScripture) {
+      assignedNotes = assignedNotes.filter(note => {
+        if (note.noteType !== 'scripture') return true;
+        return note.lastVisited != null;
+      });
+      unorganizedNotes = unorganizedNotes.filter(note => {
+        if (note.noteType !== 'scripture') return true;
+        return note.lastVisited != null;
+      });
     }
 
     const mapNote = (note: any) => {
