@@ -4,6 +4,7 @@
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
+import { getCachedUserData } from '../utils/user-cache';
 import {
   getContentItems,
   getScriptureNotesForDashboard,
@@ -20,6 +21,10 @@ route.get('/api/content/load-more', async (c) => {
       return c.json({ error: 'Authentication required' }, 401);
     }
     console.log('[api/content/load-more] auth.userId', auth.userId);
+
+    // Ensure user cache (and onboarding thread for new users) exists before reading content,
+    // so the first load shows onboarding without a refresh.
+    await getCachedUserData(auth.userId);
 
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);

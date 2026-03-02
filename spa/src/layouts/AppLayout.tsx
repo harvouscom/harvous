@@ -20,7 +20,7 @@ import ActionStrip from '../../../src/components/react/ActionStrip';
 import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
-import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
+import { useNavigation, useRefreshNavigation, navigationQueryKey } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
 import { useThread } from '../hooks/queries/useThread';
@@ -151,6 +151,17 @@ export default function AppLayout() {
     // navigation, toasts, etc. use this to refresh or re-run on navigation).
     document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
+
+  // Invalidate nav when auth identity changes so the new user never sees the previous user's cached threads
+  const prevUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+    const prev = prevUserIdRef.current;
+    prevUserIdRef.current = user.id;
+    if (prev != null && prev !== user.id) {
+      queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+    }
+  }, [isLoaded, isSignedIn, user?.id, queryClient]);
 
   // Invalidate navigation cache when spaces/threads are created, updated, or deleted
   useEffect(() => {

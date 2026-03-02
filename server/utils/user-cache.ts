@@ -274,10 +274,15 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         // Process scripture references in parallel (notes already exist in DB)
         await Promise.all(
           noteRecords.map(async (note, idx) => {
+            const content = onboardingNotes[idx].content;
             try {
-              await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
+              const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, content);
+              if (results.length > 0) {
+                console.log('[onboarding] scripture processed', { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
+              }
             } catch (e) {
-              console.error('Error processing scripture for onboarding note', note.id, e);
+              const msg = e instanceof Error ? e.message : String(e);
+              console.error('Error processing scripture for onboarding note', note.id, msg, e);
             }
           })
         );
