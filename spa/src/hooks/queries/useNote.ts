@@ -23,6 +23,7 @@ export interface ListNoteForSeed {
   resourceTitle?: string | null;
   resourceDescription?: string | null;
   resourceImage?: string | null;
+  userId?: string;
 }
 
 export interface NoteDetail {
@@ -101,6 +102,7 @@ export function listNoteToNoteDetail(
     noteType: listNote.noteType ?? 'default',
     contentEncrypted: listNote.contentEncrypted ?? false,
     isPublic: false,
+    userId: listNote.userId ?? undefined,
     createdAt: listNote.createdAt ?? new Date().toISOString(),
     updatedAt: listNote.updatedAt ?? listNote.createdAt ?? new Date().toISOString(),
     threads: [thread],

@@ -994,7 +994,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (activeThreadCandidate?.id === activeParentThreadId) {
       activeParentThread = {
         id: activeThreadCandidate.id,
-        title: activeThreadCandidate.title || 'Thread',
+        title: activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title || 'Thread'),
         count: activeThreadCandidate.noteCount ?? 0,
         backgroundGradient: activeThreadCandidate.backgroundGradient || getThreadGradientCSS('paper'),
         spaceId: activeThreadCandidate.spaceId ?? null,
@@ -1500,7 +1500,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           >
             <SpaceButton
               as="div"
-              text={activeThreadCandidate ? activeThreadCandidate.title : displaySelectedSpaceLabel}
+              text={
+                activeThreadCandidate
+                  ? (activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title ?? 'Thread'))
+                  : displaySelectedSpaceLabel
+              }
               count={
                 activeThreadCandidate
                   ? Math.max(
@@ -1801,12 +1805,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       const displayThread = isActive && activeThreadCandidate
                         ? {
                             ...activeThreadCandidate,
+                            title: activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title ?? 'Thread'),
                             noteCount: Math.max(
                               activeThreadCandidate.noteCount ?? 0,
                               thread.noteCount ?? 0
                             ),
                           }
-                        : thread;
+                        : {
+                            ...thread,
+                            title: thread.id === 'thread_unorganized' ? 'Unorganized' : (thread.title ?? 'Thread'),
+                          };
                       // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
                       let spaceForLink = effectiveSelectedSpaceId;
                       if (typeof window !== 'undefined') {

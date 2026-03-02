@@ -839,6 +839,28 @@ route.get('/api/notes/:id/details', async (c) => {
       allThreads = junctionThreads;
     } catch { allThreads = []; }
 
+    // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows "Unorganized".
+    if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
+      await ensureUnorganizedThread(auth.userId!);
+      const unorganizedRow = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
+        .from(Threads)
+        .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId!)))
+        .get();
+      if (unorganizedRow) {
+        const unorganizedCountResult = await db.select({ count: count() })
+          .from(Notes)
+          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId!)))
+          .get();
+        allThreads = [{
+          ...unorganizedRow,
+          title: 'Unorganized',
+          subtitle: unorganizedRow.subtitle || 'Thread',
+          count: unorganizedCountResult?.count || 0,
+          backgroundGradient: getThreadGradientCSS(unorganizedRow.color),
+        }];
+      }
+    }
+
     if (isMemberView) {
       try {
         const memberSpaceThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
@@ -859,16 +881,26 @@ route.get('/api/notes/:id/details', async (c) => {
 
     // Format threads with counts and backgroundGradient for nav/NotePage
     const formattedThreads = await Promise.all(allThreads.map(async (thread: any) => {
-      const useTotalCount = isMemberView && thread.spaceId;
-      const junctionCountResult = useTotalCount
-        ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get()
-        : await db.select({ count: count() }).from(Notes)
-            .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-            .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
+      let threadCount = 0;
+      if (thread.id === 'thread_unorganized') {
+        const unorganizedCountResult = await db.select({ count: count() })
+          .from(Notes)
+          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId!)))
+          .get();
+        threadCount = unorganizedCountResult?.count || 0;
+      } else {
+        const useTotalCount = isMemberView && thread.spaceId;
+        const junctionCountResult = useTotalCount
+          ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get()
+          : await db.select({ count: count() }).from(Notes)
+              .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
+        threadCount = junctionCountResult?.count || 0;
+      }
       return {
         ...thread,
         subtitle: thread.subtitle || 'Thread',
-        count: junctionCountResult?.count || 0,
+        count: thread.count != null ? thread.count : threadCount,
         backgroundGradient: thread.backgroundGradient || getThreadGradientCSS(thread.color),
       };
     }));

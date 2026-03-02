@@ -95,7 +95,7 @@ export default function NotePage() {
     const threadWithMeta = parent as { count?: number; spaceId?: string | null };
     (window as any).addToNavigationHistory({
       id: parent.id,
-      title: parent.title ?? 'Thread',
+      title: parent.id === 'thread_unorganized' ? 'Unorganized' : (parent.title ?? 'Thread'),
       count: threadWithMeta.count ?? 0,
       backgroundGradient: parent.backgroundGradient ?? 'var(--color-gradient-gray)',
       spaceId: threadWithMeta.spaceId ?? null,

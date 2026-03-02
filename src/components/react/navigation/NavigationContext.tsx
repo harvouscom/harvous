@@ -699,9 +699,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (currentItemId.startsWith('note_') && !navigationElement) {
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
       if (noteElement && noteElement.dataset.parentThreadId) {
+        const pid = noteElement.dataset.parentThreadId;
         return {
-          id: noteElement.dataset.parentThreadId,
-          title: noteElement.dataset.parentThreadTitle || 'Thread',
+          id: pid,
+          title: pid === 'thread_unorganized' ? 'Unorganized' : (noteElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: noteElement.dataset.parentThreadSpaceId || null,
@@ -725,7 +726,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (parentThreadId) {
         return {
           id: parentThreadId,
-          title: navigationElement.dataset.parentThreadTitle || 'Thread',
+          title: parentThreadId === 'thread_unorganized' ? 'Unorganized' : (navigationElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
           backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: navigationElement.dataset.parentThreadSpaceId || null,
@@ -735,9 +736,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       // Fallback: try to get from data-note-id element
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
       if (noteElement && noteElement.dataset.parentThreadId) {
+        const pid = noteElement.dataset.parentThreadId;
         return {
-          id: noteElement.dataset.parentThreadId,
-          title: noteElement.dataset.parentThreadTitle || 'Thread',
+          id: pid,
+          title: pid === 'thread_unorganized' ? 'Unorganized' : (noteElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: noteElement.dataset.parentThreadSpaceId || null,

@@ -161,7 +161,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         const parentThreadId = rawParentThreadId ? String(rawParentThreadId).replace(/^\/+/, '').replace(/\/+$/, '') : null;
         if (!parentThreadId || !parentThreadId.startsWith('thread_')) return null;
 
-        const title = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
+        let title = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
+        if (parentThreadId === 'thread_unorganized') title = 'Unorganized';
         const countStr = noteEl?.dataset?.parentThreadCount ?? navEl?.dataset?.parentThreadCount ?? '0';
         let backgroundGradient =
           noteEl?.dataset?.parentThreadBackgroundGradient ??
@@ -508,7 +509,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
               <a href={validHref} className="nav-link">
                 <SpaceButton
                   as="div"
-                  text={item.title}
+                  text={item.id === 'thread_unorganized' ? 'Unorganized' : item.title}
                   count={
                     isActive && activeThreadProp?.id === item.id
                       ? Math.max(activeThreadProp.noteCount ?? 0, item.count ?? 0)
