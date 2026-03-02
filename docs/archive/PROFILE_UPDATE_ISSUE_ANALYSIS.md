@@ -103,7 +103,7 @@ const userColor = userData?.public_metadata?.userColor || 'paper';
 User cache - userMetadata: {
   firstName: 'ProductionTest',
   lastName: 'User',
-  userColor: 'paper',
+  userColor: 'blue',
   clerkDataUpdatedAt: 2025-10-20T01:36:56.046Z
 }
 User cache - using database as source of truth

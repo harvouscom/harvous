@@ -312,7 +312,7 @@ app.post('/api/user/update-church', async (c) => {
         churchState: normalizedChurchState,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
-        userColor: 'paper',
+        userColor: 'blue',
         createdAt: nowISO(),
         updatedAt: nowISO()
       });
@@ -724,7 +724,7 @@ app.post('/api/user/import', async (c) => {
       const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
       await db.insert(UserMetadata).values({
         id: `user_metadata_${auth.userId}`, userId: auth.userId,
-        highestSimpleNoteId: highestExistingId, userColor: 'paper', currentSeason: getCurrentSeason(), createdAt: nowISO()
+        highestSimpleNoteId: highestExistingId, userColor: 'blue', currentSeason: getCurrentSeason(), createdAt: nowISO()
       });
       userMetadata = (await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get())!;
     }

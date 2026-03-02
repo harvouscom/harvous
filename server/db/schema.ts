@@ -142,7 +142,7 @@ export const UserMetadata = sqliteTable('UserMetadata', {
   id: text('id').primaryKey(),
   userId: text('userId').notNull().unique(),
   highestSimpleNoteId: integer('highestSimpleNoteId').notNull().default(0),
-  userColor: text('userColor').notNull().default('paper'),
+  userColor: text('userColor').notNull().default('blue'),
   firstName: text('firstName'),
   lastName: text('lastName'),
   email: text('email'),

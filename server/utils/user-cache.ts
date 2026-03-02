@@ -169,7 +169,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
         profileImageUrl: userMetadata.profileImageUrl || undefined,
         initials: generateInitials(userMetadata.firstName || '', userMetadata.lastName || ''),
         displayName: generateDisplayName(userMetadata.firstName || '', userMetadata.lastName || ''),
-        userColor: userMetadata.userColor || 'paper',
+        userColor: userMetadata.userColor || 'blue',
         createdAt: userMetadata.createdAt || undefined,
       };
     }
@@ -193,7 +193,7 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
     }
     return {
       firstName: '', lastName: '', email: '',
-      initials: 'U', displayName: 'User', userColor: 'paper', createdAt: undefined,
+      initials: 'U', displayName: 'User', userColor: 'blue', createdAt: undefined,
     };
   }
 }
@@ -228,7 +228,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         profileImageUrl: existingMetadata.profileImageUrl,
         initials: generateInitials(existingMetadata.firstName || '', existingMetadata.lastName || ''),
         displayName: generateDisplayName(existingMetadata.firstName || '', existingMetadata.lastName || ''),
-        userColor: existingMetadata.userColor || 'paper',
+        userColor: existingMetadata.userColor || 'blue',
         createdAt: existingMetadata.createdAt,
       };
     }
@@ -242,7 +242,7 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
   const lastName = userData?.last_name || userData?.lastName || '';
   const email = userData?.email_addresses?.[0]?.email_address || userData?.email || '';
   const profileImageUrl = userData?.profile_image_url || userData?.image_url;
-  const userColor = userData?.public_metadata?.userColor || 'paper';
+  const userColor = userData?.public_metadata?.userColor || 'blue';
 
   let userCreatedAt: string | undefined;
   if (existingMetadata) {

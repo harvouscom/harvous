@@ -355,7 +355,7 @@ export async function processScriptureReferences(
               id: `user_metadata_${userId}`,
               userId: userId,
               highestSimpleNoteId: highestExistingId,
-              userColor: 'paper',
+              userColor: 'blue',
               currentSeason: season,
               createdAt: new Date().toISOString()
             });
@@ -363,7 +363,7 @@ export async function processScriptureReferences(
               id: `user_metadata_${userId}`,
               userId: userId,
               highestSimpleNoteId: highestExistingId,
-              userColor: 'paper',
+              userColor: 'blue',
               email: null,
               firstName: null,
               lastName: null,
@@ -805,7 +805,7 @@ export async function processScriptureReferences(
                 id: `user_metadata_${userId}`,
                 userId: userId,
                 highestSimpleNoteId: highestExistingId,
-                userColor: 'paper',
+                userColor: 'blue',
                 currentSeason: season,
                 createdAt: new Date().toISOString()
               });
@@ -813,7 +813,7 @@ export async function processScriptureReferences(
                 id: `user_metadata_${userId}`,
                 userId: userId,
                 highestSimpleNoteId: highestExistingId,
-                userColor: 'paper',
+                userColor: 'blue',
                 email: null,
                 firstName: null,
                 lastName: null,
@@ -846,6 +846,7 @@ export async function processScriptureReferences(
             const now = new Date().toISOString();
             const shareToken = generateShareToken();
 
+            // Do not set lastVisited: scripture notes only appear in the organized content list when visited.
             const newScriptureNote = await db.insert(Notes)
               .values({
                 id: generateNoteId(),
@@ -861,7 +862,6 @@ export async function processScriptureReferences(
                 shareTokenCreatedAt: now,
                 addedBy: 'harvous',
                 createdAt: now,
-                lastVisited: now
               })
               .returning()
               .get();

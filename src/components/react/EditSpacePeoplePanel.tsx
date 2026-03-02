@@ -233,7 +233,7 @@ export default function EditSpacePeoplePanel({
                               borderTopLeftRadius: '0.75rem',
                               borderBottomLeftRadius: '0.75rem',
                               overflow: 'hidden',
-                              backgroundColor: `var(--color-${member.userColor || 'paper'})`,
+                              backgroundColor: `var(--color-${member.userColor || 'blue'})`,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',

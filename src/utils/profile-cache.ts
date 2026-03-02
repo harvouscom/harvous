@@ -123,7 +123,7 @@ export function updateCachedProfileData(updates: Partial<CachedProfileData>): vo
       const newData: CachedProfileData = {
         firstName: updates.firstName || '',
         lastName: updates.lastName || '',
-        userColor: updates.userColor || 'paper',
+        userColor: updates.userColor || 'blue',
         email: updates.email || '',
         emailVerified: updates.emailVerified || false,
         churchName: updates.churchName ?? null,

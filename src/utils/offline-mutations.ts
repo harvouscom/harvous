@@ -378,7 +378,7 @@ export async function createNoteOffline(userId: string, data: {
       highestSimpleNoteId: highestExisting,
       reservedSimpleNoteIdRange: null,
       usedReservedIds: [],
-      userColor: 'paper',
+      userColor: 'blue',
       firstName: null,
       lastName: null,
       email: null,

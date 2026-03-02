@@ -44,7 +44,7 @@ export function useProfile() {
           updateCachedProfileData({
             firstName: data.firstName ?? '',
             lastName: data.lastName ?? '',
-            userColor: data.userColor ?? 'paper',
+            userColor: data.userColor ?? 'blue',
             email: data.email ?? '',
             emailVerified: data.emailVerified ?? false,
             churchName: data.churchName ?? null,

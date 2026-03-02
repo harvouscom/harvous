@@ -11,6 +11,9 @@ export const THREAD_COLORS = [
 
 export type ThreadColor = typeof THREAD_COLORS[number];
 
+/** Avatar picker colors only (paper excluded). Use for user profile color selection. */
+export const USER_AVATAR_COLORS = THREAD_COLORS.filter((c): c is Exclude<ThreadColor, 'paper'> => c !== 'paper');
+
 // When SSR + client both compute gradients, tiny floating point differences can
 // cause hydration mismatches. We format all computed numbers to a fixed
 // precision so the resulting CSS strings are identical across runtimes.

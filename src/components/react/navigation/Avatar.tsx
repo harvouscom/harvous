@@ -9,7 +9,7 @@ interface AvatarProps {
 
 const Avatar: React.FC<AvatarProps> = ({ 
   initials = "DJ", 
-  color = "paper",
+  color = "blue",
   className = "" 
 }) => {
   return (

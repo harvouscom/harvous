@@ -106,7 +106,7 @@ app.get('/api/shared/note/:shareToken', async (c) => {
       note: { id: note.id, title: note.title, content: note.content, noteType: note.noteType, createdAt: note.createdAt, updatedAt: note.updatedAt },
       scriptureMetadata,
       resourceMetadata,
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'paper', profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/shared/note/[shareToken]', action: 'get_shared_note' });
@@ -169,7 +169,7 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
       notes: notes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'paper', profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: notes.length },
     });
   } catch (error) {
@@ -218,7 +218,7 @@ app.post('/api/shared/add-note-to-harvous', async (c) => {
         id: `user_metadata_${auth.userId}`, userId: auth.userId,
         highestSimpleNoteId: highestExistingId, currentSeason: season, createdAt: nowISO(),
       });
-      userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId, userColor: 'paper', firstName: null, lastName: null, email: null, profileImageUrl: null, clerkDataUpdatedAt: null, churchName: null, churchCity: null, churchState: null, currentSeason: season, lastMonthlyVisit: null, churchAddedAt: null, createdAt: nowISO(), updatedAt: null, referralCode: null, lockPinHash: null } as any;
+      userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId, userColor: 'blue', firstName: null, lastName: null, email: null, profileImageUrl: null, clerkDataUpdatedAt: null, churchName: null, churchCity: null, churchState: null, currentSeason: season, lastMonthlyVisit: null, churchAddedAt: null, createdAt: nowISO(), updatedAt: null, referralCode: null, lockPinHash: null } as any;
     }
 
     const newNoteId = generateNoteId();

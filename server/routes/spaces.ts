@@ -704,7 +704,7 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
         firstName: ownerMeta.firstName || null,
         displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User'),
         email: ownerMeta.email || null, profileImageUrl: ownerMeta.profileImageUrl || null,
-        userColor: ownerMeta.userColor || 'paper',
+        userColor: ownerMeta.userColor || 'blue',
       },
       ...members.map(m => {
         const meta = userMetadataMap[m.userId] || {};
@@ -713,7 +713,7 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
           firstName: meta.firstName || null,
           displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || 'Unknown User'),
           email: meta.email || null, profileImageUrl: meta.profileImageUrl || null,
-          userColor: meta.userColor || 'paper',
+          userColor: meta.userColor || 'blue',
         };
       }),
     ];

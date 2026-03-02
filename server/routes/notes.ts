@@ -182,7 +182,7 @@ route.post('/api/notes/create', async (c) => {
         id: `user_metadata_${auth.userId}`,
         userId: auth.userId,
         highestSimpleNoteId: highestExistingId,
-        userColor: 'paper',
+        userColor: 'blue',
         currentSeason: season,
         createdAt: nowISO(),
       });

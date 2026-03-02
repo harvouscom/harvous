@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
+import { USER_AVATAR_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import { toast } from '@/utils/toast';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
@@ -16,7 +16,7 @@ interface EditNameColorPanelProps {
 export default function EditNameColorPanel({ 
   firstName = '', 
   lastName = '', 
-  selectedColor = 'paper',
+  selectedColor = 'blue',
   onClose,
   inBottomSheet = false
 }: EditNameColorPanelProps) {
@@ -42,7 +42,7 @@ export default function EditNameColorPanel({
       const newData = {
         firstName: cached.firstName || '',
         lastName: cached.lastName || '',
-        selectedColor: (cached.userColor as ThreadColor) || 'paper'
+        selectedColor: (cached.userColor as ThreadColor) || 'blue'
       };
       setFormData(newData);
       setInitialData(newData);
@@ -60,7 +60,7 @@ export default function EditNameColorPanel({
         const newData = {
           firstName: profileData.firstName || '',
           lastName: profileData.lastName || '',
-          selectedColor: profileData.color || 'paper'
+          selectedColor: profileData.color || 'blue'
         };
         setFormData(newData);
         setInitialData(newData);
@@ -69,7 +69,7 @@ export default function EditNameColorPanel({
         updateCachedProfileData({
           firstName: profileData.firstName || '',
           lastName: profileData.lastName || '',
-          userColor: profileData.color || 'paper'
+          userColor: profileData.color || 'blue'
         });
         loadUserData(true); // Refetch in background
         return;
@@ -94,7 +94,7 @@ export default function EditNameColorPanel({
         const newData = {
           firstName: data.firstName || '',
           lastName: data.lastName || '',
-          selectedColor: data.userColor || 'paper'
+          selectedColor: data.userColor || 'blue'
         };
         setFormData(newData);
         setInitialData(newData);
@@ -103,7 +103,7 @@ export default function EditNameColorPanel({
         updateCachedProfileData({
           firstName: data.firstName || '',
           lastName: data.lastName || '',
-          userColor: data.userColor || 'paper'
+          userColor: data.userColor || 'blue'
         });
       } else {
         console.error('EditNameColorPanel: API call failed:', response.status);
@@ -339,7 +339,7 @@ export default function EditNameColorPanel({
                     WebkitOverflowScrolling: 'touch'
                   }}
                 >
-                  {THREAD_COLORS.map((color) => (
+                  {USER_AVATAR_COLORS.map((color) => (
                     <button 
                       key={color}
                       type="button"

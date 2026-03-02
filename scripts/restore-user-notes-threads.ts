@@ -260,7 +260,7 @@ async function main() {
       id: `user_metadata_${USER_ID}`,
       userId: USER_ID,
       highestSimpleNoteId: 0,
-      userColor: 'paper',
+      userColor: 'blue',
       createdAt: now,
       updatedAt: now,
     });
