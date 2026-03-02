@@ -385,13 +385,13 @@ export default function AppLayout() {
   // Only show "Add a note" when the user can add to the current context:
   // - Dashboard: always; Space: owner or member can add content to the space
   // - Thread: only if user owns the thread (members viewing another's thread cannot add)
-  // - Note: only if user owns the note's parent thread
+  // - Note: only if user owns the note's parent thread (or note is in unorganized and user owns the note)
   const currentUserId = user?.id ?? null;
   const canShowAddNote =
     contentType === 'dashboard' ||
     (contentType === 'space' && (effectiveSpaceRole === 'owner' || effectiveSpaceRole === 'member')) ||
     (contentType === 'thread' && contentOwnerId === currentUserId) ||
-    (contentType === 'note' && parentThreadData?.userId === user?.id);
+    (contentType === 'note' && (parentThreadData?.userId === user?.id || (noteParentThreadId === 'thread_unorganized' && currentNote?.userId === user?.id)));
 
   // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)
   const layoutDataReadyForContent =
