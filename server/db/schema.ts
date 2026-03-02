@@ -163,22 +163,6 @@ export const UserMetadata = sqliteTable('UserMetadata', {
   updatedAt: text('updatedAt'),
 });
 
-// ─── Churches (future church-org feature; in schema so db:push does not suggest renaming it to VerseTextCache) ─
-
-export const Churches = sqliteTable('Churches', {
-  id: text('id').primaryKey(),
-  orgId: text('orgId').unique(),
-  churchName: text('churchName'),
-  churchCity: text('churchCity'),
-  churchState: text('churchState'),
-  churchCountry: text('churchCountry'),
-  adminUserId: text('adminUserId').notNull(),
-  subscriptionTier: text('subscriptionTier'),
-  isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
-  createdAt: text('createdAt').notNull(),
-  updatedAt: text('updatedAt'),
-});
-
 // ─── ClerkUserMapping (pk_live → pk_test read-time resolution) ─────────────────
 
 export const ClerkUserMapping = sqliteTable(
