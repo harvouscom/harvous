@@ -102,10 +102,8 @@ function WebHapticsSetup() {
     const haptics = new WebHaptics();
     window.__webHaptics = haptics;
     window.__hapticsTriggerShadow = (ms: number) => {
-      if (WebHaptics.isSupported) {
-        const intensity = Math.min(1, ms / 30);
-        haptics.trigger([{ duration: ms, intensity }]);
-      }
+      const intensity = Math.min(1, ms / 30);
+      haptics.trigger([{ duration: ms, intensity }]);
     };
     return () => {
       delete (window as any).__webHaptics;

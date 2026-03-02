@@ -128,6 +128,7 @@ export default function SpacePage() {
     return (
       <CardStack
         headerBgColor={headerBgColor}
+        isLoading={true}
         header={
           <SpaceCardStackHeader
             initialTitle={resolvedSpaceTitle}
@@ -155,6 +156,7 @@ export default function SpacePage() {
     <CardStack
       title={space?.title ?? 'Space'}
       headerBgColor={headerBgColor}
+      isLoading={parentIsLoading}
       header={space ? (
         <SpaceCardStackHeader
           initialTitle={space.title}

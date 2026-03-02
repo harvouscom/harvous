@@ -92,7 +92,7 @@ export default function DashboardPage() {
   const isMobile = useIsMobile();
 
   return (
-    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle>
+    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
       <TabNav
         tabs={tabs}
         onTabChange={(id) => setFilter(id as DashboardFilter)}

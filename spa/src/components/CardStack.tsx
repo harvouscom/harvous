@@ -17,6 +17,8 @@ interface CardStackProps {
    */
   header?: ReactNode;
   children?: ReactNode;
+  /** When true, applies a subtle pulse animation to indicate loading. */
+  isLoading?: boolean;
 }
 
 export default function CardStack({
@@ -29,13 +31,18 @@ export default function CardStack({
   className = '',
   header,
   children,
+  isLoading = false,
 }: CardStackProps) {
   const textColor = getThreadTextColorCSS(
     headerBgColor.match(/--color-([a-z-]+)/)?.[1] ?? null
   );
 
   return (
-    <div className={`card-stack ${className}`} {...(id ? { id } : {})}>
+    <div
+      className={`card-stack ${className}`}
+      {...(id ? { id } : {})}
+      {...(isLoading ? { 'data-loading': 'true' } : {})}
+    >
       <div className="card-stack__container">
 
         {/* Either a fully-custom header, or the default title header */}

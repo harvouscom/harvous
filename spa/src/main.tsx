@@ -1,6 +1,3 @@
-// iOS 18+ Safari: polyfill navigator.vibrate so web-haptics (and fallback) can trigger Taptic Engine
-import 'ios-vibrator-pro-max';
-
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';

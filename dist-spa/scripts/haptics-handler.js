@@ -133,6 +133,31 @@
       return 10;
     }
 
+    // ShareSettingsModal buttons (light)
+    if (target.closest('.share-settings-modal__access-button, .share-settings-modal__copy-button, .share-settings-modal__refresh-button, .share-settings-modal__refresh-buttons button')) {
+      return 10;
+    }
+
+    // Button group toggles (medium; align with space-button feel)
+    if (target.closest('.button-group__button')) {
+      return 20;
+    }
+
+    // Icon / overlay action buttons (light)
+    if (target.closest('.action-button-hover')) {
+      return 10;
+    }
+
+    // Role button (e.g. template picker, combobox triggers) (light)
+    if (target.closest('[role="button"]')) {
+      return 10;
+    }
+
+    // Panel footer controls (light; catch-all for footer buttons)
+    if (target.closest('.panel__footer--buttons button')) {
+      return 10;
+    }
+
     // Fallback: any non-disabled button (light)
     var btn = target.closest('button');
     if (btn && !btn.disabled) {
