@@ -719,19 +719,17 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 .cl-form,
 .cl-main,
 .cl-card,
-.cl-formFieldRow,
-.cl-formFields {
+.cl-formContainer,
+.cl-formFieldRow {
   gap: 12px !important;
 }
 
-.cl-formFieldRow {
-  margin-bottom: 0 !important;
-  margin-top: 0 !important;
-}
-
+.cl-formFieldRow,
 .cl-formField {
   margin-bottom: 0 !important;
   margin-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-top: 0 !important;
 }
 
 .clerk-form-error {

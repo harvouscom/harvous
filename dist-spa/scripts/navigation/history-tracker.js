@@ -191,16 +191,28 @@ function addToNavigationHistory(item) {
   
   // Check if item already exists
   const existingIndex = history.findIndex(h => h.id === item.id);
+  const now = Date.now();
   
   if (existingIndex !== -1) {
-    // Item already exists - this shouldn't happen if called correctly
-    return;
+    // Item already exists - merge incoming data but never overwrite a positive count with 0 so badge count persists
+    const existing = history[existingIndex];
+    const incomingCount = item.count != null ? Number(item.count) : undefined;
+    const keepCount = typeof incomingCount === 'number' && incomingCount > 0
+      ? incomingCount
+      : (existing.count != null ? existing.count : incomingCount);
+    history[existingIndex] = {
+      ...existing,
+      ...item,
+      count: keepCount,
+      firstAccessed: existing.firstAccessed || now,
+      lastAccessed: now
+    };
   } else {
-    // Item doesn't exist - add to end first, then sort
+    // Item doesn't exist - add to end
     const newItem = {
       ...item,
-      firstAccessed: Date.now(),
-      lastAccessed: Date.now()
+      firstAccessed: now,
+      lastAccessed: now
     };
     history.push(newItem);
   }
@@ -213,7 +225,12 @@ function addToNavigationHistory(item) {
   
   saveNavigationHistory(limitedHistory);
   
-  // Re-render persistent navigation
+  // Notify React NavigationContext to re-read from localStorage so desktop/mobile nav update
+  try {
+    window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+  } catch (e) {}
+  
+  // Re-render persistent navigation (legacy)
   if (window.renderPersistentNavigation) {
     window.renderPersistentNavigation();
   }
