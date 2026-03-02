@@ -22,10 +22,18 @@ export interface CachedUserData {
   createdAt?: string;
 }
 
+// In-memory lock: when a new user is being initialized (metadata + onboarding thread),
+// concurrent requests wait for it to finish instead of seeing half-created state.
+const pendingInit = new Map<string, Promise<CachedUserData>>();
+
 /**
  * Get user data from cache or fetch from Clerk API if needed
  */
 export async function getCachedUserData(userId: string): Promise<CachedUserData> {
+  // If another request is currently initializing this user, wait for it
+  const pending = pendingInit.get(userId);
+  if (pending) return pending;
+
   try {
     const userMetadata = await db.select()
       .from(UserMetadata)
@@ -54,8 +62,18 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       };
     }
 
-    return await fetchAndCacheUserData(userId, userMetadata);
+    const promise = fetchAndCacheUserData(userId, userMetadata);
+    // Only lock for brand-new users (where onboarding thread is created)
+    if (!userMetadata) {
+      pendingInit.set(userId, promise);
+    }
+    try {
+      return await promise;
+    } finally {
+      pendingInit.delete(userId);
+    }
   } catch (error) {
+    pendingInit.delete(userId);
     console.error('Error getting user data:', error);
     return {
       firstName: '', lastName: '', email: '',

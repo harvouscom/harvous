@@ -75590,7 +75590,10 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
 }
 
 // server/utils/user-cache.ts
+var pendingInit = /* @__PURE__ */ new Map();
 async function getCachedUserData(userId) {
+  const pending = pendingInit.get(userId);
+  if (pending) return pending;
   try {
     const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
     const now = /* @__PURE__ */ new Date();
@@ -75609,8 +75612,17 @@ async function getCachedUserData(userId) {
         createdAt: userMetadata.createdAt || void 0
       };
     }
-    return await fetchAndCacheUserData(userId, userMetadata);
+    const promise = fetchAndCacheUserData(userId, userMetadata);
+    if (!userMetadata) {
+      pendingInit.set(userId, promise);
+    }
+    try {
+      return await promise;
+    } finally {
+      pendingInit.delete(userId);
+    }
   } catch (error) {
+    pendingInit.delete(userId);
     console.error("Error getting user data:", error);
     return {
       firstName: "",
