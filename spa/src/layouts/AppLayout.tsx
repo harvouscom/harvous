@@ -96,6 +96,22 @@ export default function AppLayout() {
     }
   }, [isLoaded, isSignedIn, pathname]);
 
+  // New users: open in Welcome to Harvous thread instead of dashboard (avoids organized list / scripture timing).
+  const didRedirectToOnboardingRef = useRef(false);
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || pathname !== '/' || !nav?.threads?.length) return;
+    try {
+      if (sessionStorage.getItem('harvous_pending_redirect')) return;
+    } catch {
+      /* ignore */
+    }
+    if (didRedirectToOnboardingRef.current) return;
+    const realThreads = nav.threads.filter((t: { id: string }) => t.id !== 'thread_unorganized');
+    if (realThreads.length !== 1 || !realThreads[0].id.startsWith('thread_onboarding_')) return;
+    didRedirectToOnboardingRef.current = true;
+    router.navigate({ to: '/thread/$threadId', params: { threadId: realThreads[0].id } });
+  }, [isLoaded, isSignedIn, pathname, nav?.threads, router]);
+
   // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
   const lastVisitRecordedPathRef = useRef<string | null>(null);
   useEffect(() => {
