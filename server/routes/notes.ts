@@ -856,7 +856,7 @@ route.get('/api/notes/:id/details', async (c) => {
           title: 'Unorganized',
           subtitle: unorganizedRow.subtitle || 'Thread',
           count: unorganizedCountResult?.count || 0,
-          backgroundGradient: getThreadGradientCSS(unorganizedRow.color),
+          backgroundGradient: getThreadGradientCSS(unorganizedRow.color || 'paper'),
         }];
       }
     }
