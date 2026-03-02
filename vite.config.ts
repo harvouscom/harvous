@@ -18,8 +18,18 @@ export default defineConfig({
   build: {
     outDir: '../dist-spa',
     emptyOutDir: true,
-    sourcemap: true,
     chunkSizeWarningLimit: 2500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'clerk': ['@clerk/clerk-react'],
+          'router': ['@tanstack/react-router'],
+          'query': ['@tanstack/react-query'],
+          'tiptap': ['@tiptap/react', '@tiptap/core', '@tiptap/starter-kit'],
+        },
+      },
+    },
   },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

@@ -26,6 +26,10 @@ export default function ThreadPage() {
   const { data: nav } = useNavigation();
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
 
+  // Use nav data as an instant fallback while thread detail loads — avoids a hard
+  // loading skeleton swap. Nav query is already warm from app startup.
+  const navThread = nav?.threads.find(t => t.id === threadId);
+
   const prefetchNote = (noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   };
@@ -59,10 +63,6 @@ export default function ThreadPage() {
   }, [threadId, thread, nav, isUnorganized]);
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === noteTypeFilter }));
-
-  // Use nav data as an instant fallback while thread detail loads — avoids a hard
-  // loading skeleton swap. Nav query is already warm from app startup.
-  const navThread = nav?.threads.find(t => t.id === threadId);
 
   // For the unorganized thread, use hardcoded values since it's a virtual thread
   const resolvedTitle = isUnorganized ? 'Unorganized'
