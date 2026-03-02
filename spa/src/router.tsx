@@ -1,9 +1,21 @@
-import { createRouter, createRoute, createRootRoute, redirect, lazyRouteComponent } from '@tanstack/react-router';
+import { createRouter, createRoute, createRootRoute, redirect } from '@tanstack/react-router';
 import AppLayout from './layouts/AppLayout';
 import AuthLayout from './layouts/AuthLayout';
-
-// Dashboard is eagerly loaded since it's the default landing page
 import DashboardPage from './pages/DashboardPage';
+import SignInPage from './pages/SignInPage';
+import SignUpPage from './pages/SignUpPage';
+import FindPage from './pages/FindPage';
+import ProfilePage from './pages/ProfilePage';
+import NewSpacePage from './pages/NewSpacePage';
+import UpgradePage from './pages/UpgradePage';
+import SpacePage from './pages/SpacePage';
+import ThreadPage from './pages/ThreadPage';
+import NotePage from './pages/NotePage';
+import JoinSpacePage from './pages/JoinSpacePage';
+import SharedNotePage from './pages/SharedNotePage';
+import SharedThreadPage from './pages/SharedThreadPage';
+import InvitationPage from './pages/InvitationPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Root route
 const rootRoute = createRootRoute();
@@ -18,7 +30,7 @@ const authLayoutRoute = createRoute({
 const signInRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/sign-in',
-  component: lazyRouteComponent(() => import('./pages/SignInPage')),
+  component: SignInPage,
 });
 
 // Clerk's multi-step sign-in flow pushes sub-routes like /sign-in/factor-one,
@@ -26,13 +38,13 @@ const signInRoute = createRoute({
 const signInSplatRoute = createRoute({
   getParentRoute: () => signInRoute,
   path: '$',
-  component: lazyRouteComponent(() => import('./pages/SignInPage')),
+  component: SignInPage,
 });
 
 const signUpRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: '/sign-up',
-  component: lazyRouteComponent(() => import('./pages/SignUpPage')),
+  component: SignUpPage,
 });
 
 // Clerk's multi-step sign-up flow pushes sub-routes like /sign-up/continue,
@@ -40,7 +52,7 @@ const signUpRoute = createRoute({
 const signUpSplatRoute = createRoute({
   getParentRoute: () => signUpRoute,
   path: '$',
-  component: lazyRouteComponent(() => import('./pages/SignUpPage')),
+  component: SignUpPage,
 });
 
 // App routes (authenticated, with nav shell)
@@ -66,76 +78,76 @@ const dashboardRoute = createRoute({
 const findRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/search',
-  component: lazyRouteComponent(() => import('./pages/FindPage')),
+  component: FindPage,
 });
 
 const profileRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/profile',
-  component: lazyRouteComponent(() => import('./pages/ProfilePage')),
+  component: ProfilePage,
 });
 
 const newSpaceRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/new-space',
-  component: lazyRouteComponent(() => import('./pages/NewSpacePage')),
+  component: NewSpacePage,
 });
 
 const upgradeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/upgrade',
-  component: lazyRouteComponent(() => import('./pages/UpgradePage')),
+  component: UpgradePage,
 });
 
 // Space / thread / note content routes
 const spaceRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/space/$spaceId',
-  component: lazyRouteComponent(() => import('./pages/SpacePage')),
+  component: SpacePage,
 });
 
 const threadRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/thread/$threadId',
-  component: lazyRouteComponent(() => import('./pages/ThreadPage')),
+  component: ThreadPage,
 });
 
 const noteRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/note/$noteId',
-  component: lazyRouteComponent(() => import('./pages/NotePage')),
+  component: NotePage,
 });
 
 // Public / unauthenticated routes
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/spaces/join/$token',
-  component: lazyRouteComponent(() => import('./pages/JoinSpacePage')),
+  component: JoinSpacePage,
 });
 
 const sharedNoteRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/note/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedNotePage')),
+  component: SharedNotePage,
 });
 
 const sharedThreadRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/shared/thread/$shareToken',
-  component: lazyRouteComponent(() => import('./pages/SharedThreadPage')),
+  component: SharedThreadPage,
 });
 
 const invitationRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/invitations/$token',
-  component: lazyRouteComponent(() => import('./pages/InvitationPage')),
+  component: InvitationPage,
 });
 
 // 404 catch-all — must be last
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '*',
-  component: lazyRouteComponent(() => import('./pages/NotFoundPage')),
+  component: NotFoundPage,
 });
 
 // Route tree
