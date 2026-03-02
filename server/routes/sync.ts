@@ -25,6 +25,7 @@ import {
 } from '../db';
 import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
+import { awardNewSeasonBonus } from '../utils/xp-system';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
 
@@ -346,6 +347,13 @@ app.get('/api/sync/bootstrap', async (c) => {
       await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
       userMetaForResponse = { ...userMetadata, currentSeason: season };
     }
+    // Detect season transition (user returned in a new season) and award bonus
+    if (userMetaForResponse?.currentSeason && userMetaForResponse.currentSeason !== getCurrentSeason()) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+      userMetaForResponse = { ...userMetaForResponse, currentSeason: season };
+      awardNewSeasonBonus(auth.userId).catch(() => {});
+    }
 
     // In Drizzle with text() columns, dates are already ISO strings — pass through
     const bootstrapData = {
@@ -450,6 +458,13 @@ app.get('/api/sync/changes', async (c) => {
       const season = getCurrentSeason();
       await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, changedUserMetadata.userId));
       userMetaForResponse = { ...changedUserMetadata, currentSeason: season };
+    }
+    // Detect season transition and award new-season bonus
+    if (userMetaForResponse?.currentSeason && userMetaForResponse.currentSeason !== getCurrentSeason() && userMetaForResponse?.userId) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userMetaForResponse.userId));
+      userMetaForResponse = { ...userMetaForResponse, currentSeason: season };
+      awardNewSeasonBonus(userMetaForResponse.userId).catch(() => {});
     }
 
     const changes = {

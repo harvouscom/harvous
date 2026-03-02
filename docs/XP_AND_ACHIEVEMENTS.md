@@ -27,7 +27,7 @@ XP is grouped into seasons. Each season is a fixed calendar range. The logic liv
 - **Lifetime XP:** Total XP ever (from `UserLifetimeXP`, or sum of all `UserXP` if no aggregate).
 - **Past seasons:** Stored in `UserSeasonalXP`; the achievements API returns all seasons except the current one so the UI can show “Past Seasons.”
 
-Activity types that award XP include: session completed, creation bonus, church added, monthly attendance, weekly streaks (see `src/utils/xp-system.ts`).
+Activity types that award XP include: session completed, creation bonus, church added, monthly attendance, **new season bonus** (one-time 50 XP when the user first has activity in a new season—encourages continuing into the next season), and weekly streaks (see `server/utils/xp-system.ts`).
 
 ---
 
@@ -47,7 +47,7 @@ Lifetime milestone tiers (100, 500, 1K, 5K, 10K, 25K, 50K) are checked by the AP
 ## Related Files
 
 - `src/utils/season-helpers.ts` – Season boundaries and display names
-- `src/utils/xp-system.ts` – XP calculation, `UserSeasonalXP`, `UserLifetimeXP`, `UserXP`
+- `server/utils/xp-system.ts` – XP calculation, `UserSeasonalXP`, `UserLifetimeXP`, `UserXP`
 - `src/components/react/MyAchievementsPanel.tsx` – Achievements panel UI
 - `src/pages/api/user/achievements.ts` – Achievements API
 - `db/config.ts` – `UserXP`, `UserSeasonalXP`, `UserLifetimeXP` schema

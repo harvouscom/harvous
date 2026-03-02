@@ -8,6 +8,7 @@ export const XP_VALUES = {
   CREATION_BONUS: 5,
   CHURCH_ADDED: 50,
   MONTHLY_ATTENDANCE: 25,
+  NEW_SEASON_BONUS: 50, // One-time reward for returning in a new season
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -48,6 +49,7 @@ export const ACTIVITY_TYPES = {
   CREATION_BONUS: 'creation_bonus',
   CHURCH_ADDED: 'church_added',
   MONTHLY_ATTENDANCE: 'monthly_attendance',
+  NEW_SEASON: 'new_season',
   WEEKLY_STREAK: 'weekly_streak',
   // Legacy activity types (kept for backward compatibility)
   THREAD_CREATED: 'thread_created',
@@ -615,6 +617,43 @@ export async function awardMonthlyAttendanceXP(userId: string): Promise<boolean>
 }
 
 /**
+ * Award one-time bonus for returning in a new season (encourages continuing into next season).
+ * Call when user's stored season has just rolled to the current season.
+ */
+export async function awardNewSeasonBonus(userId: string): Promise<boolean> {
+  try {
+    const currentSeason = getCurrentSeason();
+
+    // Already awarded for this season?
+    const existing = await db.select()
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.NEW_SEASON),
+        eq(UserXP.season, currentSeason)
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      return false;
+    }
+
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.NEW_SEASON,
+      XP_VALUES.NEW_SEASON_BONUS,
+      undefined,
+      { season: currentSeason, seasonName: getSeasonDisplayName(currentSeason) }
+    );
+
+    return true;
+  } catch (error) {
+    console.error('Error awarding new season bonus:', error);
+    return false;
+  }
+}
+
+/**
  * Get week start date (Monday of the week)
  */
 function getWeekStart(date: Date): Date {
@@ -993,6 +1032,7 @@ export async function getXPBreakdown(userId: string): Promise<{
     creationBonus: number;
     churchAdded: number;
     monthlyAttendance: number;
+    newSeason: number;
     weeklyStreak: number;
     // Legacy activity types
     threadCreated: number;
@@ -1011,6 +1051,7 @@ export async function getXPBreakdown(userId: string): Promise<{
       creationBonus: 0,
       churchAdded: 0,
       monthlyAttendance: 0,
+      newSeason: 0,
       weeklyStreak: 0,
       // Legacy
       threadCreated: 0,
@@ -1032,6 +1073,9 @@ export async function getXPBreakdown(userId: string): Promise<{
           break;
         case ACTIVITY_TYPES.MONTHLY_ATTENDANCE:
           breakdown.monthlyAttendance += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.NEW_SEASON:
+          breakdown.newSeason += record.xpAmount;
           break;
         case ACTIVITY_TYPES.WEEKLY_STREAK:
           breakdown.weeklyStreak += record.xpAmount;
@@ -1067,6 +1111,7 @@ export async function getXPBreakdown(userId: string): Promise<{
         creationBonus: 0,
         churchAdded: 0,
         monthlyAttendance: 0,
+        newSeason: 0,
         weeklyStreak: 0,
         threadCreated: 0,
         noteCreated: 0,
