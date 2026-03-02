@@ -20,6 +20,8 @@ interface PersistentNavigationProps {
   activeThread?: ActiveThreadProp | null;
 }
 
+const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
+
 const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwitcherClick, activeThread: activeThreadProp }) => {
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
@@ -137,7 +139,6 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     };
 
     const GRAY_FALLBACK = 'var(--color-gradient-gray)';
-    const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
     const isRealGradient = (g: string | undefined): boolean =>
       !!(g && g !== GRAY_FALLBACK && g !== 'var(--color-paper)' && g !== PAPER_GRADIENT);
 
@@ -307,7 +308,9 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             id: fromHistory.id,
             title: fromHistory.id === 'thread_unorganized' ? 'Unorganized' : fromHistory.title,
             count: fromHistory.count || 0,
-            backgroundGradient: fromHistory.backgroundGradient || 'var(--color-gradient-gray)',
+            backgroundGradient: fromHistory.id === 'thread_unorganized'
+              ? PAPER_GRADIENT
+              : (fromHistory.backgroundGradient || 'var(--color-gradient-gray)'),
             spaceId: (fromHistory as any).spaceId ?? null,
           }
         : fromDom
@@ -518,7 +521,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                   state="WithCount"
                   rightAccessory={isSpaceItem ? 'spaceSwitcher' : 'count'}
                   onRightAccessoryClick={isSpaceItem ? onSpaceSwitcherClick : undefined}
-                  backgroundGradient={item.backgroundGradient || "var(--color-paper)"}
+                  backgroundGradient={item.id === 'thread_unorganized' ? PAPER_GRADIENT : (item.backgroundGradient || "var(--color-paper)")}
                   isActive={isActive}
                   itemId={item.id}
                 />

@@ -447,6 +447,7 @@ const NOTE_SELECT_COLUMNS = {
   spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId,
   noteType: Notes.noteType, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
   createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
+  userId: Notes.userId,
 } as const;
 
 export async function getNotesForThread(threadId: string, userId: string, limit = 20, offset = 0) {
@@ -455,7 +456,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     let allNotes: any[] = [];
 
     if (threadId === 'thread_unorganized') {
-      const unorganizedNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
         .orderBy(
@@ -474,7 +475,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(unorganizedNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture'))).all();
         }
       }
@@ -482,7 +483,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       [...unorganizedNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
       allNotes = Array.from(notesMap.values());
     } else {
-      const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
         .orderBy(
@@ -501,7 +502,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         const alreadyIds = new Set(junctionNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
         const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
         if (additionalIds.length > 0) {
-          referencedScriptureNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          referencedScriptureNotes = await db.select(NOTE_SELECT_COLUMNS)
             .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture'))).all();
         }
       }
@@ -524,11 +525,12 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
-    // Fetch resource metadata and thread colors in parallel (independent queries)
+    // Fetch resource metadata, scripture version, and thread colors in parallel
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
+    const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
 
-    const [resourceMetadataMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
       // Resource metadata
       (async () => {
         if (resourceNoteIds.length === 0) return {} as Record<string, any>;
@@ -544,6 +546,18 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
           }, {} as Record<string, any>);
         } catch (_) { return {} as Record<string, any>; }
       })(),
+      // Scripture version (translation) for scripture notes
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
       // Thread colors
       getThreadColorsForNotesBatch(noteIds, userId),
     ]);
@@ -551,6 +565,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -559,6 +574,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        version,
       };
     });
 
@@ -577,7 +593,7 @@ export async function getNotesForThreadForMember(
 ): Promise<{ notes: any[]; hasMore: boolean }> {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
@@ -593,9 +609,10 @@ export async function getNotesForThreadForMember(
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
+    const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
 
-    const [resourceMetadataMap, threadColorsMap] = await Promise.all([
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
       (async () => {
         if (resourceNoteIds.length === 0) return {} as Record<string, any>;
         try {
@@ -610,12 +627,24 @@ export async function getNotesForThreadForMember(
           }, {} as Record<string, any>);
         } catch (_) { return {} as Record<string, any>; }
       })(),
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
       getThreadColorsForNotesBatch(noteIds, ownerUserId),
     ]);
 
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -624,6 +653,7 @@ export async function getNotesForThreadForMember(
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        version,
       };
     });
 
@@ -702,6 +732,9 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     let assignedNotes = assignedNotesRaw;
     let unorganizedNotes = unorganizedNotesRaw;
 
+    // Thread lookup for enriching note items with thread context (title, color, gradient)
+    const threadLookup = new Map<string, any>(threadsToUse.map(t => [t.id, t]));
+
     const threadItems = threadsToUse.map(thread => ({
       id: thread.id, type: "thread" as const, title: thread.title,
       subtitle: `${thread.noteCount} notes`, count: thread.noteCount,
@@ -711,19 +744,37 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       isPrivate: !thread.isPublic, accentColor: thread.accentColor, color: thread.color,
     }));
 
-    // Fetch resource metadata
+    // Fetch resource metadata and scripture version in parallel
     const resourceNoteIds = [...assignedNotes, ...unorganizedNotes].filter(n => n.noteType === 'resource').map(n => n.id);
+    const scriptureNoteIds = [...assignedNotes, ...unorganizedNotes].filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     let resourceMetadataMap: Record<string, any> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc: any, meta) => { acc[meta.noteId] = meta; return acc; }, {});
-      } catch (_) { /* continue */ }
-    }
+    let scriptureVersionMap: Record<string, string> = {};
+    const [resourceResult, scriptureResult] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc: any, meta) => { acc[meta.noteId] = meta; return acc; }, {});
+        } catch (_) { return {}; }
+      })(),
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
+    ]);
+    resourceMetadataMap = resourceResult;
+    scriptureVersionMap = scriptureResult;
 
     // Fetch scripture references
     let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>> = {};
@@ -789,6 +840,8 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       const cleanContent = stripHtml(note.content);
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const isEncrypted = note.contentEncrypted === true;
+      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
+      const noteThread = threadLookup.get(note.threadId);
       return {
         id: note.id, type: "note" as const,
         title: resourceMeta?.sourceTitle || note.title || "Untitled Note",
@@ -802,6 +855,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         resourceTitle: resourceMeta?.sourceTitle || null, resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null, threadColors: note.threadColors,
         scriptureReferences: scriptureReferencesMap[note.id] || undefined,
+        version,
+        userId: note.userId,
+        threadTitle: note.threadId === 'thread_unorganized' ? 'Unorganized' : (noteThread?.title ?? null),
+        threadColor: noteThread?.color ?? null,
+        threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null),
       };
     };
 
@@ -837,7 +895,20 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
     if (notes.length === 0) return [];
 
     const noteIds = notes.map(n => n.id);
-    const threadColorsMap = await getThreadColorsForNotesAsRecord(noteIds, userId);
+    const [threadColorsMap, scriptureVersionMap] = await Promise.all([
+      getThreadColorsForNotesAsRecord(noteIds, userId),
+      (async (): Promise<Record<string, string>> => {
+        if (noteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
+    ]);
 
     return notes.map(note => {
       const cleanContent = stripHtml(note.content);
@@ -851,6 +922,7 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
         lastUpdated: note.updatedAt || note.createdAt, updatedAt: note.updatedAt || note.createdAt,
         lastVisited: null, createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || undefined,
+        version: scriptureVersionMap[note.id] ?? undefined,
       };
     });
   } catch (error) {
@@ -874,7 +946,20 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
     const limitedNotes = sortedNotes.slice(0, limit);
 
     const noteIds = limitedNotes.map(n => n.id);
-    const threadColorsMap = await getThreadColorsForNotesAsRecord(noteIds, userId);
+    const [threadColorsMap, scriptureVersionMap] = await Promise.all([
+      getThreadColorsForNotesAsRecord(noteIds, userId),
+      (async (): Promise<Record<string, string>> => {
+        if (noteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, noteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
+    ]);
 
     const noteItems = limitedNotes.map(note => {
       const cleanContent = stripHtml(note.content);
@@ -888,6 +973,7 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt, lastVisited: note.lastVisited, createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || undefined,
+        version: scriptureVersionMap[note.id] ?? undefined,
       };
     });
 
@@ -983,7 +1069,7 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
 export async function getNotesForSpace(spaceId: string, userId: string, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+    const allNotes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -997,27 +1083,42 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
     const resourceNoteIds = sortedNotes.filter(n => n.noteType === 'resource').map(n => n.id);
-    let resourceMetadataMap: Record<string, any> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-          sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
-        resourceMetadataMap = rm.reduce((acc: any, meta) => {
-          acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
-          return acc;
-        }, {});
-      } catch (_) {}
-    }
-
+    const scriptureNoteIds = sortedNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
-    const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
+
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      (async (): Promise<Record<string, any>> => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+            sourceDomain: ResourceMetadata.sourceDomain, sourceName: ResourceMetadata.sourceName,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+          return rm.reduce((acc: any, meta) => {
+            acc[meta.noteId] = { sourceTitle: meta.sourceTitle, sourceDescription: meta.sourceDescription, sourceImage: meta.sourceImage, sourceDomain: meta.sourceDomain, sourceName: meta.sourceName };
+            return acc;
+          }, {});
+        } catch (_) { return {}; }
+      })(),
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds)).all();
+          return rows.reduce((acc, row) => {
+            if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+            return acc;
+          }, {} as Record<string, string>);
+        } catch (_) { return {}; }
+      })(),
+      getThreadColorsForNotesBatch(noteIds, userId),
+    ]);
 
     const notesWithMeta = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
+      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -1026,6 +1127,7 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        version,
       };
     });
 

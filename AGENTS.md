@@ -77,6 +77,7 @@ public/                      # Static assets, sw.js, manifest.json
 - `docs/REACT_ISLANDS_STRATEGY.md` - Astro SSR / React islands (legacy); production is SPA
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
+- `docs/MAIN_COLUMN_LAYOUT.md` - Main-column and CTA layout rules (scroll fill, CardStack chain, button positioning)
 
 ## E2E Testing
 

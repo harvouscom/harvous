@@ -103,8 +103,8 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
       // Do not fall back to .main-column__scroll — that would prepend the spacer and create a 64px gap above the card.
       const target = body.querySelector('.card-stack__inner-content');
       if (!target) return false;
-      // Do not inject into loading/skeleton card-stack (e.g. SpacePage loading state)
-      if (target.querySelector('.page-loading') && !target.querySelector('.content-tabs')) return false;
+      // Do not inject into empty or loading card (e.g. SpacePage loading state). Only inject when real content exists.
+      if (!target.querySelector('.content-tabs') && !target.querySelector(`[${SPACER_ATTR}]`)) return false;
       if (target.querySelector(`[${SPACER_ATTR}]`)) return true;
       spacer = document.createElement('div');
       spacer.setAttribute(SPACER_ATTR, '');

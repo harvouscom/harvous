@@ -192,6 +192,44 @@
   z-index: 1;
 }
 
+/* Ensure the page content (e.g. CardStack) fills the entire scroll area so inner-content extends to bottom */
+.main-column__scroll > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* CardStack in main column: container and content chain must fill so inner-content extends to bottom */
+.main-column__scroll .card-stack__container {
+  flex: 1 1 0%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.main-column__scroll .card-stack__content,
+.main-column__scroll .card-stack__inner,
+.main-column__scroll .card-stack__inner-content {
+  flex: 1 1 0%;
+  min-height: 0;
+}
+
+/* Note page: CardFullEditable fills the entire scroll area (same as CardStack) */
+.main-column__scroll .card-full-editable {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-height: 0;
+  min-width: 0;
+}
+
 /* Action strip dock: cream-colored panel behind the card, right edge peeks out.
    Extends 24px under the card (matching card border-radius) so the card
    visually sits on top of the panel. Use --showing or --hiding for animation. */
@@ -279,6 +317,15 @@
   z-index: 2;
 }
 
+/* When button is inside the card (mobile thread/dashboard/space), stick to bottom of scroll viewport */
+.card-stack__inner-content > .create-note-button-wrapper {
+  position: sticky;
+  bottom: 0;
+  left: 1rem;
+  right: 1rem;
+  margin-top: auto;
+}
+
 .create-note-button-wrapper .create-note-button {
   position: relative;
   left: auto;
@@ -310,11 +357,11 @@
   pointer-events: none;
 }
 
-/* Note page only: small Add button (plus) in bottom right; 20px from bottom */
+/* Note page only: small Add button (plus) fixed at bottom right of main column */
 .note-page-add-button {
   position: absolute;
-  bottom: 20px;
-  right: 1rem;
+  bottom: 12px;
+  right: 12px;
   z-index: 2;
 }
 

@@ -4,9 +4,11 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
 import TabNav from '../../../src/components/react/TabNav';
+import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -55,12 +57,14 @@ export default function DashboardPage() {
         resourceTitle: noteItem.resourceTitle,
         resourceDescription: noteItem.resourceDescription,
         resourceImage: noteItem.resourceImage,
+        version: noteItem.version,
+        userId: noteItem.userId,
       };
       seedNoteFromList(queryClient, listNote, {
         id: noteItem.threadId ?? noteItem.noteId,
-        title: 'Thread',
-        color: null,
-        backgroundGradient: 'var(--color-gradient-gray)',
+        title: noteItem.threadTitle ?? (noteItem.threadId === 'thread_unorganized' ? 'Unorganized' : 'Thread'),
+        color: noteItem.threadColor ?? null,
+        backgroundGradient: noteItem.threadBackgroundGradient ?? 'var(--color-gradient-gray)',
       });
     }
   }, [cachedItems, queryClient]);
@@ -71,6 +75,7 @@ export default function DashboardPage() {
   }, [queryClient]);
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
+  const isMobile = useIsMobile();
 
   return (
     <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle>
@@ -91,6 +96,7 @@ export default function DashboardPage() {
       />
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}
       <div data-cta-spacer className="create-note-cta-spacer" />
+      {isMobile && <CreateNoteButton />}
     </CardStack>
   );
 }

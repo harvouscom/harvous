@@ -7,7 +7,9 @@ import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../
 import ThreadNotesList from '../../../src/components/react/ThreadNotesList';
 import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
+import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type NoteTypeFilter = 'all' | 'notes' | 'scripture';
 
@@ -73,6 +75,7 @@ export default function ThreadPage() {
     : (thread?.color ?? navThread?.color ?? 'paper');
 
   const headerBgColor = `var(--color-${resolvedColor})`;
+  const isMobile = useIsMobile();
 
   // Always use ThreadCardStackHeader for non-unorganized so the header never shifts.
   // Nav data (navThread) provides title/color immediately; thread detail updates when loaded.
@@ -108,6 +111,7 @@ export default function ThreadPage() {
       </div>
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}
       <div data-cta-spacer className="create-note-cta-spacer" />
+      {isMobile && <CreateNoteButton />}
     </CardStack>
   );
 }

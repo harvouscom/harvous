@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
@@ -10,7 +10,9 @@ import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
+import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -53,19 +55,27 @@ export default function SpacePage() {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   };
 
+  // Build thread lookup from bootstrap items for seeding note cache with real thread context
+  const spaceThreadLookup = useMemo(() => {
+    if (!spaceItems?.length) return new Map<string, { title: string; color: string | null; backgroundGradient?: string }>();
+    const threads = spaceItems.filter((i) => i.itemType === 'thread');
+    return new Map(threads.map((t) => [t.id, { title: t.title, color: t.accentColor ?? null, backgroundGradient: undefined }]));
+  }, [spaceItems]);
+
   const onNotesLoaded = useCallback(
     (notes: ListNoteForSeed[]) => {
       notes.forEach((n) => {
         const threadId = n.threadId ?? spaceId;
+        const thread = spaceThreadLookup.get(threadId);
         seedNoteFromList(queryClient, n, {
           id: threadId,
-          title: 'Thread',
-          color: null,
-          backgroundGradient: 'var(--color-gradient-gray)',
+          title: thread?.title ?? 'Thread',
+          color: thread?.color ?? null,
+          backgroundGradient: thread?.backgroundGradient ?? 'var(--color-gradient-gray)',
         });
       });
     },
-    [queryClient, spaceId]
+    [queryClient, spaceId, spaceThreadLookup]
   );
 
   // Seed note cache from initial bootstrap items so opening a note shows content immediately
@@ -110,6 +120,7 @@ export default function SpacePage() {
   }, [spaceId, space]);
 
   const headerBgColor = `var(--color-${resolvedSpaceColor})`;
+  const isMobile = useIsMobile();
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
@@ -172,6 +183,7 @@ export default function SpacePage() {
         />
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />
+        {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}
       </div>
     </CardStack>
   );

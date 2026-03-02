@@ -24,6 +24,7 @@ export interface ListNoteForSeed {
   resourceDescription?: string | null;
   resourceImage?: string | null;
   userId?: string;
+  version?: string;
 }
 
 export interface NoteDetail {
@@ -110,6 +111,7 @@ export function listNoteToNoteDetail(
     resourceTitle: listNote.resourceTitle ?? null,
     resourceDescription: listNote.resourceDescription ?? null,
     resourceImage: listNote.resourceImage ?? null,
+    version: listNote.version ?? undefined,
   };
 }
 

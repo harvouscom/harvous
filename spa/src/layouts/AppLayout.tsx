@@ -18,6 +18,7 @@ import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
 import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
 import { useNavigation, useRefreshNavigation } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
@@ -440,6 +441,16 @@ export default function AppLayout() {
 
   const dockHiding = (contentType === 'note' && isEditMode) || exiting || panelOpen;
   const showDock = (showActionStrip || exiting) && layoutDataReadyForContent;
+  const isMobile = useIsMobile();
+  // On mobile, space/thread/dashboard render CreateNoteButton inside the card; don't render it here
+  const showCreateNoteInLayout =
+    layoutDataReadyForContent &&
+    contentType !== 'profile' &&
+    contentType !== 'search' &&
+    contentType !== 'new-space' &&
+    contentType !== 'note' &&
+    canShowAddNote &&
+    !(isMobile && (contentType === 'space' || contentType === 'thread' || contentType === 'dashboard'));
 
   const handleDockAnimationEnd = useCallback((e: React.AnimationEvent) => {
     if (exiting && (e.animationName === 'action-strip-dock-slide-out' || e.animationName === 'mobile-dock-slide-out')) {
@@ -507,7 +518,7 @@ export default function AppLayout() {
               <Outlet key={pathname} />
             </div>
             {/* CreateNoteButton: on space page opens menu (Add a note / Add to space); elsewhere opens New Note */}
-            {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
+            {showCreateNoteInLayout && (
               <CreateNoteButton addToSpaceSpaceId={contentType === 'space' ? currentId : undefined} />
             )}
             {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
@@ -591,8 +602,8 @@ export default function AppLayout() {
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
-            {/* CreateNoteButton: on space page opens menu (Add a note / Add to space); elsewhere opens New Note */}
-            {layoutDataReadyForContent && contentType !== 'profile' && contentType !== 'search' && contentType !== 'new-space' && contentType !== 'note' && canShowAddNote && (
+            {/* CreateNoteButton: on mobile space/thread/dashboard it's rendered inside the card */}
+            {showCreateNoteInLayout && (
               <CreateNoteButton addToSpaceSpaceId={contentType === 'space' ? currentId : undefined} />
             )}
             {layoutDataReadyForContent && contentType === 'note' && canShowAddNote && (
