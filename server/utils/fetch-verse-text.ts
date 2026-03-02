@@ -36,10 +36,21 @@ export async function fetchVerseText(reference: string): Promise<string> {
   }
 
   const normalizedKey = normalizeScriptureReference(cleanReference);
-  const cached = await db.select({ content: VerseTextCache.content })
-    .from(VerseTextCache)
-    .where(eq(VerseTextCache.reference, normalizedKey))
-    .get();
+  let cached: { content: string } | null = null;
+  try {
+    cached = await db.select({ content: VerseTextCache.content })
+      .from(VerseTextCache)
+      .where(eq(VerseTextCache.reference, normalizedKey))
+      .get();
+  } catch (cacheReadErr: unknown) {
+    // VerseTextCache may not exist if db:push wasn't run (e.g. new deploy); treat as cache miss
+    const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);
+    if (msg.includes('no such table') || msg.includes('VerseTextCache')) {
+      console.warn('[fetchVerseText] VerseTextCache unavailable, using API only:', msg.slice(0, 80));
+    } else {
+      throw cacheReadErr;
+    }
+  }
   if (cached?.content && cached.content.length > 0) {
     return cached.content;
   }
