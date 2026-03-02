@@ -328,12 +328,12 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
       console.error('Error assigning inbox items to new user:', error);
     }
 
-    // Create onboarding thread with sample notes for new users
+    // Create onboarding thread with sample notes for new users.
+    // On failure, log and continue so get-profile still returns 200 and the user can load the app.
     try {
       await ensureOnboardingThreadIfMissing(userId);
     } catch (error) {
-      console.error('Error creating onboarding thread:', error);
-      throw error; // so getCachedUserData does not return fallback for new users
+      console.error('Error creating onboarding thread (non-fatal, user can still load):', error);
     }
   }
 

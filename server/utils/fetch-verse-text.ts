@@ -45,8 +45,13 @@ export async function fetchVerseText(reference: string): Promise<string> {
   } catch (cacheReadErr: unknown) {
     // VerseTextCache may not exist if db:push wasn't run (e.g. new deploy); treat as cache miss
     const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);
-    if (msg.includes('no such table') || msg.includes('VerseTextCache')) {
-      console.warn('[fetchVerseText] VerseTextCache unavailable, using API only:', msg.slice(0, 80));
+    let causeMsg = '';
+    for (let e: unknown = cacheReadErr; e != null; e = (e as { cause?: unknown })?.cause) {
+      causeMsg += (e instanceof Error ? e.message : String(e)) + ' ';
+    }
+    const isMissingTable = /no such table|VerseTextCache/i.test(msg + causeMsg);
+    if (isMissingTable) {
+      console.warn('[fetchVerseText] VerseTextCache unavailable, using API only:', (msg + causeMsg).trim().slice(0, 120));
     } else {
       throw cacheReadErr;
     }

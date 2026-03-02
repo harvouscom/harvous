@@ -33,8 +33,11 @@ export default function AppLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const search = useRouterState({ select: (s) => s.location.search }) ?? '';
 
-  const { data: profile, isSuccess: profileSuccess } = useProfile();
-  const { data: nav } = useNavigation({ enabled: profileSuccess && !!profile });
+  const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
+  // Prefer profile-first so onboarding exists; if get-profile fails, still enable nav so user is not stuck.
+  const { data: nav } = useNavigation({
+    enabled: (profileSuccess && !!profile) || profileError,
+  });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
 
