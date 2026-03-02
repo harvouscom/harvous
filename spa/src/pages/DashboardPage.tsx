@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -51,6 +52,21 @@ export default function DashboardPage() {
   // Keep loading animation until we have content and (if we ran it) the scripture refetch is done, so pills are loaded in card notes
   const isInitialLoading =
     (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
+
+  // Show a loading toast while the initial dashboard load (and scripture refetch) is in progress
+  const loadingToastIdRef = useRef<string | number | null>(null);
+  useEffect(() => {
+    if (isInitialLoading) {
+      if (loadingToastIdRef.current == null) {
+        loadingToastIdRef.current = toast.loading('Loading your Harvous...', { icon: null });
+      }
+    } else {
+      if (loadingToastIdRef.current != null) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null;
+      }
+    }
+  }, [isInitialLoading]);
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
