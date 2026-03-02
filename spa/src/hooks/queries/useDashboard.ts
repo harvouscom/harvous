@@ -39,5 +39,7 @@ export function useDashboardContent(
       lastPage.hasMore ? lastPage.offset + lastPage.limit : undefined,
     initialPageParam: 0,
     staleTime: 30_000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 }

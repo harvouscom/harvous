@@ -44,6 +44,8 @@ export function useNavigation(options?: { enabled?: boolean }) {
       return res.json() as Promise<NavigationData>;
     },
     staleTime: 30_000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
 }
 

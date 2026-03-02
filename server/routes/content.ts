@@ -74,10 +74,23 @@ route.get('/api/content/load-more', async (c) => {
       referencedScriptureNotes: needReferencedScripture ? referencedScriptureNotes : undefined,
     });
   } catch (error: unknown) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error('Error loading more content:', err);
-    if (err.stack) console.error('Error stack:', err.stack);
-    return c.json({ error: 'Failed to load more content', details: err.message }, 500);
+    try {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error('[api/content/load-more] Error:', err.message, err.stack);
+      const body = {
+        error: 'Failed to load more content',
+        details: err.message,
+        hint: (err as Error).stack?.split('\n').slice(0, 3).join(' | ') ?? '',
+      };
+      return c.json(body, 500, { 'Content-Type': 'application/json' });
+    } catch (fallbackErr) {
+      console.error('[api/content/load-more] Fallback error:', fallbackErr);
+      return c.json(
+        { error: 'Failed to load more content', details: String(fallbackErr) },
+        500,
+        { 'Content-Type': 'application/json' },
+      );
+    }
   }
 });
 

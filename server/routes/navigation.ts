@@ -86,14 +86,26 @@ route.get('/api/navigation/data', async (c) => {
       { 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120' },
     );
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: '/api/navigation/data',
-      action: 'get_navigation_data',
-    });
-    return c.json(
-      { error: standardError.message, code: standardError.code },
-      500,
-    );
+    try {
+      const standardError = handleAPIError(error, {
+        endpoint: '/api/navigation/data',
+        action: 'get_navigation_data',
+      });
+      const body = {
+        error: standardError.message,
+        code: standardError.code,
+        details: error instanceof Error ? error.message : String(error),
+        hint: error instanceof Error ? error.stack?.split('\n').slice(0, 3).join(' | ') ?? '' : '',
+      };
+      return c.json(body, 500, { 'Content-Type': 'application/json' });
+    } catch (fallbackErr) {
+      console.error('[api/navigation/data] Fallback error:', fallbackErr);
+      return c.json(
+        { error: 'Navigation failed', details: String(fallbackErr) },
+        500,
+        { 'Content-Type': 'application/json' },
+      );
+    }
   }
 });
 
