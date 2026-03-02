@@ -4,11 +4,13 @@ import ButtonSmall from './ButtonSmall';
 interface DeleteAccountConfirmDialogProps {
   onCancel: () => void;
   onConfirm: () => void;
+  isDeleting?: boolean;
 }
 
 export default function DeleteAccountConfirmDialog({
   onCancel,
-  onConfirm
+  onConfirm,
+  isDeleting = false
 }: DeleteAccountConfirmDialogProps) {
   return (
     <div style={{
@@ -21,6 +23,7 @@ export default function DeleteAccountConfirmDialog({
         type="button"
         onClick={onCancel}
         state="Secondary"
+        disabled={isDeleting}
       >
         Cancel
       </ButtonSmall>
@@ -28,8 +31,9 @@ export default function DeleteAccountConfirmDialog({
         type="button"
         onClick={onConfirm}
         state="Delete"
+        disabled={isDeleting}
       >
-        Delete Account
+        {isDeleting ? 'Deleting...' : 'Delete Account'}
       </ButtonSmall>
     </div>
   );

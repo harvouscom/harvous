@@ -43,6 +43,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const [isExporting, setIsExporting] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState<string | null>(null);
   const [isClearingData, setIsClearingData] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncState, setSyncState] = useState<SyncState | null>(null);
   const [hasCheckedSyncOnce, setHasCheckedSyncOnce] = useState(false);
@@ -184,8 +185,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   };
 
   const handleDeleteAccount = async () => {
-    setShowDeleteConfirm(false);
-    
     // Warn if there are unsynced changes
     if (pendingSyncCount > 0) {
       const confirmed = window.confirm(
@@ -193,11 +192,11 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         'Are you sure you want to delete your account?'
       );
       if (!confirmed) {
-        setShowDeleteConfirm(true);
         return;
       }
     }
-    
+
+    setIsDeleting(true);
     try {
       const response = await fetch('/api/user/delete-account', {
         method: 'DELETE',
@@ -212,6 +211,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
         
         // Redirect to sign-in after a short delay
         setTimeout(() => {
+          setShowDeleteConfirm(false);
           window.location.href = '/sign-in';
         }, 1000);
       } else {
@@ -220,6 +220,8 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     } catch (error) {
       console.error('Delete account error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to delete account. Please try again.', { icon: null });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -573,8 +575,8 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
           onClick={(e) => {
-            // Close dialog if clicking on the overlay (but not the dialog content)
-            if (e.target === e.currentTarget) {
+            // Close dialog if clicking on the overlay (but not the dialog content); don't close while deleting
+            if (e.target === e.currentTarget && !isDeleting) {
               handleCancelDelete();
             }
           }}
@@ -609,6 +611,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             <DeleteAccountConfirmDialog
               onCancel={handleCancelDelete}
               onConfirm={handleDeleteAccount}
+              isDeleting={isDeleting}
             />
           </div>
         </div>,

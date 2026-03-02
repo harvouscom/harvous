@@ -97,9 +97,12 @@ export default function AppLayout() {
   }, [isLoaded, isSignedIn, pathname]);
 
   // New users: open in Welcome to Harvous thread instead of dashboard (avoids organized list / scripture timing).
+  // Wait for profile so onboarding notes exist before we land on the thread (avoids 0 badge and empty notes until refresh).
   const didRedirectToOnboardingRef = useRef(false);
   useEffect(() => {
     if (!isLoaded || !isSignedIn || pathname !== '/' || !nav?.threads?.length) return;
+    const profileDone = (profileSuccess && !!profile) || profileError;
+    if (!profileDone) return;
     try {
       if (sessionStorage.getItem('harvous_pending_redirect')) return;
     } catch {
@@ -110,7 +113,7 @@ export default function AppLayout() {
     if (realThreads.length !== 1 || !realThreads[0].id.startsWith('thread_onboarding_')) return;
     didRedirectToOnboardingRef.current = true;
     router.navigate({ to: '/thread/$threadId', params: { threadId: realThreads[0].id } });
-  }, [isLoaded, isSignedIn, pathname, nav?.threads, router]);
+  }, [isLoaded, isSignedIn, pathname, nav?.threads, profileSuccess, profile, profileError, router]);
 
   // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
   const lastVisitRecordedPathRef = useRef<string | null>(null);
@@ -242,15 +245,18 @@ export default function AppLayout() {
   }, [queryClient, refreshNavigation]);
 
   // Derive nav state from current route (before early return so hook order is stable)
-  // URL slugs are bare IDs (e.g. /thread/abc123), DB uses prefixed IDs (thread_abc123)
+  // URL slugs can be bare (e.g. /thread/abc123) or prefixed (e.g. /thread/thread_onboarding_xxx); normalize so we don't double-prefix
   const pathSlug = pathname.split('/').pop() || '';
   const isNote = pathname.startsWith('/note/');
   const isThread = pathname.startsWith('/thread/');
   const isSpace = pathname.startsWith('/space/');
 
-  const currentId = isThread ? `thread_${pathSlug}`
-    : isNote ? `note_${pathSlug}`
-    : isSpace ? `space_${pathSlug}`
+  const currentId = isThread
+    ? (pathSlug.startsWith('thread_') ? pathSlug : `thread_${pathSlug}`)
+    : isNote
+    ? (pathSlug.startsWith('note_') ? pathSlug : `note_${pathSlug}`)
+    : isSpace
+    ? (pathSlug.startsWith('space_') ? pathSlug : `space_${pathSlug}`)
     : pathSlug;
 
   const spaceId = isSpace ? `space_${pathSlug}` : undefined;
@@ -281,9 +287,9 @@ export default function AppLayout() {
   const memberOfSpaceIds = (nav?.memberOfSpaces ?? []).map(s => s.id);
   const ownedSpaceIds = (nav?.spaces ?? []).map(s => s.id);
 
-  // nav threads have full IDs like "thread_abc123"; URL has "/thread/abc123"
+  // nav threads have full IDs like "thread_abc123"; match using normalized currentId
   const activeThreadFromNav = isThread
-    ? (nav?.threads.find(t => t.id === `thread_${pathSlug}`) ?? null)
+    ? (nav?.threads.find(t => t.id === currentId) ?? null)
     : isNote
     ? (noteParentThreadId
         ? (nav?.threads.find(t => t.id === noteParentThreadId)
