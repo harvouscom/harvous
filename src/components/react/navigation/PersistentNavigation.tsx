@@ -223,7 +223,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       if (activeThreadProp?.id && activeThreadProp.id.startsWith('thread_')) {
         activeParentThread = {
           id: activeThreadProp.id,
-          title: activeThreadProp.title || 'Thread',
+          title: activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || 'Thread'),
           count: activeThreadProp.noteCount ?? 0,
           backgroundGradient: activeThreadProp.backgroundGradient || 'var(--color-gradient-gray)',
           spaceId: activeThreadProp.spaceId ?? null,
@@ -304,12 +304,17 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       const activeThreadItem = fromHistory
         ? {
             id: fromHistory.id,
-            title: fromHistory.title,
+            title: fromHistory.id === 'thread_unorganized' ? 'Unorganized' : fromHistory.title,
             count: fromHistory.count || 0,
             backgroundGradient: fromHistory.backgroundGradient || 'var(--color-gradient-gray)',
             spaceId: (fromHistory as any).spaceId ?? null,
           }
-        : fromDom;
+        : fromDom
+          ? {
+              ...fromDom,
+              title: fromDom.id === 'thread_unorganized' ? 'Unorganized' : (fromDom.title || 'Thread'),
+            }
+          : null;
       
       // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
       // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
@@ -504,7 +509,11 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                 <SpaceButton
                   as="div"
                   text={item.title}
-                  count={item.count || 0}
+                  count={
+                    isActive && activeThreadProp?.id === item.id
+                      ? Math.max(activeThreadProp.noteCount ?? 0, item.count ?? 0)
+                      : (item.count || 0)
+                  }
                   state="WithCount"
                   rightAccessory={isSpaceItem ? 'spaceSwitcher' : 'count'}
                   onRightAccessoryClick={isSpaceItem ? onSpaceSwitcherClick : undefined}

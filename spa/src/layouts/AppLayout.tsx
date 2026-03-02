@@ -291,9 +291,10 @@ export default function AppLayout() {
     const parentData = noteParent ?? parentThreadData;
     if (isNote && parentData?.id) {
       const withCount = parentData as { count?: number; noteCount?: number };
+      const isUnorganized = parentData.id === 'thread_unorganized';
       return {
         id: parentData.id,
-        title: parentData.title ?? 'Thread',
+        title: isUnorganized ? 'Unorganized' : (parentData.title ?? 'Thread'),
         noteCount: withCount.count ?? withCount.noteCount ?? 0,
         backgroundGradient: parentData.backgroundGradient || 'var(--color-paper)',
         spaceId: (parentData as { spaceId?: string | null }).spaceId ?? null,

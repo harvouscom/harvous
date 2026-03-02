@@ -1501,7 +1501,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             <SpaceButton
               as="div"
               text={activeThreadCandidate ? activeThreadCandidate.title : displaySelectedSpaceLabel}
-              count={activeThreadCandidate ? (updatedCurrentThread ?? currentThread)?.noteCount ?? 0 : displaySelectedSpaceCount}
+              count={
+                activeThreadCandidate
+                  ? Math.max(
+                      (updatedCurrentThread ?? currentThread)?.noteCount ?? 0,
+                      displayThreads.find((t) => t.id === currentActiveItemId)?.noteCount ?? 0
+                    )
+                  : displaySelectedSpaceCount
+              }
               state="DropdownTrigger"
               rightAccessory="none"
               backgroundGradient={activeThreadCandidate?.backgroundGradient ?? displaySelectedSpaceBackground}
@@ -1789,8 +1796,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                   <>
                     {displayThreads.map((thread) => {
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
-                      // Use updated thread data for active thread to show live updates
-                      const displayThread = isActive && activeThreadCandidate ? activeThreadCandidate : thread;
+                      // Use updated thread data for active thread to show live updates.
+                      // Prefer the persistent list's count when layout count is 0 (e.g. note page before note loads, or member thread not in nav).
+                      const displayThread = isActive && activeThreadCandidate
+                        ? {
+                            ...activeThreadCandidate,
+                            noteCount: Math.max(
+                              activeThreadCandidate.noteCount ?? 0,
+                              thread.noteCount ?? 0
+                            ),
+                          }
+                        : thread;
                       // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
                       let spaceForLink = effectiveSelectedSpaceId;
                       if (typeof window !== 'undefined') {

@@ -835,7 +835,8 @@ route.get('/api/notes/:id/details', async (c) => {
       const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
         .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
-      allThreads = junctionThreads.filter(t => t.title !== 'Unorganized');
+      // Include unorganized so note detail returns it when the note is in unorganized (nav shows "Unorganized" not "Thread").
+      allThreads = junctionThreads;
     } catch { allThreads = []; }
 
     if (isMemberView) {
