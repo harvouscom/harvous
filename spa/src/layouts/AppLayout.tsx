@@ -6,6 +6,7 @@ import {
 import { isPWA } from '../../../src/utils/content-list-helpers';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit';
+import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, useCallback } from 'react';
@@ -507,6 +508,7 @@ export default function AppLayout() {
   return (
     <div className="app-layout">
       <NavigationProvider>
+        {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} />}
         <ReferralCreditInit userId={user?.id} />
 
         {/* ── Desktop: three-column grid (hidden on mobile) ── */}

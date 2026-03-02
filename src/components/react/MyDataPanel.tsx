@@ -45,6 +45,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
   const [isClearingData, setIsClearingData] = useState(false);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [syncState, setSyncState] = useState<SyncState | null>(null);
+  const [hasCheckedSyncOnce, setHasCheckedSyncOnce] = useState(false);
 
   // Check sync status
   const checkSyncStatus = async () => {
@@ -64,6 +65,8 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
       setSyncState(state);
     } catch (error) {
       console.error('[MyDataPanel] Error checking sync status:', error);
+    } finally {
+      setHasCheckedSyncOnce(true);
     }
   };
 
@@ -73,6 +76,9 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
 
     checkSyncStatus();
 
+    // Extra check after 1.5s so bootstrap that finishes right after open is reflected quickly
+    const delayedCheck = setTimeout(checkSyncStatus, 1500);
+
     // Check every 5 seconds
     const interval = setInterval(checkSyncStatus, 5000);
 
@@ -81,6 +87,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     window.addEventListener('focus', handleFocus);
 
     return () => {
+      clearTimeout(delayedCheck);
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
     };
@@ -112,6 +119,8 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     const ts = formatSyncTimestamp();
     if (ts) return `All synced as of ${ts}`;
     if (syncState?.syncError) return 'Sync issue — will retry when online.';
+    if (!hasCheckedSyncOnce && userId) return 'Checking sync…';
+    if (syncState?.isSyncing) return 'Syncing…';
     return 'Not yet synced';
   })();
 
