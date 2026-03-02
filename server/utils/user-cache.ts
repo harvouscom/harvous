@@ -27,6 +27,92 @@ export interface CachedUserData {
 const pendingInit = new Map<string, Promise<CachedUserData>>();
 
 /**
+ * If the user has no onboarding thread yet, create it (and notes + scripture).
+ * Idempotent: no-op if thread_onboarding_${userId} already exists.
+ */
+async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
+  const onboardingThreadId = `thread_onboarding_${userId}`;
+  const existing = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).get();
+  if (existing) return;
+
+  const { generateNoteId } = await import('@/utils/ids');
+  const { ensureUnorganizedThread } = await import('./unorganized-thread');
+  const { loadOnboardingNotes } = await import('@/utils/load-onboarding-notes');
+
+  await ensureUnorganizedThread(userId);
+  const onboardingNotes = loadOnboardingNotes();
+  if (onboardingNotes.length === 0) {
+    console.warn('[onboarding] loadOnboardingNotes returned no notes');
+    return;
+  }
+  const firstContent = onboardingNotes[0]?.content ?? '';
+  if (!firstContent.includes('Proverbs')) {
+    console.warn('[onboarding] first note content missing "Proverbs" (len=%d)', firstContent.length);
+  }
+
+  const ts = nowISO();
+  await db.insert(Threads).values({
+    id: onboardingThreadId,
+    title: 'Welcome to Harvous',
+    subtitle: `${onboardingNotes.length} notes to get you started`,
+    color: 'blue',
+    spaceId: null,
+    userId,
+    isPublic: false,
+    isPinned: false,
+    createdAt: ts,
+    updatedAt: ts,
+    lastVisited: ts,
+  });
+
+  const noteRecords = onboardingNotes.map((noteData, idx) => {
+    const noteId = generateNoteId();
+    return {
+      id: noteId,
+      title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
+      content: noteData.content,
+      threadId: onboardingThreadId,
+      spaceId: null,
+      simpleNoteId: idx + 1,
+      userId,
+      isPublic: false,
+      addedBy: 'system' as const,
+      createdAt: ts,
+      lastVisited: ts,
+    };
+  });
+  const junctionRecords = noteRecords.map((note) => ({
+    id: `note-thread-${note.id}-${Date.now()}`,
+    noteId: note.id,
+    threadId: onboardingThreadId,
+    createdAt: nowISO(),
+  }));
+
+  await db.insert(Notes).values(noteRecords);
+  await db.insert(NoteThreads).values(junctionRecords);
+
+  await Promise.all(
+    noteRecords.map(async (note, idx) => {
+      try {
+        const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
+        if (results.length > 0) {
+          console.log('[onboarding] scripture processed', { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error('Error processing scripture for onboarding note', note.id, msg, e);
+      }
+    })
+  );
+
+  await db.update(UserMetadata)
+    .set({ highestSimpleNoteId: onboardingNotes.length, updatedAt: nowISO() })
+    .where(eq(UserMetadata.userId, userId));
+
+  console.log(`[onboarding] created thread with ${onboardingNotes.length} notes for user ${userId}`);
+}
+
+/**
  * Get user data from cache or fetch from Clerk API if needed
  */
 export async function getCachedUserData(userId: string): Promise<CachedUserData> {
@@ -50,6 +136,16 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       new Date(userMetadata.clerkDataUpdatedAt).getTime() < new Date('2023-01-01').getTime();
 
     if (userMetadata && isCacheFresh && !isExplicitlyStale) {
+      // Repair: if user was created recently but onboarding thread is missing, create it now
+      const createdMs = userMetadata.createdAt ? new Date(userMetadata.createdAt).getTime() : 0;
+      const fiveMinAgo = now.getTime() - 5 * 60 * 1000;
+      if (createdMs >= fiveMinAgo) {
+        try {
+          await ensureOnboardingThreadIfMissing(userId);
+        } catch (repairErr) {
+          console.error('[user-cache] Onboarding repair failed:', repairErr);
+        }
+      }
       return {
         firstName: userMetadata.firstName || '',
         lastName: userMetadata.lastName || '',
@@ -62,19 +158,23 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
       };
     }
 
+    const isNewUser = !userMetadata;
     const promise = fetchAndCacheUserData(userId, userMetadata);
-    // Only lock for brand-new users (where onboarding thread is created)
-    if (!userMetadata) {
+    if (isNewUser) {
       pendingInit.set(userId, promise);
     }
     try {
       return await promise;
     } finally {
-      pendingInit.delete(userId);
+      if (isNewUser) pendingInit.delete(userId);
     }
   } catch (error) {
     pendingInit.delete(userId);
     console.error('Error getting user data:', error);
+    // Do not swallow errors for new-user init: caller should get 500 and can retry
+    if (!userMetadata) {
+      throw error;
+    }
     return {
       firstName: '', lastName: '', email: '',
       initials: 'U', displayName: 'User', userColor: 'paper', createdAt: undefined,
@@ -216,88 +316,10 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
 
     // Create onboarding thread with sample notes for new users
     try {
-      const { generateThreadId, generateNoteId } = await import('@/utils/ids');
-      const { ensureUnorganizedThread } = await import('./unorganized-thread');
-      const { loadOnboardingNotes } = await import('@/utils/load-onboarding-notes');
-
-      await ensureUnorganizedThread(userId);
-
-      const onboardingNotes = loadOnboardingNotes();
-
-      if (onboardingNotes.length > 0) {
-        const onboardingThreadId = `thread_onboarding_${userId}`;
-        const capitalizedThreadTitle = "Welcome to Harvous";
-        const ts = nowISO();
-        await db.insert(Threads).values({
-          id: onboardingThreadId,
-          title: capitalizedThreadTitle,
-          subtitle: `${onboardingNotes.length} notes to get you started`,
-          color: 'blue',
-          spaceId: null,
-          userId: userId,
-          isPublic: false,
-          isPinned: false,
-          createdAt: ts,
-          updatedAt: ts,
-          lastVisited: ts,
-        });
-
-        // Prepare all note and junction records upfront for batch insertion
-        const noteRecords = onboardingNotes.map((noteData, idx) => {
-          const noteId = generateNoteId();
-          return {
-            id: noteId,
-            title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
-            content: noteData.content,
-            threadId: onboardingThreadId,
-            spaceId: null,
-            simpleNoteId: idx + 1,
-            userId: userId,
-            isPublic: false,
-            addedBy: 'system' as const,
-            createdAt: ts,
-            lastVisited: ts,
-          };
-        });
-
-        const junctionRecords = noteRecords.map(note => ({
-          id: `note-thread-${note.id}-${Date.now()}`,
-          noteId: note.id,
-          threadId: onboardingThreadId,
-          createdAt: nowISO(),
-        }));
-
-        // Batch insert notes and junctions
-        await db.insert(Notes).values(noteRecords);
-        await db.insert(NoteThreads).values(junctionRecords);
-
-        // Process scripture references in parallel (notes already exist in DB)
-        await Promise.all(
-          noteRecords.map(async (note, idx) => {
-            const content = onboardingNotes[idx].content;
-            try {
-              const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, content);
-              if (results.length > 0) {
-                console.log('[onboarding] scripture processed', { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              console.error('Error processing scripture for onboarding note', note.id, msg, e);
-            }
-          })
-        );
-
-        await db.update(UserMetadata)
-          .set({
-            highestSimpleNoteId: onboardingNotes.length,
-            updatedAt: nowISO()
-          })
-          .where(eq(UserMetadata.userId, userId));
-
-        console.log(`Created onboarding thread with ${onboardingNotes.length} notes for user ${userId}`);
-      }
+      await ensureOnboardingThreadIfMissing(userId);
     } catch (error) {
       console.error('Error creating onboarding thread:', error);
+      throw error; // so getCachedUserData does not return fallback for new users
     }
   }
 

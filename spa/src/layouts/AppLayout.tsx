@@ -152,13 +152,15 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
 
-  // Invalidate nav and dashboard when auth identity changes so the new user never sees the previous user's cached data
+  // Invalidate nav and dashboard on first sign-in and when user changes so we always show correct data (fixes onboarding not showing until refresh)
   const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
     const prev = prevUserIdRef.current;
     prevUserIdRef.current = user.id;
-    if (prev != null && prev !== user.id) {
+    const isFirstUser = prev === null;
+    const userChanged = prev != null && prev !== user.id;
+    if (isFirstUser || userChanged) {
       queryClient.invalidateQueries({ queryKey: navigationQueryKey });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
