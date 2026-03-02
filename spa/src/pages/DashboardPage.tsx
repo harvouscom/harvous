@@ -27,9 +27,9 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<DashboardFilter>('all');
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
 
-  // Load content as soon as user is signed in (parallel with profile). Server is hardened so onboarding exists before content runs.
+  // Load content only after profile has completed so get-profile (and NoteScriptureReferences) are committed before load-more; first response then includes scripture refs/pills.
   const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(filter, 30, {
-    enabled: (profileSuccess && !!profile) || profileError || !!user?.id,
+    enabled: (profileSuccess && !!profile) || profileError,
   });
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
