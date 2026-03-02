@@ -33,8 +33,7 @@ const signInRoute = createRoute({
   component: SignInPage,
 });
 
-// Clerk's multi-step sign-in flow pushes sub-routes like /sign-in/factor-one,
-// /sign-in/continue, etc. — TanStack Router must handle them with the same component.
+// Clerk uses hash routing (e.g. /sign-in#/factor-one); splat kept for backwards compat.
 const signInSplatRoute = createRoute({
   getParentRoute: () => signInRoute,
   path: '$',
@@ -47,8 +46,7 @@ const signUpRoute = createRoute({
   component: SignUpPage,
 });
 
-// Clerk's multi-step sign-up flow pushes sub-routes like /sign-up/continue,
-// /sign-up/verify-email-address, etc.
+// Clerk uses hash routing (e.g. /sign-up#/verify-email-address); splat kept for backwards compat.
 const signUpSplatRoute = createRoute({
   getParentRoute: () => signUpRoute,
   path: '$',

@@ -60,8 +60,7 @@ export default function SignInPage() {
         <div className="auth-page__form-section">
           <div className="auth-page__form-wrapper">
             <SignIn
-              routing="path"
-              path="/sign-in"
+              routing="hash"
               signUpUrl={
                 redirectUrl !== '/dashboard'
                   ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`
