@@ -398,9 +398,10 @@ export default function AppLayout() {
     (contentType === 'note' && (parentThreadData?.userId === user?.id || (noteParentThreadId === 'thread_unorganized' && currentNote?.userId === user?.id)));
 
   // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)
+  // For space: nav is enough to compute effectiveSpaceRole and show Add note; don't wait for currentSpaceDetail
   const layoutDataReadyForContent =
     contentType === 'dashboard' || contentType === 'profile' || contentType === 'search' || contentType === 'new-space' ||
-    (contentType === 'space' && (currentSpaceDetail != null || nav != null)) ||
+    (contentType === 'space' && nav != null) ||
     (contentType === 'thread' && (currentThread != null || nav != null)) ||
     (contentType === 'note' && (parentThreadData != null || currentNote != null));
 

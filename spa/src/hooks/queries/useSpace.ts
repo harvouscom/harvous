@@ -31,6 +31,7 @@ export interface SpaceContentItem {
   subtitle?: string;
   noteCount?: number;
   accentColor?: string;
+  backgroundGradient?: string;
   lastUpdated?: string;
   isPublic?: boolean;
   noteType?: 'default' | 'scripture' | 'resource';
@@ -97,6 +98,7 @@ interface SpaceItemsResponse {
     subtitle?: string;
     noteCount?: number;
     accentColor?: string;
+    backgroundGradient?: string;
     lastUpdated?: string;
     isPublic?: boolean;
     createdAt?: string;
@@ -129,6 +131,7 @@ function mapSpaceItemsResponse(data: SpaceItemsResponse): SpaceContentItem[] {
       subtitle: thread.subtitle || `${thread.noteCount ?? 0} notes`,
       noteCount: thread.noteCount,
       accentColor: thread.accentColor,
+      backgroundGradient: thread.backgroundGradient,
       lastUpdated: thread.lastUpdated,
       isPublic: thread.isPublic,
       createdAt: normalizeDate(thread.createdAt) || thread.createdAt,

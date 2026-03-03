@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useParams } from '@tanstack/react-router';
+import { useParams, useRouterState } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
@@ -19,14 +19,24 @@ const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
   { id: 'scripture', label: 'Scripture' },
 ];
 
+function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
+  if (search == null) return null;
+  const raw = typeof search === 'string' ? search : '';
+  const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
+  const space = params.get('space');
+  return space && space.startsWith('space_') ? space : null;
+}
+
 export default function ThreadPage() {
   const { threadId: threadSlug } = useParams({ strict: false }) as { threadId: string };
+  const search = useRouterState({ select: (s) => s.location.search });
   const threadId = threadSlug.startsWith('thread_') ? threadSlug : `thread_${threadSlug}`;
   const isUnorganized = threadId === 'thread_unorganized';
   const queryClient = useQueryClient();
   const { data: thread, isLoading } = useThread(threadId);
   const { data: nav } = useNavigation();
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
+  const urlSpaceId = getSpaceIdFromSearch(search);
 
   // Use nav data as an instant fallback while thread detail loads — avoids a hard
   // loading skeleton swap. Nav query is already warm from app startup.
@@ -48,12 +58,13 @@ export default function ThreadPage() {
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
   // (from nav for owned threads, or from thread prefetch for member threads not in nav).
+  // Use ?space= from URL when thread/nav lack spaceId so thread is scoped under the right space.
   useEffect(() => {
     const navThread = nav?.threads.find(t => t.id === threadId);
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
-    const spaceId = navThread?.spaceId ?? thread?.spaceId ?? null;
+    const spaceId = navThread?.spaceId ?? thread?.spaceId ?? urlSpaceId ?? null;
     if (typeof window !== 'undefined' && (window as any).addToNavigationHistory) {
       (window as any).addToNavigationHistory({
         id: threadId,
@@ -64,7 +75,7 @@ export default function ThreadPage() {
         openedInSpaceIds: [spaceId],
       });
     }
-  }, [threadId, thread, nav, isUnorganized]);
+  }, [threadId, thread, nav, isUnorganized, urlSpaceId]);
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === noteTypeFilter }));
 

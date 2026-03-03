@@ -60,7 +60,7 @@ export default function SpacePage() {
   const spaceThreadLookup = useMemo(() => {
     if (!spaceItems?.length) return new Map<string, { title: string; color: string | null; backgroundGradient?: string }>();
     const threads = spaceItems.filter((i) => i.itemType === 'thread');
-    return new Map(threads.map((t) => [t.id, { title: t.title, color: t.accentColor ?? null, backgroundGradient: undefined }]));
+    return new Map(threads.map((t) => [t.id, { title: t.title, color: t.accentColor ?? null, backgroundGradient: t.backgroundGradient }]));
   }, [spaceItems]);
 
   const onNotesLoaded = useCallback(
