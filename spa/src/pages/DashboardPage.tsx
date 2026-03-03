@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { toast } from 'sonner';
 import { useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,6 +10,7 @@ import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { showInitialLoadToast, dismissInitialLoadToast } from '../utils/initial-load-toast';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -20,6 +20,9 @@ const TABS: Array<{ id: DashboardFilter; label: string }> = [
   { id: 'notes',     label: 'Notes' },
   { id: 'scripture', label: 'Scripture' },
 ];
+
+// Only show the toast on the very first dashboard load this session (not when navigating back)
+let hasShownInitialDashboardToast = false;
 
 export default function DashboardPage() {
   const { user } = useUser();
@@ -53,26 +56,18 @@ export default function DashboardPage() {
   const isInitialLoading =
     (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
 
-  // Show loading toast only on initial load (no content yet), not during the delayed scripture refetch
+  // Show loading toast only on initial load (no content yet), not during the delayed scripture refetch. Only once per session for dashboard.
   const showLoadingToast = cachedItems.length === 0 && (isFetching || profilePending);
-  const loadingToastIdRef = useRef<string | number | null>(null);
   useEffect(() => {
     if (showLoadingToast) {
-      if (loadingToastIdRef.current == null) {
-        loadingToastIdRef.current = toast.loading('Loading your Harvous...', { icon: null });
+      if (!hasShownInitialDashboardToast) {
+        showInitialLoadToast();
+        hasShownInitialDashboardToast = true;
       }
     } else {
-      if (loadingToastIdRef.current != null) {
-        toast.dismiss(loadingToastIdRef.current);
-        loadingToastIdRef.current = null;
-      }
+      dismissInitialLoadToast();
     }
-    return () => {
-      if (loadingToastIdRef.current != null) {
-        toast.dismiss(loadingToastIdRef.current);
-        loadingToastIdRef.current = null;
-      }
-    };
+    return () => dismissInitialLoadToast();
   }, [showLoadingToast]);
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
