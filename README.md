@@ -91,6 +91,8 @@ Many thanks to my friends **Cameron Pak** and **Corey Moen** for their initial s
 
 Also, Harvous is continuously inspired by the work of 37signals. We use [HEY](https://hey.com) for email and [Fizzy](https://fizzy.do) to get work done, and we're grateful for their commitment to building thoughtful software and supporting the open source community.
 
+Oh and... animation in Harvous takes inspiration from Emil Kowalski of [Animations.dev](https://animations.dev).
+
 ## Technologies
 
 - **Frontend**: [React](https://react.dev) SPA ([Vite](https://vite.dev), [TanStack Router](https://tanstack.com/router), [TanStack Query](https://tanstack.com/query/latest), [Clerk](https://clerk.com))
