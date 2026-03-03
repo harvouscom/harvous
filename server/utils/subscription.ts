@@ -10,22 +10,23 @@ export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_3
 
 export async function getUserNoteCount(userId: string): Promise<number> {
   try {
-    const userMetadata = await db
-      .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
-      .from(UserMetadata)
-      .where(eq(UserMetadata.userId, userId))
-      .get();
+    const [userMetadata, existingNotes] = await Promise.all([
+      db
+        .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
+        .from(UserMetadata)
+        .where(eq(UserMetadata.userId, userId))
+        .get(),
+      db
+        .select({ simpleNoteId: Notes.simpleNoteId })
+        .from(Notes)
+        .where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId)))
+        .orderBy(desc(Notes.simpleNoteId))
+        .limit(1),
+    ]);
     const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
-    if (fromMetadata > 0) return fromMetadata;
-
-    // Fallback: UserMetadata missing or 0 — derive from Notes so we never show 0 when user has notes
-    const existingNotes = await db
-      .select({ simpleNoteId: Notes.simpleNoteId })
-      .from(Notes)
-      .where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId)))
-      .orderBy(desc(Notes.simpleNoteId))
-      .limit(1);
-    return existingNotes.length > 0 ? (existingNotes[0].simpleNoteId ?? 0) : 0;
+    const maxFromNotes = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId ?? 0) : 0;
+    // Use the larger of the two so we never undercount (repairs stale metadata e.g. stuck at onboarding count)
+    return Math.max(fromMetadata, maxFromNotes);
   } catch (error) {
     console.error('Error getting user note count:', error);
     return 0;
