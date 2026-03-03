@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
+import { APIError } from './lib/api';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -17,10 +18,39 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 60_000,           // 1 minute
       gcTime: 5 * 60_000,          // 5 minutes
-      retry: 2,
+      retry: (failureCount, error) => {
+        // Don't retry on 401 (session expired) — redirect to sign-in instead
+        if (error instanceof APIError && error.status === 401) return false;
+        return failureCount < 2;
+      },
       refetchOnWindowFocus: false,
     },
+    mutations: {
+      retry: false,
+    },
   },
+});
+
+// Global handler: redirect to sign-in when any query/mutation gets a 401.
+// Uses a debounce flag so we only redirect once per session expiry.
+let redirecting401 = false;
+queryClient.getQueryCache().subscribe((event) => {
+  if (event.type === 'updated' && event.query.state.status === 'error') {
+    const error = event.query.state.error;
+    if (error instanceof APIError && error.status === 401 && !redirecting401) {
+      redirecting401 = true;
+      window.location.href = '/sign-in';
+    }
+  }
+});
+queryClient.getMutationCache().subscribe((event) => {
+  if (event.type === 'updated' && event.mutation?.state.status === 'error') {
+    const error = event.mutation.state.error;
+    if (error instanceof APIError && error.status === 401 && !redirecting401) {
+      redirecting401 = true;
+      window.location.href = '/sign-in';
+    }
+  }
 });
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;

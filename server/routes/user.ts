@@ -25,7 +25,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
@@ -46,7 +46,7 @@ import { canCreateSharedSpace, canJoinSpace, getUserLimitsInfo, getSpaceMemberCo
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
@@ -63,10 +63,9 @@ const app = new Hono();
 
 // ─── GET /api/user/achievements ──────────────────────────────────────────────
 
-app.get('/api/user/achievements', async (c) => {
+app.get('/api/user/achievements', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([
       getSeasonalXP(auth.userId),
@@ -99,10 +98,9 @@ app.get('/api/user/achievements', async (c) => {
 
 // ─── POST /api/user/check-monthly-attendance ─────────────────────────────────
 
-app.post('/api/user/check-monthly-attendance', async (c) => {
+app.post('/api/user/check-monthly-attendance', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const awarded = await awardMonthlyAttendanceXP(auth.userId);
     return c.json({ success: true, awardedXP: awarded, xpAmount: awarded ? 25 : 0 });
@@ -114,10 +112,9 @@ app.post('/api/user/check-monthly-attendance', async (c) => {
 
 // ─── DELETE /api/user/clear-data ─────────────────────────────────────────────
 
-app.delete('/api/user/clear-data', async (c) => {
+app.delete('/api/user/clear-data', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
     const noteIds = userNotes.map(n => n.id);
@@ -150,10 +147,9 @@ app.delete('/api/user/clear-data', async (c) => {
 
 // ─── DELETE /api/user/delete-account ─────────────────────────────────────────
 
-app.delete('/api/user/delete-account', async (c) => {
+app.delete('/api/user/delete-account', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     // Delete data (same as clear-data)
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
@@ -203,10 +199,9 @@ app.delete('/api/user/delete-account', async (c) => {
 
 // ─── GET /api/user/export ────────────────────────────────────────────────────
 
-app.get('/api/user/export', async (c) => {
+app.get('/api/user/export', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const formatParam = (c.req.query('format') || 'markdown') as string;
     const format: ExportFormat =
@@ -230,10 +225,9 @@ app.get('/api/user/export', async (c) => {
 
 // ─── POST /api/user/session ──────────────────────────────────────────────────
 
-app.post('/api/user/session', async (c) => {
+app.post('/api/user/session', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const body = await c.req.json();
     const { activities, startTime, lastActivityTime } = body;
@@ -266,16 +260,9 @@ app.post('/api/user/session', async (c) => {
 
 // ─── POST /api/user/update-church ────────────────────────────────────────────
 
-app.post('/api/user/update-church', async (c) => {
+app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/update-church', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
-    }
 
     const body = await c.req.json();
     const { churchName, churchCity, churchState } = body;
@@ -331,10 +318,9 @@ app.post('/api/user/update-church', async (c) => {
 
 // ─── POST /api/user/update-credentials ───────────────────────────────────────
 
-app.post('/api/user/update-credentials', async (c) => {
+app.post('/api/user/update-credentials', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const body = await c.req.json();
     const { newEmail, currentPassword, newPassword } = body;
@@ -387,16 +373,9 @@ app.post('/api/user/update-credentials', async (c) => {
 
 // ─── POST /api/user/update-profile ───────────────────────────────────────────
 
-app.post('/api/user/update-profile', async (c) => {
+app.post('/api/user/update-profile', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/update-profile', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
-    }
 
     const body = await c.req.json();
     const { firstName, lastName, color } = body;
@@ -450,10 +429,9 @@ app.post('/api/user/update-profile', async (c) => {
 
 // ─── GET /api/user/xp ────────────────────────────────────────────────────────
 
-app.get('/api/user/xp', async (c) => {
+app.get('/api/user/xp', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const shouldBackfill = c.req.query('backfill') === 'true';
     const season = c.req.query('season');
@@ -480,13 +458,9 @@ app.get('/api/user/xp', async (c) => {
 
 // ─── GET /api/user/get-profile ───────────────────────────────────────────────
 
-app.get('/api/user/get-profile', async (c) => {
+app.get('/api/user/get-profile', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) {
-      console.log('[api/user/get-profile] No auth userId — returning 401');
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
     console.log('[api/user/get-profile] auth.userId', auth.userId);
 
     const userData = await getCachedUserData(auth.userId);
@@ -533,10 +507,9 @@ app.get('/api/user/get-profile', async (c) => {
 
 // ─── GET /api/user/locked-notes ──────────────────────────────────────────────
 
-app.get('/api/user/locked-notes', async (c) => {
+app.get('/api/user/locked-notes', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const includeContent = c.req.query('content') === 'true';
 
@@ -559,10 +532,9 @@ app.get('/api/user/locked-notes', async (c) => {
 
 // ─── POST /api/user/verify-lock-pin ──────────────────────────────────────────
 
-app.post('/api/user/verify-lock-pin', async (c) => {
+app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const body = await c.req.json();
     const { pin } = body;
@@ -586,14 +558,9 @@ app.post('/api/user/verify-lock-pin', async (c) => {
 
 // ─── POST /api/user/set-lock-pin ─────────────────────────────────────────────
 
-app.post('/api/user/set-lock-pin', async (c) => {
+app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/set-lock-pin', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const body = await c.req.json();
     const { pin, currentPin, newPin } = body;
@@ -627,14 +594,9 @@ app.post('/api/user/set-lock-pin', async (c) => {
 
 // ─── GET /api/user/can-create-space ──────────────────────────────────────────
 
-app.get('/api/user/can-create-space', async (c) => {
+app.get('/api/user/can-create-space', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/can-create-space', 'read', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const canCreate = await canCreateSharedSpace(auth.userId, auth);
     return c.json(canCreate);
@@ -646,14 +608,9 @@ app.get('/api/user/can-create-space', async (c) => {
 
 // ─── GET /api/user/can-join-space ────────────────────────────────────────────
 
-app.get('/api/user/can-join-space', async (c) => {
+app.get('/api/user/can-join-space', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/can-join-space', 'read', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const canJoin = await canJoinSpace(auth.userId, auth);
     return c.json(canJoin);
@@ -665,14 +622,9 @@ app.get('/api/user/can-join-space', async (c) => {
 
 // ─── GET /api/user/limits ────────────────────────────────────────────────────
 
-app.get('/api/user/limits', async (c) => {
+app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/user/limits', 'read', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const limitsInfo = await getUserLimitsInfo(auth.userId, auth);
     return c.json(limitsInfo, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
@@ -684,10 +636,9 @@ app.get('/api/user/limits', async (c) => {
 
 // ─── POST /api/user/import ───────────────────────────────────────────────────
 
-app.post('/api/user/import', async (c) => {
+app.post('/api/user/import', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
@@ -841,10 +792,9 @@ app.post('/api/user/import', async (c) => {
 
 // ─── GET /api/profile/my-sharing ─────────────────────────────────────────────
 
-app.get('/api/profile/my-sharing', async (c) => {
+app.get('/api/profile/my-sharing', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const origin = new URL(c.req.url).origin;
 
@@ -883,14 +833,9 @@ app.get('/api/profile/my-sharing', async (c) => {
 
 // ─── GET /api/profile/my-shared-spaces ───────────────────────────────────────
 
-app.get('/api/profile/my-shared-spaces', async (c) => {
+app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/profile/my-shared-spaces', 'read', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const origin = new URL(c.req.url).origin;
 

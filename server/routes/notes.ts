@@ -21,7 +21,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, Comments, Tags, NoteTags,
   UserMetadata, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
@@ -31,7 +31,7 @@ import { nowISO } from '../db/dates';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
@@ -45,7 +45,7 @@ import { getNextUntitledNoteName } from '../utils/untitled-naming';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { stripHtml } from '@/utils/html-stripper';
@@ -60,10 +60,9 @@ const truncateAndCapitalizeTitle = (title: string): string => {
 };
 
 // ─── POST /api/notes/create ──────────────────────────────────────────────────
-route.post('/api/notes/create', async (c) => {
+route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     // Check note limit
     const noteLimitCheck = await canCreateNote(auth.userId, auth);
@@ -75,13 +74,6 @@ route.post('/api/notes/create', async (c) => {
         limit: noteLimitCheck.limit,
         upgradeUrl: noteLimitCheck.upgradeUrl,
       }, 403);
-    }
-
-    // Rate limiting
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/create', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
     }
 
     // Parse body: support both JSON (serverless-friendly) and FormData
@@ -366,14 +358,9 @@ route.post('/api/notes/create', async (c) => {
 });
 
 // ─── PUT /api/notes/update ──────────────────────────────────────────────────
-route.put('/api/notes/update', async (c) => {
+route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/update', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const body = await c.req.json();
     const { noteId, title, content, resourceImage, contentEncrypted } = body;
@@ -453,14 +440,9 @@ route.put('/api/notes/update', async (c) => {
 });
 
 // ─── DELETE /api/notes/delete ────────────────────────────────────────────────
-route.delete('/api/notes/delete', async (c) => {
+route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/delete', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const noteId = c.req.query('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
@@ -502,10 +484,9 @@ route.delete('/api/notes/delete', async (c) => {
 });
 
 // ─── GET /api/notes/next-id ──────────────────────────────────────────────────
-route.get('/api/notes/next-id', async (c) => {
+route.get('/api/notes/next-id', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     if (!userMetadata) {
@@ -530,10 +511,9 @@ route.get('/api/notes/next-id', async (c) => {
 });
 
 // ─── GET /api/notes/recent ──────────────────────────────────────────────────
-route.get('/api/notes/recent', async (c) => {
+route.get('/api/notes/recent', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const limitParam = c.req.query('limit');
     const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
@@ -565,10 +545,9 @@ route.get('/api/notes/recent', async (c) => {
 });
 
 // ─── POST /api/notes/auto-tags ──────────────────────────────────────────────
-route.post('/api/notes/auto-tags', async (c) => {
+route.post('/api/notes/auto-tags', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const { noteId, noteTitle, noteContent, action = 'generate' } = await c.req.json();
     if (!noteId || !noteTitle || !noteContent) return c.json({ error: 'Note ID, title, and content are required' }, 400);
@@ -599,14 +578,9 @@ route.post('/api/notes/auto-tags', async (c) => {
 });
 
 // ─── POST /api/notes/cleanup-upgrade-note ───────────────────────────────────
-route.post('/api/notes/cleanup-upgrade-note', async (c) => {
+route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/cleanup-upgrade-note', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const { noteId, simpleNoteId } = await c.req.json();
     if (!noteId || !simpleNoteId) return c.json({ error: 'Note ID and simple note ID are required' }, 400);
@@ -648,10 +622,9 @@ route.post('/api/notes/cleanup-upgrade-note', async (c) => {
 });
 
 // ─── DELETE /api/notes/delete-all-unorganized ───────────────────────────────
-route.delete('/api/notes/delete-all-unorganized', async (c) => {
+route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
     return c.json({ success: true, message: 'All notes deleted from unorganized thread' });
@@ -662,10 +635,9 @@ route.delete('/api/notes/delete-all-unorganized', async (c) => {
 });
 
 // ─── POST /api/notes/suggest-threads ────────────────────────────────────────
-route.post('/api/notes/suggest-threads', async (c) => {
+route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const { title, content } = await c.req.json();
     if (!title && !content) return c.json({ error: 'Title or content is required', code: 'MISSING_CONTENT' }, 400);
@@ -771,10 +743,9 @@ route.post('/api/notes/suggest-threads', async (c) => {
 });
 
 // ─── GET /api/notes/:id/details ─────────────────────────────────────────────
-route.get('/api/notes/:id/details', async (c) => {
+route.get('/api/notes/:id/details', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const noteId = c.req.param('id');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
@@ -798,7 +769,7 @@ route.get('/api/notes/:id/details', async (c) => {
       }
       if (!spaceIdForAccess) return c.json({ error: 'Note not found or access denied' }, 404);
       try { await requireSpaceAccess(spaceIdForAccess, auth.userId); } catch (err) {
-        if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
         throw err;
       }
       note = noteById;
@@ -977,14 +948,9 @@ route.get('/api/notes/:id/details', async (c) => {
 });
 
 // ─── POST /api/notes/:id/update-content ─────────────────────────────────────
-route.post('/api/notes/:id/update-content', async (c) => {
+route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/[id]/update-content', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const id = c.req.param('id');
     const { content, contentEncrypted } = await c.req.json();
@@ -1009,14 +975,9 @@ route.post('/api/notes/:id/update-content', async (c) => {
 });
 
 // ─── POST /api/notes/:id/add-thread ─────────────────────────────────────────
-route.post('/api/notes/:id/add-thread', async (c) => {
+route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/[id]/add-thread', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const id = c.req.param('id');
     const { threadId } = await c.req.json();
@@ -1059,14 +1020,9 @@ route.post('/api/notes/:id/add-thread', async (c) => {
 });
 
 // ─── POST /api/notes/:id/remove-thread ──────────────────────────────────────
-route.post('/api/notes/:id/remove-thread', async (c) => {
+route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/notes/[id]/remove-thread', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const id = c.req.param('id');
     const { threadId } = await c.req.json();
@@ -1100,10 +1056,9 @@ route.post('/api/notes/:id/remove-thread', async (c) => {
 });
 
 // ─── POST /api/notes/:id/process-scripture-references ───────────────────────
-route.post('/api/notes/:id/process-scripture-references', async (c) => {
+route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const noteId = c.req.param('id');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
@@ -1149,10 +1104,9 @@ route.post('/api/notes/:id/process-scripture-references', async (c) => {
 });
 
 // ─── POST /api/notes/:noteId/visit ──────────────────────────────────────────
-route.post('/api/notes/:noteId/visit', async (c) => {
+route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let noteId = c.req.param('noteId');
     if (!noteId) return c.json({ error: 'Note ID required' }, 400);
@@ -1187,10 +1141,9 @@ route.post('/api/notes/:noteId/visit', async (c) => {
 });
 
 // ─── GET /api/notes/:noteId/share ───────────────────────────────────────────
-route.get('/api/notes/:noteId/share', async (c) => {
+route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const noteId = c.req.param('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
@@ -1231,10 +1184,9 @@ route.get('/api/notes/:noteId/share', async (c) => {
 });
 
 // ─── POST /api/notes/:noteId/share ──────────────────────────────────────────
-route.post('/api/notes/:noteId/share', async (c) => {
+route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const noteId = c.req.param('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);

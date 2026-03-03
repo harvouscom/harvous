@@ -24,7 +24,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata,
   eq, and, ne, count, inArray, desc, asc, sql, isNull,
@@ -37,7 +37,7 @@ import {
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
@@ -52,7 +52,7 @@ import {
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor } from '@/utils/validation';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { generateSpaceId, generateShareToken } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
 
@@ -76,14 +76,9 @@ function parseItemIds(raw: string | null): string[] {
 }
 
 // ─── POST /api/spaces/create ────────────────────────────────────────────────
-route.post('/api/spaces/create', async (c) => {
+route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/create', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
@@ -151,10 +146,9 @@ route.post('/api/spaces/create', async (c) => {
 });
 
 // ─── DELETE /api/spaces/delete ──────────────────────────────────────────────
-route.delete('/api/spaces/delete', async (c) => {
+route.delete('/api/spaces/delete', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.query('spaceId');
     if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
@@ -185,10 +179,9 @@ route.delete('/api/spaces/delete', async (c) => {
 });
 
 // ─── GET /api/spaces/items ──────────────────────────────────────────────────
-route.get('/api/spaces/items', async (c) => {
+route.get('/api/spaces/items', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const allNotes = await db.select({
       id: Notes.id, title: Notes.title, content: Notes.content,
@@ -249,15 +242,11 @@ route.get('/api/spaces/items', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/update ───────────────────────────────────────
-route.post('/api/spaces/:spaceId/update', async (c) => {
+route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/update', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
@@ -295,10 +284,9 @@ route.post('/api/spaces/:spaceId/update', async (c) => {
 });
 
 // ─── GET /api/spaces/:spaceId/notes ─────────────────────────────────────────
-route.get('/api/spaces/:spaceId/notes', async (c) => {
+route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     const offset = parseInt(c.req.query('offset') || '0', 10);
@@ -313,17 +301,16 @@ route.get('/api/spaces/:spaceId/notes', async (c) => {
 });
 
 // ─── GET /api/spaces/:spaceId/items ─────────────────────────────────────────
-route.get('/api/spaces/:spaceId/items', async (c) => {
+route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -348,17 +335,16 @@ route.get('/api/spaces/:spaceId/items', async (c) => {
 
 // ─── GET /api/spaces/:spaceId/bootstrap ──────────────────────────────────────
 // Returns space metadata + items in one response for faster initial load (one round-trip).
-route.get('/api/spaces/:spaceId/bootstrap', async (c) => {
+route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -396,10 +382,9 @@ route.get('/api/spaces/:spaceId/bootstrap', async (c) => {
 });
 
 // ─── GET /api/spaces/:spaceId/prefetch ──────────────────────────────────────
-route.get('/api/spaces/:spaceId/prefetch', async (c) => {
+route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
 
@@ -451,18 +436,14 @@ route.get('/api/spaces/:spaceId/prefetch', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/add-note ─────────────────────────────────────
-route.post('/api/spaces/:spaceId/add-note', async (c) => {
+route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/add-note', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -481,18 +462,14 @@ route.post('/api/spaces/:spaceId/add-note', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/add-thread ───────────────────────────────────
-route.post('/api/spaces/:spaceId/add-thread', async (c) => {
+route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/add-thread', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -512,14 +489,13 @@ route.post('/api/spaces/:spaceId/add-thread', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/add-items ────────────────────────────────────
-route.post('/api/spaces/:spaceId/add-items', async (c) => {
+route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -554,15 +530,14 @@ route.post('/api/spaces/:spaceId/add-items', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/remove-items ─────────────────────────────────
-route.post('/api/spaces/:spaceId/remove-items', async (c) => {
+route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -600,14 +575,13 @@ route.post('/api/spaces/:spaceId/remove-items', async (c) => {
 });
 
 // ─── GET /api/spaces/:spaceId/share-link ────────────────────────────────────
-route.get('/api/spaces/:spaceId/share-link', async (c) => {
+route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -637,15 +611,11 @@ route.get('/api/spaces/:spaceId/share-link', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/share-link ───────────────────────────────────
-route.post('/api/spaces/:spaceId/share-link', async (c) => {
+route.post('/api/spaces/:spaceId/share-link', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/share-link', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
@@ -665,15 +635,14 @@ route.post('/api/spaces/:spaceId/share-link', async (c) => {
 });
 
 // ─── GET /api/spaces/:spaceId/members ───────────────────────────────────────
-route.get('/api/spaces/:spaceId/members', async (c) => {
+route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -749,18 +718,14 @@ route.get('/api/spaces/:spaceId/members', async (c) => {
 });
 
 // ─── POST /api/spaces/:spaceId/members/invite ───────────────────────────────
-route.post('/api/spaces/:spaceId/members/invite', async (c) => {
+route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/members/invite', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     try { await requireSpaceAccess(spaceId, auth.userId, true); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -804,16 +769,12 @@ route.post('/api/spaces/:spaceId/members/invite', async (c) => {
 });
 
 // ─── DELETE /api/spaces/:spaceId/members/:userId ────────────────────────────
-route.delete('/api/spaces/:spaceId/members/:userId', async (c) => {
+route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const spaceId = c.req.param('spaceId');
     const targetUserId = c.req.param('userId');
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/members/remove', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
     if (!space) return c.json({ error: 'Space not found' }, 404);
@@ -840,17 +801,12 @@ route.delete('/api/spaces/:spaceId/members/:userId', async (c) => {
 });
 
 // ─── POST /api/spaces/join/:token ───────────────────────────────────────────
-route.post('/api/spaces/join/:token', async (c) => {
+route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const token = c.req.param('token');
     if (!token) return c.json({ error: 'Token is required' }, 400);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/spaces/join', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
     if (!space) return c.json({ error: 'Invalid or expired invite link' }, 404);

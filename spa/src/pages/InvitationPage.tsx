@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import CardStack from '../components/CardStack';
 import { api, APIError } from '../lib/api';
+import { useAcceptInvitation } from '../hooks/mutations/useAcceptInvitation';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface InvitationResponse {
@@ -29,7 +30,7 @@ export default function InvitationPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<InvitationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAccepting, setIsAccepting] = useState(false);
+  const acceptInvitationMutation = useAcceptInvitation();
   const [error, setError] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [toastMessage, setToastMessage] = useState('');
@@ -79,12 +80,8 @@ export default function InvitationPage() {
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }
-    setIsAccepting(true);
     try {
-      const result = await api.post<{ success: boolean; space: { id: string }; redirectUrl: string }>(
-        `/api/invitations/${token}/accept`,
-        {}
-      );
+      const result = await acceptInvitationMutation.mutateAsync(token);
       if (result.success) {
         try {
           sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
@@ -94,8 +91,6 @@ export default function InvitationPage() {
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to accept invitation. It may have already been used or expired.', 'error');
-    } finally {
-      setIsAccepting(false);
     }
   };
 
@@ -243,11 +238,11 @@ export default function InvitationPage() {
                         <button
                           className="btn btn--lg btn--primary shared-page__cta-button"
                           onClick={handleAccept}
-                          disabled={isAccepting}
+                          disabled={acceptInvitationMutation.isPending}
                         >
                           <div className="btn__content">
                             <span className="shared-page__cta-text">
-                              {isAccepting ? 'Accepting…' : 'Accept Invitation'}
+                              {acceptInvitationMutation.isPending ? 'Accepting…' : 'Accept Invitation'}
                             </span>
                           </div>
                           <div className="btn__shadow-overlay" />

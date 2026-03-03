@@ -12,7 +12,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
   SpaceInvitations, Spaces, Members,
@@ -24,15 +24,8 @@ import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { processScriptureReferences } from '../utils/process-scripture-references';
-import {
-  successResponse as _successResponse,
-  errorResponse as _errorResponse,
-  notFoundResponse as _notFoundResponse,
-  unauthorizedResponse as _unauthorizedResponse,
-  forbiddenResponse as _forbiddenResponse,
-} from '@/utils/api-responses';
 import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '../utils/tier-limits';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { idToUrl } from '@/utils/url-helpers';
 
 const app = new Hono();
@@ -181,10 +174,9 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
 // ─── Add Shared Content to Harvous (auth required) ─────────────────
 
 /** POST /api/shared/add-note-to-harvous */
-app.post('/api/shared/add-note-to-harvous', async (c) => {
+app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
@@ -274,10 +266,9 @@ app.post('/api/shared/add-note-to-harvous', async (c) => {
 });
 
 /** POST /api/shared/add-to-harvous */
-app.post('/api/shared/add-to-harvous', async (c) => {
+app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
@@ -438,16 +429,9 @@ app.get('/api/invitations/:token', async (c) => {
 });
 
 /** POST /api/invitations/:token/accept */
-app.post('/api/invitations/:token/accept', async (c) => {
+app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'You must be signed in to accept invitations', code: 'UNAUTHORIZED' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/invitations/[token]/accept', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
-    }
 
     const token = c.req.param('token');
     if (!token) return c.json({ error: 'Invitation token is required', code: 'INVALID_TOKEN' }, 400);

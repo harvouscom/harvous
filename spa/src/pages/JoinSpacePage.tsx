@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
 import CardStack from '../components/CardStack';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { api } from '../lib/api';
+import { useJoinSpace } from '../hooks/mutations/useJoinSpace';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface SpacePreview {
@@ -42,7 +43,7 @@ export default function JoinSpacePage() {
   const navigate = useNavigate();
   const [space, setSpace] = useState<SpacePreview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isJoining, setIsJoining] = useState(false);
+  const joinSpaceMutation = useJoinSpace();
   const [error, setError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('error');
@@ -92,12 +93,8 @@ export default function JoinSpacePage() {
       navigate({ to: `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}` as any });
       return;
     }
-    setIsJoining(true);
     try {
-      const result = await api.post<{ success: boolean; spaceId: string; redirectUrl: string }>(
-        `/api/spaces/join/${token}`,
-        {}
-      );
+      const result = await joinSpaceMutation.mutateAsync(token);
       if (result.success) {
         try {
           sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
@@ -107,8 +104,6 @@ export default function JoinSpacePage() {
       }
     } catch (err: any) {
       showToast(err?.message || 'Failed to join space. Please try again.', 'error');
-    } finally {
-      setIsJoining(false);
     }
   };
 
@@ -266,11 +261,11 @@ export default function JoinSpacePage() {
                           id="join-space-btn"
                           className="btn btn--lg btn--primary shared-page__cta-button"
                           onClick={handleJoin}
-                          disabled={isJoining}
+                          disabled={joinSpaceMutation.isPending}
                         >
                           <div className="btn__content">
                             <span className="shared-page__cta-text">
-                              {isJoining ? 'Joining…' : 'Join this space on Harvous'}
+                              {joinSpaceMutation.isPending ? 'Joining…' : 'Join this space on Harvous'}
                             </span>
                           </div>
                           <div className="btn__shadow-overlay" />

@@ -21,7 +21,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     credentials: 'include',
-    cache: 'no-store', // avoid stale HTTP cache so new users always get fresh nav/content
+    // Let the server's Cache-Control headers work (e.g. max-age=30, stale-while-revalidate=60).
+    // React Query's staleTime already prevents redundant refetches on the client side.
     headers: {
       'Content-Type': 'application/json',
       ...init.headers,

@@ -14,7 +14,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db, Threads, Notes, NoteThreads, NoteTags, Comments, Spaces, Members,
   ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
@@ -29,14 +29,14 @@ import {
   getThreadNoteTypeCounts,
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';
 import { getThreadGradientCSS, THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { generateThreadId, generateShareToken } from '@/utils/ids';
 
 const route = new Hono();
@@ -92,10 +92,9 @@ async function addNotesToThread(
 }
 
 // ─── GET /api/threads/list ──────────────────────────────────────────────────
-route.get('/api/threads/list', async (c) => {
+route.get('/api/threads/list', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const threads = await getAllThreadsWithCounts(auth.userId);
 
@@ -136,14 +135,9 @@ route.get('/api/threads/list', async (c) => {
 });
 
 // ─── POST /api/threads/create ───────────────────────────────────────────────
-route.post('/api/threads/create', async (c) => {
+route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/create', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
@@ -209,14 +203,9 @@ route.post('/api/threads/create', async (c) => {
 });
 
 // ─── POST /api/threads/update ───────────────────────────────────────────────
-route.post('/api/threads/update', async (c) => {
+route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/update', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const formData = await c.req.formData();
     const threadId = formData.get('id') as string;
@@ -276,14 +265,9 @@ route.post('/api/threads/update', async (c) => {
 });
 
 // ─── DELETE /api/threads/delete ─────────────────────────────────────────────
-route.delete('/api/threads/delete', async (c) => {
+route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/delete', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -320,10 +304,9 @@ route.delete('/api/threads/delete', async (c) => {
 });
 
 // ─── POST /api/threads/ensure-unorganized ───────────────────────────────────
-route.post('/api/threads/ensure-unorganized', async (c) => {
+route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const existingThread = await db.select().from(Threads)
       .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).get();
@@ -365,14 +348,9 @@ route.post('/api/threads/ensure-unorganized', async (c) => {
 });
 
 // ─── DELETE /api/threads/erase-with-notes ───────────────────────────────────
-route.delete('/api/threads/erase-with-notes', async (c) => {
+route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/threads/erase-with-notes', 'write', ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
 
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -420,10 +398,9 @@ route.delete('/api/threads/erase-with-notes', async (c) => {
 });
 
 // ─── GET /api/threads/:threadId/prefetch ────────────────────────────────────
-route.get('/api/threads/:threadId/prefetch', async (c) => {
+route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID required' }, 400);
@@ -492,10 +469,9 @@ route.get('/api/threads/:threadId/prefetch', async (c) => {
 });
 
 // ─── GET /api/threads/:threadId/note-type-counts ────────────────────────────
-route.get('/api/threads/:threadId/note-type-counts', async (c) => {
+route.get('/api/threads/:threadId/note-type-counts', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -524,10 +500,9 @@ route.get('/api/threads/:threadId/note-type-counts', async (c) => {
 });
 
 // ─── POST /api/threads/:threadId/visit ──────────────────────────────────────
-route.post('/api/threads/:threadId/visit', async (c) => {
+route.post('/api/threads/:threadId/visit', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID required' }, 400);
@@ -551,10 +526,9 @@ route.post('/api/threads/:threadId/visit', async (c) => {
 });
 
 // ─── GET /api/threads/:threadId/notes ───────────────────────────────────────
-route.get('/api/threads/:threadId/notes', async (c) => {
+route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -596,10 +570,9 @@ route.get('/api/threads/:threadId/notes', async (c) => {
 });
 
 // ─── GET /api/threads/:threadId/share ───────────────────────────────────────
-route.get('/api/threads/:threadId/share', async (c) => {
+route.get('/api/threads/:threadId/share', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -626,10 +599,9 @@ route.get('/api/threads/:threadId/share', async (c) => {
 });
 
 // ─── POST /api/threads/:threadId/share ──────────────────────────────────────
-route.post('/api/threads/:threadId/share', async (c) => {
+route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threadId = c.req.param('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
@@ -679,10 +651,9 @@ route.post('/api/threads/:threadId/share', async (c) => {
 });
 
 // ─── GET /api/threads/:threadId/referenced-scripture-notes ──────────────────
-route.get('/api/threads/:threadId/referenced-scripture-notes', async (c) => {
+route.get('/api/threads/:threadId/referenced-scripture-notes', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const noteIdsParam = c.req.query('noteIds');
     if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });

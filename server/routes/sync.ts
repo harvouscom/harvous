@@ -8,7 +8,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   Spaces,
@@ -239,10 +239,9 @@ async function processNoteTagMutation(userId: string, operation: string, entityI
 
 // ─── POST /api/sync/push ─────────────────────────────────────────────
 
-app.post('/api/sync/push', async (c) => {
+app.post('/api/sync/push', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const { mutations } = await c.req.json();
     if (!Array.isArray(mutations) || mutations.length === 0) {
@@ -280,10 +279,9 @@ app.post('/api/sync/push', async (c) => {
 
 // ─── GET /api/sync/bootstrap ──────────────────────────────────────────
 
-app.get('/api/sync/bootstrap', async (c) => {
+app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadata] = await Promise.all([
       db.select({
@@ -384,10 +382,9 @@ app.get('/api/sync/bootstrap', async (c) => {
 
 // ─── GET /api/sync/changes ────────────────────────────────────────────
 
-app.get('/api/sync/changes', async (c) => {
+app.get('/api/sync/changes', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const sinceParam = c.req.query('since');
     if (!sinceParam) return c.json({ error: 'since parameter is required', code: 'MISSING_PARAMETER' }, 400);

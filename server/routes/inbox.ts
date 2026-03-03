@@ -16,7 +16,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   InboxItems,
@@ -35,7 +35,7 @@ import {
   desc,
 } from '../db';
 import { nowISO } from '../db/dates';
-import { rateLimitMiddleware, getClientIP } from '@/utils/rate-limit';
+import { rateLimit } from '@/utils/rate-limit';
 import { generateNoteId, generateThreadId } from '@/utils/ids';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
@@ -75,19 +75,9 @@ function convertInboxColorToThreadColor(inboxColor: string | null | undefined): 
 
 // ─── POST /api/inbox/archive ──────────────────────────────────────────
 
-app.post('/api/inbox/archive', async (c) => {
+app.post('/api/inbox/archive', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/inbox/archive', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json(
-        { error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' },
-        429
-      );
-    }
 
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -114,16 +104,9 @@ app.post('/api/inbox/archive', async (c) => {
 
 // ─── POST /api/inbox/unarchive ────────────────────────────────────────
 
-app.post('/api/inbox/unarchive', async (c) => {
+app.post('/api/inbox/unarchive', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
-
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, '/api/inbox/unarchive', 'write', ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: 'RATE_LIMIT_EXCEEDED' }, 429);
-    }
 
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -157,10 +140,9 @@ app.post('/api/inbox/unarchive', async (c) => {
 
 // ─── GET /api/inbox/preview ───────────────────────────────────────────
 
-app.get('/api/inbox/preview', async (c) => {
+app.get('/api/inbox/preview', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const inboxItemId = c.req.query('inboxItemId');
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -185,10 +167,9 @@ app.get('/api/inbox/preview', async (c) => {
 
 // ─── POST /api/inbox/add-to-harvous ──────────────────────────────────
 
-app.post('/api/inbox/add-to-harvous', async (c) => {
+app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -582,10 +563,9 @@ app.get('/api/inbox/auto-delete', handleAutoDelete);
 
 // ─── POST /api/inbox/assign-to-users ──────────────────────────────────
 
-app.post('/api/inbox/assign-to-users', async (c) => {
+app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true)).all();
     const allUsers = await db.select().from(UserMetadata).all();
