@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono';
 import { getStore } from '@netlify/blobs';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   Notes,
@@ -239,10 +239,9 @@ app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
 
 // ─── GET /api/admin/debug-thread-counts ───────────────────────────────
 
-app.get('/api/admin/debug-thread-counts', async (c) => {
+app.get('/api/admin/debug-thread-counts', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'threadId parameter required' }, 400);
@@ -287,10 +286,9 @@ app.get('/api/admin/debug-thread-counts', async (c) => {
 
 // ─── GET /api/admin/list-threads ──────────────────────────────────────
 
-app.get('/api/admin/list-threads', async (c) => {
+app.get('/api/admin/list-threads', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId)).all();
 

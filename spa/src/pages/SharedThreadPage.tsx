@@ -5,6 +5,7 @@ import CardNote from '../../../src/components/react/CardNote';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import CardStack from '../components/CardStack';
 import { api } from '../lib/api';
+import { useAddSharedThread } from '../hooks/mutations/useAddSharedThread';
 
 interface SharedThreadNote {
   id: string;
@@ -36,7 +37,7 @@ export default function SharedThreadPage() {
   const [data, setData] = useState<SharedThreadResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const addSharedThreadMutation = useAddSharedThread();
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [toastVisible, setToastVisible] = useState(false);
@@ -83,12 +84,8 @@ export default function SharedThreadPage() {
   }
 
   async function doAdd() {
-    setIsAdding(true);
     try {
-      const result = await api.post<{ success: boolean; createdIds?: { threadId: string } }>(
-        '/api/shared/add-to-harvous',
-        { shareToken }
-      );
+      const result = await addSharedThreadMutation.mutateAsync(shareToken);
       if (result.success && result.createdIds?.threadId) {
         showToast('Added to your Harvous!', 'success', 0);
         const id = result.createdIds.threadId;
@@ -99,8 +96,6 @@ export default function SharedThreadPage() {
       }
     } catch {
       showToast('Failed to add thread. Please try again.', 'error');
-    } finally {
-      setIsAdding(false);
     }
   }
 
@@ -224,11 +219,11 @@ export default function SharedThreadPage() {
                       <button
                         className="btn btn--lg btn--primary shared-page__cta-button"
                         onClick={handleAddToHarvous}
-                        disabled={isAdding}
+                        disabled={addSharedThreadMutation.isPending}
                       >
                         <div className="btn__content">
                           <span className="shared-page__cta-text">
-                            {isAdding ? 'Adding…' : 'Add to my Harvous'}
+                            {addSharedThreadMutation.isPending ? 'Adding…' : 'Add to my Harvous'}
                           </span>
                         </div>
                         <div className="btn__shadow-overlay" />

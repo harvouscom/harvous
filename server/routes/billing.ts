@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuth, requireAuth } from '../middleware/auth';
 import { db, UserMetadata, eq } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
@@ -23,10 +23,9 @@ const app = new Hono();
 // ─── Billing ────────────────────────────────────────────────────────
 
 /** POST /api/billing/checkout */
-app.post('/api/billing/checkout', async (c) => {
+app.post('/api/billing/checkout', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const { planId, billingInterval } = await c.req.json();
 
@@ -97,10 +96,9 @@ app.post('/api/billing/checkout', async (c) => {
 });
 
 /** POST /api/billing/downgrade */
-app.post('/api/billing/downgrade', async (c) => {
+app.post('/api/billing/downgrade', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Unauthorized' }, 401);
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
@@ -160,10 +158,9 @@ app.post('/api/billing/downgrade', async (c) => {
 // ─── Subscription ───────────────────────────────────────────────────
 
 /** GET /api/subscription/status — do not cache so note count is always current (Manage Billing / Upgrade page). */
-app.get('/api/subscription/status', async (c) => {
+app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
@@ -188,10 +185,9 @@ app.get('/api/subscription/status', async (c) => {
 const BONUS_PER_REFERRAL = 100;
 
 /** POST /api/referral/credit */
-app.post('/api/referral/credit', async (c) => {
+app.post('/api/referral/credit', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const ref = getCookie(c, 'harvous_referrer')?.trim();
 
@@ -223,10 +219,9 @@ app.post('/api/referral/credit', async (c) => {
 });
 
 /** GET /api/referral/status */
-app.get('/api/referral/status', async (c) => {
+app.get('/api/referral/status', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
     const metaRow = await db

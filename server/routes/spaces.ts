@@ -37,7 +37,7 @@ import {
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
 } from '../utils/dashboard-data';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import {
   canCreateSharedSpace,
@@ -310,7 +310,7 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -344,7 +344,7 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -443,7 +443,7 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
     const spaceId = c.req.param('spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -469,7 +469,7 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
     const spaceId = c.req.param('spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -495,7 +495,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
 
     const spaceId = c.req.param('spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -537,7 +537,7 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -581,7 +581,7 @@ route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
 
     const spaceId = c.req.param('spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -642,7 +642,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     const spaceId = c.req.param('spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 
@@ -725,7 +725,7 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
     const spaceId = c.req.param('spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId, true); } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
 

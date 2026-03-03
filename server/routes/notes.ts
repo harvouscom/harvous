@@ -45,7 +45,7 @@ import { getNextUntitledNoteName } from '../utils/untitled-naming';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { stripHtml } from '@/utils/html-stripper';
@@ -769,7 +769,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       }
       if (!spaceIdForAccess) return c.json({ error: 'Note not found or access denied' }, 404);
       try { await requireSpaceAccess(spaceIdForAccess, auth.userId); } catch (err) {
-        if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
         throw err;
       }
       note = noteById;
@@ -1104,10 +1104,9 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
 });
 
 // ─── POST /api/notes/:noteId/visit ──────────────────────────────────────────
-route.post('/api/notes/:noteId/visit', async (c) => {
+route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
   try {
     const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: 'Authentication required' }, 401);
 
     let noteId = c.req.param('noteId');
     if (!noteId) return c.json({ error: 'Note ID required' }, 400);

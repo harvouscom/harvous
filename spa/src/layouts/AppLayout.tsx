@@ -21,6 +21,7 @@ import ActionStrip from '../../../src/components/react/ActionStrip';
 import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
+import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
 import { useNavigation, useRefreshNavigation, navigationQueryKey } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
@@ -41,6 +42,8 @@ export default function AppLayout() {
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
+  const recordThreadVisit = useRecordThreadVisit();
+  const recordNoteVisit = useRecordNoteVisit();
 
   // Derive current IDs from path before hooks (hooks must be called unconditionally)
   const pathSlugEarly = pathname.split('/').pop() || '';
@@ -106,10 +109,10 @@ export default function AppLayout() {
     const isNote = pathname.startsWith('/note/');
     if (isThread && threadIdForHook && threadIdForHook !== 'thread_unorganized') {
       lastVisitRecordedPathRef.current = pathname;
-      api.post(`/api/threads/${threadIdForHook}/visit`).catch(() => {});
+      recordThreadVisit.mutate(threadIdForHook);
     } else if (isNote && noteIdForHook) {
       lastVisitRecordedPathRef.current = pathname;
-      api.post(`/api/notes/${noteIdForHook}/visit`).catch(() => {});
+      recordNoteVisit.mutate(noteIdForHook);
     } else if (!isThread && !isNote) {
       lastVisitRecordedPathRef.current = null;
     }

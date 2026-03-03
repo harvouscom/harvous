@@ -5,6 +5,8 @@ import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { useNavigation } from '../hooks/queries/useNavigation';
+import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
+import { useProcessScriptureRefs } from '../hooks/mutations/useProcessScriptureRefs';
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
@@ -17,6 +19,8 @@ export default function NotePage() {
   const { data: note, isLoading } = useNote(noteId);
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
   const queryClient = useQueryClient();
+  const updateNoteMutation = useUpdateNote();
+  const processScriptureMutation = useProcessScriptureRefs();
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
   const isNoteOwner = !!(user?.id && note?.userId && note.userId === user.id);
@@ -52,20 +56,14 @@ export default function NotePage() {
       reprocessAttemptedRef.current = noteId;
       const parentThread = note.threads?.[0];
       const threadId = parentThread?.id ?? undefined;
-      fetch(`/api/notes/${noteId}/process-scripture-references`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ contentOverride: content, threadId }),
-      })
-        .then((res) => {
-          if (res.ok) {
-            queryClient.invalidateQueries({ queryKey: ['note', noteId] });
-          }
-        })
-        .catch(() => {
-          reprocessAttemptedRef.current = null; // Allow retry on next mount
-        });
+      processScriptureMutation.mutate(
+        { noteId, contentOverride: content, threadId },
+        {
+          onError: () => {
+            reprocessAttemptedRef.current = null; // Allow retry on next mount
+          },
+        }
+      );
     };
 
     if (hasPendingPills) {
@@ -81,7 +79,7 @@ export default function NotePage() {
     const refs = detectScriptureReferences(plainText);
     if (refs.length === 0) return;
     runReprocess();
-  }, [note, noteId, isLoading, queryClient]);
+  }, [note, noteId, isLoading, processScriptureMutation]);
 
   // The parent thread is the first thread this note belongs to (if any)
   const parentThread = note?.threads?.[0];
@@ -126,23 +124,8 @@ export default function NotePage() {
         console.error('[NotePage] Failed to update note offline:', err);
       }
 
-      // Push to server
-      const response = await fetch('/api/notes/update', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ noteId, title: newTitle, content: newContent }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update note');
-      }
-
-      const result = await response.json();
-
-      window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId } }));
-
-      return result;
+      // Push to server via mutation (handles cache invalidation + noteUpdated event)
+      return updateNoteMutation.mutateAsync({ noteId, title: newTitle, content: newContent });
     };
 
     return () => {

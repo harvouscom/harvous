@@ -24,13 +24,6 @@ import { generateNoteId, generateThreadId, isValidShareToken } from '@/utils/ids
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { processScriptureReferences } from '../utils/process-scripture-references';
-import {
-  successResponse as _successResponse,
-  errorResponse as _errorResponse,
-  notFoundResponse as _notFoundResponse,
-  unauthorizedResponse as _unauthorizedResponse,
-  forbiddenResponse as _forbiddenResponse,
-} from '@/utils/api-responses';
 import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '../utils/tier-limits';
 import { rateLimit } from '@/utils/rate-limit';
 import { idToUrl } from '@/utils/url-helpers';

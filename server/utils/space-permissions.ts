@@ -3,9 +3,24 @@
  */
 
 import { db, Spaces, Members, eq, and } from '../db';
-import { forbiddenResponse, notFoundResponse } from '@/utils/api-responses';
 
 export type SpaceRole = 'owner' | 'member';
+
+/**
+ * Typed error thrown by requireSpaceAccess when a space is not found or
+ * the user lacks permission. Route handlers can catch this and convert
+ * to the appropriate Hono c.json() response.
+ */
+export class SpaceAccessError extends Error {
+  constructor(
+    public status: 403 | 404,
+    message: string,
+    public code: string = status === 404 ? 'NOT_FOUND' : 'FORBIDDEN',
+  ) {
+    super(message);
+    this.name = 'SpaceAccessError';
+  }
+}
 
 export async function isSpaceOwner(spaceId: string, userId: string): Promise<boolean> {
   const space = await db.select()
@@ -56,7 +71,7 @@ export async function requireSpaceAccess(
     .get();
 
   if (!space) {
-    throw notFoundResponse('Space');
+    throw new SpaceAccessError(404, 'Space not found');
   }
 
   const isOwner = space.userId === userId;
@@ -65,7 +80,7 @@ export async function requireSpaceAccess(
   }
 
   if (requireOwner) {
-    throw forbiddenResponse('Only space owners can perform this action');
+    throw new SpaceAccessError(403, 'Only space owners can perform this action');
   }
 
   const member = await db.select()
@@ -77,7 +92,7 @@ export async function requireSpaceAccess(
     return { role: 'member', space };
   }
 
-  throw forbiddenResponse('You do not have access to this space');
+  throw new SpaceAccessError(403, 'You do not have access to this space');
 }
 
 export async function getUserSpaces(userId: string) {

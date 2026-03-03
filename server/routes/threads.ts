@@ -29,7 +29,7 @@ import {
   getThreadNoteTypeCounts,
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { requireSpaceAccess } from '../utils/space-permissions';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';

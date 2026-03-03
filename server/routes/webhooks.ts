@@ -9,7 +9,6 @@ import { Hono } from 'hono';
 import { verifyWebhook } from '@clerk/backend/webhooks';
 import { tagAsAppUser } from '@/utils/audienceful';
 import { handleAPIError } from '@/utils/error-handling';
-import { successResponse, errorResponse, unauthorizedResponse, serverErrorResponse } from '@/utils/api-responses';
 
 const app = new Hono();
 
