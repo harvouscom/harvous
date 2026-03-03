@@ -56,10 +56,9 @@ export default function DashboardPage() {
   const isInitialLoading =
     (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
 
-  // Show loading toast only on initial load (no content yet), not during the delayed scripture refetch. Only once per session for dashboard.
-  const showLoadingToast = cachedItems.length === 0 && (isFetching || profilePending);
+  // Keep toast visible until full initial load (including scripture refetch) so it matches the loading animation. Only once per session for dashboard.
   useEffect(() => {
-    if (showLoadingToast) {
+    if (isInitialLoading) {
       if (!hasShownInitialDashboardToast) {
         showInitialLoadToast();
         hasShownInitialDashboardToast = true;
@@ -68,7 +67,7 @@ export default function DashboardPage() {
       dismissInitialLoadToast();
     }
     return () => dismissInitialLoadToast();
-  }, [showLoadingToast]);
+  }, [isInitialLoading]);
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
