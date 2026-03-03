@@ -2,7 +2,7 @@
  * Subscription utilities — Drizzle port of src/utils/subscription.ts
  */
 
-import { db, UserMetadata, eq } from '../db';
+import { db, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
 
 const FREE_TIER_LIMIT = 200;
@@ -15,7 +15,17 @@ export async function getUserNoteCount(userId: string): Promise<number> {
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
       .get();
-    return userMetadata?.highestSimpleNoteId || 0;
+    const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
+    if (fromMetadata > 0) return fromMetadata;
+
+    // Fallback: UserMetadata missing or 0 — derive from Notes so we never show 0 when user has notes
+    const existingNotes = await db
+      .select({ simpleNoteId: Notes.simpleNoteId })
+      .from(Notes)
+      .where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId)))
+      .orderBy(desc(Notes.simpleNoteId))
+      .limit(1);
+    return existingNotes.length > 0 ? (existingNotes[0].simpleNoteId ?? 0) : 0;
   } catch (error) {
     console.error('Error getting user note count:', error);
     return 0;

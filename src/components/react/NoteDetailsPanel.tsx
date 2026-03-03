@@ -12,6 +12,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { usePersistedUserId } from '@/utils/user-id';
 import { getCachedNoteDetails, setCachedNoteDetails } from '@/utils/note-details-cache';
+import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface Thread {
   id: string;
@@ -206,6 +207,7 @@ export default function NoteDetailsPanel({
         window.dispatchEvent(new CustomEvent('noteAddedToThread', {
           detail: { noteId, threadId }
         }));
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
       } else {
         const error = await response.json();
         window.dispatchEvent(new CustomEvent('toast', {

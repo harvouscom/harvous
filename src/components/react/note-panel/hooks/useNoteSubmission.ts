@@ -6,6 +6,7 @@ import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
 import { buildAPIUrl, getSafeOrigin, safeURL } from '@/utils/safe-url';
 import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId, getOfflineErrorMessage, type OfflineOperationResult } from '@/utils/offline-mutations';
+import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { usePersistedUserId, getPersistedUserId, getPersistedUserIdWithIndexedDB } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import { wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
@@ -581,7 +582,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
           debug('[useNoteSubmission] Cached simpleNoteId', { simpleNoteId: result.note.simpleNoteId });
         }
-        
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
+
         // Build scripture toast message for redirect (when scriptureDeferred, results are empty and we show a short message)
         let scriptureToastMessage = '';
         if (result.scriptureDeferred) {
@@ -1173,6 +1175,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           cacheHighestSimpleNoteId(userId, result.note.simpleNoteId);
           debug('[useNoteSubmission] Cached simpleNoteId (save and close)', { simpleNoteId: result.note.simpleNoteId });
         }
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
 
         // Build scripture toast message for redirect (when scriptureDeferred, results are empty)
         let scriptureToastMessage = '';

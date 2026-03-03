@@ -15,6 +15,7 @@ import { safeURL } from '@/utils/safe-url';
 import { createThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { invalidateNoteDetailsCache } from '@/utils/note-details-cache';
+import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { isNetworkError } from '@/utils/network';
 import { useNewThreadPanelContext } from './contexts/NewThreadPanelContext';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
@@ -475,6 +476,7 @@ export default function NewThreadPanel({
                 window.dispatchEvent(new CustomEvent('noteAddedToThread', {
                   detail: { noteId: noteIdToAdd, threadId: result.thread.id }
                 }));
+                invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
               }
             } catch (error) {
               console.error('Error adding note to newly created thread:', error);

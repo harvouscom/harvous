@@ -16,6 +16,7 @@ import { isNetworkError } from '@/utils/network';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import TabNav from './TabNav';
+import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface Note {
   id: string;
@@ -1163,7 +1164,8 @@ export default function EditThreadPanel({
             }
           }));
         });
-        
+        invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
+
         // Clear selected items
         setSelectedItems([]);
         

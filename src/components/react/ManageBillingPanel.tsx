@@ -45,6 +45,16 @@ export default function ManageBillingPanel({
     };
     window.addEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
 
+    // Refresh when a note is added to a thread or a new note is created so count stays in sync if panel is open
+    const handleNoteAddedToThread = () => {
+      loadSubscriptionInfo(true);
+    };
+    const handleNoteCreated = () => {
+      loadSubscriptionInfo(true);
+    };
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
+    window.addEventListener('noteCreated', handleNoteCreated);
+
     // Also refresh on View Transitions (for subsequent visits; background)
     const handlePageLoad = () => {
       loadSubscriptionInfo(true);
@@ -53,6 +63,8 @@ export default function ManageBillingPanel({
 
     return () => {
       window.removeEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
+      window.removeEventListener('noteCreated', handleNoteCreated);
       document.removeEventListener('app:route-change', handlePageLoad);
     };
   }, []);
