@@ -159,7 +159,7 @@ app.post('/api/billing/downgrade', async (c) => {
 
 // ─── Subscription ───────────────────────────────────────────────────
 
-/** GET /api/subscription/status */
+/** GET /api/subscription/status — do not cache so note count is always current (Manage Billing / Upgrade page). */
 app.get('/api/subscription/status', async (c) => {
   try {
     const auth = getAuth(c);
@@ -167,12 +167,16 @@ app.get('/api/subscription/status', async (c) => {
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
-    return c.json({
-      hasUnlimited: subscriptionInfo.hasUnlimited,
-      currentCount: subscriptionInfo.currentCount,
-      limit: subscriptionInfo.limit,
-      referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0,
-    });
+    return c.json(
+      {
+        hasUnlimited: subscriptionInfo.hasUnlimited,
+        currentCount: subscriptionInfo.currentCount,
+        limit: subscriptionInfo.limit,
+        referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0,
+      },
+      200,
+      { 'Cache-Control': 'private, no-store, max-age=0' }
+    );
   } catch (error: any) {
     console.error('Error checking subscription status:', error);
     return c.json({ error: error.message || 'Failed to check subscription status', hasUnlimited: false }, 500);

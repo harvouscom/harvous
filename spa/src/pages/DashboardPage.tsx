@@ -89,6 +89,7 @@ export default function DashboardPage() {
         noteType: noteItem.noteType,
         threadId: noteItem.threadId,
         spaceId: noteItem.spaceId,
+        simpleNoteId: noteItem.simpleNoteId ?? undefined,
         createdAt: noteItem.createdAt,
         updatedAt: noteItem.updatedAt,
         resourceTitle: noteItem.resourceTitle,

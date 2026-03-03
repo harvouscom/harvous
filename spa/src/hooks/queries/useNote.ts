@@ -18,6 +18,7 @@ export interface ListNoteForSeed {
   noteType?: string;
   threadId?: string;
   spaceId?: string | null;
+  simpleNoteId?: number | null;
   createdAt?: string;
   updatedAt?: string;
   resourceTitle?: string | null;
@@ -104,6 +105,7 @@ export function listNoteToNoteDetail(
     contentEncrypted: listNote.contentEncrypted ?? false,
     isPublic: false,
     userId: listNote.userId ?? undefined,
+    simpleNoteId: listNote.simpleNoteId ?? undefined,
     createdAt: listNote.createdAt ?? new Date().toISOString(),
     updatedAt: listNote.updatedAt ?? listNote.createdAt ?? new Date().toISOString(),
     threads: [thread],
