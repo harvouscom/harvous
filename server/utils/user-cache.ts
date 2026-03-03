@@ -29,8 +29,9 @@ const pendingInit = new Map<string, Promise<CachedUserData>>();
 /**
  * If the user has no onboarding thread yet, create it (and notes + scripture).
  * Idempotent: no-op if thread_onboarding_${userId} already exists.
+ * Exported so content route can run it before first page load to ensure scripture refs exist.
  */
-async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
+export async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
   const onboardingThreadId = `thread_onboarding_${userId}`;
   const existing = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).get();
   if (existing) return;

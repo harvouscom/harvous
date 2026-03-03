@@ -783,7 +783,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
 
     if (defaultNoteIds.length > 0) {
       try {
-        const junctionEntries = await db.select({
+        let junctionEntries = await db.select({
           noteId: NoteScriptureReferences.noteId,
           scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
         })
@@ -791,6 +791,19 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
         .where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
         .all();
+
+        // Retry once after short delay if junction is empty (handles read-after-write when refs were just committed by another request)
+        if (junctionEntries.length === 0 && offset === 0) {
+          await new Promise(r => setTimeout(r, 80));
+          junctionEntries = await db.select({
+            noteId: NoteScriptureReferences.noteId,
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+          })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
+          .all();
+        }
 
         const scriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
         let scriptureMetadataMap: Record<string, string> = {};

@@ -53,10 +53,11 @@ export default function DashboardPage() {
   const isInitialLoading =
     (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
 
-  // Show a loading toast while the initial dashboard load (and scripture refetch) is in progress
+  // Show loading toast only on initial load (no content yet), not during the delayed scripture refetch
+  const showLoadingToast = cachedItems.length === 0 && (isFetching || profilePending);
   const loadingToastIdRef = useRef<string | number | null>(null);
   useEffect(() => {
-    if (isInitialLoading) {
+    if (showLoadingToast) {
       if (loadingToastIdRef.current == null) {
         loadingToastIdRef.current = toast.loading('Loading your Harvous...', { icon: null });
       }
@@ -66,7 +67,13 @@ export default function DashboardPage() {
         loadingToastIdRef.current = null;
       }
     }
-  }, [isInitialLoading]);
+    return () => {
+      if (loadingToastIdRef.current != null) {
+        toast.dismiss(loadingToastIdRef.current);
+        loadingToastIdRef.current = null;
+      }
+    };
+  }, [showLoadingToast]);
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
