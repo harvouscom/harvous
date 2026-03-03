@@ -181,3 +181,17 @@ export async function clerkAuth(c: Context, next: Next) {
 export function getAuth(c: Context): Auth {
   return c.get('auth') as Auth;
 }
+
+/**
+ * Middleware that requires a valid userId.
+ * Returns 401 if not authenticated. Use as route-level middleware:
+ *
+ *   route.post('/api/notes/create', requireAuth, async (c) => { ... });
+ */
+export async function requireAuth(c: Context, next: Next) {
+  const auth = getAuth(c);
+  if (!auth.userId) {
+    return c.json({ error: 'Authentication required' }, 401);
+  }
+  return next();
+}

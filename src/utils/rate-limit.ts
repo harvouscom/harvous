@@ -155,6 +155,27 @@ export function rateLimitMiddleware(
 }
 
 /**
+ * Hono middleware factory for rate limiting.
+ * Use as route-level middleware:
+ *
+ *   route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => { ... });
+ *
+ * Automatically extracts userId from auth context and IP from request headers.
+ */
+export function rateLimit(type: 'read' | 'write'): (c: any, next: any) => Promise<any> {
+  return async (c, next) => {
+    const auth = c.get('auth') as { userId: string | null };
+    const ip = getClientIP(c.req.raw);
+    const endpoint = c.req.path;
+    const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type, ip);
+    if (!result.allowed) {
+      return c.json({ error: result.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
+    }
+    return next();
+  };
+}
+
+/**
  * Get client IP from request
  */
 export function getClientIP(request: Request): string | undefined {
