@@ -284,6 +284,11 @@ export default function AppLayout() {
   // Enrich with page-level data when available so nav shows correct thread color
   // (nav/cache can be stale or missing backgroundGradient; useThread/useNote load shortly after)
   // Fallback: when viewing a thread in a shared space as member, it's not in nav.threads — build from currentThread/parent
+  // Default/fallback values that indicate "no real data yet" (e.g. from seeded cache before useThread resolves).
+  // When enriching nav data with note thread data, skip these so we don't overwrite good nav data with defaults.
+  const DEFAULT_TITLES = new Set(['Thread', '']);
+  const DEFAULT_GRADIENTS = new Set(['var(--color-gradient-gray)', 'var(--color-paper)', '']);
+
   const activeThread = (() => {
     const base = activeThreadFromNav;
     if (base) {
@@ -293,10 +298,15 @@ export default function AppLayout() {
       const noteParent = currentNote?.threads?.[0];
       if (isNote && noteParent) {
         const parentWithCount = noteParent as { count?: number; spaceId?: string | null };
+        // Only use noteParent values if they're meaningful (not defaults from seeded cache).
+        // Seeded cache often has title='Thread' and no backgroundGradient when thread data
+        // hasn't loaded yet; in that case, keep the nav data which is more accurate.
+        const useParentTitle = noteParent.title && !DEFAULT_TITLES.has(noteParent.title);
+        const useParentGradient = noteParent.backgroundGradient && !DEFAULT_GRADIENTS.has(noteParent.backgroundGradient);
         return {
           ...base,
-          backgroundGradient: noteParent.backgroundGradient ?? base.backgroundGradient,
-          title: noteParent.title ?? base.title,
+          backgroundGradient: useParentGradient ? noteParent.backgroundGradient! : base.backgroundGradient,
+          title: useParentTitle ? noteParent.title! : base.title,
           noteCount: parentWithCount.count ?? base.noteCount,
           spaceId: parentWithCount.spaceId ?? base.spaceId,
         };
@@ -313,8 +323,11 @@ export default function AppLayout() {
         spaceId: currentThread.spaceId ?? null,
       };
     }
+    // For note pages: prefer parentThreadData (from useThread, has correct data once loaded)
+    // over noteParent (from seeded cache, may have fallback title/gradient).
     const noteParent = currentNote?.threads?.[0];
-    const parentData = noteParent ?? parentThreadData;
+    const noteParentHasRealData = noteParent?.title && !DEFAULT_TITLES.has(noteParent.title);
+    const parentData = noteParentHasRealData ? noteParent : (parentThreadData ?? noteParent);
     if (isNote && parentData?.id) {
       const withCount = parentData as { count?: number; noteCount?: number };
       const isUnorganized = parentData.id === 'thread_unorganized';

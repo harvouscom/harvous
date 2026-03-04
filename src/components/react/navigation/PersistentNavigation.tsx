@@ -227,13 +227,19 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     if (window.location.pathname.startsWith('/note/')) {
       if (activeThreadProp?.id && activeThreadProp.id.startsWith('thread_')) {
         const now = Date.now();
+        // If activeThreadProp has default/fallback title ('Thread') or no gradient,
+        // check navigation history for better data before using defaults.
+        const fromHistory = navigationHistory.find((i) => i.id === activeThreadProp.id);
+        const propTitle = activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || '');
+        const hasRealTitle = propTitle && propTitle !== 'Thread';
+        const hasRealGradient = activeThreadProp.backgroundGradient && activeThreadProp.backgroundGradient !== 'var(--color-gradient-gray)';
         activeParentThread = {
           id: activeThreadProp.id,
-          title: activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || 'Thread'),
-          count: activeThreadProp.noteCount ?? 0,
-          backgroundGradient: activeThreadProp.backgroundGradient || 'var(--color-gradient-gray)',
-          spaceId: activeThreadProp.spaceId ?? null,
-          firstAccessed: now,
+          title: hasRealTitle ? propTitle : (fromHistory?.title || propTitle || 'Thread'),
+          count: activeThreadProp.noteCount ?? fromHistory?.count ?? 0,
+          backgroundGradient: hasRealGradient ? activeThreadProp.backgroundGradient! : (fromHistory?.backgroundGradient || activeThreadProp.backgroundGradient || 'var(--color-gradient-gray)'),
+          spaceId: activeThreadProp.spaceId ?? (fromHistory as any)?.spaceId ?? null,
+          firstAccessed: fromHistory?.firstAccessed ?? now,
           lastAccessed: now,
         };
       }

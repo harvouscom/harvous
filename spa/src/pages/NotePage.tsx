@@ -91,13 +91,29 @@ export default function NotePage() {
     const parent = note?.threads?.[0];
     if (!parent?.id || typeof (window as any).addToNavigationHistory !== 'function') return;
     const threadWithMeta = parent as { count?: number; spaceId?: string | null };
+    // Skip update if note data is from seeded cache with fallback title ('Thread').
+    // The real API data will load shortly and trigger this effect again with correct data.
+    // This prevents overwriting a good existing history entry with default values.
+    const isUnorganized = parent.id === 'thread_unorganized';
+    const hasRealTitle = isUnorganized || (parent.title && parent.title !== 'Thread');
+    if (!hasRealTitle) return;
+    // Derive the space context. The note API threads array doesn't include spaceId,
+    // and note URLs don't include ?space=, so fall back to localStorage selectedSpaceId
+    // (which was set when the user navigated into the space).
+    const spaceId = threadWithMeta.spaceId ?? (() => {
+      try {
+        const stored = localStorage.getItem('harvous-selected-space-id');
+        return stored && stored.startsWith('space_') ? stored : null;
+      } catch { return null; }
+    })();
     (window as any).addToNavigationHistory({
       id: parent.id,
-      title: parent.id === 'thread_unorganized' ? 'Unorganized' : (parent.title ?? 'Thread'),
+      title: isUnorganized ? 'Unorganized' : parent.title,
       count: threadWithMeta.count ?? 0,
       backgroundGradient: parent.backgroundGradient ?? 'var(--color-gradient-gray)',
-      spaceId: threadWithMeta.spaceId ?? null,
-      openedInSpaceIds: [threadWithMeta.spaceId ?? null],
+      spaceId: spaceId,
+      openedInSpaceIds: [spaceId],
+      openedInSpaceId: spaceId,
     });
   }, [note]);
 
