@@ -318,7 +318,15 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
               ...fromDom,
               title: fromDom.id === 'thread_unorganized' ? 'Unorganized' : (fromDom.title || 'Thread'),
             }
-          : null;
+          : (activeThreadProp?.id === activeThreadIdFromPath)
+            ? {
+                id: activeThreadProp.id,
+                title: activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || 'Thread'),
+                count: activeThreadProp.noteCount ?? 0,
+                backgroundGradient: activeThreadProp.backgroundGradient || 'var(--color-gradient-gray)',
+                spaceId: activeThreadProp.spaceId ?? null,
+              }
+            : null;
       
       // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
       // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
@@ -443,6 +451,13 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       } catch {
         // keep currentActiveItemId
       }
+    }
+  }
+  // Thread pages: use activeThreadProp as a stable source in SPA mode
+  // (DOM data attributes don't exist in SPA, so getCurrentActiveItemId may lag)
+  if (typeof window !== 'undefined' && pathname.startsWith('/thread/')) {
+    if (activeThreadProp?.id && activeThreadProp.id.startsWith('thread_')) {
+      effectiveActiveItemId = activeThreadProp.id;
     }
   }
 

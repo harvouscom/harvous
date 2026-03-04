@@ -82,7 +82,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
-  const { navigationHistory, refreshNavigation, removeFromNavigationHistory } = useNavigation();
+  const { navigationHistory, refreshNavigation, removeFromNavigationHistory, addToNavigationHistory } = useNavigation();
   // Track hydration state to prevent SSR/client mismatch in dropdown
   const [isHydrated, setIsHydrated] = useState(false);
   // Top gradient: show only when scrolled down (same as Tiptap editor)
@@ -550,7 +550,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       eventUpdatedCountRef.current = null;
     }
   }, [activeThread]);
-  
+
+  // Ensure the active thread is tracked in navigation history with correct data from React props.
+  // In SPA mode, DOM data attributes don't exist, so trackNavigationAccess() (which relies on DOM)
+  // cannot add/update the thread. This effect bridges the gap using React-sourced data.
+  useEffect(() => {
+    if (!updatedActiveThread?.id || !updatedActiveThread.id.startsWith('thread_')) return;
+    const openedInSpaceId = effectiveSelectedSpaceId ?? null;
+    addToNavigationHistory({
+      id: updatedActiveThread.id,
+      title: updatedActiveThread.id === 'thread_unorganized' ? 'Unorganized' : (updatedActiveThread.title || 'Thread'),
+      count: updatedActiveThread.noteCount ?? 0,
+      backgroundGradient: updatedActiveThread.backgroundGradient || 'var(--color-gradient-gray)',
+      spaceId: updatedActiveThread.spaceId ?? null,
+      openedInSpaceIds: [openedInSpaceId],
+      openedInSpaceId: openedInSpaceId,
+    });
+  }, [updatedActiveThread?.id, updatedActiveThread?.title, updatedActiveThread?.backgroundGradient, effectiveSelectedSpaceId]);
+
   // currentItemId is already initialized from pathname in useState
   // This useEffect just updates it when the page changes
 
@@ -588,9 +605,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
             // ignore
           }
           
-          // Force a re-render to ensure component updates after View Transition
-          // This helps ensure the navigation column is properly displayed
-          setUpdatedActiveThread(activeThread);
+          // Re-render is already triggered by setCurrentItemId above.
+          // Do NOT call setUpdatedActiveThread(activeThread) here — the closure
+          // captures a stale activeThread (null before useThread resolves) and
+          // overwrites the correct value set by useEffect([activeThread]).
         }
       });
     };
