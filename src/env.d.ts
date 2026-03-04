@@ -54,7 +54,7 @@ declare global {
       signOut: () => Promise<void>;
     };
     /** Web-haptics instance (set by SPA on mount) for programmatic haptics and shadow-based tap feedback */
-    __webHaptics?: { trigger: (input?: string | number | number[] | object, options?: object) => Promise<void> };
+    __webHaptics?: import('web-haptics').WebHaptics;
     /** Trigger haptic by shadow bucket (ms: 10 | 20 | 30). Set by SPA on mount. */
     __hapticsTriggerShadow?: (ms: number) => void;
   }

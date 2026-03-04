@@ -105,16 +105,15 @@ export const toast = {
       },
     }), 'upgradePrompt', message);
   },
+
+  // PWA prompt toast (matches env.d.ts Window.toast interface)
+  pwaPrompt: (message: string) => {
+    const cleanedMessage = stripPunctuation(message);
+    safeToast(() => sonnerToast.info(cleanedMessage, { icon: null, duration: 4000 }), 'pwaPrompt', cleanedMessage);
+  },
 };
 
-// Global toast functions for use in non-React contexts
-declare global {
-  interface Window {
-    toast: typeof toast;
-  }
-}
-
-// Make toast available globally
+// Make toast available globally (Window.toast type is declared in env.d.ts)
 if (typeof window !== 'undefined') {
   window.toast = toast;
 }

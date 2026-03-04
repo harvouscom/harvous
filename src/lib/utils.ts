@@ -6,4 +6,5 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getThreadGradientCSS(colorName: string | null | undefined): string {
   // ... (existing code)
+  return '';
 }

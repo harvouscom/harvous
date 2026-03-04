@@ -38,7 +38,7 @@ export default function MobileBottomSheetWithContext({
               currentThread={currentThread}
               currentSpace={currentSpace}
               currentNote={currentNote}
-              contentType={contentType}
+              contentType={contentType as 'thread' | 'note' | 'space' | 'dashboard' | 'profile'}
               publishableKey={publishableKey}
               founderLetterHtml={founderLetterHtml}
               version={version}

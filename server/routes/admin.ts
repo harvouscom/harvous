@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono';
 import { getStore } from '@netlify/blobs';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   Notes,
@@ -241,7 +241,7 @@ app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
 
 app.get('/api/admin/debug-thread-counts', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'threadId parameter required' }, 400);
@@ -288,7 +288,7 @@ app.get('/api/admin/debug-thread-counts', requireAuth, async (c) => {
 
 app.get('/api/admin/list-threads', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId)).all();
 

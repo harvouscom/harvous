@@ -125,7 +125,8 @@ export default function SafeSubscriptionDetailsButton({
   // This is expected and correct behavior
   return (
     <div ref={containerRef}>
-      <ClerkProvider 
+      {/* @ts-expect-error Clerk's ClerkProviderProps discriminated union requires isSatellite/proxyUrl with domain */}
+      <ClerkProvider
         key={`clerk-provider-subscription-${pathname}-${remountKey}`}
         publishableKey={clerkConfig.publishableKey!}
         domain={clerkConfig.domain}

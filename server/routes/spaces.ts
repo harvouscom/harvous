@@ -24,7 +24,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata,
   eq, and, ne, count, inArray, desc, asc, sql, isNull,
@@ -78,7 +78,7 @@ function parseItemIds(raw: string | null): string[] {
 // ─── POST /api/spaces/create ────────────────────────────────────────────────
 route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
@@ -148,7 +148,7 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
 // ─── DELETE /api/spaces/delete ──────────────────────────────────────────────
 route.delete('/api/spaces/delete', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const spaceId = c.req.query('spaceId');
     if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
@@ -181,7 +181,7 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
 // ─── GET /api/spaces/items ──────────────────────────────────────────────────
 route.get('/api/spaces/items', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const allNotes = await db.select({
       id: Notes.id, title: Notes.title, content: Notes.content,
@@ -244,9 +244,9 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
 // ─── POST /api/spaces/:spaceId/update ───────────────────────────────────────
 route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     const formData = await c.req.formData();
     const title = formData.get('title') as string;
@@ -286,9 +286,9 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
 // ─── GET /api/spaces/:spaceId/notes ─────────────────────────────────────────
 route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     const offset = parseInt(c.req.query('offset') || '0', 10);
     const limit = parseInt(c.req.query('limit') || '20', 10);
 
@@ -303,9 +303,9 @@ route.get('/api/spaces/:spaceId/notes', requireAuth, async (c) => {
 // ─── GET /api/spaces/:spaceId/items ─────────────────────────────────────────
 route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     let accessInfo: { role: string; space: any };
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
@@ -337,9 +337,9 @@ route.get('/api/spaces/:spaceId/items', requireAuth, async (c) => {
 // Returns space metadata + items in one response for faster initial load (one round-trip).
 route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     let accessInfo: { role: string; space: any };
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
@@ -384,9 +384,9 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
 // ─── GET /api/spaces/:spaceId/prefetch ──────────────────────────────────────
 route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     // Try owner path first
     const ownerSpaces = await getSpacesWithCounts(auth.userId);
@@ -438,9 +438,9 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
 // ─── POST /api/spaces/:spaceId/add-note ─────────────────────────────────────
 route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -464,9 +464,9 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
 // ─── POST /api/spaces/:spaceId/add-thread ───────────────────────────────────
 route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -491,9 +491,9 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
 // ─── POST /api/spaces/:spaceId/add-items ────────────────────────────────────
 route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -532,9 +532,9 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
 // ─── POST /api/spaces/:spaceId/remove-items ─────────────────────────────────
 route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -577,9 +577,9 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
 // ─── GET /api/spaces/:spaceId/share-link ────────────────────────────────────
 route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     try { await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
@@ -613,9 +613,9 @@ route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
 // ─── POST /api/spaces/:spaceId/share-link ───────────────────────────────────
 route.post('/api/spaces/:spaceId/share-link', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
@@ -637,9 +637,9 @@ route.post('/api/spaces/:spaceId/share-link', requireAuth, rateLimit('write'), a
 // ─── GET /api/spaces/:spaceId/members ───────────────────────────────────────
 route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
     let accessInfo: { role: string; space: any };
     try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -720,9 +720,9 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
 // ─── POST /api/spaces/:spaceId/members/invite ───────────────────────────────
 route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
+    const spaceId = requireParam(c, 'spaceId');
 
     try { await requireSpaceAccess(spaceId, auth.userId, true); } catch (err) {
       if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
@@ -771,10 +771,10 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
 // ─── DELETE /api/spaces/:spaceId/members/:userId ────────────────────────────
 route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const spaceId = c.req.param('spaceId');
-    const targetUserId = c.req.param('userId');
+    const spaceId = requireParam(c, 'spaceId');
+    const targetUserId = requireParam(c, 'userId');
 
     const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
     if (!space) return c.json({ error: 'Space not found' }, 404);
@@ -803,10 +803,9 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
 // ─── POST /api/spaces/join/:token ───────────────────────────────────────────
 route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const token = c.req.param('token');
-    if (!token) return c.json({ error: 'Token is required' }, 400);
+    const token = requireParam(c, 'token');
 
     const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
     if (!space) return c.json({ error: 'Invalid or expired invite link' }, 404);
@@ -844,8 +843,7 @@ route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c)
 // ─── GET /api/spaces/join-preview/:token ────────────────────────────────────
 route.get('/api/spaces/join-preview/:token', async (c) => {
   try {
-    const token = c.req.param('token');
-    if (!token) return c.json({ error: 'Token is required' }, 400);
+    const token = requireParam(c, 'token');
 
     const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
     if (!space) return c.json({ error: 'Space not found or link expired' }, 404);

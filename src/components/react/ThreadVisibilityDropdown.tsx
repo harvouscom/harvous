@@ -248,7 +248,7 @@ export default function ThreadVisibilityDropdown({
                     <input
                       type="text"
                       readOnly
-                      value={displayShareUrl}
+                      value={displayShareUrl ?? ''}
                       className="thread-visibility-dropdown__link-input"
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />

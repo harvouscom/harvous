@@ -25,7 +25,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
@@ -65,7 +65,7 @@ const app = new Hono();
 
 app.get('/api/user/achievements', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([
       getSeasonalXP(auth.userId),
@@ -100,7 +100,7 @@ app.get('/api/user/achievements', requireAuth, async (c) => {
 
 app.post('/api/user/check-monthly-attendance', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const awarded = await awardMonthlyAttendanceXP(auth.userId);
     return c.json({ success: true, awardedXP: awarded, xpAmount: awarded ? 25 : 0 });
@@ -114,7 +114,7 @@ app.post('/api/user/check-monthly-attendance', requireAuth, async (c) => {
 
 app.delete('/api/user/clear-data', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
     const noteIds = userNotes.map(n => n.id);
@@ -149,7 +149,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
 
 app.delete('/api/user/delete-account', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     // Delete data (same as clear-data)
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
@@ -201,7 +201,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
 
 app.get('/api/user/export', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const formatParam = (c.req.query('format') || 'markdown') as string;
     const format: ExportFormat =
@@ -227,7 +227,7 @@ app.get('/api/user/export', requireAuth, async (c) => {
 
 app.post('/api/user/session', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { activities, startTime, lastActivityTime } = body;
@@ -262,7 +262,7 @@ app.post('/api/user/session', requireAuth, async (c) => {
 
 app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { churchName, churchCity, churchState } = body;
@@ -320,7 +320,7 @@ app.post('/api/user/update-church', requireAuth, rateLimit('write'), async (c) =
 
 app.post('/api/user/update-credentials', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { newEmail, currentPassword, newPassword } = body;
@@ -375,7 +375,7 @@ app.post('/api/user/update-credentials', requireAuth, async (c) => {
 
 app.post('/api/user/update-profile', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { firstName, lastName, color } = body;
@@ -431,7 +431,7 @@ app.post('/api/user/update-profile', requireAuth, rateLimit('write'), async (c) 
 
 app.get('/api/user/xp', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const shouldBackfill = c.req.query('backfill') === 'true';
     const season = c.req.query('season');
@@ -460,7 +460,7 @@ app.get('/api/user/xp', requireAuth, async (c) => {
 
 app.get('/api/user/get-profile', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
     console.log('[api/user/get-profile] auth.userId', auth.userId);
 
     const userData = await getCachedUserData(auth.userId);
@@ -509,7 +509,7 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
 
 app.get('/api/user/locked-notes', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const includeContent = c.req.query('content') === 'true';
 
@@ -534,7 +534,7 @@ app.get('/api/user/locked-notes', requireAuth, async (c) => {
 
 app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { pin } = body;
@@ -560,7 +560,7 @@ app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
 
 app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { pin, currentPin, newPin } = body;
@@ -596,7 +596,7 @@ app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) =>
 
 app.get('/api/user/can-create-space', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const canCreate = await canCreateSharedSpace(auth.userId, auth);
     return c.json(canCreate);
@@ -610,7 +610,7 @@ app.get('/api/user/can-create-space', requireAuth, rateLimit('read'), async (c) 
 
 app.get('/api/user/can-join-space', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const canJoin = await canJoinSpace(auth.userId, auth);
     return c.json(canJoin);
@@ -624,7 +624,7 @@ app.get('/api/user/can-join-space', requireAuth, rateLimit('read'), async (c) =>
 
 app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const limitsInfo = await getUserLimitsInfo(auth.userId, auth);
     return c.json(limitsInfo, 200, { 'Cache-Control': 'private, max-age=0, no-store' });
@@ -638,7 +638,7 @@ app.get('/api/user/limits', requireAuth, rateLimit('read'), async (c) => {
 
 app.post('/api/user/import', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const formData = await c.req.formData();
     const format = formData.get('format') as string;
@@ -794,7 +794,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
 
 app.get('/api/profile/my-sharing', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const origin = new URL(c.req.url).origin;
 
@@ -835,7 +835,7 @@ app.get('/api/profile/my-sharing', requireAuth, async (c) => {
 
 app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const origin = new URL(c.req.url).origin;
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import type { ThreadColor } from '@/utils/colors';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import {
   Sheet,
@@ -525,8 +526,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
     apply();
     const raf = requestAnimationFrame(() => apply());
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
+    const resizeHandler = () => apply();
+    const scrollHandler = () => apply();
+    vv.addEventListener('resize', resizeHandler);
+    vv.addEventListener('scroll', scrollHandler);
 
     const onFocusIn = () => {
       // Immediate and short delays for all platforms
@@ -554,8 +557,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(rafFocus);
-      vv.removeEventListener('resize', apply);
-      vv.removeEventListener('scroll', apply);
+      vv.removeEventListener('resize', resizeHandler);
+      vv.removeEventListener('scroll', scrollHandler);
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
       const el = sheetContentElRef.current;
       if (el) clearOverrides(el);
@@ -831,7 +834,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   key={`mobile-edit-space-${panelKey}`}
                   spaceId={currentSpace.id}
                   initialTitle={currentSpace.title}
-                  initialColor={(currentSpace as { color?: string }).color}
+                  initialColor={(currentSpace as { color?: string }).color as ThreadColor | undefined}
                   initialIsOwner={(currentSpace as { isOwner?: boolean }).isOwner}
                   onClose={() => {
                     window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));

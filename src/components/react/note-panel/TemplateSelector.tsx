@@ -48,11 +48,11 @@ export default function TemplateSelector({
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('mousedown', handlePointerDown);
-    window.addEventListener('touchstart', handlePointerDown);
+    window.addEventListener('touchstart', handlePointerDown as EventListener);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('mousedown', handlePointerDown);
-      window.removeEventListener('touchstart', handlePointerDown);
+      window.removeEventListener('touchstart', handlePointerDown as EventListener);
     };
   }, [isOpen, onClose]);
 

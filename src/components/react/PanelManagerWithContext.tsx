@@ -25,7 +25,7 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
   publishableKey = null,
   version,
 }) => {
-  const createHyperlinkTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const createHyperlinkTimeoutRef = useRef<number | null>(null);
 
   // Global createHyperlink fallback: update source note via API when its card isn't mounted
   // (e.g. new note panel replaced the main content). Runs after a short delay so CardFullEditable can handle first.
@@ -83,7 +83,7 @@ const PanelManagerWithContext: React.FC<PanelManagerWithContextProps> = ({
           currentThread={currentThread}
           currentSpace={currentSpace}
           currentNote={currentNote}
-          contentType={contentType}
+          contentType={contentType as 'thread' | 'note' | 'space' | 'dashboard' | 'profile'}
           publishableKey={publishableKey}
           version={version}
         />

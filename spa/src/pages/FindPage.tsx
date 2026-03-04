@@ -80,10 +80,10 @@ function SearchResults({ query }: { query: string }) {
               thread={{
                 id: result.id,
                 title: result.title || 'Untitled',
-                subtitle: result.subtitle,
-                color: result.color,
+                subtitle: result.subtitle ?? undefined,
+                color: result.color ?? undefined,
                 accentColor: result.color ? `var(--color-${result.color})` : undefined,
-                lastUpdated: result.lastUpdated,
+                lastUpdated: result.lastUpdated ?? undefined,
               }}
             />
           </a>
@@ -104,7 +104,7 @@ function SearchResults({ query }: { query: string }) {
           >
             <CardNote
               title={result.title || 'Untitled'}
-              content={result.content}
+              content={result.content ?? undefined}
               noteType={(result.noteType as 'default' | 'scripture' | 'resource') || 'default'}
               noteId={result.id}
             />

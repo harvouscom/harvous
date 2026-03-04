@@ -9,18 +9,6 @@
  */
 import type { AnyRouter } from '@tanstack/react-router';
 
-declare global {
-  interface Document {
-    startViewTransition?(updateCallback: () => Promise<void> | void): ViewTransition;
-  }
-  interface ViewTransition {
-    finished: Promise<void>;
-    ready: Promise<void>;
-    updateCallbackDone: Promise<void>;
-    skipTransition(): void;
-  }
-}
-
 /**
  * Wait for the next frame after React has committed and the browser has painted.
  * Used so startViewTransition captures the correct "new" DOM state.
@@ -43,7 +31,7 @@ function waitForPaint(): Promise<void> {
 export function wrapNavigateWithViewTransition(router: AnyRouter): void {
   const originalNavigate = router.navigate.bind(router);
 
-  (router as AnyRouter & { navigate: typeof originalNavigate }).navigate = function (
+  (router as any).navigate = function (
     options: Parameters<typeof originalNavigate>[0] & { viewTransition?: boolean }
   ): ReturnType<typeof originalNavigate> {
     const { viewTransition = true, ...navigateOpts } = options as typeof options & { viewTransition?: boolean };

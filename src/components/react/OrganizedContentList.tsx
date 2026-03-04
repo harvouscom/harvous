@@ -43,6 +43,7 @@ interface OrganizedContentItem {
   resourceImage?: string | null;
   threadColors?: Array<{ color: string; frequency: number }> | null;
   scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
+  updatedAt?: Date | string | null;
   lastVisited?: Date | string | null;
   createdAt?: Date | string | null;
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
@@ -225,14 +226,14 @@ export default function OrganizedContentList({
     const rawItems = (initialItems || []).map(normalizeItemDates);
 
     // Debug logging to track lastVisited values on SSR initialization
-    debug('[OrganizedContentList] SSR Init - Items with lastVisited:',
-      rawItems.slice(0, 10).map(i => ({
+    debug('[OrganizedContentList] SSR Init - Items with lastVisited:', {
+      items: rawItems.slice(0, 10).map(i => ({
         id: i.id,
         type: i.type,
         title: i.title?.substring(0, 30),
-        lastVisited: i.lastVisited?.toISOString() || 'null'
+        lastVisited: i.lastVisited instanceof Date ? i.lastVisited.toISOString() : (i.lastVisited ?? 'null')
       }))
-    );
+    });
 
     const filtered = rawItems.filter(item => {
       if (!item || !item.id) return false;
@@ -493,19 +494,19 @@ export default function OrganizedContentList({
         const normalizedItems = (data.items || []).map(normalizeItemDates);
 
         // Debug logging to track lastVisited values on API refresh
-        debug('[OrganizedContentList] API Refresh - Items with lastVisited:',
-          normalizedItems.slice(0, 10).map(i => ({
+        debug('[OrganizedContentList] API Refresh - Items with lastVisited:', {
+          items: normalizedItems.slice(0, 10).map((i: OrganizedContentItem) => ({
             id: i.id,
             type: i.type,
             title: i.title?.substring(0, 30),
-            lastVisited: i.lastVisited?.toISOString() || 'null'
+            lastVisited: i.lastVisited instanceof Date ? i.lastVisited.toISOString() : (i.lastVisited ?? 'null')
           }))
-        );
+        });
 
         // Only preserve threadColors and optimistic lastVisited from current items
         // Use matchesItem for consistent, validated matching
         const currentSnapshot = [...currentItemsRef.current];
-        normalizedItems.forEach((freshItem, index) => {
+        normalizedItems.forEach((freshItem: OrganizedContentItem, index: number) => {
           // Find matching item using the unified matchesItem helper
           // This ensures consistent matching logic and prevents false matches
           const currentItem = currentSnapshot.find(item => 
@@ -569,32 +570,32 @@ export default function OrganizedContentList({
         });
 
         // Compare before/after to detect lastVisited changes
-        const changedItems = normalizedItems.filter(freshItem => {
+        const changedItems = normalizedItems.filter((freshItem: OrganizedContentItem) => {
           const currentItem = currentSnapshot.find(ci => matchesItem(ci, freshItem.id, freshItem.type));
           if (!currentItem) return false;
-          const freshTime = freshItem.lastVisited?.getTime();
-          const currentTime = currentItem.lastVisited?.getTime();
+          const freshTime = freshItem.lastVisited instanceof Date ? freshItem.lastVisited.getTime() : freshItem.lastVisited;
+          const currentTime = currentItem.lastVisited instanceof Date ? currentItem.lastVisited.getTime() : currentItem.lastVisited;
           return freshTime !== currentTime;
         });
         if (changedItems.length > 0) {
-          debug('[OrganizedContentList] DETECTED CHANGES in lastVisited:',
-            changedItems.slice(0, 5).map(item => {
+          debug('[OrganizedContentList] DETECTED CHANGES in lastVisited:', {
+            changes: changedItems.slice(0, 5).map((item: OrganizedContentItem) => {
               const currentItem = currentSnapshot.find(ci => matchesItem(ci, item.id, item.type));
               return {
                 id: item.id,
                 type: item.type,
                 title: item.title?.substring(0, 30),
-                before: currentItem?.lastVisited?.toISOString() || 'null',
-                after: item.lastVisited?.toISOString() || 'null'
+                before: currentItem?.lastVisited instanceof Date ? currentItem.lastVisited.toISOString() : (currentItem?.lastVisited ?? 'null'),
+                after: item.lastVisited instanceof Date ? item.lastVisited.toISOString() : (item.lastVisited ?? 'null')
               };
             })
-          );
+          });
         }
 
         // Merge with optimistic items (unfiltered for master list)
         // Build confirmedIds set with all possible ID formats from server response
         const confirmedIds = new Set<string>();
-        normalizedItems.forEach(item => {
+        normalizedItems.forEach((item: OrganizedContentItem) => {
           const normalizedId = normalizeId(item.id);
           confirmedIds.add(normalizedId);
           if (item.threadId) {
@@ -624,7 +625,7 @@ export default function OrganizedContentList({
                              (normalizedOptimisticThreadId && confirmedIds.has(normalizedOptimisticThreadId)) ||
                              (normalizedOptimisticNoteId && confirmedIds.has(normalizedOptimisticNoteId)) ||
                              // Also check if any server item matches this optimistic item
-                             normalizedItems.some(serverItem => {
+                             normalizedItems.some((serverItem: OrganizedContentItem) => {
                                if (optimisticItem.type === 'thread') {
                                  return matchesItem(serverItem, optimisticItem.threadId || optimisticItem.id, 'thread');
                                } else {
@@ -662,7 +663,7 @@ export default function OrganizedContentList({
         // (they're already handled by the confirmation logic above, but this is a safety check)
         const deduplicatedOptimisticItemsFinal = optimisticItemsToKeep.filter(optimisticItem => {
           // Check against all normalizedItems (server response) to ensure no duplicates
-          return !normalizedItems.some(normalizedItem => {
+          return !normalizedItems.some((normalizedItem: OrganizedContentItem) => {
             if (optimisticItem.type === 'thread' && normalizedItem.type === 'thread') {
               const optimisticThreadId = normalizeId(optimisticItem.threadId || optimisticItem.id);
               const normalizedThreadId = normalizeId(normalizedItem.threadId || normalizedItem.id);
@@ -711,7 +712,7 @@ export default function OrganizedContentList({
         // Filter out deleted scripture notes from scriptureReferences arrays
         const filteredScriptureRefs = filteredDeleted.map(item => {
           if (item.scriptureReferences && item.scriptureReferences.length > 0) {
-            const filteredRefs = item.scriptureReferences.filter(ref => {
+            const filteredRefs = item.scriptureReferences.filter((ref: { reference: string; noteId: string }) => {
               return !deletedItemIdsRef.current.has(normalizeId(ref.noteId));
             });
             return {
@@ -727,8 +728,8 @@ export default function OrganizedContentList({
 
         // Check if we're looking for a specific item (using filtering logic for check only)
         if (options?.expectedItemId && options?.expectedItemType) {
-          const itemExists = sorted.some(item => 
-            matchesItem(item, options.expectedItemId, options.expectedItemType) &&
+          const itemExists = sorted.some(item =>
+            matchesItem(item, options.expectedItemId!, options.expectedItemType!) &&
             !deletedItemIdsRef.current.has(normalizeId(item.id)) &&
             !deletedItemIdsRef.current.has(normalizeId(item.threadId)) &&
             !deletedItemIdsRef.current.has(normalizeId(item.noteId))
@@ -1479,7 +1480,7 @@ export default function OrganizedContentList({
     // Combine all filtering operations in a single pass for better performance
     // Process deduplication, deleted items, and scripture references together
     const processedItems = newItems
-      .map(item => {
+      .map((item: OrganizedContentItem) => {
         // Normalize dates first
         const normalizedItem = normalizeItemDates(item);
         
@@ -1512,7 +1513,7 @@ export default function OrganizedContentList({
         
         return normalizedItem;
       })
-      .filter((item): item is OrganizedContentItem => item !== null);
+      .filter((item: OrganizedContentItem | null): item is OrganizedContentItem => item !== null);
 
     // Update the master list with only truly new items
     // Re-sort the combined list to ensure correct lastVisited ordering
@@ -1600,7 +1601,7 @@ export default function OrganizedContentList({
               resourceTitle={item.noteType === 'resource' ? (item.resourceTitle || null) : undefined}
               resourceDescription={item.noteType === 'resource' ? (item.resourceDescription || null) : undefined}
               resourceImage={item.noteType === 'resource' ? (item.resourceImage || null) : undefined}
-              threadColors={item.threadColors}
+              threadColors={item.threadColors ?? undefined}
               noteId={item.noteId}
               showScriptureRefsCollapsible={filter === 'all'}
               scriptureReferences={item.scriptureReferences}
@@ -1623,7 +1624,7 @@ export default function OrganizedContentList({
                 accentColor: item.accentColor,
                 lastUpdated: item.lastUpdated,
                 lastVisited: item.lastVisited,
-                createdAt: item.createdAt,
+                createdAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : (item.createdAt ?? undefined),
                 isPrivate: item.isPrivate
               }}
             />

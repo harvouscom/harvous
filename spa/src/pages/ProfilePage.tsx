@@ -43,7 +43,6 @@ export default function ProfilePageWrapper() {
           header={
             <ProfileCardStackHeader
               initialColor={userColor}
-              initialDisplayName="My Profile"
             />
           }
         >

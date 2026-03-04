@@ -109,8 +109,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     // Last resort: try IndexedDB (async) - this includes all fallback mechanisms
     // This will check userMetadata, notes, spaces, threads in IndexedDB
     const indexedDBResult = await getPersistedUserIdWithIndexedDB();
-    if (indexedDBResult.userId) {
-      return indexedDBResult;
+    if (indexedDBResult) {
+      return { userId: indexedDBResult, indexedDBIsEmpty: false };
     }
     
     // Final fallback: try to get from Clerk if available (offline-safe check)
@@ -139,11 +139,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       }
     } catch (e) {
       // Clerk not available or error accessing - that's fine, continue with other checks
-      debug('[getEffectiveUserId] Clerk check failed (expected when offline):', e);
+      debug('[getEffectiveUserId] Clerk check failed (expected when offline):', e as Record<string, unknown>);
     }
     
     // Return the IndexedDB result which includes isEmpty information
-    return indexedDBResult;
+    return { userId: indexedDBResult, indexedDBIsEmpty: !indexedDBResult };
   }, [userId]);
 
   // Helper to show toast
@@ -311,6 +311,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
     setIsSubmitting(true);
 
+    // Declare offline variables before try so they're accessible in the catch block
+    let offlineNoteId: string | null = null;
+    let offlineSaveError: string | null = null;
+
     try {
       // Allow threadId override (useful when state hasn't updated yet)
       const threadIdToUse = overrideThreadId || getSelectedThread().id;
@@ -343,8 +347,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
       // OFFLINE-AWARE: Only create in IndexedDB if we're offline
       // When online, server is the single source of truth to avoid duplication
-      let offlineNoteId: string | null = null;
-      let offlineSaveError: string | null = null;
       const isOffline = !navigator.onLine;
 
       // Only attempt offline save if we're actually offline
@@ -660,7 +662,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         } else if (result.note && addToNavigationHistory) {
           // CRITICAL: Use finalThreadId (which is overrideThreadId if provided) for all lookups
           // This ensures we use the newly created thread, not the last selected thread
-          let threadData = finalThreadId 
+          let threadData: Thread | undefined = finalThreadId
             ? threadOptions.find(thread => thread.id === finalThreadId) || getSelectedThread()
             : getSelectedThread();
           
@@ -821,7 +823,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
                 }
               }
             } catch (e) {
-              debug('[useNoteSubmission] Source note link update failed', e);
+              debug('[useNoteSubmission] Source note link update failed', e as Record<string, unknown>);
             }
           }
           window.dispatchEvent(new CustomEvent('highlightSaved'));
@@ -922,7 +924,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       } else {
         // Safely parse error response - may be HTML if server error occurred
         const errorText = await response.text();
-        let error: { error?: string; code?: string } = { error: `Error creating note: ${response.status}` };
+        let error: { error?: string; code?: string; upgradeUrl?: string } = { error: `Error creating note: ${response.status}` };
         
         try {
           const errorJson = JSON.parse(errorText);
@@ -1227,7 +1229,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             });
           } catch (prefetchError) {
             // Prefetch failed - that's okay, we'll navigate anyway
-            debug('[useNoteSubmission] Prefetch failed (save and close) - proceeding with navigation', prefetchError);
+            debug('[useNoteSubmission] Prefetch failed (save and close) - proceeding with navigation', prefetchError as Record<string, unknown>);
           }
           
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
@@ -1248,7 +1250,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
       } else {
         // Safely parse error response - may be HTML if server error occurred
         const errorText = await response.text();
-        let error: { error?: string; code?: string } = { error: `Error creating note: ${response.status}` };
+        let error: { error?: string; code?: string; upgradeUrl?: string } = { error: `Error creating note: ${response.status}` };
         
         try {
           const errorJson = JSON.parse(errorText);
@@ -1314,10 +1316,4 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   };
 }
 
-// Extend Window interface
-declare global {
-  interface Window {
-    posthog?: any;
-  }
-}
 

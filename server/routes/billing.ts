@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, UserMetadata, eq } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
@@ -25,7 +25,7 @@ const app = new Hono();
 /** POST /api/billing/checkout */
 app.post('/api/billing/checkout', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { planId, billingInterval } = await c.req.json();
 
@@ -98,7 +98,7 @@ app.post('/api/billing/checkout', requireAuth, async (c) => {
 /** POST /api/billing/downgrade */
 app.post('/api/billing/downgrade', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
@@ -160,7 +160,7 @@ app.post('/api/billing/downgrade', requireAuth, async (c) => {
 /** GET /api/subscription/status — do not cache so note count is always current (Manage Billing / Upgrade page). */
 app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
 
@@ -187,7 +187,7 @@ const BONUS_PER_REFERRAL = 100;
 /** POST /api/referral/credit */
 app.post('/api/referral/credit', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const ref = getCookie(c, 'harvous_referrer')?.trim();
 
@@ -221,7 +221,7 @@ app.post('/api/referral/credit', requireAuth, async (c) => {
 /** GET /api/referral/status */
 app.get('/api/referral/status', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
     const metaRow = await db

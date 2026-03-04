@@ -32,6 +32,8 @@ interface Note {
 interface CurrentSpace {
   id: string;
   title?: string;
+  backgroundGradient?: string;
+  color?: string;
 }
 
 interface NewThreadPanelProps {
@@ -246,12 +248,15 @@ export default function NewThreadPanel({
     
     setIsSubmitting(true);
 
+    // Declare offline variable before try so it's accessible in the catch block
+    let offlineThreadId: string | null = null;
+
     try {
       const formData = new FormData();
       formData.append('title', title.trim());
       formData.append('color', selectedColor);
       formData.append('isPublic', selectedType === 'Shared' ? 'true' : 'false');
-      
+
       if (isEditMode) {
         formData.append('threadId', threadId!);
         
@@ -307,7 +312,6 @@ export default function NewThreadPanel({
         
         // OFFLINE-AWARE: Only create in IndexedDB if we're offline
         // When online, server is the single source of truth to avoid duplication
-        let offlineThreadId: string | null = null;
         const isOffline = !navigator.onLine;
 
         if (isOffline && userId) {
@@ -879,13 +883,13 @@ export default function NewThreadPanel({
                                 className="panel__item-list-item-link"
                                 aria-label={`View note: ${note.title || 'Untitled note'}`}
                               >
-                                <CardNote 
-                                  title={note.noteType === 'resource' && note.resourceTitle ? note.resourceTitle : (note.title || "Untitled Note")}
-                                  content={note.noteType === 'resource' && note.resourceDescription ? note.resourceDescription : stripHtml(note.content)}
+                                <CardNote
+                                  title={note.noteType === 'resource' && note.resourceTitle ? (note.resourceTitle as string) : (note.title || "Untitled Note")}
+                                  content={note.noteType === 'resource' && note.resourceDescription ? (note.resourceDescription as string) : stripHtml(note.content)}
                                   noteType={(note.noteType as 'default' | 'scripture' | 'resource' | undefined) || 'default'}
-                                  resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
-                                  resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
-                                  resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
+                                  resourceTitle={note.noteType === 'resource' ? ((note.resourceTitle as string) || null) : undefined}
+                                  resourceDescription={note.noteType === 'resource' ? ((note.resourceDescription as string) || null) : undefined}
+                                  resourceImage={note.noteType === 'resource' ? ((note.resourceImage as string) || null) : undefined}
                                 />
                               </a>
                               {/* Remove from selection button */}

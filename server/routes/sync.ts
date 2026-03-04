@@ -8,7 +8,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   Spaces,
@@ -241,7 +241,7 @@ async function processNoteTagMutation(userId: string, operation: string, entityI
 
 app.post('/api/sync/push', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { mutations } = await c.req.json();
     if (!Array.isArray(mutations) || mutations.length === 0) {
@@ -281,7 +281,7 @@ app.post('/api/sync/push', requireAuth, async (c) => {
 
 app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadata] = await Promise.all([
       db.select({
@@ -384,7 +384,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
 
 app.get('/api/sync/changes', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const sinceParam = c.req.query('since');
     if (!sinceParam) return c.json({ error: 'since parameter is required', code: 'MISSING_PARAMETER' }, 400);

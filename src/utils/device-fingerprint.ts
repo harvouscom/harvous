@@ -88,8 +88,9 @@ async function getWebGLFingerprint(): Promise<string> {
     const debugInfo = (gl as any).getExtension('WEBGL_debug_renderer_info');
     if (!debugInfo) return 'no-debug-info';
 
-    const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
-    const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+    const glContext = gl as WebGLRenderingContext;
+    const vendor = glContext.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+    const renderer = glContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
 
     return hashString(`${vendor}|${renderer}`);
   } catch (e) {
@@ -120,7 +121,7 @@ async function getAudioFingerprint(): Promise<string> {
     oscillator.start(0);
 
     return new Promise((resolve) => {
-      scriptProcessor.onaudioprocess = function(event) {
+      scriptProcessor.onaudioprocess = function(event: AudioProcessingEvent) {
         const output = event.outputBuffer.getChannelData(0);
         const hash = hashString(Array.from(output.slice(0, 30)).join(','));
 

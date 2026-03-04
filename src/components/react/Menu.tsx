@@ -8,6 +8,7 @@ import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/ut
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { toast } from '@/utils/toast';
+import { isNetworkError } from '@/utils/network';
 
 export interface MenuOption {
   action: string;

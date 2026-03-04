@@ -21,7 +21,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, Comments, Tags, NoteTags,
   UserMetadata, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
@@ -62,7 +62,7 @@ const truncateAndCapitalizeTitle = (title: string): string => {
 // ─── POST /api/notes/create ──────────────────────────────────────────────────
 route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     // Check note limit
     const noteLimitCheck = await canCreateNote(auth.userId, auth);
@@ -245,8 +245,8 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     if (finalNoteType !== 'resource' && !contentEncrypted) {
       (async () => {
         try {
-          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId!, 0.8);
-          if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId!);
+          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.8);
+          if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
         } catch {}
       })().catch(() => {});
     }
@@ -339,7 +339,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     const contentToProcess = latestNote?.content || newNote.content;
 
     if (!contentEncrypted) {
-      processScriptureReferences(newNote.id, auth.userId!, actualThreadId, contentToProcess).catch((err: any) => {
+      processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess).catch((err: any) => {
         console.error('[api/notes/create] Deferred scripture processing failed:', err?.message ?? err);
       });
     }
@@ -360,7 +360,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
 // ─── PUT /api/notes/update ──────────────────────────────────────────────────
 route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
     const { noteId, title, content, resourceImage, contentEncrypted } = body;
@@ -401,8 +401,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       (async () => {
         try {
           await removeAutoTags(noteId);
-          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId!, 0.8);
-          if (r.suggestions.length > 0) await applyAutoTags(noteId, r.suggestions, auth.userId!);
+          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.8);
+          if (r.suggestions.length > 0) await applyAutoTags(noteId, r.suggestions, auth.userId);
         } catch {}
       })().catch(() => {});
     }
@@ -442,7 +442,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 // ─── DELETE /api/notes/delete ────────────────────────────────────────────────
 route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const noteId = c.req.query('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
@@ -471,8 +471,8 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     // Revoke XP (fire-and-forget)
     (async () => {
       try {
-        await revokeXPOnDeletion(auth.userId!, noteId, new Date(noteCreatedAt as string));
-        await revokeAllXPForItem(auth.userId!, noteId);
+        await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt as string));
+        await revokeAllXPForItem(auth.userId, noteId);
       } catch {}
     })().catch(() => {});
 
@@ -486,7 +486,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
 // ─── GET /api/notes/next-id ──────────────────────────────────────────────────
 route.get('/api/notes/next-id', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     if (!userMetadata) {
@@ -513,7 +513,7 @@ route.get('/api/notes/next-id', requireAuth, async (c) => {
 // ─── GET /api/notes/recent ──────────────────────────────────────────────────
 route.get('/api/notes/recent', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const limitParam = c.req.query('limit');
     const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
@@ -547,7 +547,7 @@ route.get('/api/notes/recent', requireAuth, async (c) => {
 // ─── POST /api/notes/auto-tags ──────────────────────────────────────────────
 route.post('/api/notes/auto-tags', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { noteId, noteTitle, noteContent, action = 'generate' } = await c.req.json();
     if (!noteId || !noteTitle || !noteContent) return c.json({ error: 'Note ID, title, and content are required' }, 400);
@@ -580,7 +580,7 @@ route.post('/api/notes/auto-tags', requireAuth, rateLimit('write'), async (c) =>
 // ─── POST /api/notes/cleanup-upgrade-note ───────────────────────────────────
 route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { noteId, simpleNoteId } = await c.req.json();
     if (!noteId || !simpleNoteId) return c.json({ error: 'Note ID and simple note ID are required' }, 400);
@@ -624,7 +624,7 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
 // ─── DELETE /api/notes/delete-all-unorganized ───────────────────────────────
 route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
     return c.json({ success: true, message: 'All notes deleted from unorganized thread' });
@@ -637,7 +637,7 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
 // ─── POST /api/notes/suggest-threads ────────────────────────────────────────
 route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { title, content } = await c.req.json();
     if (!title && !content) return c.json({ error: 'Title or content is required', code: 'MISSING_CONTENT' }, 400);
@@ -745,10 +745,9 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
 // ─── GET /api/notes/:id/details ─────────────────────────────────────────────
 route.get('/api/notes/:id/details', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const noteId = c.req.param('id');
-    if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    const noteId = requireParam(c, 'id');
 
     // Owner path
     let note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
@@ -812,15 +811,15 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
 
     // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows "Unorganized".
     if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
-      await ensureUnorganizedThread(auth.userId!);
+      await ensureUnorganizedThread(auth.userId);
       const unorganizedRow = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads)
-        .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId!)))
+        .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId)))
         .get();
       if (unorganizedRow) {
         const unorganizedCountResult = await db.select({ count: count() })
           .from(Notes)
-          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId!)))
+          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
           .get();
         allThreads = [{
           ...unorganizedRow,
@@ -841,7 +840,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         for (const t of memberSpaceThreads) {
           if (!t.spaceId) continue;
           try {
-            await requireSpaceAccess(t.spaceId, auth.userId!);
+            await requireSpaceAccess(t.spaceId, auth.userId);
             accessibleSpaceIds.add(t.spaceId);
           } catch {}
         }
@@ -856,7 +855,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       if (thread.id === 'thread_unorganized') {
         const unorganizedCountResult = await db.select({ count: count() })
           .from(Notes)
-          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId!)))
+          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
           .get();
         threadCount = unorganizedCountResult?.count || 0;
       } else {
@@ -865,7 +864,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get()
           : await db.select({ count: count() }).from(Notes)
               .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId!))).get();
+              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
         threadCount = junctionCountResult?.count || 0;
       }
       return {
@@ -950,11 +949,10 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
 // ─── POST /api/notes/:id/update-content ─────────────────────────────────────
 route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const id = c.req.param('id');
+    const id = requireParam(c, 'id');
     const { content, contentEncrypted } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'Note ID is required' }, 400);
     if (!content || typeof content !== 'string') return c.json({ success: false, error: 'Content is required' }, 400);
 
     const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
@@ -977,11 +975,10 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
 // ─── POST /api/notes/:id/add-thread ─────────────────────────────────────────
 route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const id = c.req.param('id');
+    const id = requireParam(c, 'id');
     const { threadId } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'Note ID is required' }, 400);
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
     if (threadId.startsWith('thread_onboarding_')) return c.json({ success: false, error: "This thread doesn't take new notes." }, 400);
 
@@ -1022,11 +1019,10 @@ route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (
 // ─── POST /api/notes/:id/remove-thread ──────────────────────────────────────
 route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const id = c.req.param('id');
+    const id = requireParam(c, 'id');
     const { threadId } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'Note ID is required' }, 400);
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
 
     const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
@@ -1058,10 +1054,9 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
 // ─── POST /api/notes/:id/process-scripture-references ───────────────────────
 route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const noteId = c.req.param('id');
-    if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    const noteId = requireParam(c, 'id');
 
     const noteRow = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).get();
     if (!noteRow) return c.json({ error: 'Note not found' }, 404);
@@ -1106,10 +1101,9 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
 // ─── POST /api/notes/:noteId/visit ──────────────────────────────────────────
 route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    let noteId = c.req.param('noteId');
-    if (!noteId) return c.json({ error: 'Note ID required' }, 400);
+    let noteId = requireParam(c, 'noteId');
     if (noteId.startsWith('note/')) noteId = 'note_' + noteId.slice(5);
 
     const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
@@ -1143,10 +1137,9 @@ route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
 // ─── GET /api/notes/:noteId/share ───────────────────────────────────────────
 route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const noteId = c.req.param('noteId');
-    if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    const noteId = requireParam(c, 'noteId');
 
     const note = await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted })
       .from(Notes).where(eq(Notes.id, noteId)).get();
@@ -1186,10 +1179,9 @@ route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
 // ─── POST /api/notes/:noteId/share ──────────────────────────────────────────
 route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const noteId = c.req.param('noteId');
-    if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
+    const noteId = requireParam(c, 'noteId');
 
     const { action } = await c.req.json();
     if (!action || !['enable', 'disable', 'refresh'].includes(action)) return c.json({ error: 'Invalid action' }, 400);

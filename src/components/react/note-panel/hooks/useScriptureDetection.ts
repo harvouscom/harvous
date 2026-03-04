@@ -166,15 +166,5 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
   };
 }
 
-// Extend Window interface for toast
-declare global {
-  interface Window {
-    toast?: {
-      info: (message: string) => void;
-      success: (message: string) => void;
-      error: (message: string) => void;
-      warning: (message: string) => void;
-    };
-  }
-}
+// Window.toast type is declared in env.d.ts
 

@@ -62,7 +62,7 @@ export async function deriveKey(pin: string, salt: Uint8Array): Promise<CryptoKe
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: salt as BufferSource,
       iterations: PBKDF2_ITERATIONS,
       hash: 'SHA-256'
     },
@@ -137,10 +137,10 @@ export async function encryptContent(plaintext: string, pin: string): Promise<st
   const ciphertextBuffer = await crypto.subtle.encrypt(
     {
       name: 'AES-GCM',
-      iv: iv
+      iv: iv as BufferSource
     },
     key,
-    plaintextBuffer
+    plaintextBuffer as BufferSource
   );
 
   const ciphertext = new Uint8Array(ciphertextBuffer);
@@ -169,9 +169,9 @@ export async function decryptWithKey(encryptedBlob: string, key: CryptoKey): Pro
   }
   try {
     const plaintextBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
+      { name: 'AES-GCM', iv: iv as BufferSource },
       key,
-      ciphertext
+      ciphertext as BufferSource
     );
     return new TextDecoder().decode(plaintextBuffer);
   } catch {
@@ -217,10 +217,10 @@ export async function decryptContent(encryptedBlob: string, pin: string): Promis
     const plaintextBuffer = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: iv
+        iv: iv as BufferSource
       },
       key,
-      ciphertext
+      ciphertext as BufferSource
     );
 
     const decoder = new TextDecoder();

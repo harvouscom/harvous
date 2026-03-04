@@ -1,4 +1,6 @@
 import { Mark } from '@tiptap/core';
+import type { EditorView } from '@tiptap/pm/view';
+import type { Mark as PMMark } from '@tiptap/pm/model';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
@@ -117,37 +119,42 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
     };
   },
 
-  addEventListeners() {
-    return {
-      click: (view, event) => {
-        const { state } = view;
-        const { selection } = state;
-        const { $from } = selection;
+  addProseMirrorPlugins() {
+    return [
+      new (require('@tiptap/pm/state').Plugin)({
+        key: new (require('@tiptap/pm/state').PluginKey)('noteLinkClick'),
+        props: {
+          handleClick(view: EditorView, _pos: number, event: MouseEvent) {
+            const { state } = view;
+            const { selection } = state;
+            const { $from } = selection;
 
-        // Check if click is on a note link
-        const noteId = $from.marks().find(mark => mark.type.name === 'noteLink')?.attrs.noteId;
-        
-        if (noteId) {
-          event.preventDefault();
-          // Navigate to note using Astro view transitions
-          safeNavigate(idToUrl(noteId, getThreadContext()), { history: 'push' });
-          return true;
-        }
+            // Check if click is on a note link
+            const noteId = $from.marks().find((mark: PMMark) => mark.type.name === 'noteLink')?.attrs.noteId;
 
-        // Also check if clicking on the span element directly
-        const target = event.target as HTMLElement;
-        if (target.classList.contains('note-link')) {
-          const clickedNoteId = target.getAttribute('data-note-id');
-          if (clickedNoteId) {
-            event.preventDefault();
-            safeNavigate(idToUrl(clickedNoteId, getThreadContext()), { history: 'push' });
-            return true;
-          }
-        }
+            if (noteId) {
+              event.preventDefault();
+              // Navigate to note using Astro view transitions
+              safeNavigate(idToUrl(noteId, getThreadContext()), { history: 'push' });
+              return true;
+            }
 
-        return false;
-      },
-    };
+            // Also check if clicking on the span element directly
+            const target = event.target as HTMLElement;
+            if (target.classList.contains('note-link')) {
+              const clickedNoteId = target.getAttribute('data-note-id');
+              if (clickedNoteId) {
+                event.preventDefault();
+                safeNavigate(idToUrl(clickedNoteId, getThreadContext()), { history: 'push' });
+                return true;
+              }
+            }
+
+            return false;
+          },
+        },
+      }),
+    ];
   },
 });
 

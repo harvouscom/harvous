@@ -64,7 +64,7 @@ async function main() {
     mapping.forEach((r) => console.log('  dev:', r.devUserId, ' live:', r.liveUserId, ' migrated:', r.migratedToLiveAt ? 'yes' : 'no'));
   }
 
-  const userIds = [...new Set([...meta.map((r) => r.userId), ...mapping.map((r) => r.devUserId), ...mapping.map((r) => r.liveUserId).filter(Boolean)])];
+  const userIds = [...new Set([...meta.map((r) => r.userId), ...mapping.map((r) => r.devUserId), ...mapping.map((r) => r.liveUserId).filter((v): v is string => Boolean(v))])];
   if (userIds.length) {
     console.log('\nNote counts for those userIds:');
     for (const uid of userIds) {

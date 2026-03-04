@@ -46,7 +46,7 @@ export default function ToastProvider() {
   }, []);
 
   // Base styles for all screen sizes
-  const baseStyle = {
+  const baseStyle: React.CSSProperties = {
     backgroundColor: 'rgb(255, 255, 255)',
     background: 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)',
     color: 'var(--color-deep-grey)',

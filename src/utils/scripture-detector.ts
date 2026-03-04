@@ -5,6 +5,8 @@ import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
 // @ts-ignore - JSON import with resolveJsonModule
 import bibleChaptersData from '../data/bible-chapters.json';
 
+const DEBUG = false;
+
 // Bible chapter/verse data structure
 interface BibleChapter {
   book: string;

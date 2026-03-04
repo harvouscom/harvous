@@ -64,7 +64,7 @@ export function normalizeItemDates<T extends Record<string, any>>(
     const normalized = { ...item };
     dateFields.forEach(field => {
       const value = item[field];
-      if (value instanceof Date) {
+      if ((value as any) instanceof Date) {
         // Already a Date, keep as is
         normalized[field] = value as any;
       } else if (value && typeof value === 'string') {

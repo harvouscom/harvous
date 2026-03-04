@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
 import { test, expect as authExpect } from './fixtures/auth';
 
@@ -30,7 +30,7 @@ const SPACE_URL_PATTERN = /\/space\/test_2/;
 // Uses plain Playwright (no auth fixture) to simulate an anonymous visitor.
 
 base.describe('Unauthenticated join page', () => {
-  base.test('shows space preview and sign-in prompt', async ({ page }) => {
+  base('shows space preview and sign-in prompt', async ({ page }: { page: Page }) => {
     await page.goto(JOIN_URL);
 
     // Space title should be visible
@@ -42,7 +42,7 @@ base.describe('Unauthenticated join page', () => {
     await expect(page.locator('#join-space-btn')).not.toBeVisible();
   });
 
-  base.test('join link points to sign-in with redirect back to join page', async ({ page }) => {
+  base('join link points to sign-in with redirect back to join page', async ({ page }: { page: Page }) => {
     await page.goto(JOIN_URL);
 
     const joinLink = page.getByRole('link', { name: /join this space on harvous/i });
@@ -58,9 +58,9 @@ base.describe('Unauthenticated join page', () => {
 // Ensures post-sign-in redirect returns to join page (not My Home).
 
 base.describe('Full join flow from sign-in', () => {
-  base.test('unauthenticated user clicks join link, signs in, lands on join page, then joins and reaches space', async ({
+  base('unauthenticated user clicks join link, signs in, lands on join page, then joins and reaches space', async ({
     page,
-  }) => {
+  }: { page: Page }) => {
     await page.goto(JOIN_URL);
 
     const joinLink = page.getByRole('link', { name: /join this space on harvous/i });
@@ -80,7 +80,7 @@ base.describe('Full join flow from sign-in', () => {
 
     // Wait for post-sign-in navigation (Clerk may send user to / or to redirect_url)
     await page.waitForURL(
-      (url) => url.pathname === '/' || url.pathname.startsWith('/spaces/join/'),
+      (url: URL) => url.pathname === '/' || url.pathname.startsWith('/spaces/join/'),
       { timeout: 15_000 }
     ).catch(() => {});
 

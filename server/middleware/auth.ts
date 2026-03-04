@@ -16,7 +16,8 @@ import { getDb } from '../db/client';
 import { nowISO } from '../db/dates';
 import { ClerkUserMapping } from '../db/schema';
 import { mergeDevUserIntoLive } from '../utils/merge-user-into-live';
-import type { Auth } from './types';
+import { HTTPException } from 'hono/http-exception';
+import type { Auth, AuthenticatedAuth } from './types';
 
 /**
  * Public API routes that do not require authentication.
@@ -194,4 +195,38 @@ export async function requireAuth(c: Context, next: Next) {
     return c.json({ error: 'Authentication required' }, 401);
   }
   return next();
+}
+
+/**
+ * Get auth with userId guaranteed to be string.
+ * Use ONLY in route handlers that have requireAuth middleware.
+ */
+export function getAuthenticatedAuth(c: Context): AuthenticatedAuth {
+  const auth = getAuth(c);
+  if (!auth.userId) {
+    throw new HTTPException(401, { message: 'Authentication required' });
+  }
+  return auth as AuthenticatedAuth;
+}
+
+/**
+ * Extract a required URL param, returning 400 if missing.
+ */
+export function requireParam(c: Context, name: string): string {
+  const value = c.req.param(name as never);
+  if (!value) {
+    throw new HTTPException(400, { message: `Missing required parameter: ${name}` });
+  }
+  return value;
+}
+
+/**
+ * Extract a required query param, returning 400 if missing.
+ */
+export function requireQuery(c: Context, name: string): string {
+  const value = c.req.query(name);
+  if (!value) {
+    throw new HTTPException(400, { message: `Missing required query parameter: ${name}` });
+  }
+  return value;
 }

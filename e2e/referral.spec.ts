@@ -64,7 +64,7 @@ test.describe('Referral credit and bonus count', () => {
     // 2. User B: visit sign-up with ref (sets cookie), click through to sign-in, then sign in
     const contextB = await browser.newContext();
     const pageB = await contextB.newPage();
-    await pageB.goto(`${origin}/sign-up?ref=${encodeURIComponent(referralCode)}`);
+    await pageB.goto(`${origin}/sign-up?ref=${encodeURIComponent(referralCode!)}`);
     await pageB.goto(`${origin}/sign-in?redirect_url=${encodeURIComponent(origin + '/')}`);
     await setupClerkTestingToken({ page: pageB });
     const creditPromise = pageB.waitForResponse(

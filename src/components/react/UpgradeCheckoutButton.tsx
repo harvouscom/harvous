@@ -622,6 +622,7 @@ export default function UpgradeCheckoutButton({
 
   return (
     <div ref={containerRef}>
+      {/* @ts-expect-error Clerk's ClerkProviderProps discriminated union requires isSatellite/proxyUrl with domain */}
       <ClerkProvider
         key={`clerk-provider-${pathname}-${remountKey}`}
         publishableKey={clerkConfig.publishableKey!}

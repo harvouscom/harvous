@@ -4,10 +4,8 @@
  * Outputs clean text wrapped in paragraphs - no images, videos, or complex HTML
  */
 
-import { extract } from '@extractus/article-extractor';
-// @ts-expect-error - linkedom provides its own DOM types that conflict with TypeScript's built-in DOM types
+import { extractFromHtml } from '@extractus/article-extractor';
 import { Readability } from '@mozilla/readability';
-// @ts-expect-error - linkedom provides its own DOM types that conflict with TypeScript's built-in DOM types
 import { parseHTML } from 'linkedom';
 
 /**
@@ -234,7 +232,7 @@ function htmlToCleanParagraphs(html: string): string {
     
     // Handle details/accordion elements - expand content instead of preserving structure
     if (tagName === 'details') {
-      expandDetailsContent(node, extractText, isMediaMetadata);
+      expandDetailsContent(node, extractText, isMediaMetadata, output, processBlock);
       return;
     }
     
@@ -424,7 +422,7 @@ function processCallout(node: any, extractText: (n: any) => string, isMediaMetad
 /**
  * Expand a details/accordion element - extract summary as heading and expand all content
  */
-function expandDetailsContent(node: any, extractText: (n: any) => string, isMediaMetadata: (t: string) => boolean): void {
+function expandDetailsContent(node: any, extractText: (n: any) => string, isMediaMetadata: (t: string) => boolean, output: string[], processBlock: (n: any) => void): void {
   if (!node) return;
   
   let summaryText = '';
@@ -821,15 +819,15 @@ function expandAccordionsInContent(content: string): string {
       // Process children to find summary and content
       for (const child of Array.from(detailsEl.childNodes || [])) {
         if (child.nodeType === 1) {
-          const childTag = child.tagName?.toLowerCase() || '';
-          
+          const childTag = (child as Element).tagName?.toLowerCase() || '';
+
           // Handle summary element - extract text for heading
           if (childTag === 'summary') {
             hasSummary = true;
             summaryText = (child.textContent || '').replace(/\s+/g, ' ').trim();
             continue;
           }
-          
+
           // For other children, clone them (nested details will be processed in next iteration)
           expandedNodes.push(child.cloneNode(true));
         } else if (child.nodeType === 3) {
@@ -930,14 +928,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
     let cleanedContent: string | null = null;
     
     try {
-      const extracted = await extract(url, {
-        html,
-        fetchOptions: {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)'
-          }
-        }
-      });
+      const extracted = await extractFromHtml(html, url);
       
       if (extracted && extracted.content) {
         // @extractus/article-extractor already returns clean HTML with proper structure
@@ -960,10 +951,9 @@ export async function extractArticleContent(html: string, url: string): Promise<
       const { document } = parseHTML(html);
       
       // Create Readability instance
-      // @ts-expect-error - linkedom's document type differs from TypeScript's built-in Document type
-      const reader = new Readability(document, {
+      const reader = new Readability(document as any, {
         debug: false,
-        maxElemsToParseToMainContent: 0, // No limit
+        maxElemsToParse: 0, // No limit
         nbTopCandidates: 5,
         charThreshold: 500, // Minimum characters to consider it an article
       });
@@ -1010,10 +1000,10 @@ export async function extractArticleContent(html: string, url: string): Promise<
       
       // Try to find the context and insert after it
       if (callout.contextBefore) {
-        const contextLower = callout.contextBefore.toLowerCase();
-        const contentLower = cleanedContent.toLowerCase();
-        const searchContext = contextLower.substring(0, 50);
-        const contextIndex = contentLower.indexOf(searchContext);
+        const contextLower: string = callout.contextBefore.toLowerCase();
+        const contentLower: string = cleanedContent.toLowerCase();
+        const searchContext: string = contextLower.substring(0, 50);
+        const contextIndex: number = contentLower.indexOf(searchContext);
         
         if (contextIndex !== -1) {
           // Find the end of the paragraph/block containing this context
@@ -1021,7 +1011,7 @@ export async function extractArticleContent(html: string, url: string): Promise<
           const nextBlockEnd = afterContext.search(/<\/(p|h[1-6]|ul|ol|blockquote)>/);
           
           if (nextBlockEnd !== -1) {
-            const insertPoint = contextIndex + nextBlockEnd + afterContext.match(/<\/(p|h[1-6]|ul|ol|blockquote)>/)![0].length;
+            const insertPoint: number = contextIndex + nextBlockEnd + afterContext.match(/<\/(p|h[1-6]|ul|ol|blockquote)>/)![0].length;
             cleanedContent = 
               cleanedContent.substring(0, insertPoint) + 
               `\n<blockquote>\n${callout.content}\n</blockquote>` + 
@@ -1055,10 +1045,9 @@ export function extractArticleWithMetadata(html: string, url: string): {
 } | null {
   try {
     const { document } = parseHTML(html);
-    // @ts-expect-error - linkedom's document type differs from TypeScript's built-in Document type
-    const reader = new Readability(document, {
+    const reader = new Readability(document as any, {
       debug: false,
-      maxElemsToParseToMainContent: 0,
+      maxElemsToParse: 0,
       nbTopCandidates: 5,
       charThreshold: 500,
     });
@@ -1070,7 +1059,7 @@ export function extractArticleWithMetadata(html: string, url: string): {
     }
     
     // Convert to clean text paragraphs
-    const cleanedContent = htmlToCleanParagraphs(article.content);
+    const cleanedContent = htmlToCleanParagraphs(article.content || '');
     
     return {
       content: cleanedContent || '',

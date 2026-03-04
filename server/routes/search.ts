@@ -7,20 +7,15 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth } from '../middleware/auth';
+import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, Notes, Threads, eq, and, or, like, desc, not } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 
 const route = new Hono();
 
-route.get('/api/search', async (c) => {
+route.get('/api/search', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    const { userId } = auth;
-
-    if (!userId) {
-      return c.json({ error: 'Unauthorized', code: 'UNAUTHORIZED' }, 401);
-    }
+    const { userId } = getAuthenticatedAuth(c);
 
     const url = new URL(c.req.url);
     const query = url.searchParams.get('q');
@@ -35,63 +30,58 @@ route.get('/api/search', async (c) => {
     const searchNotes = type === 'all' || type === 'notes';
     const searchThreads = type === 'all' || type === 'threads';
 
-    const notesQuery =
-      searchNotes &&
-      db
-        .select({
-          id: Notes.id,
-          title: Notes.title,
-          content: Notes.content,
-          noteType: Notes.noteType,
-          threadId: Notes.threadId,
-          spaceId: Notes.spaceId,
-          createdAt: Notes.createdAt,
-          updatedAt: Notes.updatedAt,
-        })
-        .from(Notes)
-        .where(
-          and(
-            eq(Notes.userId, userId),
-            not(eq(Notes.contentEncrypted, true)),
-            or(
-              like(Notes.title, searchTerm),
-              like(Notes.content, searchTerm),
+    const notesRows = searchNotes
+      ? await db
+          .select({
+            id: Notes.id,
+            title: Notes.title,
+            content: Notes.content,
+            noteType: Notes.noteType,
+            threadId: Notes.threadId,
+            spaceId: Notes.spaceId,
+            createdAt: Notes.createdAt,
+            updatedAt: Notes.updatedAt,
+          })
+          .from(Notes)
+          .where(
+            and(
+              eq(Notes.userId, userId),
+              not(eq(Notes.contentEncrypted, true)),
+              or(
+                like(Notes.title, searchTerm),
+                like(Notes.content, searchTerm),
+              ),
             ),
-          ),
-        )
-        .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
-        .limit(limit);
+          )
+          .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
+          .limit(limit)
+      : [];
 
-    const threadsQuery =
-      searchThreads &&
-      db
-        .select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          spaceId: Threads.spaceId,
-          color: Threads.color,
-          createdAt: Threads.createdAt,
-          updatedAt: Threads.updatedAt,
-        })
-        .from(Threads)
-        .where(
-          and(
-            eq(Threads.userId, userId),
-            like(Threads.title, searchTerm),
-          ),
-        )
-        .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
-        .limit(limit);
-
-    const [notesRows, threadsRows] = await Promise.all([
-      searchNotes ? notesQuery : Promise.resolve([]),
-      searchThreads ? threadsQuery : Promise.resolve([]),
-    ]);
+    const threadsRows = searchThreads
+      ? await db
+          .select({
+            id: Threads.id,
+            title: Threads.title,
+            subtitle: Threads.subtitle,
+            spaceId: Threads.spaceId,
+            color: Threads.color,
+            createdAt: Threads.createdAt,
+            updatedAt: Threads.updatedAt,
+          })
+          .from(Threads)
+          .where(
+            and(
+              eq(Threads.userId, userId),
+              like(Threads.title, searchTerm),
+            ),
+          )
+          .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
+          .limit(limit)
+      : [];
 
     const noteResults = notesRows.map((note) => ({
       id: note.id,
-      type: 'note',
+      type: 'note' as const,
       title: note.title || 'Untitled Note',
       content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
       contentEncrypted: false,
@@ -105,7 +95,7 @@ route.get('/api/search', async (c) => {
 
     const threadResults = threadsRows.map((thread) => ({
       id: thread.id,
-      type: 'thread',
+      type: 'thread' as const,
       title: thread.title,
       subtitle: thread.subtitle || '',
       spaceId: thread.spaceId,

@@ -12,7 +12,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
   SpaceInvitations, Spaces, Members,
@@ -35,9 +35,7 @@ const app = new Hono();
 /** GET /api/shared/note/:shareToken */
 app.get('/api/shared/note/:shareToken', async (c) => {
   try {
-    const shareToken = c.req.param('shareToken');
-
-    if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
+    const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
     const note = await db
@@ -110,9 +108,7 @@ app.get('/api/shared/note/:shareToken', async (c) => {
 /** GET /api/shared/thread/:shareToken */
 app.get('/api/shared/thread/:shareToken', async (c) => {
   try {
-    const shareToken = c.req.param('shareToken');
-
-    if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
+    const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
     const thread = await db
@@ -176,7 +172,7 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
 /** POST /api/shared/add-note-to-harvous */
 app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
@@ -268,7 +264,7 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
 /** POST /api/shared/add-to-harvous */
 app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
@@ -375,8 +371,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
 /** GET /api/invitations/:token */
 app.get('/api/invitations/:token', async (c) => {
   try {
-    const token = c.req.param('token');
-    if (!token) return c.json({ error: 'Invitation token is required', code: 'INVALID_TOKEN' }, 400);
+    const token = requireParam(c, 'token');
 
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
@@ -431,10 +426,9 @@ app.get('/api/invitations/:token', async (c) => {
 /** POST /api/invitations/:token/accept */
 app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
-    const token = c.req.param('token');
-    if (!token) return c.json({ error: 'Invitation token is required', code: 'INVALID_TOKEN' }, 400);
+    const token = requireParam(c, 'token');
 
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
@@ -492,8 +486,7 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
 /** POST /api/invitations/:token/decline */
 app.post('/api/invitations/:token/decline', async (c) => {
   try {
-    const token = c.req.param('token');
-    if (!token) return c.json({ error: 'Invitation token is required', code: 'INVALID_TOKEN' }, 400);
+    const token = requireParam(c, 'token');
 
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);

@@ -67,7 +67,7 @@ export function initPostHog() {
         }
       },
       // Error handling
-      _capture_metrics: true,
+      ...({ _capture_metrics: true } as any),
     });
   } catch (error) {
     console.error('[PostHog] Initialization error:', error);

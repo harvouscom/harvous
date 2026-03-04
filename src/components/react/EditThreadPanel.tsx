@@ -183,8 +183,8 @@ export default function EditThreadPanel({
           
           // Fetch scripture notes referenced by default notes in this thread
           const defaultNoteIds = filteredNotes
-            .filter(note => note.noteType === 'default' || !note.noteType)
-            .map(note => note.id);
+            .filter((note: Note) => note.noteType === 'default' || !note.noteType)
+            .map((note: Note) => note.id);
           
           if (defaultNoteIds.length > 0) {
             try {
@@ -1727,9 +1727,7 @@ export default function EditThreadPanel({
                                   if (buttonClickRef.current === note.id) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
+                                    (e.nativeEvent as Event).stopImmediatePropagation();
                                     return false;
                                   }
                                   // Also check for remove button area
@@ -1740,9 +1738,7 @@ export default function EditThreadPanel({
                                   if (removeButton) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
+                                    (e.nativeEvent as Event).stopImmediatePropagation();
                                     return false;
                                   }
                                 }}
@@ -1751,9 +1747,7 @@ export default function EditThreadPanel({
                                   if (buttonClickRef.current === note.id) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
+                                    (e.nativeEvent as Event).stopImmediatePropagation();
                                     return false;
                                   }
                                   // Also check for remove button area
@@ -1764,9 +1758,7 @@ export default function EditThreadPanel({
                                   if (removeButton) {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    if (e.stopImmediatePropagation) {
-                                      e.stopImmediatePropagation();
-                                    }
+                                    (e.nativeEvent as Event).stopImmediatePropagation();
                                     return false;
                                   }
                                 }}

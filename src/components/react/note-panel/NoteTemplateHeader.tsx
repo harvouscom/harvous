@@ -45,7 +45,7 @@ const NoteTemplateHeader = forwardRef<HTMLDivElement, NoteTemplateHeaderProps>(f
       </div>
       <div className="note-template-header__caret" aria-hidden="true">
         <Icon
-          name={isOpen ? 'caret-up' : 'caret-down'}
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={20}
           style={{ color: 'var(--color-deep-grey)' }}
         />

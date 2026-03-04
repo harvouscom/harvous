@@ -1,3 +1,4 @@
+// @ts-expect-error no types available for turndown
 import TurndownService from 'turndown';
 
 // Initialize Turndown service with options

@@ -59,29 +59,30 @@ const CardNote: React.FC<CardNoteProps> = ({
   isPendingSync = false,
   contentEncrypted = false
 }) => {
+  const nt = noteType;
   const [isScriptureRefsExpanded, setIsScriptureRefsExpanded] = useState(false);
   // Generate mesh gradient on client only to avoid hydration mismatch
   // Start with null to match server render, then generate after mount
   const [meshGradient, setMeshGradient] = useState<string | null>(null);
   
   // For resource notes, prioritize metadata over regular props
-  const effectiveTitle = noteType === 'resource' 
+  const effectiveTitle = nt ==='resource' 
     ? (resourceTitle || title || "Untitled Resource")
     : (title || "Untitled Note");
-  const effectiveContent = noteType === 'resource' 
+  const effectiveContent = nt ==='resource' 
     ? (resourceDescription || content || "")
     : (content || "");
-  const effectiveImageUrl = noteType === 'resource' 
+  const effectiveImageUrl = nt ==='resource' 
     ? (resourceImage || imageUrl)
     : imageUrl;
   
   // Use scripture references from props (from junction table) - only for default notes when collapsible is enabled
-  const scriptureReferences = (noteType === 'default' && showScriptureRefsCollapsible && propScriptureReferences.length > 0)
+  const scriptureReferences = (nt ==='default' && showScriptureRefsCollapsible && propScriptureReferences.length > 0)
     ? propScriptureReferences
     : [];
   
   // For resource notes with images, automatically use withImage variant
-  const effectiveVariant = (noteType === 'resource' && effectiveImageUrl) ? "withImage" : variant;
+  const effectiveVariant = (nt ==='resource' && effectiveImageUrl) ? "withImage" : variant;
   
   // Generate mesh gradient on client only (after hydration) to avoid mismatch
   React.useEffect(() => {
@@ -103,7 +104,9 @@ const CardNote: React.FC<CardNoteProps> = ({
     : undefined;
   
   // Determine if scripture refs will be shown
-  const hasScriptureRefs = showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0;
+  // Explicit boolean annotation prevents TS 5.9 control-flow narrowing from
+  // narrowing `nt` to literal 'default' inside JSX conditional branches.
+  const hasScriptureRefs: boolean = showScriptureRefsCollapsible && nt ==='default' && scriptureReferences.length > 0;
 
   // When locked, show placeholder instead of content excerpt
   const excerptText = contentEncrypted ? 'This note is locked' : (effectiveContent ? stripHtml(effectiveContent) : '');
@@ -184,13 +187,13 @@ const CardNote: React.FC<CardNoteProps> = ({
               <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                 {/* Left sidebar with note type icon */}
                 <div 
-                  className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+                  className={`card-note__sidebar ${nt ==='resource' ? 'card-note__sidebar--resource' : ''}`}
                   style={sidebarStyle}
                 >
                   <div className="card-note__sidebar-icon">
-                    {noteType === 'scripture' ? (
+                    {nt ==='scripture' ? (
                       <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                    ) : noteType === 'resource' ? (
+                    ) : nt ==='resource' ? (
                       <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
                     ) : (
                       <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
@@ -207,7 +210,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
                     </div>
                     {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                    {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                    {(nt !=='resource' || !resourceUrl || !showSource) && (
                       <div 
                         className={`card-note__excerpt ${hasScriptureRefs ? 'card-note__excerpt--with-scripture-refs' : ''}`}
                         style={hasScriptureRefs ? {
@@ -286,7 +289,7 @@ const CardNote: React.FC<CardNoteProps> = ({
               </div>
               
               {/* Scripture references dropdown list (only in dashboard list view) */}
-              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
+              {showScriptureRefsCollapsible && nt ==='default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
                 <div 
                   className="card-note__scripture-refs"
                   style={{
@@ -410,7 +413,7 @@ const CardNote: React.FC<CardNoteProps> = ({
               )}
           </div>
           {/* Source bar for resource notes - outside content area to match normal preview */}
-          {noteType === 'resource' && resourceUrl && showSource && (
+          {nt ==='resource' && resourceUrl && showSource && (
             <div 
               className="card-image-link__source"
               style={{
@@ -442,13 +445,13 @@ const CardNote: React.FC<CardNoteProps> = ({
           <div className="card-note__content" style={{ padding: '8px' }}>
             {/* Left sidebar with note type icon */}
             <div 
-              className={`card-note__sidebar ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              className={`card-note__sidebar ${nt ==='resource' ? 'card-note__sidebar--resource' : ''}`}
               style={sidebarStyle}
             >
               <div className="card-note__sidebar-icon">
-                {noteType === 'scripture' ? (
+                {nt ==='scripture' ? (
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                ) : noteType === 'resource' ? (
+                ) : nt ==='resource' ? (
                   <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
                 ) : (
                   <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
@@ -465,7 +468,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                   <p>{effectiveTitle || "Quick Tour of Harvous"}</p>
                 </div>
                 {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                {(nt !=='resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
                     <p>{excerptText}</p>
                   </div>
@@ -485,18 +488,18 @@ const CardNote: React.FC<CardNoteProps> = ({
               <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch' }}>
                 {/* Left sidebar with image background and note type icon */}
                 <div 
-                  className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+                  className={`card-note__sidebar card-note__sidebar--with-image ${nt ==='resource' ? 'card-note__sidebar--resource' : ''}`}
                   style={effectiveImageUrl 
                     ? { backgroundImage: `url('${effectiveImageUrl}')` } 
                     : sidebarStyle
                   }
                 >
                   {/* Hide icon for resource notes with image - the image is enough */}
-                  {!(noteType === 'resource' && effectiveImageUrl) && (
+                  {!(nt ==='resource' && effectiveImageUrl) && (
                     <div className="card-note__sidebar-icon">
-                      {noteType === 'scripture' ? (
+                      {nt ==='scripture' ? (
                         <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                      ) : noteType === 'resource' ? (
+                      ) : nt ==='resource' ? (
                         <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
                       ) : (
                         <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
@@ -514,7 +517,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       <p>{effectiveTitle || "Note with Image"}</p>
                     </div>
                     {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                    {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                    {(nt !=='resource' || !resourceUrl || !showSource) && (
                       <div 
                         className={`card-note__excerpt ${hasScriptureRefs ? 'card-note__excerpt--with-scripture-refs' : ''}`}
                         style={hasScriptureRefs ? {
@@ -593,7 +596,7 @@ const CardNote: React.FC<CardNoteProps> = ({
               </div>
               
               {/* Scripture references dropdown list (only in dashboard list view) */}
-              {showScriptureRefsCollapsible && noteType === 'default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
+              {showScriptureRefsCollapsible && nt ==='default' && scriptureReferences.length > 0 && isScriptureRefsExpanded && (
                 <div 
                   className="card-note__scripture-refs"
                   style={{
@@ -717,7 +720,7 @@ const CardNote: React.FC<CardNoteProps> = ({
               )}
           </div>
           {/* Source bar for resource notes - outside content area to match normal preview */}
-          {noteType === 'resource' && resourceUrl && showSource && (
+          {nt ==='resource' && resourceUrl && showSource && (
             <div 
               className="card-image-link__source"
               style={{
@@ -749,18 +752,18 @@ const CardNote: React.FC<CardNoteProps> = ({
           <div className="card-note__content" style={{ padding: '8px' }}>
             {/* Left sidebar with image background and note type icon */}
             <div 
-              className={`card-note__sidebar card-note__sidebar--with-image ${noteType === 'resource' ? 'card-note__sidebar--resource' : ''}`}
+              className={`card-note__sidebar card-note__sidebar--with-image ${nt ==='resource' ? 'card-note__sidebar--resource' : ''}`}
               style={effectiveImageUrl 
                 ? { backgroundImage: `url('${effectiveImageUrl}')` } 
                 : sidebarStyle
               }
             >
               {/* Hide icon for resource notes with image - the image is enough */}
-              {!(noteType === 'resource' && effectiveImageUrl) && (
+              {!(nt ==='resource' && effectiveImageUrl) && (
                 <div className="card-note__sidebar-icon">
-                  {noteType === 'scripture' ? (
+                  {nt ==='scripture' ? (
                     <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                  ) : noteType === 'resource' ? (
+                  ) : nt ==='resource' ? (
                     <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
                   ) : (
                     <svg fill="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }}>
@@ -778,7 +781,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                   <p>{effectiveTitle || "Note with Image"}</p>
                 </div>
                 {/* Show excerpt for non-resource notes, resource notes without URL, or resource notes with showSource=false */}
-                {(noteType !== 'resource' || !resourceUrl || !showSource) && (
+                {(nt !=='resource' || !resourceUrl || !showSource) && (
                   <div className="card-note__excerpt">
                     <p>{excerptText}</p>
                   </div>

@@ -148,7 +148,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
           setUserId(id);
         }
       }} />
-      {isOfflineEnabled && <OfflineIndicator userId={userId} />}
+      {isOfflineEnabled && <OfflineIndicator userId={userId ?? undefined} />}
     </>
   );
 }
@@ -158,7 +158,7 @@ export default function SyncManagerIsland({ userId: serverUserId }: SyncManagerI
  * If Clerk is unavailable (offline), this component simply doesn't render,
  * but the parent SyncManagerIsland continues to work with localStorage userId.
  */
-function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null) => void }) {
+function ClerkSyncWrapper({ onUserIdChange }: { onUserIdChange: (userId: string | null | undefined) => void }) {
   // Try to use Clerk - if it fails, component won't render but parent continues
   let clerkUser: any = null;
   let isLoaded = false;

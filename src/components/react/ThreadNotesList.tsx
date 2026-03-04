@@ -85,9 +85,9 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
 // Helper function to sort notes chronologically by createdAt (oldest first)
 function sortNotesChronologically(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
-    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() : null;
-    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() : null;
-    
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? null : null;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? null : null;
+
     if (aTime !== null && bTime !== null) {
       return aTime - bTime; // Ascending order (oldest first)
     } else if (aTime !== null && bTime === null) {
@@ -120,7 +120,10 @@ export default function ThreadNotesList({
   onPrefetchNote,
   onNotesLoaded,
 }: ThreadNotesListProps) {
-  debug('[ThreadNotesList] Component mounted/rendered', { threadId, noteTypeFilter, initialNotesCount: initialNotes.length });
+  // Widen noteTypeFilter to string so TS doesn't narrow the default literal type
+  // and flag comparisons with other union members (e.g. 'notes', 'resources') as always-false.
+  const ntf = noteTypeFilter as string;
+  debug('[ThreadNotesList] Component mounted/rendered', { threadId, noteTypeFilter: ntf, initialNotesCount: initialNotes.length });
   
   // Manage notes list state for real-time updates
   const [notes, setNotes] = useState<Note[]>(initialNotes);
@@ -222,7 +225,7 @@ export default function ThreadNotesList({
     
     // If noteTypeFilter is 'all', skip type filtering (notes are already pre-filtered on server)
     // Otherwise, apply the type filter
-    const typeFiltered = noteTypeFilter === 'all' 
+    const typeFiltered = ntf ==='all' 
       ? normalized 
       : filterNotesByType(normalized, noteTypeFilter);
     
@@ -298,7 +301,7 @@ export default function ThreadNotesList({
         allFetchedNotesRef.current = filtered;
 
         // Apply note type filter
-        const typeFiltered = noteTypeFilter === 'all'
+        const typeFiltered = ntf ==='all'
           ? filtered
           : filterNotesByType(filtered, noteTypeFilter);
 
@@ -306,7 +309,7 @@ export default function ThreadNotesList({
         const uniqueNotes = Array.from(
           new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
         );
-        const sortedNotes = sortNotesByTime(uniqueNotes);
+        const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
 
         setNotes(sortedNotes);
         accumulatedFilteredCountRef.current = sortedNotes.length;
@@ -385,16 +388,16 @@ export default function ThreadNotesList({
           const filtered = freshNotes.filter((note: Note) => !deletedNoteIdsRef.current.has(note.id));
           
           // Merge with optimistic notes that haven't been confirmed yet
-          const confirmedNoteIds = new Set(filtered.map(note => note.id));
+          const confirmedNoteIds = new Set<string>(filtered.map((note: Note) => note.id));
           const optimisticNotesToKeep = optimisticUpdates.getOptimisticItemsToMerge(
             confirmedNoteIds,
             5000, // 5 seconds
             (note) => {
               // Check if note matches current filter
-              const matchesFilter = noteTypeFilter === 'all' ||
-                                   (noteTypeFilter === 'scripture' && note.noteType === 'scripture') ||
-                                   (noteTypeFilter === 'resource' && note.noteType === 'resource') ||
-                                   ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (note.noteType === 'default' || !note.noteType));
+              const matchesFilter = ntf ==='all' ||
+                                   (ntf ==='scripture' && note.noteType === 'scripture') ||
+                                   (ntf ==='resource' && note.noteType === 'resource') ||
+                                   ((ntf ==='default' || ntf ==='notes') && (note.noteType === 'default' || !note.noteType));
               return matchesFilter && !deletedNoteIdsRef.current.has(note.id);
             }
           );
@@ -406,7 +409,7 @@ export default function ThreadNotesList({
           const combinedNotes = [...filtered, ...optimisticNotesToKeep];
 
           // Apply note type filter
-          const typeFiltered = noteTypeFilter === 'all'
+          const typeFiltered = ntf ==='all'
             ? combinedNotes
             : filterNotesByType(combinedNotes, noteTypeFilter);
 
@@ -515,10 +518,10 @@ export default function ThreadNotesList({
               }
               
               // Check if note matches the current filter
-              const matchesFilter = noteTypeFilter === 'all'
-                || ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (newNote.noteType === 'default' || !newNote.noteType))
-                || (noteTypeFilter === 'scripture' && newNote.noteType === 'scripture')
-                || (noteTypeFilter === 'resource' && newNote.noteType === 'resource');
+              const matchesFilter = ntf ==='all'
+                || ((ntf ==='default' || ntf ==='notes') && (newNote.noteType === 'default' || !newNote.noteType))
+                || (ntf ==='scripture' && newNote.noteType === 'scripture')
+                || (ntf ==='resource' && newNote.noteType === 'resource');
               
               if (!matchesFilter) {
                 return prev; // Don't add if it doesn't match filter
@@ -611,10 +614,10 @@ export default function ThreadNotesList({
         };
 
         // Check if note matches current filter
-        const matchesFilter = noteTypeFilter === 'all' ||
-                             (noteTypeFilter === 'scripture' && noteToAdd.noteType === 'scripture') ||
-                             (noteTypeFilter === 'resource' && noteToAdd.noteType === 'resource') ||
-                             ((noteTypeFilter === 'default' || noteTypeFilter === 'notes') && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
+        const matchesFilter = ntf ==='all' ||
+                             (ntf ==='scripture' && noteToAdd.noteType === 'scripture') ||
+                             (ntf ==='resource' && noteToAdd.noteType === 'resource') ||
+                             ((ntf ==='default' || ntf ==='notes') && (noteToAdd.noteType === 'default' || !noteToAdd.noteType));
 
         if (matchesFilter) {
           debug('[ThreadNotesList] Adding note optimistically', { noteId, title: noteToAdd.title });
@@ -1183,7 +1186,7 @@ export default function ThreadNotesList({
   const getTotalCountForFilter = (): number => {
     // If noteTypeFilter is 'all' and we have pre-filtered notes, use the length of initialNotes
     // This handles the case where notes are pre-filtered on the server
-    if (noteTypeFilter === 'all' && initialNotes.length > 0) {
+    if (ntf ==='all' && initialNotes.length > 0) {
       return initialNotes.length;
     }
     
@@ -1519,9 +1522,9 @@ export default function ThreadNotesList({
         ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>
-              {noteTypeFilter === 'scripture' ? 'No scripture notes in this thread' :
-               noteTypeFilter === 'resource' || noteTypeFilter === 'resources' ? 'No resources in this thread' :
-               noteTypeFilter === 'default' || noteTypeFilter === 'notes' ? 'No notes in this thread' :
+              {ntf ==='scripture' ? 'No scripture notes in this thread' :
+               ntf ==='resource' || ntf ==='resources' ? 'No resources in this thread' :
+               ntf ==='default' || ntf ==='notes' ? 'No notes in this thread' :
                'No notes found in this thread'}
             </p>
           </div>

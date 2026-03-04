@@ -275,6 +275,9 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
     setIsSubmitting(true);
 
+    // Declare offline variable before try so it's accessible in the catch block
+    let offlineSpaceId: string | null = null;
+
     try {
       const formData = new FormData();
       formData.append('title', title.trim());

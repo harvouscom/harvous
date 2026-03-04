@@ -36,7 +36,7 @@ export async function fetchVerseText(reference: string): Promise<string> {
   }
 
   const normalizedKey = normalizeScriptureReference(cleanReference);
-  let cached: { content: string } | null = null;
+  let cached: { content: string } | undefined = undefined;
   try {
     cached = await db.select({ content: VerseTextCache.content })
       .from(VerseTextCache)

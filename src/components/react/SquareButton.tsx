@@ -31,6 +31,7 @@ interface SquareButtonProps {
   spaceRole?: 'owner' | 'member' | null;
   contentOwnerId?: string;
   userId?: string;
+  disabled?: boolean;
 }
 
 export default function SquareButton({

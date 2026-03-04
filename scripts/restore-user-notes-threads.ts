@@ -27,7 +27,7 @@ import { resolve } from 'path';
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq } from '../server/db';
 import { nowISO } from '../server/db/dates';
 
-const USER_ID = process.env.USER_ID?.trim();
+const USER_ID = process.env.USER_ID!.trim();
 
 // ─── CSV parse (simple: header row, then rows; handles quoted fields) ────────
 function parseCSV(content: string): Record<string, string>[] {
@@ -215,10 +215,10 @@ async function main() {
 
   const threadRows = threads
     .map((r) => toThreadRow(r as Record<string, unknown>, USER_ID))
-    .filter(Boolean) as ReturnType<typeof toThreadRow>[];
+    .filter(Boolean) as NonNullable<ReturnType<typeof toThreadRow>>[];
   const noteRows = notes
     .map((r) => toNoteRow(r as Record<string, unknown>, USER_ID))
-    .filter(Boolean) as ReturnType<typeof toNoteRow>[];
+    .filter(Boolean) as NonNullable<ReturnType<typeof toNoteRow>>[];
 
   const noteThreadPairs = noteRows.map((n) => ({ noteId: n.id, threadId: n.threadId }));
 

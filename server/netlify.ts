@@ -79,7 +79,7 @@ function legacyEventToRequest(event: LegacyEvent): Request {
       body = event.body;
     }
   }
-  return new Request(url, { method, headers: new Headers(headers), body });
+  return new Request(url, { method, headers: new Headers(headers), body: body !== undefined ? body.toString() : undefined });
 }
 
 async function responseToLegacy(res: Response): Promise<{ statusCode: number; body: string; headers: Record<string, string> }> {

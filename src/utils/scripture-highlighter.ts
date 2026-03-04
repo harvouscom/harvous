@@ -68,7 +68,7 @@ function stripBrokenPillSpans(content: string): string {
     
     if (noteIdMatch) {
       const noteIdValue = noteIdMatch[1];
-      hasValidNoteId = noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '';
+      hasValidNoteId = Boolean(noteIdValue && noteIdValue !== 'pending' && noteIdValue !== 'null' && noteIdValue !== '');
     }
     
     // If it has a valid note ID, keep the whole span. Otherwise, just keep the inner text.

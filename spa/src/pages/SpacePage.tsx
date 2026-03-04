@@ -88,7 +88,7 @@ export default function SpacePage() {
 
   const navSpace = nav?.spaces?.find(s => s.id === spaceId) ?? nav?.memberOfSpaces?.find(s => s.id === spaceId);
   const resolvedSpaceTitle = space?.title ?? navSpace?.title ?? 'Space';
-  const resolvedSpaceColor = (space?.color ?? navSpace?.color ?? 'paper') as 'paper' | 'blue' | 'green' | 'red' | 'yellow' | 'orange' | 'purple' | 'pink';
+  const resolvedSpaceColor = (space?.color ?? navSpace?.color ?? 'paper') as 'paper' | 'blue' | 'yellow' | 'orange' | 'pink' | 'purple' | 'green';
 
   const initialItems = spaceItems ?? [];
   const parentIsLoading = initialItems.length === 0 && isFetching;

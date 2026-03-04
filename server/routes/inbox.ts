@@ -16,7 +16,7 @@
  */
 
 import { Hono } from 'hono';
-import { getAuth, requireAuth } from '../middleware/auth';
+import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   InboxItems,
@@ -77,7 +77,7 @@ function convertInboxColorToThreadColor(inboxColor: string | null | undefined): 
 
 app.post('/api/inbox/archive', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -106,7 +106,7 @@ app.post('/api/inbox/archive', requireAuth, rateLimit('write'), async (c) => {
 
 app.post('/api/inbox/unarchive', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -142,7 +142,7 @@ app.post('/api/inbox/unarchive', requireAuth, rateLimit('write'), async (c) => {
 
 app.get('/api/inbox/preview', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const inboxItemId = c.req.query('inboxItemId');
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -169,7 +169,7 @@ app.get('/api/inbox/preview', requireAuth, async (c) => {
 
 app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
@@ -565,7 +565,7 @@ app.get('/api/inbox/auto-delete', handleAutoDelete);
 
 app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
+    const auth = getAuthenticatedAuth(c);
 
     const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true)).all();
     const allUsers = await db.select().from(UserMetadata).all();

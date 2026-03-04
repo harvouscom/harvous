@@ -11,6 +11,12 @@ export interface Auth {
   has: (check: { feature: string }) => boolean;
 }
 
+/** Auth with userId guaranteed to be non-null. Use after requireAuth middleware. */
+export interface AuthenticatedAuth {
+  userId: string;
+  has: (check: { feature: string }) => boolean;
+}
+
 /**
  * Hono context variables set by the auth middleware.
  * Use with: `c.get('auth')` to access in route handlers.

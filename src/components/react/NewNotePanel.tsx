@@ -1292,6 +1292,9 @@ export default function NewNotePanel({
                       <>
                     {form.noteType === 'default' && (
                       <TemplateSelector
+                        isOpen={true}
+                        onClose={() => {}}
+                        anchorRect={null}
                         selectedTemplateId={form.selectedTemplateId}
                         onSelectTemplate={form.setSelectedTemplateId}
                       />

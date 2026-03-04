@@ -36,8 +36,8 @@ import {
 } from '../server/db';
 import { eq } from 'drizzle-orm';
 
-const OLD_ID = process.env.OLD_CLERK_USER_ID;
-const NEW_ID = process.env.NEW_CLERK_USER_ID;
+const OLD_ID = process.env.OLD_CLERK_USER_ID!;
+const NEW_ID = process.env.NEW_CLERK_USER_ID!;
 
 if (!OLD_ID || !NEW_ID) {
   console.error('Set OLD_CLERK_USER_ID and NEW_CLERK_USER_ID (the old ID has the data; the new ID is what Clerk returns now).');

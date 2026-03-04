@@ -21,7 +21,8 @@ interface NavigateOptions {
 }
 
 let navigateFunction: ((path: string, options?: NavigateOptions) => void) | null = null;
-let navigatePromise: Promise<{ navigate: (path: string, options?: NavigateOptions) => Promise<void> }> | null = null;
+type NavigateModule = { navigate: (path: string, options?: NavigateOptions) => Promise<void> };
+let navigatePromise: Promise<NavigateModule | null> | null = null;
 
 if (typeof window !== 'undefined') {
   const preloadNavigate = () => {

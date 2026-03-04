@@ -27,7 +27,7 @@ export default function ReferralPanel({
     if (!backgroundRefetch) setIsLoading(true);
     try {
       const response = await safeFetch('/api/referral/status', { retries: 1 });
-      if (response.ok) {
+      if (response?.ok) {
         const data = await response.json();
         const next: ReferralStatus = {
           referralBonusNotes: data.referralBonusNotes ?? 0,

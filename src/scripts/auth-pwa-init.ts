@@ -20,7 +20,7 @@ export function setupClerkSessionBackupListener(): void {
   window.addEventListener('clerk:loaded', () => {
     if (!window.Clerk) return;
 
-    window.Clerk.addListener(async (session) => {
+    (window.Clerk as any).addListener(async (session: any) => {
       if (!session?.id || !session?.userId) return;
 
       if (isDev) console.log('[Auth] User signed in, backing up session...');

@@ -1,4 +1,4 @@
-import { test as base, expect } from '@playwright/test';
+import { test as base, expect, type Page } from '@playwright/test';
 import { test, expect as authExpect } from './fixtures/auth';
 
 /**
@@ -21,7 +21,7 @@ const SPACE_URL_PATTERN = /\/space\/test_2/;
 // Skip if invitation not in pending state (e.g. dev server uses different DB than seeded).
 
 base.describe('Unauthenticated invite page', () => {
-  base.test('shows space preview and sign-in to accept link', async ({ page }) => {
+  base('shows space preview and sign-in to accept link', async ({ page }: { page: Page }) => {
     await page.goto(INVITE_URL);
 
     const spaceVisible = await page.getByText(SPACE_TITLE).isVisible().catch(() => false);
@@ -33,7 +33,7 @@ base.describe('Unauthenticated invite page', () => {
     await expect(page.locator('#accept-invitation-btn')).not.toBeVisible();
   });
 
-  base.test('sign-in link includes redirect back to invite page', async ({ page }) => {
+  base('sign-in link includes redirect back to invite page', async ({ page }: { page: Page }) => {
     await page.goto(INVITE_URL);
 
     const spaceVisible = await page.getByText(SPACE_TITLE).isVisible().catch(() => false);
