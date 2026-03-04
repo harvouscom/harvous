@@ -21,6 +21,12 @@ const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
 
 function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
   if (search == null) return null;
+  // TanStack Router returns search as a parsed object (e.g. { space: 'space_xxx' }),
+  // not a raw string. Handle both formats.
+  if (typeof search === 'object') {
+    const space = (search as Record<string, unknown>).space;
+    return typeof space === 'string' && space.startsWith('space_') ? space : null;
+  }
   const raw = typeof search === 'string' ? search : '';
   const params = new URLSearchParams(raw.startsWith('?') ? raw : `?${raw}`);
   const space = params.get('space');
@@ -59,12 +65,22 @@ export default function ThreadPage() {
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
   // (from nav for owned threads, or from thread prefetch for member threads not in nav).
   // Use ?space= from URL when thread/nav lack spaceId so thread is scoped under the right space.
+  // openedInSpaceIds tracks WHERE the thread was opened FROM (URL ?space= or localStorage),
+  // separate from the thread's own spaceId (which space it belongs to).
   useEffect(() => {
     const navThread = nav?.threads.find(t => t.id === threadId);
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
     const spaceId = navThread?.spaceId ?? thread?.spaceId ?? urlSpaceId ?? null;
+    // openedInSpaceId: prefer urlSpaceId (the space the user navigated FROM),
+    // fall back to the thread's own spaceId, then to localStorage selectedSpaceId
+    const openedInSpaceId = urlSpaceId ?? spaceId ?? (() => {
+      try {
+        const stored = localStorage.getItem('harvous-selected-space-id');
+        return stored && stored.startsWith('space_') ? stored : null;
+      } catch { return null; }
+    })();
     if (typeof window !== 'undefined' && (window as any).addToNavigationHistory) {
       (window as any).addToNavigationHistory({
         id: threadId,
@@ -72,7 +88,8 @@ export default function ThreadPage() {
         count,
         backgroundGradient: gradient,
         spaceId,
-        openedInSpaceIds: [spaceId],
+        openedInSpaceIds: [openedInSpaceId],
+        openedInSpaceId,
       });
     }
   }, [threadId, thread, nav, isUnorganized, urlSpaceId]);

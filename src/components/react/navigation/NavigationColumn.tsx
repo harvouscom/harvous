@@ -94,12 +94,26 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // IMPORTANT: derive initial selection from props (SSR + client must match to avoid hydration mismatch).
   // Prefer explicit ?space=..., then /space_... route.
   const routeSelectedSpaceId = useMemo(() => {
+    // TanStack Router may pass search as a parsed object (e.g. { space: 'space_xxx' })
+    // or as a string. Handle both, with direct window.location.search as final fallback.
     try {
-      const params = new URLSearchParams(search || '');
+      if (search && typeof search === 'object') {
+        const space = (search as Record<string, unknown>).space;
+        if (typeof space === 'string' && space.startsWith('space_')) return space.replace(/\/$/, '');
+      }
+      const params = new URLSearchParams(typeof search === 'string' ? search : '');
       const fromQuery = params.get('space');
       if (fromQuery && fromQuery.startsWith('space_')) return fromQuery.replace(/\/$/, '');
     } catch {
       // ignore
+    }
+    // Direct URL fallback for SPA navigation where props might lag
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const fromUrl = urlParams.get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) return fromUrl.replace(/\/$/, '');
+      } catch { /* ignore */ }
     }
     if (pathname.startsWith('/space/')) {
       const id = extractIdFromPath(pathname);
@@ -554,19 +568,31 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Ensure the active thread is tracked in navigation history with correct data from React props.
   // In SPA mode, DOM data attributes don't exist, so trackNavigationAccess() (which relies on DOM)
   // cannot add/update the thread. This effect bridges the gap using React-sourced data.
+  // Also sync on activeThread prop changes (not just updatedActiveThread) to handle the first
+  // render after SPA navigation, when updatedActiveThread hasn't been set yet.
+  const activeThreadForHistory = updatedActiveThread || activeThread;
   useEffect(() => {
-    if (!updatedActiveThread?.id || !updatedActiveThread.id.startsWith('thread_')) return;
-    const openedInSpaceId = effectiveSelectedSpaceId ?? null;
+    if (!activeThreadForHistory?.id || !activeThreadForHistory.id.startsWith('thread_')) return;
+    // Derive space from URL search params directly (most reliable during SPA nav),
+    // then from effectiveSelectedSpaceId, then from localStorage.
+    let openedInSpaceId: string | null = effectiveSelectedSpaceId ?? null;
+    if (!openedInSpaceId && typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const fromUrl = params.get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) openedInSpaceId = fromUrl;
+      } catch { /* ignore */ }
+    }
     addToNavigationHistory({
-      id: updatedActiveThread.id,
-      title: updatedActiveThread.id === 'thread_unorganized' ? 'Unorganized' : (updatedActiveThread.title || 'Thread'),
-      count: updatedActiveThread.noteCount ?? 0,
-      backgroundGradient: updatedActiveThread.backgroundGradient || 'var(--color-gradient-gray)',
-      spaceId: updatedActiveThread.spaceId ?? null,
+      id: activeThreadForHistory.id,
+      title: activeThreadForHistory.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadForHistory.title || 'Thread'),
+      count: activeThreadForHistory.noteCount ?? 0,
+      backgroundGradient: activeThreadForHistory.backgroundGradient || 'var(--color-gradient-gray)',
+      spaceId: activeThreadForHistory.spaceId ?? null,
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [updatedActiveThread?.id, updatedActiveThread?.title, updatedActiveThread?.backgroundGradient, effectiveSelectedSpaceId]);
+  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient, effectiveSelectedSpaceId]);
 
   // currentItemId is already initialized from pathname in useState
   // This useEffect just updates it when the page changes
