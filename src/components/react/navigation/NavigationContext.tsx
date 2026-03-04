@@ -162,10 +162,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') {
       return false;
     }
-    // Special handling for unorganized thread - check the legacy flag too
-    if (itemId === 'thread_unorganized') {
-      return safeGetItem('unorganized-thread-closed') === 'true' || getClosedItems().includes(itemId);
-    }
     return getClosedItems().includes(itemId);
   };
 
@@ -369,11 +365,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Remove from closed items list if it was previously closed
     // This handles the case where user explicitly navigates to a closed item
     removeFromClosedItems(item.id);
-
-    // When adding unorganized to history, clear the closed flag so it shows in mobile nav
-    if (item.id === 'thread_unorganized') {
-      safeRemoveItem('unorganized-thread-closed');
-    }
 
     // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
     const rawHistory = getRawNavigationHistory();
@@ -588,23 +579,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (itemId.startsWith('space_')) {
         nextItem = filteredRawHistory.find((item: any) => isSpaceOpened(item)) || null;
       } else {
-        const currentIndex = filteredRawHistory.findIndex((item: any) => item.id === itemId);
-        nextItem =
-          currentIndex !== -1
-            ? (filteredRawHistory[currentIndex + 1] || filteredRawHistory[currentIndex - 1] || null)
-            : null;
+        // Find position in the ORIGINAL (unfiltered) history, then search for the nearest surviving neighbor
+        const currentIndex = rawHistory.findIndex((item: any) => item.id === itemId);
+        if (currentIndex !== -1) {
+          // Search forward first
+          for (let i = currentIndex + 1; i < rawHistory.length && !nextItem; i++) {
+            if (!idsToRemove.includes(rawHistory[i].id)) nextItem = rawHistory[i];
+          }
+          // Then backward
+          for (let i = currentIndex - 1; i >= 0 && !nextItem; i--) {
+            if (!idsToRemove.includes(rawHistory[i].id)) nextItem = rawHistory[i];
+          }
+        }
       }
 
       idsToRemove.forEach((id) => addToClosedItems(id));
-      
-      // Special handling for unorganized thread
-      if (itemId === 'thread_unorganized') {
-        safeSetItem('unorganized-thread-closed', 'true', {
-          cleanupOldest: false,
-          fallbackToSession: true,
-        });
-      }
-      
+
       // Save the updated raw history (includes spaces) to storage
       saveNavigationHistory(filteredRawHistory);
       // Use spread operator to create new array reference for React (filtered, no spaces)
@@ -690,14 +680,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     idsToRemoveNonActive.forEach((id) => addToClosedItems(id));
 
-    // Special handling for unorganized thread
-    if (itemId === 'thread_unorganized') {
-      safeSetItem('unorganized-thread-closed', 'true', {
-        cleanupOldest: false,
-        fallbackToSession: true,
-      });
-    }
-    
     // Save the updated raw history (includes spaces) to storage
     saveNavigationHistory(filteredRawHistory);
     // Use spread operator to create new array reference for React (filtered, no spaces)
@@ -956,8 +938,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       // Special handling for unorganized thread
       if (currentItemId === 'thread_unorganized' || itemData.id === 'thread_unorganized') {
-        safeRemoveItem('unorganized-thread-closed');
-        // Also remove from closed items list if it was there
+        // Remove from closed items list if it was there
         removeFromClosedItems('thread_unorganized');
       }
 
@@ -1864,10 +1845,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setNavigationHistory(getNavigationHistory());
         if (shouldRemoveUnorganized) {
           addToClosedItems('thread_unorganized');
-          safeSetItem('unorganized-thread-closed', 'true', {
-            cleanupOldest: false,
-            fallbackToSession: true,
-          });
         }
         
         // Remove from recently created set after processing

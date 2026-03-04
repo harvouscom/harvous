@@ -931,23 +931,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       return true;
     });
     
-    // Filter out unorganized thread if it's been closed
-    persistentItems = persistentItems.filter((item) => {
-      if (item.id === 'thread_unorganized') {
-        const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
-        
-        // If we're currently viewing a note that belongs to the unorganized thread,
-        // clear the closed state and show it
-        if (isClosed && currentActiveItemId === 'thread_unorganized') {
-          localStorage.removeItem('unorganized-thread-closed');
-          return true; // Show the unorganized thread
-        }
-        
-        return !isClosed;
-      }
-      return true;
-    });
-
     // CRITICAL: Final deduplication to prevent duplicate items from being rendered
     // This handles race conditions where an item might be added from multiple sources
     const seen = new Set<string>();
@@ -1025,19 +1008,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
     if (!activeParentThread) return persistentItems;
 
-    // For thread_unorganized: only inject when not closed or when we're viewing it (clear closed when injecting)
-    if (activeParentThreadId === 'thread_unorganized') {
-      const isClosed = typeof localStorage !== 'undefined' && localStorage.getItem('unorganized-thread-closed') === 'true';
-      if (isClosed && currentActiveItemId !== 'thread_unorganized') return persistentItems;
-      if (isClosed && currentActiveItemId === 'thread_unorganized') {
-        try {
-          localStorage.removeItem('unorganized-thread-closed');
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-
     // Deduplication: don't add "Unorganized" with wrong id, or if "Unorganized" already exists by title
     const isUnorganizedTitleWithWrongId =
       activeParentThread.title === 'Unorganized' && activeParentThread.id !== 'thread_unorganized';
@@ -1059,7 +1029,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     };
 
     const scoped = items.filter((item: any) => {
-      if (item.id === 'thread_unorganized') return true;
       const scopes = getOpenedInSpaceIds(item);
       if (!selectedSpaceId) return scopes.some((s) => s == null);
       return scopes.some((s) => s === selectedSpaceId);
@@ -1142,7 +1111,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   };
 
   // Handle close icon click - remove item and exit close mode
-  const handleCloseClick = (itemId: string, e: React.MouseEvent | React.TouchEvent) => {
+  const handleCloseClick = (itemId: string, e: React.MouseEvent | React.TouchEvent, title?: string) => {
     e.stopPropagation();
     e.preventDefault();
     setClosedItemIds((prev) => {
@@ -1150,7 +1119,10 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       next.add(itemId);
       return next;
     });
-    removeFromNavigationHistory(itemId);
+    removeFromNavigationHistory(
+      itemId,
+      itemId.startsWith('thread_') && title ? { sameTitleAs: title } : undefined
+    );
     // Exit close mode after closing
     setItemsInCloseMode(prev => {
       const newSet = new Set(prev);
@@ -1905,7 +1877,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                         // so that navigation happens cleanly. For non-active threads
                                         // the thread just disappears and the sheet stays open.
                                         const isCurrentlyActive = thread.id === currentActiveItemId;
-                                        handleCloseClick(thread.id, e as any);
+                                        handleCloseClick(thread.id, e as any, thread.title);
                                         if (isCurrentlyActive) {
                                           closeSheet();
                                         }

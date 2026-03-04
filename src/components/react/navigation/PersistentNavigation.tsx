@@ -205,18 +205,6 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       return true;
     });
 
-    persistentItems = persistentItems.filter((item) => {
-      if (item.id === 'thread_unorganized') {
-        const isClosed = localStorage.getItem('unorganized-thread-closed') === 'true';
-        if (isClosed && currentActiveItemId === 'thread_unorganized') {
-          localStorage.removeItem('unorganized-thread-closed');
-          return true;
-        }
-        return !isClosed;
-      }
-      return true;
-    });
-
     // Exclude recently closed items so they never appear (e.g. when closing the active thread,
     // state/refresh can lag and the item may still be in navigationHistory; this hides it).
     persistentItems = persistentItems.filter((item) => !isRecentlyClosed(item.id));
@@ -307,7 +295,6 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     // - If a space is selected: show items opened in that space.
     // - If "My Home" selected: show items opened while Home was selected (null scope).
     persistentItems = persistentItems.filter((item: any) => {
-      if (item.id === 'thread_unorganized') return true;
       const scopes = getOpenedInSpaceIds(item);
       if (!selectedSpaceId) return scopes.some((s) => s == null);
       return scopes.some((s) => s === selectedSpaceId);
