@@ -540,10 +540,10 @@ export default function CardFullEditable({
         }
     };
 
-    window.addEventListener('createHyperlink', handleCreateHyperlink as EventListener);
+    window.addEventListener('createHyperlink', handleCreateHyperlink as unknown as EventListener);
 
     return () => {
-        window.removeEventListener('createHyperlink', handleCreateHyperlink as EventListener);
+        window.removeEventListener('createHyperlink', handleCreateHyperlink as unknown as EventListener);
     };
 }, [noteId, onSave, editTitle]); // Dependencies
 

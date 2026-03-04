@@ -47,7 +47,7 @@ interface Thread {
   title: string;
   noteCount: number;
   backgroundGradient: string;
-  spaceId?: string;
+  spaceId?: string | null;
 }
 
 interface MobileNavigationProps {
@@ -547,7 +547,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             ...(prev || currentThread),
             id: threadIdToCheck,
             title: eventTitle || prev?.title || currentThread?.title || 'Thread',
-            backgroundGradient: eventBackgroundGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper')
+            backgroundGradient: eventBackgroundGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper'),
+            noteCount: prev?.noteCount ?? currentThread?.noteCount ?? 0,
           };
         });
         
@@ -599,7 +600,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 ...(prev || currentThread),
                 id: threadIdToCheck,
                 title: newTitle || prev?.title || currentThread?.title || 'Thread',
-                backgroundGradient: newGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper')
+                backgroundGradient: newGradient || prev?.backgroundGradient || currentThread?.backgroundGradient || getThreadGradientCSS('paper'),
+                noteCount: prev?.noteCount ?? currentThread?.noteCount ?? 0,
               };
             });
           }

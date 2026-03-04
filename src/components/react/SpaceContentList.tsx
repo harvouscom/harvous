@@ -820,20 +820,20 @@ export default function SpaceContentList({
       }
     };
 
-    window.addEventListener('noteCreated', handleNoteCreated as EventListener);
-    window.addEventListener('threadCreated', handleThreadCreated as EventListener);
-    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
-    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-    window.addEventListener('itemAddedToSpace', handleItemAddedToSpace as EventListener);
-    window.addEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as EventListener);
+    window.addEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+    window.addEventListener('threadCreated', handleThreadCreated as unknown as EventListener);
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
+    window.addEventListener('itemAddedToSpace', handleItemAddedToSpace as unknown as EventListener);
+    window.addEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as unknown as EventListener);
 
     return () => {
-      window.removeEventListener('noteCreated', handleNoteCreated as EventListener);
-      window.removeEventListener('threadCreated', handleThreadCreated as EventListener);
-      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
-      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-      window.removeEventListener('itemAddedToSpace', handleItemAddedToSpace as EventListener);
-      window.removeEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as EventListener);
+      window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
+      window.removeEventListener('threadCreated', handleThreadCreated as unknown as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
+      window.removeEventListener('itemAddedToSpace', handleItemAddedToSpace as unknown as EventListener);
+      window.removeEventListener('itemRemovedFromSpace', handleItemRemovedFromSpace as unknown as EventListener);
     };
   }, [spaceId, filter, refreshSpaceContent]);
 

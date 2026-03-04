@@ -487,10 +487,33 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }
         }
       } catch {
-        // Ignore sessionStorage errors, fall through to DOM-based detection
+        // Ignore sessionStorage errors, fall through to next priority
       }
 
-      // Priority 1: try to get from navigation element (set by Layout - more reliable for unorganized notes)
+      // Priority 1: URL ?thread= parameter (SPA note pages include this in the URL)
+      // This works in both SSR and SPA mode and is the most reliable source.
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const threadFromUrl = urlParams.get('thread');
+        if (threadFromUrl && threadFromUrl.startsWith('thread_')) {
+          return threadFromUrl;
+        }
+      } catch {
+        // Fall through to DOM-based detection
+      }
+
+      // Priority 2: localStorage cached parent thread (set when note detail API loads)
+      // Works in SPA mode where DOM data attributes don't exist.
+      try {
+        const cachedThreadId = localStorage.getItem(`harvous-note-thread-${currentItemId}`);
+        if (cachedThreadId && cachedThreadId.startsWith('thread_')) {
+          return cachedThreadId;
+        }
+      } catch {
+        // Fall through to DOM-based detection
+      }
+
+      // Priority 3: try to get from navigation element (set by Layout - more reliable for unorganized notes)
       const navigationElement =
         (document.querySelector('[data-navigation-active="true"]') as HTMLElement | null) ??
         (document.querySelector('[slot="navigation"]') as HTMLElement | null);
@@ -499,7 +522,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return navigationElement.dataset.parentThreadId;
       }
 
-      // Priority 2: try to get parent thread from note element (fallback)
+      // Priority 4: try to get parent thread from note element (fallback)
       const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
 
       if (noteElement && noteElement.dataset.parentThreadId) {

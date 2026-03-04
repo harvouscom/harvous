@@ -7,6 +7,14 @@ declare module '*.svg?raw' {
   export default content;
 }
 
+// SPA navigation shim (Vite alias → spa/src/shims/app-navigate.ts)
+declare module 'app-navigate' {
+  export function navigate(
+    href: string,
+    options?: { history?: 'push' | 'replace' | 'auto' },
+  ): Promise<void>;
+}
+
 // Ensure JSX types are available for Astro templates
 declare namespace JSX {
   interface IntrinsicElements {

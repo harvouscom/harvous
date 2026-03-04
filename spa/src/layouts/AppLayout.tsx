@@ -33,7 +33,20 @@ export default function AppLayout() {
   const { user } = useUser();
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const search = useRouterState({ select: (s) => s.location.search }) ?? '';
+  const searchRaw = useRouterState({ select: (s) => s.location.search });
+  // TanStack Router returns search as a parsed object (e.g. { space: 'space_xxx' }).
+  // Components downstream expect a URL search string. Convert it.
+  const search: string = typeof searchRaw === 'string' ? searchRaw
+    : (searchRaw && typeof searchRaw === 'object')
+      ? (() => {
+          const params = new URLSearchParams();
+          for (const [k, v] of Object.entries(searchRaw as Record<string, unknown>)) {
+            if (v != null) params.set(k, String(v));
+          }
+          const str = params.toString();
+          return str ? `?${str}` : '';
+        })()
+      : '';
 
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
   // Run nav as soon as user is signed in (parallel with profile). Server is hardened so onboarding init is safe when multiple requests run.
@@ -407,11 +420,18 @@ export default function AppLayout() {
   // - Thread: only if user owns the thread (members viewing another's thread cannot add)
   // - Note: only if user owns the note's parent thread (or note is in unorganized and user owns the note)
   const currentUserId = user?.id ?? null;
+  // For note pages, check thread ownership from multiple sources to avoid waiting for parentThreadData to load.
+  // parentThreadData comes from useThread which needs noteParentThreadId, which needs currentNote to load first.
+  // Use nav.threads as a fast check: if the parent thread is in nav, the user owns it.
+  const noteParentThreadOwnedByUser =
+    parentThreadData?.userId === user?.id ||
+    (noteParentThreadId && nav?.threads.some(t => t.id === noteParentThreadId)) ||
+    (noteParentThreadId === 'thread_unorganized' && currentNote?.userId === user?.id);
   const canShowAddNote =
     contentType === 'dashboard' ||
     (contentType === 'space' && (effectiveSpaceRole === 'owner' || effectiveSpaceRole === 'member')) ||
     (contentType === 'thread' && contentOwnerId === currentUserId) ||
-    (contentType === 'note' && (parentThreadData?.userId === user?.id || (noteParentThreadId === 'thread_unorganized' && currentNote?.userId === user?.id)));
+    (contentType === 'note' && noteParentThreadOwnedByUser);
 
   // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)
   // For space: nav is enough to compute effectiveSpaceRole and show Add note; don't wait for currentSpaceDetail

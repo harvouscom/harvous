@@ -479,12 +479,12 @@ export default function EditThreadPanel({
       setCurrentThreadNoteIds(prev => prev.filter(id => id !== noteId));
     };
     
-    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
-    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
-    
+    window.addEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+    window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
+
     return () => {
-      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as EventListener);
-      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
+      window.removeEventListener('noteAddedToThread', handleNoteAddedToThread as unknown as EventListener);
+      window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
     };
   }, [threadId, currentThreadNoteIds, refreshReferencedScriptureNotes]);
 

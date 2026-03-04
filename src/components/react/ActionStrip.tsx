@@ -41,7 +41,7 @@ function formatNoteDate(isoString: string): string {
 
 interface ActionStripProps {
   variant?: 'desktop' | 'mobile';
-  contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile';
+  contentType?: 'thread' | 'note' | 'space' | 'dashboard' | 'profile' | 'search' | 'new-space';
   contentId?: string;
   currentThreadId?: string;
   noteType?: string;

@@ -8,7 +8,7 @@
     "noEmit": true,
     "outDir": "dist",
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
+    "paths": { "@/*": ["src/*"], "app-navigate": ["spa/src/shims/app-navigate.ts"] },
     "resolveJsonModule": true,
     "jsx": "react-jsx",
     "types": ["vite/client"]

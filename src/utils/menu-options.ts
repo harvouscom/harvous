@@ -6,7 +6,7 @@
  * @param currentUserId Optional; current user id for ownership check
  * @returns boolean indicating if the More button should be shown
  */
-export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, contentOwnerId?: string | null, currentUserId?: string | null): boolean {
+export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space", contentId?: string, contentOwnerId?: string | null, currentUserId?: string | null): boolean {
   // Hide more button for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return false;
@@ -47,7 +47,7 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
  * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
