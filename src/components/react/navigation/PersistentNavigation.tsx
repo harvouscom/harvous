@@ -175,12 +175,15 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         }
         const spaceId = noteEl?.dataset?.parentThreadSpaceId ?? navEl?.dataset?.parentThreadSpaceId ?? null;
 
+        const now = Date.now();
         return {
           id: parentThreadId,
           title,
           count: parseInt(countStr || '0'),
           backgroundGradient,
           spaceId: spaceId || null,
+          firstAccessed: now,
+          lastAccessed: now,
         };
       } catch {
         return null;
@@ -220,15 +223,18 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
     // Compute the active parent thread *before* scoping so we can always include it.
     // First priority: SSR-provided activeThread (same as mobile's currentThread) - most stable, avoids View Transition timing.
-    let activeParentThread: { id: string; title: string; count: number; backgroundGradient: string; spaceId: string | null } | null = null;
+    let activeParentThread: { id: string; title: string; count: number; backgroundGradient: string; spaceId: string | null; firstAccessed: number; lastAccessed: number } | null = null;
     if (window.location.pathname.startsWith('/note/')) {
       if (activeThreadProp?.id && activeThreadProp.id.startsWith('thread_')) {
+        const now = Date.now();
         activeParentThread = {
           id: activeThreadProp.id,
           title: activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || 'Thread'),
           count: activeThreadProp.noteCount ?? 0,
           backgroundGradient: activeThreadProp.backgroundGradient || 'var(--color-gradient-gray)',
           spaceId: activeThreadProp.spaceId ?? null,
+          firstAccessed: now,
+          lastAccessed: now,
         };
       }
       if (!activeParentThread) {
@@ -238,12 +244,15 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       if (activeParentThread === null) {
         const fallbackThreadId = getCurrentActiveItemId();
         if (fallbackThreadId === 'thread_unorganized') {
+          const now = Date.now();
           activeParentThread = {
             id: 'thread_unorganized',
             title: 'Unorganized',
             count: 1,
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
             spaceId: null,
+            firstAccessed: now,
+            lastAccessed: now,
           };
         }
       }
@@ -305,6 +314,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       const fromDom = getActiveThreadFromDom();
       // Build the best available thread data, preferring activeThreadProp (live React data)
       // over fromHistory (may be stale) over fromDom (doesn't work in SPA).
+      const now = Date.now();
       const activeThreadItem = (activeThreadProp?.id === activeThreadIdFromPath)
         ? {
             id: activeThreadProp.id,
@@ -312,6 +322,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             count: activeThreadProp.noteCount ?? fromHistory?.count ?? 0,
             backgroundGradient: activeThreadProp.backgroundGradient || fromHistory?.backgroundGradient || 'var(--color-gradient-gray)',
             spaceId: activeThreadProp.spaceId ?? (fromHistory as any)?.spaceId ?? null,
+            firstAccessed: fromHistory?.firstAccessed ?? now,
+            lastAccessed: now,
           }
         : fromHistory
           ? {
@@ -322,6 +334,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                 ? PAPER_GRADIENT
                 : (fromHistory.backgroundGradient || 'var(--color-gradient-gray)'),
               spaceId: (fromHistory as any).spaceId ?? null,
+              firstAccessed: fromHistory.firstAccessed,
+              lastAccessed: fromHistory.lastAccessed,
             }
           : fromDom
             ? {
@@ -589,7 +603,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                 data-item-id={item.id}
                 aria-label={`Close ${item.title || 'item'}`}
               >
-                <Icon name="xmark" size="14px" style={{ color: 'var(--color-deep-grey)' }} />
+                <Icon name="xmark" size={14} style={{ color: 'var(--color-deep-grey)' }} />
               </button>
             </div>
           </div>

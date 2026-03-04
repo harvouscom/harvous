@@ -58,8 +58,11 @@ export default function ThreadPage() {
     color: isUnorganized ? 'paper' : (thread?.color ?? navThread?.color ?? 'paper'),
     backgroundGradient: thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)',
   };
-  const onNotesLoaded = (notes: ListNoteForSeed[]) => {
-    notes.forEach((n) => seedNoteFromList(queryClient, n, threadContext));
+  // Note: ThreadNotesList.onNotesLoaded provides Note[] (internal type) which is structurally
+  // compatible with ListNoteForSeed for the fields seedNoteFromList reads.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const onNotesLoaded = (notes: any[]) => {
+    notes.forEach((n: ListNoteForSeed) => seedNoteFromList(queryClient, n, threadContext));
   };
 
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
