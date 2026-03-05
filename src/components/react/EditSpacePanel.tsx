@@ -1488,6 +1488,8 @@ export default function EditSpacePanel({
                           height: '36px',
                           paddingTop: 0,
                           paddingBottom: '8px',
+                          paddingLeft: '12px',
+                          paddingRight: '12px',
                           boxSizing: 'border-box'
                         }}
                       >
