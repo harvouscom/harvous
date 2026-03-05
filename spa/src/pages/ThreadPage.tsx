@@ -68,22 +68,14 @@ export default function ThreadPage() {
   // Sync nav badge count: update navigationHistory entry with the correct noteCount
   // (from nav for owned threads, or from thread prefetch for member threads not in nav).
   // Use ?space= from URL when thread/nav lack spaceId so thread is scoped under the right space.
-  // openedInSpaceIds tracks WHERE the thread was opened FROM (URL ?space= or localStorage),
-  // separate from the thread's own spaceId (which space it belongs to).
+  // openedInSpaceIds tracks WHERE the thread was opened FROM. On thread route use URL only so we don't re-scope when user switches space before URL updates.
   useEffect(() => {
     const navThread = nav?.threads.find(t => t.id === threadId);
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
     const spaceId = navThread?.spaceId ?? thread?.spaceId ?? urlSpaceId ?? null;
-    // openedInSpaceId: prefer urlSpaceId (the space the user navigated FROM),
-    // fall back to the thread's own spaceId, then to localStorage selectedSpaceId
-    const openedInSpaceId = urlSpaceId ?? spaceId ?? (() => {
-      try {
-        const stored = localStorage.getItem('harvous-selected-space-id');
-        return stored && stored.startsWith('space_') ? stored : null;
-      } catch { return null; }
-    })();
+    const openedInSpaceId = urlSpaceId ?? null;
     if (typeof window !== 'undefined' && (window as any).addToNavigationHistory) {
       (window as any).addToNavigationHistory({
         id: threadId,

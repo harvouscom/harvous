@@ -387,12 +387,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
         ? incomingCount
         : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
-      // DEBUG: Log scope changes
-      console.log('[SCOPE-DEBUG] addToNavigationHistory UPDATE existing:', item.id,
-        'existingScopes:', getItemOpenedInSpaceIds(existingItem),
-        'incomingScopes:', getItemOpenedInSpaceIds(item),
-        'getSelectedSpaceId():', getSelectedSpaceId(),
-        'stack:', new Error().stack?.split('\n').slice(1, 5).join(' | '));
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
@@ -818,6 +812,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') return null;
     try {
       const fromQuery = normalizeOpenedInSpaceId(new URLSearchParams(window.location.search).get('space'));
+      const path = window.location.pathname;
+      // On thread/note pages use URL only — never fall back to selected space, so we don't re-scope when user switches space before URL updates.
+      if (path.startsWith('/thread/') || path.startsWith('/note/')) {
+        return fromQuery;
+      }
       return fromQuery ?? getSelectedSpaceId();
     } catch {
       return getSelectedSpaceId();

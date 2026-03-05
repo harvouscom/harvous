@@ -586,10 +586,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       const path = window.location.pathname;
       if (!path.startsWith('/thread/') && !path.startsWith('/note/')) return;
     }
-    // Derive space from URL search params directly (most reliable during SPA nav),
-    // then from effectiveSelectedSpaceId ref, then from localStorage.
-    let openedInSpaceId: string | null = effectiveSelectedSpaceIdRef.current ?? null;
-    if (!openedInSpaceId && typeof window !== 'undefined') {
+    // On thread/note pages use URL as sole source of truth for scope so we don't re-scope when user switches space before URL updates.
+    let openedInSpaceId: string | null = null;
+    if (typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
         const fromUrl = params.get('space');

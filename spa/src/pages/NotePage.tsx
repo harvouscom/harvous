@@ -97,23 +97,28 @@ export default function NotePage() {
     const isUnorganized = parent.id === 'thread_unorganized';
     const hasRealTitle = isUnorganized || (parent.title && parent.title !== 'Thread');
     if (!hasRealTitle) return;
-    // Derive the space context. The note API threads array doesn't include spaceId,
-    // and note URLs don't include ?space=, so fall back to localStorage selectedSpaceId
-    // (which was set when the user navigated into the space).
     const spaceId = threadWithMeta.spaceId ?? (() => {
       try {
         const stored = localStorage.getItem('harvous-selected-space-id');
         return stored && stored.startsWith('space_') ? stored : null;
       } catch { return null; }
     })();
+    // On note page use URL as source of truth for "opened in" scope so we don't re-scope when user switches space.
+    let openedInSpaceId: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) openedInSpaceId = fromUrl;
+      } catch { /* ignore */ }
+    }
     (window as any).addToNavigationHistory({
       id: parent.id,
       title: isUnorganized ? 'Unorganized' : parent.title,
       count: threadWithMeta.count ?? 0,
       backgroundGradient: parent.backgroundGradient ?? 'var(--color-gradient-gray)',
       spaceId: spaceId,
-      openedInSpaceIds: [spaceId],
-      openedInSpaceId: spaceId,
+      openedInSpaceIds: [openedInSpaceId],
+      openedInSpaceId: openedInSpaceId,
     });
   }, [note]);
 
