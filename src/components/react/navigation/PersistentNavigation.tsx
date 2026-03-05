@@ -291,41 +291,30 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       return [item?.openedInSpaceId ?? item?.spaceId ?? null];
     };
 
-    // Scope threads to the selected space.
-    // - If a space is selected: show items opened in that space.
-    // - If "My Home" selected: show items opened while Home was selected (null scope).
-    // DEBUG: Log before filtering
-    console.log('[SPACE-DEBUG] selectedSpaceId:', selectedSpaceId);
-    console.log('[SPACE-DEBUG] items before filter:', persistentItems.map((i: any) => ({
-      id: i.id, title: i.title,
-      openedInSpaceIds: i.openedInSpaceIds,
-      openedInSpaceId: i.openedInSpaceId,
-      spaceId: i.spaceId,
-    })));
+    // Route-based scope for filtering: on dashboard show only Home threads; on space page show that space's threads.
+    const isDashboardRoute = pathname === '/' || pathname === '/dashboard';
+    const spaceIdForFilter = isDashboardRoute ? null : selectedSpaceId;
+
+    // Scope threads to the current view (route), not storage.
+    // - On dashboard: show items opened in Home (null scope).
+    // - On space page: show items opened in that space.
     persistentItems = persistentItems.filter((item: any) => {
       const scopes = getOpenedInSpaceIds(item);
-      const pass = !selectedSpaceId ? scopes.some((s) => s == null) : scopes.some((s) => s === selectedSpaceId);
-      if (!pass) console.log('[SPACE-DEBUG] FILTERED OUT:', item.id, item.title, 'scopes:', scopes);
-      return pass;
+      return !spaceIdForFilter ? scopes.some((s) => s == null) : scopes.some((s) => s === spaceIdForFilter);
     });
-    console.log('[SPACE-DEBUG] items after filter:', persistentItems.map((i: any) => i.id));
 
     // Ensure the active thread is visible on thread pages, but ONLY if the URL space
-    // matches the currently selected space. When the user switches spaces while viewing
+    // matches the current view. When the user switches spaces while viewing
     // a thread, the thread should NOT be force-added to the new space's sidebar.
     const activeThreadSpaceMatchesCurrent = (() => {
       try {
         const urlSpace = new URLSearchParams(window.location.search).get('space');
-        // If URL has ?space=X, it must match selectedSpaceId
-        if (urlSpace && urlSpace.startsWith('space_')) return urlSpace === selectedSpaceId;
-        // If no ?space= in URL, thread is in "Home" context — only show if Home is selected
-        return !selectedSpaceId;
+        if (urlSpace && urlSpace.startsWith('space_')) return urlSpace === spaceIdForFilter;
+        return !spaceIdForFilter;
       } catch {
         return false;
       }
     })();
-
-    console.log('[SPACE-DEBUG] activeThreadIdFromPath:', activeThreadIdFromPath, 'activeThreadSpaceMatchesCurrent:', activeThreadSpaceMatchesCurrent, 'URL:', window.location.href);
 
     // Prefer the navigationHistory entry (better title/gradient/count); fall back to DOM dataset.
     if (activeThreadIdFromPath && activeThreadSpaceMatchesCurrent && !persistentItems.some((i) => i.id === activeThreadIdFromPath)) {

@@ -1019,6 +1019,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return [activeParentThread, ...persistentItems];
   })();
 
+  // Route-based scope for filter: on dashboard show only Home threads; on space page show that space's threads.
+  const spaceIdForFilter = isDashboard ? null : effectiveSelectedSpaceId;
+
   // Organize persistent items hierarchically (spaces with threads nested)
   const organizePersistentItems = (items: any[]) => {
     if (items.length === 0) return { spaces: [], threads: [] };
@@ -1030,8 +1033,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
     const scoped = items.filter((item: any) => {
       const scopes = getOpenedInSpaceIds(item);
-      if (!selectedSpaceId) return scopes.some((s) => s == null);
-      return scopes.some((s) => s === selectedSpaceId);
+      if (!spaceIdForFilter) return scopes.some((s) => s == null);
+      return scopes.some((s) => s === spaceIdForFilter);
     });
 
     const rawSpaces = scoped.filter((item: any) => item.id?.startsWith('space_'));
