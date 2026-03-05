@@ -677,12 +677,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, [pathname, search]);
 
-  // When on a thread or note page, sync selected space to that content's space so "current space"
-  // matches what the user is viewing (fixes items opening in a different space than expected).
+  // When on a thread or note page WITHOUT an explicit ?space= param, fall back to the
+  // content's DB space so the sidebar shows a reasonable space. If the URL already carries
+  // ?space=, that takes priority (set by the effect above) — never override it with the
+  // thread's DB space, because the user chose to open this thread from a specific space.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const isThreadOrNote = pathname.startsWith('/thread/') || pathname.startsWith('/note/');
     if (!isThreadOrNote) return;
+    // If the URL already has ?space=, the user's intended space is already set — don't override.
+    try {
+      const urlSpace = new URLSearchParams(window.location.search).get('space');
+      if (urlSpace && urlSpace.startsWith('space_')) return;
+    } catch { /* ignore */ }
     const spaceFromContent = activeThread?.spaceId ?? currentSpace?.id ?? null;
     if (spaceFromContent) setSelectedSpaceId(spaceFromContent);
   }, [pathname, activeThread?.spaceId, currentSpace?.id]);

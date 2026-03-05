@@ -391,7 +391,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...existingItem,
         ...item,
         count: preservedCount,
-        openedInSpaceIds: mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), getItemOpenedInSpaceIds(item)),
+        openedInSpaceIds: getItemOpenedInSpaceIds(item),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
@@ -579,16 +579,28 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (itemId.startsWith('space_')) {
         nextItem = filteredRawHistory.find((item: any) => isSpaceOpened(item)) || null;
       } else {
+        // Only navigate to the next thread within the SAME space.
+        // Never pick a space entry or a thread from a different space as the next item.
+        const currentSpaceKey = selectedSpaceId ?? null;
+        const isValidNeighbor = (item: any) => {
+          // Never navigate to a space entry when closing a thread
+          if (!item?.id || item.id.startsWith('space_')) return false;
+          // Must be visible in the current space's sidebar
+          const scopes = getItemOpenedInSpaceIds(item);
+          if (currentSpaceKey === null) return scopes.some((s: string | null) => s == null);
+          return scopes.includes(currentSpaceKey);
+        };
+
         // Find position in the ORIGINAL (unfiltered) history, then search for the nearest surviving neighbor
         const currentIndex = rawHistory.findIndex((item: any) => item.id === itemId);
         if (currentIndex !== -1) {
           // Search forward first
           for (let i = currentIndex + 1; i < rawHistory.length && !nextItem; i++) {
-            if (!idsToRemove.includes(rawHistory[i].id)) nextItem = rawHistory[i];
+            if (!idsToRemove.includes(rawHistory[i].id) && isValidNeighbor(rawHistory[i])) nextItem = rawHistory[i];
           }
           // Then backward
           for (let i = currentIndex - 1; i >= 0 && !nextItem; i--) {
-            if (!idsToRemove.includes(rawHistory[i].id)) nextItem = rawHistory[i];
+            if (!idsToRemove.includes(rawHistory[i].id) && isValidNeighbor(rawHistory[i])) nextItem = rawHistory[i];
           }
         }
       }
@@ -988,7 +1000,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const existingIndex = rawHistory.findIndex((h: any) => h.id === itemData.id);
         const updatedRawHistory = rawHistory.map((item: any, index: number) => {
           if (index === existingIndex) {
-            const mergedScopes = mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [openedInSpaceId]);
+            const mergedScopes = [openedInSpaceId];
             return {
               ...item,
               ...itemData,

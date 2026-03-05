@@ -4,7 +4,7 @@ import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
 import { debug } from '@/utils/logger';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
-import { useSelectedSpaceId } from './selectedSpace';
+import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
 
 interface ActiveThreadProp {
   id: string;
@@ -537,8 +537,10 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         }
 
         const getThreadHrefWithSpace = () => {
-          // Prefer the thread's own space so opening a thread always carries its space in the URL.
-          let spaceForLink = (item as any).spaceId ?? selectedSpaceId;
+          // Use the current space so threads always open in the space the user is viewing.
+          // Fall back to getSelectedSpaceId() (direct storage read) in case React state
+          // hasn't hydrated yet, then check the URL query param as a last resort.
+          let spaceForLink: string | null = selectedSpaceId ?? getSelectedSpaceId();
           if (typeof window !== 'undefined') {
             try {
               const fromUrl = new URLSearchParams(window.location.search).get('space');
@@ -548,7 +550,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             }
           }
           const hasSpace = typeof spaceForLink === 'string' && spaceForLink.startsWith('space_');
-          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(spaceForLink)}` : idToUrl(item.id);
+          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(spaceForLink!)}` : idToUrl(item.id);
         };
 
         // CRITICAL: Ensure href is always valid - never set to /undefined

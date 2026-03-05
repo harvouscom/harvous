@@ -183,13 +183,16 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const allNotes = await db.select({
+    const allNotesRaw = await db.select({
       id: Notes.id, title: Notes.title, content: Notes.content,
       threadId: Notes.threadId, spaceId: Notes.spaceId,
       simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType,
       createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited, contentEncrypted: Notes.contentEncrypted,
+      addedBy: Notes.addedBy,
     }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
+    // Exclude onboarding notes so they don't appear in the "Add to Space" panel
+    const allNotes = allNotesRaw.filter(n => n.addedBy !== 'system');
 
     // Enrich with resource metadata
     const resourceNoteIds = allNotes.filter(n => n.noteType === 'resource').map(n => n.id);
@@ -212,12 +215,13 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       };
     });
 
-    // Threads with note counts
-    const allThreads = await db.select({
+    // Threads with note counts (exclude unorganized and onboarding threads)
+    const allThreadsRaw = await db.select({
       id: Threads.id, title: Threads.title, color: Threads.color,
       spaceId: Threads.spaceId, createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
     }).from(Threads).where(and(eq(Threads.userId, auth.userId), ne(Threads.id, 'thread_unorganized'))).all();
+    const allThreads = allThreadsRaw.filter(t => !t.id.startsWith('thread_onboarding_'));
 
     const threadIds = allThreads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
@@ -452,6 +456,7 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
 
     const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
     if (!note) return c.json({ error: 'Note not found or access denied' }, 404);
+    if (note.addedBy === 'system') return c.json({ error: 'Cannot add onboarding notes to a space' }, 400);
 
     await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
     return c.json({ success: true, message: 'Note added to space' });
@@ -476,6 +481,7 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
     const { threadId } = await c.req.json();
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot add unorganized thread to a space' }, 400);
+    if (threadId.startsWith('thread_onboarding_')) return c.json({ error: 'Cannot add onboarding thread to a space' }, 400);
 
     const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
     if (!thread) return c.json({ error: 'Thread not found or access denied' }, 404);
@@ -507,6 +513,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
       try {
         const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
         if (!note) { errors.push(`Note ${noteId} not found`); continue; }
+        if (note.addedBy === 'system') { errors.push('Cannot add onboarding notes to a space'); continue; }
         await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
         updatedNotes++;
       } catch (e: any) { errors.push(`Note ${noteId}: ${e.message}`); }
@@ -515,6 +522,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
     for (const threadId of threadIds) {
       try {
         if (threadId === 'thread_unorganized') { errors.push('Cannot add unorganized thread'); continue; }
+        if (threadId.startsWith('thread_onboarding_')) { errors.push('Cannot add onboarding thread'); continue; }
         const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
         if (!thread) { errors.push(`Thread ${threadId} not found`); continue; }
         await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
