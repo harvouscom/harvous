@@ -46,6 +46,7 @@ import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { extractArticleContent } from '@/utils/content-extractor';
 import { sortByLastVisited } from '@/utils/sorting';
 import { stripHtml } from '@/utils/html-stripper';
@@ -181,7 +182,8 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
       userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     }
 
-    const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
     let finalSpaceId = null;
     if (spaceId && spaceId.trim() && spaceId !== 'default_space') finalSpaceId = spaceId;
 
@@ -501,7 +503,8 @@ route.get('/api/notes/next-id', requireAuth, async (c) => {
       });
       userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     }
-    const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
     const formattedId = `N${nextSimpleNoteId.toString().padStart(3, '0')}`;
     return c.json({ nextNoteId: nextSimpleNoteId, formattedId });
   } catch (error: any) {

@@ -4,6 +4,7 @@
  */
 
 import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
+import { getEffectiveHighestSimpleNoteId } from './highest-simple-note-id';
 import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
@@ -385,7 +386,8 @@ export async function processScriptureReferences(
             };
           }
 
-          const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+          const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+          const nextSimpleNoteId = effectiveHighest + 1;
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
 
@@ -835,7 +837,8 @@ export async function processScriptureReferences(
               };
             }
 
-            const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+            const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+            const nextSimpleNoteId = effectiveHighest + 1;
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
 

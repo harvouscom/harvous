@@ -10112,9 +10112,9 @@ var require_buffer_util = __commonJS({
       }
       return target;
     }
-    function _mask(source, mask, output2, offset, length) {
+    function _mask(source, mask, output, offset, length) {
       for (let i = 0; i < length; i++) {
-        output2[offset + i] = source[i] ^ mask[i & 3];
+        output[offset + i] = source[i] ^ mask[i & 3];
       }
     }
     function _unmask(buffer, mask) {
@@ -10152,9 +10152,9 @@ var require_buffer_util = __commonJS({
     if (!process.env.WS_NO_BUFFER_UTIL) {
       try {
         const bufferUtil = require("bufferutil");
-        module2.exports.mask = function(source, mask, output2, offset, length) {
-          if (length < 48) _mask(source, mask, output2, offset, length);
-          else bufferUtil.mask(source, mask, output2, offset, length);
+        module2.exports.mask = function(source, mask, output, offset, length) {
+          if (length < 48) _mask(source, mask, output, offset, length);
+          else bufferUtil.mask(source, mask, output, offset, length);
         };
         module2.exports.unmask = function(buffer, mask) {
           if (buffer.length < 32) _unmask(buffer, mask);
@@ -13870,12 +13870,12 @@ var init_decode = __esm({
 
 // node_modules/@libsql/hrana-client/lib-esm/encoding/json/encode.js
 function writeJsonObject(value, fun) {
-  const output2 = [];
-  const writer = new ObjectWriter(output2);
+  const output = [];
+  const writer = new ObjectWriter(output);
   writer.begin();
   fun(writer, value);
   writer.end();
-  return output2.join("");
+  return output.join("");
 }
 var ObjectWriter;
 var init_encode = __esm({
@@ -13883,8 +13883,8 @@ var init_encode = __esm({
     ObjectWriter = class {
       #output;
       #isFirst;
-      constructor(output2) {
-        this.#output = output2;
+      constructor(output) {
+        this.#output = output;
         this.#isFirst = false;
       }
       begin() {
@@ -16758,18 +16758,18 @@ var require_url_state_machine = __commonJS({
     }
     function utf8PercentDecode(str) {
       const input = new Buffer(str);
-      const output2 = [];
+      const output = [];
       for (let i = 0; i < input.length; ++i) {
         if (input[i] !== 37) {
-          output2.push(input[i]);
+          output.push(input[i]);
         } else if (input[i] === 37 && isASCIIHex(input[i + 1]) && isASCIIHex(input[i + 2])) {
-          output2.push(parseInt(input.slice(i + 1, i + 3).toString(), 16));
+          output.push(parseInt(input.slice(i + 1, i + 3).toString(), 16));
           i += 2;
         } else {
-          output2.push(input[i]);
+          output.push(input[i]);
         }
       }
-      return new Buffer(output2).toString();
+      return new Buffer(output).toString();
     }
     function isC0ControlPercentEncode(c) {
       return c <= 31 || c > 126;
@@ -16845,16 +16845,16 @@ var require_url_state_machine = __commonJS({
       return ipv4;
     }
     function serializeIPv4(address) {
-      let output2 = "";
+      let output = "";
       let n = address;
       for (let i = 1; i <= 4; ++i) {
-        output2 = String(n % 256) + output2;
+        output = String(n % 256) + output;
         if (i !== 4) {
-          output2 = "." + output2;
+          output = "." + output;
         }
         n = Math.floor(n / 256);
       }
-      return output2;
+      return output;
     }
     function parseIPv6(input) {
       const address = [0, 0, 0, 0, 0, 0, 0, 0];
@@ -16962,7 +16962,7 @@ var require_url_state_machine = __commonJS({
       return address;
     }
     function serializeIPv6(address) {
-      let output2 = "";
+      let output = "";
       const seqResult = findLongestZeroSequence(address);
       const compress = seqResult.idx;
       let ignore0 = false;
@@ -16974,16 +16974,16 @@ var require_url_state_machine = __commonJS({
         }
         if (compress === pieceIndex) {
           const separator = pieceIndex === 0 ? "::" : ":";
-          output2 += separator;
+          output += separator;
           ignore0 = true;
           continue;
         }
-        output2 += address[pieceIndex].toString(16);
+        output += address[pieceIndex].toString(16);
         if (pieceIndex !== 7) {
-          output2 += ":";
+          output += ":";
         }
       }
-      return output2;
+      return output;
     }
     function parseHost(input, isSpecialArg) {
       if (input[0] === "[") {
@@ -17013,12 +17013,12 @@ var require_url_state_machine = __commonJS({
       if (containsForbiddenHostCodePointExcludingPercent(input)) {
         return failure;
       }
-      let output2 = "";
+      let output = "";
       const decoded = punycode.ucs2.decode(input);
       for (let i = 0; i < decoded.length; ++i) {
-        output2 += percentEncodeChar(decoded[i], isC0ControlPercentEncode);
+        output += percentEncodeChar(decoded[i], isC0ControlPercentEncode);
       }
-      return output2;
+      return output;
     }
     function findLongestZeroSequence(arr) {
       let maxIdx = null;
@@ -17643,37 +17643,37 @@ var require_url_state_machine = __commonJS({
       return true;
     };
     function serializeURL(url, excludeFragment) {
-      let output2 = url.scheme + ":";
+      let output = url.scheme + ":";
       if (url.host !== null) {
-        output2 += "//";
+        output += "//";
         if (url.username !== "" || url.password !== "") {
-          output2 += url.username;
+          output += url.username;
           if (url.password !== "") {
-            output2 += ":" + url.password;
+            output += ":" + url.password;
           }
-          output2 += "@";
+          output += "@";
         }
-        output2 += serializeHost(url.host);
+        output += serializeHost(url.host);
         if (url.port !== null) {
-          output2 += ":" + url.port;
+          output += ":" + url.port;
         }
       } else if (url.host === null && url.scheme === "file") {
-        output2 += "//";
+        output += "//";
       }
       if (url.cannotBeABaseURL) {
-        output2 += url.path[0];
+        output += url.path[0];
       } else {
         for (const string2 of url.path) {
-          output2 += "/" + string2;
+          output += "/" + string2;
         }
       }
       if (url.query !== null) {
-        output2 += "?" + url.query;
+        output += "?" + url.query;
       }
       if (!excludeFragment && url.fragment !== null) {
-        output2 += "#" + url.fragment;
+        output += "#" + url.fragment;
       }
-      return output2;
+      return output;
     }
     function serializeOrigin(tuple) {
       let result = tuple.scheme + "://";
@@ -25680,7 +25680,7 @@ var init_schema = __esm({
       id: text("id").primaryKey(),
       userId: text("userId").notNull().unique(),
       highestSimpleNoteId: integer("highestSimpleNoteId").notNull().default(0),
-      userColor: text("userColor").notNull().default("paper"),
+      userColor: text("userColor").notNull().default("blue"),
       firstName: text("firstName"),
       lastName: text("lastName"),
       email: text("email"),
@@ -28461,14 +28461,14 @@ var require_decode_codepoint = __commonJS({
     ]);
     exports2.fromCodePoint = // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
     (_a3 = String.fromCodePoint) !== null && _a3 !== void 0 ? _a3 : function(codePoint) {
-      var output2 = "";
+      var output = "";
       if (codePoint > 65535) {
         codePoint -= 65536;
-        output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+        output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
         codePoint = 56320 | codePoint & 1023;
       }
-      output2 += String.fromCharCode(codePoint);
-      return output2;
+      output += String.fromCharCode(codePoint);
+      return output;
     };
     function replaceCodePoint3(codePoint) {
       var _a4;
@@ -30744,14 +30744,14 @@ var require_decode_codepoint2 = __commonJS({
     ]);
     exports2.fromCodePoint = // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
     (_a3 = String.fromCodePoint) !== null && _a3 !== void 0 ? _a3 : function(codePoint) {
-      var output2 = "";
+      var output = "";
       if (codePoint > 65535) {
         codePoint -= 65536;
-        output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+        output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
         codePoint = 56320 | codePoint & 1023;
       }
-      output2 += String.fromCharCode(codePoint);
-      return output2;
+      output += String.fromCharCode(codePoint);
+      return output;
     };
     function replaceCodePoint3(codePoint) {
       var _a4;
@@ -31616,11 +31616,11 @@ var require_lib7 = __commonJS({
         options = {};
       }
       var nodes = "length" in node ? node : [node];
-      var output2 = "";
+      var output = "";
       for (var i = 0; i < nodes.length; i++) {
-        output2 += renderNode2(nodes[i], options);
+        output += renderNode2(nodes[i], options);
       }
-      return output2;
+      return output;
     }
     exports2.render = render2;
     exports2.default = render2;
@@ -46711,7 +46711,7 @@ var require_URL2 = __commonJS({
         }
         function remove_dot_segments(path) {
           if (!path) return path;
-          var output2 = "";
+          var output = "";
           while (path.length > 0) {
             if (path === "." || path === "..") {
               path = "";
@@ -46730,14 +46730,14 @@ var require_URL2 = __commonJS({
               path = "/";
             } else if (fourchars === "/../" || threechars === "/.." && path.length === 3) {
               path = "/" + path.substring(4);
-              output2 = output2.replace(/\/?[^\/]*$/, "");
+              output = output.replace(/\/?[^\/]*$/, "");
             } else {
               var segment = path.match(/(\/?([^\/]*))/)[0];
-              output2 += segment;
+              output += segment;
               path = path.substring(segment.length);
             }
           }
-          return output2;
+          return output;
         }
       }
     };
@@ -47045,17 +47045,17 @@ var require_URLUtils = __commonJS({
           else return ":";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute()) {
             v2 = v2.replace(/:+$/, "");
             v2 = v2.replace(/[^-+\.a-zA-Z0-9]/g, URL2.percentEncode);
             if (v2.length > 0) {
               url.scheme = v2;
-              output2 = url.toString();
+              output = url.toString();
             }
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       host: {
@@ -47067,17 +47067,17 @@ var require_URLUtils = __commonJS({
             return "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute() && url.isAuthorityBased()) {
             v2 = v2.replace(/[^-+\._~!$&'()*,;:=a-zA-Z0-9]/g, URL2.percentEncode);
             if (v2.length > 0) {
               url.host = v2;
               delete url.port;
-              output2 = url.toString();
+              output = url.toString();
             }
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       hostname: {
@@ -47089,17 +47089,17 @@ var require_URLUtils = __commonJS({
             return "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute() && url.isAuthorityBased()) {
             v2 = v2.replace(/^\/+/, "");
             v2 = v2.replace(/[^-+\._~!$&'()*,;:=a-zA-Z0-9]/g, URL2.percentEncode);
             if (v2.length > 0) {
               url.host = v2;
-              output2 = url.toString();
+              output = url.toString();
             }
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       port: {
@@ -47111,8 +47111,8 @@ var require_URLUtils = __commonJS({
             return "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute() && url.isAuthorityBased()) {
             v2 = "" + v2;
             v2 = v2.replace(/[^0-9].*$/, "");
@@ -47120,10 +47120,10 @@ var require_URLUtils = __commonJS({
             if (v2.length === 0) v2 = "0";
             if (parseInt(v2, 10) <= 65535) {
               url.port = v2;
-              output2 = url.toString();
+              output = url.toString();
             }
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       pathname: {
@@ -47135,16 +47135,16 @@ var require_URLUtils = __commonJS({
             return "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute() && url.isHierarchical()) {
             if (v2.charAt(0) !== "/")
               v2 = "/" + v2;
             v2 = v2.replace(/[^-+\._~!$&'()*,;:=@\/a-zA-Z0-9]/g, URL2.percentEncode);
             url.path = v2;
-            output2 = url.toString();
+            output = url.toString();
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       search: {
@@ -47156,15 +47156,15 @@ var require_URLUtils = __commonJS({
             return "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute() && url.isHierarchical()) {
             if (v2.charAt(0) === "?") v2 = v2.substring(1);
             v2 = v2.replace(/[^-+\._~!$&'()*,;:=@\/?a-zA-Z0-9]/g, URL2.percentEncode);
             url.query = v2;
-            output2 = url.toString();
+            output = url.toString();
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       hash: {
@@ -47177,13 +47177,13 @@ var require_URLUtils = __commonJS({
           }
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (v2.charAt(0) === "#") v2 = v2.substring(1);
           v2 = v2.replace(/[^-+\._~!$&'()*,;:=@\/?a-zA-Z0-9]/g, URL2.percentEncode);
           url.fragment = v2;
-          output2 = url.toString();
-          this.href = output2;
+          output = url.toString();
+          this.href = output;
         }
       },
       username: {
@@ -47192,14 +47192,14 @@ var require_URLUtils = __commonJS({
           return url.username || "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute()) {
             v2 = v2.replace(/[\x00-\x1F\x7F-\uFFFF "#<>?`\/@\\:]/g, URL2.percentEncode);
             url.username = v2;
-            output2 = url.toString();
+            output = url.toString();
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       password: {
@@ -47208,8 +47208,8 @@ var require_URLUtils = __commonJS({
           return url.password || "";
         },
         set: function(v2) {
-          var output2 = this.href;
-          var url = new URL2(output2);
+          var output = this.href;
+          var url = new URL2(output);
           if (url.isAbsolute()) {
             if (v2 === "") {
               url.password = null;
@@ -47217,9 +47217,9 @@ var require_URLUtils = __commonJS({
               v2 = v2.replace(/[\x00-\x1F\x7F-\uFFFF "#<>?`\/@\\]/g, URL2.percentEncode);
               url.password = v2;
             }
-            output2 = url.toString();
+            output = url.toString();
           }
-          this.href = output2;
+          this.href = output;
         }
       },
       origin: { get: function() {
@@ -58939,8 +58939,8 @@ var require_turndown_cjs = __commonJS({
           );
         }
         if (input === "") return "";
-        var output2 = process2.call(this, new RootNode(input, this.options));
-        return postProcess.call(this, output2);
+        var output = process2.call(this, new RootNode(input, this.options));
+        return postProcess.call(this, output);
       },
       /**
        * Add one or more plugins
@@ -59008,7 +59008,7 @@ var require_turndown_cjs = __commonJS({
     };
     function process2(parentNode) {
       var self = this;
-      return reduce.call(parentNode.childNodes, function(output2, node) {
+      return reduce.call(parentNode.childNodes, function(output, node) {
         node = new Node7(node, self.options);
         var replacement = "";
         if (node.nodeType === 3) {
@@ -59016,17 +59016,17 @@ var require_turndown_cjs = __commonJS({
         } else if (node.nodeType === 1) {
           replacement = replacementForNode.call(self, node);
         }
-        return join(output2, replacement);
+        return join(output, replacement);
       }, "");
     }
-    function postProcess(output2) {
+    function postProcess(output) {
       var self = this;
       this.rules.forEach(function(rule) {
         if (typeof rule.append === "function") {
-          output2 = join(output2, rule.append(self.options));
+          output = join(output, rule.append(self.options));
         }
       });
-      return output2.replace(/^[\t\r\n]+/, "").replace(/[\t\r\n\s]+$/, "");
+      return output.replace(/^[\t\r\n]+/, "").replace(/[\t\r\n\s]+$/, "");
     }
     function replacementForNode(node) {
       var rule = this.rules.forNode(node);
@@ -59035,10 +59035,10 @@ var require_turndown_cjs = __commonJS({
       if (whitespace2.leading || whitespace2.trailing) content = content.trim();
       return whitespace2.leading + rule.replacement(content, node, this.options) + whitespace2.trailing;
     }
-    function join(output2, replacement) {
-      var s1 = trimTrailingNewlines(output2);
+    function join(output, replacement) {
+      var s1 = trimTrailingNewlines(output);
       var s2 = trimLeadingNewlines(replacement);
-      var nls = Math.max(output2.length - s1.length, replacement.length - s2.length);
+      var nls = Math.max(output.length - s1.length, replacement.length - s2.length);
       var separator = "\n\n".substring(0, nls);
       return s1 + separator + s2;
     }
@@ -59885,6 +59885,39 @@ var compose = (middleware, onError, onNotFound) => {
       return context;
     }
   };
+};
+
+// node_modules/hono/dist/http-exception.js
+var HTTPException = class extends Error {
+  res;
+  status;
+  /**
+   * Creates an instance of `HTTPException`.
+   * @param status - HTTP status code for the exception. Defaults to 500.
+   * @param options - Additional options for the exception.
+   */
+  constructor(status = 500, options) {
+    super(options?.message, { cause: options?.cause });
+    this.res = options?.res;
+    this.status = status;
+  }
+  /**
+   * Returns the response object associated with the exception.
+   * If a response object is not provided, a new response is created with the error message and status code.
+   * @returns The response object.
+   */
+  getResponse() {
+    if (this.res) {
+      const newResponse = new Response(this.res.body, {
+        status: this.status,
+        headers: this.res.headers
+      });
+      return newResponse;
+    }
+    return new Response(this.message, {
+      status: this.status
+    });
+  }
 };
 
 // node_modules/hono/dist/request/constants.js
@@ -62165,6 +62198,27 @@ async function clerkAuth(c, next) {
 function getAuth(c) {
   return c.get("auth");
 }
+async function requireAuth(c, next) {
+  const auth = getAuth(c);
+  if (!auth.userId) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+  return next();
+}
+function getAuthenticatedAuth(c) {
+  const auth = getAuth(c);
+  if (!auth.userId) {
+    throw new HTTPException(401, { message: "Authentication required" });
+  }
+  return auth;
+}
+function requireParam(c, name) {
+  const value = c.req.param(name);
+  if (!value) {
+    throw new HTTPException(400, { message: `Missing required parameter: ${name}` });
+  }
+  return value;
+}
 
 // server/routes/health.ts
 var route = new Hono2();
@@ -62230,6 +62284,23 @@ function getSeasonDisplayName(season) {
 
 // server/utils/process-scripture-references.ts
 init_db2();
+
+// server/utils/highest-simple-note-id.ts
+init_db2();
+init_dates();
+async function getEffectiveHighestSimpleNoteId(userId) {
+  const [userMetadata, existingNotes] = await Promise.all([
+    db.select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).get(),
+    db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1)
+  ]);
+  const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
+  const maxFromNotes = existingNotes.length > 0 ? existingNotes[0].simpleNoteId ?? 0 : 0;
+  const effectiveHighest = Math.max(fromMetadata, maxFromNotes);
+  if (userMetadata && effectiveHighest > (userMetadata.highestSimpleNoteId ?? 0)) {
+    await db.update(UserMetadata).set({ highestSimpleNoteId: effectiveHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+  }
+  return effectiveHighest;
+}
 
 // src/utils/keyword-trie.ts
 var MAX_PHRASE_WORDS = 5;
@@ -72100,6 +72171,7 @@ var bible_chapters_default = [
 ];
 
 // src/utils/scripture-detector.ts
+var DEBUG = false;
 var BIBLE_CHAPTERS_MAP = null;
 function buildBibleChaptersMap() {
   if (BIBLE_CHAPTERS_MAP) {
@@ -72601,7 +72673,7 @@ function stripBrokenPillSpans(content) {
     let hasValidNoteId = false;
     if (noteIdMatch) {
       const noteIdValue = noteIdMatch[1];
-      hasValidNoteId = noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "";
+      hasValidNoteId = Boolean(noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "");
     }
     return hasValidNoteId ? match3 : innerContent;
   });
@@ -72706,6 +72778,8 @@ var XP_VALUES = {
   CREATION_BONUS: 5,
   CHURCH_ADDED: 50,
   MONTHLY_ATTENDANCE: 25,
+  NEW_SEASON_BONUS: 50,
+  // One-time reward for returning in a new season
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -72743,6 +72817,7 @@ var ACTIVITY_TYPES = {
   CREATION_BONUS: "creation_bonus",
   CHURCH_ADDED: "church_added",
   MONTHLY_ATTENDANCE: "monthly_attendance",
+  NEW_SEASON: "new_season",
   WEEKLY_STREAK: "weekly_streak",
   // Legacy activity types (kept for backward compatibility)
   THREAD_CREATED: "thread_created",
@@ -73063,6 +73138,30 @@ async function awardMonthlyAttendanceXP(userId) {
     return false;
   }
 }
+async function awardNewSeasonBonus(userId) {
+  try {
+    const currentSeason = getCurrentSeason();
+    const existing = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.NEW_SEASON),
+      eq(UserXP.season, currentSeason)
+    )).limit(1);
+    if (existing.length > 0) {
+      return false;
+    }
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.NEW_SEASON,
+      XP_VALUES.NEW_SEASON_BONUS,
+      void 0,
+      { season: currentSeason, seasonName: getSeasonDisplayName(currentSeason) }
+    );
+    return true;
+  } catch (error) {
+    console.error("Error awarding new season bonus:", error);
+    return false;
+  }
+}
 async function checkLifetimeMilestones(userId) {
   try {
     const lifetimeXP = await getLifetimeXP(userId);
@@ -73185,6 +73284,7 @@ async function getXPBreakdown(userId) {
       creationBonus: 0,
       churchAdded: 0,
       monthlyAttendance: 0,
+      newSeason: 0,
       weeklyStreak: 0,
       // Legacy
       threadCreated: 0,
@@ -73205,6 +73305,9 @@ async function getXPBreakdown(userId) {
           break;
         case ACTIVITY_TYPES.MONTHLY_ATTENDANCE:
           breakdown.monthlyAttendance += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.NEW_SEASON:
+          breakdown.newSeason += record.xpAmount;
           break;
         case ACTIVITY_TYPES.WEEKLY_STREAK:
           breakdown.weeklyStreak += record.xpAmount;
@@ -73238,6 +73341,7 @@ async function getXPBreakdown(userId) {
         creationBonus: 0,
         churchAdded: 0,
         monthlyAttendance: 0,
+        newSeason: 0,
         weeklyStreak: 0,
         threadCreated: 0,
         noteCreated: 0,
@@ -73519,7 +73623,22 @@ async function fetchVerseText(reference) {
     return "";
   }
   const normalizedKey = normalizeScriptureReference(cleanReference);
-  const cached = await db.select({ content: VerseTextCache.content }).from(VerseTextCache).where(eq(VerseTextCache.reference, normalizedKey)).get();
+  let cached = void 0;
+  try {
+    cached = await db.select({ content: VerseTextCache.content }).from(VerseTextCache).where(eq(VerseTextCache.reference, normalizedKey)).get();
+  } catch (cacheReadErr) {
+    const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);
+    let causeMsg = "";
+    for (let e = cacheReadErr; e != null; e = e?.cause) {
+      causeMsg += (e instanceof Error ? e.message : String(e)) + " ";
+    }
+    const isMissingTable = /no such table|VerseTextCache/i.test(msg + causeMsg);
+    if (isMissingTable) {
+      console.warn("[fetchVerseText] VerseTextCache unavailable, using API only:", (msg + causeMsg).trim().slice(0, 120));
+    } else {
+      throw cacheReadErr;
+    }
+  }
   if (cached?.content && cached.content.length > 0) {
     return cached.content;
   }
@@ -73820,7 +73939,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
               id: `user_metadata_${userId}`,
               userId,
               highestSimpleNoteId: highestExistingId,
-              userColor: "paper",
+              userColor: "blue",
               currentSeason: season,
               createdAt: (/* @__PURE__ */ new Date()).toISOString()
             });
@@ -73828,7 +73947,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
               id: `user_metadata_${userId}`,
               userId,
               highestSimpleNoteId: highestExistingId,
-              userColor: "paper",
+              userColor: "blue",
               email: null,
               firstName: null,
               lastName: null,
@@ -73849,7 +73968,8 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
               updatedAt: null
             };
           }
-          const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+          const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+          const nextSimpleNoteId = effectiveHighest + 1;
           const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
           const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
           const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
@@ -73869,9 +73989,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
             shareToken,
             shareTokenCreatedAt: now,
             addedBy: "harvous",
-            createdAt: now,
-            lastVisited: now
-            // Set lastVisited so newly created notes appear at top
+            createdAt: now
           }).returning().get();
           await db.update(UserMetadata).set({
             highestSimpleNoteId: nextSimpleNoteId,
@@ -74141,7 +74259,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
                 id: `user_metadata_${userId}`,
                 userId,
                 highestSimpleNoteId: highestExistingId,
-                userColor: "paper",
+                userColor: "blue",
                 currentSeason: season,
                 createdAt: (/* @__PURE__ */ new Date()).toISOString()
               });
@@ -74149,7 +74267,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
                 id: `user_metadata_${userId}`,
                 userId,
                 highestSimpleNoteId: highestExistingId,
-                userColor: "paper",
+                userColor: "blue",
                 email: null,
                 firstName: null,
                 lastName: null,
@@ -74170,7 +74288,8 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
                 updatedAt: null
               };
             }
-            const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+            const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+            const nextSimpleNoteId = effectiveHighest + 1;
             const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
             const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
             const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
@@ -74190,8 +74309,7 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
               shareToken,
               shareTokenCreatedAt: now,
               addedBy: "harvous",
-              createdAt: now,
-              lastVisited: now
+              createdAt: now
             }).returning().get();
             await db.update(UserMetadata).set({
               highestSimpleNoteId: nextSimpleNoteId,
@@ -74293,16 +74411,107 @@ async function processScriptureReferences(noteId, userId, threadId, contentOverr
 
 // server/utils/user-cache.ts
 var pendingInit = /* @__PURE__ */ new Map();
+async function ensureOnboardingThreadIfMissing(userId) {
+  const onboardingThreadId = `thread_onboarding_${userId}`;
+  const existing = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).get();
+  if (existing) return;
+  const { generateNoteId: generateNoteId2 } = await Promise.resolve().then(() => (init_ids(), ids_exports));
+  const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
+  const { loadOnboardingNotes: loadOnboardingNotes2 } = await Promise.resolve().then(() => (init_load_onboarding_notes(), load_onboarding_notes_exports));
+  await ensureUnorganizedThread2(userId);
+  const onboardingNotes = loadOnboardingNotes2();
+  if (onboardingNotes.length === 0) {
+    console.warn("[onboarding] loadOnboardingNotes returned no notes");
+    return;
+  }
+  const firstContent = onboardingNotes[0]?.content ?? "";
+  if (!firstContent.includes("Proverbs")) {
+    console.warn('[onboarding] first note content missing "Proverbs" (len=%d)', firstContent.length);
+  }
+  const ts = nowISO();
+  try {
+    await db.insert(Threads).values({
+      id: onboardingThreadId,
+      title: "Welcome to Harvous",
+      subtitle: `${onboardingNotes.length} notes to get you started`,
+      color: "blue",
+      spaceId: null,
+      userId,
+      isPublic: false,
+      isPinned: false,
+      createdAt: ts,
+      updatedAt: ts,
+      lastVisited: ts
+    });
+  } catch (insertError) {
+    const isUnique = insertError?.code === "SQLITE_CONSTRAINT" || insertError?.cause?.code === "SQLITE_CONSTRAINT" || insertError?.message?.includes("UNIQUE constraint failed");
+    if (isUnique) {
+      console.log("[onboarding] thread already created by concurrent request, skipping", { userId });
+      return;
+    }
+    throw insertError;
+  }
+  const noteRecords = onboardingNotes.map((noteData, idx) => {
+    const noteId = generateNoteId2();
+    return {
+      id: noteId,
+      title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
+      content: noteData.content,
+      threadId: onboardingThreadId,
+      spaceId: null,
+      simpleNoteId: idx + 1,
+      userId,
+      isPublic: false,
+      addedBy: "system",
+      createdAt: ts,
+      lastVisited: ts
+    };
+  });
+  const junctionRecords = noteRecords.map((note) => ({
+    id: `note-thread-${note.id}-${Date.now()}`,
+    noteId: note.id,
+    threadId: onboardingThreadId,
+    createdAt: nowISO()
+  }));
+  await db.insert(Notes).values(noteRecords);
+  await db.insert(NoteThreads).values(junctionRecords);
+  await Promise.all(
+    noteRecords.map(async (note, idx) => {
+      try {
+        const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, onboardingNotes[idx].content);
+        if (results.length > 0) {
+          console.log("[onboarding] scripture processed", { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error("Error processing scripture for onboarding note", note.id, msg, e);
+      }
+    })
+  );
+  await db.update(UserMetadata).set({ highestSimpleNoteId: onboardingNotes.length, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+  console.log(`[onboarding] created thread with ${onboardingNotes.length} notes for user ${userId}`);
+}
 async function getCachedUserData(userId) {
   const pending = pendingInit.get(userId);
   if (pending) return pending;
+  let hadMetadata = false;
   try {
     const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+    hadMetadata = !!userMetadata;
     const now = /* @__PURE__ */ new Date();
     const cacheAge = userMetadata?.clerkDataUpdatedAt ? now.getTime() - new Date(userMetadata.clerkDataUpdatedAt).getTime() : Infinity;
     const isCacheFresh = cacheAge < 15 * 60 * 1e3;
     const isExplicitlyStale = userMetadata?.clerkDataUpdatedAt && new Date(userMetadata.clerkDataUpdatedAt).getTime() < (/* @__PURE__ */ new Date("2023-01-01")).getTime();
     if (userMetadata && isCacheFresh && !isExplicitlyStale) {
+      const createdMs = userMetadata.createdAt ? new Date(userMetadata.createdAt).getTime() : 0;
+      const fiveMinAgo = now.getTime() - 5 * 60 * 1e3;
+      if (createdMs >= fiveMinAgo) {
+        try {
+          await ensureOnboardingThreadIfMissing(userId);
+        } catch (repairErr) {
+          console.error("[user-cache] Onboarding repair failed:", repairErr);
+        }
+      }
       return {
         firstName: userMetadata.firstName || "",
         lastName: userMetadata.lastName || "",
@@ -74310,29 +74519,33 @@ async function getCachedUserData(userId) {
         profileImageUrl: userMetadata.profileImageUrl || void 0,
         initials: generateInitials(userMetadata.firstName || "", userMetadata.lastName || ""),
         displayName: generateDisplayName(userMetadata.firstName || "", userMetadata.lastName || ""),
-        userColor: userMetadata.userColor || "paper",
+        userColor: userMetadata.userColor || "blue",
         createdAt: userMetadata.createdAt || void 0
       };
     }
+    const isNewUser = !userMetadata;
     const promise = fetchAndCacheUserData(userId, userMetadata);
-    if (!userMetadata) {
+    if (isNewUser) {
       pendingInit.set(userId, promise);
     }
     try {
       return await promise;
     } finally {
-      pendingInit.delete(userId);
+      if (isNewUser) pendingInit.delete(userId);
     }
   } catch (error) {
     pendingInit.delete(userId);
     console.error("Error getting user data:", error);
+    if (!hadMetadata) {
+      throw error;
+    }
     return {
       firstName: "",
       lastName: "",
       email: "",
       initials: "U",
       displayName: "User",
-      userColor: "paper",
+      userColor: "blue",
       createdAt: void 0
     };
   }
@@ -74363,7 +74576,7 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
         profileImageUrl: existingMetadata.profileImageUrl,
         initials: generateInitials(existingMetadata.firstName || "", existingMetadata.lastName || ""),
         displayName: generateDisplayName(existingMetadata.firstName || "", existingMetadata.lastName || ""),
-        userColor: existingMetadata.userColor || "paper",
+        userColor: existingMetadata.userColor || "blue",
         createdAt: existingMetadata.createdAt
       };
     }
@@ -74374,7 +74587,7 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
   const lastName = userData?.last_name || userData?.lastName || "";
   const email = userData?.email_addresses?.[0]?.email_address || userData?.email || "";
   const profileImageUrl = userData?.profile_image_url || userData?.image_url;
-  const userColor = userData?.public_metadata?.userColor || "paper";
+  const userColor = userData?.public_metadata?.userColor || "blue";
   let userCreatedAt;
   if (existingMetadata) {
     userCreatedAt = existingMetadata.createdAt;
@@ -74396,123 +74609,71 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
     await db.update(UserMetadata).set(setPayload).where(eq(UserMetadata.userId, userId));
   } else {
     userCreatedAt = nowISO();
-    await db.insert(UserMetadata).values({
-      id: `user_metadata_${userId}`,
-      userId,
-      firstName,
-      lastName,
-      email,
-      profileImageUrl,
-      userColor,
-      highestSimpleNoteId: 0,
-      currentSeason: getCurrentSeason(),
-      churchName: null,
-      churchCity: null,
-      churchState: null,
-      referralCode: generateReferralCode(firstName || null, userId),
-      createdAt: userCreatedAt,
-      updatedAt: nowISO(),
-      clerkDataUpdatedAt: nowISO()
-    });
+    let insertSucceeded = true;
     try {
-      const allUserInboxItems = await db.select().from(InboxItems).where(
-        and(
-          eq(InboxItems.targetAudience, "all_users"),
-          eq(InboxItems.isActive, true)
-        )
-      );
-      const validItems = allUserInboxItems.filter((item) => item.webflowItemId);
-      if (validItems.length > 0) {
-        const existingAssignments = await db.select({ inboxItemId: UserInboxItems.inboxItemId }).from(UserInboxItems).where(
+      await db.insert(UserMetadata).values({
+        id: `user_metadata_${userId}`,
+        userId,
+        firstName,
+        lastName,
+        email,
+        profileImageUrl,
+        userColor,
+        highestSimpleNoteId: 0,
+        currentSeason: getCurrentSeason(),
+        churchName: null,
+        churchCity: null,
+        churchState: null,
+        referralCode: generateReferralCode(firstName || null, userId),
+        createdAt: userCreatedAt,
+        updatedAt: nowISO(),
+        clerkDataUpdatedAt: nowISO()
+      });
+    } catch (insertErr) {
+      const isUnique = insertErr?.code === "SQLITE_CONSTRAINT" || insertErr?.cause?.code === "SQLITE_CONSTRAINT" || insertErr?.message?.includes("UNIQUE constraint failed");
+      if (isUnique) {
+        insertSucceeded = false;
+        console.log("[user-cache] UserMetadata already created by concurrent request", { userId });
+      } else {
+        throw insertErr;
+      }
+    }
+    if (insertSucceeded) {
+      try {
+        const allUserInboxItems = await db.select().from(InboxItems).where(
           and(
-            eq(UserInboxItems.userId, userId),
-            inArray(UserInboxItems.inboxItemId, validItems.map((i) => i.id))
+            eq(InboxItems.targetAudience, "all_users"),
+            eq(InboxItems.isActive, true)
           )
         );
-        const existingIds = new Set(existingAssignments.map((e) => e.inboxItemId));
-        const newItems = validItems.filter((item) => !existingIds.has(item.id)).map((item, idx) => ({
-          id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
-          userId,
-          inboxItemId: item.id,
-          status: "inbox",
-          createdAt: nowISO()
-        }));
-        if (newItems.length > 0) {
-          await db.insert(UserInboxItems).values(newItems);
+        const validItems = allUserInboxItems.filter((item) => item.webflowItemId);
+        if (validItems.length > 0) {
+          const existingAssignments = await db.select({ inboxItemId: UserInboxItems.inboxItemId }).from(UserInboxItems).where(
+            and(
+              eq(UserInboxItems.userId, userId),
+              inArray(UserInboxItems.inboxItemId, validItems.map((i) => i.id))
+            )
+          );
+          const existingIds = new Set(existingAssignments.map((e) => e.inboxItemId));
+          const newItems = validItems.filter((item) => !existingIds.has(item.id)).map((item, idx) => ({
+            id: `user_inbox_${userId}_${item.id}_${Date.now() + idx}`,
+            userId,
+            inboxItemId: item.id,
+            status: "inbox",
+            createdAt: nowISO()
+          }));
+          if (newItems.length > 0) {
+            await db.insert(UserInboxItems).values(newItems);
+          }
         }
+      } catch (error) {
+        console.error("Error assigning inbox items to new user:", error);
       }
-    } catch (error) {
-      console.error("Error assigning inbox items to new user:", error);
     }
     try {
-      const { generateThreadId: generateThreadId2, generateNoteId: generateNoteId2 } = await Promise.resolve().then(() => (init_ids(), ids_exports));
-      const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
-      const { loadOnboardingNotes: loadOnboardingNotes2 } = await Promise.resolve().then(() => (init_load_onboarding_notes(), load_onboarding_notes_exports));
-      await ensureUnorganizedThread2(userId);
-      const onboardingNotes = loadOnboardingNotes2();
-      if (onboardingNotes.length > 0) {
-        const onboardingThreadId = `thread_onboarding_${userId}`;
-        const capitalizedThreadTitle = "Welcome to Harvous";
-        const ts = nowISO();
-        await db.insert(Threads).values({
-          id: onboardingThreadId,
-          title: capitalizedThreadTitle,
-          subtitle: `${onboardingNotes.length} notes to get you started`,
-          color: "blue",
-          spaceId: null,
-          userId,
-          isPublic: false,
-          isPinned: false,
-          createdAt: ts,
-          updatedAt: ts,
-          lastVisited: ts
-        });
-        const noteRecords = onboardingNotes.map((noteData, idx) => {
-          const noteId = generateNoteId2();
-          return {
-            id: noteId,
-            title: noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1),
-            content: noteData.content,
-            threadId: onboardingThreadId,
-            spaceId: null,
-            simpleNoteId: idx + 1,
-            userId,
-            isPublic: false,
-            addedBy: "system",
-            createdAt: ts,
-            lastVisited: ts
-          };
-        });
-        const junctionRecords = noteRecords.map((note) => ({
-          id: `note-thread-${note.id}-${Date.now()}`,
-          noteId: note.id,
-          threadId: onboardingThreadId,
-          createdAt: nowISO()
-        }));
-        await db.insert(Notes).values(noteRecords);
-        await db.insert(NoteThreads).values(junctionRecords);
-        await Promise.all(
-          noteRecords.map(async (note, idx) => {
-            const content = onboardingNotes[idx].content;
-            try {
-              const { results } = await processScriptureReferences(note.id, userId, onboardingThreadId, content);
-              if (results.length > 0) {
-                console.log("[onboarding] scripture processed", { noteId: note.id, detectedCount: results.length, refs: results.map((r) => r.reference) });
-              }
-            } catch (e) {
-              const msg = e instanceof Error ? e.message : String(e);
-              console.error("Error processing scripture for onboarding note", note.id, msg, e);
-            }
-          })
-        );
-        await db.update(UserMetadata).set({
-          highestSimpleNoteId: onboardingNotes.length,
-          updatedAt: nowISO()
-        }).where(eq(UserMetadata.userId, userId));
-        console.log(`Created onboarding thread with ${onboardingNotes.length} notes for user ${userId}`);
-      }
+      await ensureOnboardingThreadIfMissing(userId);
     } catch (error) {
-      console.error("Error creating onboarding thread:", error);
+      console.error("Error creating onboarding thread (non-fatal, user can still load):", error);
     }
   }
   return {
@@ -74564,6 +74725,7 @@ var THREAD_COLORS = [
   "green"
   // var(--color-green)
 ];
+var USER_AVATAR_COLORS = THREAD_COLORS.filter((c) => c !== "paper");
 function getThreadColorCSS(color) {
   if (!color) return "var(--color-paper)";
   const colorMap = {
@@ -75350,10 +75512,17 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
     const defaultNoteIds = [...assignedNotes, ...unorganizedNotes].filter((n) => n.noteType === "default" || !n.noteType).map((n) => n.id);
     if (defaultNoteIds.length > 0) {
       try {
-        const junctionEntries = await db.select({
+        let junctionEntries = await db.select({
           noteId: NoteScriptureReferences.noteId,
           scriptureNoteId: NoteScriptureReferences.scriptureNoteId
         }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
+        if (junctionEntries.length === 0 && offset === 0) {
+          await new Promise((r) => setTimeout(r, 80));
+          junctionEntries = await db.select({
+            noteId: NoteScriptureReferences.noteId,
+            scriptureNoteId: NoteScriptureReferences.scriptureNoteId
+          }).from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id)).where(and(inArray(NoteScriptureReferences.noteId, defaultNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).all();
+        }
         const scriptureNoteIds2 = [...new Set(junctionEntries.map((e) => e.scriptureNoteId))];
         let scriptureMetadataMap = {};
         if (scriptureNoteIds2.length > 0) {
@@ -75378,22 +75547,19 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
             }
           }
         }
-        if (filterExcludeReferencedScripture) {
-          const referencedScriptureNoteIds = new Set(junctionEntries.map((e) => e.scriptureNoteId));
-          assignedNotes = assignedNotes.filter((note) => {
-            if (note.noteType !== "scripture") return true;
-            if (!referencedScriptureNoteIds.has(note.id)) return true;
-            return note.lastVisited != null;
-          });
-          unorganizedNotes = unorganizedNotes.filter((note) => {
-            if (note.noteType !== "scripture") return true;
-            if (!referencedScriptureNoteIds.has(note.id)) return true;
-            return note.lastVisited != null;
-          });
-        }
       } catch (error) {
         console.error("Error fetching scripture references:", error);
       }
+    }
+    if (filterExcludeReferencedScripture) {
+      assignedNotes = assignedNotes.filter((note) => {
+        if (note.noteType !== "scripture") return true;
+        return note.lastVisited != null;
+      });
+      unorganizedNotes = unorganizedNotes.filter((note) => {
+        if (note.noteType !== "scripture") return true;
+        return note.lastVisited != null;
+      });
     }
     const mapNote = (note) => {
       const cleanContent = stripHtml(note.content);
@@ -75413,6 +75579,7 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
+        simpleNoteId: note.simpleNoteId ?? null,
         noteType: note.noteType || "default",
         lastUpdated: note.lastUpdated,
         updatedAt: note.updatedAt || note.createdAt,
@@ -75479,6 +75646,7 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
+        simpleNoteId: note.simpleNoteId ?? null,
         noteType: note.noteType || "scripture",
         lastUpdated: note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
@@ -75533,6 +75701,7 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
         noteId: note.id,
         threadId: note.threadId,
         spaceId: note.spaceId,
+        simpleNoteId: note.simpleNoteId ?? null,
         noteType: note.noteType || "scripture",
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt,
@@ -75880,14 +76049,26 @@ route2.get("/api/navigation/data", async (c) => {
       { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" }
     );
   } catch (error) {
-    const standardError = handleAPIError(error, {
-      endpoint: "/api/navigation/data",
-      action: "get_navigation_data"
-    });
-    return c.json(
-      { error: standardError.message, code: standardError.code },
-      500
-    );
+    try {
+      const standardError = handleAPIError(error, {
+        endpoint: "/api/navigation/data",
+        action: "get_navigation_data"
+      });
+      const body = {
+        error: standardError.message,
+        code: standardError.code,
+        details: error instanceof Error ? error.message : String(error),
+        hint: error instanceof Error ? error.stack?.split("\n").slice(0, 3).join(" | ") ?? "" : ""
+      };
+      return c.json(body, 500, { "Content-Type": "application/json" });
+    } catch (fallbackErr) {
+      console.error("[api/navigation/data] Fallback error:", fallbackErr);
+      return c.json(
+        { error: "Navigation failed", details: String(fallbackErr) },
+        500,
+        { "Content-Type": "application/json" }
+      );
+    }
   }
 });
 var navigation_default = route2;
@@ -77204,13 +77385,9 @@ var stats_default = route6;
 // server/routes/search.ts
 init_db2();
 var route7 = new Hono2();
-route7.get("/api/search", async (c) => {
+route7.get("/api/search", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    const { userId } = auth;
-    if (!userId) {
-      return c.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, 401);
-    }
+    const { userId } = getAuthenticatedAuth(c);
     const url = new URL(c.req.url);
     const query2 = url.searchParams.get("q");
     const type = url.searchParams.get("type") || "all";
@@ -77221,7 +77398,7 @@ route7.get("/api/search", async (c) => {
     const searchTerm = `%${query2.trim()}%`;
     const searchNotes = type === "all" || type === "notes";
     const searchThreads = type === "all" || type === "threads";
-    const notesQuery = searchNotes && db.select({
+    const notesRows = searchNotes ? await db.select({
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
@@ -77239,8 +77416,8 @@ route7.get("/api/search", async (c) => {
           like(Notes.content, searchTerm)
         )
       )
-    ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit);
-    const threadsQuery = searchThreads && db.select({
+    ).orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id).limit(limit) : [];
+    const threadsRows = searchThreads ? await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -77253,11 +77430,7 @@ route7.get("/api/search", async (c) => {
         eq(Threads.userId, userId),
         like(Threads.title, searchTerm)
       )
-    ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit);
-    const [notesRows, threadsRows] = await Promise.all([
-      searchNotes ? notesQuery : Promise.resolve([]),
-      searchThreads ? threadsQuery : Promise.resolve([])
-    ]);
+    ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit) : [];
     const noteResults = notesRows.map((note) => ({
       id: note.id,
       type: "note",
@@ -77312,6 +77485,9 @@ route8.get("/api/content/load-more", async (c) => {
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const filter2 = c.req.query("filter") || "all";
+    if (offset === 0 && filter2 === "all") {
+      await ensureOnboardingThreadIfMissing(auth.userId);
+    }
     if (filter2 === "scripture") {
       const { items: items2, hasMore: hasMore2 } = await getScriptureNotesForDashboard(auth.userId, limit, offset);
       return c.json({ items: items2, hasMore: hasMore2, offset, limit });
@@ -77342,10 +77518,23 @@ route8.get("/api/content/load-more", async (c) => {
       referencedScriptureNotes: needReferencedScripture ? referencedScriptureNotes : void 0
     });
   } catch (error) {
-    const err = error instanceof Error ? error : new Error(String(error));
-    console.error("Error loading more content:", err);
-    if (err.stack) console.error("Error stack:", err.stack);
-    return c.json({ error: "Failed to load more content", details: err.message }, 500);
+    try {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error("[api/content/load-more] Error:", err.message, err.stack);
+      const body = {
+        error: "Failed to load more content",
+        details: err.message,
+        hint: err.stack?.split("\n").slice(0, 3).join(" | ") ?? ""
+      };
+      return c.json(body, 500, { "Content-Type": "application/json" });
+    } catch (fallbackErr) {
+      console.error("[api/content/load-more] Fallback error:", fallbackErr);
+      return c.json(
+        { error: "Failed to load more content", details: String(fallbackErr) },
+        500,
+        { "Content-Type": "application/json" }
+      );
+    }
   }
 });
 var content_default = route8;
@@ -77357,50 +77546,31 @@ init_unorganized_thread();
 
 // server/utils/space-permissions.ts
 init_db2();
-
-// src/utils/api-responses.ts
-function jsonResponse(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json",
-      ...headers
-    }
-  });
-}
-function errorResponse(message, code, status = 400) {
-  const response = { error: message };
-  if (code) {
-    response.code = code;
+var SpaceAccessError = class extends Error {
+  constructor(status, message, code = status === 404 ? "NOT_FOUND" : "FORBIDDEN") {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.name = "SpaceAccessError";
   }
-  return jsonResponse(response, status);
-}
-function notFoundResponse(resource) {
-  const message = resource ? `${resource} not found` : "Resource not found";
-  return errorResponse(message, "NOT_FOUND", 404);
-}
-function forbiddenResponse(message = "Forbidden", code) {
-  return errorResponse(message, code || "FORBIDDEN", 403);
-}
-
-// server/utils/space-permissions.ts
+};
 async function requireSpaceAccess(spaceId, userId, requireOwner = false) {
   const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
   if (!space) {
-    throw notFoundResponse("Space");
+    throw new SpaceAccessError(404, "Space not found");
   }
   const isOwner = space.userId === userId;
   if (isOwner) {
     return { role: "owner", space };
   }
   if (requireOwner) {
-    throw forbiddenResponse("Only space owners can perform this action");
+    throw new SpaceAccessError(403, "Only space owners can perform this action");
   }
   const member = await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId))).get();
   if (member) {
     return { role: "member", space };
   }
-  throw forbiddenResponse("You do not have access to this space");
+  throw new SpaceAccessError(403, "You do not have access to this space");
 }
 
 // server/utils/move-scripture-notes-to-thread.ts
@@ -77915,6 +78085,18 @@ function rateLimitMiddleware(userId, endpoint, type, ip) {
     resetTime: result.resetTime
   };
 }
+function rateLimit(type) {
+  return async (c, next) => {
+    const auth = c.get("auth");
+    const ip = getClientIP(c.req.raw);
+    const endpoint = c.req.path;
+    const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type, ip);
+    if (!result.allowed) {
+      return c.json({ error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+    }
+    return next();
+  };
+}
 function getClientIP(request) {
   const forwardedFor = request.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -77966,10 +78148,9 @@ async function addNotesToThread(noteIds, threadId, userId) {
     }
   }
 }
-route9.get("/api/threads/list", async (c) => {
+route9.get("/api/threads/list", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const threads = await getAllThreadsWithCounts(auth.userId);
     const threadOptions = threads.map((thread) => ({
       id: thread.id,
@@ -78003,13 +78184,9 @@ route9.get("/api/threads/list", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/create", async (c) => {
+route9.post("/api/threads/create", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/threads/create", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
     const title = formData.get("title");
     const color = formData.get("color");
@@ -78063,13 +78240,9 @@ route9.post("/api/threads/create", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/update", async (c) => {
+route9.post("/api/threads/update", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/threads/update", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
     const threadId = formData.get("id");
     const title = formData.get("title");
@@ -78110,13 +78283,9 @@ route9.post("/api/threads/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.delete("/api/threads/delete", async (c) => {
+route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/threads/delete", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
     if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
     const existingThread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
@@ -78139,10 +78308,9 @@ route9.delete("/api/threads/delete", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/ensure-unorganized", async (c) => {
+route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const existingThread = await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).get();
     if (existingThread) {
       return c.json({ success: true, message: "Unorganized thread already exists", thread: existingThread });
@@ -78175,13 +78343,9 @@ route9.post("/api/threads/ensure-unorganized", async (c) => {
     return c.json({ error: "Failed to ensure unorganized thread exists" }, 500);
   }
 });
-route9.delete("/api/threads/erase-with-notes", async (c) => {
+route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/threads/erase-with-notes", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
     if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
     const existingThread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
@@ -78215,12 +78379,10 @@ route9.delete("/api/threads/erase-with-notes", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/prefetch", async (c) => {
+route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    let threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     let thread = await getThreadWithCount(threadId, auth.userId);
     let notesResult = await getNotesForThread(threadId, auth.userId, 20, 0);
@@ -78236,7 +78398,14 @@ route9.get("/api/threads/:threadId/prefetch", async (c) => {
           userId: auth.userId,
           spaceId: null,
           noteCount: noteTypeCounts?.all ?? notes2?.length ?? 0,
-          backgroundGradient: getThreadGradientCSS("paper")
+          backgroundGradient: getThreadGradientCSS("paper"),
+          lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+          accentColor: getThreadColorCSS(null),
+          isPublic: false,
+          isPinned: false,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          lastVisited: null
         };
       } else {
         const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
@@ -78279,12 +78448,10 @@ route9.get("/api/threads/:threadId/prefetch", async (c) => {
     return c.json({ error: "Failed to fetch thread data", details: error.message }, 500);
   }
 });
-route9.get("/api/threads/:threadId/note-type-counts", async (c) => {
+route9.get("/api/threads/:threadId/note-type-counts", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    let threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
     const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
@@ -78307,12 +78474,10 @@ route9.get("/api/threads/:threadId/note-type-counts", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/:threadId/visit", async (c) => {
+route9.post("/api/threads/:threadId/visit", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    let threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
     if (!thread) return c.json({ error: "Thread not found" }, 404);
@@ -78330,12 +78495,10 @@ route9.post("/api/threads/:threadId/visit", async (c) => {
     return c.json({ error: error.message || "Failed to update visit" }, 500);
   }
 });
-route9.get("/api/threads/:threadId/notes", async (c) => {
+route9.get("/api/threads/:threadId/notes", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    let threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    let threadId = requireParam(c, "threadId");
     if (threadId.startsWith("thread/")) threadId = "thread_" + threadId.slice(7);
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
@@ -78366,12 +78529,10 @@ route9.get("/api/threads/:threadId/notes", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/share", async (c) => {
+route9.get("/api/threads/:threadId/share", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const threadId = requireParam(c, "threadId");
     const thread = await db.select({
       id: Threads.id,
       isPublic: Threads.isPublic,
@@ -78393,12 +78554,10 @@ route9.get("/api/threads/:threadId/share", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.post("/api/threads/:threadId/share", async (c) => {
+route9.post("/api/threads/:threadId/share", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const threadId = c.req.param("threadId");
-    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const threadId = requireParam(c, "threadId");
     const { action } = await c.req.json();
     if (!action || !["enable", "disable", "refresh"].includes(action)) {
       return c.json({ error: "Invalid action. Must be enable, disable, or refresh" }, 400);
@@ -78436,10 +78595,9 @@ route9.post("/api/threads/:threadId/share", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route9.get("/api/threads/:threadId/referenced-scripture-notes", async (c) => {
+route9.get("/api/threads/:threadId/referenced-scripture-notes", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const noteIdsParam = c.req.query("noteIds");
     if (!noteIdsParam) return c.json({ scriptureNoteIds: [] });
     const noteIds = noteIdsParam.split(",").filter((id) => id);
@@ -78478,8 +78636,13 @@ var FREE_TIER_LIMIT = 200;
 var UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || "cplan_37aJweoipC2wY2Pa94o7zMdoIyw";
 async function getUserNoteCount(userId) {
   try {
-    const userMetadata = await db.select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-    return userMetadata?.highestSimpleNoteId || 0;
+    const [userMetadata, existingNotes] = await Promise.all([
+      db.select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).get(),
+      db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1)
+    ]);
+    const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
+    const maxFromNotes = existingNotes.length > 0 ? existingNotes[0].simpleNoteId ?? 0 : 0;
+    return Math.max(fromMetadata, maxFromNotes);
   } catch (error) {
     console.error("Error getting user note count:", error);
     return 0;
@@ -78724,35 +78887,6 @@ var unique = (arr = []) => {
 
 // node_modules/@extractus/article-extractor/src/utils/retrieve.js
 var import_cross_fetch4 = __toESM(require_node_ponyfill(), 1);
-var profetch = async (url, options = {}) => {
-  const { proxy = {}, signal = null } = options;
-  const {
-    target,
-    headers = {}
-  } = proxy;
-  const res = await (0, import_cross_fetch4.default)(target + encodeURIComponent(url), {
-    headers,
-    signal
-  });
-  return res;
-};
-var retrieve_default = async (url, options = {}) => {
-  const {
-    headers = {
-      "user-agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0"
-    },
-    proxy = null,
-    agent = null,
-    signal = null
-  } = options;
-  const res = proxy ? await profetch(url, { proxy, signal }) : await (0, import_cross_fetch4.default)(url, { headers, agent, signal });
-  const status = res.status;
-  if (status >= 400) {
-    throw new Error(`Request failed with error code ${status}`);
-  }
-  const buffer = await res.arrayBuffer();
-  return buffer;
-};
 
 // node_modules/linkedom/esm/shared/symbols.js
 var CHANGED = Symbol("changed");
@@ -78844,14 +78978,14 @@ var decodeMap = /* @__PURE__ */ new Map([
 var fromCodePoint = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, n/no-unsupported-features/es-builtins
   (_a = String.fromCodePoint) !== null && _a !== void 0 ? _a : function(codePoint) {
-    let output2 = "";
+    let output = "";
     if (codePoint > 65535) {
       codePoint -= 65536;
-      output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+      output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
       codePoint = 56320 | codePoint & 1023;
     }
-    output2 += String.fromCharCode(codePoint);
-    return output2;
+    output += String.fromCharCode(codePoint);
+    return output;
   }
 );
 function replaceCodePoint(codePoint) {
@@ -80877,14 +81011,14 @@ var decodeMap2 = /* @__PURE__ */ new Map([
 var fromCodePoint2 = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, node/no-unsupported-features/es-builtins
   (_a2 = String.fromCodePoint) !== null && _a2 !== void 0 ? _a2 : function(codePoint) {
-    let output2 = "";
+    let output = "";
     if (codePoint > 65535) {
       codePoint -= 65536;
-      output2 += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
+      output += String.fromCharCode(codePoint >>> 10 & 1023 | 55296);
       codePoint = 56320 | codePoint & 1023;
     }
-    output2 += String.fromCharCode(codePoint);
-    return output2;
+    output += String.fromCharCode(codePoint);
+    return output;
   }
 );
 function replaceCodePoint2(codePoint) {
@@ -81501,11 +81635,11 @@ var singleTag = /* @__PURE__ */ new Set([
 ]);
 function render(node, options = {}) {
   const nodes = "length" in node ? node : [node];
-  let output2 = "";
+  let output = "";
   for (let i = 0; i < nodes.length; i++) {
-    output2 += renderNode(nodes[i], options);
+    output += renderNode(nodes[i], options);
   }
-  return output2;
+  return output;
 }
 var esm_default = render;
 function renderNode(node, options) {
@@ -88027,16 +88161,6 @@ var stripMultiLinebreaks = (str) => {
 var stripMultispaces = (str) => {
   return str.replace(WS_REGEXP, " ").trim();
 };
-var getCharset = (html) => {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const m2 = doc.querySelector("meta[charset]") || null;
-  let charset = m2 ? m2.getAttribute("charset") : "";
-  if (!charset) {
-    const h = doc.querySelector('meta[http-equiv="content-type"]') || null;
-    charset = h ? h.getAttribute("content")?.split(";")[1]?.replace("charset=", "")?.trim() : "";
-  }
-  return charset?.toLowerCase() || "utf8";
-};
 var cleanify = (inputHtml) => {
   const doc = new DOMParser().parseFromString(inputHtml, "text/html");
   const html = doc.documentElement.innerHTML;
@@ -88584,22 +88708,8 @@ var parseFromHtml_default = async (inputHtml, inputUrl = "", parserOptions = {})
 };
 
 // node_modules/@extractus/article-extractor/src/main.js
-var extract = async (input, parserOptions = {}, fetchOptions = {}) => {
-  if (!isString(input)) {
-    throw new Error("Input must be a string");
-  }
-  if (!isValid2(input)) {
-    return parseFromHtml_default(input, null, parserOptions || {});
-  }
-  const buffer = await retrieve_default(input, fetchOptions);
-  const text2 = buffer ? Buffer.from(buffer).toString().trim() : "";
-  if (!text2) {
-    return null;
-  }
-  const charset = getCharset(text2);
-  const decoder = new TextDecoder(charset);
-  const html = decoder.decode(buffer);
-  return parseFromHtml_default(html, input, parserOptions || {});
+var extractFromHtml = async (html, url, parserOptions = {}) => {
+  return parseFromHtml_default(html, url, parserOptions);
 };
 
 // src/utils/content-extractor.ts
@@ -88608,7 +88718,7 @@ function htmlToCleanParagraphs(html) {
   const { document: document2 } = parseHTML(`<div>${html}</div>`);
   const root = document2.querySelector("div");
   if (!root) return "";
-  const output2 = [];
+  const output = [];
   function extractText(node) {
     if (!node) return "";
     if (node.nodeType === 3) {
@@ -88686,7 +88796,7 @@ function htmlToCleanParagraphs(html) {
     const looksCaptiony = tagName19 === "figcaption" || id.includes("caption") || className.includes("caption") || id.includes("credit") || className.includes("credit") || id.includes("source") || className.includes("source");
     return looksCaptiony;
   }
-  function processBlock2(node) {
+  function processBlock(node) {
     if (!node) return;
     const tagName19 = node.tagName?.toLowerCase() || "";
     if (["script", "style", "noscript", "svg", "canvas", "video", "audio", "iframe", "img", "picture", "figure", "figcaption"].includes(tagName19)) {
@@ -88704,7 +88814,7 @@ function htmlToCleanParagraphs(html) {
     if (isCalloutElement(node) || tagName19 === "aside") {
       const calloutContent = processCallout(node, extractText, isMediaMetadata);
       if (calloutContent.length > 0) {
-        output2.push(`<blockquote>
+        output.push(`<blockquote>
 ${calloutContent.join("\n")}
 </blockquote>`);
       }
@@ -88713,7 +88823,7 @@ ${calloutContent.join("\n")}
     if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(tagName19)) {
       const text2 = extractText(node).replace(/\s+/g, " ").trim();
       if (text2 && !isMediaMetadata(text2)) {
-        output2.push(`<${tagName19}>${text2}</${tagName19}>`);
+        output.push(`<${tagName19}>${text2}</${tagName19}>`);
       }
       return;
     }
@@ -88728,26 +88838,26 @@ ${calloutContent.join("\n")}
         }
       }
       if (listItems.length > 0) {
-        output2.push(`<${tagName19}>${listItems.join("")}</${tagName19}>`);
+        output.push(`<${tagName19}>${listItems.join("")}</${tagName19}>`);
       }
       return;
     }
     if (tagName19 === "blockquote") {
       const text2 = extractText(node).replace(/\s+/g, " ").trim();
       if (text2 && !isMediaMetadata(text2)) {
-        output2.push(`<blockquote>${text2}</blockquote>`);
+        output.push(`<blockquote>${text2}</blockquote>`);
       }
       return;
     }
     if (tagName19 === "details") {
-      expandDetailsContent(node, extractText, isMediaMetadata);
+      expandDetailsContent(node, extractText, isMediaMetadata, output, processBlock);
       return;
     }
     if (tagName19 === "p" || tagName19 === "div") {
       if (isCalloutElement(node)) {
         const calloutContent = processCallout(node, extractText, isMediaMetadata);
         if (calloutContent.length > 0) {
-          output2.push(`<blockquote>
+          output.push(`<blockquote>
 ${calloutContent.join("\n")}
 </blockquote>`);
         }
@@ -88760,40 +88870,40 @@ ${calloutContent.join("\n")}
       if (hasBlockChildren) {
         for (const child of node.childNodes || []) {
           if (child.nodeType === 1) {
-            processBlock2(child);
+            processBlock(child);
           }
         }
       } else {
         const text2 = extractText(node).replace(/\s+/g, " ").trim();
         if (text2 && !isMediaMetadata(text2)) {
-          output2.push(`<p>${text2}</p>`);
+          output.push(`<p>${text2}</p>`);
         }
       }
       return;
     }
     for (const child of node.childNodes || []) {
       if (child.nodeType === 1) {
-        processBlock2(child);
+        processBlock(child);
       } else if (child.nodeType === 3) {
         const text2 = (child.textContent || "").replace(/\s+/g, " ").trim();
         if (text2 && text2.length > 20 && !isMediaMetadata(text2)) {
-          output2.push(`<p>${text2}</p>`);
+          output.push(`<p>${text2}</p>`);
         }
       }
     }
   }
   for (const child of root.childNodes || []) {
     if (child.nodeType === 1) {
-      processBlock2(child);
+      processBlock(child);
     } else if (child.nodeType === 3) {
       const text2 = (child.textContent || "").replace(/\s+/g, " ").trim();
       if (text2 && text2.length > 20 && !isMediaMetadata(text2)) {
-        output2.push(`<p>${text2}</p>`);
+        output.push(`<p>${text2}</p>`);
       }
     }
   }
   const seen = /* @__PURE__ */ new Set();
-  const uniqueOutput = output2.filter((item) => {
+  const uniqueOutput = output.filter((item) => {
     const normalized = item.replace(/<[^>]+>/g, "").trim();
     if (seen.has(normalized)) return false;
     seen.add(normalized);
@@ -88809,7 +88919,7 @@ function isCalloutElement(node) {
   return calloutPatterns.some((pattern) => className.includes(pattern));
 }
 function processCallout(node, extractText, isMediaMetadata) {
-  const output2 = [];
+  const output = [];
   function processCalloutChild(child) {
     if (!child) return;
     const tagName19 = child.tagName?.toLowerCase() || "";
@@ -88819,14 +88929,14 @@ function processCallout(node, extractText, isMediaMetadata) {
     if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(tagName19)) {
       const text3 = extractText(child).replace(/\s+/g, " ").trim();
       if (text3 && !isMediaMetadata(text3)) {
-        output2.push(`<h4>${text3}</h4>`);
+        output.push(`<h4>${text3}</h4>`);
       }
       return;
     }
     if (tagName19 === "p") {
       const text3 = extractText(child).replace(/\s+/g, " ").trim();
       if (text3 && !isMediaMetadata(text3)) {
-        output2.push(`<p>${text3}</p>`);
+        output.push(`<p>${text3}</p>`);
       }
       return;
     }
@@ -88841,12 +88951,12 @@ function processCallout(node, extractText, isMediaMetadata) {
         }
       }
       if (listItems.length > 0) {
-        output2.push(`<${tagName19}>${listItems.join("")}</${tagName19}>`);
+        output.push(`<${tagName19}>${listItems.join("")}</${tagName19}>`);
       }
       return;
     }
     if (tagName19 === "details") {
-      expandDetailsInCallout(child, extractText, isMediaMetadata, output2);
+      expandDetailsInCallout(child, extractText, isMediaMetadata, output);
       return;
     }
     if (tagName19 === "div" || tagName19 === "section" || !tagName19) {
@@ -88856,7 +88966,7 @@ function processCallout(node, extractText, isMediaMetadata) {
         } else if (grandchild.nodeType === 3) {
           const text3 = (grandchild.textContent || "").trim();
           if (text3 && text3.length > 10 && !isMediaMetadata(text3)) {
-            output2.push(`<p>${text3}</p>`);
+            output.push(`<p>${text3}</p>`);
           }
         }
       }
@@ -88864,7 +88974,7 @@ function processCallout(node, extractText, isMediaMetadata) {
     }
     const text2 = extractText(child).replace(/\s+/g, " ").trim();
     if (text2 && !isMediaMetadata(text2)) {
-      output2.push(`<p>${text2}</p>`);
+      output.push(`<p>${text2}</p>`);
     }
   }
   for (const child of node.childNodes || []) {
@@ -88873,13 +88983,13 @@ function processCallout(node, extractText, isMediaMetadata) {
     } else if (child.nodeType === 3) {
       const text2 = (child.textContent || "").trim();
       if (text2 && text2.length > 10 && !isMediaMetadata(text2)) {
-        output2.push(`<p>${text2}</p>`);
+        output.push(`<p>${text2}</p>`);
       }
     }
   }
-  return output2;
+  return output;
 }
-function expandDetailsContent(node, extractText, isMediaMetadata) {
+function expandDetailsContent(node, extractText, isMediaMetadata, output, processBlock) {
   if (!node) return;
   let summaryText = "";
   let hasSummary = false;
@@ -88915,7 +89025,7 @@ function expandDetailsContent(node, extractText, isMediaMetadata) {
     }
   }
 }
-function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
+function expandDetailsInCallout(node, extractText, isMediaMetadata, output) {
   if (!node) return;
   let summaryText = "";
   let hasSummary = false;
@@ -88926,25 +89036,25 @@ function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
         hasSummary = true;
         summaryText = extractText(child).replace(/\s+/g, " ").trim();
         if (summaryText && !isMediaMetadata(summaryText)) {
-          output2.push(`<h4>${summaryText}</h4>`);
+          output.push(`<h4>${summaryText}</h4>`);
         }
         continue;
       }
       if (childTag === "details") {
-        expandDetailsInCallout(child, extractText, isMediaMetadata, output2);
+        expandDetailsInCallout(child, extractText, isMediaMetadata, output);
         continue;
       }
       if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(childTag)) {
         const text3 = extractText(child).replace(/\s+/g, " ").trim();
         if (text3 && !isMediaMetadata(text3)) {
-          output2.push(`<h4>${text3}</h4>`);
+          output.push(`<h4>${text3}</h4>`);
         }
         continue;
       }
       if (childTag === "p") {
         const text3 = extractText(child).replace(/\s+/g, " ").trim();
         if (text3 && !isMediaMetadata(text3)) {
-          output2.push(`<p>${text3}</p>`);
+          output.push(`<p>${text3}</p>`);
         }
         continue;
       }
@@ -88959,14 +89069,14 @@ function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
           }
         }
         if (listItems.length > 0) {
-          output2.push(`<${childTag}>${listItems.join("")}</${childTag}>`);
+          output.push(`<${childTag}>${listItems.join("")}</${childTag}>`);
         }
         continue;
       }
       if (childTag === "blockquote") {
         const text3 = extractText(child).replace(/\s+/g, " ").trim();
         if (text3 && !isMediaMetadata(text3)) {
-          output2.push(`<blockquote>${text3}</blockquote>`);
+          output.push(`<blockquote>${text3}</blockquote>`);
         }
         continue;
       }
@@ -88974,17 +89084,17 @@ function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
         for (const grandchild of child.childNodes || []) {
           if (grandchild.nodeType === 1) {
             if (grandchild.tagName?.toLowerCase() === "details") {
-              expandDetailsInCallout(grandchild, extractText, isMediaMetadata, output2);
+              expandDetailsInCallout(grandchild, extractText, isMediaMetadata, output);
             } else {
               const text3 = extractText(grandchild).replace(/\s+/g, " ").trim();
               if (text3 && text3.length > 10 && !isMediaMetadata(text3)) {
-                output2.push(`<p>${text3}</p>`);
+                output.push(`<p>${text3}</p>`);
               }
             }
           } else if (grandchild.nodeType === 3) {
             const text3 = (grandchild.textContent || "").trim();
             if (text3 && text3.length > 10 && !isMediaMetadata(text3)) {
-              output2.push(`<p>${text3}</p>`);
+              output.push(`<p>${text3}</p>`);
             }
           }
         }
@@ -88992,12 +89102,12 @@ function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
       }
       const text2 = extractText(child).replace(/\s+/g, " ").trim();
       if (text2 && text2.length > 10 && !isMediaMetadata(text2)) {
-        output2.push(`<p>${text2}</p>`);
+        output.push(`<p>${text2}</p>`);
       }
     } else if (child.nodeType === 3) {
       const text2 = (child.textContent || "").trim();
       if (text2 && text2.length > 10 && !isMediaMetadata(text2)) {
-        output2.push(`<p>${text2}</p>`);
+        output.push(`<p>${text2}</p>`);
       }
     }
   }
@@ -89006,17 +89116,17 @@ function expandDetailsInCallout(node, extractText, isMediaMetadata, output2) {
       if (child.nodeType === 1) {
         const childTag = child.tagName?.toLowerCase() || "";
         if (childTag === "details") {
-          expandDetailsInCallout(child, extractText, isMediaMetadata, output2);
+          expandDetailsInCallout(child, extractText, isMediaMetadata, output);
         } else {
           const text2 = extractText(child).replace(/\s+/g, " ").trim();
           if (text2 && text2.length > 10 && !isMediaMetadata(text2)) {
-            output2.push(`<p>${text2}</p>`);
+            output.push(`<p>${text2}</p>`);
           }
         }
       } else if (child.nodeType === 3) {
         const text2 = (child.textContent || "").trim();
         if (text2 && text2.length > 10 && !isMediaMetadata(text2)) {
-          output2.push(`<p>${text2}</p>`);
+          output.push(`<p>${text2}</p>`);
         }
       }
     }
@@ -89224,14 +89334,7 @@ async function extractArticleContent(html, url) {
     const callouts = extractCalloutsWithContext(html);
     let cleanedContent = null;
     try {
-      const extracted = await extract(url, {
-        html,
-        fetchOptions: {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; HarvousBot/1.0; +https://harvous.com)"
-          }
-        }
-      });
+      const extracted = await extractFromHtml(html, url);
       if (extracted && extracted.content) {
         cleanedContent = typeof extracted.content === "string" ? extracted.content : String(extracted.content);
         cleanedContent = expandAccordionsInContent(cleanedContent);
@@ -89242,7 +89345,7 @@ async function extractArticleContent(html, url) {
       const { document: document2 } = parseHTML(html);
       const reader = new import_readability2.Readability(document2, {
         debug: false,
-        maxElemsToParseToMainContent: 0,
+        maxElemsToParse: 0,
         // No limit
         nbTopCandidates: 5,
         charThreshold: 500
@@ -89311,10 +89414,9 @@ var truncateAndCapitalizeTitle = (title) => {
   const truncated = title.slice(0, TITLE_HARD_LIMIT);
   return truncated.charAt(0).toUpperCase() + truncated.slice(1);
 };
-route10.post("/api/notes/create", async (c) => {
+route10.post("/api/notes/create", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const noteLimitCheck = await canCreateNote(auth.userId, auth);
     if (!noteLimitCheck.allowed) {
       return c.json({
@@ -89324,11 +89426,6 @@ route10.post("/api/notes/create", async (c) => {
         limit: noteLimitCheck.limit,
         upgradeUrl: noteLimitCheck.upgradeUrl
       }, 403);
-    }
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/create", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
     }
     const contentType = c.req.raw.headers.get("content-type") ?? "";
     let content;
@@ -89411,13 +89508,14 @@ route10.post("/api/notes/create", async (c) => {
         id: `user_metadata_${auth.userId}`,
         userId: auth.userId,
         highestSimpleNoteId: highestExistingId,
-        userColor: "paper",
+        userColor: "blue",
         currentSeason: season,
         createdAt: nowISO()
       });
       userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     }
-    const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
     let finalSpaceId = null;
     if (spaceId && spaceId.trim() && spaceId !== "default_space") finalSpaceId = spaceId;
     const now = nowISO();
@@ -89572,13 +89670,9 @@ route10.post("/api/notes/create", async (c) => {
     return c.json({ error: error.message || "Failed to create note" }, 500);
   }
 });
-route10.put("/api/notes/update", async (c) => {
+route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/update", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { noteId, title, content, resourceImage, contentEncrypted } = body;
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
@@ -89643,13 +89737,9 @@ route10.put("/api/notes/update", async (c) => {
     return c.json({ error: error.message || "Failed to update note" }, 500);
   }
 });
-route10.delete("/api/notes/delete", async (c) => {
+route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/delete", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
@@ -89682,10 +89772,9 @@ route10.delete("/api/notes/delete", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/next-id", async (c) => {
+route10.get("/api/notes/next-id", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     if (!userMetadata) {
       const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1);
@@ -89700,7 +89789,8 @@ route10.get("/api/notes/next-id", async (c) => {
       });
       userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     }
-    const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
     const formattedId = `N${nextSimpleNoteId.toString().padStart(3, "0")}`;
     return c.json({ nextNoteId: nextSimpleNoteId, formattedId });
   } catch (error) {
@@ -89708,10 +89798,9 @@ route10.get("/api/notes/next-id", async (c) => {
     return c.json({ error: error.message || "Failed to get next note ID" }, 500);
   }
 });
-route10.get("/api/notes/recent", async (c) => {
+route10.get("/api/notes/recent", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const limitParam = c.req.query("limit");
     const limit = limitParam ? Math.min(parseInt(limitParam, 10), 100) : 50;
     const maxLimit = Math.max(1, limit);
@@ -89747,10 +89836,9 @@ route10.get("/api/notes/recent", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/auto-tags", async (c) => {
+route10.post("/api/notes/auto-tags", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { noteId, noteTitle, noteContent, action = "generate" } = await c.req.json();
     if (!noteId || !noteTitle || !noteContent) return c.json({ error: "Note ID, title, and content are required" }, 400);
     let result;
@@ -89776,13 +89864,9 @@ route10.post("/api/notes/auto-tags", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-route10.post("/api/notes/cleanup-upgrade-note", async (c) => {
+route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/cleanup-upgrade-note", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const { noteId, simpleNoteId } = await c.req.json();
     if (!noteId || !simpleNoteId) return c.json({ error: "Note ID and simple note ID are required" }, 400);
     const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
@@ -89812,10 +89896,9 @@ route10.post("/api/notes/cleanup-upgrade-note", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.delete("/api/notes/delete-all-unorganized", async (c) => {
+route10.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
     return c.json({ success: true, message: "All notes deleted from unorganized thread" });
   } catch (error) {
@@ -89823,10 +89906,9 @@ route10.delete("/api/notes/delete-all-unorganized", async (c) => {
     return c.json({ error: "Failed to erase notes from unorganized thread" }, 500);
   }
 });
-route10.post("/api/notes/suggest-threads", async (c) => {
+route10.post("/api/notes/suggest-threads", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { title, content } = await c.req.json();
     if (!title && !content) return c.json({ error: "Title or content is required", code: "MISSING_CONTENT" }, 400);
     const noteText = `${title || ""} ${content || ""}`.trim();
@@ -89915,12 +89997,10 @@ route10.post("/api/notes/suggest-threads", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.get("/api/notes/:id/details", async (c) => {
+route10.get("/api/notes/:id/details", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const noteId = c.req.param("id");
-    if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, "id");
     let note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
     let isMemberView = false;
     if (!note) {
@@ -89935,7 +90015,7 @@ route10.get("/api/notes/:id/details", async (c) => {
       try {
         await requireSpaceAccess(spaceIdForAccess, auth.userId);
       } catch (err) {
-        if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
         throw err;
       }
       note = noteById;
@@ -90057,7 +90137,7 @@ route10.get("/api/notes/:id/details", async (c) => {
     }
     return c.json({
       success: true,
-      note: { ...note, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || "default", addedBy: note.addedBy || "user", version: version3, resourceTitle, resourceDescription, resourceImage },
+      note: { ...note, simpleNoteId: note.simpleNoteId ?? null, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || "default", addedBy: note.addedBy || "user", version: version3, resourceTitle, resourceDescription, resourceImage },
       threads: formattedThreads,
       allUserThreads: allUserThreads.map((t) => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map((c2) => ({ id: c2.id, content: c2.content, createdAt: c2.createdAt, updatedAt: c2.updatedAt })),
@@ -90069,16 +90149,11 @@ route10.get("/api/notes/:id/details", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/update-content", async (c) => {
+route10.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/[id]/update-content", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    const id = c.req.param("id");
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
     const { content, contentEncrypted } = await c.req.json();
-    if (!id) return c.json({ success: false, error: "Note ID is required" }, 400);
     if (!content || typeof content !== "string") return c.json({ success: false, error: "Content is required" }, 400);
     const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
     if (!note) return c.json({ success: false, error: "Note not found" }, 404);
@@ -90098,16 +90173,11 @@ route10.post("/api/notes/:id/update-content", async (c) => {
     return c.json({ success: false, error: "Internal server error" }, 500);
   }
 });
-route10.post("/api/notes/:id/add-thread", async (c) => {
+route10.post("/api/notes/:id/add-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/[id]/add-thread", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    const id = c.req.param("id");
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
     const { threadId } = await c.req.json();
-    if (!id) return c.json({ success: false, error: "Note ID is required" }, 400);
     if (!threadId) return c.json({ success: false, error: "Thread ID is required" }, 400);
     if (threadId.startsWith("thread_onboarding_")) return c.json({ success: false, error: "This thread doesn't take new notes." }, 400);
     const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
@@ -90137,16 +90207,11 @@ route10.post("/api/notes/:id/add-thread", async (c) => {
     return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/remove-thread", async (c) => {
+route10.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/notes/[id]/remove-thread", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    const id = c.req.param("id");
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
     const { threadId } = await c.req.json();
-    if (!id) return c.json({ success: false, error: "Note ID is required" }, 400);
     if (!threadId) return c.json({ success: false, error: "Thread ID is required" }, 400);
     const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
     if (!note) return c.json({ success: false, error: "Note not found" }, 404);
@@ -90171,12 +90236,10 @@ route10.post("/api/notes/:id/remove-thread", async (c) => {
     return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:id/process-scripture-references", async (c) => {
+route10.post("/api/notes/:id/process-scripture-references", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const noteId = c.req.param("id");
-    if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, "id");
     const noteRow = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).get();
     if (!noteRow) return c.json({ error: "Note not found" }, 404);
     if (noteRow.userId !== auth.userId) {
@@ -90208,12 +90271,10 @@ route10.post("/api/notes/:id/process-scripture-references", async (c) => {
     return c.json({ error: error.message || "Error processing scripture references" }, 500);
   }
 });
-route10.post("/api/notes/:noteId/visit", async (c) => {
+route10.post("/api/notes/:noteId/visit", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    let noteId = c.req.param("noteId");
-    if (!noteId) return c.json({ error: "Note ID required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    let noteId = requireParam(c, "noteId");
     if (noteId.startsWith("note/")) noteId = "note_" + noteId.slice(5);
     const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
     if (!note) return c.json({ error: "Note not found" }, 404);
@@ -90237,12 +90298,10 @@ route10.post("/api/notes/:noteId/visit", async (c) => {
     return c.json({ error: error.message || "Failed to update visit" }, 500);
   }
 });
-route10.get("/api/notes/:noteId/share", async (c) => {
+route10.get("/api/notes/:noteId/share", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const noteId = c.req.param("noteId");
-    if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, "noteId");
     const note = await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted }).from(Notes).where(eq(Notes.id, noteId)).get();
     if (!note) return c.json({ error: "Note not found" }, 404);
     if (note.userId !== auth.userId) return c.json({ error: "You do not have permission to access this note" }, 403);
@@ -90271,12 +90330,10 @@ route10.get("/api/notes/:noteId/share", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route10.post("/api/notes/:noteId/share", async (c) => {
+route10.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const noteId = c.req.param("noteId");
-    if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const noteId = requireParam(c, "noteId");
     const { action } = await c.req.json();
     if (!action || !["enable", "disable", "refresh"].includes(action)) return c.json({ error: "Invalid action" }, 400);
     const note = await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, userId: Notes.userId, contentEncrypted: Notes.contentEncrypted }).from(Notes).where(eq(Notes.id, noteId)).get();
@@ -90497,13 +90554,9 @@ function parseItemIds(raw2) {
   }
   return trimmed.split(",").filter((id) => id.trim());
 }
-route11.post("/api/spaces/create", async (c) => {
+route11.post("/api/spaces/create", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/create", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
     const title = formData.get("title");
     const color = formData.get("color") || "paper";
@@ -90566,10 +90619,9 @@ route11.post("/api/spaces/create", async (c) => {
     return c.json({ error: error.message || "Error creating space" }, 500);
   }
 });
-route11.delete("/api/spaces/delete", async (c) => {
+route11.delete("/api/spaces/delete", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const spaceId = c.req.query("spaceId");
     if (!spaceId) return c.json({ error: "Space ID is required" }, 400);
     const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
@@ -90591,11 +90643,10 @@ route11.delete("/api/spaces/delete", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/items", async (c) => {
+route11.get("/api/spaces/items", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const allNotes = await db.select({
+    const auth = getAuthenticatedAuth(c);
+    const allNotesRaw = await db.select({
       id: Notes.id,
       title: Notes.title,
       content: Notes.content,
@@ -90606,8 +90657,10 @@ route11.get("/api/spaces/items", async (c) => {
       createdAt: Notes.createdAt,
       updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited,
-      contentEncrypted: Notes.contentEncrypted
+      contentEncrypted: Notes.contentEncrypted,
+      addedBy: Notes.addedBy
     }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
+    const allNotes = allNotesRaw.filter((n) => n.addedBy !== "system");
     const resourceNoteIds = allNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
     let resourceMetadataMap = {};
     if (resourceNoteIds.length > 0) {
@@ -90632,7 +90685,7 @@ route11.get("/api/spaces/items", async (c) => {
         resourceImage: rm?.sourceImage || null
       };
     });
-    const allThreads = await db.select({
+    const allThreadsRaw = await db.select({
       id: Threads.id,
       title: Threads.title,
       color: Threads.color,
@@ -90641,6 +90694,7 @@ route11.get("/api/spaces/items", async (c) => {
       updatedAt: Threads.updatedAt,
       lastVisited: Threads.lastVisited
     }).from(Threads).where(and(eq(Threads.userId, auth.userId), ne(Threads.id, "thread_unorganized"))).all();
+    const allThreads = allThreadsRaw.filter((t) => !t.id.startsWith("thread_onboarding_"));
     const threadIds = allThreads.map((t) => t.id);
     let noteCountsMap = /* @__PURE__ */ new Map();
     if (threadIds.length > 0) {
@@ -90658,14 +90712,10 @@ route11.get("/api/spaces/items", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/update", async (c) => {
+route11.post("/api/spaces/:spaceId/update", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/update", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     const formData = await c.req.formData();
     const title = formData.get("title");
     const color = formData.get("color");
@@ -90697,11 +90747,10 @@ route11.post("/api/spaces/:spaceId/update", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/notes", async (c) => {
+route11.get("/api/spaces/:spaceId/notes", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     const offset = parseInt(c.req.query("offset") || "0", 10);
     const limit = parseInt(c.req.query("limit") || "20", 10);
     const result = await getNotesForSpace(spaceId, auth.userId, limit, offset);
@@ -90711,16 +90760,15 @@ route11.get("/api/spaces/:spaceId/notes", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/items", async (c) => {
+route11.get("/api/spaces/:spaceId/items", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     let accessInfo;
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     if (accessInfo.role === "owner") {
@@ -90741,16 +90789,15 @@ route11.get("/api/spaces/:spaceId/items", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/bootstrap", async (c) => {
+route11.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     let accessInfo;
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const spaceRow = accessInfo.space;
@@ -90780,11 +90827,10 @@ route11.get("/api/spaces/:spaceId/bootstrap", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/prefetch", async (c) => {
+route11.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     const ownerSpaces = await getSpacesWithCounts(auth.userId);
     const ownerSpace = ownerSpaces.find((s2) => s2.id === spaceId);
     if (ownerSpace) {
@@ -90825,24 +90871,21 @@ route11.get("/api/spaces/:spaceId/prefetch", async (c) => {
     return c.json({ error: "Failed to fetch space data" }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-note", async (c) => {
+route11.post("/api/spaces/:spaceId/add-note", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/add-note", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     try {
       await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const { noteId } = await c.req.json();
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
     if (!note) return c.json({ error: "Note not found or access denied" }, 404);
+    if (note.addedBy === "system") return c.json({ error: "Cannot add onboarding notes to a space" }, 400);
     await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
     return c.json({ success: true, message: "Note added to space" });
   } catch (error) {
@@ -90850,23 +90893,20 @@ route11.post("/api/spaces/:spaceId/add-note", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-thread", async (c) => {
+route11.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/add-thread", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     try {
       await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const { threadId } = await c.req.json();
     if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
     if (threadId === "thread_unorganized") return c.json({ error: "Cannot add unorganized thread to a space" }, 400);
+    if (threadId.startsWith("thread_onboarding_")) return c.json({ error: "Cannot add onboarding thread to a space" }, 400);
     const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
     if (!thread) return c.json({ error: "Thread not found or access denied" }, 404);
     await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
@@ -90876,15 +90916,14 @@ route11.post("/api/spaces/:spaceId/add-thread", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/add-items", async (c) => {
+route11.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     try {
       await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const { noteIds = [], threadIds = [] } = await c.req.json();
@@ -90897,6 +90936,10 @@ route11.post("/api/spaces/:spaceId/add-items", async (c) => {
           errors.push(`Note ${noteId} not found`);
           continue;
         }
+        if (note.addedBy === "system") {
+          errors.push("Cannot add onboarding notes to a space");
+          continue;
+        }
         await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
         updatedNotes++;
       } catch (e) {
@@ -90907,6 +90950,10 @@ route11.post("/api/spaces/:spaceId/add-items", async (c) => {
       try {
         if (threadId === "thread_unorganized") {
           errors.push("Cannot add unorganized thread");
+          continue;
+        }
+        if (threadId.startsWith("thread_onboarding_")) {
+          errors.push("Cannot add onboarding thread");
           continue;
         }
         const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
@@ -90926,16 +90973,15 @@ route11.post("/api/spaces/:spaceId/add-items", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/remove-items", async (c) => {
+route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     let accessInfo;
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const { noteIds = [], threadIds = [] } = await c.req.json();
@@ -90986,15 +91032,14 @@ route11.post("/api/spaces/:spaceId/remove-items", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/share-link", async (c) => {
+route11.get("/api/spaces/:spaceId/share-link", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     try {
       await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const space = await db.select({ id: Spaces.id, isPublic: Spaces.isPublic, shareToken: Spaces.shareToken, userId: Spaces.userId }).from(Spaces).where(eq(Spaces.id, spaceId)).get();
@@ -91015,14 +91060,10 @@ route11.get("/api/spaces/:spaceId/share-link", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/share-link", async (c) => {
+route11.post("/api/spaces/:spaceId/share-link", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/share-link", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
     if (!space) return c.json({ error: "Space not found or access denied" }, 404);
     const { action } = await c.req.json();
@@ -91036,16 +91077,15 @@ route11.post("/api/spaces/:spaceId/share-link", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.get("/api/spaces/:spaceId/members", async (c) => {
+route11.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     let accessInfo;
     try {
       accessInfo = await requireSpaceAccess(spaceId, auth.userId);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const isOwner = accessInfo.role === "owner";
@@ -91073,7 +91113,7 @@ route11.get("/api/spaces/:spaceId/members", async (c) => {
         displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || "Unknown User"),
         email: ownerMeta.email || null,
         profileImageUrl: ownerMeta.profileImageUrl || null,
-        userColor: ownerMeta.userColor || "paper"
+        userColor: ownerMeta.userColor || "blue"
       },
       ...members.map((m2) => {
         const meta = userMetadataMap[m2.userId] || {};
@@ -91085,7 +91125,7 @@ route11.get("/api/spaces/:spaceId/members", async (c) => {
           displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || "Unknown User"),
           email: meta.email || null,
           profileImageUrl: meta.profileImageUrl || null,
-          userColor: meta.userColor || "paper"
+          userColor: meta.userColor || "blue"
         };
       })
     ];
@@ -91116,18 +91156,14 @@ route11.get("/api/spaces/:spaceId/members", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/:spaceId/members/invite", async (c) => {
+route11.post("/api/spaces/:spaceId/members/invite", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/members/invite", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
     try {
       await requireSpaceAccess(spaceId, auth.userId, true);
     } catch (err) {
-      if (err instanceof Response) return new Response(err.body, { status: err.status, headers: err.headers });
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
       throw err;
     }
     const { email, method = "link" } = await c.req.json();
@@ -91160,15 +91196,11 @@ route11.post("/api/spaces/:spaceId/members/invite", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.delete("/api/spaces/:spaceId/members/:userId", async (c) => {
+route11.delete("/api/spaces/:spaceId/members/:userId", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const spaceId = c.req.param("spaceId");
-    const targetUserId = c.req.param("userId");
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/members/remove", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const spaceId = requireParam(c, "spaceId");
+    const targetUserId = requireParam(c, "userId");
     const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
     if (!space) return c.json({ error: "Space not found" }, 404);
     const isOwner = space.userId === auth.userId;
@@ -91184,15 +91216,10 @@ route11.delete("/api/spaces/:spaceId/members/:userId", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-route11.post("/api/spaces/join/:token", async (c) => {
+route11.post("/api/spaces/join/:token", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const token = c.req.param("token");
-    if (!token) return c.json({ error: "Token is required" }, 400);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/spaces/join", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
+    const token = requireParam(c, "token");
     const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
     if (!space) return c.json({ error: "Invalid or expired invite link" }, 404);
     if (!space.isPublic) return c.json({ error: "This space is no longer accepting new members" }, 403);
@@ -91220,8 +91247,7 @@ route11.post("/api/spaces/join/:token", async (c) => {
 });
 route11.get("/api/spaces/join-preview/:token", async (c) => {
   try {
-    const token = c.req.param("token");
-    if (!token) return c.json({ error: "Token is required" }, 400);
+    const token = requireParam(c, "token");
     const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
     if (!space) return c.json({ error: "Space not found or link expired" }, 404);
     if (!space.isPublic) return c.json({ error: "This space is no longer public" }, 403);
@@ -91710,10 +91736,9 @@ function parseMarkdownNoteSection(section) {
 // server/routes/user.ts
 init_unorganized_thread();
 var app = new Hono2();
-app.get("/api/user/achievements", async (c) => {
+app.get("/api/user/achievements", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const [seasonalXP, lifetimeXP, milestoneIds, allSeasons] = await Promise.all([
       getSeasonalXP(auth.userId),
       getLifetimeXP(auth.userId),
@@ -91738,10 +91763,9 @@ app.get("/api/user/achievements", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/check-monthly-attendance", async (c) => {
+app.post("/api/user/check-monthly-attendance", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const awarded = await awardMonthlyAttendanceXP(auth.userId);
     return c.json({ success: true, awardedXP: awarded, xpAmount: awarded ? 25 : 0 });
   } catch (error) {
@@ -91749,10 +91773,9 @@ app.post("/api/user/check-monthly-attendance", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.delete("/api/user/clear-data", async (c) => {
+app.delete("/api/user/clear-data", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
     const noteIds = userNotes.map((n) => n.id);
     if (noteIds.length > 0) {
@@ -91777,10 +91800,9 @@ app.delete("/api/user/clear-data", async (c) => {
     return c.json({ error: error.message || "Failed to clear data" }, 500);
   }
 });
-app.delete("/api/user/delete-account", async (c) => {
+app.delete("/api/user/delete-account", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
     const noteIds = userNotes.map((n) => n.id);
     if (noteIds.length > 0) {
@@ -91821,10 +91843,9 @@ app.delete("/api/user/delete-account", async (c) => {
     return c.json({ error: error.message || "Failed to delete account" }, 500);
   }
 });
-app.get("/api/user/export", async (c) => {
+app.get("/api/user/export", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const formatParam = c.req.query("format") || "markdown";
     const format = formatParam === "csv-threads" ? "csv-threads" : formatParam === "text" ? "text" : "markdown";
     const { content, fileExtension } = await generateUserExport(auth.userId, format);
@@ -91840,10 +91861,9 @@ app.get("/api/user/export", async (c) => {
     return c.json({ error: error.message || "Failed to export data" }, 500);
   }
 });
-app.post("/api/user/session", async (c) => {
+app.post("/api/user/session", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { activities, startTime, lastActivityTime } = body;
     if (!activities || !Array.isArray(activities)) {
@@ -91870,15 +91890,9 @@ app.post("/api/user/session", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/update-church", async (c) => {
+app.post("/api/user/update-church", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/update-church", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { churchName, churchCity, churchState } = body;
     const normalizedChurchName = typeof churchName === "string" ? churchName.trim() || null : churchName ?? null;
@@ -91908,7 +91922,7 @@ app.post("/api/user/update-church", async (c) => {
         churchState: normalizedChurchState,
         churchAddedAt: hasChurchData ? nowISO() : null,
         highestSimpleNoteId: 0,
-        userColor: "paper",
+        userColor: "blue",
         createdAt: nowISO(),
         updatedAt: nowISO()
       });
@@ -91924,10 +91938,9 @@ app.post("/api/user/update-church", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/update-credentials", async (c) => {
+app.post("/api/user/update-credentials", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { newEmail, currentPassword, newPassword } = body;
     if (!newEmail && !newPassword) return c.json({ error: "At least one field must be provided" }, 400);
@@ -91971,15 +91984,9 @@ app.post("/api/user/update-credentials", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-app.post("/api/user/update-profile", async (c) => {
+app.post("/api/user/update-profile", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/update-profile", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { firstName, lastName, color } = body;
     const fnv = validateName(firstName, "First name", true);
@@ -92031,10 +92038,9 @@ app.post("/api/user/update-profile", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/xp", async (c) => {
+app.get("/api/user/xp", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const shouldBackfill = c.req.query("backfill") === "true";
     const season = c.req.query("season");
     if (shouldBackfill) await backfillUserXP(auth.userId);
@@ -92057,13 +92063,9 @@ app.get("/api/user/xp", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/get-profile", async (c) => {
+app.get("/api/user/get-profile", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) {
-      console.log("[api/user/get-profile] No auth userId \u2014 returning 401");
-      return c.json({ error: "Unauthorized" }, 401);
-    }
+    const auth = getAuthenticatedAuth(c);
     console.log("[api/user/get-profile] auth.userId", auth.userId);
     const userData = await getCachedUserData(auth.userId);
     console.log("[api/user/get-profile] userData loaded", { displayName: userData.displayName });
@@ -92109,10 +92111,9 @@ app.get("/api/user/get-profile", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/locked-notes", async (c) => {
+app.get("/api/user/locked-notes", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const includeContent = c.req.query("content") === "true";
     const lockedOnly = await db.select(includeContent ? { id: Notes.id, content: Notes.content } : { id: Notes.id }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, true))).all();
     const result = includeContent ? lockedOnly.map((n) => ({ id: n.id, content: n.content })) : lockedOnly.map((n) => ({ id: n.id }));
@@ -92122,10 +92123,9 @@ app.get("/api/user/locked-notes", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/verify-lock-pin", async (c) => {
+app.post("/api/user/verify-lock-pin", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { pin } = body;
     if (!pin || !validatePinFormat(pin)) return c.json({ error: "PIN must be exactly 4 digits", code: "INVALID_PIN" }, 400);
@@ -92139,13 +92139,9 @@ app.post("/api/user/verify-lock-pin", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/set-lock-pin", async (c) => {
+app.post("/api/user/set-lock-pin", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/set-lock-pin", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const body = await c.req.json();
     const { pin, currentPin, newPin } = body;
     const isChange = typeof currentPin === "string" && typeof newPin === "string";
@@ -92166,13 +92162,9 @@ app.post("/api/user/set-lock-pin", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/can-create-space", async (c) => {
+app.get("/api/user/can-create-space", requireAuth, rateLimit("read"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/can-create-space", "read", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const canCreate = await canCreateSharedSpace(auth.userId, auth);
     return c.json(canCreate);
   } catch (error) {
@@ -92180,13 +92172,9 @@ app.get("/api/user/can-create-space", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/can-join-space", async (c) => {
+app.get("/api/user/can-join-space", requireAuth, rateLimit("read"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/can-join-space", "read", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const canJoin = await canJoinSpace(auth.userId, auth);
     return c.json(canJoin);
   } catch (error) {
@@ -92194,13 +92182,9 @@ app.get("/api/user/can-join-space", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/user/limits", async (c) => {
+app.get("/api/user/limits", requireAuth, rateLimit("read"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/user/limits", "read", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const limitsInfo = await getUserLimitsInfo(auth.userId, auth);
     return c.json(limitsInfo, 200, { "Cache-Control": "private, max-age=0, no-store" });
   } catch (error) {
@@ -92208,10 +92192,9 @@ app.get("/api/user/limits", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.post("/api/user/import", async (c) => {
+app.post("/api/user/import", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const formData = await c.req.formData();
     const format = formData.get("format");
     if (!format || format !== "markdown" && format !== "csv-threads") {
@@ -92242,12 +92225,13 @@ app.post("/api/user/import", async (c) => {
         id: `user_metadata_${auth.userId}`,
         userId: auth.userId,
         highestSimpleNoteId: highestExistingId,
-        userColor: "paper",
+        userColor: "blue",
         currentSeason: getCurrentSeason(),
         createdAt: nowISO()
       });
       userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     }
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0;
     const errors = [];
     const createdThreadIds = /* @__PURE__ */ new Set();
@@ -92294,7 +92278,7 @@ app.post("/api/user/import", async (c) => {
           createdThreadIds.add(threadId);
           threadsCreated++;
         }
-        const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+        const nextSimpleNoteId = i === 0 ? effectiveHighest + 1 : (userMetadata.highestSimpleNoteId ?? 0) + 1;
         let noteType = scriptureReference ? "scripture" : "default";
         const newNote = await db.insert(Notes).values({
           id: generateNoteId(),
@@ -92373,10 +92357,9 @@ app.post("/api/user/import", async (c) => {
     return c.json({ error: error.message || "Failed to import data" }, 500);
   }
 });
-app.get("/api/profile/my-sharing", async (c) => {
+app.get("/api/profile/my-sharing", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const origin = new URL(c.req.url).origin;
     const [threadRows, noteRows] = await Promise.all([
       db.select({ id: Threads.id, title: Threads.title, color: Threads.color, shareToken: Threads.shareToken }).from(Threads).where(and(eq(Threads.userId, auth.userId), isNotNull(Threads.shareToken))).orderBy(desc(Threads.shareTokenCreatedAt)),
@@ -92404,13 +92387,9 @@ app.get("/api/profile/my-sharing", async (c) => {
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });
-app.get("/api/profile/my-shared-spaces", async (c) => {
+app.get("/api/profile/my-shared-spaces", requireAuth, rateLimit("read"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/profile/my-shared-spaces", "read", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const origin = new URL(c.req.url).origin;
     const ownedSpacesRows = await db.select({
       id: Spaces.id,
@@ -92550,15 +92529,9 @@ var user_default = app;
 init_db2();
 init_dates();
 var app2 = new Hono2();
-app2.post("/api/tags/create", async (c) => {
+app2.post("/api/tags/create", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/tags/create", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const { name, color, category } = await c.req.json();
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return c.json({ error: "Tag name is required" }, 400);
@@ -92594,15 +92567,9 @@ app2.post("/api/tags/create", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app2.delete("/api/tags/delete", async (c) => {
+app2.delete("/api/tags/delete", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/tags/delete", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const tagId = c.req.query("tagId");
     if (!tagId) {
       return c.json({ error: "Tag ID is required" }, 400);
@@ -92622,10 +92589,9 @@ app2.delete("/api/tags/delete", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app2.get("/api/tags/list", async (c) => {
+app2.get("/api/tags/list", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const tags = await db.select().from(Tags).where(eq(Tags.userId, auth.userId)).orderBy(Tags.name);
     const tagsWithCounts = await Promise.all(
       tags.map(async (tag) => {
@@ -92639,10 +92605,9 @@ app2.get("/api/tags/list", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app2.post("/api/scripture/check-existing", async (c) => {
+app2.post("/api/scripture/check-existing", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { reference, threadId } = await c.req.json();
     if (!reference || typeof reference !== "string") {
       return c.json({ error: "Scripture reference is required" }, 400);
@@ -92721,15 +92686,9 @@ app2.post("/api/scripture/fetch-verse", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app2.post("/api/note-tags/assign", async (c) => {
+app2.post("/api/note-tags/assign", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/note-tags/assign", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const { noteId, tagId, isAutoGenerated = false, confidence } = await c.req.json();
     if (!noteId || !tagId) return c.json({ error: "Note ID and Tag ID are required" }, 400);
     const tag = await db.select().from(Tags).where(and(eq(Tags.id, tagId), eq(Tags.userId, auth.userId))).get();
@@ -92751,15 +92710,9 @@ app2.post("/api/note-tags/assign", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-app2.delete("/api/note-tags/remove", async (c) => {
+app2.delete("/api/note-tags/remove", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/note-tags/remove", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
     const tagId = c.req.query("tagId");
     if (!noteId || !tagId) return c.json({ error: "Note ID and Tag ID are required" }, 400);
@@ -92770,10 +92723,9 @@ app2.delete("/api/note-tags/remove", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-app2.get("/api/note-tags/list", async (c) => {
+app2.get("/api/note-tags/list", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const noteTags = await db.select({
@@ -92800,8 +92752,7 @@ init_ids();
 var app3 = new Hono2();
 app3.get("/api/shared/note/:shareToken", async (c) => {
   try {
-    const shareToken = c.req.param("shareToken");
-    if (!shareToken) return c.json({ error: "Share token is required" }, 400);
+    const shareToken = requireParam(c, "shareToken");
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
     const note = await db.select({
       id: Notes.id,
@@ -92854,7 +92805,7 @@ app3.get("/api/shared/note/:shareToken", async (c) => {
       note: { id: note.id, title: note.title, content: note.content, noteType: note.noteType, createdAt: note.createdAt, updatedAt: note.updatedAt },
       scriptureMetadata,
       resourceMetadata,
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || "paper", profileImageUrl: creator?.profileImageUrl || null }
+      creator: { firstName, displayName, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null }
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/shared/note/[shareToken]", action: "get_shared_note" });
@@ -92863,8 +92814,7 @@ app3.get("/api/shared/note/:shareToken", async (c) => {
 });
 app3.get("/api/shared/thread/:shareToken", async (c) => {
   try {
-    const shareToken = c.req.param("shareToken");
-    if (!shareToken) return c.json({ error: "Share token is required" }, 400);
+    const shareToken = requireParam(c, "shareToken");
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
     const thread = await db.select({
       id: Threads.id,
@@ -92907,7 +92857,7 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
       notes: notes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || "paper", profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: notes.length }
     });
   } catch (error) {
@@ -92915,10 +92865,9 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app3.post("/api/shared/add-note-to-harvous", async (c) => {
+app3.post("/api/shared/add-note-to-harvous", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: "Share token is required" }, 400);
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
@@ -92939,10 +92888,11 @@ app3.post("/api/shared/add-note-to-harvous", async (c) => {
         currentSeason: season,
         createdAt: nowISO()
       });
-      userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId, userColor: "paper", firstName: null, lastName: null, email: null, profileImageUrl: null, clerkDataUpdatedAt: null, churchName: null, churchCity: null, churchState: null, currentSeason: season, lastMonthlyVisit: null, churchAddedAt: null, createdAt: nowISO(), updatedAt: null, referralCode: null, lockPinHash: null };
+      userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId, userColor: "blue", firstName: null, lastName: null, email: null, profileImageUrl: null, clerkDataUpdatedAt: null, churchName: null, churchCity: null, churchState: null, currentSeason: season, lastMonthlyVisit: null, churchAddedAt: null, createdAt: nowISO(), updatedAt: null, referralCode: null, lockPinHash: null };
     }
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const newNoteId = generateNoteId();
-    const newSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const newSimpleNoteId = effectiveHighest + 1;
     const ts = nowISO();
     await db.insert(Notes).values({
       id: newNoteId,
@@ -93002,10 +92952,9 @@ app3.post("/api/shared/add-note-to-harvous", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app3.post("/api/shared/add-to-harvous", async (c) => {
+app3.post("/api/shared/add-to-harvous", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { shareToken } = await c.req.json();
     if (!shareToken) return c.json({ error: "Share token is required" }, 400);
     if (!isValidShareToken(shareToken)) return c.json({ error: "Invalid share token format" }, 400);
@@ -93051,8 +93000,9 @@ app3.post("/api/shared/add-to-harvous", async (c) => {
       });
       userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId };
     }
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const createdNoteIds = [];
-    let currentSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    let currentSimpleNoteId = effectiveHighest + 1;
     const baseTimestamp = Date.now();
     for (let noteIndex = 0; noteIndex < sourceNotes.length; noteIndex++) {
       const note = sourceNotes[noteIndex];
@@ -93090,8 +93040,7 @@ app3.post("/api/shared/add-to-harvous", async (c) => {
 });
 app3.get("/api/invitations/:token", async (c) => {
   try {
-    const token = c.req.param("token");
-    if (!token) return c.json({ error: "Invitation token is required", code: "INVALID_TOKEN" }, 400);
+    const token = requireParam(c, "token");
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: "Invitation not found", code: "NOT_FOUND" }, 404);
     const isExpired = invitation.expiresAt && /* @__PURE__ */ new Date() > new Date(invitation.expiresAt);
@@ -93141,17 +93090,10 @@ app3.get("/api/invitations/:token", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app3.post("/api/invitations/:token/accept", async (c) => {
+app3.post("/api/invitations/:token/accept", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "You must be signed in to accept invitations", code: "UNAUTHORIZED" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/invitations/[token]/accept", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
-    const token = c.req.param("token");
-    if (!token) return c.json({ error: "Invitation token is required", code: "INVALID_TOKEN" }, 400);
+    const auth = getAuthenticatedAuth(c);
+    const token = requireParam(c, "token");
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: "Invitation not found", code: "NOT_FOUND" }, 404);
     if (invitation.status !== "pending") {
@@ -93198,8 +93140,7 @@ app3.post("/api/invitations/:token/accept", async (c) => {
 });
 app3.post("/api/invitations/:token/decline", async (c) => {
   try {
-    const token = c.req.param("token");
-    if (!token) return c.json({ error: "Invitation token is required", code: "INVALID_TOKEN" }, 400);
+    const token = requireParam(c, "token");
     const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
     if (!invitation) return c.json({ error: "Invitation not found", code: "NOT_FOUND" }, 404);
     if (invitation.status !== "pending") {
@@ -93363,10 +93304,9 @@ var deleteCookie = (c, name, opt) => {
 
 // server/routes/billing.ts
 var app4 = new Hono2();
-app4.post("/api/billing/checkout", async (c) => {
+app4.post("/api/billing/checkout", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { planId, billingInterval } = await c.req.json();
     if (!planId || planId !== UNLIMITED_PLAN_ID) {
       return c.json({ error: "Invalid plan ID" }, 400);
@@ -93430,10 +93370,9 @@ app4.post("/api/billing/checkout", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app4.post("/api/billing/downgrade", async (c) => {
+app4.post("/api/billing/downgrade", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const clerkSecretKey = process.env.CLERK_SECRET_KEY;
     if (!clerkSecretKey) {
       return c.json({ error: "Clerk secret key not configured" }, 500);
@@ -93480,27 +93419,29 @@ app4.post("/api/billing/downgrade", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app4.get("/api/subscription/status", async (c) => {
+app4.get("/api/subscription/status", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
-    return c.json({
-      hasUnlimited: subscriptionInfo.hasUnlimited,
-      currentCount: subscriptionInfo.currentCount,
-      limit: subscriptionInfo.limit,
-      referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0
-    });
+    return c.json(
+      {
+        hasUnlimited: subscriptionInfo.hasUnlimited,
+        currentCount: subscriptionInfo.currentCount,
+        limit: subscriptionInfo.limit,
+        referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0
+      },
+      200,
+      { "Cache-Control": "private, no-store, max-age=0" }
+    );
   } catch (error) {
     console.error("Error checking subscription status:", error);
     return c.json({ error: error.message || "Failed to check subscription status", hasUnlimited: false }, 500);
   }
 });
 var BONUS_PER_REFERRAL = 100;
-app4.post("/api/referral/credit", async (c) => {
+app4.post("/api/referral/credit", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const ref = getCookie(c, "harvous_referrer")?.trim();
     deleteCookie(c, "harvous_referrer", { path: "/" });
     if (!ref) return c.json({ credited: false });
@@ -93517,10 +93458,9 @@ app4.post("/api/referral/credit", async (c) => {
     return c.json({ error: "Failed to credit referral", credited: false }, 500);
   }
 });
-app4.get("/api/referral/status", async (c) => {
+app4.get("/api/referral/status", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
     const metaRow = await db.select({ referralBonusNotes: UserMetadata.referralBonusNotes, referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
     let referralCode = metaRow?.referralCode ?? null;
@@ -93608,16 +93548,11 @@ function stripAutoGeneratedParts(filename) {
   cleaned = cleaned.replace(/\b[0-9a-f]{32,}\b/gi, "");
   return cleaned.replace(/\s+/g, " ").trim();
 }
-app5.post("/api/resource/:id/update-image", async (c) => {
+app5.post("/api/resource/:id/update-image", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/resource/[id]/update-image", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    const id = c.req.param("id");
+    const auth = getAuthenticatedAuth(c);
+    const id = requireParam(c, "id");
     const { image } = await c.req.json();
-    if (!id) return c.json({ error: "Note ID is required" }, 400);
     const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
     if (!existingNote) return c.json({ error: "Note not found or access denied" }, 404);
     if (existingNote.noteType !== "resource") return c.json({ error: "Note is not a resource note" }, 400);
@@ -93630,10 +93565,9 @@ app5.post("/api/resource/:id/update-image", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app5.post("/api/resource/check-duplicate", async (c) => {
+app5.post("/api/resource/check-duplicate", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { url } = await c.req.json();
     if (!url || typeof url !== "string") return c.json({ error: "URL is required", code: "MISSING_URL" }, 400);
     const urlValidation = validateResourceUrl(url);
@@ -93757,10 +93691,9 @@ app5.post("/api/resource/metadata", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app5.post("/api/resource/suggest-threads", async (c) => {
+app5.post("/api/resource/suggest-threads", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { resourceUrl, sourceName } = await c.req.json();
     if (!resourceUrl || typeof resourceUrl !== "string") return c.json({ error: "Resource URL is required", code: "MISSING_URL" }, 400);
     const urlValidation = validateResourceUrl(resourceUrl);
@@ -93812,13 +93745,9 @@ app5.post("/api/resource/suggest-threads", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app5.post("/api/resource/update-metadata", async (c) => {
+app5.post("/api/resource/update-metadata", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/resource/update-metadata", "write", ip);
-    if (!rateLimit.allowed) return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
+    const auth = getAuthenticatedAuth(c);
     const { noteId, image } = await c.req.json();
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
     const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
@@ -93910,18 +93839,9 @@ function convertInboxColorToThreadColor(inboxColor) {
   if (mappedColor && THREAD_COLORS.includes(mappedColor)) return mappedColor;
   return null;
 }
-app6.post("/api/inbox/archive", async (c) => {
+app6.post("/api/inbox/archive", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/inbox/archive", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json(
-        { error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" },
-        429
-      );
-    }
+    const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: "inboxItemId is required" }, 400);
     const userInboxItem = await db.select({ userInboxItem: UserInboxItems, inboxItem: InboxItems }).from(UserInboxItems).innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id)).where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId))).get();
@@ -93933,15 +93853,9 @@ app6.post("/api/inbox/archive", async (c) => {
     return c.json({ error: "Failed to archive inbox item", details: error.message }, 500);
   }
 });
-app6.post("/api/inbox/unarchive", async (c) => {
+app6.post("/api/inbox/unarchive", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
-    const ip = getClientIP(c.req.raw);
-    const rateLimit = rateLimitMiddleware(auth.userId, "/api/inbox/unarchive", "write", ip);
-    if (!rateLimit.allowed) {
-      return c.json({ error: rateLimit.error, code: "RATE_LIMIT_EXCEEDED" }, 429);
-    }
+    const auth = getAuthenticatedAuth(c);
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: "inboxItemId is required" }, 400);
     const userInboxItem = await db.select({ userInboxItem: UserInboxItems, inboxItem: InboxItems }).from(UserInboxItems).innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id)).where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId))).get();
@@ -93957,10 +93871,9 @@ app6.post("/api/inbox/unarchive", async (c) => {
     return c.json({ error: "Failed to unarchive inbox item", details: error.message }, 500);
   }
 });
-app6.get("/api/inbox/preview", async (c) => {
+app6.get("/api/inbox/preview", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const inboxItemId = c.req.query("inboxItemId");
     if (!inboxItemId) return c.json({ error: "inboxItemId is required" }, 400);
     const inboxItem = await getInboxItemWithNotes(inboxItemId);
@@ -93973,10 +93886,9 @@ app6.get("/api/inbox/preview", async (c) => {
     return c.json({ error: "Failed to fetch inbox item preview", details: error.message }, 500);
   }
 });
-app6.post("/api/inbox/add-to-harvous", async (c) => {
+app6.post("/api/inbox/add-to-harvous", requireAuth, rateLimit("write"), async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { inboxItemId, targetThreadId, targetSpaceId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: "inboxItemId is required" }, 400);
     const inboxItem = await getInboxItemWithNotes(inboxItemId);
@@ -94002,7 +93914,7 @@ app6.post("/api/inbox/add-to-harvous", async (c) => {
           id: `user_metadata_${auth.userId}`,
           userId: auth.userId,
           highestSimpleNoteId: highestExistingId,
-          userColor: "paper",
+          userColor: "blue",
           firstName: null,
           lastName: null,
           email: null,
@@ -94019,7 +93931,8 @@ app6.post("/api/inbox/add-to-harvous", async (c) => {
           updatedAt: null
         };
       }
-      const nextSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+      const nextSimpleNoteId = effectiveHighest + 1;
       const finalThreadId = targetThreadId || "thread_unorganized";
       const now = nowISO();
       const newNote = await db.insert(Notes).values({
@@ -94075,7 +93988,7 @@ app6.post("/api/inbox/add-to-harvous", async (c) => {
           id: `user_metadata_${auth.userId}`,
           userId: auth.userId,
           highestSimpleNoteId: highestExistingId,
-          userColor: "paper",
+          userColor: "blue",
           firstName: null,
           lastName: null,
           email: null,
@@ -94092,8 +94005,9 @@ app6.post("/api/inbox/add-to-harvous", async (c) => {
           updatedAt: null
         };
       }
+      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
       const notes = inboxItem.notes || [];
-      let currentSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+      let currentSimpleNoteId = effectiveHighest + 1;
       const baseTimestamp = Date.now();
       for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
         const note = notes[noteIndex];
@@ -94265,10 +94179,9 @@ async function handleAutoDelete(c) {
 }
 app6.post("/api/inbox/auto-delete", handleAutoDelete);
 app6.get("/api/inbox/auto-delete", handleAutoDelete);
-app6.post("/api/inbox/assign-to-users", async (c) => {
+app6.post("/api/inbox/assign-to-users", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true)).all();
     const allUsers = await db.select().from(UserMetadata).all();
     let totalAssigned = 0;
@@ -95493,8 +95406,9 @@ async function processThreadMutation(userId, operation, entityId, data) {
 }
 async function processNoteMutation(userId, operation, entityId, data) {
   if (operation === "create") {
-    const userMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-    const nextSimpleNoteId = (userMeta?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
+    const assignedSimpleNoteId = data.simpleNoteId ?? nextSimpleNoteId;
     let threadId = data.threadId || "thread_unorganized";
     if (threadId.startsWith("local_")) {
       console.warn(`[processNoteMutation] Thread ${threadId} is a local ID, using unorganized`);
@@ -95507,7 +95421,7 @@ async function processNoteMutation(userId, operation, entityId, data) {
       content: data.content,
       threadId,
       spaceId: data.spaceId || null,
-      simpleNoteId: data.simpleNoteId || nextSimpleNoteId,
+      simpleNoteId: assignedSimpleNoteId,
       noteType: data.noteType || "default",
       addedBy: data.addedBy || "user",
       isPublic: data.isPublic || false,
@@ -95519,9 +95433,8 @@ async function processNoteMutation(userId, operation, entityId, data) {
       lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
       contentEncrypted: data.contentEncrypted || false
     }).returning().get();
-    if (userMeta) {
-      await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
-    }
+    const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
+    await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
     if (threadId && threadId !== "thread_unorganized") {
       await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
     }
@@ -95613,10 +95526,9 @@ async function processNoteTagMutation(userId, operation, entityId, data) {
   }
   return { success: false, error: `Unknown operation: ${operation}` };
 }
-app9.post("/api/sync/push", async (c) => {
+app9.post("/api/sync/push", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const { mutations } = await c.req.json();
     if (!Array.isArray(mutations) || mutations.length === 0) {
       return c.json({ error: "mutations array is required", code: "INVALID_REQUEST" }, 400);
@@ -95659,10 +95571,9 @@ app9.post("/api/sync/push", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app9.get("/api/sync/bootstrap", async (c) => {
+app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadata] = await Promise.all([
       db.select({
         id: Spaces.id,
@@ -95751,13 +95662,21 @@ app9.get("/api/sync/bootstrap", async (c) => {
         lockPinHash: UserMetadata.lockPinHash
       }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get()
     ]);
-    const highestSimpleNoteId = userMetadata?.highestSimpleNoteId || 0;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const highestSimpleNoteId = effectiveHighest;
     const reservedRange = { start: highestSimpleNoteId + 1, end: highestSimpleNoteId + 200 };
     let userMetaForResponse = userMetadata;
     if (userMetadata && userMetadata.currentSeason == null) {
       const season = getCurrentSeason();
       await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
       userMetaForResponse = { ...userMetadata, currentSeason: season };
+    }
+    if (userMetaForResponse?.currentSeason && userMetaForResponse.currentSeason !== getCurrentSeason()) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+      userMetaForResponse = { ...userMetaForResponse, currentSeason: season };
+      awardNewSeasonBonus(auth.userId).catch(() => {
+      });
     }
     const bootstrapData = {
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -95772,6 +95691,7 @@ app9.get("/api/sync/bootstrap", async (c) => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
           ...rest,
+          highestSimpleNoteId,
           hasLockPinSet: !!lockPinHash,
           reservedSimpleNoteIdRange: reservedRange
         };
@@ -95783,10 +95703,9 @@ app9.get("/api/sync/bootstrap", async (c) => {
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });
-app9.get("/api/sync/changes", async (c) => {
+app9.get("/api/sync/changes", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Unauthorized" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const sinceParam = c.req.query("since");
     if (!sinceParam) return c.json({ error: "since parameter is required", code: "MISSING_PARAMETER" }, 400);
     let sinceTimestamp;
@@ -95891,6 +95810,14 @@ app9.get("/api/sync/changes", async (c) => {
       await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, changedUserMetadata.userId));
       userMetaForResponse = { ...changedUserMetadata, currentSeason: season };
     }
+    if (userMetaForResponse?.currentSeason && userMetaForResponse.currentSeason !== getCurrentSeason() && userMetaForResponse?.userId) {
+      const season = getCurrentSeason();
+      await db.update(UserMetadata).set({ currentSeason: season, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userMetaForResponse.userId));
+      userMetaForResponse = { ...userMetaForResponse, currentSeason: season };
+      awardNewSeasonBonus(userMetaForResponse.userId).catch(() => {
+      });
+    }
+    const effectiveHighestForChanges = userMetaForResponse ? await getEffectiveHighestSimpleNoteId(auth.userId) : 0;
     const changes = {
       timestamp: (/* @__PURE__ */ new Date()).toISOString(),
       cursor: `timestamp_${Date.now()}`,
@@ -95903,7 +95830,7 @@ app9.get("/api/sync/changes", async (c) => {
       noteTags: changedNoteTags,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
-        return { ...rest, hasLockPinSet: !!lockPinHash };
+        return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };
       })() : null
     };
     return c.json(changes, 200, { "Cache-Control": "private, no-cache" });
@@ -97144,10 +97071,9 @@ app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app11.get("/api/admin/debug-thread-counts", async (c) => {
+app11.get("/api/admin/debug-thread-counts", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const threadId = c.req.query("threadId");
     if (!threadId) return c.json({ error: "threadId parameter required" }, 400);
     const allNotes = await db.select({ id: Notes.id, title: Notes.title, noteType: Notes.noteType, content: Notes.content }).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, auth.userId))).all();
@@ -97180,10 +97106,9 @@ app11.get("/api/admin/debug-thread-counts", async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
-app11.get("/api/admin/list-threads", async (c) => {
+app11.get("/api/admin/list-threads", requireAuth, async (c) => {
   try {
-    const auth = getAuth(c);
-    if (!auth.userId) return c.json({ error: "Authentication required" }, 401);
+    const auth = getAuthenticatedAuth(c);
     const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId)).all();
     return c.json({
       success: true,
@@ -97338,7 +97263,7 @@ function legacyEventToRequest(event) {
       body = event.body;
     }
   }
-  return new Request(url, { method, headers: new Headers(headers), body });
+  return new Request(url, { method, headers: new Headers(headers), body: body !== void 0 ? body.toString() : void 0 });
 }
 async function responseToLegacy(res) {
   const body = await res.text();

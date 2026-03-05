@@ -25,6 +25,7 @@ import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { processScriptureReferences } from '../utils/process-scripture-references';
 import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '../utils/tier-limits';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { rateLimit } from '@/utils/rate-limit';
 import { idToUrl } from '@/utils/url-helpers';
 
@@ -209,8 +210,9 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
       userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId, userColor: 'blue', firstName: null, lastName: null, email: null, profileImageUrl: null, clerkDataUpdatedAt: null, churchName: null, churchCity: null, churchState: null, currentSeason: season, lastMonthlyVisit: null, churchAddedAt: null, createdAt: nowISO(), updatedAt: null, referralCode: null, lockPinHash: null } as any;
     }
 
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const newNoteId = generateNoteId();
-    const newSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    const newSimpleNoteId = effectiveHighest + 1;
     const ts = nowISO();
 
     await db.insert(Notes).values({
@@ -329,8 +331,9 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
       userMetadata = { id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId } as any;
     }
 
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const createdNoteIds: string[] = [];
-    let currentSimpleNoteId = (userMetadata?.highestSimpleNoteId || 0) + 1;
+    let currentSimpleNoteId = effectiveHighest + 1;
     const baseTimestamp = Date.now();
 
     for (let noteIndex = 0; noteIndex < sourceNotes.length; noteIndex++) {

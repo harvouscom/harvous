@@ -42,6 +42,7 @@ import {
 } from '../utils/xp-system';
 import { calculateSessionXP, type SessionData } from '../utils/session-tracker';
 import { canCreateSharedSpace, canJoinSpace, getUserLimitsInfo, getSpaceMemberCount } from '../utils/tier-limits';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
@@ -680,6 +681,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
       userMetadata = (await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get())!;
     }
 
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     let notesImported = 0, threadsCreated = 0, tagsCreated = 0, duplicatesSkipped = 0;
     const errors: string[] = [];
     const createdThreadIds = new Set<string>();
@@ -724,7 +726,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const threadId = await getOrCreateThread(auth.userId, threadName || '', threadColor);
         if (!createdThreadIds.has(threadId) && threadId !== 'thread_unorganized') { createdThreadIds.add(threadId); threadsCreated++; }
 
-        const nextSimpleNoteId: number = (userMetadata?.highestSimpleNoteId || 0) + 1;
+        const nextSimpleNoteId: number = i === 0 ? effectiveHighest + 1 : (userMetadata!.highestSimpleNoteId ?? 0) + 1;
         let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
 
         const newNote = await db.insert(Notes).values({

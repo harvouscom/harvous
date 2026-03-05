@@ -42,6 +42,7 @@ import { THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
 import { awardNoteCreatedXP, awardThreadCreatedXP } from '../utils/xp-system';
 import { getInboxItemWithNotes } from '../utils/inbox-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { verifyInboxItemInWebflow } from '@/utils/webflow-verification';
 
 const app = new Hono();
@@ -232,7 +233,8 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         } as any;
       }
 
-      const nextSimpleNoteId: number = (userMetadata?.highestSimpleNoteId || 0) + 1;
+      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+      const nextSimpleNoteId: number = effectiveHighest + 1;
       const finalThreadId = targetThreadId || 'thread_unorganized';
       const now = nowISO();
 
@@ -328,8 +330,9 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         } as any;
       }
 
+      const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
       const notes = inboxItem.notes || [];
-      let currentSimpleNoteId: number = (userMetadata?.highestSimpleNoteId || 0) + 1;
+      let currentSimpleNoteId: number = effectiveHighest + 1;
       const baseTimestamp = Date.now();
 
       for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {

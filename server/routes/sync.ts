@@ -26,6 +26,7 @@ import {
 import { nowISO } from '../db/dates';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNewSeasonBonus } from '../utils/xp-system';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
 
@@ -111,8 +112,9 @@ async function processThreadMutation(userId: string, operation: string, entityId
 
 async function processNoteMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const userMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-    const nextSimpleNoteId = (userMeta?.highestSimpleNoteId || 0) + 1;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+    const nextSimpleNoteId = effectiveHighest + 1;
+    const assignedSimpleNoteId = data.simpleNoteId ?? nextSimpleNoteId;
     let threadId = data.threadId || 'thread_unorganized';
     if (threadId.startsWith('local_')) {
       console.warn(`[processNoteMutation] Thread ${threadId} is a local ID, using unorganized`);
@@ -125,7 +127,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       content: data.content,
       threadId,
       spaceId: data.spaceId || null,
-      simpleNoteId: data.simpleNoteId || nextSimpleNoteId,
+      simpleNoteId: assignedSimpleNoteId,
       noteType: data.noteType || 'default',
       addedBy: data.addedBy || 'user',
       isPublic: data.isPublic || false,
@@ -138,9 +140,8 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       contentEncrypted: data.contentEncrypted || false,
     }).returning().get();
 
-    if (userMeta) {
-      await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
-    }
+    const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
+    await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
 
     if (threadId && threadId !== 'thread_unorganized') {
       await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
@@ -335,7 +336,8 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
       }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get(),
     ]);
 
-    const highestSimpleNoteId = userMetadata?.highestSimpleNoteId || 0;
+    const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+    const highestSimpleNoteId = effectiveHighest;
     const reservedRange = { start: highestSimpleNoteId + 1, end: highestSimpleNoteId + 200 };
 
     // Backfill currentSeason if null
@@ -367,6 +369,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         const { lockPinHash, ...rest } = userMetaForResponse;
         return {
           ...rest,
+          highestSimpleNoteId: highestSimpleNoteId,
           hasLockPinSet: !!lockPinHash,
           reservedSimpleNoteIdRange: reservedRange,
         };
@@ -464,6 +467,11 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       awardNewSeasonBonus(userMetaForResponse.userId).catch(() => {});
     }
 
+    // Reconcile highestSimpleNoteId when returning userMetadata so client gets correct value
+    const effectiveHighestForChanges = userMetaForResponse
+      ? await getEffectiveHighestSimpleNoteId(auth.userId)
+      : 0;
+
     const changes = {
       timestamp: new Date().toISOString(),
       cursor: `timestamp_${Date.now()}`,
@@ -478,7 +486,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       noteTags: changedNoteTags,
       userMetadata: userMetaForResponse ? (() => {
         const { lockPinHash, ...rest } = userMetaForResponse;
-        return { ...rest, hasLockPinSet: !!lockPinHash };
+        return { ...rest, highestSimpleNoteId: effectiveHighestForChanges, hasLockPinSet: !!lockPinHash };
       })() : null,
     };
 
