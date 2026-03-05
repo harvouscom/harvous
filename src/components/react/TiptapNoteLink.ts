@@ -1,6 +1,7 @@
 import { Mark } from '@tiptap/core';
 import type { EditorView } from '@tiptap/pm/view';
 import type { Mark as PMMark } from '@tiptap/pm/model';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
@@ -121,8 +122,8 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
 
   addProseMirrorPlugins() {
     return [
-      new (require('@tiptap/pm/state').Plugin)({
-        key: new (require('@tiptap/pm/state').PluginKey)('noteLinkClick'),
+      new Plugin({
+        key: new PluginKey('noteLinkClick'),
         props: {
           handleClick(view: EditorView, _pos: number, event: MouseEvent) {
             const { state } = view;
