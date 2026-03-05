@@ -300,9 +300,23 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       return scopes.some((s) => s === selectedSpaceId);
     });
 
-    // Ensure the active thread is visible on thread pages, even if it doesn't match scoping.
+    // Ensure the active thread is visible on thread pages, but ONLY if the URL space
+    // matches the currently selected space. When the user switches spaces while viewing
+    // a thread, the thread should NOT be force-added to the new space's sidebar.
+    const activeThreadSpaceMatchesCurrent = (() => {
+      try {
+        const urlSpace = new URLSearchParams(window.location.search).get('space');
+        // If URL has ?space=X, it must match selectedSpaceId
+        if (urlSpace && urlSpace.startsWith('space_')) return urlSpace === selectedSpaceId;
+        // If no ?space= in URL, thread is in "Home" context — only show if Home is selected
+        return !selectedSpaceId;
+      } catch {
+        return false;
+      }
+    })();
+
     // Prefer the navigationHistory entry (better title/gradient/count); fall back to DOM dataset.
-    if (activeThreadIdFromPath && !persistentItems.some((i) => i.id === activeThreadIdFromPath)) {
+    if (activeThreadIdFromPath && activeThreadSpaceMatchesCurrent && !persistentItems.some((i) => i.id === activeThreadIdFromPath)) {
       const fromHistory = navigationHistory.find((i) => i.id === activeThreadIdFromPath);
       const fromDom = getActiveThreadFromDom();
       // Build the best available thread data, preferring activeThreadProp (live React data)
