@@ -387,6 +387,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
         ? incomingCount
         : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
+      // DEBUG: Log scope changes
+      console.log('[SCOPE-DEBUG] addToNavigationHistory UPDATE existing:', item.id,
+        'existingScopes:', getItemOpenedInSpaceIds(existingItem),
+        'incomingScopes:', getItemOpenedInSpaceIds(item),
+        'getSelectedSpaceId():', getSelectedSpaceId(),
+        'stack:', new Error().stack?.split('\n').slice(1, 5).join(' | '));
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
@@ -996,16 +1002,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           removeFromClosedItems(itemData.id);
         }
 
-        // Update the item data but DON'T change its position (use raw history to preserve spaces)
+        // Update the item data but DON'T change its position (use raw history to preserve spaces).
+        // IMPORTANT: Preserve the existing openedInSpaceIds. trackNavigationAccess runs on route
+        // changes, but getSelectedSpaceId() may already reflect a NEW space the user just switched to
+        // (before the URL has caught up). Overwriting scopes here would re-scope the thread to the
+        // wrong space. Only addToNavigationHistory (triggered by the NavigationColumn effect when
+        // actually viewing a thread) should set scopes.
         const existingIndex = rawHistory.findIndex((h: any) => h.id === itemData.id);
         const updatedRawHistory = rawHistory.map((item: any, index: number) => {
           if (index === existingIndex) {
-            const mergedScopes = [openedInSpaceId];
             return {
               ...item,
               ...itemData,
-              openedInSpaceIds: mergedScopes,
-              openedInSpaceId: openedInSpaceId,
+              // Keep existing scopes — don't overwrite with potentially stale/wrong space
+              openedInSpaceIds: getItemOpenedInSpaceIds(item),
+              openedInSpaceId: item.openedInSpaceId ?? null,
               lastAccessed: Date.now()
             };
           }
