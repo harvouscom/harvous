@@ -571,18 +571,24 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   // Also sync on activeThread prop changes (not just updatedActiveThread) to handle the first
   // render after SPA navigation, when updatedActiveThread hasn't been set yet.
   const activeThreadForHistory = updatedActiveThread || activeThread;
+
+  // Use a ref for effectiveSelectedSpaceId so that switching spaces does NOT re-fire
+  // the addToNavigationHistory effect below. Without this, changing spaces causes the
+  // still-mounted previous thread to be re-scoped to the new space (because the URL
+  // hasn't changed yet when setSelectedSpaceId fires).
+  const effectiveSelectedSpaceIdRef = useRef(effectiveSelectedSpaceId);
+  effectiveSelectedSpaceIdRef.current = effectiveSelectedSpaceId;
+
   useEffect(() => {
     if (!activeThreadForHistory?.id || !activeThreadForHistory.id.startsWith('thread_')) return;
     // Only scope the thread when we're actually viewing a thread or note page.
-    // Without this guard, switching spaces re-fires this effect (because effectiveSelectedSpaceId
-    // is a dependency) and re-scopes the thread to the new space before activeThread clears.
     if (typeof window !== 'undefined') {
       const path = window.location.pathname;
       if (!path.startsWith('/thread/') && !path.startsWith('/note/')) return;
     }
     // Derive space from URL search params directly (most reliable during SPA nav),
-    // then from effectiveSelectedSpaceId, then from localStorage.
-    let openedInSpaceId: string | null = effectiveSelectedSpaceId ?? null;
+    // then from effectiveSelectedSpaceId ref, then from localStorage.
+    let openedInSpaceId: string | null = effectiveSelectedSpaceIdRef.current ?? null;
     if (!openedInSpaceId && typeof window !== 'undefined') {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -599,7 +605,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient, effectiveSelectedSpaceId]);
+  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient]);
 
   // currentItemId is already initialized from pathname in useState
   // This useEffect just updates it when the page changes
