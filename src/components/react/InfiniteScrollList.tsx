@@ -170,6 +170,9 @@ export default function InfiniteScrollList<T>({
   itemsCountRef.current = items.length;
   expectedCountRef.current = minimumExpectedCount !== undefined ? minimumExpectedCount : limit;
 
+  // Prefer parent's initialHasMore for display so we hide "Load more" when parent says there's no more
+  const showLoadMore = initialHasMore !== undefined ? initialHasMore : hasMore;
+
   // Trigger immediate load if hasMore is true but we have fewer items than expected
   // Coordinate with observer via initialLoadAttemptedRef so only one path runs the first load
   useEffect(() => {
@@ -329,7 +332,7 @@ export default function InfiniteScrollList<T>({
         </div>
       )}
 
-      {hasMore && (
+      {showLoadMore && (
         <>
           <div ref={observerTarget} className="h-4" />
           <div className="text-[12px] text-[var(--color-stone-grey)] font-sans text-center mt-4 mb-3">
