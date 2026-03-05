@@ -1508,6 +1508,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               openSheet();
             }}
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               openSheet();
             }}
@@ -1599,6 +1600,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                         setIsSpacePanelOpen((v) => !v);
                       }}
                       onClick={(e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setIsSpacePanelOpen((v) => !v);
                       }}
@@ -1735,7 +1737,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     <div
                       className="mobile-nav__space-panel-item mobile-nav__space-panel-new-space"
                       style={{ cursor: 'pointer' }}
-                      onClick={() => {
+                      onClick={(e) => {
+                        const targetEl = e.target as HTMLElement | null;
+                        if (targetEl?.closest?.('.space-switcher-anchor__toggle')) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          return;
+                        }
+                        if (!e.currentTarget.contains(targetEl as Node)) {
+                          return;
+                        }
                         navigate('/new-space');
                         closeSheet();
                       }}
