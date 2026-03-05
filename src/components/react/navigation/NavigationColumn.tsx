@@ -573,6 +573,13 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const activeThreadForHistory = updatedActiveThread || activeThread;
   useEffect(() => {
     if (!activeThreadForHistory?.id || !activeThreadForHistory.id.startsWith('thread_')) return;
+    // Only scope the thread when we're actually viewing a thread or note page.
+    // Without this guard, switching spaces re-fires this effect (because effectiveSelectedSpaceId
+    // is a dependency) and re-scopes the thread to the new space before activeThread clears.
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (!path.startsWith('/thread/') && !path.startsWith('/note/')) return;
+    }
     // Derive space from URL search params directly (most reliable during SPA nav),
     // then from effectiveSelectedSpaceId, then from localStorage.
     let openedInSpaceId: string | null = effectiveSelectedSpaceId ?? null;
