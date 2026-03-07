@@ -94,6 +94,11 @@ These were designed here and are now live. The stub files in this folder point t
   - Use cases for each
   - Implementation status
 
+- **`REALTIME_LIVEBLOCKS_PLAN.md`** - Real-time sync and collaborative editing with Liveblocks
+  - Cross-device instant sync, shared space presence, Google Docs-style note editing
+  - Clerk auth; Tiptap integration via Liveblocks ready-made multiplayer
+  - Phases 1–3 implementation plan and files to create
+
 ### User Experience
 
 - **`APP_LAYOUT_APPEARANCE_CUSTOMIZATION.md`** - App layout appearance customization
