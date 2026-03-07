@@ -23,7 +23,7 @@ export default function NoteFormFooter({
   duplicateInfo,
   isLimitReached = false,
   currentCount = 0,
-  limit = 200,
+  limit = 500,
   showCloseButton = true,
   inBottomSheet = false,
 }: NoteFormFooterProps) {

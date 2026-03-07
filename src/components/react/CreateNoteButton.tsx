@@ -15,7 +15,7 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
   const [isAddToSpacePanelOpen, setIsAddToSpacePanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [noteLimitReached, setNoteLimitReached] = useState(false);
-  const [noteLimit, setNoteLimit] = useState(200);
+  const [noteLimit, setNoteLimit] = useState(500);
   const btnRef = useRef<HTMLButtonElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -139,14 +139,14 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;
-        const limit = data.limit ?? 200;
+        const limit = data.limit ?? 500;
         const atLimit = !data.hasUnlimited && (data.currentCount ?? 0) >= limit;
         setNoteLimit(limit);
         setNoteLimitReached(atLimit);
       } catch {
         if (!cancelled) {
           setNoteLimitReached(false);
-          setNoteLimit(200);
+          setNoteLimit(500);
         }
       }
     })();

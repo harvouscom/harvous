@@ -89,7 +89,7 @@ export default function ReferralPanel({
 
   const referralUrl = getReferralUrl();
   const referralCount = status ? Math.floor(status.referralBonusNotes / 100) : 0;
-  const totalNotesBeforeUnlimited = 200 + (status?.referralBonusNotes ?? 0) + 100;
+  const totalNotesBeforeUnlimited = 500 + (status?.referralBonusNotes ?? 0) + 100;
 
   return (
     <div className={`referral-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
@@ -104,7 +104,7 @@ export default function ReferralPanel({
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px', textWrap: 'balance' }}>
-                When friends sign up with your link, you get 100 extra notes on top of your 200 free notes, so {totalNotesBeforeUnlimited.toLocaleString()} before you need unlimited.
+                When friends sign up with your link, you get 100 extra notes on top of your 500 free notes, so {totalNotesBeforeUnlimited.toLocaleString()} before you need unlimited.
               </div>
 
               {!isLoading && referralUrl ? (

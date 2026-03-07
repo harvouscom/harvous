@@ -5,7 +5,7 @@
 import { db, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
 
-const FREE_TIER_LIMIT = 200;
+const FREE_TIER_LIMIT = 500;
 export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 
 export async function getUserNoteCount(userId: string): Promise<number> {

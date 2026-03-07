@@ -375,7 +375,7 @@ export default function Menu({
       // Handle Add Note action (show upgrade toast if at limit, do not open panel)
       const addNoteOption = options.find((o) => o.action === 'openNewNotePanel');
       if (addNoteOption?.disabled) {
-        const limit = addNoteOption.limit ?? 200;
+        const limit = addNoteOption.limit ?? 500;
         toast.warning(`You've used all ${limit.toLocaleString()} notes. Upgrade for unlimited.`);
         return;
       }

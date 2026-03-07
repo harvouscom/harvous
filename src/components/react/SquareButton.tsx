@@ -58,7 +58,7 @@ export default function SquareButton({
   const [contentEncryptedServerOverride, setContentEncryptedServerOverride] = useState<boolean | null>(null);
   // Add menu: note limit for free tier (disable "Add Note" when at limit)
   const [noteLimitReached, setNoteLimitReached] = useState(false);
-  const [noteLimit, setNoteLimit] = useState(200);
+  const [noteLimit, setNoteLimit] = useState(500);
 
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveContentEncryptedServer = contentEncryptedServerOverride ?? contentEncrypted;
@@ -96,14 +96,14 @@ export default function SquareButton({
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;
-        const limit = data.limit ?? 200;
+        const limit = data.limit ?? 500;
         const atLimit = !data.hasUnlimited && (data.currentCount ?? 0) >= limit;
         setNoteLimit(limit);
         setNoteLimitReached(atLimit);
       } catch {
         if (!cancelled) {
           setNoteLimitReached(false);
-          setNoteLimit(200);
+          setNoteLimit(500);
         }
       }
     })();
