@@ -19,7 +19,32 @@ export interface ProcessingResult {
   reference: string;
 }
 
+// Per-user mutex: serializes concurrent processScriptureReferences calls for the same user
+// to prevent race conditions where two calls both see "no existing scripture" and create duplicates.
+const userProcessingQueue = new Map<string, Promise<any>>();
+
 export async function processScriptureReferences(
+  noteId: string,
+  userId: string,
+  threadId?: string,
+  contentOverride?: string
+): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
+  const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
+  const current = prev
+    .catch(() => {}) // Don't let a previous failure block the queue
+    .then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride));
+  userProcessingQueue.set(userId, current);
+  try {
+    return await current;
+  } finally {
+    // Clean up if this was the last in the chain
+    if (userProcessingQueue.get(userId) === current) {
+      userProcessingQueue.delete(userId);
+    }
+  }
+}
+
+async function processScriptureReferencesInternal(
   noteId: string,
   userId: string,
   threadId?: string,
@@ -265,15 +290,110 @@ export async function processScriptureReferences(
     .all();
 
   // Build normalized lookup map: normalizedReference -> { noteId, reference }
+  // Also detect duplicate scripture notes (same normalized reference, different noteIds)
+  const duplicatesByNormalized = new Map<string, string[]>(); // normalizedRef -> [noteId, noteId, ...]
+
   for (const scripture of allUserScripture) {
     const normalizedStored = normalizeScriptureReference(scripture.reference);
-    // Store both the normalized reference and the original reference
-    // This allows us to match by normalized reference but preserve original format
     if (!normalizedScriptureMap.has(normalizedStored)) {
       normalizedScriptureMap.set(normalizedStored, {
         noteId: scripture.noteId,
         reference: scripture.reference
       });
+    } else {
+      // Duplicate detected — different noteId for same normalized reference
+      const existing = normalizedScriptureMap.get(normalizedStored)!;
+      if (existing.noteId !== scripture.noteId) {
+        if (!duplicatesByNormalized.has(normalizedStored)) {
+          duplicatesByNormalized.set(normalizedStored, [existing.noteId]);
+        }
+        duplicatesByNormalized.get(normalizedStored)!.push(scripture.noteId);
+      }
+    }
+  }
+
+  // Consolidate any duplicate scripture notes (safety net for past race conditions)
+  if (duplicatesByNormalized.size > 0) {
+    try {
+      console.log(`[processScriptureReferences] Found ${duplicatesByNormalized.size} duplicate scripture reference(s) for user ${userId}, consolidating...`);
+
+      for (const [normalizedRef, dupeNoteIds] of duplicatesByNormalized.entries()) {
+        // Fetch all duplicate notes to determine the keeper (oldest by createdAt)
+        const dupeNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt })
+          .from(Notes)
+          .where(and(eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
+          .all();
+
+        const relevantNotes = dupeNotes
+          .filter(n => dupeNoteIds.includes(n.id))
+          .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+
+        if (relevantNotes.length < 2) continue;
+
+        const keeperId = relevantNotes[0].id;
+        const duplicateIds = relevantNotes.slice(1).map(n => n.id);
+
+        for (const dupeId of duplicateIds) {
+          // Repoint junction rows from duplicate to keeper
+          const junctionsToMove = await db.select()
+            .from(NoteScriptureReferences)
+            .where(eq(NoteScriptureReferences.scriptureNoteId, dupeId))
+            .all();
+
+          for (const junction of junctionsToMove) {
+            // Check if keeper junction already exists for this parent note
+            const existingKeeperJunction = await db.select()
+              .from(NoteScriptureReferences)
+              .where(and(
+                eq(NoteScriptureReferences.noteId, junction.noteId),
+                eq(NoteScriptureReferences.scriptureNoteId, keeperId)
+              ))
+              .limit(1)
+              .get();
+
+            if (existingKeeperJunction) {
+              // Keeper junction exists — just delete the duplicate junction
+              await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+            } else {
+              // Repoint to keeper
+              await db.update(NoteScriptureReferences)
+                .set({ scriptureNoteId: keeperId })
+                .where(eq(NoteScriptureReferences.id, junction.id));
+            }
+          }
+
+          // Update data-note-id in all notes that reference the duplicate
+          const affectedNotes = await db.select({ id: Notes.id, content: Notes.content })
+            .from(Notes)
+            .where(eq(Notes.userId, userId))
+            .all();
+
+          for (const affectedNote of affectedNotes) {
+            if (affectedNote.content && affectedNote.content.includes(dupeId)) {
+              const updatedContent = affectedNote.content.replace(
+                new RegExp(`data-note-id=["']${dupeId}["']`, 'g'),
+                `data-note-id="${keeperId}"`
+              );
+              if (updatedContent !== affectedNote.content) {
+                await db.update(Notes).set({ content: updatedContent }).where(eq(Notes.id, affectedNote.id));
+              }
+            }
+          }
+
+          // Delete duplicate ScriptureMetadata and Notes rows
+          await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
+          // Also clean up NoteThreads for the duplicate
+          await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
+          await db.delete(Notes).where(eq(Notes.id, dupeId));
+        }
+
+        // Update the map to point to the keeper
+        normalizedScriptureMap.set(normalizedRef, { noteId: keeperId, reference: normalizedRef });
+        console.log(`[processScriptureReferences] Consolidated "${normalizedRef}": kept ${keeperId}, removed ${duplicateIds.join(', ')}`);
+      }
+    } catch (dedupError: any) {
+      // Never block main processing if dedup cleanup fails
+      console.error('[processScriptureReferences] Dedup cleanup failed (non-critical):', dedupError?.message ?? dedupError);
     }
   }
 
@@ -729,21 +849,12 @@ export async function processScriptureReferences(
         // Normalize the reference
         const normalizedRef = normalizeScriptureReference(reference);
 
-        // Check if a scripture note already exists for this reference (by reference, not noteId)
-        const existingScriptureByRef = await db.select({
-          noteId: ScriptureMetadata.noteId,
-          reference: ScriptureMetadata.reference
-        })
-          .from(ScriptureMetadata)
-          .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-          .where(
-            and(
-              eq(ScriptureMetadata.reference, normalizedRef),
-              eq(Notes.userId, userId)
-            )
-          )
-          .limit(1)
-          .get();
+        // Check if a scripture note already exists for this reference using the normalized map
+        // (handles legacy non-normalized stored references that an exact DB match would miss)
+        const existingEntry = normalizedScriptureMap.get(normalizedRef);
+        const existingScriptureByRef = existingEntry
+          ? { noteId: existingEntry.noteId, reference: existingEntry.reference }
+          : null;
 
         if (existingScriptureByRef) {
           // Use the existing scripture note
@@ -938,6 +1049,9 @@ export async function processScriptureReferences(
                 // Ignore if already exists
               }
             }
+
+            // Add to normalizedScriptureMap so subsequent pasted pills reuse this note
+            normalizedScriptureMap.set(normalizedRef, { noteId: newScriptureNote.id, reference: normalizedRef });
 
             results.push({
               action: 'created',
