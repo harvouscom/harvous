@@ -10,6 +10,7 @@
  */
 import 'dotenv/config';
 import { db, Notes, UserMetadata, ClerkUserMapping } from '../server/db';
+import { first } from '../server/db/helpers';
 import { count, eq, or } from 'drizzle-orm';
 
 async function main() {
@@ -17,7 +18,7 @@ async function main() {
     .select({ userId: Notes.userId, noteCount: count() })
     .from(Notes)
     .groupBy(Notes.userId)
-    .all();
+    ;
 
   if (notesByUser.length === 0) {
     console.log('No users with notes found.');
@@ -38,12 +39,12 @@ async function main() {
   }> = [];
 
   for (const { userId, noteCount } of notesByUser) {
-    const meta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
-    const mapping = await db
+    const meta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+    const mapping = first(await db
       .select()
       .from(ClerkUserMapping)
       .where(or(eq(ClerkUserMapping.devUserId, userId), eq(ClerkUserMapping.liveUserId, userId)))
-      .get();
+      .limit(1));
 
     const dev = mapping?.devUserId ?? null;
     const live = mapping?.liveUserId ?? null;

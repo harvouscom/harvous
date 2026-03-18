@@ -7,6 +7,7 @@
  */
 import 'dotenv/config';
 import { db, Notes, UserMetadata } from '../server/db';
+import { first } from '../server/db/helpers';
 import { count, eq } from 'drizzle-orm';
 
 async function main() {
@@ -16,12 +17,12 @@ async function main() {
     .select({ userId: Notes.userId, count: count() })
     .from(Notes)
     .groupBy(Notes.userId)
-    .all();
+    ;
 
   const filtered = minNotes ? notesByUser.filter((r) => r.count >= minNotes) : notesByUser;
   console.log('Users with notes', minNotes ? `(>= ${minNotes} notes)` : '', ':');
   for (const row of filtered) {
-    const meta = await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, row.userId)).get();
+    const meta = first(await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, row.userId)).limit(1));
     console.log(' ', row.userId, '→', row.count, 'notes', meta?.email ? `  email: ${meta.email}` : '');
   }
 }

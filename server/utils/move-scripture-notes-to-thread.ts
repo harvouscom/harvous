@@ -2,7 +2,7 @@
  * Move scripture notes to thread — Drizzle port of src/utils/move-scripture-notes-to-thread.ts
  */
 
-import { db, Notes, NoteThreads, NoteScriptureReferences, eq, and } from '../db';
+import { db, first, Notes, NoteThreads, NoteScriptureReferences, eq, and } from '../db';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,7 +19,7 @@ export async function moveScriptureNotesToThread(
 
   try {
     try {
-      await db.select().from(NoteScriptureReferences).limit(1).get();
+      first(await db.select().from(NoteScriptureReferences).limit(1));
     } catch (checkError: any) {
       if (checkError.message?.includes('SQLITE_BUSY') || checkError.message?.includes('database is locked')) {
         return;
@@ -30,7 +30,7 @@ export async function moveScriptureNotesToThread(
       .select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
       .from(NoteScriptureReferences)
       .where(eq(NoteScriptureReferences.noteId, parentNoteId))
-      .all();
+      ;
 
     if (scriptureReferences.length === 0) return;
 
@@ -38,17 +38,17 @@ export async function moveScriptureNotesToThread(
       const scriptureNoteId = ref.scriptureNoteId;
 
       try {
-        const scriptureNote = await db.select()
+        const scriptureNote = first(await db.select()
           .from(Notes)
           .where(and(eq(Notes.id, scriptureNoteId), eq(Notes.userId, userId)))
-          .get();
+          .limit(1));
 
         if (!scriptureNote) continue;
 
         const existingThreadRelations = await db.select()
           .from(NoteThreads)
           .where(eq(NoteThreads.noteId, scriptureNoteId))
-          .all();
+          ;
 
         const existingRelation = existingThreadRelations.find(rel => rel.threadId === threadId);
         if (existingRelation) continue;

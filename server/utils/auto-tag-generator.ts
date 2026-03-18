@@ -1,5 +1,5 @@
 import { findKeywordsInText, findKeywordsInTextWithPriority, BIBLE_STUDY_KEYWORDS, type BibleStudyKeyword } from '@/utils/bible-study-keywords';
-import { db, Tags, NoteTags, eq, and } from '../db';
+import { db, first, Tags, NoteTags, eq, and } from '../db';
 
 function isTagOverlapping(newTag: string, existingTag: string): boolean {
   const newLower = newTag.toLowerCase();
@@ -141,9 +141,9 @@ export async function applyAutoTags(
           continue;
         }
       }
-      const existingRelation = await db.select().from(NoteTags)
+      const existingRelation = first(await db.select().from(NoteTags)
         .where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId)))
-        .get();
+        .limit(1));
       if (existingRelation) continue;
       const relationId = `note_tag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       await db.insert(NoteTags).values({

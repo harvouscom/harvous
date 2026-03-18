@@ -31,7 +31,7 @@ async function main() {
     .select()
     .from(ClerkUserMapping)
     .where(or(eq(ClerkUserMapping.devUserId, correctLiveId), eq(ClerkUserMapping.liveUserId, correctLiveId)))
-    .all();
+    ;
 
   const email = emailOverride ?? existing[0]?.email ?? null;
   if (!email) {

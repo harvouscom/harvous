@@ -49,7 +49,7 @@ async function main() {
   const spaceIds = [...new Set([...threads.map((t) => t.spaceId), ...notes.map((n) => n.spaceId)].filter(Boolean))] as string[];
   const spaces =
     spaceIds.length > 0
-      ? await db.select({ id: Spaces.id, title: Spaces.title }).from(Spaces).where(inArray(Spaces.id, spaceIds)).all()
+      ? await db.select({ id: Spaces.id, title: Spaces.title }).from(Spaces).where(inArray(Spaces.id, spaceIds))
       : [];
   const spaceTitleById = Object.fromEntries(spaces.map((s) => [s.id, s.title]));
 

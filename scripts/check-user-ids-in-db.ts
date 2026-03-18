@@ -17,13 +17,13 @@ async function main() {
     .select({ userId: Notes.userId, count: count() })
     .from(Notes)
     .groupBy(Notes.userId)
-    .all();
+    ;
 
   const threadsByUser = await db
     .select({ userId: Threads.userId, count: count() })
     .from(Threads)
     .groupBy(Threads.userId)
-    .all();
+    ;
 
   console.log('Notes per userId:');
   console.table(notesByUser);

@@ -24,7 +24,7 @@ import {
 } from '../db';
 
 export async function resetUserToNew(userId: string): Promise<void> {
-  const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, userId)).all();
+  const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, userId));
   const noteIds = userNotes.map((n) => n.id);
 
   if (noteIds.length > 0) {
@@ -40,7 +40,7 @@ export async function resetUserToNew(userId: string): Promise<void> {
   await db.delete(Notes).where(eq(Notes.userId, userId));
   await db.delete(Threads).where(eq(Threads.userId, userId));
 
-  const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)).all();
+  const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId));
   const spaceIds = userSpaces.map((s) => s.id);
   if (spaceIds.length > 0) {
     await db.delete(Members).where(inArray(Members.spaceId, spaceIds));

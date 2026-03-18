@@ -56,6 +56,15 @@ export default defineConfig({
           proxy.on('error', (err, req, res) => {
             console.error('[vite proxy] API request failed (is the API running on port 3001?):', req.url);
             console.error('[vite proxy] Run "npm run dev:all" to start both the API and SPA, or "npm run dev:api" in another terminal.');
+            if (res && !res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(
+                JSON.stringify({
+                  error: 'API not running',
+                  hint: 'Run npm run dev:all to start both the API and SPA.',
+                })
+              );
+            }
           });
         },
       },

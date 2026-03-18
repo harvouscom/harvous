@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
-import { db, ResourceMetadata, Notes, NoteThreads, Threads, eq, and, inArray } from '../db';
+import { db, first, ResourceMetadata, Notes, NoteThreads, Threads, eq, and, inArray } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import { validateResourceUrl, extractDomain, getDomainFriendlyName, normalizeUrl } from '@/utils/validation';
@@ -92,11 +92,11 @@ app.post('/api/resource/:id/update-image', requireAuth, rateLimit('write'), asyn
     const id = requireParam(c, 'id');
     const { image } = await c.req.json();
 
-    const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
+    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found or access denied' }, 404);
     if (existingNote.noteType !== 'resource') return c.json({ error: 'Note is not a resource note' }, 400);
 
-    const resourceMeta = await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, id)).get();
+    const resourceMeta = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, id)).limit(1));
     if (!resourceMeta) return c.json({ error: 'Resource metadata not found' }, 404);
 
     await db.update(ResourceMetadata).set({ sourceImage: image || null }).where(eq(ResourceMetadata.noteId, id));
@@ -266,7 +266,7 @@ app.post('/api/resource/suggest-threads', requireAuth, async (c) => {
       .from(ResourceMetadata)
       .innerJoin(Notes, eq(ResourceMetadata.noteId, Notes.id))
       .where(and(eq(ResourceMetadata.sourceDomain, domain), eq(Notes.userId, auth.userId)))
-      .all();
+      ;
 
     let suggestedThreadName: string | null = null;
     if (sourceName && typeof sourceName === 'string' && sourceName.trim() !== '') suggestedThreadName = sourceName.trim();
@@ -288,14 +288,14 @@ app.post('/api/resource/suggest-threads', requireAuth, async (c) => {
     }
 
     const noteIds = matchingResources.map(r => r.noteId);
-    const threadRelations = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, noteIds)).all();
+    const threadRelations = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(inArray(NoteThreads.noteId, noteIds));
     const uniqueThreadIds = [...new Set(threadRelations.map(r => r.threadId))].filter(id => id !== 'thread_unorganized');
 
     if (uniqueThreadIds.length === 0) {
       return c.json({ success: true, suggestedThreadIds: [], suggestedThreadName, domain });
     }
 
-    const suggestedThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color }).from(Threads).where(and(inArray(Threads.id, uniqueThreadIds), eq(Threads.userId, auth.userId))).all();
+    const suggestedThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color }).from(Threads).where(and(inArray(Threads.id, uniqueThreadIds), eq(Threads.userId, auth.userId)));
     const matchingThreads = suggestedThreads.filter(t => suggestedThreadName && t.title.trim().toLowerCase() === suggestedThreadName.trim().toLowerCase());
 
     if (matchingThreads.length === 0) {
@@ -303,7 +303,7 @@ app.post('/api/resource/suggest-threads', requireAuth, async (c) => {
     }
 
     const threadNoteCounts = await Promise.all(matchingThreads.map(async (thread) => {
-      const matchingNotesInThread = await db.select().from(NoteThreads).where(and(eq(NoteThreads.threadId, thread.id), inArray(NoteThreads.noteId, noteIds))).all();
+      const matchingNotesInThread = await db.select().from(NoteThreads).where(and(eq(NoteThreads.threadId, thread.id), inArray(NoteThreads.noteId, noteIds)));
       return { threadId: thread.id, count: matchingNotesInThread.length };
     }));
 
@@ -327,11 +327,11 @@ app.post('/api/resource/update-metadata', requireAuth, rateLimit('write'), async
     const { noteId, image } = await c.req.json();
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found or access denied' }, 404);
     if (existingNote.noteType !== 'resource') return c.json({ error: 'Note is not a resource note' }, 400);
 
-    const resourceMeta = await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).get();
+    const resourceMeta = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).limit(1));
     if (!resourceMeta) return c.json({ error: 'Resource metadata not found' }, 404);
 
     await db.update(ResourceMetadata).set({ sourceImage: image || null }).where(eq(ResourceMetadata.noteId, noteId));

@@ -54,25 +54,25 @@ export async function getTierForUserId(userId: string): Promise<UserTier> {
 
 export async function getSharedSpacesOwnedCount(userId: string): Promise<number> {
   const ownedSpaces = await db.select({ id: Spaces.id, shareToken: Spaces.shareToken })
-    .from(Spaces).where(eq(Spaces.userId, userId)).all();
+    .from(Spaces).where(eq(Spaces.userId, userId));
 
   let sharedCount = 0;
   for (const space of ownedSpaces) {
     const hasShareLink = space.shareToken != null && space.shareToken.length > 0;
     if (hasShareLink) { sharedCount++; continue; }
-    const memberRows = await db.select().from(Members).where(eq(Members.spaceId, space.id)).all();
+    const memberRows = await db.select().from(Members).where(eq(Members.spaceId, space.id));
     if (memberRows.length > 0) sharedCount++;
   }
   return sharedCount;
 }
 
 export async function getSpaceMembershipCount(userId: string): Promise<number> {
-  const memberships = await db.select().from(Members).where(eq(Members.userId, userId)).all();
+  const memberships = await db.select().from(Members).where(eq(Members.userId, userId));
   return memberships.length;
 }
 
 export async function getSpaceMemberCount(spaceId: string): Promise<number> {
-  const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId)).all();
+  const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId));
   return members.length;
 }
 

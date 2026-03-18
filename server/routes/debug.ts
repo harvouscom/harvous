@@ -6,7 +6,7 @@
 
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
-import { db, Threads, Spaces, Notes } from '../db';
+import { db, first, Threads, Spaces, Notes } from '../db';
 import { eq, count } from 'drizzle-orm';
 
 const route = new Hono();
@@ -41,9 +41,9 @@ route.get('/api/debug/me', async (c) => {
   }
   try {
     const [threadCountRow, spaceCountRow, noteCountRow] = await Promise.all([
-      db.select({ count: count() }).from(Threads).where(eq(Threads.userId, auth.userId)).get(),
-      db.select({ count: count() }).from(Spaces).where(eq(Spaces.userId, auth.userId)).get(),
-      db.select({ count: count() }).from(Notes).where(eq(Notes.userId, auth.userId)).get(),
+      db.select({ count: count() }).from(Threads).where(eq(Threads.userId, auth.userId)).limit(1).then(r => first(r)),
+      db.select({ count: count() }).from(Spaces).where(eq(Spaces.userId, auth.userId)).limit(1).then(r => first(r)),
+      db.select({ count: count() }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1).then(r => first(r)),
     ]);
     return c.json(
       {

@@ -64,5 +64,8 @@ export {
   notExists,
 } from 'drizzle-orm';
 
+// Query helpers
+export { first } from './helpers';
+
 // Date helpers
-export { toDate, fromDate } from './dates';
+export { now, toDate, fromDate, nowISO } from './dates';

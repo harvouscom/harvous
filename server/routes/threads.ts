@@ -19,6 +19,7 @@ import {
   db, Threads, Notes, NoteThreads, NoteTags, Comments, Spaces, Members,
   ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
   eq, and, inArray, isNull,
+  first,
 } from '../db';
 import { nowISO } from '../db/dates';
 import {
@@ -63,16 +64,16 @@ async function addNotesToThread(
 ): Promise<void> {
   for (const noteId of noteIds) {
     try {
-      const note = await db.select().from(Notes)
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).get();
+      const note = first(await db.select().from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1));
       if (!note) continue;
 
-      const existingRelation = await db.select().from(NoteThreads)
-        .where(and(eq(NoteThreads.noteId, noteId), eq(NoteThreads.threadId, threadId))).get();
+      const existingRelation = first(await db.select().from(NoteThreads)
+        .where(and(eq(NoteThreads.noteId, noteId), eq(NoteThreads.threadId, threadId))).limit(1));
       if (existingRelation) continue;
 
       const existingThreadRelations = await db.select().from(NoteThreads)
-        .where(eq(NoteThreads.noteId, noteId)).all();
+        .where(eq(NoteThreads.noteId, noteId));
       const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
 
       const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -171,7 +172,7 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
     const shareToken = isPublic ? generateShareToken() : null;
     const now = nowISO();
 
-    const newThread = await db.insert(Threads).values({
+    const newThread = first(await db.insert(Threads).values({
       id: generateThreadId(),
       title: capitalizedTitle,
       subtitle: null,
@@ -185,7 +186,7 @@ route.post('/api/threads/create', requireAuth, rateLimit('write'), async (c) => 
       createdAt: now,
       updatedAt: now,
       lastVisited: now,
-    }).returning().get();
+    }).returning())!;
 
     if (selectedNoteIds.length > 0) {
       await addNotesToThread(selectedNoteIds, newThread.id, auth.userId);
@@ -224,8 +225,8 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
     if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
 
     // Inline the Astro action logic: verify ownership then update
-    const currentThread = await db.select().from(Threads)
-      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    const currentThread = first(await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!currentThread) return c.json({ error: 'Thread not found or access denied' }, 404);
 
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
@@ -247,8 +248,8 @@ route.post('/api/threads/update', requireAuth, rateLimit('write'), async (c) => 
       updateData.updatedAt = nowISO();
     }
 
-    const updatedThread = await db.update(Threads).set(updateData)
-      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).returning().get();
+    const updatedThread = first(await db.update(Threads).set(updateData)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).returning())!;
 
     // Add selected notes to thread
     if (selectedNoteIds.length > 0) {
@@ -272,8 +273,8 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
 
-    const existingThread = await db.select().from(Threads)
-      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    const existingThread = first(await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
 
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot delete the unorganized thread' }, 400);
@@ -284,7 +285,7 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
     await revokeAllXPForItem(auth.userId, threadId);
 
     const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
-      .where(eq(NoteThreads.threadId, threadId)).all();
+      .where(eq(NoteThreads.threadId, threadId));
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
 
     if (affectedNotes.length > 0) {
@@ -308,8 +309,8 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const existingThread = await db.select().from(Threads)
-      .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).get();
+    const existingThread = first(await db.select().from(Threads)
+      .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
 
     if (existingThread) {
       return c.json({ success: true, message: 'Unorganized thread already exists', thread: existingThread });
@@ -335,8 +336,8 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
     } catch (insertError: any) {
       if (insertError.code === 'SQLITE_CONSTRAINT' || insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
           insertError.rawCode === 1555 || insertError.message?.includes('UNIQUE constraint failed')) {
-        const createdThread = await db.select().from(Threads)
-          .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).get();
+        const createdThread = first(await db.select().from(Threads)
+          .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
         if (createdThread) return c.json({ success: true, message: 'Unorganized thread already exists', thread: createdThread });
       }
       throw insertError;
@@ -355,21 +356,21 @@ route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), a
     const threadId = c.req.query('threadId');
     if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
 
-    const existingThread = await db.select().from(Threads)
-      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    const existingThread = first(await db.select().from(Threads)
+      .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot erase the unorganized thread' }, 400);
 
     const threadCreatedAt = existingThread.createdAt;
 
     const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
-      .where(eq(NoteThreads.threadId, threadId)).all();
+      .where(eq(NoteThreads.threadId, threadId));
     const noteIds = affectedNotes.map(n => n.noteId);
 
     // Delete all related data for each note
     for (const noteId of noteIds) {
-      const note = await db.select().from(Notes)
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+      const note = first(await db.select().from(Notes)
+        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
       if (note) {
         await revokeXPOnDeletion(auth.userId, noteId, new Date(note.createdAt as string));
         await revokeAllXPForItem(auth.userId, noteId);
@@ -432,7 +433,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
           lastVisited: null,
         };
       } else {
-        const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+        const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
         if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
         if (threadRow.spaceId) {
           try {
@@ -483,7 +484,7 @@ route.get('/api/threads/:threadId/note-type-counts', requireAuth, async (c) => {
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
     let noteTypeCounts = await getThreadNoteTypeCounts(threadId, auth.userId);
-    const threadRow = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    const threadRow = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
     if (!threadRow) return c.json({ error: 'Thread not found' }, 404);
     if (threadRow.userId !== auth.userId && threadRow.spaceId) {
       try {
@@ -512,7 +513,7 @@ route.post('/api/threads/:threadId/visit', requireAuth, async (c) => {
     let threadId = requireParam(c, 'threadId');
     if (threadId.startsWith('thread/')) threadId = 'thread_' + threadId.slice(7);
 
-    const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+    const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     if (thread.userId !== auth.userId && thread.spaceId) {
       try {
@@ -548,15 +549,15 @@ route.get('/api/threads/:threadId/notes', requireAuth, async (c) => {
 
     // If owner path returned no notes and offset is 0, try member path
     if (result.notes.length === 0 && offset === 0) {
-      const thread = await db.select().from(Threads).where(eq(Threads.id, threadId)).get();
+      const thread = first(await db.select().from(Threads).where(eq(Threads.id, threadId)).limit(1));
       if (thread?.spaceId) {
         let memberNotesResult: { notes: any[]; hasMore: boolean } | null = null;
         try {
           const { space } = await requireSpaceAccess(thread.spaceId, auth.userId);
           memberNotesResult = await getNotesForThreadForMember(threadId, space.userId, limit, offset);
         } catch {
-          const spaceRow = await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).get();
-          const memberRow = await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).get();
+          const spaceRow = first(await db.select().from(Spaces).where(eq(Spaces.id, thread.spaceId)).limit(1));
+          const memberRow = first(await db.select().from(Members).where(and(eq(Members.spaceId, thread.spaceId), eq(Members.userId, auth.userId))).limit(1));
           if (spaceRow && memberRow) {
             memberNotesResult = await getNotesForThreadForMember(threadId, spaceRow.userId, limit, offset);
           }
@@ -579,10 +580,10 @@ route.get('/api/threads/:threadId/share', requireAuth, async (c) => {
 
     const threadId = requireParam(c, 'threadId');
 
-    const thread = await db.select({
+    const thread = first(await db.select({
       id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken,
       shareTokenCreatedAt: Threads.shareTokenCreatedAt, userId: Threads.userId,
-    }).from(Threads).where(eq(Threads.id, threadId)).get();
+    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
 
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to access this thread' }, 403);
@@ -612,9 +613,9 @@ route.post('/api/threads/:threadId/share', requireAuth, async (c) => {
       return c.json({ error: 'Invalid action. Must be enable, disable, or refresh' }, 400);
     }
 
-    const thread = await db.select({
+    const thread = first(await db.select({
       id: Threads.id, isPublic: Threads.isPublic, shareToken: Threads.shareToken, userId: Threads.userId,
-    }).from(Threads).where(eq(Threads.id, threadId)).get();
+    }).from(Threads).where(eq(Threads.id, threadId)).limit(1));
 
     if (!thread) return c.json({ error: 'Thread not found' }, 404);
     if (thread.userId !== auth.userId) return c.json({ error: 'You do not have permission to modify this thread' }, 403);
@@ -666,7 +667,7 @@ route.get('/api/threads/:threadId/referenced-scripture-notes', requireAuth, asyn
       .from(NoteScriptureReferences)
       .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
       .where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, auth.userId), eq(Notes.noteType, 'scripture')))
-      .all();
+      ;
 
     const scriptureNoteIds = [...new Set(references.map(r => r.scriptureNoteId))];
     return c.json({ scriptureNoteIds });

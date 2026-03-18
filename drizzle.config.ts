@@ -1,22 +1,20 @@
 /**
- * Drizzle Kit config for Turso (push / introspect).
- * Env: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (fallback: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
+ * Drizzle Kit config for Supabase Postgres (push / introspect).
+ * Env: SUPABASE_DIRECT_URL (direct connection, port 5432).
  */
 import { defineConfig } from 'drizzle-kit';
 
-const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
+const url = process.env.SUPABASE_DIRECT_URL;
 
-if (!url || !authToken) {
-  throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (or ASTRO_DB_*) must be set (e.g. in .env)');
+if (!url) {
+  throw new Error('SUPABASE_DIRECT_URL must be set (e.g. in .env)');
 }
 
 export default defineConfig({
-  dialect: 'turso',
+  dialect: 'postgresql',
   schema: './server/db/schema.ts',
   out: './drizzle',
   dbCredentials: {
     url,
-    authToken,
   },
 });

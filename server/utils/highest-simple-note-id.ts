@@ -4,7 +4,7 @@
  * so the next assigned ID never reuses a deleted ID.
  */
 
-import { db, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
+import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import { nowISO } from '../db/dates';
 
 /**
@@ -18,7 +18,8 @@ export async function getEffectiveHighestSimpleNoteId(userId: string): Promise<n
       .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
-      .get(),
+      .limit(1)
+      .then(rows => first(rows)),
     db
       .select({ simpleNoteId: Notes.simpleNoteId })
       .from(Notes)

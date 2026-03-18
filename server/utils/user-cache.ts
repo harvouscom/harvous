@@ -5,7 +5,7 @@
  * Dates stored as ISO text strings.
  */
 
-import { db, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and, inArray } from '../db';
+import { db, first, UserMetadata, InboxItems, UserInboxItems, Threads, Notes, NoteThreads, eq, and, inArray } from '../db';
 import { nowISO } from '../db/dates';
 import { generateReferralCode } from './referral-code';
 import { getCurrentSeason } from '@/utils/season-helpers';
@@ -33,7 +33,7 @@ const pendingInit = new Map<string, Promise<CachedUserData>>();
  */
 export async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
   const onboardingThreadId = `thread_onboarding_${userId}`;
-  const existing = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).get();
+  const existing = first(await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).limit(1));
   if (existing) return;
 
   const { generateNoteId } = await import('@/utils/ids');
@@ -137,10 +137,10 @@ export async function getCachedUserData(userId: string): Promise<CachedUserData>
 
   let hadMetadata = false;
   try {
-    const userMetadata = await db.select()
+    const userMetadata = first(await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
-      .get();
+      .limit(1));
     hadMetadata = !!userMetadata;
 
     const now = new Date();
@@ -377,10 +377,10 @@ function generateDisplayName(firstName: string, lastName: string): string {
  */
 export async function refreshUserData(userId: string): Promise<CachedUserData> {
   try {
-    const existingMetadata = await db.select()
+    const existingMetadata = first(await db.select()
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
-      .get();
+      .limit(1));
 
     return await fetchAndCacheUserData(userId, existingMetadata);
   } catch (error) {

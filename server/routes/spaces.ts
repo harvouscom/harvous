@@ -28,6 +28,7 @@ import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../mid
 import {
   db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata,
   eq, and, ne, count, inArray, desc, asc, sql, isNull,
+  first,
 } from '../db';
 import { nowISO } from '../db/dates';
 import {
@@ -108,7 +109,7 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
     const backgroundGradient = getThreadGradientCSS(color);
     const now = nowISO();
 
-    const newSpace = await db.insert(Spaces).values({
+    const newSpace = first(await db.insert(Spaces).values({
       id: generateSpaceId(),
       title: capitalizedTitle,
       description: null,
@@ -119,11 +120,11 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
       isActive: true,
       order: 0,
       createdAt: now,
-    }).returning().get();
+    }).returning())!;
 
     for (const noteId of selectedNoteIds) {
       try {
-        const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+        const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
         if (note) await db.update(Notes).set({ spaceId: newSpace.id, updatedAt: nowISO() }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
       } catch (error) { console.error(`Error updating note ${noteId}:`, error); }
     }
@@ -131,7 +132,7 @@ route.post('/api/spaces/create', requireAuth, rateLimit('write'), async (c) => {
     for (const threadId of selectedThreadIds) {
       try {
         if (threadId === 'thread_unorganized') continue;
-        const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+        const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
         if (thread) await db.update(Threads).set({ spaceId: newSpace.id, updatedAt: nowISO() }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
       } catch (error) { console.error(`Error updating thread ${threadId}:`, error); }
     }
@@ -153,18 +154,18 @@ route.delete('/api/spaces/delete', requireAuth, async (c) => {
     const spaceId = c.req.query('spaceId');
     if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
 
-    const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
+    const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
 
     await db.delete(Members).where(eq(Members.spaceId, spaceId));
     await db.delete(SpaceInvitations).where(eq(SpaceInvitations.spaceId, spaceId));
 
     // Detach threads and notes (preserve content)
-    const spaceThreads = await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, auth.userId))).all();
+    const spaceThreads = await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, auth.userId)));
     for (const t of spaceThreads) {
       await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, t.id));
     }
-    const spaceNotes = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, auth.userId))).all();
+    const spaceNotes = await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, auth.userId)));
     for (const n of spaceNotes) {
       await db.update(Notes).set({ spaceId: null }).where(eq(Notes.id, n.id));
     }
@@ -190,7 +191,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
       lastVisited: Notes.lastVisited, contentEncrypted: Notes.contentEncrypted,
       addedBy: Notes.addedBy,
-    }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
+    }).from(Notes).where(eq(Notes.userId, auth.userId));
     // Exclude onboarding notes so they don't appear in the "Add to Space" panel
     const allNotes = allNotesRaw.filter(n => n.addedBy !== 'system');
 
@@ -202,7 +203,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
         const rm = await db.select({
           noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
           sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
         resourceMetadataMap = Object.fromEntries(rm.map(m => [m.noteId, m]));
       } catch {}
     }
@@ -220,7 +221,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       id: Threads.id, title: Threads.title, color: Threads.color,
       spaceId: Threads.spaceId, createdAt: Threads.createdAt,
       updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
-    }).from(Threads).where(and(eq(Threads.userId, auth.userId), ne(Threads.id, 'thread_unorganized'))).all();
+    }).from(Threads).where(and(eq(Threads.userId, auth.userId), ne(Threads.id, 'thread_unorganized')));
     const allThreads = allThreadsRaw.filter(t => !t.id.startsWith('thread_onboarding_'));
 
     const threadIds = allThreads.map(t => t.id);
@@ -229,7 +230,7 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
       const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
         .from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
         .where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.userId, auth.userId)))
-        .groupBy(NoteThreads.threadId).all();
+        .groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
     }
 
@@ -257,7 +258,7 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const color = formData.get('color') as string;
     const isPublic = formData.get('isPublic') === 'true';
 
-    const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
+    const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
 
     const titleValidation = validateTitle(title, true);
@@ -276,9 +277,9 @@ route.post('/api/spaces/:spaceId/update', requireAuth, rateLimit('write'), async
     const capitalizedTitle = title.charAt(0).toUpperCase() + title.slice(1);
     const backgroundGradient = getThreadGradientCSS(color);
 
-    const updatedSpace = await db.update(Spaces).set({
+    const updatedSpace = first(await db.update(Spaces).set({
       title: capitalizedTitle, color, backgroundGradient, isPublic, updatedAt: nowISO(),
-    }).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).returning().get();
+    }).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).returning())!;
 
     return c.json({ success: 'Space updated!', space: updatedSpace });
   } catch (error: any) {
@@ -411,14 +412,14 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
     }
 
     // Member path
-    const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found' }, 404);
 
-    const member = await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, auth.userId))).get();
+    const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, auth.userId))).limit(1));
     if (!member) return c.json({ error: 'Access denied' }, 403);
 
-    const noteCountResult = await db.select({ count: count() }).from(Notes).where(eq(Notes.spaceId, spaceId)).get();
-    const threadCountResult = await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, spaceId)).get();
+    const noteCountResult = first(await db.select({ count: count() }).from(Notes).where(eq(Notes.spaceId, spaceId)).limit(1));
+    const threadCountResult = first(await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, spaceId)).limit(1));
     const totalItemCount = (noteCountResult?.count || 0) + (threadCountResult?.count || 0);
 
     return c.json({
@@ -454,7 +455,7 @@ route.post('/api/spaces/:spaceId/add-note', requireAuth, rateLimit('write'), asy
     const { noteId } = await c.req.json();
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ error: 'Note not found or access denied' }, 404);
     if (note.addedBy === 'system') return c.json({ error: 'Cannot add onboarding notes to a space' }, 400);
 
@@ -483,7 +484,7 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot add unorganized thread to a space' }, 400);
     if (threadId.startsWith('thread_onboarding_')) return c.json({ error: 'Cannot add onboarding thread to a space' }, 400);
 
-    const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!thread) return c.json({ error: 'Thread not found or access denied' }, 404);
 
     await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
@@ -511,7 +512,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
 
     for (const noteId of noteIds) {
       try {
-        const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+        const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
         if (!note) { errors.push(`Note ${noteId} not found`); continue; }
         if (note.addedBy === 'system') { errors.push('Cannot add onboarding notes to a space'); continue; }
         await db.update(Notes).set({ spaceId }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
@@ -523,7 +524,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
       try {
         if (threadId === 'thread_unorganized') { errors.push('Cannot add unorganized thread'); continue; }
         if (threadId.startsWith('thread_onboarding_')) { errors.push('Cannot add onboarding thread'); continue; }
-        const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+        const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
         if (!thread) { errors.push(`Thread ${threadId} not found`); continue; }
         await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
         updatedThreads++;
@@ -556,7 +557,7 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
 
     for (const noteId of noteIds) {
       try {
-        const note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId))).get();
+        const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.spaceId, spaceId))).limit(1));
         if (!note) { errors.push(`Note ${noteId} not found in space`); continue; }
         if (!isOwner && note.userId !== auth.userId) { errors.push(`Note ${noteId}: no permission`); continue; }
         await db.update(Notes).set({ spaceId: null }).where(eq(Notes.id, noteId));
@@ -567,7 +568,7 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
     for (const threadId of threadIds) {
       try {
         if (threadId === 'thread_unorganized') { errors.push('Cannot remove unorganized thread'); continue; }
-        const thread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.spaceId, spaceId))).get();
+        const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.spaceId, spaceId))).limit(1));
         if (!thread) { errors.push(`Thread ${threadId} not found in space`); continue; }
         if (!isOwner && thread.userId !== auth.userId) { errors.push(`Thread ${threadId}: no permission`); continue; }
         await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, threadId));
@@ -593,8 +594,8 @@ route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
       throw err;
     }
 
-    const space = await db.select({ id: Spaces.id, isPublic: Spaces.isPublic, shareToken: Spaces.shareToken, userId: Spaces.userId })
-      .from(Spaces).where(eq(Spaces.id, spaceId)).get();
+    const space = first(await db.select({ id: Spaces.id, isPublic: Spaces.isPublic, shareToken: Spaces.shareToken, userId: Spaces.userId })
+      .from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found' }, 404);
 
     if (!space.isPublic) return c.json({ isPublic: false, shareToken: null, shareUrl: null });
@@ -625,7 +626,7 @@ route.post('/api/spaces/:spaceId/share-link', requireAuth, rateLimit('write'), a
 
     const spaceId = requireParam(c, 'spaceId');
 
-    const space = await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).get();
+    const space = first(await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, auth.userId))).limit(1));
     if (!space) return c.json({ error: 'Space not found or access denied' }, 404);
 
     const { action } = await c.req.json();
@@ -658,14 +659,14 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     const space = accessInfo.space;
 
     // Get members
-    const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId)).all();
+    const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId));
     const memberUserIds = members.map(m => m.userId);
     const allUserIds = [space.userId, ...memberUserIds];
 
     // Get user metadata for all
     let userMetadataMap: Record<string, any> = {};
     if (allUserIds.length > 0) {
-      const metadata = await db.select().from(UserMetadata).where(inArray(UserMetadata.userId, allUserIds)).all();
+      const metadata = await db.select().from(UserMetadata).where(inArray(UserMetadata.userId, allUserIds));
       userMetadataMap = Object.fromEntries(metadata.map(m => [m.userId, m]));
     }
 
@@ -699,7 +700,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
     let pendingInvitations: any[] = [];
     if (isOwner) {
       const invitations = await db.select().from(SpaceInvitations)
-        .where(and(eq(SpaceInvitations.spaceId, spaceId), eq(SpaceInvitations.status, 'pending'))).all();
+        .where(and(eq(SpaceInvitations.spaceId, spaceId), eq(SpaceInvitations.status, 'pending')));
       pendingInvitations = invitations.map(inv => ({
         id: inv.id, email: inv.invitedEmail, createdAt: inv.createdAt, expiresAt: inv.expiresAt,
       }));
@@ -784,7 +785,7 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
     const spaceId = requireParam(c, 'spaceId');
     const targetUserId = requireParam(c, 'userId');
 
-    const space = await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found' }, 404);
 
     const isOwner = space.userId === auth.userId;
@@ -796,7 +797,7 @@ route.delete('/api/spaces/:spaceId/members/:userId', requireAuth, rateLimit('wri
     // Members can only remove themselves
     if (!isOwner && !isSelf) return c.json({ error: 'Only the space owner can remove other members' }, 403);
 
-    const member = await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, targetUserId))).get();
+    const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, targetUserId))).limit(1));
     if (!member) return c.json({ error: 'User is not a member of this space' }, 404);
 
     await db.delete(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, targetUserId)));
@@ -815,13 +816,13 @@ route.post('/api/spaces/join/:token', requireAuth, rateLimit('write'), async (c)
 
     const token = requireParam(c, 'token');
 
-    const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
     if (!space) return c.json({ error: 'Invalid or expired invite link' }, 404);
     if (!space.isPublic) return c.json({ error: 'This space is no longer accepting new members' }, 403);
 
     if (space.userId === auth.userId) return c.json({ error: 'You are the owner of this space' }, 400);
 
-    const existingMember = await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).get();
+    const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).limit(1));
     if (existingMember) return c.json({ error: 'You are already a member of this space' }, 400);
 
     // Tier checks (owner's limits)
@@ -853,12 +854,12 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
   try {
     const token = requireParam(c, 'token');
 
-    const space = await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
     if (!space) return c.json({ error: 'Space not found or link expired' }, 404);
     if (!space.isPublic) return c.json({ error: 'This space is no longer public' }, 403);
 
     // Owner info (first name + last initial only; never full last name)
-    const ownerMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).get();
+    const ownerMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).limit(1));
     const ownerFirst = ownerMeta?.firstName || '';
     const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : '';
     const ownerDisplayName = ownerFirst
@@ -872,14 +873,14 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
     // Thread preview (up to 5)
     const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
       .from(Threads).where(eq(Threads.spaceId, space.id))
-      .orderBy(desc(Threads.updatedAt)).limit(5).all();
+      .orderBy(desc(Threads.updatedAt)).limit(5);
 
     const threadIds = threads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
     if (threadIds.length > 0) {
       const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
         .from(NoteThreads).where(inArray(NoteThreads.threadId, threadIds))
-        .groupBy(NoteThreads.threadId).all();
+        .groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
     }
 
@@ -895,7 +896,7 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt)
-      ).limit(10).all();
+      ).limit(10);
 
     // Check if auth user is already a member
     let isAlreadyMember = false;
@@ -904,7 +905,7 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
       if (auth.userId) {
         if (space.userId === auth.userId) isAlreadyMember = true;
         else {
-          const member = await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).get();
+          const member = first(await db.select().from(Members).where(and(eq(Members.spaceId, space.id), eq(Members.userId, auth.userId))).limit(1));
           if (member) isAlreadyMember = true;
         }
       }

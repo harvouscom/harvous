@@ -2,7 +2,7 @@
  * Analytics aggregator — Drizzle port of src/utils/analytics-aggregator.ts
  */
 
-import { db, ScriptureMetadata, NoteTags, Tags, MonthlyAnalytics, eq, and, sql, gte, lt } from '../db';
+import { db, first, ScriptureMetadata, NoteTags, Tags, MonthlyAnalytics, eq, and, sql, gte, lt } from '../db';
 import { nowISO } from '../db/dates';
 
 /**
@@ -24,7 +24,7 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
       .from(ScriptureMetadata)
       .where(and(gte(ScriptureMetadata.createdAt, monthStart), lt(ScriptureMetadata.createdAt, monthEnd)))
       .groupBy(ScriptureMetadata.book)
-      .all();
+      ;
 
     // Aggregate tags from NoteTags
     const tagStats = await db
@@ -36,17 +36,17 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
       .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
       .where(and(gte(NoteTags.createdAt, monthStart), lt(NoteTags.createdAt, monthEnd)))
       .groupBy(Tags.name)
-      .all();
+      ;
 
     // Upsert book stats
     for (const stat of bookStats) {
       if (!stat.book) continue;
 
-      const existing = await db
+      const existing = first(await db
         .select()
         .from(MonthlyAnalytics)
         .where(and(eq(MonthlyAnalytics.month, month), eq(MonthlyAnalytics.category, 'book'), eq(MonthlyAnalytics.bookName, stat.book)))
-        .get();
+        .limit(1));
 
       if (existing) {
         await db.update(MonthlyAnalytics).set({ count: stat.count, updatedAt: nowISO() }).where(eq(MonthlyAnalytics.id, existing.id));
@@ -67,11 +67,11 @@ export async function aggregateMonthlyAnalytics(month: string): Promise<void> {
     for (const stat of tagStats) {
       if (!stat.tagName) continue;
 
-      const existing = await db
+      const existing = first(await db
         .select()
         .from(MonthlyAnalytics)
         .where(and(eq(MonthlyAnalytics.month, month), eq(MonthlyAnalytics.category, 'tag'), eq(MonthlyAnalytics.tagName, stat.tagName)))
-        .get();
+        .limit(1));
 
       if (existing) {
         await db.update(MonthlyAnalytics).set({ count: stat.count, updatedAt: nowISO() }).where(eq(MonthlyAnalytics.id, existing.id));

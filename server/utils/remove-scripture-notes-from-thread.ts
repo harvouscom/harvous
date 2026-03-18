@@ -2,7 +2,7 @@
  * Remove scripture notes from thread — Drizzle port of src/utils/remove-scripture-notes-from-thread.ts
  */
 
-import { db, Notes, NoteThreads, NoteScriptureReferences, eq, and } from '../db';
+import { db, first, Notes, NoteThreads, NoteScriptureReferences, eq, and } from '../db';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -19,7 +19,7 @@ export async function removeScriptureNotesFromThread(
 
   try {
     try {
-      await db.select().from(NoteScriptureReferences).limit(1).get();
+      first(await db.select().from(NoteScriptureReferences).limit(1));
     } catch (checkError: any) {
       if (checkError.message?.includes('SQLITE_BUSY') || checkError.message?.includes('database is locked')) {
         return;
@@ -30,7 +30,7 @@ export async function removeScriptureNotesFromThread(
       .select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
       .from(NoteScriptureReferences)
       .where(eq(NoteScriptureReferences.noteId, parentNoteId))
-      .all();
+      ;
 
     if (scriptureReferences.length === 0) return;
 
@@ -38,7 +38,7 @@ export async function removeScriptureNotesFromThread(
       .select({ noteId: NoteThreads.noteId })
       .from(NoteThreads)
       .where(eq(NoteThreads.threadId, threadId))
-      .all();
+      ;
 
     const noteIdsInThread = new Set(notesInThread.map(n => n.noteId));
 
@@ -46,30 +46,29 @@ export async function removeScriptureNotesFromThread(
       const scriptureNoteId = ref.scriptureNoteId;
 
       try {
-        const scriptureNote = await db.select()
+        const scriptureNote = first(await db.select()
           .from(Notes)
           .where(and(eq(Notes.id, scriptureNoteId), eq(Notes.userId, userId)))
-          .get();
+          .limit(1));
 
         if (!scriptureNote) continue;
 
-        const scriptureNoteInThread = await db.select()
+        const scriptureNoteInThread = first(await db.select()
           .from(NoteThreads)
           .where(and(eq(NoteThreads.noteId, scriptureNoteId), eq(NoteThreads.threadId, threadId)))
-          .get();
+          .limit(1));
 
         if (!scriptureNoteInThread) continue;
 
         let stillReferenced = false;
         for (const noteId of noteIdsInThread) {
-          const referenceCheck = await db.select()
+          const referenceCheck = first(await db.select()
             .from(NoteScriptureReferences)
             .where(and(
               eq(NoteScriptureReferences.noteId, noteId),
               eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId)
             ))
-            .limit(1)
-            .get();
+            .limit(1));
 
           if (referenceCheck) {
             stillReferenced = true;
@@ -89,7 +88,7 @@ export async function removeScriptureNotesFromThread(
               const remainingThreads = await db.select()
                 .from(NoteThreads)
                 .where(eq(NoteThreads.noteId, scriptureNoteId))
-                .all();
+                ;
 
               if (remainingThreads.length === 0) {
                 let updateRetries = 3;

@@ -11,18 +11,19 @@
  */
 import 'dotenv/config';
 import { db, UserMetadata, Notes } from '../server/db';
+import { first } from '../server/db/helpers';
 import { eq, sql } from 'drizzle-orm';
 import { nowISO } from '../server/db/dates';
 
 async function main() {
-  const allMeta = await db.select({ userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).all();
+  const allMeta = await db.select({ userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata);
   let repaired = 0;
   for (const meta of allMeta) {
-    const maxRow = await db
+    const maxRow = first(await db
       .select({ maxId: sql<number | null>`max(${Notes.simpleNoteId})` })
       .from(Notes)
       .where(eq(Notes.userId, meta.userId))
-      .get();
+      .limit(1));
     const maxFromNotes = maxRow?.maxId != null ? maxRow.maxId : 0;
     const current = meta.highestSimpleNoteId ?? 0;
     if (maxFromNotes > current) {

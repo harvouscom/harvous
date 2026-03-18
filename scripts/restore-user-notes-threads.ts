@@ -25,6 +25,7 @@ import 'dotenv/config';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { db, Threads, Notes, NoteThreads, UserMetadata, eq } from '../server/db';
+import { first } from '../server/db/helpers';
 import { nowISO } from '../server/db/dates';
 
 const USER_ID = process.env.USER_ID!.trim();
@@ -253,7 +254,7 @@ async function main() {
   }
 
   // Ensure UserMetadata exists (reset-user-simple-note-id.ts expects it)
-  const meta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, USER_ID)).get();
+  const meta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, USER_ID)).limit(1));
   if (!meta) {
     const now = nowISO();
     await db.insert(UserMetadata).values({

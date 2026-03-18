@@ -7,7 +7,7 @@
  *   - getInboxItemWithNotes(inboxItemId)
  */
 
-import { db, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc } from '../db';
+import { db, first, InboxItems, InboxItemNotes, UserInboxItems, eq, and, desc } from '../db';
 import { asc } from 'drizzle-orm';
 
 export async function getInboxItems(userId: string) {
@@ -27,7 +27,7 @@ export async function getInboxItems(userId: string) {
         )
       )
       .orderBy(desc(InboxItems.createdAt))
-      .all();
+      ;
 
     return userInboxItems.map(item => ({
       ...item.inboxItem,
@@ -48,14 +48,15 @@ export async function getInboxItemWithNotes(inboxItemId: string) {
         .select()
         .from(InboxItems)
         .where(eq(InboxItems.id, inboxItemId))
-        .get(),
+        .limit(1)
+        .then(rows => first(rows)),
       // Pre-fetch notes (will be empty array if not a thread, but avoids conditional query)
       db
         .select()
         .from(InboxItemNotes)
         .where(eq(InboxItemNotes.inboxItemId, inboxItemId))
         .orderBy(asc(InboxItemNotes.order))
-        .all()
+        
     ]);
 
     if (!inboxItem) {

@@ -4,6 +4,7 @@
  */
 import {
   db,
+  first,
   Notes,
   Threads,
   NoteThreads,
@@ -55,7 +56,7 @@ export async function generateUserExport(
   const allNoteThreadsRows = await db
     .select({ noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
     .from(NoteThreads)
-    .all();
+    ;
   const noteThreadMap = new Map<string, string[]>();
   allNoteThreadsRows.forEach((nt) => {
     if (!noteThreadMap.has(nt.noteId)) noteThreadMap.set(nt.noteId, []);
@@ -73,7 +74,7 @@ export async function generateUserExport(
       .from(NoteTags)
       .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
       .where(eq(Tags.userId, userId))
-      .all();
+      ;
     allNoteTags.forEach((tag) => {
       if (!noteTagsMap.has(tag.noteId)) noteTagsMap.set(tag.noteId, []);
       noteTagsMap.get(tag.noteId)!.push({ name: tag.tagName, category: tag.tagCategory || undefined });
@@ -84,7 +85,7 @@ export async function generateUserExport(
   const scriptureNotes = allNotes.filter((n) => n.noteType === 'scripture');
   for (const sn of scriptureNotes) {
     try {
-      const meta = await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sn.id)).get();
+      const meta = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sn.id)).limit(1));
       if (meta) scriptureMap.set(sn.id, { reference: meta.reference || '', translation: meta.translation || undefined });
     } catch {
       /* skip */

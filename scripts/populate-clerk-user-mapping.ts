@@ -21,7 +21,7 @@ async function main() {
     .select({ userId: UserMetadata.userId, email: UserMetadata.email })
     .from(UserMetadata)
     .where(and(isNotNull(UserMetadata.email), sql`${UserMetadata.email} != ''`))
-    .all();
+    ;
 
   const toInsert = rows
     .map((r) => ({

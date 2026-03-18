@@ -112,7 +112,7 @@ export async function safeFetch(
   const {
     retries = 3,
     retryDelay = 1000,
-    timeout = 10000,
+    timeout = 30000,
     deduplicate = true,
     checkAuth = true,
     isPrefetch = false,

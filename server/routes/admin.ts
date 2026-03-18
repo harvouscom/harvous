@@ -16,6 +16,7 @@ import { getStore } from '@netlify/blobs';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
+  first,
   Notes,
   NoteThreads,
   NoteScriptureReferences,
@@ -90,7 +91,7 @@ app.post('/api/admin/backup-exports', async (c) => {
     const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     const store = getStore({ name: BACKUP_STORE_NAME });
-    const userIdRows = await db.select({ userId: Notes.userId }).from(Notes).all();
+    const userIdRows = await db.select({ userId: Notes.userId }).from(Notes);
     const userIds = [...new Set(userIdRows.map((r) => r.userId))];
 
     let exported = 0;
@@ -141,7 +142,7 @@ app.get('/api/admin/cleanup-duplicate-note-threads', async (c) => {
   try {
     console.log('Starting cleanup of duplicate NoteThreads entries...');
 
-    const allEntries = await db.select().from(NoteThreads).all();
+    const allEntries = await db.select().from(NoteThreads);
     console.log(`Total NoteThreads entries: ${allEntries.length}`);
 
     const groupedEntries = new Map<string, typeof allEntries>();
@@ -193,7 +194,7 @@ app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
   try {
     console.log('Starting cleanup of duplicate scripture reference entries...');
 
-    const allEntries = await db.select().from(NoteScriptureReferences).all();
+    const allEntries = await db.select().from(NoteScriptureReferences);
 
     const groupedEntries = new Map<string, typeof allEntries>();
     for (const entry of allEntries) {
@@ -250,11 +251,11 @@ app.get('/api/admin/debug-thread-counts', requireAuth, async (c) => {
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, auth.userId)))
-      .all();
+      ;
 
     const scriptureDetails = await Promise.all(
       allNotes.filter((n) => n.noteType === 'scripture').map(async (note) => {
-        const metadata = await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, note.id)).get();
+        const metadata = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, note.id)).limit(1));
         return { id: note.id, title: note.title, reference: metadata?.reference || 'Unknown' };
       })
     );
@@ -290,7 +291,7 @@ app.get('/api/admin/list-threads', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId)).all();
+    const threads = await db.select().from(Threads).where(eq(Threads.userId, auth.userId));
 
     return c.json({
       success: true,

@@ -584,11 +584,12 @@ export async function pullChanges(userId: string): Promise<SyncResult> {
       return { success: false, error: 'Bootstrap required' };
     }
 
-    // Use safeFetch for automatic retry logic on 503/5xx errors
+    // Use safeFetch for automatic retry logic on 503/5xx errors (longer timeout for heavy sync payload / cold start)
     const response = await safeFetch(`/api/sync/changes?since=${encodeURIComponent(sinceCursor)}`, {
       method: 'GET',
       retries: 3,
       retryDelay: 1000,
+      timeout: 45000,
     });
 
     if (!response) {

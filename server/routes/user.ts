@@ -27,7 +27,7 @@
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
-  db, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
+  db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
   eq, and, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
@@ -117,7 +117,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
+    const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
 
     if (noteIds.length > 0) {
@@ -132,7 +132,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
     await db.delete(Notes).where(eq(Notes.userId, auth.userId));
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
 
-    const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId)).all();
+    const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
@@ -153,7 +153,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     // Delete data (same as clear-data)
-    const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId)).all();
+    const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
@@ -166,7 +166,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     await db.delete(Notes).where(eq(Notes.userId, auth.userId));
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
 
-    const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId)).all();
+    const userSpaces = await db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, auth.userId));
     for (const space of userSpaces) {
       await db.delete(Members).where(eq(Members.spaceId, space.id));
     }
@@ -404,7 +404,7 @@ app.post('/api/user/update-profile', requireAuth, rateLimit('write'), async (c) 
     try { await invalidateUserCache(auth.userId); } catch (_) { /* non-fatal */ }
 
     try {
-      const existingMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      const existingMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       await db.update(UserMetadata).set({
         firstName, lastName, userColor: color,
         churchName: existingMetadata?.churchName ?? null,
@@ -469,14 +469,14 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
 
     let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null };
     try {
-      const um = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       if (um) churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
     } catch (_) { /* non-fatal */ }
 
     let hasLockPinSet = false;
     try {
-      const lockMeta = await db.select({ lockPinHash: UserMetadata.lockPinHash })
-        .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      const lockMeta = first(await db.select({ lockPinHash: UserMetadata.lockPinHash })
+        .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
       hasLockPinSet = !!(lockMeta?.lockPinHash);
     } catch (_) { /* non-fatal */ }
 
@@ -518,7 +518,7 @@ app.get('/api/user/locked-notes', requireAuth, async (c) => {
       .select(includeContent ? { id: Notes.id, content: Notes.content } : { id: Notes.id })
       .from(Notes)
       .where(and(eq(Notes.userId, auth.userId), eq(Notes.contentEncrypted, true)))
-      .all();
+      ;
 
     const result = includeContent
       ? lockedOnly.map((n: any) => ({ id: n.id, content: n.content }))
@@ -542,8 +542,8 @@ app.post('/api/user/verify-lock-pin', requireAuth, async (c) => {
 
     if (!pin || !validatePinFormat(pin)) return c.json({ error: 'PIN must be exactly 4 digits', code: 'INVALID_PIN' }, 400);
 
-    const existing = await db.select({ lockPinSalt: UserMetadata.lockPinSalt, lockPinHash: UserMetadata.lockPinHash })
-      .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    const existing = first(await db.select({ lockPinSalt: UserMetadata.lockPinSalt, lockPinHash: UserMetadata.lockPinHash })
+      .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
     if (!existing?.lockPinSalt || !existing?.lockPinHash) return c.json({ error: 'No lock PIN set', code: 'NO_LOCK_PIN' }, 400);
 
@@ -571,8 +571,8 @@ app.post('/api/user/set-lock-pin', requireAuth, rateLimit('write'), async (c) =>
 
     if (!pinToSet || !validatePinFormat(pinToSet)) return c.json({ error: 'PIN must be exactly 4 digits', code: 'INVALID_PIN' }, 400);
 
-    const existing = await db.select({ lockPinSalt: UserMetadata.lockPinSalt, lockPinHash: UserMetadata.lockPinHash })
-      .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    const existing = first(await db.select({ lockPinSalt: UserMetadata.lockPinSalt, lockPinHash: UserMetadata.lockPinHash })
+      .from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
     if (!existing) return c.json({ error: 'Account not found', code: 'ACCOUNT_NOT_FOUND' }, 400);
 
@@ -668,7 +668,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
 
     await ensureUnorganizedThread(auth.userId);
 
-    let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     if (!userMetadata) {
       const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId })
         .from(Notes).where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
@@ -678,7 +678,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
         id: `user_metadata_${auth.userId}`, userId: auth.userId,
         highestSimpleNoteId: highestExistingId, userColor: 'blue', currentSeason: getCurrentSeason(), createdAt: nowISO()
       });
-      userMetadata = (await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get())!;
+      userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1))!;
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
@@ -729,11 +729,11 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const nextSimpleNoteId: number = i === 0 ? effectiveHighest + 1 : (userMetadata!.highestSimpleNoteId ?? 0) + 1;
         let noteType: 'default' | 'scripture' | 'resource' = scriptureReference ? 'scripture' : 'default';
 
-        const newNote = await db.insert(Notes).values({
+        const newNote = first(await db.insert(Notes).values({
           id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
           threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
           noteType, userId: auth.userId, isPublic: false, createdAt: createdDate.toISOString(), contentEncrypted: false,
-        }).returning().get();
+        }).returning())!;
 
         await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
           .where(eq(UserMetadata.userId, auth.userId));
@@ -752,8 +752,8 @@ app.post('/api/user/import', requireAuth, async (c) => {
           try {
             const [tagId, wasCreated] = await getOrCreateTag(auth.userId, tagName);
             if (wasCreated) tagsCreated++;
-            const existingRelation = await db.select().from(NoteTags)
-              .where(and(eq(NoteTags.noteId, newNote.id), eq(NoteTags.tagId, tagId))).get();
+            const existingRelation = first(await db.select().from(NoteTags)
+              .where(and(eq(NoteTags.noteId, newNote.id), eq(NoteTags.tagId, tagId))).limit(1));
             if (!existingRelation) {
               await db.insert(NoteTags).values({
                 id: `note-tag-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -847,7 +847,7 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
       .orderBy(
         asc(sql`CASE WHEN ${Spaces.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Spaces.lastVisited)
-      ).all();
+      );
 
     const owned: Array<{ id: string; title: string; color?: string | null; memberCount: number; shareToken?: string | null; shareUrl?: string }> = [];
     for (const space of ownedSpacesRows) {
@@ -862,14 +862,14 @@ app.get('/api/profile/my-shared-spaces', requireAuth, rateLimit('read'), async (
       }
     }
 
-    const memberships = await db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, auth.userId)).all();
+    const memberships = await db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, auth.userId));
     const ownedSpaceIds = new Set(ownedSpacesRows.map(s => s.id));
     const memberOf: Array<{ id: string; title: string; color?: string | null; memberCount: number }> = [];
 
     for (const m of memberships) {
       if (ownedSpaceIds.has(m.spaceId)) continue;
-      const spaceRow = await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-        .from(Spaces).where(eq(Spaces.id, m.spaceId)).get();
+      const spaceRow = first(await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
+        .from(Spaces).where(eq(Spaces.id, m.spaceId)).limit(1));
       if (spaceRow) {
         const memberCount = await getSpaceMemberCount(spaceRow.id);
         memberOf.push({ id: spaceRow.id, title: spaceRow.title || 'Untitled space', color: spaceRow.color ?? undefined, memberCount });
@@ -925,8 +925,8 @@ async function getOrCreateThread(userId: string, threadTitle: string, threadColo
     await ensureUnorganizedThread(userId);
     return 'thread_unorganized';
   }
-  const existingThread = await db.select().from(Threads)
-    .where(and(eq(Threads.userId, userId), eq(Threads.title, threadTitle.trim()))).get();
+  const existingThread = first(await db.select().from(Threads)
+    .where(and(eq(Threads.userId, userId), eq(Threads.title, threadTitle.trim()))).limit(1));
   if (existingThread) return existingThread.id;
 
   const capitalizedTitle = threadTitle.trim().charAt(0).toUpperCase() + threadTitle.trim().slice(1);
@@ -934,10 +934,10 @@ async function getOrCreateThread(userId: string, threadTitle: string, threadColo
   if (threadColor && THREAD_COLORS.includes(threadColor as any)) finalColor = threadColor;
   else finalColor = getThreadColorFromTitle(threadTitle.trim());
 
-  const newThread = await db.insert(Threads).values({
+  const newThread = first(await db.insert(Threads).values({
     id: generateThreadId(), title: capitalizedTitle, subtitle: null, spaceId: null,
     userId, isPublic: false, color: finalColor, isPinned: false, createdAt: nowISO(),
-  }).returning().get();
+  }).returning())!;
   return newThread.id;
 }
 
