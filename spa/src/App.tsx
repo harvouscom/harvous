@@ -184,7 +184,7 @@ function ToastSetup() {
     function handleToastEvent(event: Event) {
       if (isNoToastPath()) return;
       const { message, type, code, upgradeUrl } = (event as CustomEvent).detail || {};
-      if (code === 'SHARED_SPACE_LIMIT_EXCEEDED' || code === 'NOTE_LIMIT_EXCEEDED') {
+      if (code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
         windowToast.upgradePrompt(message ?? '', upgradeUrl);
         return;
       }

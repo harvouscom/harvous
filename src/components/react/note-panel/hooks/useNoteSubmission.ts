@@ -935,90 +935,54 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           error.error = `Error creating note: ${response.statusText || response.status}`;
         }
         
-        // Handle note limit exceeded error
-        if (error.code === 'NOTE_LIMIT_EXCEEDED') {
-          // Save pending note data to sessionStorage
-          // This allows us to auto-create the note after successful upgrade
-          try {
-            const pendingNoteData = {
-              title: title.trim(),
-              content: editorContent.trim(),
-              threadId: overrideThreadId || getSelectedThread().id,
-              noteType: currentNoteType,
-              scriptureReference: currentScriptureReference.trim(),
-              scriptureVersion: currentScriptureVersion,
-              resourceUrl: normalizedResourceUrl || resourceUrl.trim(),
-              resourceMetadata: resourceMetadata ? JSON.stringify(resourceMetadata) : null,
-              spaceId: (addToSpace && currentSpace?.id) ? currentSpace.id : null,
-              timestamp: Date.now()
-            };
-            
-            sessionStorage.setItem('pendingNote', JSON.stringify(pendingNoteData));
-            debug('[useNoteSubmission] Saved pending note data to sessionStorage', pendingNoteData);
-          } catch (saveError) {
-            console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
-          }
+        // Check if this is a network error
+        if (isNetworkError(error) && offlineNoteId) {
+          // Network error but offline save succeeded - treat as success
+          showToast('Note saved offline. It will sync when you\'re back online.', 'success');
 
-          window.dispatchEvent(
-            new CustomEvent('toast', {
-              detail: {
-                message: error.error || "You've used all your notes. Upgrade for unlimited.",
-                type: 'error',
-                code: 'NOTE_LIMIT_EXCEEDED',
-                upgradeUrl: error.upgradeUrl || '/upgrade',
-              },
-            })
-          );
-        } else {
-          // Check if this is a network error
-          if (isNetworkError(error) && offlineNoteId) {
-            // Network error but offline save succeeded - treat as success
-            showToast('Note saved offline. It will sync when you\'re back online.', 'success');
-            
-            // Dispatch noteCreated event
-            const threadIdToUse = overrideThreadId || getSelectedThread().id;
-            const offlineNoteEvent = new CustomEvent('noteCreated', {
-              detail: {
-                note: {
-                  id: offlineNoteId,
-                  title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
-                  content: currentContent,
-                  noteType: currentNoteType,
-                  threadId: threadIdToUse,
-                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                },
-                actualThreadId: threadIdToUse,
-                noteId: offlineNoteId,
+          // Dispatch noteCreated event
+          const threadIdToUse = overrideThreadId || getSelectedThread().id;
+          const offlineNoteEvent = new CustomEvent('noteCreated', {
+            detail: {
+              note: {
+                id: offlineNoteId,
+                title: currentNoteType === 'default' ? title : (currentNoteType === 'scripture' ? currentScriptureReference : normalizedResourceUrl),
+                content: currentContent,
+                noteType: currentNoteType,
                 threadId: threadIdToUse,
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                isOffline: true
-              }
-            });
-            window.dispatchEvent(offlineNoteEvent);
-            
-            resetForm();
-            setSelectedThread('Unorganized');
-            clearLocalStorage();
-            localStorage.removeItem('showNewNotePanel');
-            if (onClose) onClose();
-            window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-            
-            // Stay on current page when offline - note will appear in list from IndexedDB
-            const currentUrl = safeURL(window.location.href);
-            if (currentUrl) {
-              currentUrl.searchParams.set('toast', 'success');
-              currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
-              window.history.replaceState({}, '', currentUrl.toString());
+              },
+              actualThreadId: threadIdToUse,
+              noteId: offlineNoteId,
+              threadId: threadIdToUse,
+              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+              isOffline: true
             }
-          } else if (isNetworkError(error) && offlineSaveError) {
-            // Network error AND offline save failed - show the specific offline error
-            showToast(offlineSaveError, 'error');
-          } else if (isNetworkError(error)) {
-            // Network error with no offline context - show friendly offline message
-            showToast('You\'re offline. Please try again when connected.', 'error');
-          } else {
-            showToast(error.error || 'Error creating note', 'error');
+          });
+          window.dispatchEvent(offlineNoteEvent);
+
+          resetForm();
+          setSelectedThread('Unorganized');
+          clearLocalStorage();
+          localStorage.removeItem('showNewNotePanel');
+          if (onClose) onClose();
+          window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+
+          // Stay on current page when offline - note will appear in list from IndexedDB
+          const currentUrl = safeURL(window.location.href);
+          if (currentUrl) {
+            currentUrl.searchParams.set('toast', 'success');
+            currentUrl.searchParams.set('message', encodeURIComponent('Note saved offline. It will sync when you\'re back online.'));
+            window.history.replaceState({}, '', currentUrl.toString());
           }
+        } else if (isNetworkError(error) && offlineSaveError) {
+          // Network error AND offline save failed - show the specific offline error
+          showToast(offlineSaveError, 'error');
+        } else if (isNetworkError(error)) {
+          // Network error with no offline context - show friendly offline message
+          showToast('You\'re offline. Please try again when connected.', 'error');
+        } else {
+          showToast(error.error || 'Error creating note', 'error');
         }
 
         submitMutexRef.current = false;
@@ -1261,44 +1225,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           error.error = `Error creating note: ${response.statusText || response.status}`;
         }
         
-        // Handle note limit exceeded error
-        if (error.code === 'NOTE_LIMIT_EXCEEDED') {
-          // Save pending note data to sessionStorage
-          // This allows us to auto-create the note after successful upgrade
-          try {
-            const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
-            const pendingNoteData = {
-              title: title.trim(),
-              content: content.trim(),
-              threadId: getSelectedThread().id,
-              noteType: noteType,
-              scriptureReference: scriptureReference.trim(),
-              scriptureVersion: scriptureVersion,
-              resourceUrl: validatedUrl || resourceUrl.trim(),
-              resourceMetadata: resourceMetadata ? JSON.stringify(resourceMetadata) : null,
-              spaceId: (addToSpace && currentSpace?.id) ? currentSpace.id : null,
-              timestamp: Date.now()
-            };
-            
-            sessionStorage.setItem('pendingNote', JSON.stringify(pendingNoteData));
-            debug('[useNoteSubmission] Saved pending note data to sessionStorage (save and close)', pendingNoteData);
-          } catch (saveError) {
-            console.error('[useNoteSubmission] Failed to save pending note data:', saveError);
-          }
-
-          window.dispatchEvent(
-            new CustomEvent('toast', {
-              detail: {
-                message: error.error || "You've used all your notes. Upgrade for unlimited.",
-                type: 'error',
-                code: 'NOTE_LIMIT_EXCEEDED',
-                upgradeUrl: error.upgradeUrl || '/upgrade',
-              },
-            })
-          );
-        } else {
-          showToast(error.error || 'Error creating note', 'error');
-        }
+        showToast(error.error || 'Error creating note', 'error');
       }
     } catch (error: any) {
       // Error saving note - show error toast

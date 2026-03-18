@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { toast } from '@/utils/toast';
 
 interface CreateNoteButtonProps {
   className?: string;
@@ -14,8 +13,6 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
   const [isNewNotePanelOpen, setIsNewNotePanelOpen] = useState(false);
   const [isAddToSpacePanelOpen, setIsAddToSpacePanelOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [noteLimitReached, setNoteLimitReached] = useState(false);
-  const [noteLimit, setNoteLimit] = useState(500);
   const btnRef = useRef<HTMLButtonElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -131,28 +128,6 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
     };
   }, [isEditMode, isNewNotePanelOpen, isAddToSpacePanelOpen]);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/subscription/status', { credentials: 'include', cache: 'no-store' });
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (cancelled) return;
-        const limit = data.limit ?? 500;
-        const atLimit = !data.hasUnlimited && (data.currentCount ?? 0) >= limit;
-        setNoteLimit(limit);
-        setNoteLimitReached(atLimit);
-      } catch {
-        if (!cancelled) {
-          setNoteLimitReached(false);
-          setNoteLimit(500);
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
   const handleClick = () => {
     if (addToSpaceSpaceId) {
       if (menuOpen) {
@@ -163,18 +138,10 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
       setMenuOpen(true);
       return;
     }
-    if (noteLimitReached) {
-      toast.warning(`You've used all ${noteLimit.toLocaleString()} notes. Upgrade for unlimited.`);
-      return;
-    }
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
   };
 
   const handleAddNote = () => {
-    if (noteLimitReached) {
-      toast.warning(`You've used all ${noteLimit.toLocaleString()} notes. Upgrade for unlimited.`);
-      return;
-    }
     setMenuOpen(false);
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
   };

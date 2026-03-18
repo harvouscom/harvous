@@ -47,7 +47,6 @@ const MyAchievementsPanel = createLazyComponent(() => import('./MyAchievementsPa
 const MyChurchPanel = createLazyComponent(() => import('./MyChurchPanel'), 'MyChurchPanel');
 const EditNameColorPanel = createLazyComponent(() => import('./EditNameColorPanel'), 'EditNameColorPanel');
 const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPanel'), 'EmailPasswordPanel');
-const ManageBillingPanel = createLazyComponent(() => import('./ManageBillingPanel'), 'ManageBillingPanel');
 const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'ReferralPanel');
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const MySharingPanel = createLazyComponent(() => import('./MySharingPanel'), 'MySharingPanel');
@@ -121,7 +120,6 @@ type PanelType =
   | 'mySharing'
   | 'editNameColor'
   | 'emailPassword'
-  | 'manageBilling'
   | 'referral'
   | 'myData'
   | 'getSupport'
@@ -346,17 +344,6 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
-    case 'OPEN_MANAGE_BILLING':
-      localStorage.setItem('showNewNotePanel', 'false');
-      localStorage.setItem('showNewThreadPanel', 'false');
-      localStorage.setItem('showNewResourcePanel', 'false');
-      localStorage.setItem('showProfilePanel', 'manageBilling');
-      return { activePanel: 'manageBilling', panelKey: state.panelKey + 1 };
-
-    case 'CLOSE_MANAGE_BILLING':
-      localStorage.setItem('showProfilePanel', '');
-      return { activePanel: null, panelKey: state.panelKey };
-
     case 'OPEN_REFERRAL':
       localStorage.setItem('showNewNotePanel', 'false');
       localStorage.setItem('showNewThreadPanel', 'false');
@@ -433,7 +420,6 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'mySharing' ||
           savedProfilePanel === 'editNameColor' ||
           savedProfilePanel === 'emailPassword' ||
-          savedProfilePanel === 'manageBilling' ||
           savedProfilePanel === 'referral' ||
           savedProfilePanel === 'myData' ||
           savedProfilePanel === 'getSupport' ||
@@ -676,7 +662,6 @@ export default function DesktopPanelManager({
       else if (panelName === 'mySharing') dispatch({ type: 'OPEN_MY_SHARING' });
       else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
       else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
-      else if (panelName === 'manageBilling') dispatch({ type: 'OPEN_MANAGE_BILLING' });
       else if (panelName === 'referral') dispatch({ type: 'OPEN_REFERRAL' });
       else if (panelName === 'myData') dispatch({ type: 'OPEN_MY_DATA' });
       else if (panelName === 'getSupport') dispatch({ type: 'OPEN_GET_SUPPORT' });
@@ -854,11 +839,6 @@ export default function DesktopPanelManager({
 
   const handleCloseEmailPassword = useCallback(() => {
     dispatch({ type: 'CLOSE_EMAIL_PASSWORD' });
-    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-  }, []);
-
-  const handleCloseManageBilling = useCallback(() => {
-    dispatch({ type: 'CLOSE_MANAGE_BILLING' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -1179,20 +1159,7 @@ export default function DesktopPanelManager({
         </PanelErrorBoundary>
       )}
 
-      {contentType === 'profile' && state.activePanel === 'manageBilling' && (
-        <PanelErrorBoundary>
-          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
-            <div className="h-full hidden min-[1160px]:block">
-              <ManageBillingPanel
-                key="manage-billing"
-                onClose={handleCloseManageBilling}
-                inBottomSheet={false}
-                publishableKey={publishableKey}
-              />
-            </div>
-          </Suspense>
-        </PanelErrorBoundary>
-      )}
+      {/* ManageBillingPanel - temporarily removed */}
 
       {contentType === 'profile' && state.activePanel === 'referral' && (
         <PanelErrorBoundary>

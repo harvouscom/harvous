@@ -40,7 +40,6 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
 import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } from '../utils/auto-tag-generator';
 import { processScriptureReferences } from '../utils/process-scripture-references';
-import { canCreateNote } from '../utils/subscription';
 import { getNextUntitledNoteName } from '../utils/untitled-naming';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
@@ -64,18 +63,6 @@ const truncateAndCapitalizeTitle = (title: string): string => {
 route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-
-    // Check note limit
-    const noteLimitCheck = await canCreateNote(auth.userId, auth);
-    if (!noteLimitCheck.allowed) {
-      return c.json({
-        error: noteLimitCheck.reason || "You've used all your notes. Upgrade for unlimited.",
-        code: 'NOTE_LIMIT_EXCEEDED',
-        currentCount: noteLimitCheck.currentCount,
-        limit: noteLimitCheck.limit,
-        upgradeUrl: noteLimitCheck.upgradeUrl,
-      }, 403);
-    }
 
     // Parse body: support both JSON (serverless-friendly) and FormData
     const contentType = c.req.raw.headers.get('content-type') ?? '';

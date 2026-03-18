@@ -20,7 +20,6 @@ import MySharingPanel from './MySharingPanel';
 import MyDataPanel from './MyDataPanel';
 import MyAchievementsPanel from './MyAchievementsPanel';
 import GetSupportPanel from './GetSupportPanel';
-import ManageBillingPanel from './ManageBillingPanel';
 import ReferralPanel from './ReferralPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 import AboutHarvousPanel from './AboutHarvousPanel';
@@ -74,7 +73,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'manageBilling' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -114,7 +113,6 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'mySpaces': 'My Spaces',
     'myData': 'My Data',
     'myAchievements': 'My Achievements',
-    'manageBilling': 'Manage Billing',
     'referral': 'Refer My Friends',
     'inboxPreview': 'Inbox Preview',
     'aboutHarvous': 'Letter from the Founder',
@@ -376,7 +374,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       else if (panelName === 'myData') openBottomSheet('myData');
       else if (panelName === 'myAchievements') openBottomSheet('myAchievements');
       else if (panelName === 'getSupport') openBottomSheet('getSupport');
-      else if (panelName === 'manageBilling') openBottomSheet('manageBilling');
       else if (panelName === 'referral') openBottomSheet('referral');
       else if (panelName === 'aboutHarvous') openBottomSheet('aboutHarvous');
       else if (panelName === 'lockPin') openBottomSheet('lockPin');
@@ -977,18 +974,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             </div>
           )}
           
-          {/* Manage Billing Panel */}
-          {drawerType === 'manageBilling' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
-              <ManageBillingPanel 
-                onClose={() => {
-                  window.dispatchEvent(new CustomEvent('closeProfilePanel'));
-                }}
-                inBottomSheet={true}
-                publishableKey={publishableKey}
-              />
-            </div>
-          )}
+          {/* Manage Billing Panel - temporarily removed */}
 
           {drawerType === 'referral' && (
             <div className="panel-container flex-1 flex flex-col min-h-0">
