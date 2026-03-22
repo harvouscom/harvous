@@ -60,20 +60,30 @@ export function handleAPIError(
 
   const standardError = createError(errorMessage, errorCode, context);
 
-  // Log error for debugging
-  console.error('API Error:', standardError);
+  // Server-side: emit structured JSON log for Netlify function log aggregation
+  if (typeof window === 'undefined') {
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: 'error',
+      message: errorMessage,
+      code: errorCode,
+      ...context,
+    }));
+  } else {
+    // Client-side: plain console log + PostHog tracking
+    console.error('API Error:', standardError);
 
-  // Track error in PostHog if available
-  if (typeof window !== 'undefined' && (window as any).posthog) {
-    try {
-      (window as any).posthog.capture('error_occurred', {
-        error_message: errorMessage,
-        error_code: errorCode,
-        ...context
-      });
-    } catch (posthogError) {
-      // Don't fail if PostHog tracking fails
-      console.warn('Failed to track error in PostHog:', posthogError);
+    if ((window as any).posthog) {
+      try {
+        (window as any).posthog.capture('error_occurred', {
+          error_message: errorMessage,
+          error_code: errorCode,
+          ...context
+        });
+      } catch (posthogError) {
+        // Don't fail if PostHog tracking fails
+        console.warn('Failed to track error in PostHog:', posthogError);
+      }
     }
   }
 

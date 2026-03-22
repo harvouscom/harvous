@@ -6,6 +6,7 @@
 
 import {
   getDb,
+  first,
   Spaces,
   Threads,
   Notes,
@@ -51,8 +52,8 @@ export async function mergeDevUserIntoLive(
   await db.update(UserInboxItems).set({ userId: liveUserId }).where(eq(UserInboxItems.userId, devUserId));
   log('Reassigned content: Spaces, Threads, Notes, Comments, Members, SpaceInvitations, UserXP, WeeklyStreaks, Tags, UserInboxItems');
 
-  const liveMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, liveUserId)).get();
-  const devMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, devUserId)).get();
+  const liveMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, liveUserId)).limit(1));
+  const devMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, devUserId)).limit(1));
   if (devMeta) {
     if (liveMeta) {
       const maxSimpleNoteId = Math.max(
@@ -71,8 +72,8 @@ export async function mergeDevUserIntoLive(
     await db.delete(UserMetadata).where(eq(UserMetadata.userId, devUserId));
   }
 
-  const liveLifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, liveUserId)).get();
-  const devLifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, devUserId)).get();
+  const liveLifetime = first(await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, liveUserId)).limit(1));
+  const devLifetime = first(await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, devUserId)).limit(1));
   if (devLifetime) {
     if (liveLifetime) {
       const combinedTotal = (liveLifetime.totalXP ?? 0) + (devLifetime.totalXP ?? 0);
@@ -89,9 +90,9 @@ export async function mergeDevUserIntoLive(
     await db.delete(UserLifetimeXP).where(eq(UserLifetimeXP.userId, devUserId));
   }
 
-  const devSeasonal = await db.select().from(UserSeasonalXP).where(eq(UserSeasonalXP.userId, devUserId)).all();
+  const devSeasonal = await db.select().from(UserSeasonalXP).where(eq(UserSeasonalXP.userId, devUserId));
   for (const row of devSeasonal) {
-    const liveRow = await db.select().from(UserSeasonalXP).where(and(eq(UserSeasonalXP.userId, liveUserId), eq(UserSeasonalXP.season, row.season))).get();
+    const liveRow = first(await db.select().from(UserSeasonalXP).where(and(eq(UserSeasonalXP.userId, liveUserId), eq(UserSeasonalXP.season, row.season))).limit(1));
     if (liveRow) {
       await db.update(UserSeasonalXP).set({
         totalXP: (liveRow.totalXP ?? 0) + (row.totalXP ?? 0),

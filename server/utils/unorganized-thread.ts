@@ -2,7 +2,7 @@
  * Unorganized thread utilities — Drizzle port of src/utils/unorganized-thread.ts
  */
 
-import { db, Threads, Notes, NoteThreads, eq, and, count, isNull } from '../db';
+import { db, first, Threads, Notes, NoteThreads, eq, and, count, isNull } from '../db';
 import { nowISO } from '../db/dates';
 
 function sleep(ms: number): Promise<void> {
@@ -38,7 +38,7 @@ async function retryDbOperation<T>(
 export async function ensureUnorganizedThread(userId: string) {
   try {
     const existingThread = await retryDbOperation(async () => {
-      return await db.select({
+      return first(await db.select({
         id: Threads.id,
         title: Threads.title,
         subtitle: Threads.subtitle,
@@ -54,7 +54,7 @@ export async function ensureUnorganizedThread(userId: string) {
         eq(Threads.userId, userId),
         eq(Threads.id, "thread_unorganized")
       ))
-      .get();
+      .limit(1));
     });
 
     if (!existingThread) {
@@ -87,14 +87,14 @@ export async function ensureUnorganizedThread(userId: string) {
     }
 
     const noteCount = await retryDbOperation(async () => {
-      return await db.select({ count: count() })
+      return first(await db.select({ count: count() })
       .from(Notes)
       .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(
         eq(Notes.userId, userId),
         isNull(NoteThreads.id)
       ))
-      .get();
+      .limit(1));
     });
 
     const threadData = {

@@ -1,28 +1,26 @@
 /**
- * Turso database client via @libsql/client + Drizzle ORM.
+ * Supabase Postgres database client via postgres.js + Drizzle ORM.
  *
- * In the Netlify build, --alias:@libsql/client=@libsql/client/web redirects
- * this import to the HTTP-only client (no native @libsql/linux-x64-gnu).
- * Env: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN (fallback: ASTRO_DB_REMOTE_URL, ASTRO_DB_APP_TOKEN).
+ * Env: SUPABASE_DATABASE_URL (pooler, port 6543).
+ * Rollback: revert to main branch which still uses Turso.
  */
 
-import { createClient } from '@libsql/client';
-import { drizzle } from 'drizzle-orm/libsql';
+import postgres from 'postgres';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
 function createDb() {
-  const url = process.env.TURSO_DATABASE_URL ?? process.env.ASTRO_DB_REMOTE_URL;
-  const authToken = process.env.TURSO_AUTH_TOKEN ?? process.env.ASTRO_DB_APP_TOKEN;
+  // Prefer the pooler URL (port 6543) for runtime queries.
+  // SUPABASE_DIRECT_URL (port 5432) is for drizzle-kit migrations only.
+  const url = process.env.SUPABASE_DATABASE_URL ?? process.env.SUPABASE_DIRECT_URL;
+  if (!url) throw new Error('Missing SUPABASE_DIRECT_URL or SUPABASE_DATABASE_URL environment variable');
 
-  if (!url) {
-    throw new Error('Missing TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL) environment variable');
-  }
-  if (!authToken) {
-    throw new Error('Missing TURSO_AUTH_TOKEN (or ASTRO_DB_APP_TOKEN) environment variable');
-  }
-
-  const tursoClient = createClient({ url, authToken });
-  return drizzle(tursoClient, { schema });
+  const client = postgres(url, {
+    max: 10,
+    idle_timeout: 300,
+    connect_timeout: 30,
+  });
+  return drizzle(client, { schema });
 }
 
 // Lazy singleton — created on first access so env vars can be loaded first

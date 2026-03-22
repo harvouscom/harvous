@@ -13,6 +13,7 @@
  */
 import 'dotenv/config';
 import { db, UserMetadata, Notes } from '../server/db';
+import { first } from '../server/db/helpers';
 import { eq, sql } from 'drizzle-orm';
 import { nowISO } from '../server/db/dates';
 
@@ -25,14 +26,14 @@ async function main() {
     process.exit(1);
   }
 
-  const meta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).get();
+  const meta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
   if (!meta) {
     console.error('No UserMetadata row found for USER_ID. User may not exist in the DB.');
     process.exit(1);
   }
 
   const before = meta.highestSimpleNoteId ?? 0;
-  const noteCount = await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, userId)).get();
+  const noteCount = first(await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, userId)).limit(1));
   const count = noteCount?.count ?? 0;
 
   let newValue: number;
@@ -40,11 +41,11 @@ async function main() {
     newValue = 0;
     console.log('Mode: RESET_TO_ZERO — setting highestSimpleNoteId to 0');
   } else {
-    const maxRow = await db
+    const maxRow = first(await db
       .select({ maxId: sql<number>`max(${Notes.simpleNoteId})` })
       .from(Notes)
       .where(eq(Notes.userId, userId))
-      .get();
+      .limit(1));
     newValue = maxRow?.maxId != null ? maxRow.maxId : 0;
     console.log('Mode: reconcile — setting highestSimpleNoteId to MAX(Notes.simpleNoteId) for this user');
   }

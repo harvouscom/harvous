@@ -1067,8 +1067,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       
-      // Fetch current thread and space counts from API with safe fetch
-      const response = await safeFetch('/api/navigation/data');
+      // Fetch current thread and space counts from API with safe fetch (longer timeout for heavy nav payload)
+      const response = await safeFetch('/api/navigation/data', { timeout: 45000 });
 
       if (!response || !response.ok) {
         // Silently fail if auth not ready or error occurred
@@ -1267,7 +1267,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       // Fetch current threads and spaces in one call (used for dropdown + nav; validates both)
-      const response = await safeFetch('/api/navigation/data');
+      const response = await safeFetch('/api/navigation/data', { timeout: 45000 });
       
       if (!response || !response.ok) {
         return;
@@ -1376,7 +1376,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         if (!needsBackfill) return;
 
         if (!isAuthReady() || !navigator.onLine) return;
-        const response = await safeFetch('/api/navigation/data');
+        const response = await safeFetch('/api/navigation/data', { timeout: 45000 });
         if (!response || !response.ok) return;
         const data = await response.json();
         const threadsFromApi = data.threads || [];
@@ -1691,7 +1691,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (!unorganizedInHistory && isItemClosed('thread_unorganized')) {
               // It's closed, let's get the count and see if we should reopen
               // But only if it actually has notes (count > 0)
-              const response = await safeFetch('/api/navigation/data');
+              const response = await safeFetch('/api/navigation/data', { timeout: 45000 });
               if (response && response.ok) {
                 const data = await response.json();
                 const threads = data.threads || [];
@@ -1784,7 +1784,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return; // Auth not ready yet
         }
         
-        safeFetch('/api/navigation/data')
+        safeFetch('/api/navigation/data', { timeout: 45000 })
           .then(response => {
             if (response && response.ok) {
               return response.json();

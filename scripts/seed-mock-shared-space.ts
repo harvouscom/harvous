@@ -9,6 +9,7 @@
  */
 import 'dotenv/config';
 import { db, Spaces, Members, UserMetadata } from '../server/db';
+import { first } from '../server/db/helpers';
 import { eq } from 'drizzle-orm';
 import { nowISO } from '../server/db/dates';
 
@@ -26,7 +27,7 @@ async function main() {
   const now = nowISO();
 
   // 1. Upsert fake owner UserMetadata (idempotent: insert or update so display name is set)
-  const existingMeta = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, FAKE_OWNER_ID)).get();
+  const existingMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, FAKE_OWNER_ID)).limit(1));
   if (existingMeta) {
     await db
       .update(UserMetadata)

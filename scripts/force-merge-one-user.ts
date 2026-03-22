@@ -12,6 +12,7 @@
  */
 import 'dotenv/config';
 import { db, ClerkUserMapping } from '../server/db';
+import { first } from '../server/db/helpers';
 import { eq } from 'drizzle-orm';
 import { mergeDevUserIntoLive } from '../server/utils/merge-user-into-live';
 import { nowISO } from '../server/db/dates';
@@ -26,8 +27,8 @@ async function main() {
   }
 
   const row = devIdOverride
-    ? await db.select().from(ClerkUserMapping).where(eq(ClerkUserMapping.devUserId, devIdOverride)).get()
-    : await db.select().from(ClerkUserMapping).where(eq(ClerkUserMapping.liveUserId, liveId)).get();
+    ? first(await db.select().from(ClerkUserMapping).where(eq(ClerkUserMapping.devUserId, devIdOverride)).limit(1))
+    : first(await db.select().from(ClerkUserMapping).where(eq(ClerkUserMapping.liveUserId, liveId)).limit(1));
 
   if (!row) {
     console.error('No ClerkUserMapping row found for LIVE_USER_ID (or DEV_USER_ID). Run populate-clerk-user-mapping.ts and fix-clerk-mapping-row first.');

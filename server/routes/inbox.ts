@@ -19,6 +19,7 @@ import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
+  first,
   InboxItems,
   InboxItemNotes,
   UserInboxItems,
@@ -83,12 +84,12 @@ app.post('/api/inbox/archive', requireAuth, rateLimit('write'), async (c) => {
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
 
-    const userInboxItem = await db
+    const userInboxItem = first(await db
       .select({ userInboxItem: UserInboxItems, inboxItem: InboxItems })
       .from(UserInboxItems)
       .innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id))
       .where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId)))
-      .get();
+      .limit(1));
 
     if (!userInboxItem) return c.json({ error: 'Inbox item not found in your inbox' }, 404);
 
@@ -112,12 +113,12 @@ app.post('/api/inbox/unarchive', requireAuth, rateLimit('write'), async (c) => {
     const { inboxItemId } = await c.req.json();
     if (!inboxItemId) return c.json({ error: 'inboxItemId is required' }, 400);
 
-    const userInboxItem = await db
+    const userInboxItem = first(await db
       .select({ userInboxItem: UserInboxItems, inboxItem: InboxItems })
       .from(UserInboxItems)
       .innerJoin(InboxItems, eq(UserInboxItems.inboxItemId, InboxItems.id))
       .where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId)))
-      .get();
+      .limit(1));
 
     if (!userInboxItem) return c.json({ error: 'Inbox item not found in your inbox' }, 404);
     if (userInboxItem.userInboxItem.status !== 'archived') {
@@ -151,11 +152,11 @@ app.get('/api/inbox/preview', requireAuth, async (c) => {
     const inboxItem = await getInboxItemWithNotes(inboxItemId);
     if (!inboxItem) return c.json({ error: 'Inbox item not found' }, 404);
 
-    const userInboxItem = await db
+    const userInboxItem = first(await db
       .select()
       .from(UserInboxItems)
       .where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId)))
-      .get();
+      .limit(1));
 
     const userStatus = userInboxItem?.status || null;
 
@@ -178,11 +179,11 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
     const inboxItem = await getInboxItemWithNotes(inboxItemId);
     if (!inboxItem) return c.json({ error: 'Inbox item not found' }, 404);
 
-    const userInboxItem = await db
+    const userInboxItem = first(await db
       .select()
       .from(UserInboxItems)
       .where(and(eq(UserInboxItems.userId, auth.userId), eq(UserInboxItems.inboxItemId, inboxItemId)))
-      .get();
+      .limit(1));
     if (!userInboxItem) return c.json({ error: 'Inbox item not found in your inbox' }, 404);
 
     await ensureUnorganizedThread(auth.userId);
@@ -191,7 +192,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
 
     if (inboxItem.contentType === 'note') {
       // Get or create user metadata for simpleNoteId
-      let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
       if (!userMetadata) {
         const existingNotes = await db
@@ -238,7 +239,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
       const finalThreadId = targetThreadId || 'thread_unorganized';
       const now = nowISO();
 
-      const newNote = await db.insert(Notes)
+      const newNote = first(await db.insert(Notes)
         .values({
           id: generateNoteId(),
           title: inboxItem.title || null,
@@ -252,8 +253,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
           createdAt: now,
           lastVisited: now,
         })
-        .returning()
-        .get();
+        .returning())!;
 
       await db.update(UserMetadata)
         .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
@@ -268,7 +268,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
       const threadColor = convertInboxColorToThreadColor(inboxItem.color) || getRandomThreadColor();
       const threadNow = nowISO();
 
-      const newThread = await db.insert(Threads)
+      const newThread = first(await db.insert(Threads)
         .values({
           id: newThreadId,
           title: inboxItem.title,
@@ -281,14 +281,13 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
           updatedAt: threadNow,
           lastVisited: threadNow,
         })
-        .returning()
-        .get();
+        .returning())!;
 
       awardThreadCreatedXP(auth.userId, newThreadId, newThread.title, newThread.subtitle || null).catch(() => {});
       createdIds.threadId = newThreadId;
 
       // Get or create user metadata
-      let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
       if (!userMetadata) {
         const existingNotes = await db
@@ -339,7 +338,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
         const note = notes[noteIndex];
         const noteTimestamp = new Date(baseTimestamp + noteIndex).toISOString();
 
-        const newNote = await db.insert(Notes)
+        const newNote = first(await db.insert(Notes)
           .values({
             id: generateNoteId(),
             title: note.title || null,
@@ -353,8 +352,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
             createdAt: noteTimestamp,
             lastVisited: noteTimestamp,
           })
-          .returning()
-          .get();
+          .returning())!;
 
         const junctionId = `note-thread-${newNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
         try {
@@ -365,9 +363,9 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
             createdAt: nowISO(),
           });
 
-          const verifyJunction = await db.select().from(NoteThreads)
+          const verifyJunction = first(await db.select().from(NoteThreads)
             .where(and(eq(NoteThreads.noteId, newNote.id), eq(NoteThreads.threadId, newThreadId)))
-            .get();
+            .limit(1));
           if (!verifyJunction) {
             console.error(`Junction entry verification failed: note ${newNote.id} -> thread ${newThreadId}`);
           }
@@ -507,7 +505,7 @@ async function handleAutoDelete(c: any) {
       backfillConditions.push(eq(UserInboxItems.userId, auth.userId!));
     }
 
-    const itemsToBackfill = await db.select().from(UserInboxItems).where(and(...backfillConditions)).all();
+    const itemsToBackfill = await db.select().from(UserInboxItems).where(and(...backfillConditions));
 
     let backfilledCount = 0;
     for (const item of itemsToBackfill) {
@@ -533,7 +531,7 @@ async function handleAutoDelete(c: any) {
       deleteConditions.push(eq(UserInboxItems.userId, auth.userId!));
     }
 
-    const itemsToDelete = await db.select().from(UserInboxItems).where(and(...deleteConditions)).all();
+    const itemsToDelete = await db.select().from(UserInboxItems).where(and(...deleteConditions));
 
     let deletedCount = 0;
     const errors: string[] = [];
@@ -570,8 +568,8 @@ app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true)).all();
-    const allUsers = await db.select().from(UserMetadata).all();
+    const allInboxItems = await db.select().from(InboxItems).where(eq(InboxItems.isActive, true));
+    const allUsers = await db.select().from(UserMetadata);
 
     let totalAssigned = 0;
     const results: string[] = [];
@@ -581,9 +579,9 @@ app.post('/api/inbox/assign-to-users', requireAuth, async (c) => {
 
       let assignedCount = 0;
       for (const user of allUsers) {
-        const existing = await db.select().from(UserInboxItems)
+        const existing = first(await db.select().from(UserInboxItems)
           .where(and(eq(UserInboxItems.userId, user.userId), eq(UserInboxItems.inboxItemId, inboxItem.id)))
-          .get();
+          .limit(1));
 
         if (!existing) {
           await db.insert(UserInboxItems).values({
@@ -629,7 +627,7 @@ app.post('/api/inbox/reset-all-users', async (c) => {
     }
 
     // Step 1: Clear all UserInboxItems
-    const allUserInboxItems = await db.select().from(UserInboxItems).all();
+    const allUserInboxItems = await db.select().from(UserInboxItems);
     let clearedCount = 0;
     for (const userInboxItem of allUserInboxItems) {
       try {
@@ -641,7 +639,7 @@ app.post('/api/inbox/reset-all-users', async (c) => {
     }
 
     // Step 2: Verify all InboxItems against Webflow
-    const allInboxItems = await db.select().from(InboxItems).all();
+    const allInboxItems = await db.select().from(InboxItems);
     let verifiedCount = 0;
     let markedInactiveCount = 0;
     const validItems: string[] = [];
@@ -679,12 +677,12 @@ app.post('/api/inbox/reset-all-users', async (c) => {
     }
 
     // Step 3: Reassign valid items to all users
-    const allUsers = await db.select().from(UserMetadata).all();
+    const allUsers = await db.select().from(UserMetadata);
     let totalAssigned = 0;
     const assignmentResults: string[] = [];
 
     for (const inboxItemId of validItems) {
-      const inboxItem = await db.select().from(InboxItems).where(eq(InboxItems.id, inboxItemId)).get();
+      const inboxItem = first(await db.select().from(InboxItems).where(eq(InboxItems.id, inboxItemId)).limit(1));
       if (!inboxItem || inboxItem.targetAudience !== 'all_users') continue;
 
       let assignedCount = 0;

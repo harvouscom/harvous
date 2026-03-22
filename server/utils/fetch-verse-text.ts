@@ -13,7 +13,7 @@ import {
   validateVerseRange,
   normalizeScriptureReference,
 } from '@/utils/scripture-detector';
-import { db, VerseTextCache, eq } from '../db';
+import { db, first, VerseTextCache, eq } from '../db';
 import { nowISO } from '../db/dates';
 
 interface BibleOrgVerse {
@@ -38,10 +38,10 @@ export async function fetchVerseText(reference: string): Promise<string> {
   const normalizedKey = normalizeScriptureReference(cleanReference);
   let cached: { content: string } | undefined = undefined;
   try {
-    cached = await db.select({ content: VerseTextCache.content })
+    cached = first(await db.select({ content: VerseTextCache.content })
       .from(VerseTextCache)
       .where(eq(VerseTextCache.reference, normalizedKey))
-      .get();
+      .limit(1));
   } catch (cacheReadErr: unknown) {
     // VerseTextCache may not exist if db:push wasn't run (e.g. new deploy); treat as cache miss
     const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);

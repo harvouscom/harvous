@@ -17,6 +17,7 @@ import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
   SpaceInvitations, Spaces, Members,
   eq, and, desc, asc, isNotNull, count, sql,
+  first,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
@@ -39,7 +40,7 @@ app.get('/api/shared/note/:shareToken', async (c) => {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const note = await db
+    const note = first(await db
       .select({
         id: Notes.id, title: Notes.title, content: Notes.content,
         noteType: Notes.noteType, isPublic: Notes.isPublic, shareToken: Notes.shareToken,
@@ -47,13 +48,13 @@ app.get('/api/shared/note/:shareToken', async (c) => {
       })
       .from(Notes)
       .where(and(eq(Notes.shareToken, shareToken), eq(Notes.isPublic, true)))
-      .get();
+      .limit(1));
 
     if (!note) return c.json({ error: 'Shared note not found or no longer available' }, 404);
 
     let scriptureMetadata = null;
     if (note.noteType === 'scripture') {
-      scriptureMetadata = await db
+      scriptureMetadata = first(await db
         .select({
           reference: ScriptureMetadata.reference, book: ScriptureMetadata.book,
           chapter: ScriptureMetadata.chapter, verse: ScriptureMetadata.verse,
@@ -62,12 +63,12 @@ app.get('/api/shared/note/:shareToken', async (c) => {
         })
         .from(ScriptureMetadata)
         .where(eq(ScriptureMetadata.noteId, note.id))
-        .get();
+        .limit(1)) ?? null;
     }
 
     let resourceMetadata = null;
     if (note.noteType === 'resource') {
-      resourceMetadata = await db
+      resourceMetadata = first(await db
         .select({
           sourceUrl: ResourceMetadata.sourceUrl, sourceDomain: ResourceMetadata.sourceDomain,
           sourceName: ResourceMetadata.sourceName, sourceTitle: ResourceMetadata.sourceTitle,
@@ -75,17 +76,17 @@ app.get('/api/shared/note/:shareToken', async (c) => {
         })
         .from(ResourceMetadata)
         .where(eq(ResourceMetadata.noteId, note.id))
-        .get();
+        .limit(1)) ?? null;
     }
 
-    const creator = await db
+    const creator = first(await db
       .select({
         firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
         userColor: UserMetadata.userColor, profileImageUrl: UserMetadata.profileImageUrl,
       })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, note.userId))
-      .get();
+      .limit(1));
 
     const firstName = creator?.firstName || '';
     const lastName = creator?.lastName || '';
@@ -112,14 +113,14 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
     const shareToken = requireParam(c, 'shareToken');
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const thread = await db
+    const thread = first(await db
       .select({
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color,
         isPublic: Threads.isPublic, shareToken: Threads.shareToken, createdAt: Threads.createdAt, userId: Threads.userId,
       })
       .from(Threads)
       .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
-      .get();
+      .limit(1));
 
     if (!thread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
 
@@ -138,16 +139,16 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
         desc(Notes.createdAt),
         asc(Notes.id)
       )
-      .all();
+      ;
 
-    const creator = await db
+    const creator = first(await db
       .select({
         firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
         userColor: UserMetadata.userColor, profileImageUrl: UserMetadata.profileImageUrl,
       })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, thread.userId))
-      .get();
+      .limit(1));
 
     const firstName = creator?.firstName || '';
     const lastName = creator?.lastName || '';
@@ -179,11 +180,11 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const sourceNote = await db
+    const sourceNote = first(await db
       .select({ id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType, isPublic: Notes.isPublic, userId: Notes.userId })
       .from(Notes)
       .where(and(eq(Notes.shareToken, shareToken), eq(Notes.isPublic, true)))
-      .get();
+      .limit(1));
 
     if (!sourceNote) return c.json({ error: 'Shared note not found or no longer available' }, 404);
 
@@ -191,7 +192,7 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
       return c.json({ error: 'Already in your Harvous' }, 400);
     }
 
-    let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
     if (!userMetadata) {
       const existingNotes = await db
@@ -224,7 +225,7 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
 
     // Copy scripture metadata
     if (sourceNote.noteType === 'scripture') {
-      const sourceScriptureMeta = await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sourceNote.id)).get();
+      const sourceScriptureMeta = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, sourceNote.id)).limit(1));
       if (sourceScriptureMeta) {
         await db.insert(ScriptureMetadata).values({
           id: `scripture_${newNoteId}_${Date.now()}`, noteId: newNoteId,
@@ -238,7 +239,7 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
 
     // Copy resource metadata
     if (sourceNote.noteType === 'resource') {
-      const sourceResourceMeta = await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, sourceNote.id)).get();
+      const sourceResourceMeta = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, sourceNote.id)).limit(1));
       if (sourceResourceMeta) {
         await db.insert(ResourceMetadata).values({
           id: `resource_${newNoteId}_${Date.now()}`, noteId: newNoteId,
@@ -272,11 +273,11 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     if (!shareToken) return c.json({ error: 'Share token is required' }, 400);
     if (!isValidShareToken(shareToken)) return c.json({ error: 'Invalid share token format' }, 400);
 
-    const sourceThread = await db
+    const sourceThread = first(await db
       .select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, isPublic: Threads.isPublic, userId: Threads.userId })
       .from(Threads)
       .where(and(eq(Threads.shareToken, shareToken), eq(Threads.isPublic, true)))
-      .get();
+      .limit(1));
 
     if (!sourceThread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
 
@@ -297,7 +298,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
         desc(Notes.createdAt),
         asc(Notes.id)
       )
-      .all();
+      ;
 
     // Create new thread
     const newThreadId = generateThreadId();
@@ -312,7 +313,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     awardThreadCreatedXP(auth.userId, newThreadId, sourceThread.title, sourceThread.subtitle || null).catch(() => {});
 
     // Get user metadata for simpleNoteId tracking
-    let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
 
     if (!userMetadata) {
       const existingNotes = await db
@@ -376,7 +377,7 @@ app.get('/api/invitations/:token', async (c) => {
   try {
     const token = requireParam(c, 'token');
 
-    const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
+    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
 
     const isExpired = invitation.expiresAt && new Date() > new Date(invitation.expiresAt);
@@ -385,10 +386,10 @@ app.get('/api/invitations/:token', async (c) => {
       return c.json({ error: `This invitation has been ${invitation.status}`, code: 'INVITATION_NOT_PENDING' }, 410);
     }
 
-    const space = await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
-    const inviter = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, invitation.invitedBy)).get();
+    const inviter = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, invitation.invitedBy)).limit(1));
     const inviterFirst = inviter?.firstName || '';
     const inviterLastInitial = inviter?.lastName ? inviter.lastName.charAt(0).toUpperCase() : '';
     const inviterDisplayName = inviterFirst
@@ -404,7 +405,7 @@ app.get('/api/invitations/:token', async (c) => {
         alreadyMember = true;
         canAccept = false;
       } else {
-        const existingMember = await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).get();
+        const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).limit(1));
         if (existingMember) { alreadyMember = true; canAccept = false; }
       }
     }
@@ -433,7 +434,7 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
 
     const token = requireParam(c, 'token');
 
-    const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
+    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
 
     if (invitation.status !== 'pending') {
@@ -445,14 +446,14 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
       return c.json({ error: 'This invitation has expired', code: 'INVITATION_EXPIRED' }, 410);
     }
 
-    const space = await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).get();
+    const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).limit(1));
     if (!space) return c.json({ error: 'Space not found', code: 'NOT_FOUND' }, 404);
 
     if (space.userId === auth.userId) {
       return c.json({ error: 'You are already the owner of this space', code: 'ALREADY_OWNER' }, 400);
     }
 
-    const existingMember = await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).get();
+    const existingMember = first(await db.select().from(Members).where(and(eq(Members.spaceId, invitation.spaceId), eq(Members.userId, auth.userId))).limit(1));
     if (existingMember) {
       await db.update(SpaceInvitations).set({ status: 'accepted', acceptedAt: nowISO() }).where(eq(SpaceInvitations.id, invitation.id));
       return c.json({ error: 'You are already a member of this space', code: 'ALREADY_MEMBER' }, 400);
@@ -468,11 +469,11 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
       return c.json({ error: canAddShared.reason || "You've used all your shared spaces. Upgrade for unlimited.", code: 'FORBIDDEN' }, 403);
     }
 
-    const member = await db.insert(Members).values({
+    const member = first(await db.insert(Members).values({
       id: `member_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       userId: auth.userId, spaceId: invitation.spaceId,
       role: invitation.role || 'member', createdAt: nowISO(),
-    }).returning().get();
+    }).returning())!;
 
     await db.update(SpaceInvitations).set({ status: 'accepted', acceptedAt: nowISO() }).where(eq(SpaceInvitations.id, invitation.id));
 
@@ -491,7 +492,7 @@ app.post('/api/invitations/:token/decline', async (c) => {
   try {
     const token = requireParam(c, 'token');
 
-    const invitation = await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).get();
+    const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
 
     if (invitation.status !== 'pending') {

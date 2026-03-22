@@ -26,6 +26,7 @@ import {
   db, Notes, Threads, NoteThreads, Comments, Tags, NoteTags,
   UserMetadata, ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
   eq, and, or, ne, desc, asc, count, like, not, isNull, isNotNull, inArray, sql,
+  first,
 } from '../db';
 import { nowISO } from '../db/dates';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
@@ -149,7 +150,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     const finalThreadId = 'thread_unorganized';
 
     // Get or create user metadata for simpleNoteId
-    let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     if (!userMetadata) {
       const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId })
         .from(Notes)
@@ -166,7 +167,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
         currentSeason: season,
         createdAt: nowISO(),
       });
-      userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     }
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
@@ -179,7 +180,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     const shouldAutoShare = isScriptureNote && !contentEncrypted;
     const shareToken = shouldAutoShare ? generateShareToken() : null;
 
-    const newNote = await db.insert(Notes).values({
+    const newNote = first(await db.insert(Notes).values({
       id: generateNoteId(),
       content: capitalizedContent,
       title: capitalizedTitle,
@@ -194,7 +195,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
       contentEncrypted,
       createdAt: now,
       lastVisited: now,
-    }).returning().get();
+    }).returning())!;
 
     await db.update(UserMetadata)
       .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
@@ -204,8 +205,8 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
 
     if (threadId && threadId.trim() !== '' && threadId !== 'thread_unorganized' && !threadId.startsWith('thread_onboarding_')) {
       try {
-        const targetThread = await db.select().from(Threads)
-          .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+        const targetThread = first(await db.select().from(Threads)
+          .where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
         if (targetThread) {
           const junctionId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           await db.insert(NoteThreads).values({ id: junctionId, noteId: newNote.id, threadId, createdAt: nowISO() });
@@ -227,7 +228,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     try { await awardCreationBonusXP(auth.userId, 'note'); } catch {}
 
     // Reload note
-    const finalNote = await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get();
+    const finalNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
     if (finalNote) Object.assign(newNote, finalNote);
 
     // Auto-tag (fire-and-forget)
@@ -301,7 +302,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
           else if (resourceMetadata.description) updateData.content = resourceMetadata.description;
           if (updateData.title || updateData.content) {
             await db.update(Notes).set(updateData).where(eq(Notes.id, newNote.id));
-            const updatedNote = await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get();
+            const updatedNote = first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1));
             if (updatedNote) {
               Object.assign(newNote, updatedNote);
               if (updateData.title) capitalizedTitle = updateData.title;
@@ -323,7 +324,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     // Defer scripture processing so create responds in ~1–2s; run in background and update note content when done
     const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
     const latestNote = finalNoteType === 'resource'
-      ? await db.select().from(Notes).where(eq(Notes.id, newNote.id)).get()
+      ? first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1))
       : null;
     const contentToProcess = latestNote?.content || newNote.content;
 
@@ -358,7 +359,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const contentValidation = validateContent(content, true);
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
 
-    const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found' }, 404);
 
     const isEncrypted = contentEncrypted === true;
@@ -375,12 +376,12 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       }
     }
 
-    const updatedNote = await db.update(Notes).set(updateData)
-      .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).returning().get();
+    const updatedNote = first(await db.update(Notes).set(updateData)
+      .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).returning())!;
     if (!updatedNote) return c.json({ error: 'Failed to update note' }, 500);
 
     // Update thread timestamps
-    const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).all();
+    const noteThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     for (const nt of noteThreads) {
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, nt.threadId), eq(Threads.userId, auth.userId)));
     }
@@ -399,7 +400,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     // Update resource image
     if (existingNote.noteType === 'resource' && resourceImage !== undefined) {
       try {
-        const rm = await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).get();
+        const rm = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).limit(1));
         if (rm) await db.update(ResourceMetadata).set({ sourceImage: resourceImage || null }).where(eq(ResourceMetadata.noteId, noteId));
       } catch {}
     }
@@ -411,7 +412,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     if (!isEncrypted) {
       try {
         let actualThreadId = 'thread_unorganized';
-        const threadRelation = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1).get();
+        const threadRelation = first(await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1));
         if (threadRelation) actualThreadId = threadRelation.threadId;
         const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent);
         scriptureResults = scriptureResult.results || [];
@@ -436,7 +437,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     const noteId = c.req.query('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
-    const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found or access denied' }, 404);
 
     const threadId = existingNote.threadId;
@@ -447,7 +448,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     // Strip note links (non-critical)
     try {
       const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content }).from(Notes)
-        .where(and(eq(Notes.userId, auth.userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, '%data-note-id=%'))).all();
+        .where(and(eq(Notes.userId, auth.userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, '%data-note-id=%')));
       for (const note of notesWithLinks) {
         if (!note.content?.includes('data-note-id')) continue;
         const stripped = stripNoteLinksToNoteId(note.content, noteId);
@@ -477,7 +478,7 @@ route.get('/api/notes/next-id', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    let userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     if (!userMetadata) {
       const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes)
         .where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
@@ -488,7 +489,7 @@ route.get('/api/notes/next-id', requireAuth, async (c) => {
         id: `user_metadata_${auth.userId}`, userId: auth.userId, highestSimpleNoteId: highestExistingId,
         currentSeason: season, createdAt: nowISO(),
       });
-      userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+      userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     }
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const nextSimpleNoteId = effectiveHighest + 1;
@@ -575,7 +576,7 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
     const { noteId, simpleNoteId } = await c.req.json();
     if (!noteId || !simpleNoteId) return c.json({ error: 'Note ID and simple note ID are required' }, 400);
 
-    const existingNote = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found or access denied' }, 404);
     if (existingNote.simpleNoteId !== simpleNoteId) return c.json({ error: 'Simple note ID mismatch' }, 400);
 
@@ -591,7 +592,7 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
 
     await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
 
-    const userMetadata = await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get();
+    const userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     if (userMetadata) {
       if (userMetadata.highestSimpleNoteId === simpleNoteId) {
         await db.update(UserMetadata).set({ highestSimpleNoteId: simpleNoteId - 1, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
@@ -655,7 +656,7 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
     const recentThreadIds = [...new Set(recentThreadRelations.map(r => r.threadId))].filter(id => id !== 'thread_unorganized').slice(0, 10);
     if (recentThreadIds.length > 0) {
       const recentThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-        .from(Threads).where(and(inArray(Threads.id, recentThreadIds), eq(Threads.userId, auth.userId))).all();
+        .from(Threads).where(and(inArray(Threads.id, recentThreadIds), eq(Threads.userId, auth.userId)));
       recentThreads.forEach((thread, idx) => {
         suggestions.push({ threadId: thread.id, title: thread.title, color: thread.color, score: 0.3 * (1 - idx / recentThreads.length), reason: 'Recently used' });
       });
@@ -665,7 +666,7 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
     const keywords = extractKeywords(noteText);
     if (keywords.length > 0) {
       const allThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-        .from(Threads).where(eq(Threads.userId, auth.userId)).all();
+        .from(Threads).where(eq(Threads.userId, auth.userId));
       allThreads.forEach(thread => {
         if (thread.id === 'thread_unorganized') return;
         const threadKeywords = extractKeywords(thread.title);
@@ -691,7 +692,7 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
     const topSimilarNoteIds = similarNotes.slice(0, 10).map(n => n.noteId);
     if (topSimilarNoteIds.length > 0) {
       const similarNoteThreads = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId })
-        .from(NoteThreads).where(inArray(NoteThreads.noteId, topSimilarNoteIds)).all();
+        .from(NoteThreads).where(inArray(NoteThreads.noteId, topSimilarNoteIds));
       const threadSimMap: Record<string, number> = {};
       similarNoteThreads.forEach(nt => {
         if (nt.threadId === 'thread_unorganized') return;
@@ -701,7 +702,7 @@ route.post('/api/notes/suggest-threads', requireAuth, rateLimit('write'), async 
       const simThreadIds = Object.keys(threadSimMap);
       if (simThreadIds.length > 0) {
         const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color })
-          .from(Threads).where(and(inArray(Threads.id, simThreadIds), eq(Threads.userId, auth.userId))).all();
+          .from(Threads).where(and(inArray(Threads.id, simThreadIds), eq(Threads.userId, auth.userId)));
         threads.forEach(thread => {
           const score = 0.7 * threadSimMap[thread.id];
           const existing = suggestions.findIndex(s => s.threadId === thread.id);
@@ -740,20 +741,19 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     const noteId = requireParam(c, 'id');
 
     // Owner path
-    let note = await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).get();
+    let note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     let isMemberView = false;
 
     if (!note) {
-      const noteById = await db.select().from(Notes).where(eq(Notes.id, noteId)).get();
+      const noteById = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
       if (!noteById) return c.json({ error: 'Note not found or access denied' }, 404);
       let spaceIdForAccess = noteById.spaceId;
       if (!spaceIdForAccess) {
-        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
           .from(NoteThreads)
           .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
           .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1)
-          .get();
+          .limit(1));
         spaceIdForAccess = threadWithSpace?.spaceId ?? null;
       }
       if (!spaceIdForAccess) return c.json({ error: 'Note not found or access denied' }, 404);
@@ -769,7 +769,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     let version: string | undefined;
     if (note.noteType === 'scripture') {
       try {
-        const sm = await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId)).get();
+        const sm = first(await db.select().from(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId)).limit(1));
         version = sm?.translation;
       } catch { version = undefined; }
     }
@@ -778,7 +778,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     let resourceTitle: string | null = null, resourceDescription: string | null = null, resourceImage: string | null = null;
     if (note.noteType === 'resource') {
       try {
-        const rm = await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).get();
+        const rm = first(await db.select().from(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId)).limit(1));
         resourceTitle = rm?.sourceTitle || null;
         resourceDescription = rm?.sourceDescription || null;
         resourceImage = rm?.sourceImage || null;
@@ -787,14 +787,14 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
 
     // All user threads
     const allUserThreads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color, isPublic: Threads.isPublic, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
-      .from(Threads).where(eq(Threads.userId, auth.userId)).all();
+      .from(Threads).where(eq(Threads.userId, auth.userId));
 
     // Junction threads
     let allThreads: any[] = [];
     try {
       const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
-        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId))).all();
+        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
       // Include unorganized so note detail returns it when the note is in unorganized (nav shows "Unorganized" not "Thread").
       allThreads = junctionThreads;
     } catch { allThreads = []; }
@@ -802,15 +802,15 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows "Unorganized".
     if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
       await ensureUnorganizedThread(auth.userId);
-      const unorganizedRow = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
+      const unorganizedRow = first(await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads)
         .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId)))
-        .get();
+        .limit(1));
       if (unorganizedRow) {
-        const unorganizedCountResult = await db.select({ count: count() })
+        const unorganizedCountResult = first(await db.select({ count: count() })
           .from(Notes)
           .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
-          .get();
+          .limit(1));
         allThreads = [{
           ...unorganizedRow,
           title: 'Unorganized',
@@ -825,7 +825,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       try {
         const memberSpaceThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
           .from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
-          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).all();
+          .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)));
         const accessibleSpaceIds = new Set<string>();
         for (const t of memberSpaceThreads) {
           if (!t.spaceId) continue;
@@ -843,18 +843,18 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     const formattedThreads = await Promise.all(allThreads.map(async (thread: any) => {
       let threadCount = 0;
       if (thread.id === 'thread_unorganized') {
-        const unorganizedCountResult = await db.select({ count: count() })
+        const unorganizedCountResult = first(await db.select({ count: count() })
           .from(Notes)
           .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
-          .get();
+          .limit(1));
         threadCount = unorganizedCountResult?.count || 0;
       } else {
         const useTotalCount = isMemberView && thread.spaceId;
         const junctionCountResult = useTotalCount
-          ? await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).get()
-          : await db.select({ count: count() }).from(Notes)
+          ? first(await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.threadId, thread.id)).limit(1))
+          : first(await db.select({ count: count() }).from(Notes)
               .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).get();
+              .where(and(eq(NoteThreads.threadId, thread.id), eq(Notes.userId, auth.userId))).limit(1));
         threadCount = junctionCountResult?.count || 0;
       }
       return {
@@ -881,16 +881,16 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         let junctionEntries = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType, createdAt: Notes.createdAt, updatedAt: Notes.updatedAt })
           .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id))
           .where(and(eq(NoteScriptureReferences.scriptureNoteId, noteId), eq(Notes.userId, auth.userId)))
-          .orderBy(desc(Notes.updatedAt)).all();
+          .orderBy(desc(Notes.updatedAt));
 
         // Heal on read
         if (junctionEntries.length === 0) {
           try {
             const notesWithPill = await db.select({ id: Notes.id }).from(Notes)
-              .where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), like(Notes.content, `%data-note-id="${noteId}"%`))).all();
+              .where(and(eq(Notes.userId, auth.userId), ne(Notes.noteType, 'scripture'), like(Notes.content, `%data-note-id="${noteId}"%`)));
             for (const refNote of notesWithPill) {
               try {
-                const ex = await db.select().from(NoteScriptureReferences).where(and(eq(NoteScriptureReferences.noteId, refNote.id), eq(NoteScriptureReferences.scriptureNoteId, noteId))).limit(1).get();
+                const ex = first(await db.select().from(NoteScriptureReferences).where(and(eq(NoteScriptureReferences.noteId, refNote.id), eq(NoteScriptureReferences.scriptureNoteId, noteId))).limit(1));
                 if (!ex) await db.insert(NoteScriptureReferences).values({ id: `note-scripture-${refNote.id}-${noteId}-${Date.now()}`, noteId: refNote.id, scriptureNoteId: noteId, createdAt: nowISO() });
               } catch {}
             }
@@ -898,7 +898,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
               junctionEntries = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType, createdAt: Notes.createdAt, updatedAt: Notes.updatedAt })
                 .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.noteId, Notes.id))
                 .where(and(eq(NoteScriptureReferences.scriptureNoteId, noteId), eq(Notes.userId, auth.userId)))
-                .orderBy(desc(Notes.updatedAt)).all();
+                .orderBy(desc(Notes.updatedAt));
             }
           } catch {}
         }
@@ -909,7 +909,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         if (resourceNoteIds.length > 0) {
           try {
             const rmList = await db.select({ noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage })
-              .from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds)).all();
+              .from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
             resourceMetadataMap = Object.fromEntries(rmList.map(m => [m.noteId, m]));
           } catch {}
         }
@@ -945,7 +945,7 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
     const { content, contentEncrypted } = await c.req.json();
     if (!content || typeof content !== 'string') return c.json({ success: false, error: 'Content is required' }, 400);
 
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
 
     const updateData: any = { content, updatedAt: nowISO() };
@@ -972,16 +972,16 @@ route.post('/api/notes/:id/add-thread', requireAuth, rateLimit('write'), async (
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
     if (threadId.startsWith('thread_onboarding_')) return c.json({ success: false, error: "This thread doesn't take new notes." }, 400);
 
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
 
-    const targetThread = await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).get();
+    const targetThread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!targetThread) return c.json({ success: false, error: 'Target thread not found' }, 404);
 
-    const existingRelation = await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).get();
+    const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
     if (existingRelation) return c.json({ success: true, alreadyInThread: true });
 
-    const existingThreadRelations = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id)).all();
+    const existingThreadRelations = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
     const isInUnorganized = existingThreadRelations.length === 0 || note.threadId === 'thread_unorganized';
 
     try {
@@ -1015,15 +1015,15 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
     const { threadId } = await c.req.json();
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
 
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
 
-    const existingRelation = await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).get();
+    const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
     if (!existingRelation) return c.json({ success: false, error: 'Note is not in this thread' }, 400);
 
     try {
       await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)));
-      const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id)).all();
+      const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
       if (remainingThreads.length === 0) {
         await ensureUnorganizedThread(auth.userId);
         await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, id));
@@ -1048,18 +1048,17 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
 
     const noteId = requireParam(c, 'id');
 
-    const noteRow = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).get();
+    const noteRow = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId, content: Notes.content }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!noteRow) return c.json({ error: 'Note not found' }, 404);
 
     if (noteRow.userId !== auth.userId) {
       let spaceIdForAccess = noteRow.spaceId;
       if (!spaceIdForAccess) {
-        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
           .from(NoteThreads)
           .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
           .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1)
-          .get();
+          .limit(1));
         spaceIdForAccess = threadWithSpace?.spaceId ?? null;
       }
       if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
@@ -1096,17 +1095,16 @@ route.post('/api/notes/:noteId/visit', requireAuth, async (c) => {
     let noteId = requireParam(c, 'noteId');
     if (noteId.startsWith('note/')) noteId = 'note_' + noteId.slice(5);
 
-    const note = await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).get();
+    const note = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!note) return c.json({ error: 'Note not found' }, 404);
     if (note.userId !== auth.userId) {
       let spaceIdForAccess = note.spaceId;
       if (!spaceIdForAccess) {
-        const threadWithSpace = await db.select({ spaceId: Threads.spaceId })
+        const threadWithSpace = first(await db.select({ spaceId: Threads.spaceId })
           .from(NoteThreads)
           .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
           .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
-          .limit(1)
-          .get();
+          .limit(1));
         spaceIdForAccess = threadWithSpace?.spaceId ?? null;
       }
       if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
@@ -1131,8 +1129,8 @@ route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
 
     const noteId = requireParam(c, 'noteId');
 
-    const note = await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted })
-      .from(Notes).where(eq(Notes.id, noteId)).get();
+    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted })
+      .from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!note) return c.json({ error: 'Note not found' }, 404);
     if (note.userId !== auth.userId) return c.json({ error: 'You do not have permission to access this note' }, 403);
 
@@ -1176,8 +1174,8 @@ route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c
     const { action } = await c.req.json();
     if (!action || !['enable', 'disable', 'refresh'].includes(action)) return c.json({ error: 'Invalid action' }, 400);
 
-    const note = await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, userId: Notes.userId, contentEncrypted: Notes.contentEncrypted })
-      .from(Notes).where(eq(Notes.id, noteId)).get();
+    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, userId: Notes.userId, contentEncrypted: Notes.contentEncrypted })
+      .from(Notes).where(eq(Notes.id, noteId)).limit(1));
     if (!note) return c.json({ error: 'Note not found' }, 404);
     if (note.userId !== auth.userId) return c.json({ error: 'You do not have permission' }, 403);
 

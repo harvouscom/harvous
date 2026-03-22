@@ -12,6 +12,7 @@
  */
 import 'dotenv/config';
 import { db, Notes, UserMetadata, ClerkUserMapping, Threads } from '../server/db';
+import { first } from '../server/db/helpers';
 import { count, eq, sql } from 'drizzle-orm';
 
 const TARGET_EMAIL = 'derekj@hey.com';
@@ -23,13 +24,13 @@ async function main() {
     .select({ userId: Notes.userId, count: count() })
     .from(Notes)
     .groupBy(Notes.userId)
-    .all();
+    ;
 
   const sorted = [...notesByUser].sort((a, b) => (b.count as number) - (a.count as number));
 
   for (const row of sorted) {
-    const meta = await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, row.userId)).get();
-    const threadCount = await db.select({ count: sql<number>`count(*)` }).from(Threads).where(eq(Threads.userId, row.userId)).get();
+    const meta = first(await db.select({ email: UserMetadata.email }).from(UserMetadata).where(eq(UserMetadata.userId, row.userId)).limit(1));
+    const threadCount = first(await db.select({ count: sql<number>`count(*)` }).from(Threads).where(eq(Threads.userId, row.userId)).limit(1));
     const emailStr = meta?.email ? `  email: ${meta.email}` : '  (no email in UserMetadata)';
     console.log(` ${row.userId}`);
     console.log(`   → notes: ${row.count}, threads: ${threadCount?.count ?? 0} ${emailStr}\n`);
@@ -41,7 +42,7 @@ async function main() {
     .select({ userId: UserMetadata.userId })
     .from(UserMetadata)
     .where(sql`lower(${UserMetadata.email}) = ${TARGET_EMAIL}`)
-    .all();
+    ;
 
   let mapping: Array<{ devUserId: string; liveUserId: string | null; migratedToLiveAt: string | null }> = [];
   try {
@@ -49,7 +50,7 @@ async function main() {
       .select()
       .from(ClerkUserMapping)
       .where(sql`lower(${ClerkUserMapping.email}) = ${TARGET_EMAIL}`)
-      .all();
+      ;
   } catch (e: any) {
     if (e?.message?.includes('no such table: ClerkUserMapping') || e?.cause?.message?.includes('ClerkUserMapping')) {
       console.log('ClerkUserMapping table not present (restore may be from before it was added).\n');
@@ -68,7 +69,7 @@ async function main() {
   if (userIds.length) {
     console.log('\nNote counts for those userIds:');
     for (const uid of userIds) {
-      const noteCount = await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, uid)).get();
+      const noteCount = first(await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, uid)).limit(1));
       console.log(' ', uid, '→', noteCount?.count ?? 0, 'notes');
     }
   }

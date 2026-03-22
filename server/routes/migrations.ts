@@ -33,7 +33,7 @@ app.post('/api/migrations/backfill-last-visited', async (c) => {
     // Backfill Notes.lastVisited
     try {
       const notesToUpdate = await db.select({ id: Notes.id, updatedAt: Notes.updatedAt, createdAt: Notes.createdAt })
-        .from(Notes).where(isNull(Notes.lastVisited)).all();
+        .from(Notes).where(isNull(Notes.lastVisited));
       console.log(`[Migration] Found ${notesToUpdate.length} notes without lastVisited`);
 
       const batchSize = 1000;
@@ -59,7 +59,7 @@ app.post('/api/migrations/backfill-last-visited', async (c) => {
     // Backfill Threads.lastVisited
     try {
       const threadsToUpdate = await db.select({ id: Threads.id, updatedAt: Threads.updatedAt, createdAt: Threads.createdAt })
-        .from(Threads).where(isNull(Threads.lastVisited)).all();
+        .from(Threads).where(isNull(Threads.lastVisited));
       console.log(`[Migration] Found ${threadsToUpdate.length} threads without lastVisited`);
 
       const batchSize = 1000;

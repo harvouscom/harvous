@@ -7,7 +7,9 @@
 
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { requestId } from 'hono/request-id';
 import { clerkAuth } from './middleware/auth';
+import { csrfProtection } from './middleware/csrf';
 
 // Routes
 import health from './routes/health';
@@ -37,7 +39,9 @@ import test from './routes/test';
 const app = new Hono();
 
 // Global middleware
+app.use('/api/*', requestId());
 app.use('/api/*', cors());
+app.use('/api/*', csrfProtection);
 app.use('/api/*', clerkAuth);
 
 // Default cache headers for GET responses — individual endpoints can override

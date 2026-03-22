@@ -10,6 +10,7 @@
 import { Hono } from 'hono';
 import {
   db,
+  first,
   InboxItems,
   InboxItemNotes,
   UserInboxItems,
@@ -239,11 +240,11 @@ async function upsertInboxItem(webflowItem: WebflowItem, webflowToken: string): 
   }
 
   // Check if item already exists
-  const existingItem = await db
+  const existingItem = first(await db
     .select()
     .from(InboxItems)
     .where(eq(InboxItems.webflowItemId, webflowItemId))
-    .get();
+    .limit(1));
 
   const inboxItemId = existingItem?.id || `inbox_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -327,11 +328,11 @@ async function upsertInboxItem(webflowItem: WebflowItem, webflowToken: string): 
   const targetAudience = webflowItem['target-audience'] || 'all_users';
   if (targetAudience === 'all_users') {
     try {
-      const allUsers = await db.select().from(UserMetadata).all();
+      const allUsers = await db.select().from(UserMetadata);
       for (const user of allUsers) {
-        const existingUserInboxItem = await db.select().from(UserInboxItems)
+        const existingUserInboxItem = first(await db.select().from(UserInboxItems)
           .where(and(eq(UserInboxItems.userId, user.userId), eq(UserInboxItems.inboxItemId, inboxItemId)))
-          .get();
+          .limit(1));
         if (!existingUserInboxItem) {
           await db.insert(UserInboxItems).values({
             id: `user_inbox_${user.userId}_${inboxItemId}_${Date.now()}`,
@@ -354,11 +355,11 @@ async function upsertInboxItem(webflowItem: WebflowItem, webflowToken: string): 
  * Mark an inbox item as inactive by its Webflow ID
  */
 async function markInactiveByWebflowId(webflowItemId: string): Promise<boolean> {
-  const existingItem = await db
+  const existingItem = first(await db
     .select()
     .from(InboxItems)
     .where(eq(InboxItems.webflowItemId, webflowItemId))
-    .get();
+    .limit(1));
 
   if (existingItem) {
     await db.update(InboxItems)
@@ -463,11 +464,11 @@ async function handleSyncInbox(c: any, items?: any[], collectionId?: string, sit
   // HARD REFRESH: Clear all and re-sync
   if (hardRefresh === true) {
     try {
-      const allUserInboxItems = await db.select().from(UserInboxItems).all();
+      const allUserInboxItems = await db.select().from(UserInboxItems);
       for (const userInboxItem of allUserInboxItems) {
         await db.delete(UserInboxItems).where(eq(UserInboxItems.id, userInboxItem.id));
       }
-      const allInboxItems = await db.select().from(InboxItems).all();
+      const allInboxItems = await db.select().from(InboxItems);
       for (const inboxItem of allInboxItems) {
         await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, inboxItem.id));
       }
@@ -520,7 +521,7 @@ async function handleSyncInbox(c: any, items?: any[], collectionId?: string, sit
 
   // Verify existing inbox items against Webflow
   try {
-    const allInboxItems = await db.select().from(InboxItems).all();
+    const allInboxItems = await db.select().from(InboxItems);
     verificationResults.checked = allInboxItems.length;
 
     for (const inboxItem of allInboxItems) {
@@ -776,7 +777,7 @@ app.post('/api/webflow/webhook', async (c) => {
     // Skip draft items
     if (!normalizedPayload.item || normalizedPayload.item.isDraft || !normalizedPayload.item.lastPublished) {
       if (normalizedPayload.item?.id) {
-        const existingItem = await db.select().from(InboxItems).where(eq(InboxItems.webflowItemId, normalizedPayload.item.id)).get();
+        const existingItem = first(await db.select().from(InboxItems).where(eq(InboxItems.webflowItemId, normalizedPayload.item.id)).limit(1));
         if (existingItem && existingItem.isActive) {
           await db.update(InboxItems).set({ isActive: false, updatedAt: nowISO() }).where(eq(InboxItems.id, existingItem.id));
         }

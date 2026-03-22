@@ -13,6 +13,7 @@ import { createClerkClient, verifyToken } from '@clerk/backend';
 import type { Context, Next } from 'hono';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client';
+import { first } from '../db/helpers';
 import { nowISO } from '../db/dates';
 import { ClerkUserMapping } from '../db/schema';
 import { mergeDevUserIntoLive } from '../utils/merge-user-into-live';
@@ -67,14 +68,14 @@ type ResolvedMapping = { devUserId: string; migratedToLiveAt: string | null };
 async function resolveLiveToDevMapping(liveUserId: string, secretKey: string): Promise<ResolvedMapping | null> {
   try {
     const db = getDb();
-    const byLive = await db
+    const byLive = first(await db
       .select({
         devUserId: ClerkUserMapping.devUserId,
         migratedToLiveAt: ClerkUserMapping.migratedToLiveAt,
       })
       .from(ClerkUserMapping)
       .where(eq(ClerkUserMapping.liveUserId, liveUserId))
-      .get();
+      .limit(1));
     if (byLive) return { devUserId: byLive.devUserId, migratedToLiveAt: byLive.migratedToLiveAt };
 
     const clerk = createClerkClient({ secretKey });
@@ -84,14 +85,14 @@ async function resolveLiveToDevMapping(liveUserId: string, secretKey: string): P
     if (!email) return null;
     const normalized = email.trim().toLowerCase();
 
-    const byEmail = await db
+    const byEmail = first(await db
       .select({
         devUserId: ClerkUserMapping.devUserId,
         migratedToLiveAt: ClerkUserMapping.migratedToLiveAt,
       })
       .from(ClerkUserMapping)
       .where(eq(ClerkUserMapping.email, normalized))
-      .get();
+      .limit(1));
     if (!byEmail) return null;
 
     await db

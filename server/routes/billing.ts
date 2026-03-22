@@ -11,7 +11,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, UserMetadata, eq } from '../db';
+import { db, first, UserMetadata, eq } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { UNLIMITED_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
@@ -200,11 +200,11 @@ app.post('/api/referral/credit', requireAuth, async (c) => {
     if (!referrerUserId) return c.json({ credited: false });
     if (referrerUserId === auth.userId) return c.json({ credited: false });
 
-    const referrerRow = await db
+    const referrerRow = first(await db
       .select({ referralBonusNotes: UserMetadata.referralBonusNotes })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, referrerUserId))
-      .get();
+      .limit(1));
 
     if (!referrerRow) return c.json({ credited: false });
 
@@ -224,11 +224,11 @@ app.get('/api/referral/status', requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
-    const metaRow = await db
+    const metaRow = first(await db
       .select({ referralBonusNotes: UserMetadata.referralBonusNotes, referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, auth.userId))
-      .get();
+      .limit(1));
 
     let referralCode = metaRow?.referralCode ?? null;
     const referralBonusNotes = metaRow?.referralBonusNotes ?? 0;

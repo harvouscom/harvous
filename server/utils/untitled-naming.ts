@@ -10,7 +10,7 @@ export async function getNextUntitledThreadName(userId: string): Promise<string>
   const existingThreads = await db.select({ title: Threads.title })
     .from(Threads)
     .where(eq(Threads.userId, userId))
-    .all();
+    ;
 
   const usedNumbers: number[] = [];
 
@@ -36,7 +36,7 @@ export async function getNextUntitledNoteName(userId: string): Promise<string> {
   const existingNotes = await db.select({ title: Notes.title })
     .from(Notes)
     .where(eq(Notes.userId, userId))
-    .all();
+    ;
 
   const usedNumbers: number[] = [];
 

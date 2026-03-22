@@ -2,7 +2,7 @@
  * Server-side referral code utilities — Drizzle port of src/utils/referral-code.ts
  */
 
-import { db, UserMetadata, eq } from '../db';
+import { db, first, UserMetadata, eq } from '../db';
 
 const PREFIX_MAX_LEN = 6;
 const SUFFIX_LEN = 5;
@@ -37,19 +37,19 @@ export async function resolveRefToUserId(ref: string): Promise<string | null> {
   if (!trimmed) return null;
 
   if (trimmed.startsWith('user_')) {
-    const row = await db
+    const row = first(await db
       .select({ userId: UserMetadata.userId })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, trimmed))
-      .get();
+      .limit(1));
     return row ? trimmed : null;
   }
 
-  const row = await db
+  const row = first(await db
     .select({ userId: UserMetadata.userId })
     .from(UserMetadata)
     .where(eq(UserMetadata.referralCode, trimmed))
-    .get();
+    .limit(1));
   return row?.userId ?? null;
 }
 
@@ -61,18 +61,18 @@ export async function getReferrerDisplayName(ref: string): Promise<string | null
   if (!trimmed) return null;
 
   if (trimmed.startsWith('user_')) {
-    const row = await db
+    const row = first(await db
       .select({ firstName: UserMetadata.firstName })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, trimmed))
-      .get();
+      .limit(1));
     return row?.firstName ?? null;
   }
 
-  const row = await db
+  const row = first(await db
     .select({ firstName: UserMetadata.firstName })
     .from(UserMetadata)
     .where(eq(UserMetadata.referralCode, trimmed))
-    .get();
+    .limit(1));
   return row?.firstName ?? null;
 }

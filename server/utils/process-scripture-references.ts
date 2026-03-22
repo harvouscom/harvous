@@ -3,7 +3,7 @@
  * Can be called directly from API routes or other server-side code
  */
 
-import { db, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
+import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
 import { getEffectiveHighestSimpleNoteId } from './highest-simple-note-id';
 import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
@@ -51,10 +51,10 @@ async function processScriptureReferencesInternal(
   contentOverride?: string // Optional: use this content instead of reading from DB
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   // Get the note from database
-  const note = await db.select()
+  const note = first(await db.select()
     .from(Notes)
     .where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)))
-    .get();
+    .limit(1));
 
   if (!note) {
     throw new Error('Note not found');
@@ -69,11 +69,10 @@ async function processScriptureReferencesInternal(
 
   if (!threadId) {
     // Check if note is in a specific thread via junction table
-    const threadRelation = await db.select()
+    const threadRelation = first(await db.select()
       .from(NoteThreads)
       .where(eq(NoteThreads.noteId, noteId))
-      .limit(1)
-      .get();
+      .limit(1));
 
     if (threadRelation) {
       actualThreadId = threadRelation.threadId;
@@ -287,7 +286,7 @@ async function processScriptureReferencesInternal(
     .from(ScriptureMetadata)
     .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
     .where(eq(Notes.userId, userId))
-    .all();
+    ;
 
   // Build normalized lookup map: normalizedReference -> { noteId, reference }
   // Also detect duplicate scripture notes (same normalized reference, different noteIds)
@@ -322,7 +321,7 @@ async function processScriptureReferencesInternal(
         const dupeNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt })
           .from(Notes)
           .where(and(eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')))
-          .all();
+          ;
 
         const relevantNotes = dupeNotes
           .filter(n => dupeNoteIds.includes(n.id))
@@ -338,18 +337,17 @@ async function processScriptureReferencesInternal(
           const junctionsToMove = await db.select()
             .from(NoteScriptureReferences)
             .where(eq(NoteScriptureReferences.scriptureNoteId, dupeId))
-            .all();
+            ;
 
           for (const junction of junctionsToMove) {
             // Check if keeper junction already exists for this parent note
-            const existingKeeperJunction = await db.select()
+            const existingKeeperJunction = first(await db.select()
               .from(NoteScriptureReferences)
               .where(and(
                 eq(NoteScriptureReferences.noteId, junction.noteId),
                 eq(NoteScriptureReferences.scriptureNoteId, keeperId)
               ))
-              .limit(1)
-              .get();
+              .limit(1));
 
             if (existingKeeperJunction) {
               // Keeper junction exists — just delete the duplicate junction
@@ -366,7 +364,7 @@ async function processScriptureReferencesInternal(
           const affectedNotes = await db.select({ id: Notes.id, content: Notes.content })
             .from(Notes)
             .where(eq(Notes.userId, userId))
-            .all();
+            ;
 
           for (const affectedNote of affectedNotes) {
             if (affectedNote.content && affectedNote.content.includes(dupeId)) {
@@ -435,7 +433,7 @@ async function processScriptureReferencesInternal(
           .from(ScriptureMetadata)
           .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
           .where(eq(Notes.userId, userId))
-          .all();
+          ;
         for (const row of freshCheck) {
           if (normalizeScriptureReference(row.reference) === normalizedReference) {
             existingScripture = { noteId: row.noteId, reference: row.reference };
@@ -452,10 +450,10 @@ async function processScriptureReferencesInternal(
           const verseText = await fetchVerseText(normalizedReference);
 
           // Get user metadata for simpleNoteId
-          let userMetadata = await db.select()
+          let userMetadata = first(await db.select()
             .from(UserMetadata)
             .where(eq(UserMetadata.userId, userId))
-            .get();
+            .limit(1));
 
           if (!userMetadata) {
             const existingNotes = await db.select({
@@ -521,7 +519,7 @@ async function processScriptureReferencesInternal(
 
           // Do not set lastVisited on creation: scripture notes are excluded from the dashboard
           // list until the user visits them; they still appear inside the parent note card (refs/pills).
-          const scriptureNote = await db.insert(Notes)
+          const scriptureNote = first(await db.insert(Notes)
             .values({
               id: generateNoteId(),
               content: capitalizedContent,
@@ -537,8 +535,7 @@ async function processScriptureReferencesInternal(
               addedBy: 'harvous',
               createdAt: now,
             })
-            .returning()
-            .get();
+            .returning())!;
 
           // Update user metadata
           await db.update(UserMetadata)
@@ -641,7 +638,7 @@ async function processScriptureReferencesInternal(
 
         // Create junction entry linking this note to the scripture note (if not already exists)
         try {
-          const existingJunction = await db.select()
+          const existingJunction = first(await db.select()
             .from(NoteScriptureReferences)
             .where(
               and(
@@ -649,8 +646,7 @@ async function processScriptureReferencesInternal(
                 eq(NoteScriptureReferences.scriptureNoteId, existingNoteId)
               )
             )
-            .limit(1)
-            .get();
+            .limit(1));
 
           if (!existingJunction) {
             await db.insert(NoteScriptureReferences).values({
@@ -669,7 +665,7 @@ async function processScriptureReferencesInternal(
         // Check if in thread
         let inThread = false;
         if (actualThreadId) {
-          const threadRelation = await db.select()
+          const threadRelation = first(await db.select()
             .from(NoteThreads)
             .where(
               and(
@@ -677,17 +673,16 @@ async function processScriptureReferencesInternal(
                 eq(NoteThreads.threadId, actualThreadId)
               )
             )
-            .limit(1)
-            .get();
+            .limit(1));
 
           inThread = !!threadRelation;
         }
 
         // Check if in unorganized
-        const threadCount = await db.select({ count: count() })
+        const threadCount = first(await db.select({ count: count() })
           .from(NoteThreads)
           .where(eq(NoteThreads.noteId, existingNoteId))
-          .get();
+          .limit(1));
 
         const inUnorganized = !threadCount || threadCount.count === 0;
 
@@ -768,7 +763,7 @@ async function processScriptureReferencesInternal(
 
     // Ensure junction entry exists for existing references (critical for collapsible list)
     try {
-      const existingJunction = await db.select()
+      const existingJunction = first(await db.select()
         .from(NoteScriptureReferences)
         .where(
           and(
@@ -776,8 +771,7 @@ async function processScriptureReferencesInternal(
             eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
           )
         )
-        .limit(1)
-        .get();
+        .limit(1));
 
       if (!existingJunction) {
         await db.insert(NoteScriptureReferences).values({
@@ -828,7 +822,7 @@ async function processScriptureReferencesInternal(
     try {
       // First, verify that the scripture note exists and belongs to this user
       // This handles cases where pills were pasted with noteIds that don't exist or belong to other users
-      const scriptureNote = await db.select()
+      const scriptureNote = first(await db.select()
         .from(Notes)
         .where(
           and(
@@ -837,8 +831,7 @@ async function processScriptureReferencesInternal(
             eq(Notes.noteType, 'scripture')
           )
         )
-        .limit(1)
-        .get();
+        .limit(1));
 
       if (!scriptureNote) {
         // Scripture note doesn't exist or doesn't belong to user
@@ -861,7 +854,7 @@ async function processScriptureReferencesInternal(
           const actualNoteId = existingScriptureByRef.noteId;
 
           // Create junction entry with the correct noteId
-          const existingJunction = await db.select()
+          const existingJunction = first(await db.select()
             .from(NoteScriptureReferences)
             .where(
               and(
@@ -869,8 +862,7 @@ async function processScriptureReferencesInternal(
                 eq(NoteScriptureReferences.scriptureNoteId, actualNoteId)
               )
             )
-            .limit(1)
-            .get();
+            .limit(1));
 
           if (!existingJunction) {
             await db.insert(NoteScriptureReferences).values({
@@ -894,10 +886,10 @@ async function processScriptureReferencesInternal(
             const verseText = await fetchVerseText(normalizedRef);
 
             // Get user metadata
-            let userMetadata = await db.select()
+            let userMetadata = first(await db.select()
               .from(UserMetadata)
               .where(eq(UserMetadata.userId, userId))
-              .get();
+              .limit(1));
 
             if (!userMetadata) {
               const existingNotes = await db.select({
@@ -961,7 +953,7 @@ async function processScriptureReferencesInternal(
             const shareToken = generateShareToken();
 
             // Do not set lastVisited: scripture notes only appear in the organized content list when visited.
-            const newScriptureNote = await db.insert(Notes)
+            const newScriptureNote = first(await db.insert(Notes)
               .values({
                 id: generateNoteId(),
                 content: capitalizedContent,
@@ -977,8 +969,7 @@ async function processScriptureReferencesInternal(
                 addedBy: 'harvous',
                 createdAt: now,
               })
-              .returning()
-              .get();
+              .returning())!;
 
             // Update user metadata
             await db.update(UserMetadata)
@@ -1066,7 +1057,7 @@ async function processScriptureReferencesInternal(
       }
 
       // Scripture note exists - create junction entry if it doesn't exist
-      const existingJunction = await db.select()
+      const existingJunction = first(await db.select()
         .from(NoteScriptureReferences)
         .where(
           and(
@@ -1074,8 +1065,7 @@ async function processScriptureReferencesInternal(
             eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId)
           )
         )
-        .limit(1)
-        .get();
+        .limit(1));
 
       if (!existingJunction) {
         await db.insert(NoteScriptureReferences).values({

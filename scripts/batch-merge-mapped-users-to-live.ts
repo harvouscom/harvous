@@ -24,7 +24,7 @@ async function main() {
         isNotNull(ClerkUserMapping.liveUserId)
       )
     )
-    .all();
+    ;
 
   const eligible = toMerge.filter((r) => r.devUserId !== r.liveUserId);
   if (eligible.length === 0) {

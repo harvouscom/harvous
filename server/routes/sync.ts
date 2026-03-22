@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
+  first,
   Spaces,
   Threads,
   Notes,
@@ -36,7 +37,7 @@ const app = new Hono();
 
 async function processSpaceMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const newSpace = await db.insert(Spaces).values({
+    const newSpace = first(await db.insert(Spaces).values({
       id: entityId.startsWith('local_') ? generateSpaceId() : entityId,
       title: data.title,
       description: data.description || null,
@@ -48,10 +49,10 @@ async function processSpaceMutation(userId: string, operation: string, entityId:
       userId,
       createdAt: nowISO(),
       updatedAt: nowISO(),
-    }).returning().get();
+    }).returning())!;
     return { success: true, entityId, serverId: newSpace.id };
   } else if (operation === 'update') {
-    const existing = await db.select().from(Spaces).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId))).get();
+    const existing = first(await db.select().from(Spaces).where(and(eq(Spaces.id, entityId), eq(Spaces.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Space not found' };
     await db.update(Spaces).set({
       title: data.title,
@@ -74,7 +75,7 @@ async function processSpaceMutation(userId: string, operation: string, entityId:
 async function processThreadMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
     const now = nowISO();
-    const newThread = await db.insert(Threads).values({
+    const newThread = first(await db.insert(Threads).values({
       id: entityId.startsWith('local_') ? generateThreadId() : entityId,
       title: data.title,
       subtitle: data.subtitle || null,
@@ -87,10 +88,10 @@ async function processThreadMutation(userId: string, operation: string, entityId
       createdAt: now,
       updatedAt: now,
       lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
-    }).returning().get();
+    }).returning())!;
     return { success: true, entityId, serverId: newThread.id, data: { color: newThread.color } };
   } else if (operation === 'update') {
-    const existing = await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).get();
+    const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Thread not found' };
     await db.update(Threads).set({
       title: data.title,
@@ -121,7 +122,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       threadId = 'thread_unorganized';
     }
     const now = nowISO();
-    const newNote = await db.insert(Notes).values({
+    const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       title: data.title || null,
       content: data.content,
@@ -138,7 +139,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       updatedAt: now,
       lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
       contentEncrypted: data.contentEncrypted || false,
-    }).returning().get();
+    }).returning())!;
 
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
     await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
@@ -148,7 +149,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     }
     return { success: true, entityId, serverId: newNote.id };
   } else if (operation === 'update') {
-    const existing = await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).get();
+    const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Note not found' };
     await db.update(Notes).set({
       title: data.title,
@@ -171,19 +172,19 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
 
 async function processNoteThreadMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
-    const existing = await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId))).get();
+    const existing = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId))).limit(1));
     if (existing) return { success: true, entityId, serverId: existing.id };
-    const newNoteThread = await db.insert(NoteThreads).values({
+    const newNoteThread = first(await db.insert(NoteThreads).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       noteId: data.noteId,
       threadId: data.threadId,
       createdAt: nowISO(),
-    }).returning().get();
+    }).returning())!;
     return { success: true, entityId, serverId: newNoteThread.id };
   } else if (operation === 'delete') {
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
     await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)));
     return { success: true, entityId, serverId: entityId };
@@ -193,7 +194,7 @@ async function processNoteThreadMutation(userId: string, operation: string, enti
 
 async function processTagMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const newTag = await db.insert(Tags).values({
+    const newTag = first(await db.insert(Tags).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       name: data.name,
       color: data.color || null,
@@ -202,10 +203,10 @@ async function processTagMutation(userId: string, operation: string, entityId: s
       userId,
       createdAt: nowISO(),
       updatedAt: nowISO(),
-    }).returning().get();
+    }).returning())!;
     return { success: true, entityId, serverId: newTag.id };
   } else if (operation === 'update') {
-    const existing = await db.select().from(Tags).where(and(eq(Tags.id, entityId), eq(Tags.userId, userId))).get();
+    const existing = first(await db.select().from(Tags).where(and(eq(Tags.id, entityId), eq(Tags.userId, userId))).limit(1));
     if (!existing) return { success: false, error: 'Tag not found' };
     await db.update(Tags).set({ name: data.name, color: data.color, category: data.category, updatedAt: nowISO() }).where(eq(Tags.id, entityId));
     return { success: true, entityId, serverId: entityId };
@@ -218,19 +219,19 @@ async function processTagMutation(userId: string, operation: string, entityId: s
 
 async function processNoteTagMutation(userId: string, operation: string, entityId: string, data: any) {
   if (operation === 'create') {
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
-    const newNoteTag = await db.insert(NoteTags).values({
+    const newNoteTag = first(await db.insert(NoteTags).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
       noteId: data.noteId,
       tagId: data.tagId,
       isAutoGenerated: data.isAutoGenerated || false,
       confidence: data.confidence || null,
       createdAt: nowISO(),
-    }).returning().get();
+    }).returning())!;
     return { success: true, entityId, serverId: newNoteTag.id };
   } else if (operation === 'delete') {
-    const note = await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).get();
+    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
     await db.delete(NoteTags).where(and(eq(NoteTags.noteId, data.noteId), eq(NoteTags.tagId, data.tagId)));
     return { success: true, entityId, serverId: entityId };
@@ -284,18 +285,18 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadata] = await Promise.all([
+    const [spaces, threads, notes, noteThreads, tags, noteTags, userMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
         order: Spaces.order, createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
-      }).from(Spaces).where(eq(Spaces.userId, auth.userId)).all(),
+      }).from(Spaces).where(eq(Spaces.userId, auth.userId)),
 
       db.select({
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, spaceId: Threads.spaceId,
         color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, order: Threads.order,
         lastVisited: Threads.lastVisited, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt,
-      }).from(Threads).where(eq(Threads.userId, auth.userId)).all(),
+      }).from(Threads).where(eq(Threads.userId, auth.userId)),
 
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
@@ -303,25 +304,25 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
-      }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000).all(),
+      }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId,
         createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-        .where(eq(Notes.userId, auth.userId)).all(),
+        .where(eq(Notes.userId, auth.userId)),
 
       db.select({
         id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category,
         isSystem: Tags.isSystem, createdAt: Tags.createdAt, updatedAt: Tags.updatedAt,
-      }).from(Tags).where(eq(Tags.userId, auth.userId)).all(),
+      }).from(Tags).where(eq(Tags.userId, auth.userId)),
 
       db.select({
         id: NoteTags.id, noteId: NoteTags.noteId, tagId: NoteTags.tagId,
         isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence,
         createdAt: NoteTags.createdAt,
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
-        .where(eq(Notes.userId, auth.userId)).all(),
+        .where(eq(Notes.userId, auth.userId)),
 
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
@@ -333,8 +334,10 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         lastMonthlyVisit: UserMetadata.lastMonthlyVisit, churchAddedAt: UserMetadata.churchAddedAt,
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
-      }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).get(),
+      }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1),
     ]);
+
+    const userMetadata = first(userMetadataRows);
 
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const highestSimpleNoteId = effectiveHighest;
@@ -400,20 +403,20 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
       if (isNaN(sinceTimestamp)) return c.json({ error: 'Invalid since parameter format', code: 'INVALID_PARAMETER' }, 400);
     }
 
-    const sinceDateISO = new Date(sinceTimestamp).toISOString();
+    const sinceDate = new Date(sinceTimestamp);
 
-    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedUserMetadata] = await Promise.all([
+    const [changedSpaces, changedThreads, changedNotes, changedNoteThreads, changedTags, changedNoteTags, changedUserMetadataRows] = await Promise.all([
       db.select({
         id: Spaces.id, title: Spaces.title, description: Spaces.description, color: Spaces.color,
         backgroundGradient: Spaces.backgroundGradient, isPublic: Spaces.isPublic, isActive: Spaces.isActive,
         order: Spaces.order, createdAt: Spaces.createdAt, updatedAt: Spaces.updatedAt,
-      }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), or(gt(Spaces.updatedAt, sinceDateISO), gt(Spaces.createdAt, sinceDateISO)))).all(),
+      }).from(Spaces).where(and(eq(Spaces.userId, auth.userId), or(gt(Spaces.updatedAt, sinceDate), gt(Spaces.createdAt, sinceDate)))),
 
       db.select({
         id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, spaceId: Threads.spaceId,
         color: Threads.color, isPublic: Threads.isPublic, isPinned: Threads.isPinned, order: Threads.order,
         lastVisited: Threads.lastVisited, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt,
-      }).from(Threads).where(and(eq(Threads.userId, auth.userId), or(gt(Threads.updatedAt, sinceDateISO), gt(Threads.createdAt, sinceDateISO), gt(Threads.lastVisited, sinceDateISO)))).all(),
+      }).from(Threads).where(and(eq(Threads.userId, auth.userId), or(gt(Threads.updatedAt, sinceDate), gt(Threads.createdAt, sinceDate), gt(Threads.lastVisited, sinceDate)))),
 
       db.select({
         id: Notes.id, title: Notes.title, content: Notes.content, threadId: Notes.threadId,
@@ -421,23 +424,23 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
-      }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDateISO), gt(Notes.createdAt, sinceDateISO), gt(Notes.lastVisited, sinceDateISO)))).all(),
+      }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
 
       db.select({
         id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId, createdAt: NoteThreads.createdAt,
       }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-        .where(and(eq(Notes.userId, auth.userId), gt(NoteThreads.createdAt, sinceDateISO))).all(),
+        .where(and(eq(Notes.userId, auth.userId), gt(NoteThreads.createdAt, sinceDate))),
 
       db.select({
         id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category,
         isSystem: Tags.isSystem, createdAt: Tags.createdAt, updatedAt: Tags.updatedAt,
-      }).from(Tags).where(and(eq(Tags.userId, auth.userId), or(gt(Tags.updatedAt, sinceDateISO), gt(Tags.createdAt, sinceDateISO)))).all(),
+      }).from(Tags).where(and(eq(Tags.userId, auth.userId), or(gt(Tags.updatedAt, sinceDate), gt(Tags.createdAt, sinceDate)))),
 
       db.select({
         id: NoteTags.id, noteId: NoteTags.noteId, tagId: NoteTags.tagId,
         isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence, createdAt: NoteTags.createdAt,
       }).from(NoteTags).innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
-        .where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDateISO))).all(),
+        .where(and(eq(Notes.userId, auth.userId), gt(NoteTags.createdAt, sinceDate))),
 
       db.select({
         id: UserMetadata.id, userId: UserMetadata.userId, highestSimpleNoteId: UserMetadata.highestSimpleNoteId,
@@ -449,8 +452,10 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         lastMonthlyVisit: UserMetadata.lastMonthlyVisit, churchAddedAt: UserMetadata.churchAddedAt,
         createdAt: UserMetadata.createdAt, updatedAt: UserMetadata.updatedAt,
         lockPinHash: UserMetadata.lockPinHash,
-      }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDateISO), gt(UserMetadata.createdAt, sinceDateISO)))).get(),
+      }).from(UserMetadata).where(and(eq(UserMetadata.userId, auth.userId), or(gt(UserMetadata.updatedAt, sinceDate), gt(UserMetadata.createdAt, sinceDate)))).limit(1),
     ]);
+
+    const changedUserMetadata = first(changedUserMetadataRows);
 
     // Backfill currentSeason if null
     let userMetaForResponse = changedUserMetadata;

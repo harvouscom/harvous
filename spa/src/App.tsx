@@ -483,6 +483,55 @@ function SpaToaster() {
   );
 }
 
+/** In dev, poll /api/health and show a banner when the API is unreachable (e.g. only SPA running). */
+function DevApiHealthBanner() {
+  const [unreachable, setUnreachable] = useState(false);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+
+    const check = async () => {
+      try {
+        const res = await fetch('/api/health', { credentials: 'omit', cache: 'no-store' });
+        setUnreachable(!res.ok);
+      } catch {
+        setUnreachable(true);
+      }
+    };
+
+    check();
+    const interval = setInterval(check, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!import.meta.env.DEV || !unreachable) return null;
+
+  return createPortal(
+    <div
+      className="dev-api-health-banner"
+      role="status"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1000000,
+        background: 'var(--color-navy, #1a1a2e)',
+        color: '#fff',
+        padding: '8px 16px',
+        fontSize: '14px',
+        fontWeight: 600,
+        textAlign: 'center',
+        fontFamily: 'var(--font-sans)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+      }}
+    >
+      API unreachable — run <code style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px' }}>npm run dev:all</code> to start both the API and SPA.
+    </div>,
+    document.body
+  );
+}
+
 /** Intercept in-app <a> clicks so navigation is client-side (instant) instead of full page load. */
 function useInAppLinkInterceptor() {
   useEffect(() => {
@@ -515,6 +564,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <IosPwaClass />
         <WebHapticsSetup />
+        <DevApiHealthBanner />
         <ToastSetup />
         <UserIdSync />
         <SpaToaster />

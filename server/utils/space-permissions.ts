@@ -2,7 +2,7 @@
  * Space permission helpers — Drizzle port of src/utils/space-permissions.ts
  */
 
-import { db, Spaces, Members, eq, and } from '../db';
+import { db, first, Spaces, Members, eq, and } from '../db';
 
 export type SpaceRole = 'owner' | 'member';
 
@@ -23,38 +23,38 @@ export class SpaceAccessError extends Error {
 }
 
 export async function isSpaceOwner(spaceId: string, userId: string): Promise<boolean> {
-  const space = await db.select()
+  const space = first(await db.select()
     .from(Spaces)
     .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-    .get();
+    .limit(1));
   return !!space;
 }
 
 export async function isSpaceMember(spaceId: string, userId: string): Promise<boolean> {
-  const space = await db.select()
+  const space = first(await db.select()
     .from(Spaces)
     .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-    .get();
+    .limit(1));
   if (space) return true;
 
-  const member = await db.select()
+  const member = first(await db.select()
     .from(Members)
     .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
-    .get();
+    .limit(1));
   return !!member;
 }
 
 export async function getSpaceRole(spaceId: string, userId: string): Promise<SpaceRole | null> {
-  const space = await db.select()
+  const space = first(await db.select()
     .from(Spaces)
     .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, userId)))
-    .get();
+    .limit(1));
   if (space) return 'owner';
 
-  const member = await db.select()
+  const member = first(await db.select()
     .from(Members)
     .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
-    .get();
+    .limit(1));
   if (member) return 'member';
 
   return null;
@@ -65,10 +65,10 @@ export async function requireSpaceAccess(
   userId: string,
   requireOwner: boolean = false
 ): Promise<{ role: SpaceRole; space: any }> {
-  const space = await db.select()
+  const space = first(await db.select()
     .from(Spaces)
     .where(eq(Spaces.id, spaceId))
-    .get();
+    .limit(1));
 
   if (!space) {
     throw new SpaceAccessError(404, 'Space not found');
@@ -83,10 +83,10 @@ export async function requireSpaceAccess(
     throw new SpaceAccessError(403, 'Only space owners can perform this action');
   }
 
-  const member = await db.select()
+  const member = first(await db.select()
     .from(Members)
     .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
-    .get();
+    .limit(1));
 
   if (member) {
     return { role: 'member', space };
@@ -99,12 +99,12 @@ export async function getUserSpaces(userId: string) {
   const ownedSpaces = await db.select()
     .from(Spaces)
     .where(eq(Spaces.userId, userId))
-    .all();
+    ;
 
   const memberships = await db.select()
     .from(Members)
     .where(eq(Members.userId, userId))
-    .all();
+    ;
 
   const memberSpaceIds = memberships.map(m => m.spaceId);
 
@@ -117,7 +117,7 @@ export async function getUserSpaces(userId: string) {
           ...memberSpaceIds.map(id => eq(Spaces.id, id))
         )
       )
-      .all();
+      ;
   }
 
   return {

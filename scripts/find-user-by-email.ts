@@ -5,6 +5,7 @@
  */
 import 'dotenv/config';
 import { db, UserMetadata, ClerkUserMapping, Notes, Threads } from '../server/db';
+import { first } from '../server/db/helpers';
 import { eq, sql } from 'drizzle-orm';
 
 async function main() {
@@ -18,13 +19,13 @@ async function main() {
     .select({ userId: UserMetadata.userId })
     .from(UserMetadata)
     .where(sql`lower(${UserMetadata.email}) = ${email}`)
-    .all();
+    ;
 
   const mapping = await db
     .select()
     .from(ClerkUserMapping)
     .where(sql`lower(${ClerkUserMapping.email}) = ${email}`)
-    .all();
+    ;
 
   const userIds = [...new Set([...meta.map((r) => r.userId), ...mapping.map((r) => r.devUserId), ...mapping.map((r) => r.liveUserId).filter((v): v is string => Boolean(v))])];
 
@@ -40,8 +41,8 @@ async function main() {
 
   console.log('\nNote and thread counts per userId:');
   for (const uid of userIds) {
-    const noteCount = await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, uid)).get();
-    const threadCount = await db.select({ count: sql<number>`count(*)` }).from(Threads).where(eq(Threads.userId, uid)).get();
+    const noteCount = first(await db.select({ count: sql<number>`count(*)` }).from(Notes).where(eq(Notes.userId, uid)).limit(1));
+    const threadCount = first(await db.select({ count: sql<number>`count(*)` }).from(Threads).where(eq(Threads.userId, uid)).limit(1));
     console.log(' ', uid, '→ notes:', noteCount?.count ?? 0, ', threads:', threadCount?.count ?? 0);
   }
 }

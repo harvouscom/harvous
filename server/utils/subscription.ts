@@ -2,7 +2,7 @@
  * Subscription utilities — Drizzle port of src/utils/subscription.ts
  */
 
-import { db, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
+import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
 
 const FREE_TIER_LIMIT = 500;
@@ -15,7 +15,8 @@ export async function getUserNoteCount(userId: string): Promise<number> {
         .select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId })
         .from(UserMetadata)
         .where(eq(UserMetadata.userId, userId))
-        .get(),
+        .limit(1)
+        .then(rows => first(rows)),
       db
         .select({ simpleNoteId: Notes.simpleNoteId })
         .from(Notes)
@@ -35,11 +36,11 @@ export async function getUserNoteCount(userId: string): Promise<number> {
 
 export async function getReferralBonusNotes(userId: string): Promise<number> {
   try {
-    const row = await db
+    const row = first(await db
       .select({ referralBonusNotes: UserMetadata.referralBonusNotes })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, userId))
-      .get();
+      .limit(1));
     return row?.referralBonusNotes ?? 0;
   } catch (error) {
     console.error('Error getting referral bonus notes:', error);
