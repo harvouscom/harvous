@@ -30,8 +30,24 @@ import { awardNewSeasonBonus } from '../utils/xp-system';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
+import { detectScripture, getPrimaryReference } from '@/utils/scripture-detector';
+import { fetchVerseText } from '../utils/fetch-verse-text';
 
 const app = new Hono();
+
+// In-memory cache for processed clientMutationIds (TTL: 5 minutes)
+const processedMutations = new Map<string, { serverId: string; data?: any; timestamp: number }>();
+const MUTATION_CACHE_TTL = 5 * 60 * 1000;
+
+// Clean up old entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of processedMutations) {
+    if (now - value.timestamp > MUTATION_CACHE_TTL) {
+      processedMutations.delete(key);
+    }
+  }
+}, 60_000);
 
 // ─── Mutation helpers for push endpoint ───────────────────────────────
 
@@ -72,8 +88,16 @@ async function processSpaceMutation(userId: string, operation: string, entityId:
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
-async function processThreadMutation(userId: string, operation: string, entityId: string, data: any) {
+async function processThreadMutation(userId: string, operation: string, entityId: string, data: any, clientMutationId?: string) {
   if (operation === 'create') {
+    // Idempotency check: if this mutation was already processed, return cached result
+    if (clientMutationId) {
+      const cached = processedMutations.get(clientMutationId);
+      if (cached) {
+        return { success: true, entityId, serverId: cached.serverId, data: cached.data };
+      }
+    }
+
     const now = nowISO();
     const newThread = first(await db.insert(Threads).values({
       id: entityId.startsWith('local_') ? generateThreadId() : entityId,
@@ -89,6 +113,12 @@ async function processThreadMutation(userId: string, operation: string, entityId
       updatedAt: now,
       lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
     }).returning())!;
+
+    // Cache the result for idempotency
+    if (clientMutationId) {
+      processedMutations.set(clientMutationId, { serverId: newThread.id, data: { color: newThread.color }, timestamp: Date.now() });
+    }
+
     return { success: true, entityId, serverId: newThread.id, data: { color: newThread.color } };
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Threads).where(and(eq(Threads.id, entityId), eq(Threads.userId, userId))).limit(1));
@@ -111,8 +141,16 @@ async function processThreadMutation(userId: string, operation: string, entityId
   return { success: false, error: `Unknown operation: ${operation}` };
 }
 
-async function processNoteMutation(userId: string, operation: string, entityId: string, data: any) {
+async function processNoteMutation(userId: string, operation: string, entityId: string, data: any, clientMutationId?: string) {
   if (operation === 'create') {
+    // Idempotency check: if this mutation was already processed, return cached result
+    if (clientMutationId) {
+      const cached = processedMutations.get(clientMutationId);
+      if (cached) {
+        return { success: true, entityId, serverId: cached.serverId, data: cached.data };
+      }
+    }
+
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
     const nextSimpleNoteId = effectiveHighest + 1;
     const assignedSimpleNoteId = data.simpleNoteId ?? nextSimpleNoteId;
@@ -121,15 +159,44 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       console.warn(`[processNoteMutation] Thread ${threadId} is a local ID, using unorganized`);
       threadId = 'thread_unorganized';
     }
+
+    // Scripture detection for offline-created notes saved as 'default'
+    let noteType = data.noteType || 'default';
+    let noteTitle = data.title;
+    let noteContent = data.content;
+    if (noteType === 'default' && noteTitle && noteTitle.length >= 5) {
+      try {
+        const detection = await detectScripture(noteTitle);
+        const primaryReference = getPrimaryReference(detection);
+        if (detection.isScripture && detection.confidence >= 0.7 && primaryReference) {
+          noteType = 'scripture';
+          noteTitle = primaryReference;
+          // Try to fetch verse text if content is empty/short
+          if (!noteContent || noteContent.trim().length < 10 || noteContent === '<p></p>' || noteContent === '<p><br></p>') {
+            try {
+              const verseText = await fetchVerseText(primaryReference);
+              if (verseText) {
+                noteContent = verseText;
+              }
+            } catch {
+              // Verse fetch failed — keep original content
+            }
+          }
+        }
+      } catch {
+        // Scripture detection failed — keep as default type
+      }
+    }
+
     const now = nowISO();
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
-      title: data.title || null,
-      content: data.content,
+      title: noteTitle || null,
+      content: noteContent,
       threadId,
       spaceId: data.spaceId || null,
       simpleNoteId: assignedSimpleNoteId,
-      noteType: data.noteType || 'default',
+      noteType,
       addedBy: data.addedBy || 'user',
       isPublic: data.isPublic || false,
       isFeatured: data.isFeatured || false,
@@ -147,6 +214,12 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
     if (threadId && threadId !== 'thread_unorganized') {
       await db.insert(NoteThreads).values({ id: generateNoteId(), noteId: newNote.id, threadId, createdAt: nowISO() });
     }
+
+    // Cache the result for idempotency
+    if (clientMutationId) {
+      processedMutations.set(clientMutationId, { serverId: newNote.id, timestamp: Date.now() });
+    }
+
     return { success: true, entityId, serverId: newNote.id };
   } else if (operation === 'update') {
     const existing = first(await db.select().from(Notes).where(and(eq(Notes.id, entityId), eq(Notes.userId, userId))).limit(1));
@@ -254,13 +327,13 @@ app.post('/api/sync/push', requireAuth, async (c) => {
 
     for (const mutation of mutations) {
       try {
-        const { operation, entityType, entityId, data, operationId } = mutation;
+        const { operation, entityType, entityId, data, operationId, clientMutationId } = mutation;
         let result: any = { success: false, operationId };
 
         switch (entityType) {
           case 'space': result = await processSpaceMutation(auth.userId, operation, entityId, data); break;
-          case 'thread': result = await processThreadMutation(auth.userId, operation, entityId, data); break;
-          case 'note': result = await processNoteMutation(auth.userId, operation, entityId, data); break;
+          case 'thread': result = await processThreadMutation(auth.userId, operation, entityId, data, clientMutationId); break;
+          case 'note': result = await processNoteMutation(auth.userId, operation, entityId, data, clientMutationId); break;
           case 'noteThread': result = await processNoteThreadMutation(auth.userId, operation, entityId, data); break;
           case 'tag': result = await processTagMutation(auth.userId, operation, entityId, data); break;
           case 'noteTag': result = await processNoteTagMutation(auth.userId, operation, entityId, data); break;

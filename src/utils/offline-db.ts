@@ -107,6 +107,7 @@ export interface SyncOperation {
   retryCount: number; // Number of retry attempts
   lastError?: string; // Last error message if sync failed
   serverId?: string; // Server-assigned ID after successful sync
+  clientMutationId?: string; // UUID for server-side idempotency (prevents duplicates on retry)
 }
 
 // Sync state for tracking sync progress

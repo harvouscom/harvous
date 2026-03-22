@@ -9,6 +9,7 @@ import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
+import { useIsOffline } from '@/hooks/useIsOffline';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
 import SharedNoteCTAFooter from './SharedNoteCTAFooter';
@@ -73,8 +74,9 @@ export default function CardFullEditable({
   isAuthenticated,
   inBottomSheet = false,
 }: CardFullEditableProps) {
-  // Override isEditable for scripture notes - they should always be read-only
-  const effectiveIsEditable = noteType === 'scripture' ? false : isEditable;
+  // Override isEditable for scripture notes (always read-only) and when offline (create-only mode)
+  const isCurrentlyOffline = useIsOffline();
+  const effectiveIsEditable = noteType === 'scripture' || isCurrentlyOffline ? false : isEditable;
   
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [isContentEditing, setIsContentEditing] = useState(false);

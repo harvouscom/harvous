@@ -1068,7 +1068,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       
       // Fetch current thread and space counts from API with safe fetch (longer timeout for heavy nav payload)
-      const response = await safeFetch('/api/navigation/data', { timeout: 45000 });
+      // Use cache: 'no-store' to bypass browser cache and get fresh counts after mutations
+      const response = await safeFetch('/api/navigation/data', { timeout: 45000, cache: 'no-store', deduplicate: false });
 
       if (!response || !response.ok) {
         // Silently fail if auth not ready or error occurred
@@ -1095,14 +1096,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const newCount = threadData.noteCount || 0;
             const currentCount = item.count || 0;
             
-            // Only update if counts differ AND the API count is higher or equal
-            // This prevents overwriting correct client-side counts with stale lower API counts
-            // The API count being higher indicates it's more recent/accurate
-            if (currentCount !== newCount && newCount >= currentCount) {
+            // Always update to API count — we use cache: 'no-store' to ensure fresh data
+            if (currentCount !== newCount) {
               return { ...item, count: newCount, spaceId: threadData.spaceId ?? item.spaceId ?? null };
             }
-            // If API count is lower, it might be stale - keep current count
-            // But still fill spaceId if missing.
+            // Counts match — still fill spaceId if missing.
             if (item.spaceId == null && threadData.spaceId != null) {
               return { ...item, spaceId: threadData.spaceId };
             }
@@ -1121,8 +1119,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 return null; // Mark for removal
               }
               
-              // Only update if API count is higher or equal
-              if (currentCount !== newCount && newCount >= currentCount) {
+              // Always update to API count — fresh data via cache: 'no-store'
+              if (currentCount !== newCount) {
                 return { ...item, count: newCount, spaceId: null };
               }
             } else {
@@ -1152,8 +1150,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (spaceData) {
             const newCount = spaceData.totalItemCount || 0;
             const currentCount = item.count || 0;
-            // Only update if API count is higher or equal
-            if (currentCount !== newCount && newCount >= currentCount) {
+            // Always update to API count — fresh data via cache: 'no-store'
+            if (currentCount !== newCount) {
               return { ...item, count: newCount };
             }
             return item;
@@ -1919,8 +1917,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           removeFromNavigationHistory('thread_unorganized');
         }
         
-        // Refresh counts immediately with verification (no debounce delay)
-        refreshNavigationCountsImmediate();
+        // Refresh counts after a short delay to let the DB commit the deletion
+        debouncedRefreshNavigationCounts();
       }
     };
     

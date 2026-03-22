@@ -420,11 +420,8 @@ export async function createNoteOffline(userId: string, data: {
     // Server will assign one on sync
   }
   
-  // If still no simpleNoteId, use highestSimpleNoteId + 1 for preview
-  if (!simpleNoteId) {
-    const currentHighest = userMeta.highestSimpleNoteId || 0;
-    simpleNoteId = currentHighest + 1;
-  }
+  // If still no simpleNoteId, leave as null — server will assign one during sync.
+  // Using highestSimpleNoteId + 1 risks ID collisions between offline clients.
 
   const effectiveThreadId = data.threadId?.startsWith('thread_onboarding_')
     ? 'thread_unorganized'

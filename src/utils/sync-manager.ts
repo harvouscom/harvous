@@ -786,13 +786,14 @@ export async function updateCacheTimestamp(userId: string): Promise<void> {
 /**
  * Enqueue a mutation for sync
  */
-export async function enqueueMutation(userId: string, operation: Omit<SyncOperation, 'userId' | 'id' | 'timestamp' | 'retryCount'>): Promise<void> {
+export async function enqueueMutation(userId: string, operation: Omit<SyncOperation, 'userId' | 'id' | 'timestamp' | 'retryCount' | 'clientMutationId'>): Promise<void> {
   try {
     await offlineDB.syncQueue.add({
       ...operation,
       userId,
       timestamp: Date.now(),
       retryCount: 0,
+      clientMutationId: crypto.randomUUID(),
     });
     // Immediately push changes instead of waiting for next poll interval
     triggerImmediateSync(userId);
@@ -836,6 +837,7 @@ export async function pushQueue(userId: string): Promise<SyncResult> {
       entityId: op.entityId,
       data: op.data,
       operationId: op.id,
+      clientMutationId: op.clientMutationId,
     }));
 
     // Send batch to server

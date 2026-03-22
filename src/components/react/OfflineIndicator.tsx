@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
 import { getSyncState, syncNow } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
@@ -22,6 +22,9 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   const [isMobile, setIsMobile] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
+  const [showSyncSuccess, setShowSyncSuccess] = useState(false);
+  const [failedCount, setFailedCount] = useState(0);
+  const prevPendingRef = useRef(0);
 
   // Check viewport (same logic as ToastProvider)
   const checkViewport = useCallback(() => {
@@ -38,14 +41,9 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   }, [checkViewport]);
 
   // Unconditional useEffect for online/offline detection
-  // This MUST run regardless of userId to detect offline state
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOffline(false);
-    };
-    const handleOffline = () => {
-      setIsOffline(true);
-    };
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -54,25 +52,18 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
-  }, []); // No dependencies - always runs
+  }, []);
 
   // Separate useEffect for sync status checking (requires userId)
   useEffect(() => {
-    if (!userId) {
-      return;
-    }
+    if (!userId) return;
 
-    // Check pending sync count and sync state
     const checkSyncStatus = async () => {
-      if (!userId) {
-        return;
-      }
-      
+      if (!userId) return;
+
       try {
-        // Ensure database is open before operations
         await ensureDatabaseOpen();
-        
-        // Get pending sync queue count with retry logic
+
         const pendingCount = await retryIndexedDBOperation(async () => {
           return await offlineDB.syncQueue
             .where('userId')
@@ -80,17 +71,31 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
             .filter(op => op.retryCount < 5)
             .count();
         });
+
+        // Detect sync completion: pending went from >0 to 0 while online
+        if (prevPendingRef.current > 0 && pendingCount === 0 && !isOffline) {
+          setShowSyncSuccess(true);
+          setTimeout(() => setShowSyncSuccess(false), 3000);
+        }
+        prevPendingRef.current = pendingCount;
         setPendingSyncCount(pendingCount);
 
-        // Get sync state (already has error handling and database check)
+        // Count permanently failed items
+        const failed = await retryIndexedDBOperation(async () => {
+          return await offlineDB.syncQueue
+            .where('userId')
+            .equals(userId)
+            .filter(op => op.retryCount >= 5)
+            .count();
+        });
+        setFailedCount(failed);
+
         const syncState = await getSyncState(userId);
         if (syncState) {
           setIsSyncing(syncState.isSyncing || false);
           setSyncError(syncState.syncError);
         }
       } catch (error) {
-        // Silently handle database errors - don't spam console when database is closed
-        // Only log if it's not a DatabaseClosedError
         const errorName = (error as any)?.name;
         if (errorName !== 'DatabaseClosedError' && !(error as any)?.message?.includes('closed')) {
           console.error('[OfflineIndicator] Error checking sync status:', error);
@@ -98,13 +103,9 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       }
     };
 
-    // Initial check
     checkSyncStatus();
-
-    // Check periodically
     const interval = setInterval(checkSyncStatus, 5000);
 
-    // Also check when coming back online
     const handleOnlineWithCheck = () => {
       setIsOffline(false);
       checkSyncStatus();
@@ -115,18 +116,17 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
       window.removeEventListener('online', handleOnlineWithCheck);
       clearInterval(interval);
     };
-  }, [userId]);
+  }, [userId, isOffline]);
 
   // Retry sync handler
   const handleRetrySync = useCallback(async () => {
     if (!userId || isRetrying || !navigator.onLine) return;
-    
+
     setIsRetrying(true);
     try {
       const result = await syncNow(userId);
       if (result.success) {
         setSyncError(null);
-        // Refresh the pending count - ensure database is open first
         await ensureDatabaseOpen();
         const pendingCount = await retryIndexedDBOperation(async () => {
           return await offlineDB.syncQueue
@@ -136,6 +136,14 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
             .count();
         });
         setPendingSyncCount(pendingCount);
+        const failed = await retryIndexedDBOperation(async () => {
+          return await offlineDB.syncQueue
+            .where('userId')
+            .equals(userId)
+            .filter(op => op.retryCount >= 5)
+            .count();
+        });
+        setFailedCount(failed);
       }
     } catch (error) {
       console.error('[OfflineIndicator] Retry sync failed:', error);
@@ -144,18 +152,24 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     }
   }, [userId, isRetrying]);
 
-  // Only show when offline OR there's a sync error
-  // When online, syncing happens silently in the background
-  if (!isOffline && !syncError) {
-    return null;
+  // Determine if we should show the indicator
+  const shouldShow = isOffline || syncError || showSyncSuccess || failedCount > 0;
+  if (!shouldShow) return null;
+
+  // Determine background color based on state
+  let background: string;
+  if (syncError || failedCount > 0) {
+    background = 'linear-gradient(168.707deg, rgba(239, 68, 68, 1.0) 11.711%, rgb(220, 38, 38) 71.325%)';
+  } else if (showSyncSuccess) {
+    background = 'linear-gradient(168.707deg, rgba(34, 197, 94, 1.0) 11.711%, rgb(22, 163, 74) 71.325%)';
+  } else {
+    background = 'linear-gradient(168.707deg, rgba(245, 158, 11, 1.0) 11.711%, rgb(217, 119, 6) 71.325%)';
   }
 
   // Base styles matching ToastProvider
   const baseStyle: React.CSSProperties = {
     backgroundColor: 'rgb(255, 255, 255)',
-    background: syncError 
-      ? 'linear-gradient(168.707deg, rgba(239, 68, 68, 1.0) 11.711%, rgb(220, 38, 38) 71.325%)'
-      : 'linear-gradient(168.707deg, rgba(245, 158, 11, 1.0) 11.711%, rgb(217, 119, 6) 71.325%)',
+    background,
     color: 'white',
     fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
     fontSize: '16px',
@@ -196,7 +210,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         // Desktop: Left side, above nav column (matches toast positioning)
         ...baseStyle,
         left: '24px',
-        bottom: '100px', // 64px nav-column-bottom height + 12px spacing + 24px layout padding
+        bottom: '100px',
         width: '310px',
         minWidth: '310px',
         maxWidth: '310px',
@@ -214,81 +228,86 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     if (error.toLowerCase().includes('timeout')) {
       return 'Request timed out';
     }
-    // Truncate long error messages
     return error.length > 30 ? error.substring(0, 30) + '...' : error;
   };
 
+  const retryButton = navigator.onLine && (
+    <button
+      onClick={handleRetrySync}
+      disabled={isRetrying}
+      style={{
+        background: 'rgba(255, 255, 255, 0.2)',
+        border: 'none',
+        borderRadius: '6px',
+        color: 'white',
+        padding: '6px 12px',
+        fontSize: '14px',
+        fontWeight: 500,
+        cursor: isRetrying ? 'not-allowed' : 'pointer',
+        opacity: isRetrying ? 0.7 : 1,
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        flexShrink: 0
+      }}
+    >
+      {isRetrying ? (
+        <>
+          <span style={{ animation: 'spin 1s linear infinite', display: 'inline-flex' }}>
+            <Icon name="spinner" size={14} />
+          </span>
+          Syncing...
+        </>
+      ) : (
+        <>
+          <Icon name="arrows-rotate" size={14} />
+          Retry
+        </>
+      )}
+    </button>
+  );
+
   return (
     <div className="offline-indicator" style={indicatorStyle}>
-      {syncError ? (
+      {showSyncSuccess ? (
+        <>
+          <Icon name="check" size={16} />
+          <span>All items synced</span>
+        </>
+      ) : syncError ? (
         <>
           <Icon name="circle-exclamation" size={16} />
           <span style={{ flex: 1 }}>
             Sync failed: {getFriendlyErrorMessage(syncError)}
             {pendingSyncCount > 0 && (
               <span style={{ fontWeight: 400, opacity: 0.9 }}>
-                {' '}· {pendingSyncCount} pending
+                {' '}&middot; {pendingSyncCount} pending
               </span>
             )}
           </span>
-          {navigator.onLine && (
-            <button
-              onClick={handleRetrySync}
-              disabled={isRetrying}
-              style={{
-                background: 'rgba(255, 255, 255, 0.2)',
-                border: 'none',
-                borderRadius: '6px',
-                color: 'white',
-                padding: '6px 12px',
-                fontSize: '14px',
-                fontWeight: 500,
-                cursor: isRetrying ? 'not-allowed' : 'pointer',
-                opacity: isRetrying ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                flexShrink: 0
-              }}
-            >
-              {isRetrying ? (
-                <>
-                  <span style={{ animation: 'spin 1s linear infinite', display: 'inline-flex' }}>
-                    <Icon name="spinner" size={14} />
-                  </span>
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <Icon name="arrows-rotate" size={14} />
-                  Retry
-                </>
-              )}
-            </button>
-          )}
+          {retryButton}
+        </>
+      ) : failedCount > 0 ? (
+        <>
+          <Icon name="circle-exclamation" size={16} />
+          <span style={{ flex: 1 }}>
+            {failedCount} {failedCount === 1 ? 'item' : 'items'} failed to sync
+          </span>
+          {retryButton}
         </>
       ) : isOffline ? (
         <>
           <Icon name="wifi" size={16} />
           <span>
-            You're currently offline
-            {pendingSyncCount > 0 && (
+            You're offline
+            {pendingSyncCount > 0 ? (
               <>
-                {' '}·{' '}
-                <span 
-                  className="badge-count" 
-                  style={{ 
-                    display: 'inline-flex', 
-                    verticalAlign: 'middle', 
-                    marginLeft: '4px',
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    width: '24px',
-                    height: '24px'
-                  }}
-                >
-                  <span className="badge-number" style={{ color: 'white' }}>{formatBadgeCount(pendingSyncCount)}</span>
-                </span>
+                {' '}&middot; {formatBadgeCount(pendingSyncCount)} pending
               </>
+            ) : (
+              <span style={{ fontWeight: 400, opacity: 0.9 }}>
+                {' '}&mdash; new notes will sync when you reconnect
+              </span>
             )}
           </span>
         </>
@@ -296,5 +315,3 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     </div>
   );
 }
-
-

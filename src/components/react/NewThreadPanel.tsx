@@ -248,9 +248,6 @@ export default function NewThreadPanel({
     
     setIsSubmitting(true);
 
-    // Declare offline variable before try so it's accessible in the catch block
-    let offlineThreadId: string | null = null;
-
     try {
       const formData = new FormData();
       formData.append('title', title.trim());
@@ -310,47 +307,32 @@ export default function NewThreadPanel({
           formData.append('selectedNoteIds', JSON.stringify(selectedNoteIds));
         }
         
-        // OFFLINE-AWARE: Only create in IndexedDB if we're offline
-        // When online, server is the single source of truth to avoid duplication
+        // OFFLINE-AWARE: Mutually exclusive paths — offline saves to IndexedDB only,
+        // online goes to server only. No dual-path to avoid duplicates.
         const isOffline = !navigator.onLine;
 
-        if (isOffline && userId) {
+        if (isOffline) {
+          if (!userId) {
+            if (window.toast) {
+              window.toast.error('Sign in while online first to enable offline mode.');
+            }
+            setIsSubmitting(false);
+            return;
+          }
+
           try {
-            offlineThreadId = await createThreadOffline(userId, {
+            const offlineThreadId = await createThreadOffline(userId, {
               title: title.trim(),
               color: selectedColor,
               spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
               isPublic: selectedType === 'Shared',
             });
-            console.log('[NewThreadPanel] Thread created locally in IndexedDB (offline)', { offlineThreadId });
-          } catch (err) {
-            console.error('[NewThreadPanel] Failed to create thread offline:', err);
-            // Continue - will show error if server also fails
-          }
-        }
 
-        let response: Response | null = null;
-        let networkError = false;
-
-        try {
-          response = await fetch('/api/threads/create', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-          });
-        } catch (error) {
-          // Network error occurred
-          networkError = isNetworkError(error);
-          
-          if (networkError && offlineThreadId) {
-            // Offline save succeeded - treat as success
-            console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
-            // Show toast here - we stay on page (replaceState only), so toast-handler won't run
             if (window.toast) {
               window.toast.success('Thread saved offline. It will sync when you\'re back online.');
             }
-            // Dispatch threadCreated event with offline thread data
-            const offlineThreadEvent = new CustomEvent('threadCreated', {
+
+            window.dispatchEvent(new CustomEvent('threadCreated', {
               detail: {
                 thread: {
                   id: offlineThreadId,
@@ -363,35 +345,82 @@ export default function NewThreadPanel({
                 spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
                 isOffline: true
               }
-            });
-            window.dispatchEvent(offlineThreadEvent);
-            
-            // Clear form data using context
+            }));
+
             context.resetForm();
             context.clearLocalStorage();
-            
-            // Close panel - only dispatch event if not using back button
+
             if (!useBackButton) {
               window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
             }
             if (onClose) {
               onClose();
             }
-            
-            // Stay on current page when offline - thread will appear in list from IndexedDB
-            const currentUrl = safeURL(window.location.href);
-            if (currentUrl) {
-              currentUrl.searchParams.set('toast', 'success');
-              currentUrl.searchParams.set('message', encodeURIComponent('Thread saved offline. It will sync when you\'re back online.'));
-              window.history.replaceState({}, '', currentUrl.toString());
-            }
-            
+
             setIsSubmitting(false);
             return;
-          } else {
-            // Network error but offline save also failed - rethrow
-            throw error;
+          } catch (err) {
+            console.error('[NewThreadPanel] Failed to create thread offline:', err);
+            if (window.toast) {
+              window.toast.error('Failed to save thread offline.');
+            }
+            setIsSubmitting(false);
+            return;
           }
+        }
+
+        // ONLINE PATH: Server is the single source of truth
+        let response: Response | null = null;
+
+        try {
+          response = await fetch('/api/threads/create', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+        } catch (error) {
+          // Network error — try offline fallback
+          if (isNetworkError(error) && userId) {
+            try {
+              const offlineThreadId = await createThreadOffline(userId, {
+                title: title.trim(),
+                color: selectedColor,
+                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : undefined,
+                isPublic: selectedType === 'Shared',
+              });
+
+              if (window.toast) {
+                window.toast.success('Thread saved offline. It will sync when you\'re back online.');
+              }
+
+              window.dispatchEvent(new CustomEvent('threadCreated', {
+                detail: {
+                  thread: {
+                    id: offlineThreadId,
+                    title: title.trim(),
+                    color: selectedColor,
+                    spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                    noteCount: 0,
+                  },
+                  threadId: offlineThreadId,
+                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
+                  isOffline: true
+                }
+              }));
+
+              context.resetForm();
+              context.clearLocalStorage();
+              if (!useBackButton) {
+                window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+              }
+              if (onClose) onClose();
+              setIsSubmitting(false);
+              return;
+            } catch (offlineErr) {
+              console.error('[NewThreadPanel] Offline fallback failed:', offlineErr);
+            }
+          }
+          throw error;
         }
 
         if (response && response.ok) {
@@ -513,120 +542,33 @@ export default function NewThreadPanel({
             }
           }
         } else {
-          // Check if this is a network error
           const errorText = await response.text();
           let errorMessage = `Failed to create thread: ${response.status}`;
-          
+
           try {
             const errorJson = JSON.parse(errorText);
             errorMessage = errorJson.error || errorMessage;
           } catch (e) {
-            // If response isn't JSON, use status text
             console.error('NewThreadPanel: Could not parse error response');
           }
-          
-          // Check if offline save succeeded
-          if (offlineThreadId) {
-            // Offline save succeeded - treat as success
-            console.log('[NewThreadPanel] Server error but thread saved offline, treating as success', { offlineThreadId });
-            
-            if (window.toast) {
-              window.toast.success('Thread saved offline. It will sync when you\'re back online.');
-            }
-            
-            const offlineThreadEvent = new CustomEvent('threadCreated', {
-              detail: {
-                thread: {
-                  id: offlineThreadId,
-                  title: title.trim(),
-                  color: selectedColor,
-                  spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                  noteCount: 0,
-                },
-                threadId: offlineThreadId,
-                spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-                isOffline: true
-              }
-            });
-            window.dispatchEvent(offlineThreadEvent);
-            
-            // Clear form data using context
-            context.resetForm();
-            context.clearLocalStorage();
-            
-            // Only dispatch event if not using back button
-            if (!useBackButton) {
-              window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-            }
-            if (onClose) {
-              onClose();
-            }
-            
-            setTimeout(() => {
-              safeNavigate('/?toast=success&message=' + encodeURIComponent('Thread saved offline'), { history: 'replace' });
-            }, 100);
-            
-            setIsSubmitting(false);
-            return;
-          }
-          
+
           throw new Error(errorMessage);
         }
       }
     } catch (error: any) {
-      // Check if this is a network error and we have an offline thread
-      if (isNetworkError(error) && offlineThreadId) {
-        // Network error but offline save succeeded - treat as success
-        console.log('[NewThreadPanel] Network error but thread saved offline, treating as success', { offlineThreadId });
-        // Don't show toast here - we redirect with ?toast= so toast-handler shows once
-        const offlineThreadEvent = new CustomEvent('threadCreated', {
-          detail: {
-            thread: {
-              id: offlineThreadId,
-              title: title.trim(),
-              color: selectedColor,
-              spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-              noteCount: 0,
-            },
-            threadId: offlineThreadId,
-            spaceId: addToSpace && currentSpace?.id ? currentSpace.id : null,
-            isOffline: true
-          }
+      if (typeof window !== 'undefined' && window.posthog) {
+        captureException(error, {
+          context: 'thread_creation',
+          endpoint: '/api/threads/create',
         });
-        window.dispatchEvent(offlineThreadEvent);
-        
-        // Clear form data using context
-        context.resetForm();
-        context.clearLocalStorage();
-        
-        // Only dispatch event if not using back button
-        if (!useBackButton) {
-          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-        }
-        if (onClose) {
-          onClose();
-        }
-        
-        setTimeout(() => {
-          safeNavigate('/?toast=success&message=' + encodeURIComponent('Thread saved offline'), { history: 'replace' });
-        }, 100);
+      }
+
+      console.error('NewThreadPanel: Error:', error);
+      const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
+      if (window.toast) {
+        window.toast.error(errorMessage);
       } else {
-        // Real error - log and show error toast
-        if (typeof window !== 'undefined' && window.posthog) {
-          captureException(error, {
-            context: 'thread_creation',
-            endpoint: '/api/threads/create',
-          });
-        }
-        
-        console.error('NewThreadPanel: Error:', error);
-        const errorMessage = error instanceof Error ? error.message : `Failed to ${isEditMode ? 'update' : 'create'} thread. Please try again.`;
-        console.error('NewThreadPanel: Error message:', errorMessage);
-        if (window.toast) {
-          window.toast.error(errorMessage);
-        } else {
-          alert(errorMessage);
-        }
+        alert(errorMessage);
       }
     } finally {
       // Use setTimeout to ensure state update happens after any pending operations

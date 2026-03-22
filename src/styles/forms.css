@@ -518,32 +518,37 @@
 
 /* Ensure all Clerk form card children respect container width */
 .clerk-form-card *,
-:global(.cl-formCard *),
-:global(.cl-card *) {
+.cl-formCard *,
+.cl-card * {
   box-sizing: border-box !important;
   max-width: 100% !important;
 }
 
 /* Universal rule: prevent any horizontal overflow in Clerk forms */
-.clerk-form-card *,
-:global(.cl-formCard *),
-:global(.cl-card *),
-:global([class*="cl-"]),
-:global([class*="cl-"] *) {
+.clerk-form-card,
+.cl-formCard,
+.cl-card {
   overflow-x: hidden !important;
+}
+
+.clerk-form-card *,
+.cl-formCard *,
+.cl-card *,
+[class*="cl-"],
+[class*="cl-"] * {
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
 }
 
 /* Target any element with role="alert" or alert-like attributes */
-:global([role="alert"]),
-:global([role="alert"] *),
-:global([data-clerk-element*="alert"]),
-:global([data-clerk-element*="alert"] *),
-:global([data-clerk-element*="warning"]),
-:global([data-clerk-element*="warning"] *),
-:global([data-clerk-element*="verification"]),
-:global([data-clerk-element*="verification"] *) {
+[role="alert"],
+[role="alert"] *,
+[data-clerk-element*="alert"],
+[data-clerk-element*="alert"] *,
+[data-clerk-element*="warning"],
+[data-clerk-element*="warning"] *,
+[data-clerk-element*="verification"],
+[data-clerk-element*="verification"] * {
   max-width: 100% !important;
   width: 100% !important;
   box-sizing: border-box !important;
@@ -779,20 +784,20 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 /* Ensure all Clerk form text wraps properly, especially verification messages */
-:global(.cl-formCard),
-:global(.cl-card),
-:global([class*="cl-verification"]),
-:global([class*="cl-verification"] *),
-:global([class*="cl-alert"]),
-:global([class*="cl-alert"] *),
-:global([class*="cl-formFieldDescription"]),
-:global([class*="cl-formFieldDescription"] *),
-:global([class*="cl-formFieldInfoText"]),
-:global([class*="cl-formFieldInfoText"] *),
-:global([class*="cl-formFieldWarningText"]),
-:global([class*="cl-formFieldWarningText"] *),
-:global([class*="cl-formFieldSuccessText"]),
-:global([class*="cl-formFieldSuccessText"] *) {
+.cl-formCard,
+.cl-card,
+[class*="cl-verification"],
+[class*="cl-verification"] *,
+[class*="cl-alert"],
+[class*="cl-alert"] *,
+[class*="cl-formFieldDescription"],
+[class*="cl-formFieldDescription"] *,
+[class*="cl-formFieldInfoText"],
+[class*="cl-formFieldInfoText"] *,
+[class*="cl-formFieldWarningText"],
+[class*="cl-formFieldWarningText"] *,
+[class*="cl-formFieldSuccessText"],
+[class*="cl-formFieldSuccessText"] * {
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
   max-width: 100% !important;
@@ -800,14 +805,14 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 /* Comprehensive Clerk alert/verification container constraints */
-:global([class*="cl-alert"]),
-:global([class*="cl-banner"]),
-:global([class*="cl-toast"]),
-:global([class*="cl-verification"]),
-:global([class*="cl-formFieldAlert"]),
-:global([class*="cl-formFieldWarning"]),
-:global([class*="cl-formFieldInfo"]),
-:global([class*="cl-formFieldSuccess"]) {
+[class*="cl-alert"],
+[class*="cl-banner"],
+[class*="cl-toast"],
+[class*="cl-verification"],
+[class*="cl-formFieldAlert"],
+[class*="cl-formFieldWarning"],
+[class*="cl-formFieldInfo"],
+[class*="cl-formFieldSuccess"] {
   box-sizing: border-box !important;
   max-width: 100% !important;
   width: 100% !important;
@@ -818,14 +823,14 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 /* Target all nested elements within alert containers */
-:global([class*="cl-alert"] *),
-:global([class*="cl-banner"] *),
-:global([class*="cl-toast"] *),
-:global([class*="cl-verification"] *),
-:global([class*="cl-formFieldAlert"] *),
-:global([class*="cl-formFieldWarning"] *),
-:global([class*="cl-formFieldInfo"] *),
-:global([class*="cl-formFieldSuccess"] *) {
+[class*="cl-alert"] *,
+[class*="cl-banner"] *,
+[class*="cl-toast"] *,
+[class*="cl-verification"] *,
+[class*="cl-formFieldAlert"] *,
+[class*="cl-formFieldWarning"] *,
+[class*="cl-formFieldInfo"] *,
+[class*="cl-formFieldSuccess"] * {
   box-sizing: border-box !important;
   max-width: 100% !important;
   overflow-wrap: break-word !important;
@@ -834,10 +839,10 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
 }
 
 /* Specific targeting for orange verification text and containers */
-:global([class*="verification"]),
-:global([class*="verification"] *),
-:global([style*="orange"]),
-:global([style*="orange"] *) {
+[class*="verification"],
+[class*="verification"] *,
+[style*="orange"],
+[style*="orange"] * {
   box-sizing: border-box !important;
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
