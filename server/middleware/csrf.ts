@@ -81,7 +81,14 @@ export async function csrfProtection(c: Context, next: Next) {
   // If Origin header is present, validate it
   if (origin) {
     const allowed = getAllowedOrigins();
-    if (!allowed.has(origin)) {
+
+    // Also accept same-origin requests: compare Origin against the request's own host.
+    // This handles Netlify deploy previews and any domain not in the static list.
+    const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
+    const proto = c.req.header('X-Forwarded-Proto') || 'https';
+    const selfOrigin = host ? `${proto}://${host}` : null;
+
+    if (!allowed.has(origin) && origin !== selfOrigin) {
       return c.json(
         { error: 'Forbidden: invalid origin', code: 'CSRF_REJECTED' },
         403
@@ -95,7 +102,11 @@ export async function csrfProtection(c: Context, next: Next) {
     try {
       const refererOrigin = new URL(referer).origin;
       const allowed = getAllowedOrigins();
-      if (!allowed.has(refererOrigin)) {
+      const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
+      const proto = c.req.header('X-Forwarded-Proto') || 'https';
+      const selfOrigin = host ? `${proto}://${host}` : null;
+
+      if (!allowed.has(refererOrigin) && refererOrigin !== selfOrigin) {
         return c.json(
           { error: 'Forbidden: invalid referer', code: 'CSRF_REJECTED' },
           403
