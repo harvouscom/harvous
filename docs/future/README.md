@@ -11,10 +11,14 @@ This folder contains documentation for features planned for post-V1 release. Som
 
 These were designed here and are now live. The stub files in this folder point to the canonical docs.
 
-- **Referral Bonus** – [REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md) → [../REFERRAL_BONUS_IMPLEMENTATION.md](../REFERRAL_BONUS_IMPLEMENTATION.md)  
+- **Referral Bonus** – [REFERRAL_BONUS_IMPLEMENTATION.md](./REFERRAL_BONUS_IMPLEMENTATION.md) → [../REFERRAL_BONUS_IMPLEMENTATION.md](../REFERRAL_BONUS_IMPLEMENTATION.md)
   User-facing summary: [../FEATURES.md#💳 Billing & Referrals](../FEATURES.md#-billing--referrals--implemented)
-- **Locked Notes & Encryption** – [LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md) → [../LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md)  
+- **Locked Notes & Encryption** – [LOCKED_NOTES_ENCRYPTION.md](./LOCKED_NOTES_ENCRYPTION.md) → [../LOCKED_NOTES_ENCRYPTION.md](../LOCKED_NOTES_ENCRYPTION.md)
   Encryption: AES-GCM 256-bit, PBKDF2-SHA256 310k iterations (see main doc for full transparency). User-facing summary: [../FEATURES.md#🔒 Locked Notes & Encryption](../FEATURES.md#-locked-notes--encryption--implemented)
+- **Sharing System** – Public share links and collaborative shared spaces are fully implemented.
+  See [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md) for shared spaces details and [../SHARED_SPACES_DEV_NOTES.md](../SHARED_SPACES_DEV_NOTES.md) for current design/behavior.
+- **Offline Mode** – Full offline read/write support with IndexedDB, sync queues, and conflict resolution is implemented.
+  See [OFFLINE_MODE_IMPLEMENTATION.md](./OFFLINE_MODE_IMPLEMENTATION.md) for architecture reference.
 
 ## 📁 Documentation Structure (planned / not yet implemented)
 
@@ -76,28 +80,21 @@ These were designed here and are now live. The stub files in this folder point t
   - Product flows, schema, auth/backend, invites/join, edge cases, UI/UX, migration
   - Summary table and pointers to CHURCH_CONNECTION_SYSTEM, CHURCH_ORG_AND_CURRICULUM
 
-### Sharing & Collaboration
+### Sharing & Collaboration (✅ Implemented)
 
-- **`SHARING_SYSTEM_DESIGN.md`** - Complete sharing system design
-  ~~- Type 1: Public share links (anyone can visit)~~
-  - Type 2: Collaborative shared threads (real-time)
-  - Database schemas for both types
-  - API endpoints needed
+- **`SHARING_SYSTEM_DESIGN.md`** - Original sharing system design (implemented)
+- **`SHARING_AND_GROUPS_INFRASTRUCTURE.md`** - Infrastructure analysis (implemented)
+- **`SHARING_QUICK_REFERENCE.md`** - Quick comparison of sharing approaches (implemented)
+- **`COLLABORATIVE_SHARED_SPACES.md`** - Collaborative shared spaces (implemented, v1 complete Feb 2026)
 
-- **`SHARING_AND_GROUPS_INFRASTRUCTURE.md`** - Infrastructure analysis
-  - What exists vs. what's missing
-  - Database schema additions needed
-  - Implementation phases
+### Real-Time Collaboration (Planned)
 
-- **`SHARING_QUICK_REFERENCE.md`** - Quick comparison
-  - Share links vs. shared threads
-  - Use cases for each
-  - Implementation status
-
-- **`REALTIME_LIVEBLOCKS_PLAN.md`** - Real-time sync and collaborative editing with Liveblocks
-  - Cross-device instant sync, shared space presence, Google Docs-style note editing
-  - Clerk auth; Tiptap integration via Liveblocks ready-made multiplayer
-  - Phases 1–3 implementation plan and files to create
+- **`REALTIME_SUPABASE_PLAN.md`** - Real-time collaboration with Supabase Realtime + Tiptap
+  - Phase 1: Cross-device instant sync via Supabase Broadcast (invalidation signals)
+  - Phase 2: Live shared spaces with Supabase Presence ("who's online")
+  - Phase 3: Collaborative note editing via Hocuspocus + Yjs + Supabase Postgres persistence
+  - Incremental rollout — each phase is independently valuable
+- **`REALTIME_LIVEBLOCKS_PLAN.md`** - Original Liveblocks plan (archived for reference)
 
 ### User Experience
 
@@ -120,29 +117,21 @@ These were designed here and are now live. The stub files in this folder point t
   - Bible reader / “collected verses” view: see which verses you’ve saved across the Bible (book/chapter/verse, highlight saved)
   - Data and implementation notes for each
 
-- **`OFFLINE_MODE_IMPLEMENTATION.md`** - Complete offline mode architecture
-  - Full offline read/write support with IndexedDB
-  - Data synchronization strategies
-  - Conflict resolution approaches
-  - Dexie.js implementation guide
-  - UI/UX considerations (offline indicators, sync status, conflict resolution)
-  - 4-week implementation plan
-  - Storage limits and data pruning strategies
-  - Note: Enhanced caching (24-hour TTL + pre-caching) is already implemented in V1
+- **`OFFLINE_MODE_IMPLEMENTATION.md`** - Offline mode architecture reference (✅ implemented)
+  - Full offline read/write support with IndexedDB, sync queues, and conflict resolution
 
 ## 🎯 Implementation Priority
 
-### Phase 1: Public Share Links (High Priority)
-- Viral growth potential
-- Relatively simple to implement
-- Enables word-of-mouth sharing
+### ✅ Completed
+- **Sharing System** — Public share links and collaborative shared spaces (implemented)
+- **Offline Mode** — Full offline read/write with IndexedDB, sync queues, and conflict resolution (implemented)
 
-### Phase 2: Church Connection (High Value)
+### Phase 1: Church Connection (High Value)
 - B2B revenue opportunity
 - Automatic user discovery
 - Content distribution system
 
-### Phase 3: Native Mobile Apps (Market Expansion)
+### Phase 2: Native Mobile Apps (Market Expansion)
 - iOS and Android native apps via Capacitor
 - Requires static build and JWT-based API auth (no AuthGuard)
 - 4-6 weeks for MVP (hybrid API approach)
@@ -151,17 +140,10 @@ These were designed here and are now live. The stub files in this folder point t
 - See `CAPACITOR_STRATEGIC_ANALYSIS.md` for strategy and prerequisites
 - See `../CAPACITOR_IMPLEMENTATION_GUIDE.md` for implementation steps
 
-### Phase 4: Collaborative Shared Threads (Better Collaboration)
-- Real-time group study
-- Enhanced shared spaces
-- Better collaboration features
-
-### Phase 5: Full Offline Mode (User Experience)
-- Offline read/write support
-- Data synchronization
-- Conflict resolution
-- Enhanced user experience for mobile users
-- Can be combined with native mobile apps (Phase 3 + Phase 5)
+### Phase 3: Real-Time Collaboration (Enhanced Experience)
+- Real-time group study via Supabase Realtime + Tiptap
+- Cross-device instant sync
+- Google Docs-style collaborative note editing
 
 ## 🗄️ Database Schema
 
@@ -172,10 +154,6 @@ These were designed here and are now live. The stub files in this folder point t
 ### Add Later (When Implementing Features)
 - `Churches` - Church organizations
 - `ChurchConnectionRequests` - Pending connections
-- `SharedContent` - Share links
-- `UserSharedContent` - Who added shared content
-- `ThreadMembers` - Shared thread members
-- `ThreadInvitations` - Thread invitations
 
 See `CLERK_MONETIZATION_ARCHITECTURE.md` for complete database schemas.
 

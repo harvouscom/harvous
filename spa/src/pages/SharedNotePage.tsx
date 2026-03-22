@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { api } from '../lib/api';
+import { APIError } from '../lib/api';
+import { useAddSharedNote } from '../hooks/mutations/useAddSharedNote';
 
 interface SharedNoteResponse {
   note: {
@@ -31,9 +33,16 @@ interface SharedNoteResponse {
 export default function SharedNotePage() {
   const { shareToken } = useParams({ from: '/shared/note/$shareToken' });
   const { isSignedIn } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState<SharedNoteResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const addSharedNoteMutation = useAddSharedNote();
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [alreadyOwned, setAlreadyOwned] = useState(false);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.get<SharedNoteResponse>(`/api/shared/note/${shareToken}`)
@@ -47,6 +56,70 @@ export default function SharedNotePage() {
       document.title = `${data.note.title || 'Shared Note'} | Shared Note`;
     }
   }, [data]);
+
+  // Check for pending action after sign-in redirect
+  useEffect(() => {
+    if (!isSignedIn || !data) return;
+    try {
+      const pendingStr = sessionStorage.getItem('pendingSharedNoteAdd');
+      if (pendingStr) {
+        const pending = JSON.parse(pendingStr);
+        if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
+          sessionStorage.removeItem('pendingSharedNoteAdd');
+          doAdd();
+        } else {
+          sessionStorage.removeItem('pendingSharedNoteAdd');
+        }
+      }
+    } catch { /* ignore */ }
+  }, [isSignedIn, data]);
+
+  function showToast(message: string, type: 'success' | 'error' | 'info', duration = 3000) {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    if (duration > 0) {
+      toastTimerRef.current = setTimeout(() => setToastVisible(false), duration);
+    }
+  }
+
+  async function doAdd() {
+    try {
+      const result = await addSharedNoteMutation.mutateAsync(shareToken);
+      if (result.success && result.createdIds?.noteId) {
+        showToast('Added to your Harvous!', 'success', 0);
+        const id = result.createdIds.noteId;
+        const path = id.startsWith('note_') ? `/note/${id.slice(5)}` : `/${id}`;
+        setTimeout(() => {
+          navigate({ to: path as any });
+        }, 800);
+      }
+    } catch (err) {
+      if (err instanceof APIError && err.message === 'Already in your Harvous') {
+        setAlreadyOwned(true);
+        showToast('This note is already in your Harvous', 'info', 0);
+      } else {
+        showToast('Failed to add note. Please try again.', 'error');
+      }
+    }
+  }
+
+  const handleAddToHarvous = async () => {
+    if (!isSignedIn) {
+      try {
+        sessionStorage.setItem('pendingSharedNoteAdd', JSON.stringify({
+          shareToken,
+          timestamp: Date.now(),
+        }));
+        sessionStorage.setItem('harvous_pending_redirect', window.location.href);
+      } catch { /* ignore */ }
+      const redirectUrl = encodeURIComponent(window.location.href);
+      navigate({ to: `/sign-in?redirect_url=${redirectUrl}` as any });
+      return;
+    }
+    await doAdd();
+  };
 
   const HarvousLogo = () => (
     <svg width="28" height="40" viewBox="0 0 45 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Harvous">
@@ -118,10 +191,40 @@ export default function SharedNotePage() {
                     resourceImage={resourceMetadata?.sourceImage}
                     resourceUrl={resourceMetadata?.sourceUrl}
                     isEditable={false}
-                    shareToken={shareToken}
                     isAuthenticated={!!isSignedIn}
                     contentEncrypted={false}
                     className="h-full flex-1 min-h-0"
+                    footer={
+                      <div className="shared-page__cta-wrapper">
+                        <div className={`shared-page__toast shared-page__toast--${toastType}${toastVisible ? ' shared-page__toast--visible' : ''}`}>
+                          <span>{toastMessage}</span>
+                        </div>
+                        {alreadyOwned ? (
+                          <button
+                            className="btn btn--lg btn--primary shared-page__cta-button"
+                            onClick={() => navigate({ to: '/' as any })}
+                          >
+                            <div className="btn__content">
+                              <span className="shared-page__cta-text">View in my Harvous</span>
+                            </div>
+                            <div className="btn__shadow-overlay" />
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn--lg btn--primary shared-page__cta-button"
+                            onClick={handleAddToHarvous}
+                            disabled={addSharedNoteMutation.isPending}
+                          >
+                            <div className="btn__content">
+                              <span className="shared-page__cta-text">
+                                {addSharedNoteMutation.isPending ? 'Adding...' : 'Add to my Harvous'}
+                              </span>
+                            </div>
+                            <div className="btn__shadow-overlay" />
+                          </button>
+                        )}
+                      </div>
+                    }
                   />
                 </div>
 

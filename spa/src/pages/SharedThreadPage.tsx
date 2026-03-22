@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
 import CardNote from '../../../src/components/react/CardNote';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import CardStack from '../components/CardStack';
-import { api } from '../lib/api';
+import { api, APIError } from '../lib/api';
 import { useAddSharedThread } from '../hooks/mutations/useAddSharedThread';
 
 interface SharedThreadNote {
@@ -39,8 +39,9 @@ export default function SharedThreadPage() {
   const [error, setError] = useState<string | null>(null);
   const addSharedThreadMutation = useAddSharedThread();
   const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [toastType, setToastType] = useState<'success' | 'error' | 'info'>('success');
   const [toastVisible, setToastVisible] = useState(false);
+  const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -73,7 +74,7 @@ export default function SharedThreadPage() {
     } catch { /* ignore */ }
   }, [isSignedIn, data]);
 
-  function showToast(message: string, type: 'success' | 'error', duration = 2000) {
+  function showToast(message: string, type: 'success' | 'error' | 'info', duration = 3000) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(message);
     setToastType(type);

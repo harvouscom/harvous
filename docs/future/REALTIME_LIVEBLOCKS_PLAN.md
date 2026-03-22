@@ -1,8 +1,14 @@
-# Real-Time with Liveblocks — Implementation Plan
+# Real-Time Collaboration — Implementation Plan
 
-## Recommendation Summary
+> **⚠️ UPDATE (March 2026):** Harvous has migrated from Turso to Supabase. The real-time approach should now use **Supabase Realtime** instead of Liveblocks. Supabase Realtime provides presence, broadcast, and Postgres changes out of the box — no additional vendor needed. Tiptap collaboration can be built on top of Supabase Realtime channels. The phased approach below (cross-device sync → live shared spaces → collaborative editing) still applies, but the implementation details need revision for Supabase.
 
-**Liveblocks** is the recommended path to real-time for Harvous. Here's why it fits:
+---
+
+## Original Plan (Liveblocks — for reference)
+
+### Recommendation Summary
+
+**Liveblocks** was the originally recommended path to real-time for Harvous. Here's why it was considered:
 
 | | Liveblocks | Partykit | Self-hosted WebSocket |
 |---|---|---|---|
