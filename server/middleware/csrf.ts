@@ -83,8 +83,9 @@ export async function csrfProtection(c: Context, next: Next) {
     const allowed = getAllowedOrigins();
 
     // Also accept same-origin requests: compare Origin against the request's own host.
-    // This handles Netlify deploy previews and any domain not in the static list.
-    const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
+    // Prefer X-Forwarded-Host over Host — on Netlify Functions the Host header is
+    // often the internal function host, not the public domain.
+    const host = c.req.header('X-Forwarded-Host') || c.req.header('Host');
     const proto = c.req.header('X-Forwarded-Proto') || 'https';
     const selfOrigin = host ? `${proto}://${host}` : null;
 
@@ -103,7 +104,7 @@ export async function csrfProtection(c: Context, next: Next) {
     try {
       const refererOrigin = new URL(referer).origin;
       const allowed = getAllowedOrigins();
-      const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
+      const host = c.req.header('X-Forwarded-Host') || c.req.header('Host');
       const proto = c.req.header('X-Forwarded-Proto') || 'https';
       const selfOrigin = host ? `${proto}://${host}` : null;
 
