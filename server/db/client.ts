@@ -10,7 +10,9 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 
 function createDb() {
-  const url = process.env.SUPABASE_DIRECT_URL ?? process.env.SUPABASE_DATABASE_URL;
+  // Prefer the pooler URL (port 6543) for runtime queries.
+  // SUPABASE_DIRECT_URL (port 5432) is for drizzle-kit migrations only.
+  const url = process.env.SUPABASE_DATABASE_URL ?? process.env.SUPABASE_DIRECT_URL;
   if (!url) throw new Error('Missing SUPABASE_DIRECT_URL or SUPABASE_DATABASE_URL environment variable');
 
   const client = postgres(url, {
