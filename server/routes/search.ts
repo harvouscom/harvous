@@ -2,13 +2,18 @@
  * GET /api/search
  *
  * Search notes and threads by text query.
+ * Uses Postgres full-text search (GIN indices) for fast, relevance-ranked results
+ * with English stemming. Falls back to ILIKE for short queries (<3 chars) where
+ * FTS stemming may lose precision.
+ *
+ * Prerequisite: Run scripts/add-fts-indices.sql to create GIN indices.
  *
  * Port of: src/pages/api/search.ts
  */
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, Notes, Threads, eq, and, or, like, desc, not } from '../db';
+import { db, Notes, Threads, eq, and, or, like, desc, not, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 
 const route = new Hono();
@@ -26,12 +31,68 @@ route.get('/api/search', requireAuth, async (c) => {
       return c.json({ results: [] });
     }
 
-    const searchTerm = `%${query.trim()}%`;
+    const trimmedQuery = query.trim();
     const searchNotes = type === 'all' || type === 'notes';
     const searchThreads = type === 'all' || type === 'threads';
 
-    const notesRows = searchNotes
-      ? await db
+    // Use full-text search for queries >= 3 chars, ILIKE for shorter ones.
+    // FTS provides stemming ("running" matches "run") and is indexed via GIN.
+    // Short queries like "Go" would get over-stemmed, so ILIKE is better there.
+    const useFTS = trimmedQuery.length >= 3;
+
+    let notesRows: {
+      id: string;
+      title: string | null;
+      content: string;
+      noteType: string;
+      threadId: string;
+      spaceId: string | null;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[] = [];
+
+    let threadsRows: {
+      id: string;
+      title: string;
+      subtitle: string | null;
+      spaceId: string | null;
+      color: string | null;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[] = [];
+
+    if (searchNotes) {
+      if (useFTS) {
+        // Postgres full-text search with ts_rank for relevance ordering
+        const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        notesRows = await db
+          .select({
+            id: Notes.id,
+            title: Notes.title,
+            content: Notes.content,
+            noteType: Notes.noteType,
+            threadId: Notes.threadId,
+            spaceId: Notes.spaceId,
+            createdAt: Notes.createdAt,
+            updatedAt: Notes.updatedAt,
+          })
+          .from(Notes)
+          .where(
+            and(
+              eq(Notes.userId, userId),
+              not(eq(Notes.contentEncrypted, true)),
+              sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content}) @@ ${tsQuery}`,
+            ),
+          )
+          .orderBy(
+            sql`ts_rank(to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content}), ${tsQuery}) DESC`,
+            desc(Notes.updatedAt),
+          )
+          .limit(limit);
+      } else {
+        // ILIKE fallback for short queries
+        const searchTerm = `%${trimmedQuery}%`;
+        notesRows = await db
           .select({
             id: Notes.id,
             title: Notes.title,
@@ -54,11 +115,38 @@ route.get('/api/search', requireAuth, async (c) => {
             ),
           )
           .orderBy(desc(Notes.updatedAt), desc(Notes.createdAt), Notes.id)
-          .limit(limit)
-      : [];
+          .limit(limit);
+      }
+    }
 
-    const threadsRows = searchThreads
-      ? await db
+    if (searchThreads) {
+      if (useFTS) {
+        const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        threadsRows = await db
+          .select({
+            id: Threads.id,
+            title: Threads.title,
+            subtitle: Threads.subtitle,
+            spaceId: Threads.spaceId,
+            color: Threads.color,
+            createdAt: Threads.createdAt,
+            updatedAt: Threads.updatedAt,
+          })
+          .from(Threads)
+          .where(
+            and(
+              eq(Threads.userId, userId),
+              sql`to_tsvector('english', ${Threads.title}) @@ ${tsQuery}`,
+            ),
+          )
+          .orderBy(
+            sql`ts_rank(to_tsvector('english', ${Threads.title}), ${tsQuery}) DESC`,
+            desc(Threads.updatedAt),
+          )
+          .limit(limit);
+      } else {
+        const searchTerm = `%${trimmedQuery}%`;
+        threadsRows = await db
           .select({
             id: Threads.id,
             title: Threads.title,
@@ -76,8 +164,9 @@ route.get('/api/search', requireAuth, async (c) => {
             ),
           )
           .orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id)
-          .limit(limit)
-      : [];
+          .limit(limit);
+      }
+    }
 
     const noteResults = notesRows.map((note) => ({
       id: note.id,
@@ -105,12 +194,14 @@ route.get('/api/search', requireAuth, async (c) => {
       updatedAt: thread.updatedAt,
     }));
 
-    let results: any[] = [...noteResults, ...threadResults];
+    let results: (typeof noteResults[number] | typeof threadResults[number])[] = [...noteResults, ...threadResults];
 
-    // Sort all results by last updated
-    results.sort(
-      (a, b) => new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime(),
-    );
+    // For FTS results, preserve relevance order; for ILIKE, sort by recency
+    if (!useFTS) {
+      results.sort(
+        (a, b) => new Date(String(b.lastUpdated)).getTime() - new Date(String(a.lastUpdated)).getTime(),
+      );
+    }
 
     // Limit total results
     results = results.slice(0, limit);
