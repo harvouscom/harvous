@@ -517,45 +517,32 @@
 }
 
 /* Ensure all Clerk form card children respect container width */
-.clerk-form-card *,
-.cl-formCard *,
-.cl-card * {
-  box-sizing: border-box !important;
-  max-width: 100% !important;
-}
-
-/* Universal rule: prevent any horizontal overflow in Clerk forms */
-.clerk-form-card,
-.cl-formCard,
-.cl-card {
+.clerk-form-card {
   overflow-x: hidden !important;
 }
 
-.clerk-form-card *,
-.cl-formCard *,
-.cl-card *,
-[class*="cl-"],
-[class*="cl-"] * {
+.clerk-form-card * {
+  box-sizing: border-box !important;
+  max-width: 100% !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
 }
 
-/* Target any element with role="alert" or alert-like attributes */
-[role="alert"],
-[role="alert"] *,
-[data-clerk-element*="alert"],
-[data-clerk-element*="alert"] *,
-[data-clerk-element*="warning"],
-[data-clerk-element*="warning"] *,
-[data-clerk-element*="verification"],
-[data-clerk-element*="verification"] * {
+/* Target alert/verification elements within Clerk forms */
+.clerk-form-root [role="alert"],
+.clerk-form-root [role="alert"] *,
+.clerk-form-root [data-clerk-element*="alert"],
+.clerk-form-root [data-clerk-element*="alert"] *,
+.clerk-form-root [data-clerk-element*="warning"],
+.clerk-form-root [data-clerk-element*="warning"] *,
+.clerk-form-root [data-clerk-element*="verification"],
+.clerk-form-root [data-clerk-element*="verification"] * {
   max-width: 100% !important;
   width: 100% !important;
   box-sizing: border-box !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
   white-space: normal !important;
-  overflow-x: hidden !important;
 }
 
 /* Clerk form alert class */
@@ -783,71 +770,42 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   padding-right: 1rem;
 }
 
-/* Ensure all Clerk form text wraps properly, especially verification messages */
-.cl-formCard,
-.cl-card,
-[class*="cl-verification"],
-[class*="cl-verification"] *,
-[class*="cl-alert"],
-[class*="cl-alert"] *,
-[class*="cl-formFieldDescription"],
-[class*="cl-formFieldDescription"] *,
-[class*="cl-formFieldInfoText"],
-[class*="cl-formFieldInfoText"] *,
-[class*="cl-formFieldWarningText"],
-[class*="cl-formFieldWarningText"] *,
-[class*="cl-formFieldSuccessText"],
-[class*="cl-formFieldSuccessText"] * {
-  word-wrap: break-word !important;
-  overflow-wrap: break-word !important;
-  max-width: 100% !important;
-  white-space: normal !important;
-}
-
-/* Comprehensive Clerk alert/verification container constraints */
-[class*="cl-alert"],
-[class*="cl-banner"],
-[class*="cl-toast"],
-[class*="cl-verification"],
-[class*="cl-formFieldAlert"],
-[class*="cl-formFieldWarning"],
-[class*="cl-formFieldInfo"],
-[class*="cl-formFieldSuccess"] {
+/* Ensure Clerk alert/verification/description text wraps properly */
+.clerk-form-root [class*="cl-alert"],
+.clerk-form-root [class*="cl-banner"],
+.clerk-form-root [class*="cl-toast"],
+.clerk-form-root [class*="cl-verification"],
+.clerk-form-root [class*="cl-formFieldAlert"],
+.clerk-form-root [class*="cl-formFieldWarning"],
+.clerk-form-root [class*="cl-formFieldInfo"],
+.clerk-form-root [class*="cl-formFieldSuccess"],
+.clerk-form-root [class*="cl-formFieldDescription"],
+.clerk-form-root [class*="cl-formFieldInfoText"],
+.clerk-form-root [class*="cl-formFieldWarningText"],
+.clerk-form-root [class*="cl-formFieldSuccessText"] {
   box-sizing: border-box !important;
   max-width: 100% !important;
   width: 100% !important;
-  overflow-x: hidden !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
   white-space: normal !important;
 }
 
-/* Target all nested elements within alert containers */
-[class*="cl-alert"] *,
-[class*="cl-banner"] *,
-[class*="cl-toast"] *,
-[class*="cl-verification"] *,
-[class*="cl-formFieldAlert"] *,
-[class*="cl-formFieldWarning"] *,
-[class*="cl-formFieldInfo"] *,
-[class*="cl-formFieldSuccess"] * {
+.clerk-form-root [class*="cl-alert"] *,
+.clerk-form-root [class*="cl-banner"] *,
+.clerk-form-root [class*="cl-toast"] *,
+.clerk-form-root [class*="cl-verification"] *,
+.clerk-form-root [class*="cl-formFieldAlert"] *,
+.clerk-form-root [class*="cl-formFieldWarning"] *,
+.clerk-form-root [class*="cl-formFieldInfo"] *,
+.clerk-form-root [class*="cl-formFieldSuccess"] *,
+.clerk-form-root [class*="cl-formFieldDescription"] *,
+.clerk-form-root [class*="cl-formFieldInfoText"] *,
+.clerk-form-root [class*="cl-formFieldWarningText"] *,
+.clerk-form-root [class*="cl-formFieldSuccessText"] * {
   box-sizing: border-box !important;
   max-width: 100% !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
   white-space: normal !important;
-}
-
-/* Specific targeting for orange verification text and containers */
-[class*="verification"],
-[class*="verification"] *,
-[style*="orange"],
-[style*="orange"] * {
-  box-sizing: border-box !important;
-  word-wrap: break-word !important;
-  overflow-wrap: break-word !important;
-  max-width: 100% !important;
-  width: 100% !important;
-  white-space: normal !important;
-  overflow-x: hidden !important;
 }
