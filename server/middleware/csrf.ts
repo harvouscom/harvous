@@ -30,6 +30,15 @@ const CSRF_EXEMPT_PREFIXES = [
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+const DEFAULT_ORIGINS = [
+  'https://app.harvous.com',
+  'https://harvous.com',
+  'http://localhost:3000',
+  'http://localhost:3001',  // Hono API dev server
+  'http://localhost:4321',  // Astro dev
+  'http://localhost:4322',  // SPA Vite dev
+];
+
 /** Build the allowed origins set once at startup */
 let allowedOrigins: Set<string> | null = null;
 
@@ -37,27 +46,43 @@ function getAllowedOrigins(): Set<string> {
   if (allowedOrigins) return allowedOrigins;
 
   const envOrigins = process.env.ALLOWED_ORIGINS;
-  if (envOrigins) {
-    allowedOrigins = new Set(
-      envOrigins.split(',').map(o => o.trim().replace(/\/$/, ''))
+  if (envOrigins && envOrigins.trim()) {
+    const parsed = new Set(
+      envOrigins.split(',').map(o => o.trim().replace(/\/$/, '')).filter(Boolean)
     );
-  } else {
-    // Defaults: production + common dev origins
-    allowedOrigins = new Set([
-      'https://app.harvous.com',
-      'https://harvous.com',
-      'http://localhost:3000',
-      'http://localhost:3001',  // Hono API dev server
-      'http://localhost:4321',  // Astro dev
-      'http://localhost:4322',  // SPA Vite dev
-    ]);
+    // If env var was all whitespace/commas, fall through to defaults
+    if (parsed.size > 0) {
+      allowedOrigins = parsed;
+      return allowedOrigins;
+    }
   }
 
+  // Defaults: production + common dev origins
+  allowedOrigins = new Set(DEFAULT_ORIGINS);
   return allowedOrigins;
 }
 
 function isCsrfExempt(path: string): boolean {
   return CSRF_EXEMPT_PREFIXES.some(prefix => path.startsWith(prefix));
+}
+
+/**
+ * Extract the self-origin from proxy headers.
+ * Normalizes X-Forwarded-Proto (can be "https, https" through proxy chains)
+ * and Host (can include default ports like ":443").
+ */
+function getSelfOrigin(c: Context): string | null {
+  let host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
+  if (!host) return null;
+
+  // Normalize: take first value if comma-separated, strip default ports
+  host = host.split(',')[0].trim().replace(/:443$/, '').replace(/:80$/, '');
+
+  // X-Forwarded-Proto can be "https, https" through multiple proxies — take first
+  const rawProto = c.req.header('X-Forwarded-Proto') || 'https';
+  const proto = rawProto.split(',')[0].trim();
+
+  return `${proto}://${host}`;
 }
 
 /**
@@ -81,14 +106,18 @@ export async function csrfProtection(c: Context, next: Next) {
   // If Origin header is present, validate it
   if (origin) {
     const allowed = getAllowedOrigins();
-
-    // Also accept same-origin requests: compare Origin against the request's own host.
-    // This handles Netlify deploy previews and any domain not in the static list.
-    const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
-    const proto = c.req.header('X-Forwarded-Proto') || 'https';
-    const selfOrigin = host ? `${proto}://${host}` : null;
+    const selfOrigin = getSelfOrigin(c);
 
     if (!allowed.has(origin) && origin !== selfOrigin) {
+      console.warn('[csrf] Rejected origin:', {
+        origin,
+        selfOrigin,
+        host: c.req.header('Host'),
+        xfh: c.req.header('X-Forwarded-Host'),
+        xfp: c.req.header('X-Forwarded-Proto'),
+        allowedCount: allowed.size,
+        path: c.req.path,
+      });
       return c.json(
         { error: 'Forbidden: invalid origin', code: 'CSRF_REJECTED' },
         403
@@ -102,11 +131,17 @@ export async function csrfProtection(c: Context, next: Next) {
     try {
       const refererOrigin = new URL(referer).origin;
       const allowed = getAllowedOrigins();
-      const host = c.req.header('Host') || c.req.header('X-Forwarded-Host');
-      const proto = c.req.header('X-Forwarded-Proto') || 'https';
-      const selfOrigin = host ? `${proto}://${host}` : null;
+      const selfOrigin = getSelfOrigin(c);
 
       if (!allowed.has(refererOrigin) && refererOrigin !== selfOrigin) {
+        console.warn('[csrf] Rejected referer:', {
+          refererOrigin,
+          selfOrigin,
+          host: c.req.header('Host'),
+          xfh: c.req.header('X-Forwarded-Host'),
+          xfp: c.req.header('X-Forwarded-Proto'),
+          path: c.req.path,
+        });
         return c.json(
           { error: 'Forbidden: invalid referer', code: 'CSRF_REJECTED' },
           403
