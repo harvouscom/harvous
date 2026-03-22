@@ -89,8 +89,9 @@ export async function csrfProtection(c: Context, next: Next) {
     const selfOrigin = host ? `${proto}://${host}` : null;
 
     if (!allowed.has(origin) && origin !== selfOrigin) {
+      console.error('[CSRF] Origin rejected', { origin, selfOrigin, host, proto, allowed: [...allowed] });
       return c.json(
-        { error: 'Forbidden: invalid origin', code: 'CSRF_REJECTED' },
+        { error: 'Forbidden: invalid origin', code: 'CSRF_REJECTED', debug: { origin, selfOrigin, host: host ?? null, proto } },
         403
       );
     }
@@ -107,8 +108,9 @@ export async function csrfProtection(c: Context, next: Next) {
       const selfOrigin = host ? `${proto}://${host}` : null;
 
       if (!allowed.has(refererOrigin) && refererOrigin !== selfOrigin) {
+        console.error('[CSRF] Referer rejected', { refererOrigin, selfOrigin, host, proto, allowed: [...allowed] });
         return c.json(
-          { error: 'Forbidden: invalid referer', code: 'CSRF_REJECTED' },
+          { error: 'Forbidden: invalid referer', code: 'CSRF_REJECTED', debug: { refererOrigin, selfOrigin, host: host ?? null, proto } },
           403
         );
       }

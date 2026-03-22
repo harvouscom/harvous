@@ -12,21 +12,19 @@ import { eq, count } from 'drizzle-orm';
 const route = new Hono();
 
 route.get('/api/debug/request-headers', (c) => {
-  if (process.env.NODE_ENV === 'production') {
-    return c.body(null, 404);
-  }
-
   const headers = c.req.raw.headers;
-  const userAgent = headers.get('User-Agent') ?? headers.get('user-agent') ?? null;
-  const xForwardedUserAgent = headers.get('x-forwarded-user-agent') ?? headers.get('X-Forwarded-User-Agent') ?? null;
+  const all: Record<string, string> = {};
+  headers.forEach((value, key) => { all[key] = value; });
 
   return c.json(
     {
-      userAgent,
-      userAgentLower: headers.get('user-agent') ?? null,
-      xForwardedUserAgent,
-      xForwardedUserAgentCaps: headers.get('X-Forwarded-User-Agent') ?? null,
-      hasAnyUA: !!(userAgent || xForwardedUserAgent),
+      origin: headers.get('Origin') ?? headers.get('origin') ?? null,
+      host: headers.get('Host') ?? headers.get('host') ?? null,
+      xForwardedHost: headers.get('X-Forwarded-Host') ?? headers.get('x-forwarded-host') ?? null,
+      xForwardedProto: headers.get('X-Forwarded-Proto') ?? headers.get('x-forwarded-proto') ?? null,
+      referer: headers.get('Referer') ?? headers.get('referer') ?? null,
+      userAgent: headers.get('User-Agent') ?? headers.get('user-agent') ?? null,
+      allHeaders: all,
     },
     200,
     { 'Cache-Control': 'no-store' },
