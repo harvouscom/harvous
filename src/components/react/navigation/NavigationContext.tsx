@@ -391,7 +391,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...existingItem,
         ...item,
         count: preservedCount,
-        openedInSpaceIds: getItemOpenedInSpaceIds(item),
+        // Merge existing scopes with incoming scopes so opening a thread from a new space
+        // adds to (not replaces) the list of spaces it appears in.
+        openedInSpaceIds: mergeOpenedInSpaceIds(
+          getItemOpenedInSpaceIds(existingItem),
+          getItemOpenedInSpaceIds(item)
+        ),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()

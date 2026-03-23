@@ -296,21 +296,17 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
           {retryButton}
         </>
       ) : isOffline ? (
-        <>
-          <Icon name="wifi" size={16} />
-          <span>
-            You're offline
-            {pendingSyncCount > 0 ? (
-              <>
-                {' '}&middot; {formatBadgeCount(pendingSyncCount)} pending
-              </>
-            ) : (
-              <span style={{ fontWeight: 400, opacity: 0.9 }}>
-                {' '}&mdash; new notes will sync when you reconnect
-              </span>
-            )}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Icon name="wifi" size={16} />
+            <span>You're offline{pendingSyncCount > 0 ? ` \u00B7 ${formatBadgeCount(pendingSyncCount)} pending` : ''}</span>
+          </div>
+          <span style={{ fontWeight: 400, fontSize: '13px', opacity: 0.85 }}>
+            {pendingSyncCount > 0
+              ? 'Will sync when you reconnect'
+              : 'New notes will sync when you reconnect'}
           </span>
-        </>
+        </div>
       ) : null}
     </div>
   );
