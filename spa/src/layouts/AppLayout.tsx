@@ -231,6 +231,8 @@ export default function AppLayout() {
     window.addEventListener('spaceUpdated', handleSpaceUpdated);
     window.addEventListener('spaceDeleted', handleSpaceDeleted);
     window.addEventListener('threadDeleted', refresh);
+    window.addEventListener('noteCreated', refresh);
+    window.addEventListener('noteDeleted', refresh);
     return () => {
       window.removeEventListener('spaceCreated', refresh);
       window.removeEventListener('threadCreated', refresh);
@@ -238,6 +240,8 @@ export default function AppLayout() {
       window.removeEventListener('spaceUpdated', handleSpaceUpdated);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted);
       window.removeEventListener('threadDeleted', refresh);
+      window.removeEventListener('noteCreated', refresh);
+      window.removeEventListener('noteDeleted', refresh);
     };
   }, [queryClient, refreshNavigation]);
 

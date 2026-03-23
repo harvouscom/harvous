@@ -95,8 +95,13 @@ export default function SharedThreadPage() {
           navigate({ to: path as any });
         }, 800);
       }
-    } catch {
-      showToast('Failed to add thread. Please try again.', 'error');
+    } catch (err) {
+      if (err instanceof APIError && err.message === 'Already in your Harvous') {
+        setAlreadyOwned(true);
+        showToast('This thread is already in your Harvous', 'info', 0);
+      } else {
+        showToast('Failed to add thread. Please try again.', 'error');
+      }
     }
   }
 
@@ -217,18 +222,30 @@ export default function SharedThreadPage() {
                       <div className={`shared-page__toast shared-page__toast--${toastType}${toastVisible ? ' shared-page__toast--visible' : ''}`}>
                         <span>{toastMessage}</span>
                       </div>
-                      <button
-                        className="btn btn--lg btn--primary shared-page__cta-button"
-                        onClick={handleAddToHarvous}
-                        disabled={addSharedThreadMutation.isPending}
-                      >
-                        <div className="btn__content">
-                          <span className="shared-page__cta-text">
-                            {addSharedThreadMutation.isPending ? 'Adding…' : 'Add to my Harvous'}
-                          </span>
-                        </div>
-                        <div className="btn__shadow-overlay" />
-                      </button>
+                      {alreadyOwned ? (
+                        <button
+                          className="btn btn--lg btn--primary shared-page__cta-button"
+                          onClick={() => navigate({ to: '/' as any })}
+                        >
+                          <div className="btn__content">
+                            <span className="shared-page__cta-text">View in my Harvous</span>
+                          </div>
+                          <div className="btn__shadow-overlay" />
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn--lg btn--primary shared-page__cta-button"
+                          onClick={handleAddToHarvous}
+                          disabled={addSharedThreadMutation.isPending}
+                        >
+                          <div className="btn__content">
+                            <span className="shared-page__cta-text">
+                              {addSharedThreadMutation.isPending ? 'Adding…' : 'Add to my Harvous'}
+                            </span>
+                          </div>
+                          <div className="btn__shadow-overlay" />
+                        </button>
+                      )}
                     </div>
                   </CardStack>
                 </div>

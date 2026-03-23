@@ -108,12 +108,19 @@ const threadRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/thread/$threadId',
   component: ThreadPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    space: typeof search.space === 'string' ? search.space : undefined,
+  }),
 });
 
 const noteRoute = createRoute({
   getParentRoute: () => appLayoutRoute,
   path: '/note/$noteId',
   component: NotePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    space: typeof search.space === 'string' ? search.space : undefined,
+    thread: typeof search.thread === 'string' ? search.thread : undefined,
+  }),
 });
 
 // Public / unauthenticated routes

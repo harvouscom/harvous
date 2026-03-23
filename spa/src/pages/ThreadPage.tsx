@@ -42,7 +42,15 @@ export default function ThreadPage() {
   const { data: thread, isLoading } = useThread(threadId);
   const { data: nav } = useNavigation();
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
-  const urlSpaceId = getSpaceIdFromSearch(search);
+  // TanStack Router may not include unvalidated search params in location.search;
+  // fall back to window.location.search so ?space= is always picked up.
+  let urlSpaceId = getSpaceIdFromSearch(search);
+  if (!urlSpaceId && typeof window !== 'undefined') {
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get('space');
+      if (fromUrl && fromUrl.startsWith('space_')) urlSpaceId = fromUrl;
+    } catch { /* ignore */ }
+  }
 
   // Use nav data as an instant fallback while thread detail loads — avoids a hard
   // loading skeleton swap. Nav query is already warm from app startup.
