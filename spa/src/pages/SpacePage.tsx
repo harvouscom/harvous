@@ -178,27 +178,25 @@ export default function SpacePage() {
         />
       ) : undefined}
     >
-      <div>
-        <TabNav
-          tabs={tabs}
-          onTabChange={(id) => setFilter(id as SpaceFilter)}
-          className="content-tabs"
-        />
-        <SpaceContentList
-          initialItems={initialItems}
-          spaceId={spaceId}
-          filter={filter}
-          spaceIsShared={space?.isPublic}
-          isOwner={space?.ownerId === user?.id}
-          currentUserId={user?.id ?? null}
-          parentIsLoading={parentIsLoading}
-          onPrefetchNote={prefetchNote}
-          onNotesLoaded={onNotesLoaded}
-        />
-        {/* Spacer so the last item can scroll above the floating "Create a note" button */}
-        <div data-cta-spacer className="create-note-cta-spacer" />
-        {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}
-      </div>
+      <TabNav
+        tabs={tabs}
+        onTabChange={(id) => setFilter(id as SpaceFilter)}
+        className="content-tabs"
+      />
+      <SpaceContentList
+        initialItems={initialItems}
+        spaceId={spaceId}
+        filter={filter}
+        spaceIsShared={space?.isPublic}
+        isOwner={space?.ownerId === user?.id}
+        currentUserId={user?.id ?? null}
+        parentIsLoading={parentIsLoading}
+        onPrefetchNote={prefetchNote}
+        onNotesLoaded={onNotesLoaded}
+      />
+      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+      <div data-cta-spacer className="create-note-cta-spacer" />
+      {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}
     </CardStack>
   );
 }
