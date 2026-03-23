@@ -33,9 +33,6 @@
     </style>
   </head>
   <body>
-    <!-- iOS PWA safe-area cover: prevents overlay backdrop artifacts behind the status bar.
-         Real DOM element (not pseudo-element) for reliable iOS WebKit compositing. -->
-    <div id="safe-area-cover" style="position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background-color:#F3F2EC;z-index:2147483647;pointer-events:none;-webkit-transform:translateZ(0)"></div>
     <div id="root"></div>
     <!--
       Inline touch-action: manipulation on body as early as possible.
