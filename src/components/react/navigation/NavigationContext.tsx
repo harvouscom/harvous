@@ -380,13 +380,17 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [getSelectedSpaceId()]);
 
     if (existingIndex !== -1) {
-      // Item already exists - update lastAccessed time but keep position; never overwrite a positive count with 0 so badge persists
+      // Item already exists - update lastAccessed time but keep position.
+      // IMPORTANT: Preserve the existing count — it was set by refreshNavigationCounts (API)
+      // or event handlers (optimistic +1/-1) which are more accurate than stale DOM data.
+      // Only use the incoming count if the existing count is 0/null (first-time or cleared).
       const existingItem = rawHistory[existingIndex];
       const preservedFirstAccessed = (existingItem.firstAccessed != null) ? existingItem.firstAccessed : Date.now();
+      const existingCount = (existingItem as any).count;
       const incomingCount = (item as any).count != null ? Number((item as any).count) : undefined;
-      const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
-        ? incomingCount
-        : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
+      const preservedCount = (typeof existingCount === 'number' && existingCount > 0)
+        ? existingCount
+        : (typeof incomingCount === 'number' && incomingCount > 0 ? incomingCount : (existingCount ?? incomingCount ?? 0));
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
@@ -1118,21 +1122,26 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (unorganizedThread) {
               const newCount = unorganizedThread.noteCount || 0;
               const currentCount = item.count || 0;
-              
-              // If unorganized has 0 notes, remove it from navigation history
-              // This prevents it from appearing when notes are created with suggested threads
+
+              // If unorganized has 0 notes, mark as closed but keep in history to preserve position.
+              // When notes are later added, it will be reopened at the same position.
               if (newCount === 0) {
-                return null; // Mark for removal
+                addToClosedItems('thread_unorganized');
+                return { ...item, count: 0, spaceId: null };
               }
-              
+
+              // Has notes — ensure it's not closed
+              removeFromClosedItems('thread_unorganized');
+
               // Always update to API count — fresh data via cache: 'no-store'
               if (currentCount !== newCount) {
                 return { ...item, count: newCount, spaceId: null };
               }
             } else {
-              // Unorganized not in API response - if current count is 0, remove it
+              // Unorganized not in API response - if current count is 0, mark as closed
               if ((item.count || 0) === 0) {
-                return null; // Mark for removal
+                addToClosedItems('thread_unorganized');
+                return { ...item, count: 0 };
               }
             }
             return item; // Keep current count if API doesn't have it or count is stale
@@ -1171,14 +1180,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         return item;
       });
 
-      // Filter out items marked for removal (null values) and unorganized with 0 notes
+      // Filter out items marked for removal (null values)
+      // Note: unorganized with 0 notes is kept in history (marked as closed) to preserve position
       const filteredHistory = updatedHistory
         .filter(item => {
           if (item === null) return false;
-          // Remove unorganized if it has 0 notes
-          if (item.id === 'thread_unorganized' && (item.count || 0) === 0) {
-            return false;
-          }
           return true;
         }) as NavigationItem[];
       
@@ -1704,13 +1710,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 // Only reopen if unorganized has notes (count > 0)
                 // This prevents it from appearing when notes are created with suggested threads
                 if (unorganizedThread && unorganizedThread.noteCount > 0) {
-                  // Reopen it
-                  addToNavigationHistory({
-                    id: 'thread_unorganized',
-                    title: 'Unorganized',
-                    count: unorganizedThread.noteCount,
-                    backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
-                  });
+                  // Reopen it — remove from closed items so it's visible again at its original position
+                  removeFromClosedItems('thread_unorganized');
+                  // Update count in history (it's still in rawHistory, just was closed)
+                  const rawHist = getRawNavigationHistory();
+                  const unorgIdx = rawHist.findIndex((i: any) => i.id === 'thread_unorganized');
+                  if (unorgIdx !== -1) {
+                    rawHist[unorgIdx] = { ...rawHist[unorgIdx], count: unorganizedThread.noteCount };
+                    saveNavigationHistory(rawHist);
+                    setNavigationHistory(getNavigationHistory());
+                  } else {
+                    // Wasn't in raw history at all — add it
+                    addToNavigationHistory({
+                      id: 'thread_unorganized',
+                      title: 'Unorganized',
+                      count: unorganizedThread.noteCount,
+                      backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
+                    });
+                  }
                 }
               }
             }
