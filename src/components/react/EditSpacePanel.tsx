@@ -1407,7 +1407,7 @@ export default function EditSpacePanel({
                           style={{ backgroundColor: getThreadColorCSS(color) }}
                         >
                           {formData.selectedColor === color && (
-                            <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="absolute inset-0 flex-center">
                               <Icon
                                 name="check"
                                 size={20}
@@ -1448,7 +1448,7 @@ export default function EditSpacePanel({
                 {/* Only show when at invisible people cap (no number shown) */}
                 {!isLoadingMembers && isOwner && memberLimit != null && memberCount >= memberLimit && (
                   <div
-                    className="bg-white rounded-xl p-3 flex items-center gap-3"
+                    className="bg-white rounded-xl p-3 flex-row" style={{ gap: "0.75rem" }}
                     style={{
                       border: '1px solid',
                       borderColor: 'var(--color-red, #dc2626)'
@@ -1467,7 +1467,7 @@ export default function EditSpacePanel({
                 )}
 
                 {/* Tab navigation and Created by (same row, justify-between); Created by only for members */}
-                <div className="flex items-center justify-between gap-2 w-full shrink-0">
+                <div className="flex-between w-full shrink-0" style={{ gap: "0.5rem" }}>
                   <TabNav
                     tabs={[
                       { id: 'added', label: 'Added', isActive: activeTab === 'added', count: (currentSpaceNotes.length + currentSpaceThreads.length) || undefined },
@@ -1503,7 +1503,7 @@ export default function EditSpacePanel({
                 {activeTab === 'added' && (
                   <div className="w-full shrink-0 mb-3">
                     {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) ? (
-                      <div className="flex flex-col gap-2" style={{ paddingBottom: '12px' }}>
+                      <div className="flex-stack" style={{ gap: "0.5rem" }} style={{ paddingBottom: '12px' }}>
                         {/* Current Threads */}
                         {currentSpaceThreads.map(thread => (
                           <div key={thread.id} className="relative group">
@@ -1522,7 +1522,7 @@ export default function EditSpacePanel({
                                   e.stopPropagation();
                                   handleRemoveFromSpace(thread.id, 'thread');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
                                 disabled={isRemovingItem}
                               />
                             )}
@@ -1547,7 +1547,7 @@ export default function EditSpacePanel({
                                   e.stopPropagation();
                                   handleRemoveFromSpace(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
                                 disabled={isRemovingItem}
                               />
                             )}

@@ -529,7 +529,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             )}
             <div
               ref={scrollContainerRef}
-              className="flex flex-col gap-2 px-3 pb-3 max-h-[200px] overflow-y-auto"
+              className="flex-stack px-3 pb-3 max-h-[200px] scroll-y" style={{ gap: '0.5rem' }}
               style={{ touchAction: 'pan-y' }}
             >
               <style>{`
@@ -577,7 +577,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     </div>
                     
                     {/* Editable input with suggested badge - matches thread title styling */}
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="flex-row flex-fill" style={{ gap: '0.5rem' }}>
                       <input
                         type="text"
                         value={editedThreadName}
@@ -695,7 +695,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="flex-row flex-fill" style={{ gap: '0.5rem' }}>
                           <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] truncate">
                             {thread.title}
                           </div>
@@ -760,7 +760,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             boxShadow: 'none'
           }}
         >
-          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+          <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
             <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
               {selectedThread}
             </span>

@@ -536,7 +536,7 @@ export default function MyChurchPanel({
     return (
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
             {/* Header section */}
@@ -557,8 +557,8 @@ export default function MyChurchPanel({
                   className="space-button w-full"
                   style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                 >
-                  <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+                    <div className="flex-row flex-fill" style={{ gap: "0.75rem" }}>
                       {/* Church Icon */}
                       <div className="relative shrink-0 w-5 h-5">
                         <svg className="block max-w-none w-full h-full fill-[var(--color-deep-grey)]" viewBox="0 0 640 512">
@@ -573,7 +573,7 @@ export default function MyChurchPanel({
                       
                       {/* Location Tag Pill */}
                       {locationText && (
-                        <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-[24px] px-3 py-1 h-[24px] shrink-0">
+                        <div className="bg-[rgba(120,118,111,0.1)] flex-center rounded-[24px] px-3 py-1 h-[24px] shrink-0">
                           <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[normal] text-center text-nowrap whitespace-pre">
                             {locationText}
                           </span>
@@ -618,9 +618,9 @@ export default function MyChurchPanel({
   // Edit mode - show form
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} className="flex-fill flex-stack" style={{ gap: 0 }}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
             {/* Header section */}

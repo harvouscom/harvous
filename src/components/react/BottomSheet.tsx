@@ -44,12 +44,12 @@ function DelayedFallback({ delayMs, children }: { delayMs: number; children: Rea
     const t = setTimeout(() => setShow(true), delayMs);
     return () => clearTimeout(t);
   }, [delayMs]);
-  if (!show) return <div className="flex-1 min-h-0" />;
+  if (!show) return <div className="flex-fill" />;
   return <>{children}</>;
 }
 
 const mobileLoadingFallback = (
-  <div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)]">Loading…</div>
+  <div className="flex-fill flex-center text-[var(--color-pebble-grey)]">Loading…</div>
 );
 
 // Extend the Window interface to include custom functions
@@ -700,10 +700,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         </button>
         
         {/* Content - flex-1 so it fills the sheet (no h-full) and footer stays 16px from bottom */}
-        <div ref={sheetContentRef} className="bottom-sheet__inner flex-1 flex flex-col min-h-0">
+        <div ref={sheetContentRef} className="bottom-sheet__inner flex-fill flex-stack" style={{ gap: 0 }}>
           {/* New Note Panel */}
           {drawerType === 'note' && (
-            <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="panel-container panel-container--note flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewNotePanel
                   key={`mobile-note-${panelKey}`}
@@ -726,7 +726,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* New Thread Panel */}
           {drawerType === 'thread' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewThreadPanel
                   key={`mobile-thread-${panelKey}`}
@@ -748,7 +748,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* New Resource Panel */}
           {drawerType === 'resource' && (
-            <div className="panel-container panel-container--note flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="panel-container panel-container--note flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                 <NewNotePanel
                   key={`mobile-resource-${panelKey}`}
@@ -772,7 +772,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Note Details Panel */}
           {drawerType === 'noteDetails' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               {noteDetailsNote && (
                 <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
                   <NoteDetailsPanel
@@ -795,7 +795,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Edit Name & Color Panel */}
           {drawerType === 'editNameColor' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <EditNameColorPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -807,7 +807,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Edit Thread Panel */}
           {drawerType === 'editThread' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               {contentType === 'thread' && currentThread && (
                 <EditThreadPanel 
                   key={`mobile-edit-thread-${panelKey}`}
@@ -825,7 +825,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Edit Space Panel */}
           {drawerType === 'editSpace' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               {contentType === 'space' && currentSpace && (
                 <EditSpacePanel
                   key={`mobile-edit-space-${panelKey}`}
@@ -844,7 +844,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Add to Space Panel */}
           {drawerType === 'addToSpace' && addToSpaceSpaceId && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <AddToSpacePanel
                 key={`mobile-add-to-space-${panelKey}`}
                 spaceId={addToSpaceSpaceId}
@@ -858,7 +858,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Edit Space People Panel */}
           {drawerType === 'editSpacePeople' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               {contentType === 'space' && currentSpace && (
                 <EditSpacePeoplePanel
                   key={`mobile-edit-space-people-${panelKey}`}
@@ -876,7 +876,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Get Support Panel */}
           {drawerType === 'getSupport' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <GetSupportPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -889,7 +889,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* About Harvous Panel */}
           {drawerType === 'aboutHarvous' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <AboutHarvousPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -902,7 +902,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Email & Password Panel */}
           {drawerType === 'emailPassword' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <EmailPasswordPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -914,7 +914,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* My Church Panel */}
           {drawerType === 'myChurch' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <MyChurchPanel
                 key="mobile-church"
                 onClose={() => {
@@ -927,7 +927,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* My Sharing Panel */}
           {drawerType === 'mySharing' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <MySharingPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -939,7 +939,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* My Spaces Panel */}
           {drawerType === 'mySpaces' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <MySpacesPanel
                 key="mobile-spaces"
                 onClose={() => {
@@ -952,7 +952,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* My Data Panel */}
           {drawerType === 'myData' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <MyDataPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -964,7 +964,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* My Achievements Panel */}
           {drawerType === 'myAchievements' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <MyAchievementsPanel 
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -977,7 +977,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* Manage Billing Panel - temporarily removed */}
 
           {drawerType === 'referral' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <ReferralPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
@@ -989,7 +989,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Inbox Item Preview Panel */}
           {drawerType === 'inboxPreview' && inboxPreviewData && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <InboxItemPreviewPanel
                 key={`mobile-inbox-preview-${panelKey}`}
                 item={inboxPreviewData}
@@ -1015,7 +1015,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Note Share Panel */}
           {drawerType === 'noteShare' && noteShareData && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <NoteSharePanel
                 key={`mobile-note-share-${panelKey}`}
                 noteId={noteShareData.noteId}
@@ -1029,7 +1029,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           )}
 
           {drawerType === 'pinEntry' && pinEntryData && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <PinEntryPanel
                 key={`mobile-pin-entry-${panelKey}`}
                 noteId={pinEntryData.noteId}
@@ -1046,7 +1046,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Lock PIN Panel (profile) */}
           {drawerType === 'lockPin' && (
-            <div className="panel-container flex-1 flex flex-col min-h-0">
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <LockPinPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));

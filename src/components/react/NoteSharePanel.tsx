@@ -204,7 +204,7 @@ export default function NoteSharePanel({
   return (
     <div className={`note-share-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
       {/* Content area - expands on mobile, fits content on desktop */}
-      <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"} style={{ position: 'relative' }}>
+      <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }} style={{ position: 'relative' }}>
         {/* Panel container */}
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
           {/* Header section */}

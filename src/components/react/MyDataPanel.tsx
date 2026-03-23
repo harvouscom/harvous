@@ -397,7 +397,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
     <>
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section */}

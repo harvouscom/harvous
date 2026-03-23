@@ -12,7 +12,7 @@ const createLazyComponent = (importFn: () => Promise<any>, componentName: string
       return {
         default: () => (
           <div className="relative h-full w-full">
-            <div className="absolute inset-0 flex items-center justify-center p-6">
+            <div className="absolute inset-0 flex-center p-6">
               <div className="text-center">
                 <p className="text-sm text-[var(--color-pebble-grey)] mb-2">
                   Failed to load {componentName}
@@ -885,7 +885,7 @@ export default function DesktopPanelManager({
   const isAnyPanelOpen = state.activePanel !== null;
 
   return (
-    <div className="flex flex-col items-stretch h-full min-h-0 w-full" style={{ maxHeight: '100%', width: '100%' }}>
+    <div className="flex-stack h-full w-full" style={{ maxHeight: '100%', width: '100%', gap: 0, alignItems: 'stretch' }}>
       {/* New Note Panel - Desktop Only */}
       {state.activePanel === 'newNote' && (
         <PanelErrorBoundary>

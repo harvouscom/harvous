@@ -749,7 +749,7 @@ export default function NewThreadPanel({
                     >
                       {/* Check icon for selected color */}
                       {selectedColor === color && (
-                        <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="absolute inset-0 flex-center">
                           <Icon 
                             name="check" 
                             size={20} 
@@ -774,7 +774,7 @@ export default function NewThreadPanel({
                           : 'var(--color-gradient-gray)'
                       }}
                     >
-                      <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
+                      <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125">
                         <span 
                           className="font-sans text-[18px] font-semibold whitespace-nowrap"
                           style={{ 
@@ -856,7 +856,7 @@ export default function NewThreadPanel({
 
                 {/* AddToSpaceSection - for selecting notes to add to thread (create mode only) */}
                 {!isEditMode && (
-                  <div className="w-full flex-1 min-h-0 flex flex-col">
+                  <div className="w-full flex-fill flex-stack" style={{ gap: 0 }}>
                     {isLoadingItems ? (
                       <div className="panel__loading-state">
                         Loading notes...
@@ -881,9 +881,9 @@ export default function NewThreadPanel({
 
                 {/* Tab navigation disabled for v1 */}
                 {/* <div className="w-full">
-                  <div className="flex flex-col gap-3">
+                  <div className="flex-stack">
                     <div className="tab-nav-container">
-                      <div className="flex items-center justify-start gap-0 pb-0 pt-1 px-1 relative w-full">
+                      <div className="flex-row" style={{ gap: 0, justifyContent: "flex-start" pb-0 pt-1 px-1 relative w-full">
                         <button
                           type="button"
                           className={`flex gap-2 h-11 items-center justify-center overflow-clip px-2 py-3 relative shrink-0 transition-all duration-200 ${
