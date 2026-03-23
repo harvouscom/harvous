@@ -9,7 +9,7 @@ Complete technology stack documentation for Harvous, including versions, depende
 - **`/spa`** — React SPA (Vite): the full app users see. Handles all routes (dashboard, threads, notes, spaces, profile, sign-in, shared content, etc.). Built output is copied to `dist/` and served as static `index.html` + assets.
 - **`/server`** — Hono API: a single Node server that handles **all** `/api/*` requests. Bundled as one Netlify serverless function (`netlify/functions/api.cjs`). Database access, auth, and business logic live here.
 
-The Netlify build runs `npm run build` (inject SW + build:api + build:spa). Publish directory is `dist-spa/`. Database schema lives in `server/db/schema.ts` (Drizzle + Turso).
+The Netlify build runs `npm run build` (inject SW + build:api + build:spa). Publish directory is `dist-spa/`. Database schema lives in `server/db/schema.ts` (Drizzle + Supabase Postgres).
 
 Netlify routing: `public/_redirects` sends app paths to `/index.html` (SPA); `/api/*` is handled by the SSR function (Hono). Do not add a catch-all that would send API requests to the SPA.
 
@@ -23,7 +23,7 @@ TanStack Router       - Client-side routing within the SPA
 TanStack Query        - Server state management and caching
 TypeScript 5.9.2      - Type safety
 Vanilla CSS            - Semantic CSS classes (migrated from Tailwind)
-Drizzle ORM           - Schema and Turso access (server/db/)
+Drizzle ORM           - Schema and Supabase Postgres access (server/db/)
 ```
 
 ### Hono API (`/server`)
@@ -75,17 +75,17 @@ Drizzle ORM           - Schema and Turso access (server/db/)
 ## Database & Auth
 
 ```
-Turso (Drizzle)       - Serverless SQL database (server/db/schema.ts; TURSO_* or ASTRO_DB_* env)
+Supabase Postgres     - Managed PostgreSQL database (server/db/schema.ts; SUPABASE_* env)
 Clerk                 - Authentication and user management
 ```
 
-### Turso + Drizzle
+### Supabase Postgres + Drizzle
 
-- **Purpose**: Serverless SQL database (SQLite-compatible)
+- **Purpose**: Managed PostgreSQL database
 - **Schema**: `server/db/schema.ts` (Drizzle ORM)
-- **Client**: `server/db/client.ts` — uses `@libsql/client` (web build for Netlify)
-- **Env**: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (fallback: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN`)
-- **Migrations**: `npm run db:push` (Drizzle Kit push to Turso)
+- **Client**: `server/db/client.ts` — uses `postgres` + `drizzle-orm/postgres-js`
+- **Env**: `SUPABASE_DATABASE_URL` (pooler) and `SUPABASE_DIRECT_URL` (direct)
+- **Migrations**: `npm run db:push` (Drizzle Kit push to Supabase Postgres)
 
 ### Clerk
 
@@ -184,8 +184,8 @@ Output: Hono (server/)- Single serverless function for all /api/*
 - `PUBLIC_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (server/API)
 - `VITE_CLERK_PUBLISHABLE_KEY` - Clerk publishable key (SPA/Vite build)
 - `CLERK_SECRET_KEY` - Clerk secret key (server-side API)
-- `TURSO_DATABASE_URL` - Turso database connection URL (fallback: ASTRO_DB_REMOTE_URL)
-- `TURSO_AUTH_TOKEN` - Turso auth token (fallback: ASTRO_DB_APP_TOKEN)
+- `SUPABASE_DATABASE_URL` - Supabase connection string for runtime/API (pooler URL)
+- `SUPABASE_DIRECT_URL` - Supabase direct connection string for migrations
 
 ### Optional
 

@@ -213,7 +213,7 @@ Dynamic catch-all route for threads, spaces, and notes:
 
 ## Real Database System
 
-- **Production Ready**: Uses Turso database for all data storage
+- **Production Ready**: Uses Supabase Postgres for all data storage
 - **User Authentication**: All data is scoped to authenticated Clerk users
 - **Real-time Updates**: Content updates immediately after creation
 - **Data Persistence**: All notes, threads, and spaces are stored in the remote database

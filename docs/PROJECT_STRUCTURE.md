@@ -54,7 +54,7 @@ harvous/
 │   └── styles/             # Global CSS (colors, layout, components)
 │
 ├── server/
-│   ├── db/                 # Drizzle schema (schema.ts), client (Turso), dates
+│   ├── db/                 # Drizzle schema (schema.ts), client (Supabase Postgres), dates
 │   ├── routes/             # Hono API routes (notes, threads, user, etc.)
 │   └── utils/              # Server-only utils (dashboard-data, user-cache, etc.)
 │
@@ -121,11 +121,11 @@ Global CSS and styling.
 
 ### `server/db/`
 
-Database: Drizzle schema and Turso client.
+Database: Drizzle schema and Supabase Postgres client.
 
 **Key Files:**
 - `schema.ts` - Single source of truth for tables (Drizzle)
-- `client.ts` - Turso connection (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN; fallback ASTRO_DB_*)
+- `client.ts` - Supabase Postgres connection (`SUPABASE_DATABASE_URL` preferred; fallback `SUPABASE_DIRECT_URL`)
 - `dates.ts` - nowISO(), toDate(), fromDate()
 
 ### `public/`

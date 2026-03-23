@@ -65,7 +65,7 @@ Imagine Harvous as a house with three main rooms:
 
 **Room 3: The Database (The Memory)**
 - This is where all your content is stored permanently
-- Uses Turso (a cloud database) to store everything safely
+- Uses Supabase Postgres (a managed cloud database) to store everything safely
 - Like a filing cabinet that never loses anything
 
 **The Security System: Clerk**
@@ -398,15 +398,15 @@ Imagine Harvous as a house with three main rooms:
 
 **The Benefit:** You get a fast, app-like experience on both desktop and mobile.
 
-### Turso Database: The Memory
+### Supabase Postgres Database: The Memory
 
-**What It Is:** A serverless SQL database that stores all your content.
+**What It Is:** A managed PostgreSQL database that stores all your content.
 
 **Why We Chose It:**
-- **Serverless:** No server management - it scales automatically
-- **Fast:** Optimized for read-heavy workloads (most apps are mostly reading)
-- **Reliable:** Built on SQLite (proven, stable technology)
-- **Cost-effective:** Pay only for what you use
+- **Managed platform:** Hosted Postgres with built-in operational tooling
+- **Reliable:** Mature PostgreSQL engine with strong data integrity guarantees
+- **Flexible:** Works cleanly with Drizzle ORM and SQL-first workflows
+- **Scalable:** Handles growth without custom database ops overhead
 
 **How It Works:** 
 - All your content (notes, threads, spaces) is stored in tables
@@ -520,7 +520,7 @@ Imagine Harvous as a house with three main rooms:
 1. **Authentication:** Only you can access your account (Clerk handles this)
 2. **User Isolation:** Database queries filter by user ID - you only see your content
 3. **Data Persistence:** Everything is saved immediately to the database
-4. **Backup:** Database is automatically backed up by Turso
+4. **Backup:** Database backup and recovery are handled by the Supabase project configuration
 5. **No Data Loss:** Notes are never deleted, only moved to "Unorganized"
 
 ### Why Sequential IDs Never Reuse
