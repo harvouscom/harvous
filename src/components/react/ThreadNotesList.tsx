@@ -1513,7 +1513,7 @@ export default function ThreadNotesList({
             renderItem={renderItem}
             itemKey={(note) => note.id}
             limit={20}
-            className="flex flex-col gap-3"
+            className="flex-stack"
             initialHasMore={initialHasMore}
             minimumExpectedCount={totalCountForFilter}
           />

@@ -716,7 +716,7 @@ export default function NoteDetailsPanel({
                                           e.preventDefault();
                                           removeTagFromNote(tag.id);
                                         }}
-                                        className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex items-center justify-center w-4 h-4 cursor-pointer"
+                                        className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex-center w-4 h-4 cursor-pointer"
                                         data-item-id={tag.id}
                                       >
                                         <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">

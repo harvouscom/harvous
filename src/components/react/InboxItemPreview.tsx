@@ -171,7 +171,7 @@ export default function InboxItemPreview({
             <div className="basis-0 grow min-h-px min-w-px shrink-0 w-full">
               {/* Single Note Content */}
               {item.contentType === 'note' && (
-                <div className="flex flex-col gap-3">
+                <div className="flex-stack">
                   <div className="content-item note-item">
                     <CardNote
                       title={item.title}
@@ -207,7 +207,7 @@ export default function InboxItemPreview({
               {item.contentType === 'thread' && (
                 <div className="flex flex-col gap-6">
                   {sortedNotes.length > 0 ? (
-                    <div className="flex flex-col gap-3">
+                    <div className="flex-stack">
                       {sortedNotes.map((note, index) => {
                         const cleanContent = stripHtml(note.content);
                         const previewContent = cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : "");

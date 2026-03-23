@@ -1242,7 +1242,7 @@ export default function SpaceContentList({
                   e.stopPropagation();
                   handleRemoveFromSpace(item.id, item.itemType);
                 }}
-                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover"
+                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover"
                 disabled={isRemovingItem}
                 style={{ pointerEvents: 'auto', zIndex: 11 }}
               />

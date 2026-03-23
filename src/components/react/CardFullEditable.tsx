@@ -1346,7 +1346,7 @@ export default function CardFullEditable({
                 </div>
               </div>
             ) : (
-              <div className="flex-1 flex flex-col min-h-0" style={{ width: '100%' }}>
+              <div className="flex-fill flex-stack" style={{ gap: 0 }} style={{ width: '100%' }}>
                 <div className="flex-1 min-h-0 px-3" style={{ width: '100%', maxHeight: '100%' }}>
                   <Suspense fallback={<div className="min-h-[100px]" />}>
                     <TiptapEditor
@@ -1523,7 +1523,7 @@ export default function CardFullEditable({
         <div className="flex-1 flex flex-col font-sans font-medium min-h-0 not-italic text-[var(--color-deep-grey)] text-[16px]">
           {/* Display mode */}
           {!isContentEditing ? (
-              <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+              <div className="flex-fill flex-stack" style={{ gap: 0 }} style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
                 {(effectiveEncrypted && !isNoteUnlocked(noteId ?? '')) || (contentEncrypted && looksLikeEncryptedBlob(displayContent ?? '')) ? (
                   <div ref={contentDisplayRef} className="flex flex-col shrink-0">
@@ -1554,7 +1554,7 @@ export default function CardFullEditable({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+            <div className="flex-fill flex-stack" style={{ gap: 0 }} style={{ maxHeight: '100%' }}>
               <div className="flex-1 flex flex-col min-h-0 px-3" style={{ maxHeight: '100%' }}>
                 <Suspense fallback={<div className="min-h-[200px]" />}>
                   <TiptapEditor

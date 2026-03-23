@@ -783,7 +783,7 @@ export default function Menu({
               onClick={() => handleAction(option.action, option.label)}
               className={`menu-item${option.disabled ? ' menu-item--disabled' : ''}`}
             >
-              <div className="relative shrink-0 w-5 h-5 flex items-center justify-center">
+              <div className="relative shrink-0 w-5 h-5 flex-center">
                 {renderIcon(option.icon, option.action)}
               </div>
               <span className="menu-item__label">

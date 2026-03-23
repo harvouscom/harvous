@@ -882,7 +882,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                     >
                       {/* Check icon for selected color */}
                       {selectedColor === color && (
-                        <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="absolute inset-0 flex-center">
                           <Icon 
                             name="check" 
                             size={20} 
@@ -913,7 +913,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                 {/* Selected Items - displayed above AddToSpaceSection */}
                 {selectedItems.length > 0 && !isLoadingItems && (
                   <div className="w-full shrink-0 mb-3">
-                    <div className="flex flex-col gap-2">
+                    <div className="flex-stack" style={{ gap: "0.5rem" }}>
                       {selectedItems.map((itemId, index) => {
                         const thread = allThreads.find(t => t.id === itemId);
                         const note = allNotes.find(n => n.id === itemId);
@@ -936,7 +936,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(thread.id, 'thread');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -959,7 +959,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
                                 disabled={isSubmitting}
                               />
                             </div>

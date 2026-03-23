@@ -613,7 +613,7 @@ export default function AddToSpaceSection({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-fill flex-stack" style={{ gap: 0 }}>
       <style>{`
         @keyframes fadeIn {
           from {
@@ -648,7 +648,7 @@ export default function AddToSpaceSection({
               <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
                 {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} found
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex-stack" style={{ gap: "0.5rem" }}>
                 {filteredItems.map(item => {
                   const onClick = () => handleItemClick(item.id, item.type);
                   return (
@@ -678,7 +678,7 @@ export default function AddToSpaceSection({
             <div className="flex flex-col gap-3 flex-1 overflow-y-auto min-h-0">
               {/* Recent Items Section */}
               {recentItems.length > 0 && (
-                <div className="flex flex-col gap-2">
+                <div className="flex-stack" style={{ gap: "0.5rem" }}>
                   <div className="flex items-center justify-between px-2">
                     <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
                       Most Recent
@@ -689,7 +689,7 @@ export default function AddToSpaceSection({
                       </div>
                     )}
                   </div>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-stack" style={{ gap: "0.5rem" }}>
                     {recentItems.map(item => {
                       const onClick = () => handleItemClick(item.id, item.type);
                       return (
@@ -706,7 +706,7 @@ export default function AddToSpaceSection({
 
               {/* All Items Section */}
               {otherItems.length > 0 && (
-                <div className="flex flex-col gap-2">
+                <div className="flex-stack" style={{ gap: "0.5rem" }}>
                   {recentItems.length > 0 && (
                     <div className="pt-2 border-t border-[rgba(120,118,111,0.15)]">
                       <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap mb-2">
@@ -726,7 +726,7 @@ export default function AddToSpaceSection({
                       )}
                     </div>
                   )}
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-stack" style={{ gap: "0.5rem" }}>
                     {otherItems.map(item => {
                       const onClick = () => handleItemClick(item.id, item.type);
                       return (

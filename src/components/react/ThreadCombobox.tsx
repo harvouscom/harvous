@@ -502,7 +502,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                     style={{ backgroundColor: getThreadColorCSS(color) }}
                   >
                     {createThreadColor === color && (
-                      <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="absolute inset-0 flex-center">
                         <Icon
                           name="check"
                           size={20}
@@ -754,7 +754,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         <button
           type="button"
           onClick={() => setInternalOpen(!internalOpen)}
-          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex items-center justify-between"
+          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex-between"
           style={{
             backgroundImage: getButtonBackground(),
             boxShadow: 'none'
@@ -766,7 +766,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             </span>
             <div className="flex items-center gap-2">
               <div className="p-[20px]">
-                <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6">
+                <div className="bg-[rgba(120,118,111,0.1)] flex-center rounded-3xl w-6 h-6">
                   <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                     {formatBadgeCount(selectedThreadObj?.noteCount)}
                   </span>

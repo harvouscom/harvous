@@ -419,7 +419,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 <div className="panel__section">
                   {/* Export as CSV */}
                   <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full flex items-center justify-center"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full flex-center"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       opacity: isExporting === 'csv-threads' ? 0.6 : 1,
@@ -437,7 +437,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
                 {/* Clear Data Button - For Testing */}
                 <div className="panel__section">
                   <button
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full overflow-hidden flex items-center justify-center"
+                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 w-full overflow-hidden flex-center"
                     style={{ 
                       backgroundImage: 'var(--color-gradient-gray)',
                       opacity: isClearingData ? 0.6 : 1,

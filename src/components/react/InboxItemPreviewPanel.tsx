@@ -423,10 +423,10 @@ export default function InboxItemPreviewPanel({
             
             {/* Content - matching CardFullEditable structure exactly */}
             <div className="flex-1 flex flex-col min-h-0 w-full" style={{ maxHeight: '100%', overflow: 'hidden', marginBottom: '-12px' }}>
-              <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
+              <div className="flex-fill flex-stack" style={{ gap: 0 }} style={{ maxHeight: '100%' }}>
                 <div className="flex-1 flex flex-col min-h-0 px-3" style={{ height: 0, maxHeight: '100%', overflow: 'hidden' }}>
                   {item.loadError ? (
-                    <div className="flex-1 flex items-center justify-center">
+                    <div className="flex-1 flex-center">
                       <p className="text-[var(--color-stone-grey)]">{item.loadError}</p>
                     </div>
                   ) : (

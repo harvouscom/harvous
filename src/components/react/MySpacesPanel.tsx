@@ -572,7 +572,7 @@ export default function MySpacesPanel({
               {/* Spaces list */}
               {!isLoading && !error && filteredSpaces.length > 0 && (
                 <div className="flex flex-col gap-2 w-full">
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-stack" style={{ gap: "0.5rem" }}>
                     {filteredSpaces.map((space) => renderSpaceItem(space))}
                   </div>
                 </div>

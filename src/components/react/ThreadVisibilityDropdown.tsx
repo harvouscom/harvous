@@ -138,7 +138,7 @@ export default function ThreadVisibilityDropdown({
       >
         <div className="flex items-center justify-between gap-3 relative w-full h-full">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="size-4 flex items-center justify-center shrink-0">
+            <div className="size-4 flex-center shrink-0">
               <Icon 
                 name={isShared ? "user-group" : "user"} 
                 size={16} 
@@ -153,7 +153,7 @@ export default function ThreadVisibilityDropdown({
               {isShared ? sharedTriggerLabel : privateTriggerLabel}
             </span>
           </div>
-          <div className="size-4 flex items-center justify-center shrink-0">
+          <div className="size-4 flex-center shrink-0">
             <Icon 
               name={isOpen ? 'chevron-up' : 'chevron-down'} 
               size={16} 
