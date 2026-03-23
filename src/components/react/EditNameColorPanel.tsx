@@ -274,9 +274,9 @@ export default function EditNameColorPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       {/* Loading indicator - progress bar at top */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} className="flex-fill flex-stack" style={{ gap: 0 }}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
             {/* Header section with dynamic background */}
@@ -330,8 +330,10 @@ export default function EditNameColorPanel({
                 
                 {/* Color selection - padding for hover state, overflow-x for more colors on small screens */}
                 <div
-                  className="color-selection flex gap-2 items-center justify-start w-full"
+                  className="color-selection flex-row w-full"
                   style={{
+                    gap: '0.5rem',
+                    justifyContent: 'flex-start',
                     paddingTop: 4,
                     paddingBottom: 4,
                     overflowX: 'auto',
@@ -351,7 +353,7 @@ export default function EditNameColorPanel({
                     >
                       {/* Check icon for selected color */}
                       {formData.selectedColor === color && (
-                        <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="absolute inset-0 flex-center">
                           <Icon 
                             name="check" 
                             size={20} 

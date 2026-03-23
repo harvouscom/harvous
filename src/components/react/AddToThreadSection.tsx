@@ -61,7 +61,7 @@ export default function AddToSection({
     <div
       key={item.id}
       onClick={onClick}
-      className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+      className="flex-row p-3 rounded-lg border cursor-pointer transition-colors"
       style={{
         borderColor: 'var(--color-gray)',
       }}
@@ -83,8 +83,8 @@ export default function AddToSection({
       )}
       
       {/* Item Info */}
-      <div className="flex-1 min-w-0">
-        <div className="font-medium truncate" style={{ color: 'var(--color-deep-grey)' }}>
+      <div className="flex-fill">
+        <div className="font-medium text-truncate" style={{ color: 'var(--color-deep-grey)' }}>
           {item.title}
         </div>
         {item.subtitle && (
@@ -116,7 +116,7 @@ export default function AddToSection({
 
       {/* Item Results */}
       {searchQuery && (
-        <div className="max-h-48 overflow-y-auto space-y-2">
+        <div className="max-h-48 scroll-y space-y-2">
           {filteredItems.length === 0 ? (
             <div className="text-center py-4 text-sm" style={{ color: 'var(--color-pebble-grey)' }}>
               {emptyMessage} matching "{searchQuery}"

@@ -206,7 +206,7 @@ export default function MySharingPanel({
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <div className={inBottomSheet ? 'flex-1 flex flex-col min-h-0' : 'flex flex-col'} style={{ position: 'relative' }}>
+      <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ position: 'relative', gap: 0 }}>
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
@@ -246,8 +246,8 @@ export default function MySharingPanel({
               )}
 
               {!isLoading && !isEmpty && hasItemsForFilter && (
-                <div className="flex flex-col gap-2 w-full">
-                  <ul className="flex flex-col gap-2 list-none p-0 m-0" role="list">
+                <div className="flex-stack w-full" style={{ gap: '0.5rem' }}>
+                  <ul className="flex-stack list-none p-0 m-0" role="list" style={{ gap: '0.5rem' }}>
                     {showThreads && threads.map((thread) => (
                       <li key={thread.id}>
                         <CondensedThreadItem
@@ -292,7 +292,7 @@ export default function MySharingPanel({
                           color={space.color ?? undefined}
                           icon="cube"
                           action={
-                            <div className="flex items-center gap-1">
+                            <div className="flex-row" style={{ gap: '0.25rem' }}>
                               {space.shareUrl && (
                                 <button
                                   type="button"

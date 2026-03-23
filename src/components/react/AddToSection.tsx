@@ -182,7 +182,7 @@ export default function AddToSection({
           
           {/* Content */}
           <div 
-            className="flex items-center gap-6 pl-3 pr-12 h-full relative z-20"
+            className="flex-row pl-3 pr-12 h-full relative z-20" style={{ gap: '1.5rem' }}
           >
             {/* User icon (Private) or User group icon (Shared) - positioned on colored background */}
             <div className="relative shrink-0 size-5">
@@ -200,15 +200,15 @@ export default function AddToSection({
             </div>
             
             {/* Text content */}
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex-stack flex-fill" style={{ gap: '0.25rem' }}>
               {/* Title */}
-              <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] truncate">
+              <div className="font-sans font-bold text-[var(--color-deep-grey)] text-[16px] text-truncate">
                 {item.title}
               </div>
               
               {/* Subtitle row - only show subtitle if it exists, or note count */}
               {(item.subtitle || (item.count !== undefined && item.count !== null)) && (
-                <div className="flex items-center gap-2">
+                <div className="flex-row" style={{ gap: '0.5rem' }}>
                   {/* Only show subtitle text if it exists (not Public/Private) */}
                   {item.subtitle && (
                     <span className="text-[12px] font-sans text-[var(--color-stone-grey)] whitespace-nowrap">
@@ -218,7 +218,7 @@ export default function AddToSection({
                   
                   {/* Note Count Badge */}
                   {item.count !== undefined && item.count !== null && (
-                    <div className="bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl px-2 h-5 flex-shrink-0">
+                    <div className="bg-[rgba(120,118,111,0.1)] flex-center rounded-3xl px-2 h-5 flex-shrink-0">
                       <span className="text-[11px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                         {formatBadgeCount(item.count)}
                       </span>
@@ -237,7 +237,7 @@ export default function AddToSection({
               e.stopPropagation();
               onClick();
             }}
-            className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex items-center justify-center action-button-hover z-10"
+            className="absolute top-1/2 right-3 transform -translate-y-1/2 w-8 h-8 flex-center action-button-hover z-10"
             disabled={isLoading}
           />
         </div>
@@ -246,7 +246,7 @@ export default function AddToSection({
   };
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-fill flex-stack" style={{ gap: 0 }}>
         {/* Search Input */}
         <div className="mb-3">
           <SearchInput
@@ -258,7 +258,7 @@ export default function AddToSection({
 
         {/* Search Results */}
         {searchQuery && (
-          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+          <div className="flex-stack max-h-48 scroll-y" style={{ gap: '0.5rem' }}>
             {filteredItems.length === 0 ? (
               <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
                 {emptyMessage} matching "{searchQuery}"
@@ -268,7 +268,7 @@ export default function AddToSection({
                 <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
                   {filteredItems.length} {filteredItems.length === 1 ? 'thread' : 'threads'} found
                 </div>
-                <div className="flex flex-col gap-2">
+                <div className="flex-stack" style={{ gap: '0.5rem' }}>
                   {filteredItems.map(item => 
                     itemRenderer 
                       ? itemRenderer(item, () => handleItemClick(item.id))
@@ -288,11 +288,11 @@ export default function AddToSection({
                 This note is already in all your threads
               </div>
             ) : (
-              <div className="flex flex-col gap-3 flex-1 overflow-y-auto min-h-0">
+              <div className="flex-stack flex-fill scroll-y">
                 {/* Recent Threads Section */}
                 {recentThreads.length > 0 && (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
+                  <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                    <div className="flex-between">
                     <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
                       Most Recent
                     </div>
@@ -302,7 +302,7 @@ export default function AddToSection({
                         </div>
                       )}
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
                       {recentThreads.map(item => 
                         itemRenderer 
                           ? itemRenderer(item, () => handleItemClick(item.id))
@@ -314,7 +314,7 @@ export default function AddToSection({
 
                 {/* All Threads Section */}
                 {otherThreads.length > 0 && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex-stack" style={{ gap: '0.5rem' }}>
                     {recentThreads.length > 0 && (
                       <div className="pt-2 border-t border-[rgba(120,118,111,0.15)]">
                         <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap mb-2">
@@ -323,7 +323,7 @@ export default function AddToSection({
                       </div>
                     )}
                     {recentThreads.length === 0 && (
-                      <div className="flex items-center justify-between">
+                      <div className="flex-between">
                         <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
                           All threads
                         </div>
@@ -334,7 +334,7 @@ export default function AddToSection({
                         )}
                       </div>
                     )}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
                       {otherThreads.map(item => 
                         itemRenderer 
                           ? itemRenderer(item, () => handleItemClick(item.id))

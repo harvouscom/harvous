@@ -116,21 +116,21 @@ export default function InviteMemberPanel({
 
   return createPortal(
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-5"
+      className="fixed inset-0 bg-black/50 flex-center z-[9999] p-5"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
     >
-      <div className="bg-white rounded-[24px] w-full max-w-[500px] max-h-[90vh] overflow-hidden flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
+      <div className="bg-white rounded-[24px] w-full max-w-[500px] max-h-[90vh] overflow-hidden flex-stack shadow-[0_20px_60px_rgba(0,0,0,0.3)]" style={{ gap: 0 }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-[var(--color-fog-white)]">
+        <div className="flex-between p-6 border-b border-[var(--color-fog-white)]">
           <h2 className="text-[18px] font-semibold text-[var(--color-deep-grey)] m-0">
             Invite to {spaceName}
           </h2>
           <button
-            className="bg-transparent border-none text-[32px] leading-none text-[var(--color-pebble-grey)] cursor-pointer p-0 w-8 h-8 flex items-center justify-center hover:text-[var(--color-deep-grey)] transition-colors"
+            className="bg-transparent border-none text-[32px] leading-none text-[var(--color-pebble-grey)] cursor-pointer p-0 w-8 h-8 flex-center hover:text-[var(--color-deep-grey)] transition-colors"
             onClick={onClose}
             aria-label="Close"
           >
@@ -144,7 +144,7 @@ export default function InviteMemberPanel({
             <button
               type="button"
               onClick={() => setMethod('link')}
-              className={`button-group__button button-group__button--left h-[64px] flex items-center justify-center gap-2 px-4 border-none cursor-pointer ${
+              className={`button-group__button button-group__button--left h-[64px] flex-center px-4 border-none cursor-pointer ${
                 method === 'link' ? '' : 'bg-transparent'
               }`}
               style={method === 'link' ? { backgroundImage: 'var(--color-gradient-gray)' } : {}}
@@ -163,7 +163,7 @@ export default function InviteMemberPanel({
             <button
               type="button"
               onClick={() => setMethod('email')}
-              className={`button-group__button button-group__button--right h-[64px] flex items-center justify-center gap-2 px-4 border-none cursor-pointer ${
+              className={`button-group__button button-group__button--right h-[64px] flex-center px-4 border-none cursor-pointer ${
                 method === 'email' ? '' : 'bg-transparent'
               }`}
               style={method === 'email' ? { backgroundImage: 'var(--color-gradient-gray)' } : {}}
@@ -195,12 +195,12 @@ export default function InviteMemberPanel({
             <div className="bg-[var(--color-green)] text-[var(--color-deep-grey)] px-4 py-3 rounded-xl mb-4 text-[14px] font-medium">
               ✓ Invitation link created!
             </div>
-            <div className="flex gap-2 mb-2">
+            <div className="flex-row mb-2" style={{ gap: '0.5rem' }}>
               <input
                 type="text"
                 value={inviteLink}
                 readOnly
-                className="flex-1 p-3 border border-[var(--color-fog-white)] rounded-xl text-[13px] font-mono bg-[var(--color-snow-white)] text-[var(--color-deep-grey)]"
+                className="flex-fill p-3 border border-[var(--color-fog-white)] rounded-xl text-[13px] font-mono bg-[var(--color-snow-white)] text-[var(--color-deep-grey)]"
                 onClick={(e) => (e.target as HTMLInputElement).select()}
               />
               <button
@@ -218,7 +218,7 @@ export default function InviteMemberPanel({
 
         {/* Form (show only if not showing invite link) */}
         {!inviteLink && (
-          <div className="p-6 flex-1 overflow-y-auto">
+          <div className="p-6 flex-fill scroll-y">
             {/* Email Input (only for email method) */}
             {method === 'email' && (
               <div className="form-group mb-5">
@@ -283,10 +283,10 @@ export default function InviteMemberPanel({
         )}
 
         {/* Action Buttons */}
-        <div className="flex gap-3 p-4 border-t border-[var(--color-fog-white)]">
+        <div className="flex-row p-4 border-t border-[var(--color-fog-white)]" style={{ gap: '0.75rem' }}>
           {inviteLink ? (
             <button
-              className="flex-1 px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
+              className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity"
               onClick={onClose}
             >
               Done
@@ -294,14 +294,14 @@ export default function InviteMemberPanel({
           ) : (
             <>
               <button
-                className="flex-1 px-6 py-3 bg-[var(--color-fog-white)] text-[var(--color-deep-grey)] border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:bg-[var(--color-soft-gray)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-fill px-6 py-3 bg-[var(--color-fog-white)] text-[var(--color-deep-grey)] border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:bg-[var(--color-soft-gray)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={onClose}
                 disabled={loading}
               >
                 Cancel
               </button>
               <button
-                className="flex-1 px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-fill px-6 py-3 bg-[var(--color-bold-blue)] text-white border-none rounded-xl text-[14px] font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={handleInvite}
                 disabled={loading}
               >

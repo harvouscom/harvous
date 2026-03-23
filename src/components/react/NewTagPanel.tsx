@@ -161,7 +161,7 @@ export default function NewTagPanel({
   // Inline mode - render just the form without panel wrapper
   if (inline) {
     return (
-      <form onSubmit={handleSubmit} className="w-full flex flex-col gap-3">
+      <form onSubmit={handleSubmit} className="w-full flex-stack">
         {/* Text input field */}
         <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
           <input
@@ -194,9 +194,9 @@ export default function NewTagPanel({
   // Full panel mode
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} className="flex-fill flex-stack" style={{ gap: 0 }}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section */}

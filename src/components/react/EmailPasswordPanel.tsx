@@ -163,9 +163,9 @@ export default function EmailPasswordPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       {/* Loading indicator - progress bar at top */}
-      <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+      <form onSubmit={handleSubmit} className="flex-fill flex-stack" style={{ gap: 0 }}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-1 flex flex-col min-h-0" : "flex flex-col"}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''} ${isLoading ? 'opacity-60 pointer-events-none' : ''}`}>
             {/* Header section */}
@@ -181,7 +181,7 @@ export default function EmailPasswordPanel({
                 
                 {/* Current Email Display */}
                 <div className="w-full py-5">
-                  <div className="flex items-center justify-center gap-2">
+                  <div className="flex-center" style={{ gap: '0.5rem' }}>
                     <div className="text-[18px] font-semibold text-[var(--color-deep-grey)]">
                       {currentEmail}
                     </div>
