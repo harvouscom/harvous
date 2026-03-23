@@ -352,25 +352,6 @@ body {
   background-color: var(--color-light-paper) !important;
 }
 
-/* PWA standalone: permanent cover over the iOS safe-area (status bar region).
-   Prevents overlay backdrop artifacts from persisting behind the status bar
-   after dismiss — a known WebKit compositing bug with viewport-fit=cover.
-   Sits above all overlays so the status bar area always shows the page background. */
-@media (display-mode: standalone) {
-  body::before {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: env(safe-area-inset-top, 0px);
-    background-color: var(--color-light-paper);
-    z-index: 1100000;
-    pointer-events: none;
-    -webkit-transform: translateZ(0);
-  }
-}
-
 /* Loading indicator styles */
 .navigation-loading {
   position: relative;
