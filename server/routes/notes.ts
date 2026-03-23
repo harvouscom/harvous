@@ -809,7 +809,8 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       if (unorganizedRow) {
         const unorganizedCountResult = first(await db.select({ count: count() })
           .from(Notes)
-          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
+          .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+          .where(and(eq(Notes.userId, auth.userId), isNull(NoteThreads.id)))
           .limit(1));
         allThreads = [{
           ...unorganizedRow,
@@ -845,7 +846,8 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       if (thread.id === 'thread_unorganized') {
         const unorganizedCountResult = first(await db.select({ count: count() })
           .from(Notes)
-          .where(and(eq(Notes.threadId, 'thread_unorganized'), eq(Notes.userId, auth.userId)))
+          .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+          .where(and(eq(Notes.userId, auth.userId), isNull(NoteThreads.id)))
           .limit(1));
         threadCount = unorganizedCountResult?.count || 0;
       } else {

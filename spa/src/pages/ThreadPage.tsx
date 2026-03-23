@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouterState } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
@@ -73,23 +73,24 @@ export default function ThreadPage() {
     notes.forEach((n: ListNoteForSeed) => seedNoteFromList(queryClient, n, threadContext));
   };
 
-  // Sync nav badge count: update navigationHistory entry with the correct noteCount
-  // (from nav for owned threads, or from thread prefetch for member threads not in nav).
-  // Use ?space= from URL when thread/nav lack spaceId so thread is scoped under the right space.
-  // openedInSpaceIds tracks WHERE the thread was opened FROM. On thread route use URL only so we don't re-scope when user switches space before URL updates.
-  // IMPORTANT: Read space from window.location.search inside the effect (not reactively via
-  // urlSpaceId) to prevent route transitions from overwriting the scope with null. This matches
-  // the pattern used in NotePage. urlSpaceId is NOT in the dependency array.
+  // Capture ?space= from URL once per threadId so later effect runs (triggered by async
+  // thread/nav data) don't re-read the URL after the user has navigated away.
+  const spaceIdRef = useRef<string | null>(null);
   useEffect(() => {
-    // Capture space from URL at effect time — avoids TanStack Router returning stale/empty
-    // search state during route transitions which would overwrite the scope with null.
-    let effectSpaceId: string | null = null;
+    let captured: string | null = null;
     if (typeof window !== 'undefined') {
       try {
         const fromUrl = new URLSearchParams(window.location.search).get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) effectSpaceId = fromUrl;
+        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
       } catch { /* ignore */ }
     }
+    spaceIdRef.current = captured;
+  }, [threadId]);
+
+  // Sync nav badge count: update navigationHistory entry with the correct noteCount
+  // and space scope. Uses the ref so the space captured on mount is stable across re-renders.
+  useEffect(() => {
+    const effectSpaceId = spaceIdRef.current;
     const navThread = nav?.threads.find(t => t.id === threadId);
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
     const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');

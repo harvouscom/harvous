@@ -1084,6 +1084,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const data = await response.json();
       const threads = data.threads || [];
       const spaces = data.spaces || [];
+      const memberOfSpaces = data.memberOfSpaces || [];
       // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
       const rawHistory = getRawNavigationHistory();
       
@@ -1149,8 +1150,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } 
         // Check if this is a space
         else if (item.id.startsWith('space_')) {
-          // Find matching space in API response
-          const spaceData = spaces.find((s: any) => s.id === item.id);
+          // Find matching space in API response (check owned spaces and member-of spaces)
+          const spaceData = spaces.find((s: any) => s.id === item.id)
+            || memberOfSpaces.find((s: any) => s.id === item.id);
           
           if (spaceData) {
             const newCount = spaceData.totalItemCount || 0;

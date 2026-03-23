@@ -778,19 +778,19 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           // For recent changes, verify with polling
           const verifiedCount = await refreshBadgeCountsWithVerification(activeThread.id, expectedCount);
           if (verifiedCount !== null) {
-            // Fetch full thread data
-            const response = await fetch('/api/threads/list', {
+            // Fetch full thread data via prefetch (handles shared space + unorganized threads)
+            const response = await fetch(`/api/threads/${activeThread.id}/prefetch`, {
               credentials: 'include',
               cache: 'no-store'
             });
             if (response.ok) {
-              const threads = await response.json();
-              threadData = threads.find((t: any) => t.id === activeThread.id);
+              const data = await response.json();
+              threadData = data.thread;
             }
           }
         } else {
-          // Regular fetch
-          const response = await fetch('/api/threads/list', {
+          // Regular fetch via prefetch (handles shared space + unorganized threads)
+          const response = await fetch(`/api/threads/${activeThread.id}/prefetch`, {
             credentials: 'include',
             cache: 'no-store'
           });
@@ -802,8 +802,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           }
 
           if (response.ok) {
-            const threads = await response.json();
-            threadData = threads.find((t: any) => t.id === activeThread.id);
+            const data = await response.json();
+            threadData = data.thread;
           }
         }
         
