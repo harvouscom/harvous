@@ -391,12 +391,12 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         ...existingItem,
         ...item,
         count: preservedCount,
-        // Merge existing scopes with incoming scopes so opening a thread from a new space
-        // adds to (not replaces) the list of spaces it appears in.
-        openedInSpaceIds: mergeOpenedInSpaceIds(
-          getItemOpenedInSpaceIds(existingItem),
-          getItemOpenedInSpaceIds(item)
-        ),
+        // When explicit scopes are provided (e.g. from ThreadPage/NotePage), replace
+        // existing scopes so the thread appears only in the space it was opened from.
+        // Fall back to merging when no explicit scopes are given (e.g. count-only updates).
+        openedInSpaceIds: hasExplicitOpenedInSpaceIds
+          ? getItemOpenedInSpaceIds(item)
+          : getItemOpenedInSpaceIds(existingItem),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
