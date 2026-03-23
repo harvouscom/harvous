@@ -641,6 +641,128 @@
 }
 
 /* ==========================================================================
+   Drawer (slide-in side panel)
+   ========================================================================== */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.drawer-overlay--open {
+  animation: fade-in 300ms ease-out;
+}
+
+.drawer-inner {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.drawer-slide {
+  pointer-events: none;
+  position: fixed;
+  inset-block: 0;
+  right: 0;
+  display: flex;
+  max-width: 100%;
+  padding-left: 2.5rem;
+}
+
+.drawer-panel {
+  pointer-events: auto;
+  width: 100vw;
+  max-width: 28rem;
+  transform: translateX(0);
+  transition: transform 500ms;
+}
+
+.drawer-panel--closed {
+  transform: translateX(100%);
+}
+
+.drawer-body {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow-y: scroll;
+  background-color: white;
+  padding-block: 1.5rem;
+  box-shadow: -10px 0 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.drawer-header {
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .drawer-header {
+    padding-inline: 1.5rem;
+  }
+}
+
+.drawer-content {
+  position: relative;
+  margin-top: 1.5rem;
+  flex: 1;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .drawer-content {
+    padding-inline: 1.5rem;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==========================================================================
+   Tooltip
+   ========================================================================== */
+
+.tooltip-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.tooltip-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 0.5rem;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.tooltip-content {
+  background-color: var(--color-deep-grey);
+  color: var(--color-fog-white);
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.5rem;
+  white-space: nowrap;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.tooltip-arrow {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: -1px;
+  border-width: 4px;
+  border-style: solid;
+  border-color: var(--color-deep-grey) transparent transparent transparent;
+}
+
+/* ==========================================================================
    Tab Navigation
    ========================================================================== */
 
@@ -1291,5 +1413,33 @@ form.new-note-panel {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ==========================================================================
+   Panel Form Layout
+   Semantic classes for form-heavy panels (NewThread, EditSpace, Invite, etc.)
+   ========================================================================== */
+
+/* Vertical form layout with consistent spacing */
+.panel__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-block-4);
+  width: 100%;
+}
+
+/* Individual form field: label + input stacked */
+.panel__form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-block-1);
+  width: 100%;
+}
+
+/* Row of action buttons in a panel */
+.panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 

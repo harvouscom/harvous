@@ -88,60 +88,37 @@ export default function Drawer({
   return (
     <div
       id={id}
-      className={`fixed inset-0 z-50 overflow-hidden ${className} ${isOpen ? 'animate-fade-in' : 'animate-fade-out'}`}
+      className={`drawer-overlay ${className} ${isOpen ? 'drawer-overlay--open' : ''}`}
       onClick={handleBackdropClick}
     >
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-          <div className={`pointer-events-auto w-screen max-w-md transform transition-transform duration-500 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-            <div className="flex h-full flex-col overflow-y-scroll bg-white py-6 shadow-xl">
-              <div className="px-4 sm:px-6">
-                <div className="flex items-start justify-between">
-                  <h2 className="text-lg font-medium" style={{ color: 'var(--color-deep-grey)' }}>{title}</h2>
-                  <div className="ml-3 flex h-7 items-center">
+      <div className="drawer-inner">
+        <div className="drawer-slide">
+          <div className={`drawer-panel ${isOpen ? '' : 'drawer-panel--closed'}`}>
+            <div className="drawer-body">
+              <div className="drawer-header">
+                <div className="flex-between" style={{ alignItems: 'flex-start' }}>
+                  <h2 className="text-subtitle" style={{ color: 'var(--color-deep-grey)' }}>{title}</h2>
+                  <div className="flex-row" style={{ marginLeft: '0.75rem', height: '1.75rem', gap: 0 }}>
                     <button
                       onClick={handleClose}
-                      className="rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                      className="close-icon"
                       style={{ color: 'var(--color-pebble-grey)' }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.color = 'var(--color-stone-grey)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.color = 'var(--color-pebble-grey)';
-                      }}
                     >
                       <span className="sr-only">Close panel</span>
-                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                      <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
                   </div>
                 </div>
               </div>
-              <div className="relative mt-6 flex-1 px-4 sm:px-6">
+              <div className="drawer-content">
                 {children}
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes fade-out {
-          from { opacity: 1; }
-          to { opacity: 0; }
-        }
-        .animate-fade-in {
-          animation: fade-in 300ms ease-out;
-        }
-        .animate-fade-out {
-          animation: fade-out 200ms ease-in;
-        }
-      `}</style>
     </div>
   );
 }

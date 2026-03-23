@@ -63,18 +63,18 @@ export default function ProfileOptionsList() {
           className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
           style={{ backgroundImage: 'var(--color-gradient-gray)' }}
         >
-          <div className="flex items-center justify-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
-            <div className="flex-1 min-w-0 overflow-hidden">
+          <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+            <div className="flex-fill overflow-hidden">
               <span
-                className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block"
+                className="panel__list-item-label"
                 style={{ color: 'var(--color-deep-grey)' }}
               >
                 {label}
               </span>
             </div>
-            <div className="flex items-center justify-center relative shrink-0">
-              <div className="box-border content-stretch flex gap-2.5 items-center justify-start p-[12px] relative">
-                <div className="flex items-center justify-center relative shrink-0">
+            <div className="flex-center relative shrink-0">
+              <div className="panel__list-item-icon-wrapper">
+                <div className="flex-center relative shrink-0">
                   <div className="relative w-6 h-6">
                     <svg
                       className="fill-[var(--color-pebble-grey)] block max-w-none w-full h-full transition-transform duration-125"
@@ -93,7 +93,7 @@ export default function ProfileOptionsList() {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex-stack">
       {/* Content & Activity (most frequently used) */}
       {renderOption('mySpaces', 'My Spaces', true)}
       {renderOption('mySharing', 'My Sharing', true)}

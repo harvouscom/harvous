@@ -83,28 +83,28 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-3">
+    <div className="flex-stack">
+      <div className="flex-stack">
         {recentSearches.map((search) => (
           <div key={search.term} className="recent-search-item">
             <div
-              className="relative nav-item-container rounded-3xl min-h-[64px] py-5 px-4 flex items-center gap-3"
+              className="relative nav-item-container rounded-3xl min-h-[64px] py-5 px-4 flex-row"
               style={{ background: 'var(--color-gradient-gray)', boxShadow: 'var(--shadow-small)' }}
             >
               <button
                 type="button"
-                className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer transition-[scale,shadow] duration-300"
-                style={{ color: 'var(--color-deep-grey)' }}
+                className="flex-row flex-fill text-left cursor-pointer transition-[scale,shadow] duration-300"
+                style={{ color: 'var(--color-deep-grey)', minWidth: 0 }}
                 onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
                   safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >
-                <span className="font-sans text-[18px] font-semibold truncate">
+                <span className="panel__list-item-label text-truncate">
                   {search.term}
                 </span>
-                <span className="badge-count bg-[rgba(120,118,111,0.1)] inline-flex items-center justify-center rounded-3xl w-6 h-6 flex-shrink-0 text-[14px] font-sans font-semibold leading-[0]">
+                <span className="badge-count" style={{ background: 'rgba(120,118,111,0.1)' }}>
                   {search.count}
                 </span>
               </button>
@@ -115,7 +115,7 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
                   e.preventDefault();
                   removeFromRecentSearches(search.term);
                 }}
-                className="recent-search-close-icon flex items-center justify-center flex-shrink-0 w-6 h-6 cursor-pointer p-0 border-0 bg-transparent ml-auto"
+                className="recent-search-close-icon flex-center shrink-0 w-6 h-6 cursor-pointer p-0 border-0 bg-transparent ml-auto"
                 aria-label="Remove from recent searches"
               >
                 <svg width="20" height="20" className="fill-[var(--color-pebble-grey)]" viewBox="0 0 384 512" aria-hidden="true">

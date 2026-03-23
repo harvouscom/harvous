@@ -9,33 +9,27 @@ export default function Counter({ initialValue = 0, label = "Counter" }: Counter
   const [count, setCount] = useState(initialValue);
 
   return (
-    <div className="p-4 border rounded-lg bg-white shadow-sm" style={{ borderColor: 'var(--color-gray)' }}>
-      <h3 className="text-lg font-semibold mb-2">{label}</h3>
-      <div className="flex items-center gap-4">
+    <div className="panel" style={{ padding: '1rem', borderColor: 'var(--color-gray)' }}>
+      <h3 className="text-subtitle" style={{ marginBottom: '0.5rem' }}>{label}</h3>
+      <div className="flex-row" style={{ gap: '1rem' }}>
         <button
           onClick={() => setCount(count - 1)}
-          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          className="btn btn--sm btn--danger"
         >
           -
         </button>
-        <span className="text-2xl font-bold min-w-[3rem] text-center">{String(count ?? 0)}</span>
+        <span style={{ fontSize: '1.5rem', fontWeight: 700, minWidth: '3rem', textAlign: 'center' }}>{String(count ?? 0)}</span>
         <button
           onClick={() => setCount(count + 1)}
-          className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+          className="btn btn--sm btn--primary"
         >
           +
         </button>
       </div>
       <button
         onClick={() => setCount(initialValue)}
-        className="mt-2 px-3 py-1 text-white rounded transition-colors text-sm"
-        style={{ backgroundColor: 'var(--color-stone-grey)' }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--color-deep-grey)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'var(--color-stone-grey)';
-        }}
+        className="btn btn--sm btn--secondary"
+        style={{ marginTop: '0.5rem' }}
       >
         Reset
       </button>

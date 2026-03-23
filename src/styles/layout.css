@@ -570,3 +570,49 @@ button.new-space-floating-button {
   justify-content: space-between;
 }
 
+/* ==========================================================================
+   Semantic Layout Primitives
+   Replaces common Tailwind utility combos with meaningful class names
+   ========================================================================== */
+
+/* Vertical stack with consistent gap */
+.flex-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-block-3);
+}
+
+/* Horizontal row with vertically centered items */
+.flex-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Horizontal row with items pushed to edges */
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Center content both axes */
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Flex child that fills remaining space and allows shrinking */
+.flex-fill {
+  flex: 1 1 0%;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Scrollable vertical overflow */
+.scroll-y {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
