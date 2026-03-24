@@ -188,7 +188,7 @@ app.post('/api/shared/add-note-to-harvous', requireAuth, async (c) => {
 
     if (!sourceNote) return c.json({ error: 'Shared note not found or no longer available' }, 404);
 
-    if (process.env.NODE_ENV === 'production' && sourceNote.userId === auth.userId) {
+    if (sourceNote.userId === auth.userId) {
       return c.json({ error: 'Already in your Harvous' }, 400);
     }
 
@@ -281,7 +281,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
 
     if (!sourceThread) return c.json({ error: 'Shared thread not found or no longer available' }, 404);
 
-    if (process.env.NODE_ENV === 'production' && sourceThread.userId === auth.userId) {
+    if (sourceThread.userId === auth.userId) {
       return c.json({ error: 'Already in your Harvous' }, 400);
     }
 
