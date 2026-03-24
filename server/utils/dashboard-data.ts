@@ -138,6 +138,7 @@ export async function getAllThreadsWithCounts(userId: string) {
     let noteCountsMap = new Map<string, number>();
 
     if (threadIds.length > 0) {
+      // Count notes directly in each thread
       const noteCounts = await db.select({
         threadId: NoteThreads.threadId,
         count: count(),
@@ -152,6 +153,49 @@ export async function getAllThreadsWithCounts(userId: string) {
       ;
 
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+
+      // Also count referenced scripture notes per thread (matching getNotesForThread behavior)
+      // Get all note IDs per thread
+      const threadNoteRows = await db.select({ threadId: NoteThreads.threadId, noteId: NoteThreads.noteId })
+        .from(NoteThreads)
+        .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+        .where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.userId, userId)));
+
+      const allNoteIds = threadNoteRows.map(r => r.noteId).filter(Boolean) as string[];
+      if (allNoteIds.length > 0) {
+        const refs = await db.select({
+          noteId: NoteScriptureReferences.noteId,
+          scriptureNoteId: NoteScriptureReferences.scriptureNoteId,
+        })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, allNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+
+        // Build a map: noteId -> set of scripture note IDs it references
+        const noteToRefs = new Map<string, Set<string>>();
+        for (const ref of refs) {
+          if (!noteToRefs.has(ref.noteId)) noteToRefs.set(ref.noteId, new Set());
+          noteToRefs.get(ref.noteId)!.add(ref.scriptureNoteId);
+        }
+
+        // For each thread, count additional scripture notes not already in the thread
+        for (const threadId of threadIds) {
+          const threadNoteIds = new Set(threadNoteRows.filter(r => r.threadId === threadId).map(r => r.noteId));
+          const additionalScriptureIds = new Set<string>();
+          for (const noteId of threadNoteIds) {
+            const scriptureRefs = noteToRefs.get(noteId as string);
+            if (scriptureRefs) {
+              for (const sid of scriptureRefs) {
+                if (!threadNoteIds.has(sid)) additionalScriptureIds.add(sid);
+              }
+            }
+          }
+          if (additionalScriptureIds.size > 0) {
+            const currentCount = noteCountsMap.get(threadId) || 0;
+            noteCountsMap.set(threadId, currentCount + additionalScriptureIds.size);
+          }
+        }
+      }
     }
 
     const threadsWithCounts = threads.map(thread => ({
@@ -303,13 +347,24 @@ export async function getThreadWithCount(threadId: string, userId: string) {
 
     if (!thread) return null;
 
-    const noteCountResult = first(await db.select({ count: count() })
-      .from(NoteThreads)
-      .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
-      .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-      .limit(1));
+    // Count notes directly in thread
+    const threadNotes = await db.select({ id: Notes.id })
+      .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+      .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
 
-    const noteCount = noteCountResult?.count || 0;
+    // Also count referenced scripture notes (matching getNotesForThread behavior)
+    const threadNoteIds = threadNotes.map(n => n.id).filter(Boolean) as string[];
+    let referencedScriptureCount = 0;
+    if (threadNoteIds.length > 0) {
+      const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+        .where(and(inArray(NoteScriptureReferences.noteId, threadNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+      const alreadyIds = new Set(threadNoteIds);
+      const additionalIds = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id)));
+      referencedScriptureCount = additionalIds.size;
+    }
+
+    const noteCount = threadNotes.length + referencedScriptureCount;
 
     return {
       ...thread, noteCount,
@@ -415,17 +470,57 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
     let allCount = 0, defaultCount = 0, scriptureCount = 0, resourceCount = 0;
 
     if (threadId === 'thread_unorganized') {
-      const allNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
+      const unorganizedNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)));
+
+      // Also include referenced scripture notes (matching getNotesForThread behavior)
+      const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean) as string[];
+      let referencedScriptureNotes: typeof unorganizedNotes = [];
+      if (unorganizedNoteIds.length > 0) {
+        const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+          .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, unorganizedNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+        const alreadyIds = new Set(unorganizedNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
+        const additionalIds = [...new Set(refs.map(r => r.scriptureNoteId))].filter(id => !alreadyIds.has(id));
+        if (additionalIds.length > 0) {
+          referencedScriptureNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
+            .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+        }
+      }
+
+      const notesMap = new Map<string, { id: string | null; noteType: string | null }>();
+      [...unorganizedNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
+      const allNotes = Array.from(notesMap.values());
+
       allCount = allNotes.length;
       defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;
       resourceCount = allNotes.filter(n => n.noteType === 'resource').length;
     } else {
-      const allNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
+      const threadNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
+
+      // Also include referenced scripture notes (matching getNotesForThread behavior)
+      const threadNoteIds = threadNotes.map(n => n.id).filter(Boolean) as string[];
+      let referencedScriptureNotes: typeof threadNotes = [];
+      if (threadNoteIds.length > 0) {
+        const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+          .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, threadNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+        const alreadyIds = new Set(threadNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
+        const additionalIds = [...new Set(refs.map(r => r.scriptureNoteId))].filter(id => !alreadyIds.has(id));
+        if (additionalIds.length > 0) {
+          referencedScriptureNotes = await db.select({ id: Notes.id, noteType: Notes.noteType })
+            .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+        }
+      }
+
+      const notesMap = new Map<string, { id: string | null; noteType: string | null }>();
+      [...threadNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
+      const allNotes = Array.from(notesMap.values());
+
       allCount = allNotes.length;
       defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
       scriptureCount = allNotes.filter(n => n.noteType === 'scripture').length;

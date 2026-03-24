@@ -2,7 +2,7 @@
  * Unorganized thread utilities — Drizzle port of src/utils/unorganized-thread.ts
  */
 
-import { db, first, Threads, Notes, NoteThreads, eq, and, count, isNull } from '../db';
+import { db, first, Threads, Notes, NoteThreads, NoteScriptureReferences, eq, and, count, isNull, inArray } from '../db';
 import { nowISO } from '../db/dates';
 
 function sleep(ms: number): Promise<void> {
@@ -86,22 +86,35 @@ export async function ensureUnorganizedThread(userId: string) {
       }
     }
 
-    const noteCount = await retryDbOperation(async () => {
-      return first(await db.select({ count: count() })
-      .from(Notes)
-      .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-      .where(and(
-        eq(Notes.userId, userId),
-        isNull(NoteThreads.id)
-      ))
-      .limit(1));
+    // Count unorganized notes (not in any thread)
+    const unorganizedNotes = await retryDbOperation(async () => {
+      return db.select({ id: Notes.id })
+        .from(Notes)
+        .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+        .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)));
     });
+    const directCount = unorganizedNotes.length;
+
+    // Also count referenced scripture notes (matching getNotesForThread behavior)
+    const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean) as string[];
+    let referencedScriptureCount = 0;
+    if (unorganizedNoteIds.length > 0) {
+      const refs = await retryDbOperation(async () => {
+        return db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+          .from(NoteScriptureReferences)
+          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+          .where(and(inArray(NoteScriptureReferences.noteId, unorganizedNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+      });
+      const alreadyIds = new Set(unorganizedNoteIds);
+      const additionalIds = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id)));
+      referencedScriptureCount = additionalIds.size;
+    }
 
     const threadData = {
       id: 'thread_unorganized',
       title: 'Unorganized',
       color: null,
-      noteCount: noteCount?.count || 0,
+      noteCount: directCount + referencedScriptureCount,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
     };
 
