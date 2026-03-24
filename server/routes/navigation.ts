@@ -10,7 +10,7 @@
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import { getCachedUserData } from '../utils/user-cache';
-import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces } from '../utils/dashboard-data';
+import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, getMemberOfSpaces, getThreadNoteTypeCounts } from '../utils/dashboard-data';
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
@@ -32,11 +32,12 @@ route.get('/api/navigation/data', async (c) => {
     await getCachedUserData(userId);
 
     // Fetch navigation data in parallel
-    const [threads, spaces, inboxCount, unorganizedThreadData, memberSpaces] = await Promise.all([
+    const [threads, spaces, inboxCount, unorganizedThreadData, unorganizedTypeCounts, memberSpaces] = await Promise.all([
       getAllThreadsWithCounts(userId),
       getSpacesWithCounts(userId),
       getInboxDisplayCount(userId),
       ensureUnorganizedThread(userId),
+      getThreadNoteTypeCounts('thread_unorganized', userId),
       getMemberOfSpaces(userId),
     ]);
 
@@ -59,7 +60,7 @@ route.get('/api/navigation/data', async (c) => {
       createdAt: now,
       updatedAt: now as string | null,
       lastVisited: null,
-      noteCount: unorganizedThreadData.noteCount || 0,
+      noteCount: unorganizedTypeCounts?.all || unorganizedThreadData.noteCount || 0,
       lastUpdated: now,
       accentColor: getThreadGradientCSS('paper'),
       backgroundGradient: unorganizedThreadData.backgroundGradient || getThreadGradientCSS('paper'),
