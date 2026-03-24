@@ -96,12 +96,13 @@ export default function SharedThreadPage() {
         }, 800);
       }
     } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('Already in your Harvous') || (err?.status === 400 && msg.includes('Already'))) {
+      const msg = err?.message || err?.toString() || '';
+      console.error('[SharedThreadPage] doAdd error:', { message: msg, status: err?.status, name: err?.name, err });
+      if (msg.includes('Already in your Harvous') || msg.includes('already')) {
         setAlreadyOwned(true);
         showToast('This thread is already in your Harvous', 'info', 0);
       } else {
-        showToast('Failed to add thread. Please try again.', 'error');
+        showToast(msg || 'Failed to add thread. Please try again.', 'error');
       }
     }
   }
