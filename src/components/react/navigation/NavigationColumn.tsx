@@ -82,7 +82,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
-  const { navigationHistory, refreshNavigation, removeFromNavigationHistory, addToNavigationHistory } = useNavigation();
+  const { navigationHistory, refreshNavigation, removeFromNavigationHistory, addToNavigationHistory, updateNavigationItemCount } = useNavigation();
   // Track hydration state to prevent SSR/client mismatch in dropdown
   const [isHydrated, setIsHydrated] = useState(false);
   // Top gradient: show only when scrolled down (same as Tiptap editor)
@@ -579,6 +579,21 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const effectiveSelectedSpaceIdRef = useRef(effectiveSelectedSpaceId);
   effectiveSelectedSpaceIdRef.current = effectiveSelectedSpaceId;
 
+  // Capture ?space= from URL once per active thread ID so later effect runs
+  // (triggered by async title/gradient updates) don't re-read a stale URL.
+  const spaceIdForHistoryRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeThreadForHistory?.id) return;
+    let captured: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
+      } catch { /* ignore */ }
+    }
+    spaceIdForHistoryRef.current = captured;
+  }, [activeThreadForHistory?.id]);
+
   useEffect(() => {
     if (!activeThreadForHistory?.id || !activeThreadForHistory.id.startsWith('thread_')) return;
     // Only scope the thread when we're actually viewing a thread or note page.
@@ -586,15 +601,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       const path = window.location.pathname;
       if (!path.startsWith('/thread/') && !path.startsWith('/note/')) return;
     }
-    // On thread/note pages use URL as sole source of truth for scope so we don't re-scope when user switches space before URL updates.
-    let openedInSpaceId: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const fromUrl = params.get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) openedInSpaceId = fromUrl;
-      } catch { /* ignore */ }
-    }
+    const openedInSpaceId = spaceIdForHistoryRef.current;
     addToNavigationHistory({
       id: activeThreadForHistory.id,
       title: activeThreadForHistory.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadForHistory.title || 'Thread'),
@@ -848,6 +855,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               backgroundGradient: threadData.backgroundGradient || activeThread.backgroundGradient
             };
           });
+
+          // Sync the API-fetched count back to navigation history so inactive threads show correct badges
+          updateNavigationItemCount(activeThread.id, threadData.noteCount);
         }
       } catch (error) {
         // Silently fail - network errors are expected during auth establishment

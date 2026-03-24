@@ -85,6 +85,20 @@ export default function NotePage() {
   const parentThread = note?.threads?.[0];
   const parentThreadId = parentThread?.id ?? undefined;
 
+  // Capture ?space= from URL once per noteId so later effect runs (triggered by
+  // async note data) don't re-read a stale URL after navigation.
+  const noteSpaceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    let captured: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const fromUrl = new URLSearchParams(window.location.search).get('space');
+        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
+      } catch { /* ignore */ }
+    }
+    noteSpaceIdRef.current = captured;
+  }, [noteId]);
+
   // Update navigation history with parent thread count/spaceId when note loads
   // so the left nav badge shows the correct count (e.g. when opening note without visiting thread page first).
   useEffect(() => {
@@ -103,14 +117,7 @@ export default function NotePage() {
         return stored && stored.startsWith('space_') ? stored : null;
       } catch { return null; }
     })();
-    // On note page use URL as source of truth for "opened in" scope so we don't re-scope when user switches space.
-    let openedInSpaceId: string | null = null;
-    if (typeof window !== 'undefined') {
-      try {
-        const fromUrl = new URLSearchParams(window.location.search).get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) openedInSpaceId = fromUrl;
-      } catch { /* ignore */ }
-    }
+    const openedInSpaceId = noteSpaceIdRef.current;
     (window as any).addToNavigationHistory({
       id: parent.id,
       title: isUnorganized ? 'Unorganized' : parent.title,

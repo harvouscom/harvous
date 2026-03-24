@@ -39,6 +39,7 @@ interface NavigationContextType {
   trackNavigationAccess: () => void;
   refreshNavigation: () => void;
   getCurrentActiveItemId: () => string;
+  updateNavigationItemCount: (itemId: string, count: number) => void;
 }
 
 // Create the context with default SSR-safe values
@@ -51,7 +52,8 @@ const defaultContextValue: NavigationContextType = {
   removeFromNavigationHistory: () => {},
   trackNavigationAccess: () => {},
   refreshNavigation: () => {},
-  getCurrentActiveItemId: () => ''
+  getCurrentActiveItemId: () => '',
+  updateNavigationItemCount: () => {},
 };
 
 // Provider component
@@ -380,27 +382,29 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [getSelectedSpaceId()]);
 
     if (existingIndex !== -1) {
-      // Item already exists - update lastAccessed time but keep position.
-      // IMPORTANT: Preserve the existing count — it was set by refreshNavigationCounts (API)
-      // or event handlers (optimistic +1/-1) which are more accurate than stale DOM data.
-      // Only use the incoming count if the existing count is 0/null (first-time or cleared).
+      // Item already exists - update lastAccessed time but keep position; never overwrite a positive count with 0 so badge persists
       const existingItem = rawHistory[existingIndex];
       const preservedFirstAccessed = (existingItem.firstAccessed != null) ? existingItem.firstAccessed : Date.now();
-      const existingCount = (existingItem as any).count;
       const incomingCount = (item as any).count != null ? Number((item as any).count) : undefined;
-      const preservedCount = (typeof existingCount === 'number' && existingCount > 0)
-        ? existingCount
-        : (typeof incomingCount === 'number' && incomingCount > 0 ? incomingCount : (existingCount ?? incomingCount ?? 0));
+      const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
+        ? incomingCount
+        : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
         count: preservedCount,
         // When explicit scopes are provided (e.g. from ThreadPage/NotePage), replace
-        // existing scopes so the thread appears only in the space it was opened from.
-        // Fall back to merging when no explicit scopes are given (e.g. count-only updates).
-        openedInSpaceIds: hasExplicitOpenedInSpaceIds
-          ? getItemOpenedInSpaceIds(item)
-          : getItemOpenedInSpaceIds(existingItem),
+        // existing scopes — but guard against [null] overwriting a real space scope.
+        // This prevents async re-renders from clobbering correct scopes.
+        openedInSpaceIds: (() => {
+          if (!hasExplicitOpenedInSpaceIds) return getItemOpenedInSpaceIds(existingItem);
+          const newScopes = getItemOpenedInSpaceIds(item);
+          const existingScopes = getItemOpenedInSpaceIds(existingItem);
+          const existingHasSpace = existingScopes.some(s => s !== null);
+          const newHasSpace = newScopes.some(s => s !== null);
+          if (existingHasSpace && !newHasSpace) return existingScopes;
+          return newScopes;
+        })(),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
@@ -455,6 +459,18 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       setTimeout(() => {
         window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
       }, 0);
+    }
+  };
+
+  // Update the count for a specific navigation item directly in rawHistory.
+  // Used by NavigationColumn to sync API-fetched counts back to history.
+  const updateNavigationItemCount = (itemId: string, newCount: number) => {
+    const rawHistory = getRawNavigationHistory();
+    const idx = rawHistory.findIndex((h: any) => h.id === itemId);
+    if (idx !== -1 && rawHistory[idx].count !== newCount) {
+      rawHistory[idx] = { ...rawHistory[idx], count: newCount };
+      saveNavigationHistory(rawHistory);
+      setNavigationHistory(getNavigationHistory());
     }
   };
 
@@ -1022,6 +1038,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             return {
               ...item,
               ...itemData,
+              // Preserve existing count — DOM data-attributes can be stale.
+              // refreshNavigationCounts (called below) will update with fresh API data.
+              count: item.count ?? itemData.count ?? 0,
               // Keep existing scopes — don't overwrite with potentially stale/wrong space
               openedInSpaceIds: getItemOpenedInSpaceIds(item),
               openedInSpaceId: item.openedInSpaceId ?? null,
@@ -1048,9 +1067,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         refreshNavigationCounts();
       }
     } else if (retryCount >= 3) {
-      // If we've exhausted retries and still can't find data, silently skip
-      // This can happen for pages that don't have navigation data (notes without threads, etc.)
-      // No need to log as it's expected behavior for some page types
+      // DOM data not available (e.g., SPA mode where data attributes don't exist).
+      // Still refresh counts from API so navigation badges stay accurate.
+      refreshNavigationCounts();
     }
   };
 
@@ -1179,6 +1198,27 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Unknown item type - keep as is
         return item;
       });
+
+      // Fetch counts for threads not in the API response (shared space threads).
+      // These threads are owned by another user, so getAllThreadsWithCounts doesn't include them.
+      const sharedThreadIds = updatedHistory
+        .filter(item => item !== null && item.id.startsWith('thread_') && item.id !== 'thread_unorganized' && !threads.find((t: any) => t.id === item.id))
+        .map(item => item!.id);
+
+      if (sharedThreadIds.length > 0) {
+        await Promise.all(sharedThreadIds.map(async (threadId) => {
+          try {
+            const resp = await safeFetch(`/api/threads/${threadId}/prefetch`, { timeout: 15000 });
+            if (resp && resp.ok) {
+              const data = await resp.json();
+              const idx = updatedHistory.findIndex(item => item?.id === threadId);
+              if (idx !== -1 && data.thread?.noteCount != null) {
+                updatedHistory[idx] = { ...updatedHistory[idx]!, count: data.thread.noteCount };
+              }
+            }
+          } catch { /* skip — thread might have been deleted */ }
+        }));
+      }
 
       // Filter out items marked for removal (null values)
       // Note: unorganized with 0 notes is kept in history (marked as closed) to preserve position
@@ -2040,7 +2080,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       removeFromNavigationHistory,
       trackNavigationAccess,
       refreshNavigation,
-      getCurrentActiveItemId
+      getCurrentActiveItemId,
+      updateNavigationItemCount,
     };
     return newValue;
   }, [filteredNavigationHistory]);
