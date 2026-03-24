@@ -754,7 +754,7 @@ route.post('/api/spaces/:spaceId/members/invite', requireAuth, rateLimit('write'
 
     const inviteToken = generateShareToken();
     const now = nowISO();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await db.insert(SpaceInvitations).values({
       id: `invite_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

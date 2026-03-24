@@ -111,7 +111,7 @@ async function processThreadMutation(userId: string, operation: string, entityId
       userId,
       createdAt: now,
       updatedAt: now,
-      lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
+      lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
     }).returning())!;
 
     // Cache the result for idempotency
@@ -132,7 +132,7 @@ async function processThreadMutation(userId: string, operation: string, entityId
       isPinned: data.isPinned,
       order: data.order,
       updatedAt: nowISO(),
-      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited).toISOString() }),
+      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
     }).where(eq(Threads.id, entityId));
     return { success: true, entityId, serverId: entityId, data: { color: data.color } };
   } else if (operation === 'delete') {
@@ -204,7 +204,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       userId,
       createdAt: now,
       updatedAt: now,
-      lastVisited: data.lastVisited ? new Date(data.lastVisited).toISOString() : now,
+      lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
       contentEncrypted: data.contentEncrypted || false,
     }).returning())!;
 
@@ -232,7 +232,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       isFeatured: data.isFeatured,
       order: data.order,
       updatedAt: nowISO(),
-      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited).toISOString() }),
+      ...(data.lastVisited && { lastVisited: new Date(data.lastVisited) }),
       ...(typeof data.contentEncrypted === 'boolean' && { contentEncrypted: data.contentEncrypted }),
       ...(data.contentEncrypted === true && { isPublic: false, shareToken: null, shareTokenCreatedAt: null }),
     }).where(eq(Notes.id, entityId));

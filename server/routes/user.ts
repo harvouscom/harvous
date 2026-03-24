@@ -732,7 +732,7 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const newNote = first(await db.insert(Notes).values({
           id: generateNoteId(), content: capitalizedContent, title: capitalizedTitle,
           threadId: 'thread_unorganized', spaceId: null, simpleNoteId: nextSimpleNoteId,
-          noteType, userId: auth.userId, isPublic: false, createdAt: createdDate.toISOString(), contentEncrypted: false,
+          noteType, userId: auth.userId, isPublic: false, createdAt: createdDate, contentEncrypted: false,
         }).returning())!;
 
         await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })

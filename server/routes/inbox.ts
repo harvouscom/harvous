@@ -424,12 +424,10 @@ async function handleAutoArchive(c: any) {
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
     fourteenDaysAgo.setHours(0, 0, 0, 0);
-    const fourteenDaysAgoISO = fourteenDaysAgo.toISOString();
-
     const conditions: any[] = [
       eq(UserInboxItems.status, 'inbox'),
       eq(InboxItems.isActive, true),
-      lt(UserInboxItems.createdAt, fourteenDaysAgoISO),
+      lt(UserInboxItems.createdAt, fourteenDaysAgo),
     ];
 
     if (isAuthenticated && !hasValidToken) {
@@ -489,12 +487,9 @@ async function handleAutoDelete(c: any) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     thirtyDaysAgo.setHours(0, 0, 0, 0);
-    const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
-
     const fortyFourDaysAgo = new Date();
     fortyFourDaysAgo.setDate(fortyFourDaysAgo.getDate() - 44);
     fortyFourDaysAgo.setHours(0, 0, 0, 0);
-    const fortyFourDaysAgoISO = fortyFourDaysAgo.toISOString();
 
     // Backfill missing archivedAt timestamps
     const backfillConditions: any[] = [
@@ -523,8 +518,8 @@ async function handleAutoDelete(c: any) {
     const deleteConditions: any[] = [
       eq(UserInboxItems.status, 'archived'),
       or(
-        lt(UserInboxItems.archivedAt, thirtyDaysAgoISO),
-        and(isNull(UserInboxItems.archivedAt), lt(UserInboxItems.createdAt, fortyFourDaysAgoISO))
+        lt(UserInboxItems.archivedAt, thirtyDaysAgo),
+        and(isNull(UserInboxItems.archivedAt), lt(UserInboxItems.createdAt, fortyFourDaysAgo))
       ),
     ];
     if (isAuthenticated && !hasValidToken) {
