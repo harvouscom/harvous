@@ -95,8 +95,9 @@ export default function SharedThreadPage() {
           navigate({ to: path as any });
         }, 800);
       }
-    } catch (err) {
-      if (err instanceof APIError && err.message === 'Already in your Harvous') {
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('Already in your Harvous') || (err?.status === 400 && msg.includes('Already'))) {
         setAlreadyOwned(true);
         showToast('This thread is already in your Harvous', 'info', 0);
       } else {
