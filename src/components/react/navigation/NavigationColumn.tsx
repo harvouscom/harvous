@@ -611,7 +611,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient]);
+  }, [activeThreadForHistory?.id, activeThreadForHistory?.title, activeThreadForHistory?.backgroundGradient, activeThreadForHistory?.noteCount]);
 
   // currentItemId is already initialized from pathname in useState
   // This useEffect just updates it when the page changes

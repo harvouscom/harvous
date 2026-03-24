@@ -86,28 +86,43 @@ export async function ensureUnorganizedThread(userId: string) {
       }
     }
 
-    // Count unorganized notes (not in any thread)
-    const unorganizedNotes = await retryDbOperation(async () => {
-      return db.select({ id: Notes.id })
+    // Count unorganized notes (not in any thread) — use original count() for efficiency
+    const noteCountResult = await retryDbOperation(async () => {
+      return first(await db.select({ count: count() })
         .from(Notes)
         .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
-        .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)));
+        .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
+        .limit(1));
     });
-    const directCount = unorganizedNotes.length;
+    const directCount = noteCountResult?.count || 0;
 
     // Also count referenced scripture notes (matching getNotesForThread behavior)
-    const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean) as string[];
+    // Wrapped in its own try-catch so a failure here doesn't lose the direct count
     let referencedScriptureCount = 0;
-    if (unorganizedNoteIds.length > 0) {
-      const refs = await retryDbOperation(async () => {
-        return db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
-          .from(NoteScriptureReferences)
-          .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
-          .where(and(inArray(NoteScriptureReferences.noteId, unorganizedNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
-      });
-      const alreadyIds = new Set(unorganizedNoteIds);
-      const additionalIds = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id)));
-      referencedScriptureCount = additionalIds.size;
+    try {
+      if (directCount > 0) {
+        // Get IDs of unorganized notes to find their scripture references
+        const unorganizedNotes = await retryDbOperation(async () => {
+          return db.select({ id: Notes.id })
+            .from(Notes)
+            .leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+            .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)));
+        });
+        const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean) as string[];
+        if (unorganizedNoteIds.length > 0) {
+          const refs = await retryDbOperation(async () => {
+            return db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+              .from(NoteScriptureReferences)
+              .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+              .where(and(inArray(NoteScriptureReferences.noteId, unorganizedNoteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+          });
+          const alreadyIds = new Set(unorganizedNoteIds);
+          const additionalIds = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id)));
+          referencedScriptureCount = additionalIds.size;
+        }
+      }
+    } catch (refError) {
+      console.error("Error counting referenced scriptures for unorganized:", refError);
     }
 
     const threadData = {
