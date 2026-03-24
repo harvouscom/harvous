@@ -399,11 +399,30 @@ export async function getThreadsWithCountsLimited(userId: string, limit?: number
     const threadIds = threads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
     if (threadIds.length > 0) {
+      // Get direct junction note counts
       const noteCounts = await db.select({ threadId: NoteThreads.threadId, count: count() })
         .from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
         .where(and(inArray(NoteThreads.threadId, threadIds), eq(Notes.userId, userId)))
         .groupBy(NoteThreads.threadId);
       noteCountsMap = new Map(noteCounts.map(item => [item.threadId, item.count]));
+
+      // Add referenced scripture notes to counts (matches getThreadNoteTypeCounts logic)
+      for (const threadId of threadIds) {
+        const junctionNotes = await db.select({ id: Notes.id })
+          .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
+          .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)));
+        const noteIds = junctionNotes.map(n => n.id).filter(Boolean);
+        if (noteIds.length > 0) {
+          const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+            .from(NoteScriptureReferences).innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+            .where(and(inArray(NoteScriptureReferences.noteId, noteIds), eq(Notes.userId, userId), eq(Notes.noteType, 'scripture')));
+          const alreadyIds = new Set(junctionNotes.map(n => n.id));
+          const additionalCount = new Set(refs.map(r => r.scriptureNoteId).filter(id => !alreadyIds.has(id))).size;
+          if (additionalCount > 0) {
+            noteCountsMap.set(threadId, (noteCountsMap.get(threadId) || 0) + additionalCount);
+          }
+        }
+      }
     }
 
     return threads.map(thread => ({

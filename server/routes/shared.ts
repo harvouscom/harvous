@@ -15,8 +15,8 @@ import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
-  SpaceInvitations, Spaces, Members,
-  eq, and, desc, asc, isNotNull, count, sql,
+  NoteScriptureReferences, SpaceInvitations, Spaces, Members,
+  eq, and, desc, asc, isNotNull, count, sql, inArray,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -141,6 +141,39 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
       )
       ;
 
+    // Resolve referenced scripture notes (same pattern as getNotesForThread in dashboard-data.ts)
+    const threadNoteIds = notes.map(n => n.id).filter(Boolean);
+    let referencedScriptureNotes: typeof notes = [];
+    if (threadNoteIds.length > 0) {
+      const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+        .where(and(
+          inArray(NoteScriptureReferences.noteId, threadNoteIds),
+          eq(Notes.userId, thread.userId),
+          eq(Notes.noteType, 'scripture'),
+          eq(Notes.contentEncrypted, false)
+        ));
+      const uniqueIds = [...new Set(refs.map(r => r.scriptureNoteId))];
+      const alreadyIds = new Set(notes.filter(n => n.noteType === 'scripture').map(n => n.id));
+      const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
+      if (additionalIds.length > 0) {
+        referencedScriptureNotes = await db.select({
+          id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType,
+          createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
+        }).from(Notes).where(and(
+          inArray(Notes.id, additionalIds),
+          eq(Notes.userId, thread.userId),
+          eq(Notes.noteType, 'scripture'),
+          eq(Notes.contentEncrypted, false)
+        ));
+      }
+    }
+    // Merge and deduplicate
+    const notesMap = new Map<string, (typeof notes)[0]>();
+    [...notes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
+    const allNotes = Array.from(notesMap.values());
+
     const creator = first(await db
       .select({
         firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
@@ -159,9 +192,9 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
 
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
-      notes: notes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
+      notes: allNotes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
       creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
-      meta: { noteCount: notes.length },
+      meta: { noteCount: allNotes.length },
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/shared/thread/[shareToken]', action: 'get_shared_thread' });
@@ -285,8 +318,8 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
       return c.json({ error: 'Already in your Harvous' }, 400);
     }
 
-    // Fetch source notes
-    const sourceNotes = await db
+    // Fetch source notes (junction + referenced scripture notes)
+    const junctionNotes = await db
       .select({ id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType, createdAt: Notes.createdAt })
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -297,8 +330,31 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
         asc(Notes.id)
-      )
-      ;
+      );
+
+    // Also include referenced scripture notes
+    const junctionNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
+    let referencedScripture: typeof junctionNotes = [];
+    if (junctionNoteIds.length > 0) {
+      const refs = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .innerJoin(Notes, eq(NoteScriptureReferences.scriptureNoteId, Notes.id))
+        .where(and(
+          inArray(NoteScriptureReferences.noteId, junctionNoteIds),
+          eq(Notes.userId, sourceThread.userId),
+          eq(Notes.noteType, 'scripture')
+        ));
+      const uniqueIds = [...new Set(refs.map(r => r.scriptureNoteId))];
+      const alreadyIds = new Set(junctionNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
+      const additionalIds = uniqueIds.filter(id => !alreadyIds.has(id));
+      if (additionalIds.length > 0) {
+        referencedScripture = await db.select({ id: Notes.id, title: Notes.title, content: Notes.content, noteType: Notes.noteType, createdAt: Notes.createdAt })
+          .from(Notes).where(and(inArray(Notes.id, additionalIds), eq(Notes.userId, sourceThread.userId), eq(Notes.noteType, 'scripture')));
+      }
+    }
+    const srcMap = new Map<string, (typeof junctionNotes)[0]>();
+    [...junctionNotes, ...referencedScripture].forEach(n => { if (n.id && !srcMap.has(n.id)) srcMap.set(n.id, n); });
+    const sourceNotes = Array.from(srcMap.values());
 
     // Create new thread
     const newThreadId = generateThreadId();
