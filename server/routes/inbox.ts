@@ -336,7 +336,7 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
 
       for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
         const note = notes[noteIndex];
-        const noteTimestamp = new Date(baseTimestamp + noteIndex).toISOString();
+        const noteTimestamp = new Date(baseTimestamp + noteIndex);
 
         const newNote = first(await db.insert(Notes)
           .values({

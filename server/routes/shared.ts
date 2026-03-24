@@ -339,7 +339,7 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
 
     for (let noteIndex = 0; noteIndex < sourceNotes.length; noteIndex++) {
       const note = sourceNotes[noteIndex];
-      const noteTimestamp = new Date(baseTimestamp + noteIndex).toISOString();
+      const noteTimestamp = new Date(baseTimestamp + noteIndex);
 
       const newNoteId = generateNoteId();
 
