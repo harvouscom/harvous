@@ -10,15 +10,16 @@ import { normalizeScriptureReference } from '@/utils/scripture-detector';
  */
 export async function getOrCreateScriptureNote(
   reference: string,
-  parentThreadId?: string
+  parentThreadId?: string,
+  translation: string = 'NET'
 ): Promise<{ noteId: string | null; isNew: boolean }> {
   const normalizedRef = normalizeScriptureReference(reference);
 
-  // Check if note exists
+  // Check if note exists (for this translation)
   const checkResponse = await fetch('/api/scripture/check-existing', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reference: normalizedRef }),
+    body: JSON.stringify({ reference: normalizedRef, translation }),
     credentials: 'include'
   });
 
@@ -61,7 +62,7 @@ export async function getOrCreateScriptureNote(
     const verseResponse = await fetch('/api/scripture/fetch-verse', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reference: normalizedRef }),
+      body: JSON.stringify({ reference: normalizedRef, translation }),
       credentials: 'include'
     });
 
@@ -83,7 +84,7 @@ export async function getOrCreateScriptureNote(
     threadId: targetThreadId,
     noteType: 'scripture',
     scriptureReference: normalizedRef,
-    scriptureVersion: 'NET',
+    scriptureVersion: translation,
   };
 
   const createResponse = await fetch('/api/notes/create', {

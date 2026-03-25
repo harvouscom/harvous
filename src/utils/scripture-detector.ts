@@ -186,8 +186,6 @@ const parseReference = (match: string): ScriptureReference | null => {
     /^(.+?)\s+(\d+):(\d+)\s*[-–—]\s*(\d+)$/,
     // Single verse: "Book 1:2"
     /^(.+?)\s+(\d+):(\d+)$/,
-    // Chapter only: "Book 1" (treat as chapter 1, verse 1)
-    /^(.+?)\s+(\d+)$/,
   ];
 
   const bookNames = getBookNameVariations();
@@ -306,25 +304,6 @@ const parseReference = (match: string): ScriptureReference | null => {
               reference: `${canonicalBook} ${chapter}:${verse}`
             });
           }
-        } else if (matchResult.length === 3) {
-          // Chapter only: treat as full chapter (e.g. "John 16" → "John 16:1-33")
-          const range = getChapterVerseRange(canonicalBook, chapter);
-          if (range) {
-            const fullChapterRef = normalizeChapterReference(canonicalBook, chapter);
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse: [range.start, range.end] as [number, number],
-              reference: fullChapterRef!
-            });
-          }
-          // Fallback if chapter unknown
-          return validateAndWarn({
-            book: canonicalBook,
-            chapter,
-            verse: 1,
-            reference: `${canonicalBook} ${chapter}:1`
-          });
         }
       }
     }
@@ -435,24 +414,6 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     'gi'
   );
 
-  // Pattern 2: "Book Chapter-Chapter" (chapter range without verses, e.g., "Matthew 5-7")
-  const chapterRangePattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!:)(?!\\d)`,
-    'gi'
-  );
-
-  // Pattern 3: "Book Chapter" (single chapter without verses, e.g., "Matthew 5")
-  // Must not be followed by a colon or dash to avoid matching partial references
-  // Also must not be followed by space+digit (which might indicate a split reference like "Genesis 1 2:1-8")
-  // IMPORTANT: Must not match when followed by dash+digit (e.g., "Exodus 33-34" should not match "Exodus 3")
-  // FIXED: Relaxed (?!\\s+\\d) to allow matching at end of line/string and before punctuation
-  // Changed to (?!\\s+\\d\\s) to only prevent matching when followed by space+digit+space (split reference)
-  // This allows "Luke 2" to match even when followed by punctuation or at end of line
-  const chapterOnlyPattern = new RegExp(
-    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!:)(?!\\s*${dashPattern}\\s*\\d)(?!\\d)(?!\\s+\\d\\s)`,
-    'gi'
-  );
-
   let match;
   
   // First, find chapter:verse references (most specific)
@@ -560,94 +521,6 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     // Adjust the regex's lastIndex if we trimmed the match
     if (adjustedLastIndex !== originalMatchEnd) {
       referencePattern.lastIndex = adjustedLastIndex;
-    }
-  }
-
-  // Next, find chapter range references (e.g., "Matthew 5-7")
-  while ((match = chapterRangePattern.exec(text)) !== null) {
-    // Context validation: Check if this match is in a valid scripture context
-    if (!isValidScriptureContext(text, match.index, match[0].length)) {
-      // Skip this match - it's likely a false positive
-      continue;
-    }
-    
-    const bookPart = match[1].trim();
-    const chapterStart = parseInt(match[2]);
-    const chapterEnd = parseInt(match[3]);
-    
-    // Find canonical book name
-    const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-      k => k.category === 'book' && 
-      (k.name.toLowerCase() === bookPart.toLowerCase() || 
-       k.synonyms.some(s => s.toLowerCase() === bookPart.toLowerCase()))
-    )?.name || bookPart;
-    
-    // Get verse ranges for start and end chapters
-    const startRange = getChapterVerseRange(canonicalBook, chapterStart);
-    const endRange = getChapterVerseRange(canonicalBook, chapterEnd);
-    
-    if (startRange && endRange && chapterStart <= chapterEnd) {
-      // Create reference spanning from first verse of first chapter to last verse of last chapter
-      const reference: ScriptureReference = {
-        book: canonicalBook,
-        chapter: chapterStart, // Primary chapter for API calls
-        verse: [startRange.start, endRange.end] as [number, number],
-        reference: `${canonicalBook} ${chapterStart}-${chapterEnd}` // Keep chapter range format
-      };
-      
-      // Check for duplicates
-      const normalizedRef = `${canonicalBook} ${chapterStart}-${chapterEnd}`;
-      const isDuplicate = references.some(ref => 
-        normalizeScriptureReference(ref.reference) === normalizedRef
-      );
-      if (!isDuplicate) {
-        references.push(reference);
-      }
-    }
-  }
-
-  // Finally, find single chapter references (e.g., "Matthew 5")
-  while ((match = chapterOnlyPattern.exec(text)) !== null) {
-    // Context validation: Check if this match is in a valid scripture context
-    // This is especially important for chapter-only patterns which are more prone to false positives
-    if (!isValidScriptureContext(text, match.index, match[0].length)) {
-      // Skip this match - it's likely a false positive (e.g., "John 3 years ago")
-      continue;
-    }
-    
-    const bookPart = match[1].trim();
-    const chapter = parseInt(match[2]);
-    
-    // Find canonical book name
-    const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-      k => k.category === 'book' && 
-      (k.name.toLowerCase() === bookPart.toLowerCase() || 
-       k.synonyms.some(s => s.toLowerCase() === bookPart.toLowerCase()))
-    )?.name || bookPart;
-    
-    // Get verse range for this chapter
-    const range = getChapterVerseRange(canonicalBook, chapter);
-    
-    if (range) {
-      // Create reference spanning entire chapter
-      const reference: ScriptureReference = {
-        book: canonicalBook,
-        chapter,
-        verse: [range.start, range.end] as [number, number],
-        reference: `${canonicalBook} ${chapter}` // Keep chapter-only format
-      };
-      
-      // Check for duplicates (including if this chapter was already covered by a chapter:verse ref)
-      const isDuplicate = references.some(ref => {
-        // Check if same book and chapter
-        if (ref.book === canonicalBook && ref.chapter === chapter) {
-          return true;
-        }
-        return false;
-      });
-      if (!isDuplicate) {
-        references.push(reference);
-      }
     }
   }
 

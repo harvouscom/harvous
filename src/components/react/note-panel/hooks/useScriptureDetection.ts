@@ -78,13 +78,13 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
               const verseResponse = await fetch('/api/scripture/fetch-verse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ reference: detection.primaryReference }),
+                body: JSON.stringify({ reference: detection.primaryReference, translation: scriptureVersion }),
                 credentials: 'include'
               });
 
               if (verseResponse.ok) {
                 const verseData = await verseResponse.json();
-                
+
                 // Set note type to scripture
                 setNoteType('scripture');
                 setTitle(detection.primaryReference);
@@ -95,7 +95,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
                 }
                 
                 setScriptureReference(detection.primaryReference);
-                setScriptureVersion('NET');
+                setScriptureVersion(scriptureVersion);
                 
                 // Show toast notification (only if not loading from localStorage)
                 if (!isLoadingFromLocalStorage.current) {
@@ -124,7 +124,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
     }, 700);
 
     return () => clearTimeout(timeoutId);
-  }, [title, noteType, content, isLoadingFromLocalStorage, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
+  }, [title, noteType, content, scriptureVersion, isLoadingFromLocalStorage, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
 
   // Version change handler (for future - when multiple translations are supported)
   useEffect(() => {
@@ -138,7 +138,7 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
         const verseResponse = await fetch('/api/scripture/fetch-verse', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference: apiReference }),
+          body: JSON.stringify({ reference: apiReference, translation: scriptureVersion }),
           credentials: 'include'
         });
 

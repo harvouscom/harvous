@@ -28,6 +28,8 @@ export {
   ScriptureMetadata,
   NoteScriptureReferences,
   VerseTextCache,
+  BibleTranslations,
+  BibleVerses,
   ResourceMetadata,
   InboxItems,
   InboxItemNotes,

@@ -468,9 +468,13 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
     console.log('[api/user/get-profile] userData loaded', { displayName: userData.displayName });
 
     let churchData = { churchName: null as string | null, churchCity: null as string | null, churchState: null as string | null };
+    let defaultTranslation = 'NET';
     try {
       const um = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
-      if (um) churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
+      if (um) {
+        churchData = { churchName: um.churchName ?? null, churchCity: um.churchCity ?? null, churchState: um.churchState ?? null };
+        defaultTranslation = um.defaultTranslation ?? 'NET';
+      }
     } catch (_) { /* non-fatal */ }
 
     let hasLockPinSet = false;
@@ -498,10 +502,49 @@ app.get('/api/user/get-profile', requireAuth, async (c) => {
       firstName: userData.firstName, lastName: userData.lastName,
       userColor: userData.userColor, email: userData.email, emailVerified,
       churchName: churchData.churchName, churchCity: churchData.churchCity, churchState: churchData.churchState,
+      defaultTranslation,
       hasLockPinSet
     });
   } catch (error) {
     const e = handleAPIError(error, { endpoint: '/api/user/get-profile', action: 'get_user_profile' });
+    return c.json({ error: e.message, code: e.code }, 500);
+  }
+});
+
+// ─── POST /api/user/update-translation ───────────────────────────────────────
+
+app.post('/api/user/update-translation', requireAuth, rateLimit('write'), async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { defaultTranslation } = await c.req.json();
+
+    if (!defaultTranslation || typeof defaultTranslation !== 'string') {
+      return c.json({ error: 'defaultTranslation is required' }, 400);
+    }
+
+    // Validate against known translations
+    const { TRANSLATIONS } = await import('../../src/data/translations');
+    if (!TRANSLATIONS[defaultTranslation]) {
+      return c.json({ error: 'Invalid translation ID' }, 400);
+    }
+
+    const existing = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    if (existing) {
+      await db.update(UserMetadata)
+        .set({ defaultTranslation, updatedAt: nowISO() })
+        .where(eq(UserMetadata.userId, auth.userId));
+    } else {
+      await db.insert(UserMetadata).values({
+        id: crypto.randomUUID(),
+        userId: auth.userId,
+        defaultTranslation,
+        createdAt: nowISO(),
+      });
+    }
+
+    return c.json({ success: true, defaultTranslation });
+  } catch (error) {
+    const e = handleAPIError(error, { endpoint: '/api/user/update-translation', action: 'update_default_translation' });
     return c.json({ error: e.message, code: e.code }, 500);
   }
 });

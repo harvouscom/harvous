@@ -27,12 +27,13 @@ export async function processScriptureReferences(
   noteId: string,
   userId: string,
   threadId?: string,
-  contentOverride?: string
+  contentOverride?: string,
+  translation: string = 'NET'
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
   const current = prev
     .catch(() => {}) // Don't let a previous failure block the queue
-    .then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride));
+    .then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation));
   userProcessingQueue.set(userId, current);
   try {
     return await current;
@@ -48,7 +49,8 @@ async function processScriptureReferencesInternal(
   noteId: string,
   userId: string,
   threadId?: string,
-  contentOverride?: string // Optional: use this content instead of reading from DB
+  contentOverride?: string, // Optional: use this content instead of reading from DB
+  translation: string = 'NET'
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
   // Get the note from database
   const note = first(await db.select()
@@ -447,7 +449,7 @@ async function processScriptureReferencesInternal(
         // New scripture - create it
         try {
           // Fetch verse text via shared helper (normalized reference for consistent results)
-          const verseText = await fetchVerseText(normalizedReference);
+          const verseText = await fetchVerseText(normalizedReference, translation);
 
           // Get user metadata for simpleNoteId
           let userMetadata = first(await db.select()
@@ -559,7 +561,7 @@ async function processScriptureReferencesInternal(
               chapter: parsed.chapter,
               verse: verseStart,
               verseEnd: verseEnd || null,
-              translation: 'NET',
+              translation,
               originalText: capitalizedContent,
               createdAt: new Date().toISOString()
             });
@@ -883,7 +885,7 @@ async function processScriptureReferencesInternal(
           // This follows the same logic as the main processing loop
           try {
             // Fetch verse text via shared helper (normalized reference for consistent results)
-            const verseText = await fetchVerseText(normalizedRef);
+            const verseText = await fetchVerseText(normalizedRef, translation);
 
             // Get user metadata
             let userMetadata = first(await db.select()
@@ -993,7 +995,7 @@ async function processScriptureReferencesInternal(
                 chapter: parsed.chapter,
                 verse: verseStart,
                 verseEnd: verseEnd || null,
-                translation: 'NET',
+                translation,
                 originalText: capitalizedContent,
                 createdAt: new Date().toISOString()
               });

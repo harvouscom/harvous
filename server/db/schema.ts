@@ -6,7 +6,7 @@
  * so API responses remain identical to the previous SQLite text-based dates.
  */
 
-import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
 
 // Helper for date columns — Postgres TIMESTAMPTZ, returned as JS Date objects
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
@@ -160,6 +160,7 @@ export const UserMetadata = pgTable('UserMetadata', {
   referralCode: text('referralCode').unique(),
   lockPinSalt: text('lockPinSalt'),
   lockPinHash: text('lockPinHash'),
+  defaultTranslation: text('defaultTranslation').notNull().default('NET'),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 });
@@ -277,13 +278,44 @@ export const NoteScriptureReferences = pgTable('NoteScriptureReferences', {
   uniqueIndex('NoteScriptureReferences_uniqueNoteScripture').on(table.noteId, table.scriptureNoteId),
 ]);
 
-// ─── VerseTextCache (Bible.org verse text cache, keyed by normalized reference) ─
+// ─── VerseTextCache (verse text cache, keyed by normalized reference + translation) ─
 
 export const VerseTextCache = pgTable('VerseTextCache', {
-  reference: text('reference').primaryKey(),
+  reference: text('reference').notNull(),
+  translation: text('translation').notNull().default('NET'),
   content: text('content').notNull(),
   createdAt: ts('createdAt').notNull(),
+}, (table) => [
+  primaryKey({ columns: [table.reference, table.translation] }),
+]);
+
+// ─── BibleTranslations (registry of supported Bible translations) ─────────────
+
+export const BibleTranslations = pgTable('BibleTranslations', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  abbreviation: text('abbreviation').notNull(),
+  publisher: text('publisher').notNull(),
+  copyrightNotice: text('copyrightNotice').notNull(),
+  websiteUrl: text('websiteUrl'),
+  isPublicDomain: boolean('isPublicDomain').notNull().default(false),
+  sortOrder: integer('sortOrder').notNull().default(0),
+  createdAt: ts('createdAt').notNull(),
 });
+
+// ─── BibleVerses (self-hosted verse text, keyed by translation + book + chapter + verse) ─
+
+export const BibleVerses = pgTable('BibleVerses', {
+  id: text('id').primaryKey(),
+  translationId: text('translationId').notNull(),
+  book: text('book').notNull(),
+  chapter: integer('chapter').notNull(),
+  verse: integer('verse').notNull(),
+  text: text('text').notNull(),
+}, (table) => [
+  uniqueIndex('BibleVerses_unique_verse').on(table.translationId, table.book, table.chapter, table.verse),
+  index('BibleVerses_lookup').on(table.translationId, table.book, table.chapter),
+]);
 
 // ─── ResourceMetadata ──────────────────────────────────────────────────────────
 

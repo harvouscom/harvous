@@ -13,6 +13,7 @@ import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference, detectScriptureReferences, type ScriptureReference } from '@/utils/scripture-detector';
+import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
@@ -3255,7 +3256,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 // Store scripture detection metadata (keep original format, no divider)
                 localStorage.setItem('newNoteType', 'scripture');
                 localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
-                localStorage.setItem('newNoteScriptureVersion', 'NET');
+                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation || 'NET');
                 localStorage.setItem('newNoteScriptureText', verseData.text);
                 localStorage.setItem('newNoteTitle', detection.primaryReference); // Reference becomes title
                 localStorage.setItem('newNoteContent', verseData.text); // Verse text becomes content
@@ -3263,7 +3264,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 // Detection succeeded but verse fetch failed - still mark as scripture
                 localStorage.setItem('newNoteType', 'scripture');
                 localStorage.setItem('newNoteScriptureReference', detection.primaryReference);
-                localStorage.setItem('newNoteScriptureVersion', 'NET');
+                localStorage.setItem('newNoteScriptureVersion', getCachedProfileData()?.defaultTranslation || 'NET');
                 localStorage.setItem('newNoteTitle', detection.primaryReference);
                 localStorage.setItem('newNoteContent', extractedContent); // Fallback to original content
               }

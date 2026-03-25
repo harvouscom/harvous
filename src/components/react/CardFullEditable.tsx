@@ -7,6 +7,7 @@ import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNo
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
+import { getTranslation } from '@/data/translations';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
 import { useIsOffline } from '@/hooks/useIsOffline';
@@ -1585,57 +1586,47 @@ export default function CardFullEditable({
         {/* Save/Cancel buttons when only title is being edited - shown at bottom like content editing */}
         {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
 
-        {/* NET Bible Attribution - visible at bottom for scripture notes */}
-        {noteType === 'scripture' && version === 'NET' && (
-          <div 
-            className="panel__attribution"
-            style={{
-              padding: '1rem',
-              borderTop: '1px solid oklch(0.96 0 0)',
-              marginTop: 'auto',
-              flexShrink: 0
-            }}
-          >
-            <p 
+        {/* Bible Translation Attribution - visible at bottom for scripture notes */}
+        {noteType === 'scripture' && version && (() => {
+          const translationInfo = getTranslation(version);
+          if (!translationInfo) return null;
+          return (
+            <div
+              className="panel__attribution"
               style={{
-                fontSize: '10px',
-                lineHeight: '1.4',
-                color: 'var(--color-pebble-grey)',
-                margin: 0,
-                textAlign: 'left',
-                paddingRight: '96px'
+                padding: '1rem',
+                borderTop: '1px solid oklch(0.96 0 0)',
+                marginTop: 'auto',
+                flexShrink: 0
               }}
             >
-              Per Gratis use quotations designated{' '}
-              <a 
-                href="https://netbible.org" 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <p
                 style={{
+                  fontSize: '10px',
+                  lineHeight: '1.4',
                   color: 'var(--color-pebble-grey)',
-                  textDecoration: 'underline',
-                  textDecorationColor: 'var(--color-pebble-grey)'
+                  margin: 0,
+                  textAlign: 'left',
+                  paddingRight: '96px'
                 }}
               >
-                NET
-              </a>{' '}
-              are from the NET Bible® copyright ©1996, 2019 by Biblical Studies Press, L.L.C.{' '}
-              <a 
-                href="http://netbible.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                style={{
-                  color: 'var(--color-pebble-grey)',
-                  textDecoration: 'underline',
-                  textDecorationColor: 'var(--color-pebble-grey)'
-                }}
-              >
-                http://netbible.com
-              </a>{' '}
-              All rights reserved.
-            </p>
-          </div>
-        )}
+                {translationInfo.copyright}{' '}
+                <a
+                  href={translationInfo.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: 'var(--color-pebble-grey)',
+                    textDecoration: 'underline',
+                    textDecorationColor: 'var(--color-pebble-grey)'
+                  }}
+                >
+                  {translationInfo.abbreviation}
+                </a>
+              </p>
+            </div>
+          );
+        })()}
         
         {/* Footer - rendered at bottom of card */}
         {footer ? (

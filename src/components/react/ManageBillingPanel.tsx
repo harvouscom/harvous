@@ -385,7 +385,7 @@ export default function ManageBillingPanel({
       `}</style>
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
         {/* Content area - expands on mobile, fits content on desktop */}
-        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }} style={{ position: 'relative' }}>
+        <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0, position: 'relative' }}>
           {/* Panel container */}
           <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
             {/* Header section */}
@@ -411,12 +411,13 @@ export default function ManageBillingPanel({
                     >
                       {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
                     </div>
-                    <div className="flex-stack" style={{ gap: 0 }} style={{ gap: 12, marginBottom: 12 }}>
+                    <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
                       {!subscriptionInfo.hasUnlimited ? (
                         <a
                           href="/upgrade"
-                          className="billing-limit-link bg-white rounded-xl p-3 flex-row" style={{ gap: "0.75rem" }}"
+                          className="billing-limit-link bg-white rounded-xl p-3 flex-row"
                           style={{
+                            gap: '0.75rem',
                             border: '1px solid',
                             borderColor: notesAtLimit ? limitRed : 'var(--color-fog-white)',
                             textDecoration: 'none'
@@ -433,8 +434,9 @@ export default function ManageBillingPanel({
                         </a>
                       ) : (
                         <div
-                          className="bg-white rounded-xl p-3 flex-row" style={{ gap: "0.75rem" }}"
+                          className="bg-white rounded-xl p-3 flex-row"
                           style={{
+                            gap: '0.75rem',
                             border: '1px solid',
                             borderColor: 'var(--color-fog-white)'
                           }}

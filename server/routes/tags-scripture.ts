@@ -149,7 +149,7 @@ app.post('/api/scripture/check-existing', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const { reference, threadId } = await c.req.json();
+    const { reference, threadId, translation } = await c.req.json();
 
     if (!reference || typeof reference !== 'string') {
       return c.json({ error: 'Scripture reference is required' }, 400);
@@ -157,12 +157,16 @@ app.post('/api/scripture/check-existing', requireAuth, async (c) => {
 
     const normalizedReference = normalizeScriptureReference(reference);
 
-    // Exact match on normalized reference
+    // Exact match on normalized reference (optionally filtered by translation)
+    const baseConditions = [eq(ScriptureMetadata.reference, normalizedReference), eq(Notes.userId, auth.userId)];
+    if (translation) {
+      baseConditions.push(eq(ScriptureMetadata.translation, translation));
+    }
     let existingScripture = first(await db
       .select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference })
       .from(ScriptureMetadata)
       .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-      .where(and(eq(ScriptureMetadata.reference, normalizedReference), eq(Notes.userId, auth.userId)))
+      .where(and(...baseConditions))
       .limit(1));
 
     // Fallback: normalize stored references for legacy data
@@ -244,7 +248,7 @@ app.post('/api/scripture/detect', async (c) => {
 /** POST /api/scripture/fetch-verse */
 app.post('/api/scripture/fetch-verse', async (c) => {
   try {
-    const { reference } = await c.req.json();
+    const { reference, translation = 'NET' } = await c.req.json();
 
     if (!reference || typeof reference !== 'string') {
       return c.json({ error: 'Reference is required' }, 400);
@@ -256,7 +260,7 @@ app.post('/api/scripture/fetch-verse', async (c) => {
       return c.json({ error: 'Invalid scripture reference format' }, 400);
     }
 
-    const verseText = await fetchVerseText(cleanReference);
+    const verseText = await fetchVerseText(cleanReference, translation);
     if (!verseText) {
       return c.json({ error: 'No verses found for this reference' }, 404);
     }
@@ -264,7 +268,7 @@ app.post('/api/scripture/fetch-verse', async (c) => {
     const verseNumber = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
     const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
 
-    return c.json({ reference, book: parsed.book, chapter: parsed.chapter, verse: verseNumber, verseEnd, translation: 'NET', text: verseText });
+    return c.json({ reference, book: parsed.book, chapter: parsed.chapter, verse: verseNumber, verseEnd, translation, text: verseText });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/fetch-verse', action: 'fetch_verse' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

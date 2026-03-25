@@ -329,7 +329,7 @@ route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
     const contentToProcess = latestNote?.content || newNote.content;
 
     if (!contentEncrypted) {
-      processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess).catch((err: any) => {
+      processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || 'NET').catch((err: any) => {
         console.error('[api/notes/create] Deferred scripture processing failed:', err?.message ?? err);
       });
     }
@@ -353,7 +353,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     const auth = getAuthenticatedAuth(c);
 
     const body = await c.req.json();
-    const { noteId, title, content, resourceImage, contentEncrypted } = body;
+    const { noteId, title, content, resourceImage, contentEncrypted, scriptureVersion } = body;
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
     const contentValidation = validateContent(content, true);
@@ -414,7 +414,7 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
         let actualThreadId = 'thread_unorganized';
         const threadRelation = first(await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1));
         if (threadRelation) actualThreadId = threadRelation.threadId;
-        const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent);
+        const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent, scriptureVersion || 'NET');
         scriptureResults = scriptureResult.results || [];
         processedContent = scriptureResult.updatedContent || null;
       } catch (error: any) {
@@ -1074,14 +1074,16 @@ route.post('/api/notes/:id/process-scripture-references', requireAuth, rateLimit
 
     let threadId: string | undefined;
     let contentOverride: string | undefined;
+    let translation: string | undefined;
     try {
       const body = await c.req.json();
       threadId = body?.threadId;
       contentOverride = body?.contentOverride;
+      translation = body?.translation;
     } catch {
       // Empty or invalid JSON body is ok; processScriptureReferences will read from DB
     }
-    const result = await processScriptureReferences(noteId, auth.userId, threadId, contentOverride);
+    const result = await processScriptureReferences(noteId, auth.userId, threadId, contentOverride, translation || 'NET');
     return c.json(result);
   } catch (error: any) {
     console.error('Error processing scripture references:', error);

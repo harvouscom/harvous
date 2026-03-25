@@ -32,6 +32,8 @@ export interface CachedProfileData {
   churchState: string | null;
   /** True if user has set account-level lock PIN (from get-profile). */
   hasLockPinSet?: boolean;
+  /** User's preferred Bible translation (e.g., 'ESV', 'NIV', 'KJV'). Defaults to 'NET'. */
+  defaultTranslation?: string;
 }
 
 const CACHE_KEY = 'profileData';

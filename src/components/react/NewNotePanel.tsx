@@ -1325,6 +1325,8 @@ export default function NewNotePanel({
                         toolbarAtBottom={true}
                         toolbarBottomMargin={12}
                         inBottomSheet={inBottomSheet}
+                        scriptureVersion={form.scriptureVersion}
+                        onVersionChange={form.setScriptureVersion}
                       />
                     )}
                     {form.noteType === 'resource' && (

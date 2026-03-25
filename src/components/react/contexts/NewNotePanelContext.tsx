@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { getTemplateById } from '@/data/note-templates';
+import { getCachedProfileData } from '@/utils/profile-cache';
 
 export type NoteType = 'default' | 'scripture' | 'resource';
 
@@ -56,7 +57,11 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [content, setContent] = useState('');
   const [noteType, setNoteType] = useState<NoteType>('default');
   const [scriptureReference, setScriptureReference] = useState('');
-  const [scriptureVersion, setScriptureVersion] = useState('NET');
+  const [scriptureVersion, setScriptureVersion] = useState(() => {
+    // Use user's default translation from profile cache, falling back to 'NET'
+    const profile = typeof window !== 'undefined' ? getCachedProfileData() : null;
+    return profile?.defaultTranslation || 'NET';
+  });
   const [resourceUrl, setResourceUrl] = useState('');
   const [resourceMetadata, setResourceMetadata] = useState<ResourceMetadata | null>(null);
   const [sourceNoteId, setSourceNoteId] = useState<string | null>(null);
@@ -86,7 +91,8 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
-    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
+    const profileDefault1 = getCachedProfileData()?.defaultTranslation || 'NET';
+    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || profileDefault1;
     const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
     const savedTemplateId = localStorage.getItem('newNoteTemplateId') || '';
 
@@ -322,7 +328,8 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     const savedNoteType = localStorage.getItem('newNoteType') as NoteType | null;
     const savedScriptureRef = localStorage.getItem('newNoteScriptureReference') || '';
-    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || 'NET';
+    const profileDefault2 = getCachedProfileData()?.defaultTranslation || 'NET';
+    const savedScriptureVersion = localStorage.getItem('newNoteScriptureVersion') || profileDefault2;
     const savedScriptureText = localStorage.getItem('newNoteScriptureText') || '';
     const savedResourceUrl = localStorage.getItem('newNoteResourceUrl') || '';
     const savedTemplateId = localStorage.getItem('newNoteTemplateId') || '';
