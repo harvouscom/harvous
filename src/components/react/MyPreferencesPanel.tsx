@@ -6,13 +6,19 @@ import LockPinPanel from './LockPinPanel';
 
 type PreferenceView = 'list' | 'bibleTranslation' | 'myChurch' | 'lockPin';
 
-export default function MyPreferencesPanel() {
+interface MyPreferencesPanelProps {
+  onClose?: () => void;
+  inBottomSheet?: boolean;
+}
+
+export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: MyPreferencesPanelProps) {
   const [view, setView] = useState<PreferenceView>('list');
 
   if (view === 'bibleTranslation') {
     return (
       <DefaultTranslationPanel
         onClose={() => setView('list')}
+        inBottomSheet={inBottomSheet}
       />
     );
   }
@@ -21,7 +27,7 @@ export default function MyPreferencesPanel() {
     return (
       <MyChurchPanel
         onClose={() => setView('list')}
-        inBottomSheet={false}
+        inBottomSheet={inBottomSheet}
       />
     );
   }
@@ -30,12 +36,17 @@ export default function MyPreferencesPanel() {
     return (
       <LockPinPanel
         onClose={() => setView('list')}
+        inBottomSheet={inBottomSheet}
       />
     );
   }
 
   const handleClose = () => {
-    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    if (onClose) {
+      onClose();
+    } else {
+      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    }
   };
 
   const renderOption = (label: string, onClick: () => void) => (
@@ -76,9 +87,9 @@ export default function MyPreferencesPanel() {
   );
 
   return (
-    <div className="panel-wrapper relative">
+    <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       <div className="flex-fill flex-stack" style={{ gap: 0 }}>
-        <div className="panel">
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
               <p>My Preferences</p>
@@ -98,7 +109,7 @@ export default function MyPreferencesPanel() {
       </div>
 
       <div className="panel__footer--buttons">
-        <SquareButton variant="Back" onClick={handleClose} />
+        <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
       </div>
     </div>
   );

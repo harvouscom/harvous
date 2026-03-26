@@ -219,6 +219,7 @@ export default function MyChurchPanel({
     }
 
     setIsSubmitting(true);
+    const wasUpdatingExistingChurch = hasExistingData;
 
     try {
       const response = await fetch('/api/user/update-church', {
@@ -263,7 +264,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Added your church',
+            message: wasUpdatingExistingChurch ? 'Updated your church' : 'Added your church',
             type: 'success'
           }
         }));
@@ -367,6 +368,7 @@ export default function MyChurchPanel({
     }
 
     setIsSubmitting(true);
+    const wasUpdatingExistingChurch = hasExistingData;
 
     try {
       const response = await fetch('/api/user/update-church', {
@@ -411,7 +413,7 @@ export default function MyChurchPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Added your church',
+            message: wasUpdatingExistingChurch ? 'Updated your church' : 'Added your church',
             type: 'success'
           }
         }));

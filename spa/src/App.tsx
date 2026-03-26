@@ -64,6 +64,7 @@ function stripPunctuation(msg: string) { return msg.replace(/[.!]/g, ''); }
 
 const windowToast = {
   success: (message: string) => sonnerToast.success(stripPunctuation(message), { icon: null }),
+  allSynced: () => sonnerToast.success('Your Harvous is synced', { icon: null }),
   error: (message: string) => sonnerToast.error(stripPunctuation(message), { icon: null }),
   info: (message: string) => sonnerToast.info(stripPunctuation(message), { icon: null }),
   warning: (message: string) => sonnerToast.warning(stripPunctuation(message), { icon: null }),

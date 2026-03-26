@@ -13,7 +13,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, Notes, Threads, eq, and, or, like, desc, not, sql } from '../db';
+import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 
 const route = new Hono();
@@ -45,6 +45,7 @@ route.get('/api/search', requireAuth, async (c) => {
       title: string | null;
       content: string;
       noteType: string;
+      scriptureTranslation: string | null;
       threadId: string;
       spaceId: string | null;
       createdAt: Date;
@@ -62,6 +63,13 @@ route.get('/api/search', requireAuth, async (c) => {
     }[] = [];
 
     if (searchNotes) {
+      const scriptureTranslationSql = sql<string | null>`(
+        SELECT ${ScriptureMetadata.translation}
+        FROM ${ScriptureMetadata}
+        WHERE ${ScriptureMetadata.noteId} = ${Notes.id}
+        LIMIT 1
+      )`;
+
       if (useFTS) {
         // Postgres full-text search with ts_rank for relevance ordering
         const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
@@ -71,6 +79,7 @@ route.get('/api/search', requireAuth, async (c) => {
             title: Notes.title,
             content: Notes.content,
             noteType: Notes.noteType,
+            scriptureTranslation: scriptureTranslationSql,
             threadId: Notes.threadId,
             spaceId: Notes.spaceId,
             createdAt: Notes.createdAt,
@@ -81,11 +90,11 @@ route.get('/api/search', requireAuth, async (c) => {
             and(
               eq(Notes.userId, userId),
               not(eq(Notes.contentEncrypted, true)),
-              sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content}) @@ ${tsQuery}`,
+              sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')) @@ ${tsQuery}`,
             ),
           )
           .orderBy(
-            sql`ts_rank(to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content}), ${tsQuery}) DESC`,
+            sql`ts_rank(to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')), ${tsQuery}) DESC`,
             desc(Notes.updatedAt),
           )
           .limit(limit);
@@ -98,6 +107,7 @@ route.get('/api/search', requireAuth, async (c) => {
             title: Notes.title,
             content: Notes.content,
             noteType: Notes.noteType,
+            scriptureTranslation: scriptureTranslationSql,
             threadId: Notes.threadId,
             spaceId: Notes.spaceId,
             createdAt: Notes.createdAt,
@@ -111,6 +121,7 @@ route.get('/api/search', requireAuth, async (c) => {
               or(
                 like(Notes.title, searchTerm),
                 like(Notes.content, searchTerm),
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${searchTerm}`,
               ),
             ),
           )
@@ -168,19 +179,30 @@ route.get('/api/search', requireAuth, async (c) => {
       }
     }
 
-    const noteResults = notesRows.map((note) => ({
-      id: note.id,
-      type: 'note' as const,
-      title: note.title || 'Untitled Note',
-      content: note.content.substring(0, 200) + (note.content.length > 200 ? '...' : ''),
-      contentEncrypted: false,
-      noteType: note.noteType || 'default',
-      threadId: note.threadId,
-      spaceId: note.spaceId,
-      lastUpdated: note.updatedAt || note.createdAt,
-      createdAt: note.createdAt,
-      updatedAt: note.updatedAt,
-    }));
+    const noteResults = notesRows.map((note) => {
+      const resolvedNoteType = note.noteType || 'default';
+      const normalizedScriptureTranslation = note.scriptureTranslation?.trim() || null;
+      const scriptureTranslationForResult = resolvedNoteType === 'scripture'
+        ? (normalizedScriptureTranslation || 'NET')
+        : null;
+
+      return {
+        id: note.id,
+        type: 'note' as const,
+        title: note.title || 'Untitled Note',
+        // Keep full note content so CardNote preview behavior matches other lists (e.g. dashboard).
+        content: note.content,
+        contentEncrypted: false,
+        noteType: resolvedNoteType,
+        version: scriptureTranslationForResult,
+        scriptureTranslation: scriptureTranslationForResult,
+        threadId: note.threadId,
+        spaceId: note.spaceId,
+        lastUpdated: note.updatedAt || note.createdAt,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt,
+      };
+    });
 
     const threadResults = threadsRows.map((thread) => ({
       id: thread.id,

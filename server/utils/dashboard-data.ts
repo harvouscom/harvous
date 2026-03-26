@@ -19,7 +19,7 @@ import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { sortByLastVisited } from "@/utils/sorting";
-import { stripHtml } from "@/utils/html-stripper";
+import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
@@ -965,7 +965,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     }
 
     const mapNote = (note: any) => {
-      const cleanContent = stripHtml(note.content);
+      const cleanContent = stripHtmlForCard(note.content || "");
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const isEncrypted = note.contentEncrypted === true;
       const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
@@ -1040,7 +1040,7 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
     ]);
 
     return notes.map(note => {
-      const cleanContent = stripHtml(note.content);
+      const cleanContent = stripHtmlForCard(note.content || "");
       return {
         id: note.id, type: "note" as const, title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),
@@ -1092,7 +1092,7 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
     ]);
 
     const noteItems = limitedNotes.map(note => {
-      const cleanContent = stripHtml(note.content);
+      const cleanContent = stripHtmlForCard(note.content || "");
       return {
         id: note.id, type: "note" as const, title: note.title || "Untitled Note",
         content: cleanContent.substring(0, 150) + (cleanContent.length > 150 ? "..." : ""),

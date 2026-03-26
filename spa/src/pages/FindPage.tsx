@@ -93,6 +93,7 @@ function SearchResults({ query }: { query: string }) {
             title={result.title || 'Untitled'}
             noteType="scripture"
             noteId={result.id}
+            scriptureTranslation={result.scriptureTranslation ?? result.version ?? undefined}
             href={idToUrl(result.id)}
           />
         ) : (

@@ -11,6 +11,8 @@ export interface SearchResult {
   threadId?: string;
   spaceId?: string | null;
   noteType?: string | null;
+  version?: string | null;
+  scriptureTranslation?: string | null;
   lastUpdated?: string | null;
   threadTitle?: string;
   backgroundGradient?: string;

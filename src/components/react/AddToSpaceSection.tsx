@@ -145,16 +145,31 @@ const NoteItem: React.FC<{
           {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
             {/* Title */}
-            <div style={{ 
-              fontFamily: 'var(--font-sans)', 
-              fontWeight: 700, 
-              color: 'var(--color-deep-grey)', 
-              fontSize: '16px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
-              {item.title}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+              <div style={{ 
+                fontFamily: 'var(--font-sans)', 
+                fontWeight: 700, 
+                color: 'var(--color-deep-grey)', 
+                fontSize: '16px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                minWidth: 0
+              }}>
+                {item.title}
+              </div>
+              {item.noteType === 'scripture' && (item.version || item.scriptureTranslation) && (
+                <span style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  fontWeight: 'normal',
+                  color: 'var(--color-stone-grey)',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {item.version || item.scriptureTranslation}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -411,6 +426,8 @@ interface SpaceItem {
   count?: number;
   content?: string;
   noteType?: 'default' | 'scripture' | 'resource';
+  version?: string | null;
+  scriptureTranslation?: string | null;
   [key: string]: any;
 }
 
@@ -466,6 +483,8 @@ export default function AddToSpaceSection({
           createdAt: note.createdAt,
           lastAccessed: undefined,
           noteType: note.noteType || 'default',
+          version: (note as any).version || null,
+          scriptureTranslation: (note as any).scriptureTranslation || null,
           resourceImage: (note as any).resourceImage || null,
           resourceTitle: (note as any).resourceTitle || null,
           resourceDescription: (note as any).resourceDescription || null
@@ -483,6 +502,8 @@ export default function AddToSpaceSection({
             createdAt: note.createdAt,
             lastAccessed: undefined,
             noteType: note.noteType || 'default',
+            version: (note as any).version || null,
+            scriptureTranslation: (note as any).scriptureTranslation || null,
             resourceImage: (note as any).resourceImage || null,
             resourceTitle: (note as any).resourceTitle || null,
             resourceDescription: (note as any).resourceDescription || null

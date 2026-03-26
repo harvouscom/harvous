@@ -96,6 +96,9 @@ export default function NoteDetailsPanel({
 
   // Check if this is a scripture note (to show the Notes tab)
   const isScriptureNote = noteType === 'scripture';
+  const isUnorganizedThread = (thread: Thread) =>
+    thread.id === 'thread_unorganized' || thread.title?.trim().toLowerCase() === 'unorganized';
+  const visibleThreads = localThreads.filter((thread) => !isUnorganizedThread(thread));
 
   // Fetch data when component mounts; use cache to avoid loading when we have recent data
   useEffect(() => {
@@ -607,7 +610,7 @@ export default function NoteDetailsPanel({
                         >
                           <span className="tab-btn__label">Threads</span>
                           <div className="badge-count">
-                            <span className="badge-number">{formatBadgeCount(localThreads.length)}</span>
+                            <span className="badge-number">{formatBadgeCount(visibleThreads.length)}</span>
                           </div>
                         </button>
 
@@ -637,11 +640,11 @@ export default function NoteDetailsPanel({
                   <div className="tab-content__section flex-1 min-h-0 flex flex-col">
                     {/* Current Threads - directly below tab */}
                     <div className="tab-content__section--shrink">
-                      {localThreads.length === 0 ? (
+                      {visibleThreads.length === 0 ? (
                         <div className="panel__empty-state">No threads found for this note</div>
                       ) : (
                         <div className="panel__item-list">
-                          {localThreads.map((thread: Thread) => (
+                          {visibleThreads.map((thread: Thread) => (
                             <div key={thread.id} className="panel__item-list-item">
                               <a 
                                 href={idToUrl(thread.id)}
@@ -673,7 +676,10 @@ export default function NoteDetailsPanel({
                     {noteUserId === currentUserId && (
                       <div className="tab-content__section--expand" style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                         <AddToSection
-                          allItems={localAllUserThreads.filter((thread: Thread) => thread.id !== 'thread_unorganized')}
+                          allItems={localAllUserThreads.filter((thread: Thread) => {
+                            if (thread.id === 'thread_unorganized') return false;
+                            return thread.title?.trim().toLowerCase() !== 'unorganized';
+                          })}
                           currentItems={localThreads}
                           onItemSelect={handleAddToThread}
                           isLoading={isMovingThread}

@@ -1147,7 +1147,7 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
-              <MyPreferencesPanel key="my-preferences" />
+              <MyPreferencesPanel key="my-preferences" onClose={handleCloseMyPreferences} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

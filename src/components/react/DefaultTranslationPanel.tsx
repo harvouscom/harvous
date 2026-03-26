@@ -203,13 +203,20 @@ export default function DefaultTranslationPanel({
                   );
                 })}
               </div>
+
+              <div className="panel__empty-state-with-description" style={{ paddingLeft: '12px', paddingRight: '12px' }}>
+                <p className="panel__empty-state-description" style={{ marginTop: 0 }}>
+                  More translations like NASB (New American Standard Bible), CSB (Christian Standard Bible), AMP
+                  (Amplified Bible), and MSG (The Message) coming soon.
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Bottom buttons */}
-      <div className="panel__footer--buttons" style={{ paddingBottom: '12px' }}>
+      <div className="panel__footer--buttons" style={inBottomSheet ? { paddingBottom: '12px' } : undefined}>
         {/* Back button */}
         <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
 

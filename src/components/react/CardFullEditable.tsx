@@ -79,6 +79,9 @@ export default function CardFullEditable({
   // Override isEditable for scripture notes (always read-only) and when offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
   const effectiveIsEditable = noteType === 'scripture' || isCurrentlyOffline ? false : isEditable;
+  const resolvedScriptureVersion = noteType === 'scripture'
+    ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
+    : undefined;
   
   const [isTitleEditing, setIsTitleEditing] = useState(false);
   const [isContentEditing, setIsContentEditing] = useState(false);
@@ -1504,8 +1507,8 @@ export default function CardFullEditable({
         {noteType === 'scripture' ? (
           /* Version and icon wrapper for scripture notes */
           <div className="relative shrink-0 flex items-center gap-2" style={{ marginTop: '4px' }}>
-            {version && (
-              <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px] m-0">{version}</p>
+            {resolvedScriptureVersion && (
+              <p className="leading-[normal] text-nowrap whitespace-pre font-sans font-normal text-[var(--color-stone-grey)] text-[12px] m-0">{resolvedScriptureVersion}</p>
             )}
             <div className="relative shrink-0 size-5" title="Scripture type">
               <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
@@ -1607,8 +1610,8 @@ export default function CardFullEditable({
         {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
 
         {/* Bible Translation Attribution - visible at bottom for scripture notes */}
-        {noteType === 'scripture' && version && (() => {
-          const translationInfo = getTranslation(version);
+        {noteType === 'scripture' && resolvedScriptureVersion && (() => {
+          const translationInfo = getTranslation(resolvedScriptureVersion);
           if (!translationInfo) return null;
           return (
             <div

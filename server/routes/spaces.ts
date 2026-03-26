@@ -26,7 +26,7 @@
 import { Hono } from 'hono';
 import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/auth';
 import {
-  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata,
+  db, Spaces, Notes, Threads, NoteThreads, Members, SpaceInvitations, UserMetadata, ResourceMetadata, ScriptureMetadata,
   eq, and, ne, count, inArray, desc, asc, sql, isNull,
   first,
 } from '../db';
@@ -197,7 +197,9 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
 
     // Enrich with resource metadata
     const resourceNoteIds = allNotes.filter(n => n.noteType === 'resource').map(n => n.id);
+    const scriptureNoteIds = allNotes.filter(n => n.noteType === 'scripture').map(n => n.id);
     let resourceMetadataMap: Record<string, any> = {};
+    let scriptureVersionMap: Record<string, string> = {};
     if (resourceNoteIds.length > 0) {
       try {
         const rm = await db.select({
@@ -207,12 +209,26 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
         resourceMetadataMap = Object.fromEntries(rm.map(m => [m.noteId, m]));
       } catch {}
     }
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const sm = await db
+          .select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata)
+          .where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = Object.fromEntries(sm.map(m => [m.noteId, m.translation]));
+      } catch {}
+    }
 
     const notesWithMetadata = allNotes.map(note => {
       const rm = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
+      const scriptureVersion = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] || 'NET')
+        : null;
       return {
         ...note, lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         resourceTitle: rm?.sourceTitle || null, resourceDescription: rm?.sourceDescription || null, resourceImage: rm?.sourceImage || null,
+        version: scriptureVersion,
+        scriptureTranslation: scriptureVersion,
       };
     });
 
