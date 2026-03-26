@@ -1,5 +1,5 @@
 import Bold from '@tiptap/extension-bold';
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 /**
  * Custom Bold extension that prevents bold from being applied

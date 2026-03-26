@@ -1021,28 +1021,78 @@ button[disabled] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
-  border-radius: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  border: 1px solid var(--color-fog-white);
-  background: transparent;
+  border: none;
+  background: var(--color-fog-white);
   color: var(--color-charcoal-black);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition: background-color 0.125s ease-in-out, transform 0.125s ease-in-out, color 0.125s ease-in-out;
 }
 .translation-picker-badge:hover {
-  background-color: var(--color-fog-white);
+  background-color: var(--color-paper);
+}
+.translation-picker-badge:active {
+  background-color: var(--color-paper);
+  transform: scale(0.95);
 }
 .translation-picker-badge--selected {
   background-color: var(--color-deep-grey);
   color: white !important;
-  border-color: var(--color-deep-grey);
 }
 .translation-picker-badge--selected:hover {
   background-color: var(--color-deep-grey);
+}
+.translation-picker-badge--selected:active {
+  background-color: var(--color-deep-grey);
+  transform: scale(0.95);
+}
+
+/* Floating picker shared animation */
+@keyframes pickerPopIn {
+  0% {
+    opacity: 0;
+    transform: translateY(4px) scale(0.95);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-1px) scale(1.01);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+.floating-picker-enter {
+  animation: pickerPopIn 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+}
+
+/* Selection action bar (highlight-to-act menu) */
+.selection-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  background: var(--color-fog-white);
+  color: var(--color-charcoal-black);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.125s ease-in-out, transform 0.125s ease-in-out;
+}
+.selection-action-btn:hover {
+  background-color: var(--color-paper);
+}
+.selection-action-btn:active {
+  background-color: var(--color-paper);
+  transform: scale(0.95);
 }
 
 /* Hover effects - only on devices that support hover */

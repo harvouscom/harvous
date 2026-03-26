@@ -1,5 +1,5 @@
 import Highlight from '@tiptap/extension-highlight';
-import { Plugin, PluginKey } from 'prosemirror-state';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 /**
  * Custom Highlight extension that prevents highlight from being applied

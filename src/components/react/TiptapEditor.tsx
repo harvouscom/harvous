@@ -1,18 +1,17 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/react/menus';
+// BubbleMenu replaced with custom createPortal-based floating toolbar for reliability
 import StarterKit from '@tiptap/starter-kit';
 import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
-import { TextSelection } from 'prosemirror-state';
+import { TextSelection } from '@tiptap/pm/state';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
-import ButtonSmall from './ButtonSmall';
 import { normalizeScriptureReference, detectScriptureReferences, detectScriptureReferencesWithTranslation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
 import { TRANSLATION_ORDER } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
@@ -820,43 +819,49 @@ function createPendingPillsForReferences(editor: any, references: (ScriptureRefe
       state = view.state;
     }
 
-    // Brief delay for pill DOM to settle before cursor positioning
-    // This 10ms delay allows the DOM to update after pill insertion
+    // Safety-net: clear stored marks after a brief delay so the next typed
+    // character won't inherit the pill mark.  Do NOT reposition the cursor —
+    // the space was already inserted and the cursor is already in the correct
+    // position (after the space, outside the pill).  Calling Selection.near()
+    // can snap the cursor to before the space in some edge cases, eating it.
     setTimeout(() => {
       if (!editor || editor.isDestroyed) return;
+      const view = editor.view;
+      const curState = view.state;
 
-      const doc = editor.state.doc;
-      const currentPos = editor.state.selection.from;
-      let pillEndPos = currentPos;
-      let foundPill = false;
-
-      for (let checkPos = Math.max(0, currentPos - 5); checkPos <= Math.min(currentPos + 2, doc.content.size); checkPos++) {
-        try {
-          const $check = doc.resolve(checkPos);
-          if ($check.marks().some((m: any) => m.type.name === 'scripturePill')) {
-            foundPill = true;
-            for (let p = checkPos; p <= doc.content.size; p++) {
-              const $p = doc.resolve(p);
-              if (!$p.marks().some((m: any) => m.type.name === 'scripturePill')) {
-                pillEndPos = Math.max(pillEndPos, p);
-                break;
-              }
-            }
-          }
-        } catch (e) {}
+      // Only act if stored marks still contain the pill mark
+      const stored = curState.storedMarks;
+      if (stored && stored.some((m: any) => m.type.name === 'scripturePill')) {
+        const clearTr = curState.tr.setStoredMarks(
+          stored.filter((m: any) => m.type.name !== 'scripturePill')
+        );
+        clearTr.setMeta('addToHistory', false);
+        view.dispatch(clearTr);
       }
 
-      // Position cursor after pill and clear stored marks via direct transaction
-      // Using tr.setStoredMarks([]) instead of chain().unsetMark() ensures
-      // the next typed character won't inherit the pill mark
-      const targetPos = Math.max(pillEndPos, currentPos);
-      const view = editor.view;
-      const clearTr = view.state.tr.setSelection(
-        view.state.selection.constructor.near(view.state.doc.resolve(targetPos))
-      );
-      clearTr.setStoredMarks([]);
-      view.dispatch(clearTr);
-      editor.commands.focus();
+      // If the cursor somehow ended up inside the pill, nudge it just past the pill end
+      try {
+        const $cur = view.state.doc.resolve(view.state.selection.from);
+        const insidePill = $cur.marks().some((m: any) => m.type.name === 'scripturePill')
+          || ($cur.nodeAfter?.marks?.some((m: any) => m.type.name === 'scripturePill') && $cur.nodeBefore === null);
+        if (insidePill) {
+          // Find pill end
+          let pillEnd = view.state.selection.from;
+          for (let p = pillEnd; p <= view.state.doc.content.size; p++) {
+            const $p = view.state.doc.resolve(p);
+            if (!$p.marks().some((m: any) => m.type.name === 'scripturePill')) {
+              pillEnd = p;
+              break;
+            }
+          }
+          const moveTr = view.state.tr.setSelection(
+            TextSelection.create(view.state.doc, pillEnd)
+          );
+          moveTr.setStoredMarks([]);
+          moveTr.setMeta('addToHistory', false);
+          view.dispatch(moveTr);
+        }
+      } catch (_) {}
     }, 10);
     
   } catch (error) {
@@ -2369,6 +2374,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
+
+  // Custom floating selection action bar (replaces BubbleMenu which has reliability issues across Tiptap versions)
+  const [selectionActionBar, setSelectionActionBar] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+
   const [translationPicker, setTranslationPicker] = useState<{
     rect: { top: number; left: number; bottom: number; right: number; width: number };
     translation: string | null;
@@ -3206,10 +3218,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return from !== to;
   };
 
-  // Selection detection for create note button
+  // Selection detection for create note button + floating action bar positioning
   useEffect(() => {
     if (!editor || !enableCreateNoteFromSelection) {
       setShowCreateNoteButton(false);
+      setSelectionActionBar(null);
       return;
     }
 
@@ -3217,21 +3230,53 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Check if editor is still valid before accessing it
       if (!isEditorValid(editor)) {
         setShowCreateNoteButton(false);
+        setSelectionActionBar(null);
         return;
       }
       if (isValidSelection(editor)) {
         setShowCreateNoteButton(true);
+        // Position floating action bar below the selection (same as translation picker)
+        try {
+          const { view } = editor;
+          const { from, to } = view.state.selection;
+          const start = view.coordsAtPos(from);
+          const end = view.coordsAtPos(to);
+          // Place below the selection, centered horizontally
+          const top = Math.max(start.bottom, end.bottom) + 6;
+          const left = (start.left + end.left) / 2;
+          setSelectionActionBar({ top, left });
+        } catch (_) {
+          setSelectionActionBar(null);
+        }
       } else {
         setShowCreateNoteButton(false);
+        setSelectionActionBar(null);
       }
     };
 
     editor.on('selectionUpdate', updateSelection);
 
+    // Also dismiss on blur/click outside
+    const handleMouseDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target?.closest?.('.selection-action-bar')) return;
+      // Give a tick for the selection to update before dismissing
+      setTimeout(() => {
+        if (!isEditorValid(editor)) return;
+        if (!isValidSelection(editor)) {
+          setSelectionActionBar(null);
+          setShowCreateNoteButton(false);
+        }
+      }, 100);
+    };
+
+    document.addEventListener('mousedown', handleMouseDown);
+
     return () => {
       if (editor && !editor.isDestroyed) {
         editor.off('selectionUpdate', updateSelection);
       }
+      document.removeEventListener('mousedown', handleMouseDown);
     };
   }, [editor, enableCreateNoteFromSelection]);
 
@@ -4096,59 +4141,103 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         }}
       >
         <EditorContent editor={editor} />
-        {enableCreateNoteFromSelection && (
-          <BubbleMenu
-            editor={editor}
-            appendTo={() => document.body}
-            shouldShow={({ editor }: { editor: any }) => {
-              // Check if editor is still valid before checking selection
-              if (!isEditorValid(editor)) return false;
-              return isValidSelection(editor);
+        {/* Custom floating selection action bar — positioned via selectionUpdate event */}
+        {/* Uses createPortal like the translation picker for reliable positioning */}
+        {selectionActionBar && enableCreateNoteFromSelection && createPortal(
+          <div
+            ref={createNoteBubbleRef}
+            className="selection-action-bar floating-picker-enter"
+            style={{
+              position: 'fixed',
+              top: selectionActionBar.top,
+              left: selectionActionBar.left,
+              transform: 'translateX(-50%)',
+              zIndex: 99999,
+              pointerEvents: 'auto',
+              display: 'flex',
+              gap: '4px',
+              padding: '4px',
+              borderRadius: '10px',
+              backgroundColor: 'var(--color-snow-white)',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
             }}
+            onMouseDown={(e) => e.preventDefault()}
           >
-            <div
-              ref={createNoteBubbleRef}
-              style={{ zIndex: 99999, pointerEvents: 'auto', display: 'inline-block' }}
+            <button
+              className="selection-action-btn"
+              onMouseDown={(e: React.MouseEvent) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCreateNoteFromSelection();
+                setSelectionActionBar(null);
+              }}
+              type="button"
+              title="Create note from selection"
             >
-              <ButtonSmall
-                state="Default"
-                onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-                  // Use onMouseDown for better reliability in Floating UI portals
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleCreateNoteFromSelection();
-                }}
-                type="button"
-              >
-                <Icon name="plus" size={14} style={{ display: 'inline-block', marginRight: '8px', fill: 'currentColor' }} />
-                <span>Create Note</span>
-              </ButtonSmall>
-            </div>
-          </BubbleMenu>
+              <Icon name="note-sticky" size={12} />
+              Create Note
+            </button>
+            <button
+              className="selection-action-btn"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!editor) return;
+                const { from, to } = editor.state.selection;
+                if (from === to) return;
+                const text = editor.state.doc.textBetween(from, to);
+                navigator.clipboard.writeText(text).then(() => {
+                  if (window.toast) window.toast.info('Copied to clipboard');
+                }).catch(() => {});
+                setSelectionActionBar(null);
+              }}
+              type="button"
+              title="Copy selection"
+            >
+              <Icon name="copy" size={12} />
+              Copy
+            </button>
+          </div>,
+          document.body
         )}
         {/* Custom floating translation picker — positioned via pill click event, not BubbleMenu */}
         {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
         {translationPicker && createPortal(
           <div
-            className="scripture-translation-picker"
+            className="scripture-translation-picker floating-picker-enter"
             style={{
               position: 'fixed',
               top: translationPicker.rect.bottom + 6,
               left: Math.max(8, translationPicker.rect.left + (translationPicker.rect.width / 2) - 160),
               zIndex: 99999,
               pointerEvents: 'auto',
-              display: 'flex',
-              gap: '4px',
-              padding: '4px 6px',
-              borderRadius: '8px',
+              padding: '4px 0',
+              borderRadius: '10px',
               backgroundColor: 'var(--color-snow-white)',
-              boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-              border: '1px solid var(--color-fog-white)',
-              overflowX: 'auto',
-              maxWidth: '320px',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+              maxWidth: '216px',
+              overflow: 'hidden',
             }}
             onMouseDown={(e) => e.preventDefault()}
           >
+            <div
+              ref={(el) => {
+                if (!el) return;
+                const selected = el.querySelector('.translation-picker-badge--selected') as HTMLElement;
+                if (selected) {
+                  requestAnimationFrame(() => {
+                    selected.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'instant' });
+                  });
+                }
+              }}
+              style={{
+                display: 'flex',
+                gap: '4px',
+                overflowX: 'auto',
+                scrollbarWidth: 'none',
+                padding: '0 4px',
+              }}
+            >
             {TRANSLATION_ORDER.map((tid) => {
               const currentTranslation = translationPicker.translation || getCachedProfileData()?.defaultTranslation || 'NET';
               const isSelected = currentTranslation === tid;
@@ -4229,6 +4318,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 </button>
               );
             })}
+            </div>
           </div>,
           document.body
         )}
