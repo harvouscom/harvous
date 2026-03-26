@@ -23,6 +23,17 @@ import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
+const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+
+function extractScriptureTranslationFromNoteContent(content: string | null | undefined): string | undefined {
+  if (!content) return undefined;
+  const match = content.match(SCRIPTURE_TRANSLATION_ATTR_RE);
+  if (!match) return undefined;
+  const parsed = match[1]?.trim();
+  if (!parsed) return undefined;
+  return parsed.toUpperCase();
+}
+
 /**
  * Find (or create) the "Unorganized" thread for a user.
  */
@@ -679,7 +690,9 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
+      const version = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+        : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -758,7 +771,9 @@ export async function getNotesForThreadForMember(
     const notesWithThreadColors = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
+      const version = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+        : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -968,7 +983,9 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
       const cleanContent = stripHtmlForCard(note.content || "");
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const isEncrypted = note.contentEncrypted === true;
-      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
+      const version = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+        : undefined;
       const noteThread = threadLookup.get(note.threadId);
       return {
         id: note.id, type: "note" as const,
@@ -1052,7 +1069,7 @@ export async function getReferencedScriptureNotesWithoutLastVisited(userId: stri
         lastUpdated: note.updatedAt || note.createdAt, updatedAt: note.updatedAt || note.createdAt,
         lastVisited: null, createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || undefined,
-        version: scriptureVersionMap[note.id] ?? undefined,
+        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET',
       };
     });
   } catch (error) {
@@ -1104,7 +1121,7 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         updatedAt: note.updatedAt || note.createdAt, lastVisited: note.lastVisited, createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || undefined,
-        version: scriptureVersionMap[note.id] ?? undefined,
+        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET',
       };
     });
 
@@ -1249,7 +1266,9 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
     const notesWithMeta = sortedNotes.map(note => {
       const resourceMeta = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version = note.noteType === 'scripture' ? (scriptureVersionMap[note.id] ?? undefined) : undefined;
+      const version = note.noteType === 'scripture'
+        ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+        : undefined;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -1309,6 +1328,24 @@ export async function getNotesForSpaceForMember(
       } catch (_) {}
     }
 
+    // Scripture version (translation) for scripture notes.
+    // This powers the `CondensedNoteItem` translation badge in space member views.
+    const scriptureNoteIds = sortedNotes
+      .filter(n => n.noteType === 'scripture')
+      .map(n => n.id)
+      .filter(Boolean) as string[];
+    let scriptureVersionMap: Record<string, string> = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (_) { /* ignore */ }
+    }
+
     const noteIds = sortedNotes.map(n => n.id).filter(Boolean) as string[];
     const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
 
@@ -1323,6 +1360,9 @@ export async function getNotesForSpaceForMember(
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
         threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
+        version: note.noteType === 'scripture'
+          ? (scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? 'NET')
+          : undefined,
       };
     });
 

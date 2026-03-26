@@ -17,7 +17,7 @@ interface SpacePreview {
   memberCount: number;
   noteCount: number;
   isAlreadyMember: boolean;
-  notes?: Array<{ id: string; title: string; noteType: string }>;
+  notes?: Array<{ id: string; title: string; noteType: string; scriptureTranslation?: string; version?: string }>;
   threads?: Array<{ id: string; title: string; color: string; noteCount: number }>;
 }
 
@@ -220,6 +220,7 @@ export default function JoinSpacePage() {
                                 noteType={note.noteType as any || 'default'}
                                 href="#"
                                 noteId={note.id}
+                                scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
                               />
                             </div>
                           ))}

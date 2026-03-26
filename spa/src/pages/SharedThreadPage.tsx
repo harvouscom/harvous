@@ -12,6 +12,8 @@ interface SharedThreadNote {
   title: string;
   content: string;
   noteType: 'default' | 'scripture' | 'resource';
+  scriptureTranslation?: string;
+  version?: string;
 }
 
 interface SharedThreadResponse {
@@ -203,6 +205,7 @@ export default function SharedThreadPage() {
                                   noteType="scripture"
                                   href="#"
                                   noteId={note.id}
+                                  scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
                                 />
                               ) : (
                                 <CardNote

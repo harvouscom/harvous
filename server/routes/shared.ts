@@ -174,6 +174,31 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
     [...notes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
     const allNotes = Array.from(notesMap.values());
 
+    const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    const extractScriptureTranslation = (content: string | null | undefined) => {
+      const m = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE);
+      const v = m?.[1]?.trim();
+      return v ? v.toUpperCase() : undefined;
+    };
+
+    // Enrich scripture note previews with translation abbreviation for CondensedNoteItem.
+    const scriptureNoteIds = allNotes
+      .filter(n => n.noteType === 'scripture')
+      .map(n => n.id)
+      .filter(Boolean);
+
+    let scriptureVersionMap: Record<string, string> = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (_) { /* ignore */ }
+    }
+
     const creator = first(await db
       .select({
         firstName: UserMetadata.firstName, lastName: UserMetadata.lastName,
@@ -192,7 +217,21 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
 
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
-      notes: allNotes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
+      notes: allNotes.map((n) => {
+        if (n.noteType !== 'scripture') {
+          return { id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt };
+        }
+        const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? 'NET';
+        return {
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          noteType: n.noteType,
+          createdAt: n.createdAt,
+          version: scriptureTranslation,
+          scriptureTranslation,
+        };
+      }),
       creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: allNotes.length },
     });

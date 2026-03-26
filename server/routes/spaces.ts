@@ -906,13 +906,58 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
 
     // Note preview (up to 10, unencrypted only)
     const notes = await db.select({
-      id: Notes.id, title: Notes.title, noteType: Notes.noteType, createdAt: Notes.createdAt,
+      id: Notes.id,
+      title: Notes.title,
+      noteType: Notes.noteType,
+      content: Notes.content,
+      createdAt: Notes.createdAt,
     }).from(Notes)
       .where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false)))
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt)
       ).limit(10);
+
+    const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    const extractScriptureTranslation = (content: string | null | undefined) => {
+      const m = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE);
+      const v = m?.[1]?.trim();
+      return v ? v.toUpperCase() : undefined;
+    };
+
+    // Enrich scripture note previews with translation abbreviation for CondensedNoteItem.
+    const scriptureNoteIds = notes
+      .filter(n => n.noteType === 'scripture')
+      .map(n => n.id)
+      .filter(Boolean);
+
+    let scriptureVersionMap: Record<string, string> = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+          .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {} as Record<string, string>);
+      } catch (_) { /* ignore */ }
+    }
+
+    const notePreviews = notes.map(n => {
+      if (n.noteType !== 'scripture') {
+        return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt };
+      }
+
+      const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? 'NET';
+      return {
+        id: n.id,
+        title: n.title,
+        noteType: n.noteType,
+        createdAt: n.createdAt,
+        version: scriptureTranslation,
+        scriptureTranslation,
+      };
+    });
 
     // Check if auth user is already a member
     let isAlreadyMember = false;
@@ -936,7 +981,7 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
       owner: { displayName: ownerDisplayName, profileImageUrl: ownerMeta?.profileImageUrl || null },
       memberCount: totalMembers,
       threadPreviews,
-      notePreviews: notes,
+      notePreviews,
       isAlreadyMember,
     });
   } catch (error: any) {
