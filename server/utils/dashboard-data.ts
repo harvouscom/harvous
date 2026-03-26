@@ -891,7 +891,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
     scriptureVersionMap = scriptureResult;
 
     // Fetch scripture references
-    let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>> = {};
+    let scriptureReferencesMap: Record<string, Array<{ reference: string; noteId: string; translation?: string; threadColors?: Array<{ color: string; frequency: number }> }>> = {};
     const defaultNoteIds = [...assignedNotes, ...unorganizedNotes]
       .filter(n => n.noteType === 'default' || !n.noteType).map(n => n.id);
 
@@ -920,11 +920,11 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         }
 
         const scriptureNoteIds = [...new Set(junctionEntries.map(e => e.scriptureNoteId))];
-        let scriptureMetadataMap: Record<string, string> = {};
+        let scriptureMetadataMap: Record<string, { reference: string; translation?: string }> = {};
         if (scriptureNoteIds.length > 0) {
-          const sm = await db.select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference })
+          const sm = await db.select({ noteId: ScriptureMetadata.noteId, reference: ScriptureMetadata.reference, translation: ScriptureMetadata.translation })
             .from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-          scriptureMetadataMap = sm.reduce((acc: any, m) => { acc[m.noteId] = m.reference; return acc; }, {});
+          scriptureMetadataMap = sm.reduce((acc: any, m) => { acc[m.noteId] = { reference: m.reference, translation: m.translation ?? undefined }; return acc; }, {});
         }
 
         const scriptureNoteIdsArray = scriptureNoteIds.filter(Boolean) as string[];
@@ -933,12 +933,13 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
           : new Map<string, Array<{ color: string; frequency: number }>>();
 
         for (const entry of junctionEntries) {
-          const reference = scriptureMetadataMap[entry.scriptureNoteId];
-          if (reference) {
+          const meta = scriptureMetadataMap[entry.scriptureNoteId];
+          if (meta) {
             if (!scriptureReferencesMap[entry.noteId]) scriptureReferencesMap[entry.noteId] = [];
             if (!scriptureReferencesMap[entry.noteId].some(r => r.noteId === entry.scriptureNoteId)) {
               scriptureReferencesMap[entry.noteId].push({
-                reference, noteId: entry.scriptureNoteId,
+                reference: meta.reference, noteId: entry.scriptureNoteId,
+                translation: meta.translation,
                 threadColors: scriptureThreadColorsBatchMap.get(entry.scriptureNoteId) ?? undefined,
               });
             }

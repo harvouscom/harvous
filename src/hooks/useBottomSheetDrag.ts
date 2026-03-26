@@ -86,11 +86,11 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
       }
 
       // Check for scrollable content - including nested TiptapEditor
-      const scrollableContent = el.querySelector('.mobile-nav__sheet-inner, .bottom-sheet__inner');
+      const scrollableContent = el.querySelector('.mobile-nav__sheet-inner, .bottom-sheet__inner, .panel__body');
       const tiptapContent = el.querySelector('.tiptap-content') as HTMLElement;
 
       // Check if touch target is within a scrollable element
-      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner') as HTMLElement;
+      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner, .panel__body') as HTMLElement;
 
       // If we're in a scrollable element, check its scroll position
       if (scrollableElement) {
@@ -132,7 +132,7 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
 
       // Before starting drag, check if we're in a scrollable element that can still scroll
       const target = e.target as HTMLElement;
-      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner') as HTMLElement;
+      const scrollableElement = target.closest('.tiptap-content, .mobile-nav__sheet-inner, .bottom-sheet__inner, .panel__body') as HTMLElement;
 
       if (scrollableElement && !state.isDragging) {
         // Check if element can scroll in the direction we're moving

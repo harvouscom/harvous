@@ -43,11 +43,11 @@ declare module '@tiptap/core' {
       /**
        * Set a scripture pill mark
        */
-      setScripturePill: (attributes: { reference: string; noteId: string | null }) => ReturnType;
+      setScripturePill: (attributes: { reference: string; noteId: string | null; translation?: string | null }) => ReturnType;
       /**
        * Toggle a scripture pill mark
        */
-      toggleScripturePill: (attributes: { reference: string; noteId: string | null }) => ReturnType;
+      toggleScripturePill: (attributes: { reference: string; noteId: string | null; translation?: string | null }) => ReturnType;
       /**
        * Unset a scripture pill mark
        */
@@ -91,6 +91,18 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           };
         },
       },
+      translation: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-scripture-translation'),
+        renderHTML: attributes => {
+          if (!attributes.translation) {
+            return {};
+          }
+          return {
+            'data-scripture-translation': attributes.translation,
+          };
+        },
+      },
     };
   },
 
@@ -111,7 +123,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           if (!reference) {
             return false;
           }
-          return { reference, noteId: noteId || null };
+          const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
+          return { reference, noteId: noteId || null, translation: translation || null };
         },
       },
       {
@@ -122,7 +135,8 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           if (!reference) {
             return false;
           }
-          return { reference, noteId: noteId || null };
+          const translation = (element as HTMLElement).getAttribute('data-scripture-translation');
+          return { reference, noteId: noteId || null, translation: translation || null };
         },
       },
     ];
@@ -253,24 +267,16 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
       new Plugin({
         key: new PluginKey('scripturePillActions'),
         props: {
-          handleClick: (view, pos, event) => {
-            const { state } = view;
-            const $pos = state.doc.resolve(pos);
-            const marks = $pos.marks();
-            const scripturePillMark = marks.find(mark => mark.type.name === 'scripturePill');
-
-            if (!scripturePillMark) return false;
-
-            const noteId = scripturePillMark.attrs.noteId;
-
-            // Don't navigate if pill is pending
-            if (noteId === 'pending' || !noteId) {
-              return true; 
+          handleClick: (_view, _pos, event) => {
+            // ALL pill clicks (edit and read-only) are handled by a DOM-level
+            // click handler in TiptapEditor. user-select:none on pill spans causes
+            // ProseMirror to report positions outside the mark boundary, so we
+            // bypass ProseMirror's handleClick entirely for pill clicks.
+            const target = event.target as HTMLElement;
+            if (target?.closest?.('.scripture-pill')) {
+              return false; // Let the DOM handler in TiptapEditor handle it
             }
-
-            const url = idToUrl(`note_${noteId}`, getCurrentThreadContext() || undefined);
-            safeNavigate(url);
-            return true;
+            return false;
           },
         },
       }),

@@ -85,7 +85,7 @@ async function processScriptureReferencesInternal(
   // This helps us track which references were already in the note
   // Use two patterns to handle different attribute orders (Tiptap may serialize attributes in varying order)
   const existingReferences = new Map<string, string>(); // normalizedReference -> noteId
-  const pendingPills = new Map<string, { reference: string; fullMatch: string; startIndex: number }>(); // normalizedReference -> pill info
+  const pendingPills = new Map<string, { reference: string; fullMatch: string; startIndex: number; pillTranslation?: string }>(); // normalizedReference -> pill info
 
   // Pattern 1: data-scripture-reference comes before data-note-id
   const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
@@ -140,10 +140,14 @@ async function processScriptureReferencesInternal(
     const normalizedRef = normalizeScriptureReference(reference);
     // Only track if not already in existingReferences (has noteId) and not already in pendingPills
     if (!existingReferences.has(normalizedRef) && !pendingPills.has(normalizedRef)) {
+      // Extract per-pill translation override from data-scripture-translation attribute
+      const translationMatch = fullMatch.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/);
+      const pillTranslation = translationMatch ? translationMatch[1] : undefined;
       pendingPills.set(normalizedRef, {
         reference: match[1],
         fullMatch: match[0],
-        startIndex: match.index || 0
+        startIndex: match.index || 0,
+        pillTranslation,
       });
     }
   }
@@ -448,8 +452,12 @@ async function processScriptureReferencesInternal(
       if (!existingScripture) {
         // New scripture - create it
         try {
+          // Use per-pill translation override if available, otherwise fall back to user's default
+          const pendingPillInfo = pendingPills.get(normalizedReference);
+          const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
+
           // Fetch verse text via shared helper (normalized reference for consistent results)
-          const verseText = await fetchVerseText(normalizedReference, translation);
+          const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
 
           // Get user metadata for simpleNoteId
           let userMetadata = first(await db.select()
@@ -478,7 +486,7 @@ async function processScriptureReferencesInternal(
               highestSimpleNoteId: highestExistingId,
               userColor: 'blue',
               currentSeason: season,
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
             userMetadata = {
               id: `user_metadata_${userId}`,
@@ -501,7 +509,7 @@ async function processScriptureReferencesInternal(
               referralCode: null,
               lockPinSalt: null,
               lockPinHash: null,
-              createdAt: new Date().toISOString(),
+              createdAt: new Date(),
               updatedAt: null
             };
           }
@@ -516,7 +524,7 @@ async function processScriptureReferencesInternal(
           await ensureUnorganizedThread(userId);
 
           // Scripture notes are automatically shared
-          const now = new Date().toISOString();
+          const now = new Date();
           const shareToken = generateShareToken();
 
           // Do not set lastVisited on creation: scripture notes are excluded from the dashboard
@@ -543,7 +551,7 @@ async function processScriptureReferencesInternal(
           await db.update(UserMetadata)
             .set({
               highestSimpleNoteId: nextSimpleNoteId,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             })
             .where(eq(UserMetadata.userId, userId));
 
@@ -561,9 +569,9 @@ async function processScriptureReferencesInternal(
               chapter: parsed.chapter,
               verse: verseStart,
               verseEnd: verseEnd || null,
-              translation,
+              translation: effectiveTranslation,
               originalText: capitalizedContent,
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
           }
 
@@ -600,7 +608,7 @@ async function processScriptureReferencesInternal(
                 id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                 noteId: scriptureNote.id,
                 threadId: actualThreadId,
-                createdAt: new Date().toISOString()
+                createdAt: new Date()
               });
               await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, scriptureNote.id));
             } catch (error) {
@@ -617,7 +625,7 @@ async function processScriptureReferencesInternal(
               id: `note-scripture-${noteId}-${scriptureNote.id}-${Date.now()}`,
               noteId: noteId, // The note containing the reference
               scriptureNoteId: scriptureNote.id, // The scripture note being referenced
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
           } catch (junctionError: any) {
             if (!junctionError?.message?.includes('UNIQUE constraint failed')) {
@@ -655,7 +663,7 @@ async function processScriptureReferencesInternal(
               id: `note-scripture-${noteId}-${existingNoteId}-${Date.now()}`,
               noteId: noteId, // The note containing the reference
               scriptureNoteId: existingNoteId, // The scripture note being referenced
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
           }
         } catch (junctionError: any) {
@@ -703,7 +711,7 @@ async function processScriptureReferencesInternal(
               id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
               noteId: existingNoteId,
               threadId: actualThreadId,
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
 
             // If note was in unorganized, update the legacy threadId field to remove it from unorganized
@@ -715,7 +723,7 @@ async function processScriptureReferencesInternal(
 
             // Update the target thread's timestamp
             await db.update(Threads)
-              .set({ updatedAt: new Date().toISOString() })
+              .set({ updatedAt: new Date() })
               .where(and(eq(Threads.id, actualThreadId), eq(Threads.userId, userId)));
 
             results.push({
@@ -748,10 +756,16 @@ async function processScriptureReferencesInternal(
   // Update note content with highlighted references
   // Use the provided content (which may already have pills) as the base
   // Include both new references and existing ones for highlighting
-  const referencesForHighlighting = Array.from(referenceMap.entries()).map(([reference, noteId]) => ({
-    reference,
-    noteId
-  }));
+  const referencesForHighlighting = Array.from(referenceMap.entries()).map(([reference, noteId]) => {
+    // Use per-pill translation if available, otherwise fall back to user's default
+    const normalizedRef = normalizeScriptureReference(reference);
+    const pillInfo = pendingPills.get(normalizedRef);
+    return {
+      reference,
+      noteId,
+      translation: pillInfo?.pillTranslation || translation,
+    };
+  });
 
   // Also add existing references to the map so they're preserved (including pills-only case when no plain text refs detected)
   for (const [normalizedRef, existingScriptureNoteId] of existingReferences.entries()) {
@@ -760,7 +774,8 @@ async function processScriptureReferencesInternal(
     const referenceForHighlight = matchingRef?.reference ?? normalizedRef;
     if (!referenceMap.has(referenceForHighlight)) {
       referenceMap.set(referenceForHighlight, existingScriptureNoteId);
-      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId });
+      const pillInfo = pendingPills.get(normalizedRef);
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation });
     }
 
     // Ensure junction entry exists for existing references (critical for collapsible list)
@@ -780,7 +795,7 @@ async function processScriptureReferencesInternal(
           id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           noteId: noteId,
           scriptureNoteId: existingScriptureNoteId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date()
         });
       }
     } catch (junctionError: any) {
@@ -871,7 +886,7 @@ async function processScriptureReferencesInternal(
               id: `note-scripture-${noteId}-${actualNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
               noteId: noteId,
               scriptureNoteId: actualNoteId,
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
           }
 
@@ -914,7 +929,7 @@ async function processScriptureReferencesInternal(
                 highestSimpleNoteId: highestExistingId,
                 userColor: 'blue',
                 currentSeason: season,
-                createdAt: new Date().toISOString()
+                createdAt: new Date()
               });
               userMetadata = {
                 id: `user_metadata_${userId}`,
@@ -937,7 +952,7 @@ async function processScriptureReferencesInternal(
                 referralCode: null,
                 lockPinSalt: null,
                 lockPinHash: null,
-                createdAt: new Date().toISOString(),
+                createdAt: new Date(),
                 updatedAt: null
               };
             }
@@ -951,7 +966,7 @@ async function processScriptureReferencesInternal(
             const { ensureUnorganizedThread } = await import('./unorganized-thread');
             await ensureUnorganizedThread(userId);
 
-            const now = new Date().toISOString();
+            const now = new Date();
             const shareToken = generateShareToken();
 
             // Do not set lastVisited: scripture notes only appear in the organized content list when visited.
@@ -977,7 +992,7 @@ async function processScriptureReferencesInternal(
             await db.update(UserMetadata)
               .set({
                 highestSimpleNoteId: nextSimpleNoteId,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date()
               })
               .where(eq(UserMetadata.userId, userId));
 
@@ -997,7 +1012,7 @@ async function processScriptureReferencesInternal(
                 verseEnd: verseEnd || null,
                 translation,
                 originalText: capitalizedContent,
-                createdAt: new Date().toISOString()
+                createdAt: new Date()
               });
             }
 
@@ -1019,7 +1034,7 @@ async function processScriptureReferencesInternal(
               id: `note-scripture-${noteId}-${newScriptureNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
               noteId: noteId,
               scriptureNoteId: newScriptureNote.id,
-              createdAt: new Date().toISOString()
+              createdAt: new Date()
             });
 
             // Update content to use the new noteId
@@ -1035,7 +1050,7 @@ async function processScriptureReferencesInternal(
                   id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                   noteId: newScriptureNote.id,
                   threadId: actualThreadId,
-                  createdAt: new Date().toISOString()
+                  createdAt: new Date()
                 });
                 await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, newScriptureNote.id));
               } catch (error) {
@@ -1074,7 +1089,7 @@ async function processScriptureReferencesInternal(
           id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
           noteId: noteId,
           scriptureNoteId: scriptureNoteId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date()
         });
       }
     } catch (junctionError: any) {
@@ -1096,7 +1111,7 @@ async function processScriptureReferencesInternal(
   await db.update(Notes)
     .set({
       content: updatedContent,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date()
     })
     .where(eq(Notes.id, noteId));
 

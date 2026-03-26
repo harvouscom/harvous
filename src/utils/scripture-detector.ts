@@ -5,6 +5,9 @@ import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
 // @ts-ignore - JSON import with resolveJsonModule
 import bibleChaptersData from '../data/bible-chapters.json';
 
+/** Valid Bible translation abbreviations for inline detection (e.g., "John 3:16 ESV") */
+const TRANSLATION_ABBREVIATIONS = ['KJV', 'NKJV', 'ESV', 'NIV', 'NLT', 'NET', 'BSB'];
+
 const DEBUG = false;
 
 // Bible chapter/verse data structure
@@ -525,6 +528,43 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
   }
 
   return references;
+};
+
+/** A scripture reference with an optional inline translation override (e.g., "John 3:16 ESV") */
+export interface ScriptureReferenceWithTranslation extends ScriptureReference {
+  translation?: string;
+}
+
+/**
+ * Detects scripture references with optional trailing translation abbreviation.
+ * E.g., "John 3:16 ESV" → { reference: "John 3:16", translation: "ESV" }
+ * The translation abbreviation is consumed from the text and stored separately.
+ */
+export const detectScriptureReferencesWithTranslation = (text: string): ScriptureReferenceWithTranslation[] => {
+  const baseRefs = detectScriptureReferences(text);
+  if (baseRefs.length === 0) return [];
+
+  const translationPattern = new RegExp(
+    `\\b(${TRANSLATION_ABBREVIATIONS.join('|')})\\b`,
+    'i'
+  );
+
+  return baseRefs.map(ref => {
+    // Check if there's a translation abbreviation right after this reference in the text
+    const refEndIndex = text.lastIndexOf(ref.reference);
+    if (refEndIndex === -1) return ref;
+
+    const afterRef = text.substring(refEndIndex + ref.reference.length);
+    // Match a single space followed by a translation abbreviation at end of string or before whitespace
+    const trailingMatch = afterRef.match(/^\s+(KJV|NKJV|ESV|NIV|NLT|NET|BSB)\s*$/i);
+    if (trailingMatch) {
+      return {
+        ...ref,
+        translation: trailingMatch[1].toUpperCase(),
+      };
+    }
+    return ref;
+  });
 };
 
 // Parse scripture reference string into components

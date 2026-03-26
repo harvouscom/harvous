@@ -37,6 +37,8 @@ interface Note {
   threadId?: string;
   // Thread colors for note card accent (from getNotesForThread or optimistic threadColor)
   threadColors?: Array<{ color: string; frequency: number }>;
+  // Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV')
+  version?: string;
 }
 
 interface NoteTypeCounts {
@@ -1443,13 +1445,13 @@ export default function ThreadNotesList({
                   <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
                 </div>
                 
-                {/* Text content - only title */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+                {/* Text content - title + translation badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
                   {/* Title */}
-                  <div style={{ 
-                    fontFamily: 'var(--font-sans)', 
-                    fontWeight: 700, 
-                    color: 'var(--color-deep-grey)', 
+                  <div style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontWeight: 700,
+                    color: 'var(--color-deep-grey)',
                     fontSize: '16px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -1457,6 +1459,17 @@ export default function ThreadNotesList({
                   }}>
                     {note.title || 'Untitled Note'}
                   </div>
+                  {note.version && (
+                    <span style={{
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '12px',
+                      fontWeight: 'normal',
+                      color: 'var(--color-stone-grey)',
+                      flexShrink: 0,
+                    }}>
+                      {note.version}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

@@ -246,6 +246,16 @@
   user-select: none;
 }
 
+/* Translation abbreviation shown after the reference text */
+.card-full-editable__content-html .scripture-pill[data-scripture-translation]::after {
+  content: attr(data-scripture-translation);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
 /* Fade overflow content at bottom only; top stays fully visible */
 .card-full-editable__content-fade-edges {
   -webkit-mask-image: linear-gradient(

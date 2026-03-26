@@ -15,6 +15,7 @@ import AddToSpacePanel from './AddToSpacePanel';
 import EditSpacePeoplePanel from './EditSpacePeoplePanel';
 import EmailPasswordPanel from './EmailPasswordPanel';
 import MyChurchPanel from './MyChurchPanel';
+import MyPreferencesPanel from './MyPreferencesPanel';
 import MySpacesPanel from './MySpacesPanel';
 import MySharingPanel from './MySharingPanel';
 import MyDataPanel from './MyDataPanel';
@@ -73,7 +74,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myPreferences' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -109,6 +110,7 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
     'getSupport': 'Get Support',
     'emailPassword': 'Email & Password',
     'myChurch': 'My Church',
+    'myPreferences': 'My Preferences',
     'mySharing': 'My Sharing',
     'mySpaces': 'My Spaces',
     'myData': 'My Data',
@@ -369,6 +371,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (panelName === 'editNameColor') openBottomSheet('editNameColor');
       else if (panelName === 'emailPassword') openBottomSheet('emailPassword');
       else if (panelName === 'myChurch') openBottomSheet('myChurch');
+      else if (panelName === 'myPreferences') openBottomSheet('myPreferences');
       else if (panelName === 'mySharing') openBottomSheet('mySharing');
       else if (panelName === 'mySpaces') openBottomSheet('mySpaces');
       else if (panelName === 'myData') openBottomSheet('myData');
@@ -650,7 +653,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       <SheetContent
         ref={mergedSheetRef}
         side="bottom"
-        className="rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0"
+        className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0${
+          drawerType === 'note' || drawerType === 'thread' || drawerType === 'resource' || drawerType === 'noteDetails' ? ' bottom-sheet--full-height' : ''
+        }`}
         style={{
           padding: '0',
           outline: 'none',
@@ -922,6 +927,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                 }}
                 inBottomSheet={true}
               />
+            </div>
+          )}
+
+          {/* My Preferences Panel */}
+          {drawerType === 'myPreferences' && (
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+              <MyPreferencesPanel />
             </div>
           )}
 

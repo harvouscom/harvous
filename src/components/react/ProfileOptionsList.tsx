@@ -100,12 +100,10 @@ export default function ProfileOptionsList() {
       {renderOption('myAchievements', 'My Achievements', true)}
 
       {/* Profile & Account Settings */}
-      {renderOption('myChurch', 'My Church', true)}
-      {renderOption('bibleTranslation', 'Bible Translation', true)}
+      {renderOption('myPreferences', 'My Preferences', true)}
       {renderOption('referral', 'Refer My Friends', true)}
       {renderOption('editNameColor', 'Edit Name & Color', true)}
       {renderOption('emailPassword', 'Email & Password', true)}
-      {renderOption('lockPin', 'Lock PIN', true)}
 
       {/* Billing & Data Management */}
       {renderOption('myData', 'My Data', true)}

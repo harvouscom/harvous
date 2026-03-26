@@ -26,8 +26,11 @@ export default function NotePage() {
   const isNoteOwner = !!(user?.id && note?.userId && note.userId === user.id);
   const isEditable = isNoteOwner;
 
-  // Invalidate the note query when lock state changes (e.g. after removeLock)
-  // so the fresh contentEncrypted value is fetched and CardFullEditable doesn't loop.
+  // Invalidate the note query when lock state or content changes externally
+  // (e.g. after removeLock, or after a scripture pill's translation is changed
+  // via the inline picker — the update-translation API updates the note content
+  // on the server, then dispatches 'noteUpdated' so the cache is refreshed
+  // before the user navigates here).
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -36,7 +39,11 @@ export default function NotePage() {
       }
     };
     window.addEventListener('noteLockStateChanged', handler);
-    return () => window.removeEventListener('noteLockStateChanged', handler);
+    window.addEventListener('noteUpdated', handler);
+    return () => {
+      window.removeEventListener('noteLockStateChanged', handler);
+      window.removeEventListener('noteUpdated', handler);
+    };
   }, [noteId, queryClient]);
 
   // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),

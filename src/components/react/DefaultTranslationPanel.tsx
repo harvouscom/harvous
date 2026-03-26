@@ -115,23 +115,31 @@ export default function DefaultTranslationPanel({
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
-      {/* Content area */}
-      <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ gap: 0 }}>
-        {/* Panel container */}
-        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`} style={{ opacity: isLoading ? 0 : undefined, transition: 'opacity 0.15s ease-out' }}>
-          {/* Header section */}
+      <div className="flex-fill flex-stack" style={{ gap: 0 }}>
+        <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
-              <p>Bible Translation</p>
+              <p>Preferred Bible</p>
             </div>
           </div>
 
-          {/* Content area */}
-          <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+          <div className="panel__body" style={{ overflow: 'auto' }}>
+            <div className="panel__content">
               {/* Translation list */}
               <div className="flex flex-col gap-2 w-full">
-                {TRANSLATION_ORDER.map((id) => {
+                {[...TRANSLATION_ORDER].sort((a, b) => {
+                  // Selected always first
+                  if (a === selectedTranslation) return -1;
+                  if (b === selectedTranslation) return 1;
+                  // Keep KJV and NKJV together (NKJV right after KJV)
+                  const isKjvGroup = (id: string) => id === 'KJV' || id === 'NKJV';
+                  if (isKjvGroup(a) && isKjvGroup(b)) {
+                    return a === 'KJV' ? -1 : 1;
+                  }
+                  if (isKjvGroup(a)) return TRANSLATIONS['KJV'].name.localeCompare(TRANSLATIONS[b].name);
+                  if (isKjvGroup(b)) return TRANSLATIONS[a].name.localeCompare(TRANSLATIONS['KJV'].name);
+                  return TRANSLATIONS[a].name.localeCompare(TRANSLATIONS[b].name);
+                }).map((id) => {
                   const t = TRANSLATIONS[id];
                   const isSelected = id === selectedTranslation;
 
@@ -147,17 +155,25 @@ export default function DefaultTranslationPanel({
                         <div className="flex-row flex-fill" style={{ gap: '0.75rem' }}>
                           {/* Abbreviation pill */}
                           <div
-                            className="flex-center rounded-[24px] px-2.5 py-1 h-[24px] shrink-0"
+                            className="flex-center rounded-[12px] shrink-0"
                             style={{
                               backgroundColor: isSelected
                                 ? 'var(--color-deep-grey)'
                                 : 'rgba(120,118,111,0.1)',
+                              padding: '4px 8px',
                             }}
                           >
                             <span
-                              className="text-[13px] font-sans font-semibold leading-[normal] text-center whitespace-nowrap"
+                              className={isSelected ? 'translation-abbrev--selected' : ''}
                               style={{
+                                fontSize: '11px',
+                                lineHeight: 'normal',
+                                textAlign: 'center',
+                                whiteSpace: 'nowrap',
                                 color: isSelected ? 'white' : 'var(--color-deep-grey)',
+                                fontFamily: 'var(--font-sans)',
+                                fontWeight: 600,
+                                letterSpacing: '0.02em',
                               }}
                             >
                               {t.abbreviation}
@@ -193,7 +209,7 @@ export default function DefaultTranslationPanel({
       </div>
 
       {/* Bottom buttons */}
-      <div className="panel__footer--buttons">
+      <div className="panel__footer--buttons" style={{ paddingBottom: '12px' }}>
         {/* Back button */}
         <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
 

@@ -24,7 +24,7 @@ interface CardNoteProps {
   // New prop: only show collapsible scripture refs in dashboard list view
   showScriptureRefsCollapsible?: boolean;
   // Scripture references from junction table (with note IDs and thread colors for linking and mesh gradient)
-  scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
+  scriptureReferences?: Array<{ reference: string; noteId: string; translation?: string; threadColors?: Array<{ color: string; frequency: number }> }>;
   // Offline sync status indicator
   isPendingSync?: boolean;
   // Encryption status - when true, note is locked and content is encrypted
@@ -390,11 +390,11 @@ const CardNote: React.FC<CardNoteProps> = ({
                               </div>
                               
                               {/* Text content */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-                                <div style={{ 
-                                  fontFamily: 'var(--font-sans)', 
-                                  fontWeight: 700, 
-                                  color: 'var(--color-deep-grey)', 
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontFamily: 'var(--font-sans)',
+                                  fontWeight: 700,
+                                  color: 'var(--color-deep-grey)',
                                   fontSize: '16px',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -402,6 +402,17 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 }}>
                                   {ref.reference || 'Untitled Scripture'}
                                 </div>
+                                {ref.translation && (
+                                  <span style={{
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: '12px',
+                                    fontWeight: 'normal',
+                                    color: 'var(--color-stone-grey)',
+                                    flexShrink: 0,
+                                  }}>
+                                    {ref.translation}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -697,11 +708,11 @@ const CardNote: React.FC<CardNoteProps> = ({
                               </div>
                               
                               {/* Text content */}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-                                <div style={{ 
-                                  fontFamily: 'var(--font-sans)', 
-                                  fontWeight: 700, 
-                                  color: 'var(--color-deep-grey)', 
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  fontFamily: 'var(--font-sans)',
+                                  fontWeight: 700,
+                                  color: 'var(--color-deep-grey)',
                                   fontSize: '16px',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -709,6 +720,17 @@ const CardNote: React.FC<CardNoteProps> = ({
                                 }}>
                                   {ref.reference || 'Untitled Scripture'}
                                 </div>
+                                {ref.translation && (
+                                  <span style={{
+                                    fontFamily: 'var(--font-sans)',
+                                    fontSize: '12px',
+                                    fontWeight: 'normal',
+                                    color: 'var(--color-stone-grey)',
+                                    flexShrink: 0,
+                                  }}>
+                                    {ref.translation}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>

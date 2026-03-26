@@ -64,11 +64,19 @@
    Bottom Sheet (Radix SheetContent side="bottom") spacing
    ========================================================================== */
 
-/* Flex column so content area gets remaining height; 89svh so sheet doesn't take full screen */
+/* Flex column; content-driven height with 89svh cap so sheet doesn't take full screen.
+   Panels that need full height (editors, note creation) add .bottom-sheet--full-height. */
 .bottom-sheet-content {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  height: fit-content;
+  max-height: 89svh;
+  max-height: 89vh;
+}
+
+/* Panels that need full available height (editors, note creation, etc.) */
+.bottom-sheet-content.bottom-sheet--full-height {
   height: 89svh;
   height: 89vh;
 }

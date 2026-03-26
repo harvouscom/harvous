@@ -39,6 +39,8 @@ interface SpaceItem {
   threadId?: string | null;
   /** Owner userId for remove-from-space visibility (shared: only own items). */
   userId?: string;
+  /** Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV') */
+  version?: string;
 }
 
 interface SpaceContentListProps {
@@ -1199,6 +1201,7 @@ export default function SpaceContentList({
               onMouseDown={() => onPrefetchNote?.(item.id)}
               threadColors={item.threadColors}
               noteId={item.id}
+              scriptureTranslation={item.version}
             />
           ) : (
             <a

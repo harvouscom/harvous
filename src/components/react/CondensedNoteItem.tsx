@@ -20,6 +20,8 @@ interface CondensedNoteItemProps {
   action?: React.ReactNode;
   /** 'thread' shows a list/thread icon and simple accent; 'note' uses noteType icon and gradient */
   itemType?: 'note' | 'thread';
+  /** Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV') */
+  scriptureTranslation?: string;
   'client:load'?: boolean;
   'client:visible'?: boolean;
   'client:idle'?: boolean;
@@ -38,7 +40,8 @@ export default function CondensedNoteItem({
   threadColors,
   noteId,
   action,
-  itemType = 'note'
+  itemType = 'note',
+  scriptureTranslation,
 }: CondensedNoteItemProps) {
   // Generate mesh gradient from thread colors (notes only; threads use simple accent)
   const meshGradient = React.useMemo(() => {
@@ -97,7 +100,7 @@ export default function CondensedNoteItem({
       <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
         {getIcon()}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
         <div
           style={{
             fontFamily: 'var(--font-sans)',
@@ -111,6 +114,17 @@ export default function CondensedNoteItem({
         >
           {title || (itemType === 'thread' ? 'Untitled thread' : 'Untitled Note')}
         </div>
+        {scriptureTranslation && (
+          <span style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: '12px',
+            fontWeight: 'normal',
+            color: 'var(--color-stone-grey)',
+            flexShrink: 0,
+          }}>
+            {scriptureTranslation}
+          </span>
+        )}
       </div>
       {action != null && <div style={{ flexShrink: 0 }}>{action}</div>}
     </div>

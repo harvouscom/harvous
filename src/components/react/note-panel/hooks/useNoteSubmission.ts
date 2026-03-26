@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { idToUrl } from '@/utils/url-helpers';
+import { safeNavigate } from '@/utils/safe-navigate';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
 import { captureException } from '@/utils/posthog';
 import { normalizeUrl, validateResourceUrl } from '@/utils/validation';
 import { debug } from '@/utils/logger';
-import { getSafeOrigin } from '@/utils/safe-url';
 import { createNoteOfflineWithRetry, cacheHighestSimpleNoteId } from '@/utils/offline-mutations';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { usePersistedUserId, getPersistedUserId } from '@/utils/user-id';
@@ -284,9 +284,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         contentEncrypted: false,
       };
       if (addToSpace && currentSpace?.id) payload.spaceId = currentSpace.id;
+      // Always send scriptureVersion so server can tag pills with translation for any note type
+      payload.scriptureVersion = currentScriptureVersion;
       if (currentNoteType === 'scripture') {
         payload.scriptureReference = formatReferenceForAPI(currentScriptureReference);
-        payload.scriptureVersion = currentScriptureVersion;
       } else if (currentNoteType === 'resource') {
         payload.resourceUrl = normalizedResourceUrl;
         if (resourceMetadata) payload.resourceMetadata = resourceMetadata;
@@ -678,53 +679,64 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             }
           };
 
-          let attempts = 0;
-          const maxAttempts = 10;
-          while (!verifyThreadInStorage() && attempts < maxAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-            attempts++;
-          }
+          // Non-blocking: verify in background, don't block navigation
+          setTimeout(() => {
+            let attempts = 0;
+            const maxAttempts = 10;
+            const check = () => {
+              if (verifyThreadInStorage() || attempts >= maxAttempts) return;
+              attempts++;
+              setTimeout(check, 10);
+            };
+            check();
+          }, 0);
         }
 
-        // Update source note with link in submission flow so server is always updated before navigation.
-        // This ensures when the user later visits the source note they see the link (no manual refresh).
+        // Update source note with link — fire-and-forget so navigation isn't blocked
         if (sourceNoteId && result.note && result.note.id) {
           const plainText = localStorage.getItem('newNoteSourceSelectionPlainText');
-          if (plainText?.trim()) {
-            try {
-              const detailsRes = await fetch(`/api/notes/${sourceNoteId}/details`, { credentials: 'include' });
-              if (detailsRes.ok) {
-                const data = await detailsRes.json();
-                const note = data?.note ?? data;
-                const content = note?.content;
-                if (typeof content === 'string' && note?.contentEncrypted !== true) {
-                  const updatedContent = wrapTextWithNoteLink(content, plainText.trim(), result.note.id);
-                  if (updatedContent && updatedContent !== content) {
-                    const updateRes = await fetch(`/api/notes/${sourceNoteId}/update-content`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      credentials: 'include',
-                      body: JSON.stringify({ content: updatedContent }),
-                    });
-                    if (updateRes.ok) {
-                      try {
-                        sessionStorage.setItem('harvous-source-note-content-' + sourceNoteId, updatedContent);
-                        sessionStorage.setItem('harvous-source-note-content-at-' + sourceNoteId, String(Date.now()));
-                      } catch { /* ignore */ }
-                      window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId: sourceNoteId, content: updatedContent } }));
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              debug('[useNoteSubmission] Source note link update failed', e as Record<string, unknown>);
-            }
-          }
+          const capturedSourceNoteId = sourceNoteId;
+          const capturedNewNoteId = result.note.id;
+
           window.dispatchEvent(new CustomEvent('highlightSaved'));
           localStorage.removeItem('newNoteSourceNoteId');
           localStorage.removeItem('newNoteSourceSelectionFrom');
           localStorage.removeItem('newNoteSourceSelectionTo');
           localStorage.removeItem('newNoteSourceSelectionPlainText');
+
+          if (plainText?.trim()) {
+            // Run in background — don't block navigation
+            (async () => {
+              try {
+                const detailsRes = await fetch(`/api/notes/${capturedSourceNoteId}/details`, { credentials: 'include' });
+                if (detailsRes.ok) {
+                  const data = await detailsRes.json();
+                  const note = data?.note ?? data;
+                  const content = note?.content;
+                  if (typeof content === 'string' && note?.contentEncrypted !== true) {
+                    const updatedContent = wrapTextWithNoteLink(content, plainText.trim(), capturedNewNoteId);
+                    if (updatedContent && updatedContent !== content) {
+                      const updateRes = await fetch(`/api/notes/${capturedSourceNoteId}/update-content`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({ content: updatedContent }),
+                      });
+                      if (updateRes.ok) {
+                        try {
+                          sessionStorage.setItem('harvous-source-note-content-' + capturedSourceNoteId, updatedContent);
+                          sessionStorage.setItem('harvous-source-note-content-at-' + capturedSourceNoteId, String(Date.now()));
+                        } catch { /* ignore */ }
+                        window.dispatchEvent(new CustomEvent('sourceNoteContentUpdated', { detail: { noteId: capturedSourceNoteId, content: updatedContent } }));
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                debug('[useNoteSubmission] Source note link update failed', e as Record<string, unknown>);
+              }
+            })();
+          }
         }
 
         // Always navigate to the note (not the thread) after creation
@@ -762,12 +774,6 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           
           debug('[useNoteSubmission] Navigation', { redirectUrl });
 
-          const origin = getSafeOrigin();
-          const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
-
-          // Fire-and-forget prefetch (don't wait for it)
-          fetch(absoluteUrl, { method: 'HEAD', credentials: 'include', cache: 'no-cache' }).catch(() => {});
-
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
           localStorage.removeItem('showNewNotePanel');
@@ -785,14 +791,11 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           }
           window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
 
-          debug('[useNoteSubmission] Navigating', { absoluteUrl });
+          debug('[useNoteSubmission] Navigating', { redirectUrl });
 
-          // Use replace for immediate navigation (no back button)
-          // isSubmitting will remain true until navigation completes (panel closes on navigation)
-          // Note: Event listeners should have processed by now, but fallback refresh mechanism
-          // handles cases where event wasn't processed before navigation.
-          // After this point, no code should execute as navigation will replace the page
-          window.location.replace(absoluteUrl);
+          // Navigate to the created note — use safeNavigate for SPA-like transition when available,
+          // falling back to full page navigation. Replace history so back button goes to thread, not panel.
+          safeNavigate(redirectUrl, { history: 'replace' });
 
           // Safety timeout: If navigation doesn't complete within 3 seconds (e.g., blocked by service worker),
           // reset isSubmitting to prevent the UI from being stuck forever
@@ -886,9 +889,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         noteType,
         contentEncrypted: false,
       };
+      // Always send scriptureVersion so server can tag pills with translation for any note type
+      payload.scriptureVersion = scriptureVersion;
       if (noteType === 'scripture') {
         payload.scriptureReference = formatReferenceForAPI(scriptureReference);
-        payload.scriptureVersion = scriptureVersion;
       } else if (noteType === 'resource') {
         const validatedUrl = resourceUrl ? validateResourceUrl(resourceUrl).normalizedUrl || resourceUrl : resourceUrl;
         payload.resourceUrl = validatedUrl;
@@ -963,49 +967,14 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             redirectUrl += `?toast=${toastType}&message=${encodeURIComponent(scriptureToastMessage)}`;
           }
           
-          // OPTIMIZATION: Prefetch the destination page before navigating
-          // This improves perceived performance, especially on slow connections
-          const origin = getSafeOrigin();
-          const absoluteUrl = origin ? `${origin}${redirectUrl}` : redirectUrl;
-          debug('[useNoteSubmission] Prefetching destination (save and close)', { absoluteUrl });
-          
-          try {
-            // Prefetch the page with a timeout (max 500ms wait)
-            const prefetchPromise = fetch(absoluteUrl, {
-              method: 'HEAD',
-              credentials: 'include',
-              cache: 'no-cache'
-            });
-            
-            // Wait for prefetch with timeout
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Prefetch timeout')), 500)
-            );
-            
-            // Race between prefetch and timeout
-            await Promise.race([prefetchPromise, timeoutPromise]).catch(() => {
-              // Timeout is acceptable - we'll navigate anyway
-              debug('[useNoteSubmission] Prefetch timeout or error (save and close) - proceeding with navigation');
-            });
-          } catch (prefetchError) {
-            // Prefetch failed - that's okay, we'll navigate anyway
-            debug('[useNoteSubmission] Prefetch failed (save and close) - proceeding with navigation', prefetchError as Record<string, unknown>);
-          }
-          
           // CRITICAL: Remove panel state from localStorage entirely (not just set to 'false')
           // This prevents DesktopPanelManager from reopening the panel on the new page
           localStorage.removeItem('showNewNotePanel');
           localStorage.removeItem('showNewThreadPanel');
           localStorage.removeItem('showNewResourcePanel');
           
-          // Use window.location.replace() for guaranteed navigation with full page reload
-          try {
-            window.location.replace(redirectUrl);
-          } catch (error) {
-            // If replace fails, try href as fallback
-            console.error('[useNoteSubmission] Navigation failed:', error);
-            window.location.href = redirectUrl;
-          }
+          // Navigate to the created note — use safeNavigate for SPA-like transition when available
+          safeNavigate(redirectUrl, { history: 'replace' });
         }
       } else {
         // Safely parse error response - may be HTML if server error occurred

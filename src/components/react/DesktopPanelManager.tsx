@@ -45,6 +45,7 @@ const InboxItemPreviewPanel = createLazyComponent(() => import('./InboxItemPrevi
 const MySpacesPanel = createLazyComponent(() => import('./MySpacesPanel'), 'MySpacesPanel');
 const MyAchievementsPanel = createLazyComponent(() => import('./MyAchievementsPanel'), 'MyAchievementsPanel');
 const MyChurchPanel = createLazyComponent(() => import('./MyChurchPanel'), 'MyChurchPanel');
+const MyPreferencesPanel = createLazyComponent(() => import('./MyPreferencesPanel'), 'MyPreferencesPanel');
 const EditNameColorPanel = createLazyComponent(() => import('./EditNameColorPanel'), 'EditNameColorPanel');
 const EmailPasswordPanel = createLazyComponent(() => import('./EmailPasswordPanel'), 'EmailPasswordPanel');
 const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'ReferralPanel');
@@ -117,6 +118,7 @@ type PanelType =
   | 'mySpaces'
   | 'myAchievements'
   | 'myChurch'
+  | 'myPreferences'
   | 'mySharing'
   | 'editNameColor'
   | 'emailPassword'
@@ -175,6 +177,8 @@ type PanelAction =
   | { type: 'CLOSE_MY_ACHIEVEMENTS' }
   | { type: 'OPEN_MY_CHURCH' }
   | { type: 'CLOSE_MY_CHURCH' }
+  | { type: 'OPEN_MY_PREFERENCES' }
+  | { type: 'CLOSE_MY_PREFERENCES' }
   | { type: 'OPEN_MY_SHARING' }
   | { type: 'CLOSE_MY_SHARING' }
   | { type: 'OPEN_EDIT_NAME_COLOR' }
@@ -311,6 +315,17 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_MY_PREFERENCES':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'myPreferences');
+      return { activePanel: 'myPreferences', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_MY_PREFERENCES':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_MY_SHARING':
       localStorage.setItem('showNewNotePanel', 'false');
       localStorage.setItem('showNewThreadPanel', 'false');
@@ -417,6 +432,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'mySpaces' ||
           savedProfilePanel === 'myAchievements' ||
           savedProfilePanel === 'myChurch' ||
+          savedProfilePanel === 'myPreferences' ||
           savedProfilePanel === 'mySharing' ||
           savedProfilePanel === 'editNameColor' ||
           savedProfilePanel === 'emailPassword' ||
@@ -659,6 +675,7 @@ export default function DesktopPanelManager({
       if (panelName === 'mySpaces') dispatch({ type: 'OPEN_MY_SPACES' });
       else if (panelName === 'myAchievements') dispatch({ type: 'OPEN_MY_ACHIEVEMENTS' });
       else if (panelName === 'myChurch') dispatch({ type: 'OPEN_MY_CHURCH' });
+      else if (panelName === 'myPreferences') dispatch({ type: 'OPEN_MY_PREFERENCES' });
       else if (panelName === 'mySharing') dispatch({ type: 'OPEN_MY_SHARING' });
       else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
       else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
@@ -824,6 +841,11 @@ export default function DesktopPanelManager({
 
   const handleCloseMyChurch = useCallback(() => {
     dispatch({ type: 'CLOSE_MY_CHURCH' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseMyPreferences = useCallback(() => {
+    dispatch({ type: 'CLOSE_MY_PREFERENCES' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -1116,6 +1138,16 @@ export default function DesktopPanelManager({
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
               <MyChurchPanel key="my-church" onClose={handleCloseMyChurch} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'myPreferences' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block">
+              <MyPreferencesPanel key="my-preferences" />
             </div>
           </Suspense>
         </PanelErrorBoundary>

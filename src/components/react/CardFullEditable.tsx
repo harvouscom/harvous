@@ -8,6 +8,7 @@ import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
 import { getTranslation } from '@/data/translations';
+import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { toast } from '@/utils/toast';
 import { useIsOffline } from '@/hooks/useIsOffline';
@@ -1054,6 +1055,24 @@ export default function CardFullEditable({
     setHasChanges(newValue !== displayTitle || editContent !== displayContent);
   };
 
+  // Prefetch scripture note page on hover for faster navigation
+  const prefetchedUrls = useRef(new Set<string>());
+  const handleContentMouseOver = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const pillElement = target.closest('.scripture-pill');
+    if (!pillElement) return;
+    const pillNoteId = pillElement.getAttribute('data-note-id');
+    if (!pillNoteId || pillNoteId === 'pending' || pillNoteId === 'null') return;
+    const url = idToUrl(pillNoteId, parentThreadId);
+    if (prefetchedUrls.current.has(url)) return;
+    prefetchedUrls.current.add(url);
+    // Inject a prefetch link to warm the browser/SSR cache
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.href = url;
+    document.head.appendChild(link);
+  };
+
   const handleContentClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     // Check if click is on a note-link (highlighted text linking to another note)
     const target = e.target as HTMLElement;
@@ -1077,24 +1096,29 @@ export default function CardFullEditable({
     if (pillElement) {
       const noteId = pillElement.getAttribute('data-note-id');
       const reference = pillElement.getAttribute('data-scripture-reference');
+      const pillTranslation = pillElement.getAttribute('data-scripture-translation') || getCachedProfileData()?.defaultTranslation || 'NET';
 
       e.preventDefault();
       e.stopPropagation();
 
-      // If we have a reference, always use getOrCreateScriptureNote to prevent duplicates
+      const threadId = parentThreadId || 'thread_unorganized';
+
+      // Fast path: If pill already has a valid noteId, navigate immediately (zero API calls)
+      if (noteId && noteId !== 'pending' && noteId !== 'null') {
+        safeNavigate(idToUrl(noteId, threadId), { history: 'push' });
+        return;
+      }
+
+      // Slow path: noteId is pending/missing — need to check/create the scripture note
       if (reference) {
         try {
-          // Get parent thread ID from DOM (the thread this note belongs to)
-          const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-          const parentThreadId = noteElement?.dataset.parentThreadId || 'thread_unorganized';
-
-          // Use the shared utility that properly checks for existing scripture notes
-          const result = await getOrCreateScriptureNote(reference, parentThreadId);
+          const result = await getOrCreateScriptureNote(reference, threadId, pillTranslation);
 
           if (result.noteId) {
-            safeNavigate(idToUrl(result.noteId, parentThreadId), { history: 'push' });
+            // Update the pill's noteId in the DOM so next click is instant
+            pillElement.setAttribute('data-note-id', result.noteId);
+            safeNavigate(idToUrl(result.noteId, threadId), { history: 'push' });
           } else {
-            // Show error toast if creation failed
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {
                 message: 'Could not create scripture note. Please try again.',
@@ -1111,12 +1135,6 @@ export default function CardFullEditable({
             }
           }));
         }
-        return;
-      }
-
-      // Fallback: If we have noteId but no reference, navigate directly
-      if (noteId && noteId !== 'pending') {
-        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
         return;
       }
 
@@ -1335,9 +1353,10 @@ export default function CardFullEditable({
                   className="flex-1 overflow-auto rounded px-3"
                   style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
                   onClick={handleContentClick}
+                  onMouseOver={handleContentMouseOver}
                 >
                   {effectiveContent && effectiveContent.trim() ? (
-                    <div 
+                    <div
                       className="card-full-editable__content-html card-image-link__content-text"
                       dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
                     />
@@ -1540,6 +1559,7 @@ export default function CardFullEditable({
                     className="card-full-editable__content-html flex-1 overflow-auto rounded"
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
+                    onMouseOver={handleContentMouseOver}
                     dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
                   />
                 ) : (

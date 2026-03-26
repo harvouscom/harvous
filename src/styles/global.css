@@ -993,6 +993,58 @@ button[disabled] {
   -ms-user-select: none;
 }
 
+/* Scripture pill press feedback */
+.scripture-pill-clickable:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* Translation abbreviation shown after the reference text */
+.scripture-pill[data-scripture-translation]::after {
+  content: attr(data-scripture-translation);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+/* Scripture translation picker tooltip (BubbleMenu) */
+.scripture-translation-picker {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.scripture-translation-picker::-webkit-scrollbar {
+  display: none;
+}
+.translation-picker-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--color-fog-white);
+  background: transparent;
+  color: var(--color-charcoal-black);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.translation-picker-badge:hover {
+  background-color: var(--color-fog-white);
+}
+.translation-picker-badge--selected {
+  background-color: var(--color-deep-grey);
+  color: white !important;
+  border-color: var(--color-deep-grey);
+}
+.translation-picker-badge--selected:hover {
+  background-color: var(--color-deep-grey);
+}
+
 /* Hover effects - only on devices that support hover */
 @media (hover: hover) {
   .content-item a:hover {
@@ -1215,6 +1267,12 @@ button.menu-item * {
   color: var(--color-deep-grey) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Translation picker - selected abbreviation pill needs white text */
+button.space-button .translation-abbrev--selected,
+button.space-button .translation-abbrev--selected span {
+  color: white !important;
 }
 
 /* ActionStrip meta note ID - same weight as date (600 desktop, 500 mobile) */

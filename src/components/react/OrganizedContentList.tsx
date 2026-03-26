@@ -42,12 +42,14 @@ interface OrganizedContentItem {
   resourceDescription?: string | null;
   resourceImage?: string | null;
   threadColors?: Array<{ color: string; frequency: number }> | null;
-  scriptureReferences?: Array<{ reference: string; noteId: string; threadColors?: Array<{ color: string; frequency: number }> }>;
+  scriptureReferences?: Array<{ reference: string; noteId: string; translation?: string; threadColors?: Array<{ color: string; frequency: number }> }>;
   updatedAt?: Date | string | null;
   lastVisited?: Date | string | null;
   createdAt?: Date | string | null;
   syncStatus?: 'synced' | 'pending' | 'conflict' | 'deleted';
   contentEncrypted?: boolean;
+  // Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV')
+  version?: string;
 }
 
 interface OrganizedContentListProps {
@@ -1570,6 +1572,7 @@ export default function OrganizedContentList({
               href={href}
               threadColors={item.threadColors || undefined}
               noteId={item.noteId}
+              scriptureTranslation={item.version}
               onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
             />
           </div>

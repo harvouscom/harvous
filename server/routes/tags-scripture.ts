@@ -12,7 +12,7 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, eq, and, count } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, VerseTextCache, eq, and, count } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import {
@@ -271,6 +271,56 @@ app.post('/api/scripture/fetch-verse', async (c) => {
     return c.json({ reference, book: parsed.book, chapter: parsed.chapter, verse: verseNumber, verseEnd, translation, text: verseText });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/scripture/fetch-verse', action: 'fetch_verse' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
+/** POST /api/scripture/update-translation — Change a scripture note's translation */
+app.post('/api/scripture/update-translation', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const { noteId, newTranslation } = await c.req.json();
+
+    if (!noteId || !newTranslation) {
+      return c.json({ error: 'noteId and newTranslation are required' }, 400);
+    }
+
+    // Verify the note belongs to this user
+    const note = first(await db.select({ id: Notes.id, userId: Notes.userId })
+      .from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!note || note.userId !== auth.userId) {
+      return c.json({ error: 'Note not found' }, 404);
+    }
+
+    // Update ScriptureMetadata translation
+    const metadata = first(await db.select().from(ScriptureMetadata)
+      .where(eq(ScriptureMetadata.noteId, noteId)).limit(1));
+
+    if (metadata) {
+      const oldTranslation = metadata.translation;
+      await db.update(ScriptureMetadata)
+        .set({ translation: newTranslation })
+        .where(eq(ScriptureMetadata.id, metadata.id));
+
+      // Clear old cached verse text so it gets re-fetched in the new translation
+      try {
+        await db.delete(VerseTextCache).where(and(
+          eq(VerseTextCache.reference, metadata.reference),
+          eq(VerseTextCache.translation, oldTranslation),
+        ));
+      } catch (_) { /* cache clear is best-effort */ }
+
+      // Re-fetch verse text in new translation and update note content
+      const newVerseText = await fetchVerseText(metadata.reference, newTranslation);
+      if (newVerseText) {
+        await db.update(Notes).set({ content: newVerseText, updatedAt: nowISO() })
+          .where(eq(Notes.id, noteId));
+      }
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    const standardError = handleAPIError(error, { endpoint: '/api/scripture/update-translation', action: 'update_scripture_translation' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
   }
 });

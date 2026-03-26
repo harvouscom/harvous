@@ -1,4 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import StarterKit from '@tiptap/starter-kit';
@@ -12,9 +13,11 @@ import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
 import ButtonSmall from './ButtonSmall';
-import { normalizeScriptureReference, detectScriptureReferences, type ScriptureReference } from '@/utils/scripture-detector';
+import { normalizeScriptureReference, detectScriptureReferences, detectScriptureReferencesWithTranslation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { TRANSLATION_ORDER } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -26,6 +29,17 @@ import Icon from './Icon';
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
 const pendingPillCreations = new Set<string>();
+
+// Valid Bible translation abbreviations for inline override detection
+const VALID_TRANSLATIONS = ['KJV', 'NKJV', 'ESV', 'NIV', 'NLT', 'NET', 'BSB'];
+
+// Track a recently created pill that hasn't had its translation resolved yet.
+// On the next space/Enter, we check if the user typed a translation abbreviation after it.
+let pendingTranslationPill: {
+  reference: string;
+  editorId: string; // to scope to the correct editor instance
+  timeoutId: ReturnType<typeof setTimeout> | null;
+} | null = null;
 
 // Toast is declared globally elsewhere - no need to redeclare here
 
@@ -83,23 +97,35 @@ function findTextWithFlexibleMatching(fullText: string, searchText: string): Arr
   
   // Also try normalized match (handles spacing variations)
   if (normalizedSearch !== searchText.toLowerCase()) {
-    // Build regex pattern that matches with flexible spacing
-    const escapedSearch = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Allow optional spaces around dashes and colons
-    const flexiblePattern = escapedSearch
-      .replace(/\s*-\s*/g, '\\s*-\\s*')  // Flexible dash spacing
-      .replace(/:\s+/g, ':\\s*')         // Flexible colon spacing
-      .replace(/\s+/g, '\\s+');          // Flexible general spacing
-    
-    const regex = new RegExp(flexiblePattern, 'gi');
-    let match;
-    while ((match = regex.exec(fullText)) !== null) {
-      const matchIndex = match.index;
-      const matchLength = match[0].length;
-      // Avoid duplicates
-      if (!matches.some(m => m.index === matchIndex)) {
-        matches.push({ index: matchIndex, length: matchLength });
+    // Normalize BEFORE escaping so we can build flexible patterns correctly
+    // Split on dashes, colons, and spaces to build a pattern that allows flexible spacing
+    const tokens = searchText.split(/(\s*[-–—]\s*|\s*:\s*|\s+)/);
+    const patternParts = tokens.map(token => {
+      if (/^\s*[-–—]\s*$/.test(token)) {
+        return '\\s*[-–—]\\s*'; // Flexible dash spacing (any dash type)
+      } else if (/^\s*:\s*$/.test(token)) {
+        return '\\s*:\\s*'; // Flexible colon spacing
+      } else if (/^\s+$/.test(token)) {
+        return '\\s+'; // Flexible whitespace
+      } else {
+        return token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Escape literal text
       }
+    });
+    const flexiblePattern = patternParts.join('');
+
+    try {
+      const regex = new RegExp(flexiblePattern, 'gi');
+      let match;
+      while ((match = regex.exec(fullText)) !== null) {
+        const matchIndex = match.index;
+        const matchLength = match[0].length;
+        // Avoid duplicates
+        if (!matches.some(m => m.index === matchIndex)) {
+          matches.push({ index: matchIndex, length: matchLength });
+        }
+      }
+    } catch {
+      // Invalid regex - skip flexible matching
     }
   }
   
@@ -511,8 +537,10 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
               const pos = candidateFrom + (i === 0 ? 0 : Math.min(i, rangeLen - 1));
               try {
                 const $p = doc.resolve(pos);
-                const marks = $p.marks();
-                if (!marks.some((m: any) => m.type.name === 'scripturePill')) {
+                // Check both $p.marks() and nodeAfter.marks for non-inclusive mark boundary handling
+                const hasPill = $p.marks().some((m: any) => m.type.name === 'scripturePill')
+                  || ($p.nodeAfter?.marks?.some((m: any) => m.type.name === 'scripturePill') ?? false);
+                if (!hasPill) {
                   allHavePill = false;
                   break;
                 }
@@ -525,7 +553,9 @@ function findAllTextPositions(doc: any, searchText: string, skipMarked: boolean 
             if (allHavePill && rangeLen > 0) {
               try {
                 const $last = doc.resolve(candidateTo - 1);
-                if (!$last.marks().some((m: any) => m.type.name === 'scripturePill')) {
+                const lastHasPill = $last.marks().some((m: any) => m.type.name === 'scripturePill')
+                  || ($last.nodeAfter?.marks?.some((m: any) => m.type.name === 'scripturePill') ?? false);
+                if (!lastHasPill) {
                   allHavePill = false;
                 }
               } catch (e) {
@@ -581,12 +611,101 @@ function isReferenceWrapped(htmlContent: string, reference: string): boolean {
 
 // Helper function to check/create scripture note and get noteId
 
+/**
+ * Resolves a pending translation pill. Finds the pill in the doc, checks the text immediately
+ * after it for a valid translation abbreviation. If found, applies it and deletes the abbreviation.
+ * Otherwise applies the user's default translation.
+ * @returns true if an abbreviation was consumed from the text (so we can skip normal detection)
+ */
+function resolvePendingTranslationPill(editor: any): boolean {
+  if (!pendingTranslationPill || !editor || editor.isDestroyed) {
+    pendingTranslationPill = null;
+    return false;
+  }
+
+  const { reference } = pendingTranslationPill;
+  pendingTranslationPill = null;
+
+  try {
+    const view = editor.view;
+    const doc = view.state.doc;
+    const markType = view.state.schema.marks.scripturePill;
+    if (!markType) return false;
+
+    // Find the pill in the document by looking for the scripturePill mark with matching reference and null translation
+    let pillFrom = -1, pillTo = -1;
+    doc.descendants((node: any, pos: number) => {
+      if (pillFrom !== -1) return false; // already found
+      if (!node.isText) return;
+      const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
+      if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(reference)) {
+        pillFrom = pos;
+        pillTo = pos + node.nodeSize;
+        return false;
+      }
+    });
+
+    if (pillFrom === -1) return false;
+
+    // Check text between the pill and the current cursor for a translation abbreviation
+    const cursorPos = view.state.selection.from;
+    // Scan from pill end to cursor position (the user typed the abbreviation here)
+    const scanEnd = Math.min(cursorPos, doc.content.size);
+    let textAfterPill = '';
+    if (pillTo < scanEnd) {
+      try {
+        textAfterPill = doc.textBetween(pillTo, scanEnd);
+      } catch (_) { /* cross-node boundary */ }
+    }
+
+    // Match abbreviation: optional leading space, the abbreviation, optional trailing space
+    const abbrevMatch = textAfterPill.match(/^\s*(KJV|NKJV|ESV|NIV|NLT|NET|BSB)\s*$/i);
+    let resolvedTranslation: string;
+    let consumedAbbrev = false;
+
+    if (abbrevMatch) {
+      resolvedTranslation = abbrevMatch[1].toUpperCase();
+      consumedAbbrev = true;
+      // Delete the abbreviation text from the doc
+      const deleteFrom = pillTo;
+      const deleteTo = pillTo + abbrevMatch[0].length;
+      const tr = view.state.tr;
+      tr.delete(deleteFrom, deleteTo);
+      // Update the pill mark with the resolved translation
+      tr.addMark(pillFrom, pillTo, markType.create({
+        reference,
+        noteId: 'pending',
+        translation: resolvedTranslation,
+      }));
+      tr.setMeta('addToHistory', false);
+      tr.setStoredMarks([]);
+      view.dispatch(tr);
+    } else {
+      // No abbreviation — apply user's default
+      resolvedTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+      const tr = view.state.tr;
+      tr.addMark(pillFrom, pillTo, markType.create({
+        reference,
+        noteId: 'pending',
+        translation: resolvedTranslation,
+      }));
+      tr.setMeta('addToHistory', false);
+      view.dispatch(tr);
+    }
+
+    return consumedAbbrev;
+  } catch (e) {
+    console.error('[TiptapEditor] Error resolving pending translation pill:', e);
+    return false;
+  }
+}
+
 // Helper function to convert scripture references to pills using processed results data
 // This is more reliable than parsing HTML since Tiptap may have already parsed/removed spans
 // Helper function to create pending pills for detected scripture references
 // Helper function to create pending pills for detected scripture references
 // This is called after space key press to show visual feedback
-function createPendingPillsForReferences(editor: any, references: ScriptureReference[]) {
+function createPendingPillsForReferences(editor: any, references: (ScriptureReference | ScriptureReferenceWithTranslation)[], translation?: string) {
   if (!editor || !references || references.length === 0) {
     return;
   }
@@ -634,16 +753,27 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
         
         try {
           const $from = doc.resolve(pos.from);
-          const marks = $from.marks();
-          const pillMark = marks.find((m: any) => m.type.name === 'scripturePill');
-          
-          // Skip if pill exists AND has a real noteId (not "pending" or null)
-          if (pillMark) {
-            const noteId = pillMark.attrs?.noteId;
-            if (noteId && noteId !== 'pending' && noteId !== 'null' && noteId !== '') {
-              continue; // Skip - pill already exists with real noteId
+          // Non-inclusive marks may not appear in $pos.marks() at boundaries.
+          // Check both $from.marks() and the text node at this position.
+          let pillMark = $from.marks().find((m: any) => m.type.name === 'scripturePill');
+          if (!pillMark) {
+            // Check text node at pos.from (nodeAfter) for the mark
+            const nodeAt = $from.nodeAfter;
+            if (nodeAt) {
+              pillMark = nodeAt.marks.find((m: any) => m.type.name === 'scripturePill');
             }
-            // If pill exists but has "pending" or null noteId, we'll overwrite it below
+          }
+          if (!pillMark && pos.from + 1 <= doc.content.size) {
+            // Check one position inside
+            try {
+              const $inside = doc.resolve(pos.from + 1);
+              pillMark = $inside.marks().find((m: any) => m.type.name === 'scripturePill');
+            } catch (_) {}
+          }
+
+          // Skip if pill already exists — don't overwrite it (preserves translation and noteId)
+          if (pillMark) {
+            continue;
           }
           
           if (!isWithinSingleParagraph(doc, pos.from, pos.to)) continue;
@@ -652,22 +782,24 @@ function createPendingPillsForReferences(editor: any, references: ScriptureRefer
           
           const markType = state.schema.marks.scripturePill;
           if (markType) {
-            // Remove existing pill mark if it exists (with pending noteId) before adding new one
-            if (pillMark) {
-              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-            }
+            // Use explicit translation if provided, otherwise null (deferred — set on next space/Enter or timeout)
+            const pillTranslation = translation || null;
+
             // Replace text with canonical reference when it differs (e.g. "john 3:16" -> "John 3:16")
-            const currentText = doc.textBetween(adjustedPos.from, adjustedPos.to);
-            if (currentText !== reference) {
+            const currentText = tr.doc.textBetween(adjustedPos.from, adjustedPos.to);
+            // Normalize both sides for comparison (handle spacing around dashes/colons)
+            const normalizeRef = (s: string) => s.replace(/\s*[-–—]\s*/g, '-').replace(/\s*:\s*/g, ':').trim();
+            if (normalizeRef(currentText) !== normalizeRef(reference)) {
               const textNode = state.schema.text(reference, [
-                markType.create({ reference, noteId: 'pending' })
+                markType.create({ reference, noteId: 'pending', translation: pillTranslation })
               ]);
               tr.replaceWith(adjustedPos.from, adjustedPos.to, textNode);
             } else {
               tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
               tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({
                 reference,
-                noteId: 'pending'
+                noteId: 'pending',
+                translation: pillTranslation,
               }));
             }
             modified = true;
@@ -801,7 +933,7 @@ export async function convertScriptureReferencesToPills(
     
     // Step 2: Collect all mark operations, then apply in a single transaction
     // This avoids dispatching per-pill (each dispatch triggers a full view update).
-    type MarkOp = { from: number; to: number; normalizedRef: string; noteId: string };
+    type MarkOp = { from: number; to: number; normalizedRef: string; noteId: string; translation?: string | null };
     const markOps: MarkOp[] = [];
 
     for (const result of scriptureResults) {
@@ -817,12 +949,21 @@ export async function convertScriptureReferencesToPills(
 
         try {
           const $from = doc.resolve(pos.from);
-          const marks = $from.marks();
-          const pillMark = marks.find((m: any) => m.type.name === 'scripturePill');
+          // Non-inclusive marks may not appear in $pos.marks() at boundaries
+          let pillMark = $from.marks().find((m: any) => m.type.name === 'scripturePill');
+          if (!pillMark && $from.nodeAfter) {
+            pillMark = $from.nodeAfter.marks.find((m: any) => m.type.name === 'scripturePill');
+          }
+          if (!pillMark && pos.from + 1 <= doc.content.size) {
+            try {
+              const $inside = doc.resolve(pos.from + 1);
+              pillMark = $inside.marks().find((m: any) => m.type.name === 'scripturePill');
+            } catch (_) {}
+          }
 
           if (pillMark) {
             if (pillMark.attrs.noteId === 'pending') {
-              markOps.push({ from: pos.from, to: pos.to, normalizedRef, noteId });
+              markOps.push({ from: pos.from, to: pos.to, normalizedRef, noteId, translation: pillMark.attrs.translation });
             }
             continue;
           }
@@ -876,7 +1017,7 @@ export async function convertScriptureReferencesToPills(
           markOps.sort((a, b) => b.from - a.from);
           for (const op of markOps) {
             tr.removeMark(op.from, op.to, markType);
-            tr.addMark(op.from, op.to, markType.create({ reference: op.normalizedRef, noteId: op.noteId }));
+            tr.addMark(op.from, op.to, markType.create({ reference: op.normalizedRef, noteId: op.noteId, translation: op.translation || null }));
             if (noteLinkMark) {
               tr.removeMark(op.from, op.to, noteLinkMark);
             }
@@ -913,6 +1054,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
     for (const pillSpan of Array.from(scripturePillSpans)) {
       const reference = (pillSpan as HTMLElement).getAttribute('data-scripture-reference');
       const noteId = (pillSpan as HTMLElement).getAttribute('data-note-id');
+      const pillTranslation = (pillSpan as HTMLElement).getAttribute('data-scripture-translation') || null;
       const pillText = pillSpan.textContent || '';
       
       if (!reference || !noteId || !pillText) continue;
@@ -1020,7 +1162,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             const markType = editor.state.schema.marks.scripturePill;
             if (markType) {
               tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId, translation: pillTranslation }));
               // Remove noteLink mark if present
               const noteLinkMark = editor.state.schema.marks.noteLink;
               if (noteLinkMark) {
@@ -1033,7 +1175,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             editor.chain()
               .setTextSelection(adjustedPos)
               .unsetMark('noteLink')
-              .setMark('scripturePill', { reference: normalizedRef, noteId })
+              .setMark('scripturePill', { reference: normalizedRef, noteId, translation: pillTranslation })
               .run();
           }
         } catch (e) {
@@ -1105,7 +1247,9 @@ export async function convertNoteLinksToScripturePills(editor: any) {
             
             if (reference) {
               const normalizedRef = normalizeScriptureReference(reference);
-              
+              // Get translation from note's scripture metadata if available
+              const noteTranslation = noteData.note?.scriptureVersion || noteData.note?.translation || getCachedProfileData()?.defaultTranslation || 'NET';
+
               // Find positions of this text in the document
               // Use the linkText which should match what's in the document
               const positions = findAllTextPositions(doc, linkText, true);
@@ -1187,7 +1331,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
                     const markType = editor.state.schema.marks.scripturePill;
                     if (markType) {
                       tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-                      tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId }));
+                      tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId, translation: noteTranslation }));
                       // Remove noteLink mark if present
                       const noteLinkMark = editor.state.schema.marks.noteLink;
                       if (noteLinkMark) {
@@ -1200,7 +1344,7 @@ export async function convertNoteLinksToScripturePills(editor: any) {
                     editor.chain()
                       .setTextSelection(adjustedPos)
                       .unsetMark('noteLink')
-                      .setMark('scripturePill', { reference: normalizedRef, noteId })
+                      .setMark('scripturePill', { reference: normalizedRef, noteId, translation: noteTranslation })
                       .run();
                   }
                 } catch (e) {
@@ -1481,7 +1625,8 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           const markType = editor.state.schema.marks.scripturePill;
           if (markType) {
             tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId: noteId || undefined }));
+            const userTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+            tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({ reference: normalizedRef, noteId: noteId || undefined, translation: userTranslation }));
             // Remove noteLink mark if present
             const noteLinkMark = editor.state.schema.marks.noteLink;
             if (noteLinkMark) {
@@ -1489,7 +1634,7 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
             }
             editor.view.dispatch(tr);
             pillsCreated = true; // Track that we created a pill
-            
+
             debug('[TiptapEditor] Pill mark applied', {
               reference: normalizedRef,
               from: adjustedPos.from,
@@ -1499,13 +1644,14 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
           }
         } catch (e) {
           // If transaction fails, fall back to chain API
+          const userTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
           editor.chain()
             .setTextSelection(adjustedPos)
             .unsetMark('noteLink')
-            .setMark('scripturePill', { reference: normalizedRef, noteId: noteId || undefined })
+            .setMark('scripturePill', { reference: normalizedRef, noteId: noteId || undefined, translation: userTranslation })
             .run();
           pillsCreated = true; // Track that we created a pill
-          
+
           debug('[TiptapEditor] Pill mark applied via chain API', {
             reference: normalizedRef,
             from: adjustedPos.from,
@@ -2223,6 +2369,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     headingLevel: 0 // 0 = normal/paragraph, 2 = H2, 3 = H3
   });
   const [showCreateNoteButton, setShowCreateNoteButton] = useState(false);
+  const [translationPicker, setTranslationPicker] = useState<{
+    rect: { top: number; left: number; bottom: number; right: number; width: number };
+    translation: string | null;
+    noteId: string | null;
+    reference: string;
+    updating?: boolean; // true while API call is in flight
+  } | null>(null);
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
   const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
@@ -2725,37 +2878,74 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
         
-        // Detect scripture references when space is pressed (desktop only)
+        // Detect scripture references when space or Enter is pressed (desktop only)
         // On mobile, scripture detection happens in onUpdate to avoid interfering
         // with native keyboard behavior (e.g., iOS double-space-to-period)
-        if (event.key === ' ' && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+        if ((event.key === ' ' || event.key === 'Enter') && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+          // Step 1: Resolve any pending translation pill from a previous keypress
+          // (Check if user typed a translation abbreviation like "ESV" after the last pill)
+          const consumedAbbrev = resolvePendingTranslationPill(editor);
+          if (consumedAbbrev) {
+            if (event.key === ' ') {
+              event.preventDefault();
+              const tr = view.state.tr;
+              tr.insertText(' ', view.state.selection.from);
+              tr.setStoredMarks([]);
+              view.dispatch(tr);
+              return true;
+            }
+            // For Enter, let the newline happen naturally
+          }
+
+          // Step 2: Detect new scripture references before cursor
           const doc = view.state.doc;
-          const $from = view.state.selection.$from;
-          const paragraphStart = $from.start($from.depth);
-          const textStart = Math.max(paragraphStart, from - 60);
+          const $from2 = view.state.selection.$from;
+          const paragraphStart = $from2.start($from2.depth);
+          const textStart = Math.max(paragraphStart, view.state.selection.from - 60);
 
           try {
-            const textBeforeCursor = doc.textBetween(textStart, from);
+            const textBeforeCursor = doc.textBetween(textStart, view.state.selection.from);
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
               if (references.length > 0) {
-                // On desktop: Synchronously handle the space and the pill creation
-                event.preventDefault();
+                if (event.key === ' ') {
+                  // On desktop: Synchronously handle the space and the pill creation
+                  event.preventDefault();
 
-                // Create a single transaction for the space insertion
-                const tr = view.state.tr;
-                tr.insertText(' ', from);
-                tr.setStoredMarks([]);
-                view.dispatch(tr);
+                  // Create a single transaction for the space insertion
+                  const tr = view.state.tr;
+                  tr.insertText(' ', view.state.selection.from);
+                  tr.setStoredMarks([]);
+                  view.dispatch(tr);
+                } else {
+                  // Enter key: Let the newline happen naturally, then create pills
+                  // Don't preventDefault — we want the line break to insert
+                }
 
-                // Immediately create pills for the references found before the space
-                // This now happens after the space is safely in the document
+                // Create pills without translation (deferred — will resolve on next space/Enter or timeout)
                 createPendingPillsForReferences(editor, references);
-                return true;
+
+                // Track the last created pill for deferred translation resolution
+                const lastRef = references[references.length - 1];
+                if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
+                const editorId = String(editor.view?.dom?.id || 'default');
+                const timeoutId = setTimeout(() => {
+                  // Fallback: apply default translation after 3 seconds if no further keypress
+                  if (pendingTranslationPill?.editorId === editorId) {
+                    resolvePendingTranslationPill(editor);
+                  }
+                }, 3000);
+                pendingTranslationPill = {
+                  reference: lastRef.reference,
+                  editorId,
+                  timeoutId,
+                };
+
+                if (event.key === ' ') return true;
               }
             }
           } catch (e) {
-            console.error('[TiptapEditor] Error in space detection:', e);
+            console.error('[TiptapEditor] Error in space/enter detection:', e);
           }
         }
         
@@ -3044,6 +3234,89 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
     };
   }, [editor, enableCreateNoteFromSelection]);
+
+  // Handle ALL scripture pill clicks via DOM click handler (both edit and read-only).
+  // We use the CAPTURE phase on the wrapper div so our handler fires BEFORE
+  // ProseMirror's internal click processing. user-select:none on pill spans
+  // causes ProseMirror to report positions outside the mark boundary, making its
+  // handleClick unreliable for pills. This DOM handler bypasses that entirely.
+  //   Edit mode → show translation picker
+  //   Read-only → navigate to the scripture note
+  useEffect(() => {
+    if (!editor) return;
+    const wrapperDiv = tiptapContentRef.current;
+    if (!wrapperDiv) return;
+
+    const handlePillClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const pillSpan = target.closest('.scripture-pill') as HTMLElement;
+      if (!pillSpan) return;
+
+      // Read pill data from DOM attributes
+      const reference = pillSpan.getAttribute('data-scripture-reference');
+      const translation = pillSpan.getAttribute('data-scripture-translation');
+      const noteId = pillSpan.getAttribute('data-note-id');
+      if (!reference) return;
+
+      // Stop ProseMirror from processing this click
+      e.preventDefault();
+      e.stopImmediatePropagation();
+
+      if (editor.isEditable) {
+        // Edit mode: show translation picker
+        const rect = pillSpan.getBoundingClientRect();
+        setTranslationPicker({
+          rect: { top: rect.top, left: rect.left, bottom: rect.bottom, right: rect.right, width: rect.width },
+          translation,
+          noteId,
+          reference,
+        });
+      } else {
+        // Read-only mode: navigate to the scripture note
+        if (!noteId || noteId === 'pending' || noteId === 'null') return;
+
+        // Determine thread context from page
+        let threadContext: string | undefined;
+        const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
+        if (noteElement?.dataset.parentThreadId) {
+          threadContext = noteElement.dataset.parentThreadId;
+        } else {
+          const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
+          if (navElement?.dataset.parentThreadId) {
+            threadContext = navElement.dataset.parentThreadId;
+          } else {
+            const pathname = window.location.pathname;
+            if (pathname && pathname !== '/' && !pathname.includes('/dashboard') &&
+                !pathname.includes('/sign-in') && !pathname.includes('/sign-up')) {
+              const itemId = extractIdFromPath(pathname);
+              if (itemId && itemId !== 'dashboard' &&
+                  !itemId.startsWith('note_') && !itemId.startsWith('space_')) {
+                threadContext = itemId;
+              }
+            }
+          }
+        }
+
+        const url = idToUrl(`note_${noteId}`, threadContext);
+        safeNavigate(url);
+      }
+    };
+
+    const handleDismiss = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.scripture-translation-picker') && !target.closest('.scripture-pill')) {
+        setTranslationPicker(null);
+      }
+    };
+
+    // Use capture phase so we intercept pill clicks before ProseMirror
+    wrapperDiv.addEventListener('click', handlePillClick, true);
+    document.addEventListener('mousedown', handleDismiss);
+    return () => {
+      wrapperDiv.removeEventListener('click', handlePillClick, true);
+      document.removeEventListener('mousedown', handleDismiss);
+    };
+  }, [editor]);
 
   // Handle create note from selection
   const handleCreateNoteFromSelection = async () => {
@@ -3852,6 +4125,112 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               </ButtonSmall>
             </div>
           </BubbleMenu>
+        )}
+        {/* Custom floating translation picker — positioned via pill click event, not BubbleMenu */}
+        {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
+        {translationPicker && createPortal(
+          <div
+            className="scripture-translation-picker"
+            style={{
+              position: 'fixed',
+              top: translationPicker.rect.bottom + 6,
+              left: Math.max(8, translationPicker.rect.left + (translationPicker.rect.width / 2) - 160),
+              zIndex: 99999,
+              pointerEvents: 'auto',
+              display: 'flex',
+              gap: '4px',
+              padding: '4px 6px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--color-snow-white)',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+              border: '1px solid var(--color-fog-white)',
+              overflowX: 'auto',
+              maxWidth: '320px',
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            {TRANSLATION_ORDER.map((tid) => {
+              const currentTranslation = translationPicker.translation || getCachedProfileData()?.defaultTranslation || 'NET';
+              const isSelected = currentTranslation === tid;
+              return (
+                <button
+                  key={tid}
+                  className={`translation-picker-badge${isSelected ? ' translation-picker-badge--selected' : ''}`}
+                  style={translationPicker.updating && !isSelected ? { opacity: 0.4, pointerEvents: 'none' } : undefined}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!editor || isSelected || translationPicker.updating) return;
+
+                    // Find the pill mark by matching reference and update its translation
+                    try {
+                      const doc = editor.state.doc;
+                      const targetRef = translationPicker.reference;
+                      let pillFrom = -1, pillTo = -1, existingMark: any = null;
+                      doc.descendants((node: any, nodePos: number) => {
+                        if (pillFrom !== -1) return false;
+                        if (!node.isText) return;
+                        const mark = node.marks.find((m: any) =>
+                          m.type.name === 'scripturePill' &&
+                          normalizeScriptureReference(m.attrs.reference) === normalizeScriptureReference(targetRef)
+                        );
+                        if (mark) {
+                          pillFrom = nodePos;
+                          pillTo = nodePos + node.nodeSize;
+                          existingMark = mark;
+                          return false;
+                        }
+                      });
+
+                      if (pillFrom !== -1 && existingMark) {
+                        const markType = editor.state.schema.marks.scripturePill;
+                        const tr = editor.state.tr;
+                        tr.removeMark(pillFrom, pillTo, markType);
+                        tr.addMark(pillFrom, pillTo, markType.create({
+                          ...existingMark.attrs,
+                          translation: tid,
+                        }));
+                        editor.view.dispatch(tr);
+
+                        // Update picker state: reflect new selection and mark as updating
+                        setTranslationPicker(prev => prev ? { ...prev, translation: tid, updating: true } : null);
+
+                        // Await the API call so the scripture note is ready before the user navigates to it
+                        const noteId = existingMark.attrs.noteId;
+                        if (noteId && noteId !== 'pending' && noteId !== 'null') {
+                          fetch('/api/scripture/update-translation', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ noteId, newTranslation: tid }),
+                            credentials: 'include',
+                          })
+                            .then(() => {
+                              // Invalidate React Query cache for this scripture note
+                              // so navigating to it shows the updated translation immediately
+                              window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId } }));
+                              setTranslationPicker(prev => prev ? { ...prev, updating: false } : null);
+                            })
+                            .catch(() => {
+                              setTranslationPicker(prev => prev ? { ...prev, updating: false } : null);
+                            });
+                        } else {
+                          // No API call needed — just clear the loading state
+                          setTranslationPicker(prev => prev ? { ...prev, updating: false } : null);
+                        }
+                      }
+                    } catch (err) {
+                      console.error('[TranslationPicker] Error updating pill:', err);
+                      setTranslationPicker(prev => prev ? { ...prev, updating: false } : null);
+                    }
+                  }}
+                  type="button"
+                >
+                  {tid}
+                </button>
+              );
+            })}
+          </div>,
+          document.body
         )}
       </div>
       {!minimalToolbar && isEditorFocused && toolbarAtBottom && (
