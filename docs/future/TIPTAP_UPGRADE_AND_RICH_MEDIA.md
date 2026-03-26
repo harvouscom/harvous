@@ -1,27 +1,30 @@
 # Tiptap Upgrade & Rich Media Embeds
 
-This document covers the Tiptap v3.6.5 → v3.12+ upgrade, adding rich media embeds (images, videos, links, PDFs) with custom formatting, and preparing the editor for future real-time collaboration.
+This document covers the Tiptap upgrade path, adding rich media embeds (images, videos, links, PDFs) with custom formatting, and preparing the editor for future real-time collaboration.
 
 **Related docs:** [REALTIME_LIVEBLOCKS_PLAN.md](./REALTIME_LIVEBLOCKS_PLAN.md) (collaboration), [COLLABORATIVE_SHARED_SPACES.md](./COLLABORATIVE_SHARED_SPACES.md) (shared editing).
 
 ---
 
-## Current state
+## Current state (Updated March 2026)
 
-- **Tiptap version:** v3.6.5 for most packages; core/pm have drifted to 3.12.0 via transitive deps
+- **Tiptap version:** v3.20.5 — all packages aligned (upgraded from v3.6.5 in v1.202.0)
 - **Custom extensions:** ScripturePill (mark), NoteLink (mark), BoldCustom (extended), HighlightCustom (extended)
-- **ProseMirror-level code:** `appendTransaction` for stored marks, `handleClick` for pill navigation, custom paste transforms
+- **ProseMirror-level code:** `appendTransaction` for stored marks, DOM capture-phase click handlers for pill interaction, custom paste transforms
+- **BubbleMenu:** Replaced with custom floating toolbar using `createPortal` + `editor.on('selectionUpdate')` + `view.coordsAtPos()`
 - **No media support:** Notes are text-only today
 
 ---
 
-## Part 1: Tiptap Upgrade (v3.6.5 → v3.12+)
+## Part 1: Tiptap Upgrade — COMPLETED
 
-### What we gain
+> **Completed in v1.202.0 (March 2026)** — Upgraded from v3.6.5 to v3.20.5
+
+### What we gained
 
 | Feature | Version | Value |
 |---------|---------|-------|
-| Reduced React re-renders | v3.0+ | `shouldRerenderOnTransaction` off by default — fewer unnecessary renders in our 3500-line editor |
+| Reduced React re-renders | v3.0+ | `shouldRerenderOnTransaction` off by default — fewer unnecessary renders in our 4000+ line editor |
 | IME input fixes | v3.x | Better CJK input; fixes composition events in mark views |
 | Markdown support | v3.7+ | `@tiptap/markdown` package — enables note import/export |
 | Mark Views API | v3.x | Render marks as React components — future option for scripture pills |
@@ -29,27 +32,24 @@ This document covers the Tiptap v3.6.5 → v3.12+ upgrade, adding rich media emb
 | Text Direction (RTL) | v3.11+ | `setTextDirection()` command — enables Hebrew/Arabic study |
 | Position Mapping | v3.12+ | `MappablePosition` class — essential for real-time collaboration |
 
-### Breaking changes to handle
+### Breaking changes handled
 
 **1. BubbleMenu: tippy.js → Floating UI**
-- Tiptap replaced `tippy.js` with `@floating-ui/dom` for all floating elements
-- Our BubbleMenu usage needs to update positioning config
-- Action: Replace tippy.js imports with Floating UI middleware
+- Replaced TipTap's BubbleMenu entirely with a custom floating toolbar
+- Uses `createPortal` + `editor.on('selectionUpdate')` + `view.coordsAtPos()` — same pattern as the translation picker
+- More reliable than BubbleMenu plugin, no dependency on internal positioning library
 
-**2. Package consolidation**
-- List extensions moved to `@tiptap/extension-list` (single import)
-- Placeholder moved to `@tiptap/extensions`
-- Action: Update import paths; old paths may still work as aliases but should be migrated
+**2. ProseMirror imports**
+- Changed `prosemirror-state` imports to `@tiptap/pm/state` in all custom extensions
+- Files updated: `TiptapEditor.tsx`, `TiptapScripturePill.ts`, `TiptapBoldCustom.ts`, `TiptapHighlightCustom.ts`
 
-**3. `clearContent()` / `setContent()` now emit updates by default**
-- Could trigger unexpected `onUpdate` callbacks → unexpected save operations
-- Action: Audit all `setContent()` / `clearContent()` calls; add `{ emitUpdate: false }` where save should not fire
+**3. `clearContent()` / `setContent()` emit behavior**
+- Audited all calls — both existing calls already used `{ emitUpdate: false }` — no changes needed
 
 **4. `mergeNestedSpanStyles` defaults to `true`**
-- Nested spans with styles get merged — could affect scripture pill HTML structure
-- Action: Test pill rendering after upgrade; add `mergeNestedSpanStyles: false` to editor config if pills break
+- Added `mergeNestedSpanStyles: false` to editor config to preserve scripture pill `data-*` attributes
 
-### Our customizations are safe
+### Our customizations were safe
 
 All four custom extensions use APIs that are stable across the v3.x range:
 - `Mark.create()` / `Extension.extend()` — unchanged signatures
@@ -57,22 +57,11 @@ All four custom extensions use APIs that are stable across the v3.x range:
 - `appendTransaction` plugin pattern — core ProseMirror, not Tiptap-specific
 - `inclusive: false` + `excludes: '_'` mark config — standard Tiptap mark options
 
-### Upgrade steps
+### Upgrade lessons learned
 
-1. Create a dedicated branch: `feat/tiptap-upgrade`
-2. Update all `@tiptap/*` packages to latest v3.12.x in `package.json`
-3. Install `@floating-ui/dom`, remove `tippy.js` (if direct dep)
-4. Fix import path changes (lists, placeholder)
-5. Audit `setContent()`/`clearContent()` calls for `emitUpdate` behavior
-6. Run the integration test (see Part 4) to verify pill behavior
-7. Manual testing checklist:
-   - [ ] Create a note, type a scripture reference, verify pill appears
-   - [ ] Move cursor past pill, type — new text should NOT have pill mark
-   - [ ] Bold/highlight after pill — should not inherit pill styling
-   - [ ] Paste HTML with headings — verify H1→H2 transform still works
-   - [ ] iOS: double-space-to-period still works (not intercepted)
-   - [ ] Delete pill with backspace — entire pill removed
-   - [ ] Click pill — navigates to scripture note
+- **Version mismatch was the root cause of BubbleMenu failures** — `@tiptap/core` drifted to 3.12.0 via transitive deps while `@tiptap/react` stayed at 3.6.5. Always pin all `@tiptap/*` packages to the same version.
+- **Custom floating UI is more reliable than BubbleMenu** — The BubbleMenu plugin re-registers on every render if `shouldShow`/`appendTo` aren't memoized. A custom `createPortal` approach with `selectionUpdate` listener avoids this entirely.
+- **`@vitejs/plugin-react` must be pinned to 5.x** — 6.x pulls in Vite 8 which requires Node 22+. Pin to `~5.1.4`.
 
 ---
 
