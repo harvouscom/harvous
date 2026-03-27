@@ -521,7 +521,10 @@
 
 .modal-overlay {
   position: fixed;
-  inset: 0;
+  top: env(safe-area-inset-top, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   background-color: transparent;
   display: flex;
   align-items: center;
@@ -654,7 +657,10 @@
 
 .drawer-overlay {
   position: fixed;
-  inset: 0;
+  top: env(safe-area-inset-top, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 50;
   overflow: hidden;
 }
@@ -672,7 +678,8 @@
 .drawer-slide {
   pointer-events: none;
   position: fixed;
-  inset-block: 0;
+  top: env(safe-area-inset-top, 0px);
+  bottom: 0;
   right: 0;
   display: flex;
   max-width: 100%;
