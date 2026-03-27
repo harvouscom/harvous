@@ -157,7 +157,7 @@
 /* PWA standalone: 12px + safe area when dock present; top stays 0 (set by rule above). */
 @media (max-width: 1159px) and (display-mode: standalone) {
   .app-layout:has(.mobile-main--with-dock) {
-    padding: 0 0.75rem calc(12px + env(safe-area-inset-bottom, 0px)) 0.75rem;
+    padding: 0 0.75rem calc(4px + env(safe-area-inset-bottom, 0px)) 0.75rem;
   }
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: env(safe-area-inset-bottom, 0px);
