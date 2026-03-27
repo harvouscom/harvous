@@ -73,21 +73,19 @@ export default function ScriptureNoteForm({
           <button
             type="button"
             onClick={() => setShowVersionDropdown(!showVersionDropdown)}
-            className="bg-[rgba(120,118,111,0.1)] rounded-[24px] px-2.5 py-1 h-[28px] flex items-center gap-1 transition-colors hover:bg-[rgba(120,118,111,0.18)]"
+            className="translation-dropdown-trigger"
           >
-            <span className="text-[13px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[normal] whitespace-nowrap">
-              {scriptureVersion}
-            </span>
-            <svg className="w-3 h-3 fill-[var(--color-pebble-grey)]" viewBox="0 0 320 512">
-              <path d="M137.4 374.6c12.5 12.5 32.8 12.5 45.3 0l128-128c9.2-9.2 11.9-22.9 6.9-34.9s-16.6-19.8-29.6-19.8L32 192c-12.9 0-24.6 7.8-29.6 19.8s-2.2 25.7 6.9 34.9l128 128z" />
+            <span>{scriptureVersion}</span>
+            <svg
+              className={`translation-dropdown-chevron${showVersionDropdown ? ' translation-dropdown-chevron--open' : ''}`}
+              viewBox="0 0 512 512"
+            >
+              <path fill="currentColor" d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z" />
             </svg>
           </button>
           {showVersionDropdown && (
-            <div
-              className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border border-[rgba(0,0,0,0.08)] py-1 z-50 min-w-[180px]"
-              style={{ boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }}
-            >
-              {TRANSLATION_ORDER.map((id) => {
+            <div className="translation-dropdown-menu">
+              {[scriptureVersion, ...TRANSLATION_ORDER.filter((id) => id !== scriptureVersion)].map((id) => {
                 const t = TRANSLATIONS[id];
                 const isSelected = id === scriptureVersion;
                 return (
@@ -98,16 +96,12 @@ export default function ScriptureNoteForm({
                       onVersionChange?.(id);
                       setShowVersionDropdown(false);
                     }}
-                    className={`w-full text-left px-3 py-2 flex items-center gap-2 transition-colors ${
-                      isSelected
-                        ? 'bg-[rgba(120,118,111,0.1)]'
-                        : 'hover:bg-[rgba(120,118,111,0.06)]'
-                    }`}
+                    className={`translation-dropdown-item${isSelected ? ' translation-dropdown-item--selected' : ''}`}
                   >
-                    <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] min-w-[40px]">
+                    <span className="translation-dropdown-abbr">
                       {t.abbreviation}
                     </span>
-                    <span className="text-[13px] font-sans text-[var(--color-stone-grey)] truncate">
+                    <span className="translation-dropdown-name">
                       {t.name}
                     </span>
                   </button>

@@ -126,40 +126,56 @@ export function useScriptureDetection(options: UseScriptureDetectionOptions): Us
     return () => clearTimeout(timeoutId);
   }, [title, noteType, content, scriptureVersion, isLoadingFromLocalStorage, setNoteType, setTitle, setContent, setScriptureReference, setScriptureVersion]);
 
-  // Version change handler (for future - when multiple translations are supported)
+  // Track previous reference for change detection
+  const referenceChangeRef = useRef<string>(scriptureReference);
+
+  // Shared fetch function for verse text
+  const fetchVerseText = async (reference: string, translation: string) => {
+    isFetchingRef.current = true;
+    try {
+      const apiReference = formatReferenceForAPI(reference);
+      const verseResponse = await fetch('/api/scripture/fetch-verse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: apiReference, translation }),
+        credentials: 'include'
+      });
+
+      if (verseResponse.ok) {
+        const verseData = await verseResponse.json();
+        setContent(verseData.text);
+      }
+    } catch {
+      // Error fetching verse
+    } finally {
+      isFetchingRef.current = false;
+    }
+  };
+
+  // Version change handler — fires immediately (discrete click action)
   useEffect(() => {
     if (noteType !== 'scripture' || !scriptureReference) return;
     if (versionChangeRef.current === scriptureVersion) return;
 
-    const fetchNewVersion = async () => {
-      isFetchingRef.current = true;
-      try {
-        const apiReference = formatReferenceForAPI(scriptureReference);
-        const verseResponse = await fetch('/api/scripture/fetch-verse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference: apiReference, translation: scriptureVersion }),
-          credentials: 'include'
-        });
+    fetchVerseText(scriptureReference, scriptureVersion);
+    versionChangeRef.current = scriptureVersion;
+  }, [scriptureVersion, scriptureReference, noteType, setContent]);
 
-        if (verseResponse.ok) {
-          const verseData = await verseResponse.json();
-          setContent(verseData.text);
-        }
-      } catch {
-        // Error fetching verse with new version
-      } finally {
-        isFetchingRef.current = false;
-      }
-    };
+  // Reference change handler — debounced (user is typing)
+  useEffect(() => {
+    if (noteType !== 'scripture' || !scriptureReference) return;
+    if (referenceChangeRef.current === scriptureReference) return;
+
+    const trimmed = scriptureReference.trim();
+    if (trimmed.length < 5) return;
 
     const timeoutId = setTimeout(() => {
-      fetchNewVersion();
-      versionChangeRef.current = scriptureVersion;
-    }, 500);
+      fetchVerseText(trimmed, scriptureVersion);
+      referenceChangeRef.current = scriptureReference;
+    }, 700);
 
     return () => clearTimeout(timeoutId);
-  }, [scriptureVersion, scriptureReference, noteType, setContent]);
+  }, [scriptureReference, scriptureVersion, noteType, setContent]);
 
   return {
     isFetchingVerse: isFetchingRef.current,
