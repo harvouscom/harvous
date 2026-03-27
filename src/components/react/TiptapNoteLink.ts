@@ -159,7 +159,16 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
               if (currentNoteId?.startsWith('note_') && threadCtx) {
                 pushNavStack(currentNoteId, threadCtx);
               }
-              safeNavigate(idToUrl(noteId, threadCtx, currentNoteId || undefined), { history: 'push' });
+              const url = idToUrl(noteId, threadCtx, currentNoteId || undefined);
+              if (threadCtx) {
+                window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+                  detail: {
+                    threadId: threadCtx,
+                    entry: { id: noteId, type: 'note', path: url }
+                  }
+                }));
+              }
+              safeNavigate(url, { history: 'push' });
               return true;
             }
 
@@ -174,7 +183,16 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
                 if (currentNoteId?.startsWith('note_') && threadCtx) {
                   pushNavStack(currentNoteId, threadCtx);
                 }
-                safeNavigate(idToUrl(clickedNoteId, threadCtx, currentNoteId || undefined), { history: 'push' });
+                const url = idToUrl(clickedNoteId, threadCtx, currentNoteId || undefined);
+                if (threadCtx) {
+                  window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+                    detail: {
+                      threadId: threadCtx,
+                      entry: { id: clickedNoteId, type: 'note', path: url }
+                    }
+                  }));
+                }
+                safeNavigate(url, { history: 'push' });
                 return true;
               }
             }

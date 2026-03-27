@@ -1124,7 +1124,16 @@ export default function CardFullEditable({
         if (currentNoteId?.startsWith('note_') && threadCtx) {
           pushNavStack(currentNoteId, threadCtx);
         }
-        safeNavigate(idToUrl(noteId, threadCtx, currentNoteId || undefined), { history: 'push' });
+        const url = idToUrl(noteId, threadCtx, currentNoteId || undefined);
+        if (threadCtx) {
+          window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+            detail: {
+              threadId: threadCtx,
+              entry: { id: noteId, type: 'note', path: url }
+            }
+          }));
+        }
+        safeNavigate(url, { history: 'push' });
         return;
       }
     }
@@ -1148,7 +1157,14 @@ export default function CardFullEditable({
         if (currentNoteId?.startsWith('note_')) {
           pushNavStack(currentNoteId, threadId);
         }
-        safeNavigate(idToUrl(noteId, threadId, currentNoteId || undefined), { history: 'push' });
+        const url = idToUrl(noteId, threadId, currentNoteId || undefined);
+        window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+          detail: {
+            threadId,
+            entry: { id: noteId, type: 'note', path: url }
+          }
+        }));
+        safeNavigate(url, { history: 'push' });
         return;
       }
 
@@ -1164,7 +1180,14 @@ export default function CardFullEditable({
             if (currentNoteId?.startsWith('note_')) {
               pushNavStack(currentNoteId, threadId);
             }
-            safeNavigate(idToUrl(result.noteId, threadId, currentNoteId || undefined), { history: 'push' });
+            const url = idToUrl(result.noteId, threadId, currentNoteId || undefined);
+            window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+              detail: {
+                threadId,
+                entry: { id: result.noteId, type: 'note', path: url }
+              }
+            }));
+            safeNavigate(url, { history: 'push' });
           } else {
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {

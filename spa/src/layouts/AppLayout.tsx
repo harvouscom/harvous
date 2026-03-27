@@ -18,7 +18,10 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
+import MobileNavDots from '../../../src/components/react/navigation/MobileNavDots';
 import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
+import { useSwipeNavigation } from '../../../src/hooks/useSwipeNavigation';
+import { useThreadNavHistory } from '../../../src/hooks/useThreadNavHistory';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
 import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
@@ -476,6 +479,33 @@ export default function AppLayout() {
   const [exiting, setExiting] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const prevShowActionStripRef = useRef(showActionStrip);
+  const isMobile = useIsMobile();
+  const isThreadOrNoteRoute = isThread || isNote;
+  const threadIdForHistory = isThread ? threadIdForHook : (isNote ? (noteParentThreadId ?? null) : null);
+  const noteIdForHistory = isNote ? noteIdForHook : null;
+
+  const threadNavHistory = useThreadNavHistory({
+    enabled: isThreadOrNoteRoute,
+    pathname,
+    search,
+    isThreadRoute: isThread,
+    isNoteRoute: isNote,
+    threadId: threadIdForHistory,
+    noteId: noteIdForHistory,
+    onNavigate: (href) => router.navigate({ to: href as any })
+  });
+
+  const mobileSwipeRef = useSwipeNavigation({
+    enabled:
+      isMobile &&
+      isThreadOrNoteRoute &&
+      !isEditMode &&
+      (threadNavHistory.canGoBack || threadNavHistory.canGoForward),
+    canSwipeLeft: threadNavHistory.canGoForward,
+    canSwipeRight: threadNavHistory.canGoBack,
+    onSwipeLeft: () => threadNavHistory.goForward(),
+    onSwipeRight: () => threadNavHistory.goBack()
+  });
 
   useEffect(() => {
     const handleEditModeChange = (e: Event) => {
@@ -504,7 +534,6 @@ export default function AppLayout() {
 
   const dockHiding = (contentType === 'note' && isEditMode) || exiting || panelOpen;
   const showDock = (showActionStrip || exiting) && layoutDataReadyForContent;
-  const isMobile = useIsMobile();
   // On mobile, space/thread/dashboard render CreateNoteButton inside the card; don't render it here
   const showCreateNoteInLayout =
     layoutDataReadyForContent &&
@@ -662,7 +691,7 @@ export default function AppLayout() {
 
         {/* Main content + CreateNoteButton + mobile-action-strip-dock (matches SSR mobile-main) */}
         <div className={`mobile-main main-column-with-cta ${showDock ? 'mobile-main--with-dock' : ''} ${isUnorganized ? 'mobile-main--unorganized' : ''}`}>
-          <div className="mobile-main__body">
+          <div className="mobile-main__body" ref={mobileSwipeRef}>
             <div className="main-column__scroll">
               <Outlet key={pathname} />
             </div>
@@ -708,6 +737,14 @@ export default function AppLayout() {
             )}
           </div>
         </div>
+
+        {isMobile && isThreadOrNoteRoute && threadNavHistory.entries.length > 1 && threadNavHistory.currentIndex > 0 && (
+          <MobileNavDots
+            entries={threadNavHistory.entries}
+            currentIndex={threadNavHistory.currentIndex}
+            onDotClick={threadNavHistory.goTo}
+          />
+        )}
 
         {/* Mobile bottom sheet — fixed overlay, handles all panels on mobile */}
         <MobileBottomSheetWithContext

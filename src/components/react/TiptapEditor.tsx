@@ -3367,6 +3367,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           pushNavStack(currentNoteId, threadContext);
         }
         const url = idToUrl(`note_${noteId}`, threadContext, currentNoteId || undefined);
+        if (threadContext) {
+          window.dispatchEvent(new CustomEvent('threadNavHistoryPush', {
+            detail: {
+              threadId: threadContext,
+              entry: { id: `note_${noteId}`, type: 'note', path: url }
+            }
+          }));
+        }
         safeNavigate(url);
       }
     };
