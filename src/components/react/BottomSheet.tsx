@@ -488,6 +488,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   }, [isOpen, openBottomSheet, isVisible]);
 
   const isPinSheet = drawerType === 'pinEntry' || drawerType === 'lockPin';
+  const isFullHeightDrawer =
+    drawerType === 'note' ||
+    drawerType === 'thread' ||
+    drawerType === 'resource' ||
+    drawerType === 'noteDetails' ||
+    drawerType === 'editNameColor' ||
+    drawerType === 'emailPassword' ||
+    drawerType === 'myChurch' ||
+    drawerType === 'myPreferences' ||
+    drawerType === 'mySharing' ||
+    drawerType === 'mySpaces' ||
+    drawerType === 'myData' ||
+    drawerType === 'myAchievements' ||
+    drawerType === 'getSupport' ||
+    drawerType === 'referral' ||
+    drawerType === 'aboutHarvous' ||
+    drawerType === 'lockPin';
 
   // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (100vh)
   useEffect(() => {
@@ -654,7 +671,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         ref={mergedSheetRef}
         side="bottom"
         className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0${
-          drawerType === 'note' || drawerType === 'thread' || drawerType === 'resource' || drawerType === 'noteDetails' ? ' bottom-sheet--full-height' : ''
+          isFullHeightDrawer ? ' bottom-sheet--full-height' : ''
         }`}
         style={{
           padding: '0',
