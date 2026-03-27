@@ -1,5 +1,7 @@
 # iOS PWA: Sheet / modal backdrop and the status bar (safe area)
 
+**Update:** The **1.205.x safe-area experiment** (`--safe-area-top`, `src/utils/safe-area.ts`, `public/scripts/safe-area-top.js`, `SheetOverlay` state, `black-translucent` meta, layout/nav/panels tweaks) was **rolled back** in favor of the **pre-1.205.0 overlay stack** (aligned with commit `d5174ef7` for overlay-related files). That stack uses plain `SheetOverlay`, `.sheet-overlay { top: env(safe-area-inset-top, 0px) !important; }`, and modal `clip-path` — the main remaining quirk is **`env()` often resolving to `0` on iOS PWA**, so the dimmer can still sit **behind** the status bar, but without the worse misalignment (e.g. nav not dimmed) from the later attempts.
+
 **Status:** Unresolved. The dimmed overlay behind bottom sheets and dialogs can still interact badly with the iOS status bar and/or the mobile top navigation in standalone (Add to Home Screen) mode.
 
 **Symptoms observed:**

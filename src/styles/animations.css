@@ -210,9 +210,9 @@
   /* Must sit above all nav chrome (space-switcher: 1000002, sheet: 1000021) */
   z-index: 1000025 !important;
   -webkit-transform: translateZ(0);
-  /* Start below the iOS status bar. --safe-area-top is set by JS in iOS PWA
-     (env() is unreliable there). !important overrides inline top:0. */
-  top: var(--safe-area-top, env(safe-area-inset-top, 0px)) !important;
+  /* Clip the dark backdrop below the iOS safe area so it never renders behind
+     the status bar — prevents WebKit compositing artifacts on overlay dismiss. */
+  clip-path: inset(env(safe-area-inset-top, 0px) 0 0 0);
 }
 
 .modal-content-enter {

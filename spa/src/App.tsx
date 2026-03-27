@@ -111,7 +111,7 @@ const windowToast = {
   },
 };
 
-/** Set .ios-pwa on documentElement; --safe-area-top is set by /scripts/safe-area-top.js + main.tsx (see src/utils/safe-area.ts). */
+/** Set .ios-pwa on documentElement when running as PWA on iOS so overlay starts below status bar only there. */
 function IosPwaClass() {
   useEffect(() => {
     const isPwa =
@@ -427,10 +427,7 @@ function SpaToaster() {
         /* ── PWA install instructions modal ── */
         .pwa-install-modal-overlay {
           position: fixed;
-          top: var(--safe-area-top, env(safe-area-inset-top, 0px));
-          right: 0;
-          bottom: 0;
-          left: 0;
+          inset: 0;
           background: rgba(0, 0, 0, 0.5);
           display: flex;
           align-items: center;

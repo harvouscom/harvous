@@ -5,7 +5,6 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
-import { getSafeAreaTopPx } from "@/utils/safe-area"
 
 const Sheet = DialogPrimitive.Root
 
@@ -18,34 +17,16 @@ const SheetPortal = DialogPrimitive.Portal
 const SheetOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, style, ...props }, ref) => {
-  const [topPx, setTopPx] = React.useState(() => getSafeAreaTopPx())
-
-  React.useLayoutEffect(() => {
-    const update = () => setTopPx(getSafeAreaTopPx())
-    update()
-    window.addEventListener("resize", update)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener("resize", update)
-    }
-    return () => {
-      window.removeEventListener("resize", update)
-      window.visualViewport?.removeEventListener("resize", update)
-    }
-  }, [])
-
-  return (
-    <DialogPrimitive.Overlay
-      className={cn(
-        "sheet-overlay",
-        className
-      )}
-      {...props}
-      ref={ref}
-      style={{ ...style, top: `${topPx}px` }}
-    />
-  )
-})
+>(({ className, ...props }, ref) => (
+  <DialogPrimitive.Overlay
+    className={cn(
+      "sheet-overlay",
+      className
+    )}
+    {...props}
+    ref={ref}
+  />
+))
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName
 
 const sheetVariants = cva("fixed z-50 bg-background shadow-lg", {
