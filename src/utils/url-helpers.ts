@@ -27,7 +27,7 @@ const PREFIXES: Array<[string, string]> = [
  * When `threadContext` is provided and the ID is a note, appends `?thread=threadId`
  * so the server can reliably determine which thread the user navigated from.
  */
-export function idToUrl(id: string, threadContext?: string): string {
+export function idToUrl(id: string, threadContext?: string, fromNoteId?: string): string {
   if (id == null || typeof id !== 'string') return '/';
   let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
@@ -38,6 +38,9 @@ export function idToUrl(id: string, threadContext?: string): string {
   }
   if (threadContext && id.startsWith('note_')) {
     url += `?thread=${threadContext}`;
+    if (fromNoteId && fromNoteId.startsWith('note_')) {
+      url += `&from=${fromNoteId}`;
+    }
   }
   return url;
 }
@@ -120,4 +123,17 @@ export function isOldUrlFormat(pathname: string): boolean {
 export function oldUrlToNewUrl(pathname: string, search: string = ''): string {
   const id = pathname.startsWith('/') ? pathname.substring(1) : pathname;
   return idToUrl(id) + search;
+}
+
+/**
+ * Read the parent note id from the current URL query string (?from=note_xxx).
+ */
+export function getFromNoteId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const fromNoteId = new URLSearchParams(window.location.search).get('from');
+    return fromNoteId && fromNoteId.startsWith('note_') ? fromNoteId : null;
+  } catch {
+    return null;
+  }
 }

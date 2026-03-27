@@ -4,6 +4,7 @@ import type { Mark as PMMark } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { pushNavStack } from '@/utils/nav-stack';
 
 /**
  * Helper to detect the current thread context from the page DOM.
@@ -11,6 +12,23 @@ import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
  */
 function getThreadContext(): string | undefined {
   if (typeof window === 'undefined') return undefined;
+
+  try {
+    const fromQuery = new URLSearchParams(window.location.search).get('thread');
+    if (fromQuery && fromQuery.startsWith('thread_')) return fromQuery;
+  } catch {
+    // ignore
+  }
+
+  const currentNoteId = extractIdFromPath(window.location.pathname);
+  if (currentNoteId?.startsWith('note_')) {
+    try {
+      const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+      if (cached && cached.startsWith('thread_')) return cached;
+    } catch {
+      // ignore
+    }
+  }
 
   const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
   if (noteEl?.dataset.parentThreadId) return noteEl.dataset.parentThreadId;
@@ -136,7 +154,12 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
             if (noteId) {
               event.preventDefault();
               // Navigate to note using Astro view transitions
-              safeNavigate(idToUrl(noteId, getThreadContext()), { history: 'push' });
+              const currentNoteId = extractIdFromPath(window.location.pathname);
+              const threadCtx = getThreadContext();
+              if (currentNoteId?.startsWith('note_') && threadCtx) {
+                pushNavStack(currentNoteId, threadCtx);
+              }
+              safeNavigate(idToUrl(noteId, threadCtx, currentNoteId || undefined), { history: 'push' });
               return true;
             }
 
@@ -146,7 +169,12 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
               const clickedNoteId = target.getAttribute('data-note-id');
               if (clickedNoteId) {
                 event.preventDefault();
-                safeNavigate(idToUrl(clickedNoteId, getThreadContext()), { history: 'push' });
+                const currentNoteId = extractIdFromPath(window.location.pathname);
+                const threadCtx = getThreadContext();
+                if (currentNoteId?.startsWith('note_') && threadCtx) {
+                  pushNavStack(currentNoteId, threadCtx);
+                }
+                safeNavigate(idToUrl(clickedNoteId, threadCtx, currentNoteId || undefined), { history: 'push' });
                 return true;
               }
             }

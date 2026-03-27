@@ -10,6 +10,7 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
 import { setSelectedSpaceId } from './navigation/selectedSpace';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
+import { stripHtmlForCard } from '@/utils/html-stripper';
 import {
   getSectionKeyForItem,
   SECTION_ORDER,
@@ -60,22 +61,8 @@ interface SpaceContentListProps {
   onNotesLoaded?: (notes: { id: string; title?: string | null; content?: string | null; [key: string]: any }[]) => void;
 }
 
-// Helper function to strip HTML tags
 function stripHtml(html: string): string {
-  if (!html) return '';
-  let text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text;
+  return stripHtmlForCard(html);
 }
 
 export default function SpaceContentList({

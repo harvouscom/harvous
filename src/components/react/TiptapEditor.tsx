@@ -17,6 +17,7 @@ import { TRANSLATION_ORDER } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { pushNavStack } from '@/utils/nav-stack';
 import { shouldProcessDocument, getTextToProcess, resetTracker, cleanupTracker } from '@/utils/incremental-scripture-detection';
 import { debug } from '@/utils/logger';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
@@ -3320,14 +3321,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Read-only mode: navigate to the scripture note
         if (!noteId || noteId === 'pending' || noteId === 'null') return;
 
-        // Determine thread context from page
+        // Determine thread context from URL/cache/DOM
         let threadContext: string | undefined;
+        try {
+          const fromQuery = new URLSearchParams(window.location.search).get('thread');
+          if (fromQuery && fromQuery.startsWith('thread_')) {
+            threadContext = fromQuery;
+          }
+        } catch {
+          // ignore
+        }
+        const currentNoteId = extractIdFromPath(window.location.pathname);
+        if (!threadContext && currentNoteId?.startsWith('note_')) {
+          try {
+            const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+            if (cached && cached.startsWith('thread_')) {
+              threadContext = cached;
+            }
+          } catch {
+            // ignore
+          }
+        }
         const noteElement = document.querySelector('[data-note-id]') as HTMLElement;
-        if (noteElement?.dataset.parentThreadId) {
+        if (!threadContext && noteElement?.dataset.parentThreadId) {
           threadContext = noteElement.dataset.parentThreadId;
         } else {
           const navElement = document.querySelector('[slot="navigation"]') as HTMLElement;
-          if (navElement?.dataset.parentThreadId) {
+          if (!threadContext && navElement?.dataset.parentThreadId) {
             threadContext = navElement.dataset.parentThreadId;
           } else {
             const pathname = window.location.pathname;
@@ -3342,7 +3362,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
         }
 
-        const url = idToUrl(`note_${noteId}`, threadContext);
+        // Push current note onto nav stack for breadcrumb-style back navigation
+        if (currentNoteId?.startsWith('note_') && threadContext) {
+          pushNavStack(currentNoteId, threadContext);
+        }
+        const url = idToUrl(`note_${noteId}`, threadContext, currentNoteId || undefined);
         safeNavigate(url);
       }
     };

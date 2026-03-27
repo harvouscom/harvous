@@ -4,6 +4,7 @@ import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { getSelectedSpaceId, setSelectedSpaceId } from './selectedSpace';
+import { clearNavStack } from '@/utils/nav-stack';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -1035,9 +1036,21 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const existingIndex = rawHistory.findIndex((h: any) => h.id === itemData.id);
         const updatedRawHistory = rawHistory.map((item: any, index: number) => {
           if (index === existingIndex) {
+            const incomingTitle = itemData.title;
+            const keepExistingTitle =
+              typeof item.title === 'string' &&
+              item.title.trim().length > 0 &&
+              (incomingTitle === 'Thread' || !incomingTitle || incomingTitle.trim().length === 0);
+            const incomingGradient = itemData.backgroundGradient;
+            const keepExistingGradient =
+              typeof item.backgroundGradient === 'string' &&
+              item.backgroundGradient.trim().length > 0 &&
+              (incomingGradient === 'var(--color-gradient-gray)' || !incomingGradient || incomingGradient.trim().length === 0);
             return {
               ...item,
               ...itemData,
+              title: keepExistingTitle ? item.title : itemData.title,
+              backgroundGradient: keepExistingGradient ? item.backgroundGradient : itemData.backgroundGradient,
               // Preserve existing count — DOM data-attributes can be stale.
               // refreshNavigationCounts (called below) will update with fresh API data.
               count: item.count ?? itemData.count ?? 0,
@@ -1493,6 +1506,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // This is especially important after creating a note with a suggested thread and redirecting
         const currentPath = window.location.pathname;
         const isNotePage = currentPath.startsWith('/note/');
+        const threadIdFromPath = extractIdFromPath(currentPath);
+        if (threadIdFromPath?.startsWith('thread_')) {
+          clearNavStack(threadIdFromPath);
+        }
         
         if (isNotePage) {
           // Refresh navigation counts after a delay to ensure counts are accurate after redirect

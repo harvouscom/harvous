@@ -79,7 +79,11 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
               result += extractTextWithSpacing(child);
             } else {
               // For inline elements (like SPAN), extract text and ALWAYS add spaces around it
-              const childText = extractTextWithSpacing(child);
+              let childText = extractTextWithSpacing(child);
+              const translationAttr = element.getAttribute('data-scripture-translation');
+              if (translationAttr) {
+                childText = `${childText} ${translationAttr}`;
+              }
               
               if (!isBlockElement && childText.trim().length > 0) {
                 // ALWAYS add space before inline elements to prevent text running together
@@ -169,8 +173,11 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     // Now extract text from inline spans, ensuring spaces are preserved
     text = text.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match, content) => {
       const trimmedContent = content.trim();
+      const translationMatch = match.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+      const translation = translationMatch?.[1]?.trim();
+      const withTranslation = translation ? `${trimmedContent} ${translation}` : trimmedContent;
       if (trimmedContent) {
-        return ` ${trimmedContent} `;
+        return ` ${withTranslation} `;
       }
       return ' ';
     });
@@ -229,6 +236,12 @@ export function stripHtml(html: string, options: StripHtmlOptions = {}): string 
     text = text.trim();
   } else {
     // Simple regex-based stripping (for most use cases)
+    // Include translation abbreviation for scripture pills rendered via CSS ::after.
+    text = text.replace(
+      /<span[^>]*data-scripture-translation\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi,
+      (_match, translation, content) => `${content} ${translation}`
+    );
+
     // Remove all HTML tags
     text = text.replace(/<[^>]*>/g, '');
     

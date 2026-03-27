@@ -5,6 +5,8 @@ import Icon from '../Icon';
 import { debug } from '@/utils/logger';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
+import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 interface ActiveThreadProp {
   id: string;
@@ -551,11 +553,11 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           return null;
         }
 
+        let spaceForLink: string | null = selectedSpaceId ?? getSelectedSpaceId();
         const getThreadHrefWithSpace = () => {
           // Use the current space so threads always open in the space the user is viewing.
           // Fall back to getSelectedSpaceId() (direct storage read) in case React state
           // hasn't hydrated yet, then check the URL query param as a last resort.
-          let spaceForLink: string | null = selectedSpaceId ?? getSelectedSpaceId();
           if (typeof window !== 'undefined') {
             try {
               const fromUrl = new URLSearchParams(window.location.search).get('space');
@@ -578,7 +580,46 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
             className={`nav-item-container ${isSpaceItem ? 'nav-item-container--space' : ''}`}
           >
             <div className="nav-item-wrapper">
-              <a href={validHref} className="nav-link">
+              <a
+                href={validHref}
+                className="nav-link"
+                onClick={(e) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  const noteIdFromPath = extractIdFromPath(window.location.pathname);
+                  const noteIdFromDom = (document.querySelector('[data-note-id]') as HTMLElement | null)?.dataset.noteId ?? null;
+                  const currentNoteId = (noteIdFromPath?.startsWith('note_') ? noteIdFromPath : null)
+                    ?? (noteIdFromDom?.startsWith('note_') ? noteIdFromDom : null);
+                  if (!currentNoteId) return;
+                  let noteThreadId: string | null = null;
+                  try {
+                    const fromQuery = new URLSearchParams(window.location.search).get('thread');
+                    if (fromQuery && fromQuery.startsWith('thread_')) noteThreadId = fromQuery;
+                  } catch {
+                    // ignore
+                  }
+                  if (!noteThreadId) {
+                    try {
+                      const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+                      if (cached && cached.startsWith('thread_')) noteThreadId = cached;
+                    } catch {
+                      // ignore
+                    }
+                  }
+                  if (!noteThreadId) {
+                    const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+                    if (noteEl?.dataset.parentThreadId?.startsWith('thread_')) {
+                      noteThreadId = noteEl.dataset.parentThreadId;
+                    }
+                  }
+                  if (!noteThreadId || noteThreadId !== item.id) return;
+                  const backTarget = getBackTarget(currentNoteId, item.id, spaceForLink);
+                  if (backTarget.startsWith('/note/')) {
+                    e.preventDefault();
+                    popNavStack(item.id);
+                    safeNavigate(backTarget);
+                  }
+                }}
+              >
                 <SpaceButton
                   as="div"
                   text={item.id === 'thread_unorganized' ? 'Unorganized' : item.title}

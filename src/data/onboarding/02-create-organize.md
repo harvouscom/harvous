@@ -26,7 +26,7 @@ Notes are notes. What you expect from a notes app is here, but here are some thi
 
 1. Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. 
 2. To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.
-3. If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text (NET version only for right now) as another note. Harvous keeps track of where your scripture was captured with what notes and threads. 
+3. If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. There are 7 supported translations: KJV, NKJV, ESV, NIV, NLT, NET, and BSB. You can select your default Bible translation in My Profile > My Preferences. Harvous keeps track of where your scripture was captured with what notes and threads.
 4. Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.
 5. Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.
 6. Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on note it was highlight to create a link between the two. (This one is my favorite)

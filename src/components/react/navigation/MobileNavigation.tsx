@@ -12,6 +12,7 @@ import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
+import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 
 /**
  * Check if Clerk authentication is ready
@@ -1471,8 +1472,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             className="nav-link"
             style={{ display: 'block', width: '100%', cursor: 'pointer' }}
             onClick={() => {
-              const href = isNote && currentThread ? idToUrl(currentThread.id) : (effectiveSelectedSpaceId ? idToUrl(effectiveSelectedSpaceId) : '/');
-              navigate(href);
+              if (isNote && currentThread) {
+                const currentNoteId = extractIdFromPath(window.location.pathname);
+                const backTarget = getBackTarget(currentNoteId || '', currentThread.id);
+                if (backTarget !== idToUrl(currentThread.id)) {
+                  popNavStack(currentThread.id);
+                }
+                navigate(backTarget);
+              } else {
+                const href = effectiveSelectedSpaceId ? idToUrl(effectiveSelectedSpaceId) : '/';
+                navigate(href);
+              }
             }}
           >
             <SpaceButton

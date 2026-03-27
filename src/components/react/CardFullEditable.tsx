@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { idToUrl } from '@/utils/url-helpers';
+import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { pushNavStack } from '@/utils/nav-stack';
 import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
@@ -1052,6 +1053,36 @@ export default function CardFullEditable({
     setHasChanges(editTitle !== displayTitle || newContent !== displayContent);
   };
 
+  const resolveThreadContext = (): string => {
+    const currentNoteId = extractIdFromPath(window.location.pathname);
+    if (parentThreadId && parentThreadId.startsWith('thread_')) return parentThreadId;
+    try {
+      const fromQuery = new URLSearchParams(window.location.search).get('thread');
+      if (fromQuery && fromQuery.startsWith('thread_')) return fromQuery;
+    } catch {
+      // ignore
+    }
+    if (currentNoteId?.startsWith('note_')) {
+      try {
+        const cached = localStorage.getItem(`harvous-note-thread-${currentNoteId}`);
+        if (cached && cached.startsWith('thread_')) return cached;
+      } catch {
+        // ignore
+      }
+    }
+    const noteEl = document.querySelector('[data-note-id]') as HTMLElement | null;
+    if (noteEl?.dataset.parentThreadId?.startsWith('thread_')) {
+      return noteEl.dataset.parentThreadId;
+    }
+    const navEl = document.querySelector('[data-navigation-active="true"]') as HTMLElement | null;
+    if (navEl?.dataset.parentThreadId?.startsWith('thread_')) {
+      return navEl.dataset.parentThreadId;
+    }
+    const pathId = extractIdFromPath(window.location.pathname);
+    if (pathId?.startsWith('thread_')) return pathId;
+    return 'thread_unorganized';
+  };
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value.slice(0, TITLE_HARD_LIMIT); // Enforce hard limit
     setEditTitle(newValue);
@@ -1088,7 +1119,12 @@ export default function CardFullEditable({
         // Navigate to the linked note
         e.preventDefault();
         e.stopPropagation();
-        safeNavigate(idToUrl(noteId, parentThreadId), { history: 'push' });
+        const currentNoteId = extractIdFromPath(window.location.pathname);
+        const threadCtx = resolveThreadContext();
+        if (currentNoteId?.startsWith('note_') && threadCtx) {
+          pushNavStack(currentNoteId, threadCtx);
+        }
+        safeNavigate(idToUrl(noteId, threadCtx, currentNoteId || undefined), { history: 'push' });
         return;
       }
     }
@@ -1104,11 +1140,15 @@ export default function CardFullEditable({
       e.preventDefault();
       e.stopPropagation();
 
-      const threadId = parentThreadId || 'thread_unorganized';
+      const threadId = resolveThreadContext();
 
       // Fast path: If pill already has a valid noteId, navigate immediately (zero API calls)
       if (noteId && noteId !== 'pending' && noteId !== 'null') {
-        safeNavigate(idToUrl(noteId, threadId), { history: 'push' });
+        const currentNoteId = extractIdFromPath(window.location.pathname);
+        if (currentNoteId?.startsWith('note_')) {
+          pushNavStack(currentNoteId, threadId);
+        }
+        safeNavigate(idToUrl(noteId, threadId, currentNoteId || undefined), { history: 'push' });
         return;
       }
 
@@ -1120,7 +1160,11 @@ export default function CardFullEditable({
           if (result.noteId) {
             // Update the pill's noteId in the DOM so next click is instant
             pillElement.setAttribute('data-note-id', result.noteId);
-            safeNavigate(idToUrl(result.noteId, threadId), { history: 'push' });
+            const currentNoteId = extractIdFromPath(window.location.pathname);
+            if (currentNoteId?.startsWith('note_')) {
+              pushNavStack(currentNoteId, threadId);
+            }
+            safeNavigate(idToUrl(result.noteId, threadId, currentNoteId || undefined), { history: 'push' });
           } else {
             window.dispatchEvent(new CustomEvent('toast', {
               detail: {

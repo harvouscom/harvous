@@ -1,4 +1,6 @@
 import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
+import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useUser } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
@@ -537,6 +539,7 @@ function DevApiHealthBanner() {
 function useInAppLinkInterceptor() {
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
       const anchor = (e.target as HTMLElement).closest('a');
       if (!anchor || !anchor.href) return;
       try {
@@ -544,8 +547,23 @@ function useInAppLinkInterceptor() {
         if (url.origin !== window.location.origin) return;
         if (anchor.target === '_blank' || anchor.rel?.includes('external')) return;
         if (e.ctrlKey || e.metaKey || e.shiftKey) return;
-        const path = url.pathname + url.search + url.hash;
+        let path = url.pathname + url.search + url.hash;
         if (path === window.location.pathname + window.location.search + (window.location.hash || '')) return;
+
+        // Breadcrumb back: when on a note page and clicking a thread link,
+        // navigate to the parent note (one level up) instead of the thread.
+        if (url.pathname.match(/^\/thread\//) && window.location.pathname.startsWith('/note/')) {
+          const currentNoteId = extractIdFromPath(window.location.pathname);
+          const threadId = extractIdFromPath(url.pathname);
+          if (currentNoteId?.startsWith('note_') && threadId?.startsWith('thread_')) {
+            const backTarget = getBackTarget(currentNoteId, threadId);
+            if (backTarget.startsWith('/note/')) {
+              popNavStack(threadId);
+              path = backTarget;
+            }
+          }
+        }
+
         e.preventDefault();
         router.navigate({ to: path as any });
       } catch {

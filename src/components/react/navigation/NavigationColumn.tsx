@@ -10,6 +10,8 @@ import { shouldForceRefresh, refreshBadgeCountsWithVerification } from '@/utils/
 import { useNavigation } from './NavigationContext';
 import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { safeNavigate } from '@/utils/safe-navigate';
 
 /**
  * Check if Clerk authentication is ready
@@ -1083,7 +1085,25 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           {/* Navigation Buttons */}
           <div className="nav-column-buttons">
             <div className="space-switcher-anchor">
-              <a href={topSpaceHref} className="nav-link">
+              <a
+                href={topSpaceHref}
+                className="nav-link"
+                onClick={(e) => {
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  const noteIdFromPath = extractIdFromPath(window.location.pathname);
+                  const noteIdFromDom = (document.querySelector('[data-note-id]') as HTMLElement | null)?.dataset.noteId ?? null;
+                  const currentNoteId = (noteIdFromPath?.startsWith('note_') ? noteIdFromPath : null)
+                    ?? (noteIdFromDom?.startsWith('note_') ? noteIdFromDom : null);
+                  const activeThreadId = currentThreadForMismatch?.id;
+                  if (!currentNoteId || !activeThreadId?.startsWith('thread_')) return;
+                  const backTarget = getBackTarget(currentNoteId, activeThreadId, displaySelectedSpaceId);
+                  if (backTarget.startsWith('/note/')) {
+                    e.preventDefault();
+                    popNavStack(activeThreadId);
+                    safeNavigate(backTarget);
+                  }
+                }}
+              >
                 <SpaceButton
                   as="div"
                   text={resolvedTopSpaceLabel}
