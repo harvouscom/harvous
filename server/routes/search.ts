@@ -15,6 +15,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
+import { getThreadColorsForNotesBatch } from '../utils/dashboard-data';
 
 const route = new Hono();
 
@@ -179,12 +180,17 @@ route.get('/api/search', requireAuth, async (c) => {
       }
     }
 
+    const noteIdsForColors = notesRows.map((n) => n.id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIdsForColors, userId);
+
     const noteResults = notesRows.map((note) => {
       const resolvedNoteType = note.noteType || 'default';
       const normalizedScriptureTranslation = note.scriptureTranslation?.trim() || null;
       const scriptureTranslationForResult = resolvedNoteType === 'scripture'
         ? (normalizedScriptureTranslation || 'NET')
         : null;
+
+      const threadColors = threadColorsMap.get(note.id);
 
       return {
         id: note.id,
@@ -201,6 +207,7 @@ route.get('/api/search', requireAuth, async (c) => {
         lastUpdated: note.updatedAt || note.createdAt,
         createdAt: note.createdAt,
         updatedAt: note.updatedAt,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
       };
     });
 

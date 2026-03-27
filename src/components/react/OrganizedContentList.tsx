@@ -1608,6 +1608,7 @@ export default function OrganizedContentList({
               noteId={item.noteId}
               showScriptureRefsCollapsible={filter === 'all'}
               scriptureReferences={item.scriptureReferences}
+              threadContextForScriptureLinks={item.threadId}
               isPendingSync={item.syncStatus === 'pending'}
               contentEncrypted={item.contentEncrypted === true}
             />

@@ -25,6 +25,8 @@ interface CardNoteProps {
   showScriptureRefsCollapsible?: boolean;
   // Scripture references from junction table (with note IDs and thread colors for linking and mesh gradient)
   scriptureReferences?: Array<{ reference: string; noteId: string; translation?: string; threadColors?: Array<{ color: string; frequency: number }> }>;
+  /** When set, scripture ref links include ?thread= so multi-thread context matches the list/card thread */
+  threadContextForScriptureLinks?: string;
   // Offline sync status indicator
   isPendingSync?: boolean;
   // Encryption status - when true, note is locked and content is encrypted
@@ -56,6 +58,7 @@ const CardNote: React.FC<CardNoteProps> = ({
   noteId,
   showScriptureRefsCollapsible = false,
   scriptureReferences: propScriptureReferences = [],
+  threadContextForScriptureLinks,
   isPendingSync = false,
   contentEncrypted = false
 }) => {
@@ -343,7 +346,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       return (
                         <a
                           key={index}
-                          href={idToUrl(ref.noteId)}
+                          href={idToUrl(ref.noteId, threadContextForScriptureLinks)}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click, but allow link navigation
                           }}
@@ -661,7 +664,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                       return (
                         <a
                           key={index}
-                          href={idToUrl(ref.noteId)}
+                          href={idToUrl(ref.noteId, threadContextForScriptureLinks)}
                           onClick={(e) => {
                             e.stopPropagation(); // Prevent card click, but allow link navigation
                           }}

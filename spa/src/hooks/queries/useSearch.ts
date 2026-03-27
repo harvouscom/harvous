@@ -17,6 +17,7 @@ export interface SearchResult {
   threadTitle?: string;
   backgroundGradient?: string;
   score?: number;
+  threadColors?: Array<{ color: string; frequency: number }>;
 }
 
 export function useSearch(query: string) {

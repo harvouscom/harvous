@@ -3366,7 +3366,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (currentNoteId?.startsWith('note_') && threadContext) {
           pushNavStack(currentNoteId, threadContext);
         }
-        const url = idToUrl(`note_${noteId}`, threadContext, currentNoteId || undefined);
+        const fullNoteId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+        if (threadContext && threadContext !== 'thread_unorganized') {
+          fetch(`/api/notes/${fullNoteId}/add-thread`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId: threadContext }),
+            credentials: 'include',
+          })
+            .then((res) => {
+              if (res.ok) {
+                window.dispatchEvent(
+                  new CustomEvent('noteAddedToThread', {
+                    detail: { noteId: fullNoteId, threadId: threadContext, source: 'inlineAddThread' },
+                  })
+                );
+              }
+            })
+            .catch(() => {});
+        }
+        const url = idToUrl(fullNoteId, threadContext, currentNoteId || undefined);
         safeNavigate(url);
       }
     };
@@ -3681,36 +3700,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     setShowCreateNoteButton(false);
   };
 
-  // Handle note link clicks
-  useEffect(() => {
-    if (!editor) return;
-
-    const handleClick = (event: MouseEvent) => {
-      // Check if editor is still valid
-      if (!isEditorValid(editor)) return;
-      
-      const target = event.target as HTMLElement;
-      if (target.classList.contains('note-link')) {
-        const noteId = target.getAttribute('data-note-id');
-        if (noteId) {
-          event.preventDefault();
-          event.stopPropagation();
-          safeNavigate(`/${noteId}`, { history: 'replace' });
-        }
-      }
-    };
-
-    const editorElement = editor?.view?.dom;
-    if (editorElement) {
-      editorElement.addEventListener('click', handleClick);
-    }
-
-    return () => {
-      if (editorElement) {
-        editorElement.removeEventListener('click', handleClick);
-      }
-    };
-  }, [editor]);
+  // Note-link clicks are handled by TiptapNoteLink ProseMirror plugin (handleClick + .note-link span).
 
   // Track editor focus state
   useEffect(() => {

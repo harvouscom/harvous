@@ -37,6 +37,7 @@ import {
   getNotesForSpaceForMember,
   getThreadsForSpace,
   getThreadsForSpaceBySpaceId,
+  getThreadColorsForNotesBatch,
 } from '../utils/dashboard-data';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { awardCreationBonusXP } from '../utils/xp-system';
@@ -195,40 +196,51 @@ route.get('/api/spaces/items', requireAuth, async (c) => {
     // Exclude onboarding notes so they don't appear in the "Add to Space" panel
     const allNotes = allNotesRaw.filter(n => n.addedBy !== 'system');
 
-    // Enrich with resource metadata
+    // Enrich with resource metadata, scripture versions, and thread colors (mesh gradient on clients)
     const resourceNoteIds = allNotes.filter(n => n.noteType === 'resource').map(n => n.id);
     const scriptureNoteIds = allNotes.filter(n => n.noteType === 'scripture').map(n => n.id);
-    let resourceMetadataMap: Record<string, any> = {};
-    let scriptureVersionMap: Record<string, string> = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
-        resourceMetadataMap = Object.fromEntries(rm.map(m => [m.noteId, m]));
-      } catch {}
-    }
-    if (scriptureNoteIds.length > 0) {
-      try {
-        const sm = await db
-          .select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
-          .from(ScriptureMetadata)
-          .where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-        scriptureVersionMap = Object.fromEntries(sm.map(m => [m.noteId, m.translation]));
-      } catch {}
-    }
+    const allNoteIds = allNotes.map(n => n.id);
+
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      (async (): Promise<Record<string, any>> => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId, sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage,
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
+          return Object.fromEntries(rm.map(m => [m.noteId, m]));
+        } catch {
+          return {};
+        }
+      })(),
+      (async (): Promise<Record<string, string>> => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const sm = await db
+            .select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation })
+            .from(ScriptureMetadata)
+            .where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+          return Object.fromEntries(sm.map(m => [m.noteId, m.translation]));
+        } catch {
+          return {};
+        }
+      })(),
+      getThreadColorsForNotesBatch(allNoteIds, auth.userId),
+    ]);
 
     const notesWithMetadata = allNotes.map(note => {
       const rm = note.noteType === 'resource' ? resourceMetadataMap[note.id] : null;
       const scriptureVersion = note.noteType === 'scripture'
         ? (scriptureVersionMap[note.id] || 'NET')
         : null;
+      const threadColors = threadColorsMap.get(note.id);
       return {
         ...note, lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
         resourceTitle: rm?.sourceTitle || null, resourceDescription: rm?.sourceDescription || null, resourceImage: rm?.sourceImage || null,
         version: scriptureVersion,
         scriptureTranslation: scriptureVersion,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : undefined,
       };
     });
 

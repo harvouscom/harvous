@@ -135,6 +135,28 @@ export default function NotePage() {
   }, [note?.threads, noteId]);
   const parentThreadId = parentThread?.id ?? undefined;
 
+  // Align localStorage thread cache with resolved parent (?thread=) so fallbacks in
+  // CardFullEditable / Tiptap / nav match the thread the user opened from, not threads[0].
+  useEffect(() => {
+    if (!parentThread?.id || !noteId) return;
+    try {
+      localStorage.setItem(`harvous-note-thread-${noteId}`, parentThread.id);
+    } catch { /* ignore */ }
+    const tw = parentThread as { count?: number; spaceId?: string | null };
+    try {
+      localStorage.setItem(
+        `harvous-note-thread-data-${noteId}`,
+        JSON.stringify({
+          id: parentThread.id,
+          title: parentThread.title ?? '',
+          noteCount: tw.count ?? 0,
+          backgroundGradient: parentThread.backgroundGradient ?? 'var(--color-gradient-gray)',
+          spaceId: tw.spaceId ?? null,
+        })
+      );
+    } catch { /* ignore */ }
+  }, [parentThread, noteId]);
+
   // Update navigation history with parent thread count/spaceId when note loads
   // so the left nav badge shows the correct count (e.g. when opening note without visiting thread page first).
   useEffect(() => {

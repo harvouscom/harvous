@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import AddToSection from './AddToSection';
@@ -174,6 +174,20 @@ export default function NoteDetailsPanel({
       setIsInitialLoad(false);
     }
   };
+
+  const fetchNoteDetailsRef = useRef(fetchNoteDetails);
+  fetchNoteDetailsRef.current = fetchNoteDetails;
+
+  // Refetch threads when add-thread completes from inline navigation (pill / note-link), not from this panel's own flow.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ noteId?: string; source?: string }>).detail;
+      if (detail?.noteId !== noteId || detail?.source !== 'inlineAddThread') return;
+      void fetchNoteDetailsRef.current(true, true);
+    };
+    window.addEventListener('noteAddedToThread', handler);
+    return () => window.removeEventListener('noteAddedToThread', handler);
+  }, [noteId]);
 
   const switchTab = (tab: string) => {
     setActiveTab(tab);

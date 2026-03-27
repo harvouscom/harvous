@@ -95,6 +95,7 @@ function SearchResults({ query }: { query: string }) {
             noteId={result.id}
             scriptureTranslation={result.scriptureTranslation ?? result.version ?? undefined}
             href={idToUrl(result.id)}
+            threadColors={result.threadColors}
           />
         ) : (
           <a
@@ -108,6 +109,7 @@ function SearchResults({ query }: { query: string }) {
               content={result.content ?? undefined}
               noteType={(result.noteType as 'default' | 'scripture' | 'resource') || 'default'}
               noteId={result.id}
+              threadColors={result.threadColors}
             />
           </a>
         )

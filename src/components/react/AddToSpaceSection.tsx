@@ -4,6 +4,7 @@ import ActionButton from './ActionButton';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
+import { generateThreadMeshGradient } from '@/utils/colors';
 
 // Note Item Component with hover state
 const NoteItem: React.FC<{
@@ -14,6 +15,16 @@ const NoteItem: React.FC<{
 }> = ({ item, isSelected, isLoading, onClick }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [hasHover, setHasHover] = useState(true); // Default to true (desktop)
+
+  const meshGradient = useMemo(() => {
+    const threadColors = item.threadColors;
+    if (!threadColors || !Array.isArray(threadColors) || threadColors.length === 0) {
+      return null;
+    }
+    const validColors = threadColors.filter(c => c && c.color && typeof c.frequency === 'number');
+    if (validColors.length === 0) return null;
+    return generateThreadMeshGradient(validColors, item.id);
+  }, [item.threadColors, item.id]);
   
   useEffect(() => {
     // Detect if device supports hover (has cursor)
@@ -90,7 +101,7 @@ const NoteItem: React.FC<{
           setIsHovered(false);
         }}
       >
-        {/* Accent bar on left - show icon for resource/scripture notes (no image for condensed view) */}
+        {/* Accent bar on left - thread mesh gradient (dashboard parity) or light paper; icon for resource/scripture */}
         <div 
           style={{ 
             position: 'absolute',
@@ -102,6 +113,7 @@ const NoteItem: React.FC<{
             borderBottomLeftRadius: '0.75rem',
             overflow: 'hidden',
             backgroundColor: 'var(--color-light-paper)',
+            ...(meshGradient ? { backgroundImage: meshGradient } : {}),
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
@@ -428,6 +440,7 @@ interface SpaceItem {
   noteType?: 'default' | 'scripture' | 'resource';
   version?: string | null;
   scriptureTranslation?: string | null;
+  threadColors?: Array<{ color: string; frequency: number }>;
   [key: string]: any;
 }
 
@@ -487,7 +500,8 @@ export default function AddToSpaceSection({
           scriptureTranslation: (note as any).scriptureTranslation || null,
           resourceImage: (note as any).resourceImage || null,
           resourceTitle: (note as any).resourceTitle || null,
-          resourceDescription: (note as any).resourceDescription || null
+          resourceDescription: (note as any).resourceDescription || null,
+          threadColors: (note as any).threadColors,
         });
       } else {
         // For editing space, show notes from other spaces or no space (that aren't in the thread)
@@ -506,7 +520,8 @@ export default function AddToSpaceSection({
             scriptureTranslation: (note as any).scriptureTranslation || null,
             resourceImage: (note as any).resourceImage || null,
             resourceTitle: (note as any).resourceTitle || null,
-            resourceDescription: (note as any).resourceDescription || null
+            resourceDescription: (note as any).resourceDescription || null,
+            threadColors: (note as any).threadColors,
           });
         }
       }

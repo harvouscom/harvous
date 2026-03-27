@@ -1146,11 +1146,32 @@ export default function CardFullEditable({
 
       const threadId = resolveThreadContext();
 
-      // Fast path: If pill already has a valid noteId, navigate immediately (zero API calls)
+      // Fast path: If pill already has a valid noteId, navigate immediately.
+      // Also fire a non-blocking add-thread so the scripture note is added to
+      // whichever thread the user is currently in (handles multi-thread membership).
       if (noteId && noteId !== 'pending' && noteId !== 'null') {
         const currentNoteId = extractIdFromPath(window.location.pathname);
         if (currentNoteId?.startsWith('note_')) {
           pushNavStack(currentNoteId, threadId);
+        }
+        if (threadId && threadId !== 'thread_unorganized') {
+          const targetId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+          fetch(`/api/notes/${targetId}/add-thread`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId }),
+            credentials: 'include',
+          })
+            .then((res) => {
+              if (res.ok) {
+                window.dispatchEvent(
+                  new CustomEvent('noteAddedToThread', {
+                    detail: { noteId: targetId, threadId, source: 'inlineAddThread' },
+                  })
+                );
+              }
+            })
+            .catch(() => {});
         }
         safeNavigate(idToUrl(noteId, threadId, currentNoteId || undefined), { history: 'push' });
         return;

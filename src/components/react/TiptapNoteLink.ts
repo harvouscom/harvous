@@ -159,6 +159,25 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
               if (currentNoteId?.startsWith('note_') && threadCtx) {
                 pushNavStack(currentNoteId, threadCtx);
               }
+              if (threadCtx && threadCtx !== 'thread_unorganized') {
+                const targetId = noteId.startsWith('note_') ? noteId : `note_${noteId}`;
+                fetch(`/api/notes/${targetId}/add-thread`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ threadId: threadCtx }),
+                  credentials: 'include',
+                })
+                  .then((res) => {
+                    if (res.ok) {
+                      window.dispatchEvent(
+                        new CustomEvent('noteAddedToThread', {
+                          detail: { noteId: targetId, threadId: threadCtx, source: 'inlineAddThread' },
+                        })
+                      );
+                    }
+                  })
+                  .catch(() => {});
+              }
               safeNavigate(idToUrl(noteId, threadCtx, currentNoteId || undefined), { history: 'push' });
               return true;
             }
@@ -173,6 +192,25 @@ export const NoteLink = Mark.create<NoteLinkOptions>({
                 const threadCtx = getThreadContext();
                 if (currentNoteId?.startsWith('note_') && threadCtx) {
                   pushNavStack(currentNoteId, threadCtx);
+                }
+                if (threadCtx && threadCtx !== 'thread_unorganized') {
+                  const targetId = clickedNoteId.startsWith('note_') ? clickedNoteId : `note_${clickedNoteId}`;
+                  fetch(`/api/notes/${targetId}/add-thread`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ threadId: threadCtx }),
+                    credentials: 'include',
+                  })
+                    .then((res) => {
+                      if (res.ok) {
+                        window.dispatchEvent(
+                          new CustomEvent('noteAddedToThread', {
+                            detail: { noteId: targetId, threadId: threadCtx, source: 'inlineAddThread' },
+                          })
+                        );
+                      }
+                    })
+                    .catch(() => {});
                 }
                 safeNavigate(idToUrl(clickedNoteId, threadCtx, currentNoteId || undefined), { history: 'push' });
                 return true;

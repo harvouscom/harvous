@@ -33,7 +33,7 @@ export default function SignUpPage() {
   const params = new URLSearchParams(window.location.search);
   const redirectUrl = params.get('redirect_url') ?? '/dashboard';
 
-  if (!isLoaded || isSignedIn) {
+  if (isSignedIn || (!isLoaded && /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie))) {
     return null;
   }
 
