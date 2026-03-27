@@ -32,7 +32,7 @@ export default function MobileBottomSheetWithContext({
     <NewNotePanelProvider>
       <NewThreadPanelProvider>
         {/* Keep this out of document flow so it doesn't affect mobile layout */}
-        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000010 }}>
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000030 }}>
           <div style={{ pointerEvents: 'auto' }}>
             <BottomSheet
               currentThread={currentThread}
