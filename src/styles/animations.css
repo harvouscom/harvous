@@ -210,9 +210,9 @@
   /* Must sit above all nav chrome (space-switcher: 1000002, sheet: 1000021) */
   z-index: 1000025 !important;
   -webkit-transform: translateZ(0);
-  /* Clip the dark backdrop below the iOS safe area so it never renders behind
-     the status bar — prevents WebKit compositing artifacts on overlay dismiss. */
-  clip-path: inset(env(safe-area-inset-top, 0px) 0 0 0);
+  /* Start below the iOS safe area so the dark backdrop never renders behind
+     the status bar. !important overrides inline top:0 on dialog portals. */
+  top: env(safe-area-inset-top, 0px) !important;
 }
 
 .modal-content-enter {

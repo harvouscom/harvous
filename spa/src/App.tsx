@@ -427,7 +427,10 @@ function SpaToaster() {
         /* ── PWA install instructions modal ── */
         .pwa-install-modal-overlay {
           position: fixed;
-          inset: 0;
+          top: env(safe-area-inset-top, 0px);
+          right: 0;
+          bottom: 0;
+          left: 0;
           background: rgba(0, 0, 0, 0.5);
           display: flex;
           align-items: center;
