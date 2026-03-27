@@ -86,6 +86,20 @@
     0px 2px 0px 0px #00000040 inset;
 }
 
+/* Match NewNotePanel translation trigger pill styling inside card headers */
+.card-full-editable .translation-dropdown-trigger {
+  will-change: transform, box-shadow;
+  transition: box-shadow 0.125s ease-in-out, background-color 0.125s ease-in-out, transform 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766F33 inset;
+}
+
+.card-full-editable .translation-dropdown-trigger:active {
+  filter: brightness(0.97);
+  box-shadow:
+    0px -1px 0px 0px #78766F33 inset,
+    0px 1px 0px 0px #78766F33 inset;
+}
+
 /* Scroll container: ensure touch scroll works on iOS PWA and flex height is constrained */
 .card-full-editable__content-html.overflow-auto {
   -webkit-overflow-scrolling: touch;
