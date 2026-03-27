@@ -290,6 +290,7 @@ async function processTagMutation(userId: string, operation: string, entityId: s
     await db.update(Tags).set({ name: data.name, color: data.color, category: data.category, updatedAt: nowISO() }).where(eq(Tags.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === 'delete') {
+    await db.delete(NoteTags).where(eq(NoteTags.tagId, entityId));
     await db.delete(Tags).where(and(eq(Tags.id, entityId), eq(Tags.userId, userId)));
     return { success: true, entityId, serverId: entityId };
   }

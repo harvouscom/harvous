@@ -290,8 +290,21 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
 
     if (affectedNotes.length > 0) {
       for (const { noteId } of affectedNotes) {
-        await db.update(Notes).set({ threadId: 'thread_unorganized' })
-          .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        // Check if note still belongs to other threads
+        const remainingThreads = await db.select({ threadId: NoteThreads.threadId })
+          .from(NoteThreads)
+          .where(eq(NoteThreads.noteId, noteId))
+          .limit(1);
+        
+        if (remainingThreads.length > 0) {
+          // Set to first remaining thread and clear spaceId
+          await db.update(Notes).set({ threadId: remainingThreads[0].threadId, spaceId: null })
+            .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        } else {
+          // Move to unorganized and clear spaceId
+          await db.update(Notes).set({ threadId: 'thread_unorganized', spaceId: null })
+            .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        }
       }
     }
 
@@ -377,6 +390,7 @@ route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), a
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
         await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
         await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, noteId));
       }

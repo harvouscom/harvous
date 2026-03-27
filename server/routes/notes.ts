@@ -44,6 +44,7 @@ import { processScriptureReferences } from '../utils/process-scripture-reference
 import { getNextUntitledNoteName } from '../utils/untitled-naming';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
+import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
@@ -435,10 +436,8 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
     let scriptureProcessingError = false;
     if (!isEncrypted) {
       try {
-        let actualThreadId = 'thread_unorganized';
-        const threadRelation = first(await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1));
-        if (threadRelation) actualThreadId = threadRelation.threadId;
-        const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent, scriptureVersion || 'NET');
+        // Omit threadId so processScriptureReferences resolves every NoteThreads row for this note (multi-thread)
+        const scriptureResult = await processScriptureReferences(noteId, auth.userId, undefined, capitalizedContent, scriptureVersion || 'NET');
         scriptureResults = scriptureResult.results || [];
         processedContent = scriptureResult.updatedContent || null;
       } catch (error: any) {
@@ -472,6 +471,7 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
     await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
     await db.delete(Comments).where(eq(Comments.noteId, noteId));
+    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
     await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
 
     // Strip note links (non-critical)
@@ -612,9 +612,11 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
     const noteCreatedAt = existingNote.createdAt;
 
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
     await db.delete(Comments).where(eq(Comments.noteId, noteId));
     await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
 
     await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt as string));
     await revokeAllXPForItem(auth.userId, noteId);
@@ -646,17 +648,25 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const unorgNotes = await db.select({ id: Notes.id }).from(Notes)
+    const unorgNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes)
       .where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
     const noteIds = unorgNotes.map(n => n.id);
 
     if (noteIds.length > 0) {
-      for (const nid of noteIds) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, nid));
-        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, nid), eq(NoteScriptureReferences.scriptureNoteId, nid)));
-        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, nid));
-        await db.delete(NoteTags).where(eq(NoteTags.noteId, nid));
-        await db.delete(Comments).where(eq(Comments.noteId, nid));
+      for (const note of unorgNotes) {
+        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.id));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, note.id), eq(NoteScriptureReferences.scriptureNoteId, note.id)));
+        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, note.id));
+        await db.delete(NoteTags).where(eq(NoteTags.noteId, note.id));
+        await db.delete(Comments).where(eq(Comments.noteId, note.id));
+        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, note.id));
+        // Revoke XP (fire-and-forget to match main delete pattern)
+        (async () => {
+          try {
+            await revokeXPOnDeletion(auth.userId, note.id, new Date(note.createdAt as string));
+            await revokeAllXPForItem(auth.userId, note.id);
+          } catch {}
+        })().catch(() => {});
       }
       await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
     }
@@ -845,6 +855,23 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       // Include unorganized so note detail returns it when the note is in unorganized (nav shows "Unorganized" not "Thread").
       allThreads = junctionThreads;
     } catch { allThreads = []; }
+
+    // Heal-on-read: scripture notes can list under threads via NoteScriptureReferences without NoteThreads rows
+    if (note.noteType === 'scripture' && note.userId === auth.userId) {
+      try {
+        const healed = await healScriptureNoteThreadsFromParents(noteId, auth.userId);
+        if (healed) {
+          const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
+            .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
+            .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
+          allThreads = junctionThreads;
+          const refreshed = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+          if (refreshed) note = refreshed;
+        }
+      } catch (healErr) {
+        console.error('[api/notes/:id/details] healScriptureNoteThreadsFromParents:', healErr);
+      }
+    }
 
     // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows "Unorganized".
     if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
@@ -1076,6 +1103,9 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
       if (remainingThreads.length === 0) {
         await ensureUnorganizedThread(auth.userId);
         await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, id));
+      } else if (note.threadId === threadId) {
+        // If removed thread was the primary, update to next remaining thread
+        await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
       }
       removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {});
     } catch (deleteError) {

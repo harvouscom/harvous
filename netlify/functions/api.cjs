@@ -18629,7 +18629,11 @@ function stripHtml(html, options = {}) {
               result += "\u2022 ";
               result += extractTextWithSpacing2(child);
             } else {
-              const childText = extractTextWithSpacing2(child);
+              let childText = extractTextWithSpacing2(child);
+              const translationAttr = element.getAttribute("data-scripture-translation");
+              if (translationAttr) {
+                childText = `${childText} ${translationAttr}`;
+              }
               if (!isBlockElement && childText.trim().length > 0) {
                 if (prevSibling) {
                   if (prevSibling.nodeType === Node.TEXT_NODE) {
@@ -18690,8 +18694,11 @@ function stripHtml(html, options = {}) {
     text2 = text2.replace(/(<\/span>)([^\s<])/gi, "$1 $2");
     text2 = text2.replace(/<span[^>]*>([\s\S]*?)<\/span>/gi, (match3, content) => {
       const trimmedContent = content.trim();
+      const translationMatch = match3.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/i);
+      const translation = translationMatch?.[1]?.trim();
+      const withTranslation = translation ? `${trimmedContent} ${translation}` : trimmedContent;
       if (trimmedContent) {
-        return ` ${trimmedContent} `;
+        return ` ${withTranslation} `;
       }
       return " ";
     });
@@ -18731,6 +18738,10 @@ function stripHtml(html, options = {}) {
     text2 = text2.replace(/\s+/g, " ");
     text2 = text2.trim();
   } else {
+    text2 = text2.replace(
+      /<span[^>]*data-scripture-translation\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi,
+      (_match, translation, content) => `${content} ${translation}`
+    );
     text2 = text2.replace(/<[^>]*>/g, "");
     text2 = text2.replace(/&nbsp;/g, " ");
     text2 = text2.replace(/&amp;/g, "&");
@@ -18875,7 +18886,7 @@ var init_onboarding_notes_generated = __esm({
       },
       {
         "title": "Notes, threads, and spaces oh my!",
-        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there some some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.\nWhen you erase a thread the notes don&#39;t get erased (expect for this thread). Any note that doesn&#39;t belong to a another thread moves into a default thread called Unorganized.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):</p>\n<ol>\n<li>Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. </li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text (NET version only for right now) as another note. Harvous keeps track of where your scripture was captured with what notes and threads. </li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on note it was highlight to create a link between the two. (This one is my favorite)</li>\n</ol>",
+        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there some some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.\nWhen you erase a thread the notes don&#39;t get erased (expect for this thread). Any note that doesn&#39;t belong to a another thread moves into a default thread called Unorganized.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):</p>\n<ol>\n<li>Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. </li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. There are 7 supported translations: KJV, NKJV, ESV, NIV, NLT, NET, and BSB. You can select your default Bible translation in My Profile &gt; My Preferences. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on note it was highlight to create a link between the two. (This one is my favorite)</li>\n</ol>",
         "order": 2
       },
       {
@@ -68884,6 +68895,57 @@ async function fetchVerseText(reference, translation = "NET") {
 }
 
 // server/utils/process-scripture-references.ts
+async function resolveParentThreadIds(noteId, threadId, note) {
+  if (threadId !== void 0) {
+    const arr = Array.isArray(threadId) ? threadId : [threadId];
+    const out = /* @__PURE__ */ new Set();
+    for (const t of arr) {
+      if (t && t.trim() && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_")) {
+        out.add(t);
+      }
+    }
+    return [...out];
+  }
+  const ids = /* @__PURE__ */ new Set();
+  const rels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+  for (const r of rels) {
+    if (r.threadId && r.threadId !== "thread_unorganized" && !r.threadId.startsWith("thread_onboarding_")) {
+      ids.add(r.threadId);
+    }
+  }
+  if (note.threadId && note.threadId !== "thread_unorganized" && !note.threadId.startsWith("thread_onboarding_")) {
+    ids.add(note.threadId);
+  }
+  return [...ids];
+}
+async function addScriptureNoteToParentThreads(scriptureNoteId, parentThreadIds, userId) {
+  const filtered = parentThreadIds.filter((t) => t && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_"));
+  if (filtered.length === 0) return;
+  const scriptureNote = first(await db.select().from(Notes).where(eq(Notes.id, scriptureNoteId)).limit(1));
+  if (!scriptureNote) return;
+  const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
+  const existingSet = new Set(existingRels.map((r) => r.threadId));
+  const needsPrimary = existingRels.length === 0 || scriptureNote.threadId === "thread_unorganized";
+  let primaryUpdated = false;
+  for (const tid of filtered) {
+    if (existingSet.has(tid)) continue;
+    try {
+      await db.insert(NoteThreads).values({
+        id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        noteId: scriptureNoteId,
+        threadId: tid,
+        createdAt: /* @__PURE__ */ new Date()
+      });
+      existingSet.add(tid);
+      if (needsPrimary && !primaryUpdated) {
+        await db.update(Notes).set({ threadId: tid }).where(eq(Notes.id, scriptureNoteId));
+        primaryUpdated = true;
+      }
+      await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+    } catch {
+    }
+  }
+}
 var userProcessingQueue = /* @__PURE__ */ new Map();
 async function processScriptureReferences(noteId, userId, threadId, contentOverride, translation = "NET") {
   const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
@@ -68904,13 +68966,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     throw new Error("Note not found");
   }
   let noteContent = contentOverride || note.content;
-  let actualThreadId = threadId || "thread_unorganized";
-  if (!threadId) {
-    const threadRelation = first(await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1));
-    if (threadRelation) {
-      actualThreadId = threadRelation.threadId;
-    }
-  }
+  const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
   const existingReferences = /* @__PURE__ */ new Map();
   const pendingPills = /* @__PURE__ */ new Map();
   const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
@@ -69109,6 +69165,9 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
           }
           await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
           await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
+          await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
+          await db.delete(Comments).where(eq(Comments.noteId, dupeId));
+          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
           await db.delete(Notes).where(eq(Notes.id, dupeId));
         }
         normalizedScriptureMap.set(normalizedRef, { noteId: keeperId, reference: normalizedRef });
@@ -69258,18 +69317,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
           } catch (error) {
             console.error("Auto-tagging failed for scripture note (non-critical):", error);
           }
-          if (actualThreadId !== "thread_unorganized") {
-            try {
-              await db.insert(NoteThreads).values({
-                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                noteId: scriptureNote.id,
-                threadId: actualThreadId,
-                createdAt: /* @__PURE__ */ new Date()
-              });
-              await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, scriptureNote.id));
-            } catch (error) {
-            }
-          }
+          await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);
           referenceMap.set(reference, scriptureNote.id);
           normalizedScriptureMap.set(normalizedReference, { noteId: scriptureNote.id, reference: normalizedReference });
           try {
@@ -69319,51 +69367,38 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
             console.error(`[processScriptureReferences] Failed to create junction for existing scripture (noteId=${noteId}, scriptureNoteId=${existingNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
           }
         }
-        let inThread = false;
-        if (actualThreadId) {
-          const threadRelation = first(await db.select().from(NoteThreads).where(
-            and(
-              eq(NoteThreads.noteId, existingNoteId),
-              eq(NoteThreads.threadId, actualThreadId)
-            )
-          ).limit(1));
-          inThread = !!threadRelation;
-        }
         const threadCount = first(await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId)).limit(1));
         const inUnorganized = !threadCount || threadCount.count === 0;
-        if (inThread) {
+        if (parentThreadIds.length === 0) {
           results.push({
-            action: "skipped",
+            action: "unorganized",
             noteId: existingNoteId,
             reference
           });
-        } else if (actualThreadId !== "thread_unorganized") {
-          try {
-            await db.insert(NoteThreads).values({
-              id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              noteId: existingNoteId,
-              threadId: actualThreadId,
-              createdAt: /* @__PURE__ */ new Date()
-            });
-            if (inUnorganized) {
-              await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, existingNoteId));
-            }
-            await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, actualThreadId), eq(Threads.userId, userId)));
-            results.push({
-              action: "added",
-              noteId: existingNoteId,
-              reference
-            });
-          } catch (error) {
-            results.push({
-              action: "skipped",
-              noteId: existingNoteId,
-              reference
-            });
-          }
         } else {
+          const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId));
+          const existingSet = new Set(existingRels.map((r) => r.threadId));
+          let addedAny = false;
+          for (const tid of parentThreadIds) {
+            if (existingSet.has(tid)) continue;
+            try {
+              await db.insert(NoteThreads).values({
+                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                noteId: existingNoteId,
+                threadId: tid,
+                createdAt: /* @__PURE__ */ new Date()
+              });
+              existingSet.add(tid);
+              addedAny = true;
+              await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+            } catch {
+            }
+          }
+          if (addedAny && inUnorganized) {
+            await db.update(Notes).set({ threadId: parentThreadIds[0] }).where(eq(Notes.id, existingNoteId));
+          }
           results.push({
-            action: "unorganized",
+            action: addedAny ? "added" : "skipped",
             noteId: existingNoteId,
             reference
           });
@@ -69576,18 +69611,7 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
               new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
               `data-note-id="${newScriptureNote.id}"`
             );
-            if (actualThreadId !== "thread_unorganized") {
-              try {
-                await db.insert(NoteThreads).values({
-                  id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  noteId: newScriptureNote.id,
-                  threadId: actualThreadId,
-                  createdAt: /* @__PURE__ */ new Date()
-                });
-                await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, newScriptureNote.id));
-              } catch (error) {
-              }
-            }
+            await addScriptureNoteToParentThreads(newScriptureNote.id, parentThreadIds, userId);
             normalizedScriptureMap.set(normalizedRef, { noteId: newScriptureNote.id, reference: normalizedRef });
             results.push({
               action: "created",
@@ -69619,6 +69643,26 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
         console.error(`[processScriptureReferences] Failed to create junction for pill (noteId=${noteId}, scriptureNoteId=${scriptureNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
       }
     }
+  }
+  const presentScriptureNoteIds = /* @__PURE__ */ new Set();
+  for (const noteId2 of referenceMap.values()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  for (const noteId2 of existingReferences.values()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  for (const noteId2 of allExistingPills.keys()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  try {
+    const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
+    for (const junction of existingJunctions) {
+      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
+        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+      }
+    }
+  } catch (pruneError) {
+    console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
   }
   const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
   console.log("[processScriptureReferences] Updating note with highlighted content", {
@@ -70070,6 +70114,15 @@ function sortByLastVisited(items) {
 
 // server/utils/dashboard-data.ts
 init_html_stripper();
+var SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+function extractScriptureTranslationFromNoteContent(content) {
+  if (!content) return void 0;
+  const match3 = content.match(SCRIPTURE_TRANSLATION_ATTR_RE);
+  if (!match3) return void 0;
+  const parsed = match3[1]?.trim();
+  if (!parsed) return void 0;
+  return parsed.toUpperCase();
+}
 async function findUnorganizedThread(userId) {
   try {
     const unorganizedThread = first(await db.select({
@@ -70608,7 +70661,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
     const notesWithThreadColors = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
+      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -70683,7 +70736,7 @@ async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, of
     const notesWithThreadColors = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
+      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -70871,7 +70924,7 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
       const cleanContent = stripHtmlForCard(note.content || "");
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const isEncrypted = note.contentEncrypted === true;
-      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
+      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       const noteThread = threadLookup.get(note.threadId);
       return {
         id: note.id,
@@ -70959,7 +71012,7 @@ async function getReferencedScriptureNotesWithoutLastVisited(userId) {
         lastVisited: null,
         createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || void 0,
-        version: scriptureVersionMap[note.id] ?? void 0
+        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET"
       };
     });
   } catch (error) {
@@ -71014,7 +71067,7 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
         lastVisited: note.lastVisited,
         createdAt: note.createdAt,
         threadColors: threadColorsMap[note.id] || void 0,
-        version: scriptureVersionMap[note.id] ?? void 0
+        version: scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET"
       };
     });
     return { items: noteItems, hasMore: sortedNotes.length > limit };
@@ -71180,7 +71233,7 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
     const notesWithMeta = sortedNotes.map((note) => {
       const resourceMeta = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const threadColors = threadColorsMap.get(note.id);
-      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? void 0 : void 0;
+      const version2 = note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0;
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -71237,6 +71290,18 @@ async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offs
       } catch (_3) {
       }
     }
+    const scriptureNoteIds = sortedNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+    let scriptureVersionMap = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {});
+      } catch (_3) {
+      }
+    }
     const noteIds = sortedNotes.map((n) => n.id).filter(Boolean);
     const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, ownerUserId);
     const notesWithMeta = sortedNotes.map((note) => {
@@ -71249,7 +71314,8 @@ async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offs
         resourceTitle: resourceMeta?.sourceTitle || null,
         resourceDescription: resourceMeta?.sourceDescription || null,
         resourceImage: resourceMeta?.sourceImage || null,
-        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0,
+        version: note.noteType === "scripture" ? scriptureVersionMap[note.id] ?? extractScriptureTranslationFromNoteContent(note.content) ?? "NET" : void 0
       };
     });
     return { notes: notesWithMeta, hasMore };
@@ -72851,10 +72917,13 @@ route7.get("/api/search", requireAuth, async (c) => {
         ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit);
       }
     }
+    const noteIdsForColors = notesRows.map((n) => n.id);
+    const threadColorsMap = await getThreadColorsForNotesBatch(noteIdsForColors, userId);
     const noteResults = notesRows.map((note) => {
       const resolvedNoteType = note.noteType || "default";
       const normalizedScriptureTranslation = note.scriptureTranslation?.trim() || null;
       const scriptureTranslationForResult = resolvedNoteType === "scripture" ? normalizedScriptureTranslation || "NET" : null;
+      const threadColors = threadColorsMap.get(note.id);
       return {
         id: note.id,
         type: "note",
@@ -72869,7 +72938,8 @@ route7.get("/api/search", requireAuth, async (c) => {
         spaceId: note.spaceId,
         lastUpdated: note.updatedAt || note.createdAt,
         createdAt: note.createdAt,
-        updatedAt: note.updatedAt
+        updatedAt: note.updatedAt,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
       };
     });
     const threadResults = threadsRows.map((thread) => ({
@@ -73010,7 +73080,6 @@ function sleep3(ms) {
 }
 async function moveScriptureNotesToThread(parentNoteId, threadId, userId) {
   if (threadId === "thread_unorganized") return;
-  await sleep3(1e3);
   try {
     try {
       first(await db.select().from(NoteScriptureReferences).limit(1));
@@ -73728,7 +73797,12 @@ route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) 
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
     if (affectedNotes.length > 0) {
       for (const { noteId } of affectedNotes) {
-        await db.update(Notes).set({ threadId: "thread_unorganized" }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        const remainingThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1);
+        if (remainingThreads.length > 0) {
+          await db.update(Notes).set({ threadId: remainingThreads[0].threadId, spaceId: null }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        } else {
+          await db.update(Notes).set({ threadId: "thread_unorganized", spaceId: null }).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+        }
       }
     }
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
@@ -73792,6 +73866,7 @@ route9.delete("/api/threads/erase-with-notes", requireAuth, rateLimit("write"), 
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
         await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
         await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, noteId));
       }
@@ -74063,6 +74138,63 @@ function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
 // server/routes/notes.ts
 init_unorganized_thread();
 
+// server/utils/heal-scripture-note-threads.ts
+init_db2();
+init_dates();
+async function healScriptureNoteThreadsFromParents(scriptureNoteId, userId) {
+  const scripture = first(
+    await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, scriptureNoteId), eq(Notes.userId, userId), eq(Notes.noteType, "scripture"))).limit(1)
+  );
+  if (!scripture) return false;
+  const parents = await db.select({ noteId: NoteScriptureReferences.noteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId));
+  const parentIds = [...new Set(parents.map((p) => p.noteId))];
+  if (parentIds.length === 0) return false;
+  const threadIdsToAdd = /* @__PURE__ */ new Set();
+  for (const pid of parentIds) {
+    const parentNote = first(await db.select({ threadId: Notes.threadId }).from(Notes).where(eq(Notes.id, pid)).limit(1));
+    const rels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, pid));
+    for (const r of rels) {
+      if (r.threadId && r.threadId !== "thread_unorganized" && !r.threadId.startsWith("thread_onboarding_")) {
+        threadIdsToAdd.add(r.threadId);
+      }
+    }
+    if (parentNote?.threadId && parentNote.threadId !== "thread_unorganized" && !parentNote.threadId.startsWith("thread_onboarding_")) {
+      threadIdsToAdd.add(parentNote.threadId);
+    }
+  }
+  if (threadIdsToAdd.size === 0) return false;
+  const existing = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
+  const existingSet = new Set(existing.map((e) => e.threadId));
+  let inserted = false;
+  const scriptureRow = first(await db.select().from(Notes).where(eq(Notes.id, scriptureNoteId)).limit(1));
+  const needsPrimaryThread = existing.length === 0 || scriptureRow?.threadId === "thread_unorganized";
+  let primaryThreadUpdated = false;
+  for (const tid of threadIdsToAdd) {
+    if (existingSet.has(tid)) continue;
+    const thread = first(
+      await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, tid), eq(Threads.userId, userId))).limit(1)
+    );
+    if (!thread) continue;
+    try {
+      await db.insert(NoteThreads).values({
+        id: `note-thread-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
+        noteId: scriptureNoteId,
+        threadId: tid,
+        createdAt: nowISO()
+      });
+      existingSet.add(tid);
+      inserted = true;
+      if (needsPrimaryThread && tid !== "thread_unorganized" && !primaryThreadUpdated) {
+        await db.update(Notes).set({ threadId: tid }).where(eq(Notes.id, scriptureNoteId));
+        primaryThreadUpdated = true;
+      }
+      await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+    } catch {
+    }
+  }
+  return inserted;
+}
+
 // server/utils/remove-scripture-notes-from-thread.ts
 init_db2();
 function sleep4(ms) {
@@ -74114,6 +74246,21 @@ async function removeScriptureNotesFromThread(parentNoteId, threadId, userId) {
                 while (updateRetries > 0) {
                   try {
                     await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, scriptureNoteId));
+                    break;
+                  } catch (updateError) {
+                    if (updateError.message?.includes("SQLITE_BUSY") || updateError.message?.includes("database is locked")) {
+                      updateRetries--;
+                      if (updateRetries > 0) await sleep4(50 * (4 - updateRetries));
+                    } else {
+                      throw updateError;
+                    }
+                  }
+                }
+              } else if (scriptureNote.threadId === threadId) {
+                let updateRetries = 3;
+                while (updateRetries > 0) {
+                  try {
+                    await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
                     break;
                   } catch (updateError) {
                     if (updateError.message?.includes("SQLITE_BUSY") || updateError.message?.includes("database is locked")) {
@@ -85155,10 +85302,7 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     let scriptureProcessingError = false;
     if (!isEncrypted) {
       try {
-        let actualThreadId = "thread_unorganized";
-        const threadRelation = first(await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, noteId)).limit(1));
-        if (threadRelation) actualThreadId = threadRelation.threadId;
-        const scriptureResult = await processScriptureReferences(noteId, auth.userId, actualThreadId, capitalizedContent, scriptureVersion || "NET");
+        const scriptureResult = await processScriptureReferences(noteId, auth.userId, void 0, capitalizedContent, scriptureVersion || "NET");
         scriptureResults = scriptureResult.results || [];
         processedContent = scriptureResult.updatedContent || null;
       } catch (error) {
@@ -85180,6 +85324,12 @@ route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) =
     if (!existingNote) return c.json({ error: "Note not found or access denied" }, 404);
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
+    await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
+    await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+    await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
+    await db.delete(Comments).where(eq(Comments.noteId, noteId));
+    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
     await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
     try {
       const notesWithLinks = await db.select({ id: Notes.id, content: Notes.content }).from(Notes).where(and(eq(Notes.userId, auth.userId), not(eq(Notes.contentEncrypted, true)), like(Notes.content, "%data-note-id=%")));
@@ -85308,9 +85458,11 @@ route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"),
     if (existingNote.simpleNoteId !== simpleNoteId) return c.json({ error: "Simple note ID mismatch" }, 400);
     const noteCreatedAt = existingNote.createdAt;
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
     await db.delete(Comments).where(eq(Comments.noteId, noteId));
     await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+    await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
     await revokeXPOnDeletion(auth.userId, noteId, new Date(noteCreatedAt));
     await revokeAllXPForItem(auth.userId, noteId);
     await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
@@ -85333,7 +85485,27 @@ route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"),
 route10.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("write"), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
+    const unorgNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
+    const noteIds = unorgNotes.map((n) => n.id);
+    if (noteIds.length > 0) {
+      for (const note of unorgNotes) {
+        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.id));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, note.id), eq(NoteScriptureReferences.scriptureNoteId, note.id)));
+        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, note.id));
+        await db.delete(NoteTags).where(eq(NoteTags.noteId, note.id));
+        await db.delete(Comments).where(eq(Comments.noteId, note.id));
+        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, note.id));
+        (async () => {
+          try {
+            await revokeXPOnDeletion(auth.userId, note.id, new Date(note.createdAt));
+            await revokeAllXPForItem(auth.userId, note.id);
+          } catch {
+          }
+        })().catch(() => {
+        });
+      }
+      await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
+    }
     return c.json({ success: true, message: "All notes deleted from unorganized thread" });
   } catch (error) {
     console.error("Error deleting unorganized thread notes:", error);
@@ -85485,6 +85657,19 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       allThreads = junctionThreads;
     } catch {
       allThreads = [];
+    }
+    if (note.noteType === "scripture" && note.userId === auth.userId) {
+      try {
+        const healed = await healScriptureNoteThreadsFromParents(noteId, auth.userId);
+        if (healed) {
+          const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
+          allThreads = junctionThreads;
+          const refreshed = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
+          if (refreshed) note = refreshed;
+        }
+      } catch (healErr) {
+        console.error("[api/notes/:id/details] healScriptureNoteThreadsFromParents:", healErr);
+      }
     }
     if (!isMemberView && allThreads.length === 0 && note.threadId === "thread_unorganized") {
       await ensureUnorganizedThread(auth.userId);
@@ -85661,6 +85846,8 @@ route10.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), as
       if (remainingThreads.length === 0) {
         await ensureUnorganizedThread(auth.userId);
         await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, id));
+      } else if (note.threadId === threadId) {
+        await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
       }
       removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {
       });
@@ -85963,7 +86150,7 @@ var PREFIXES = [
   ["space_", "/space/"],
   ["local_", "/local/"]
 ];
-function idToUrl(id, threadContext) {
+function idToUrl(id, threadContext, fromNoteId) {
   if (id == null || typeof id !== "string") return "/";
   let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
@@ -85974,6 +86161,9 @@ function idToUrl(id, threadContext) {
   }
   if (threadContext && id.startsWith("note_")) {
     url += `?thread=${threadContext}`;
+    if (fromNoteId && fromNoteId.startsWith("note_")) {
+      url += `&from=${fromNoteId}`;
+    }
   }
   return url;
 }
@@ -86103,30 +86293,37 @@ route11.get("/api/spaces/items", requireAuth, async (c) => {
     const allNotes = allNotesRaw.filter((n) => n.addedBy !== "system");
     const resourceNoteIds = allNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
     const scriptureNoteIds = allNotes.filter((n) => n.noteType === "scripture").map((n) => n.id);
-    let resourceMetadataMap = {};
-    let scriptureVersionMap = {};
-    if (resourceNoteIds.length > 0) {
-      try {
-        const rm = await db.select({
-          noteId: ResourceMetadata.noteId,
-          sourceTitle: ResourceMetadata.sourceTitle,
-          sourceDescription: ResourceMetadata.sourceDescription,
-          sourceImage: ResourceMetadata.sourceImage
-        }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
-        resourceMetadataMap = Object.fromEntries(rm.map((m2) => [m2.noteId, m2]));
-      } catch {
-      }
-    }
-    if (scriptureNoteIds.length > 0) {
-      try {
-        const sm = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
-        scriptureVersionMap = Object.fromEntries(sm.map((m2) => [m2.noteId, m2.translation]));
-      } catch {
-      }
-    }
+    const allNoteIds = allNotes.map((n) => n.id);
+    const [resourceMetadataMap, scriptureVersionMap, threadColorsMap] = await Promise.all([
+      (async () => {
+        if (resourceNoteIds.length === 0) return {};
+        try {
+          const rm = await db.select({
+            noteId: ResourceMetadata.noteId,
+            sourceTitle: ResourceMetadata.sourceTitle,
+            sourceDescription: ResourceMetadata.sourceDescription,
+            sourceImage: ResourceMetadata.sourceImage
+          }).from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, resourceNoteIds));
+          return Object.fromEntries(rm.map((m2) => [m2.noteId, m2]));
+        } catch {
+          return {};
+        }
+      })(),
+      (async () => {
+        if (scriptureNoteIds.length === 0) return {};
+        try {
+          const sm = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+          return Object.fromEntries(sm.map((m2) => [m2.noteId, m2.translation]));
+        } catch {
+          return {};
+        }
+      })(),
+      getThreadColorsForNotesBatch(allNoteIds, auth.userId)
+    ]);
     const notesWithMetadata = allNotes.map((note) => {
       const rm = note.noteType === "resource" ? resourceMetadataMap[note.id] : null;
       const scriptureVersion = note.noteType === "scripture" ? scriptureVersionMap[note.id] || "NET" : null;
+      const threadColors = threadColorsMap.get(note.id);
       return {
         ...note,
         lastUpdated: note.lastVisited || note.updatedAt || note.createdAt,
@@ -86134,7 +86331,8 @@ route11.get("/api/spaces/items", requireAuth, async (c) => {
         resourceDescription: rm?.sourceDescription || null,
         resourceImage: rm?.sourceImage || null,
         version: scriptureVersion,
-        scriptureTranslation: scriptureVersion
+        scriptureTranslation: scriptureVersion,
+        threadColors: threadColors && threadColors.length > 0 ? threadColors : void 0
       };
     });
     const allThreadsRaw = await db.select({
@@ -86473,6 +86671,7 @@ route11.post("/api/spaces/:spaceId/remove-items", requireAuth, async (c) => {
           continue;
         }
         await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, threadId));
+        await db.update(Notes).set({ spaceId: null }).where(and(eq(Notes.threadId, threadId), eq(Notes.spaceId, spaceId)));
         removedThreads++;
       } catch (e) {
         errors.push(`Thread ${threadId}: ${e.message}`);
@@ -86726,6 +86925,7 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
       id: Notes.id,
       title: Notes.title,
       noteType: Notes.noteType,
+      content: Notes.content,
       createdAt: Notes.createdAt
     }).from(Notes).where(and(eq(Notes.spaceId, space.id), eq(Notes.contentEncrypted, false))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -86733,6 +86933,38 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
       desc(Notes.updatedAt),
       desc(Notes.createdAt)
     ).limit(10);
+    const SCRIPTURE_TRANSLATION_ATTR_RE2 = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    const extractScriptureTranslation = (content) => {
+      const m2 = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE2);
+      const v2 = m2?.[1]?.trim();
+      return v2 ? v2.toUpperCase() : void 0;
+    };
+    const scriptureNoteIds = notes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+    let scriptureVersionMap = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {});
+      } catch (_3) {
+      }
+    }
+    const notePreviews = notes.map((n) => {
+      if (n.noteType !== "scripture") {
+        return { id: n.id, title: n.title, noteType: n.noteType, createdAt: n.createdAt };
+      }
+      const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? "NET";
+      return {
+        id: n.id,
+        title: n.title,
+        noteType: n.noteType,
+        createdAt: n.createdAt,
+        version: scriptureTranslation,
+        scriptureTranslation
+      };
+    });
     let isAlreadyMember = false;
     try {
       const auth = getAuth(c);
@@ -86756,7 +86988,7 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
       owner: { displayName: ownerDisplayName, profileImageUrl: ownerMeta?.profileImageUrl || null },
       memberCount: totalMembers,
       threadPreviews,
-      notePreviews: notes,
+      notePreviews,
       isAlreadyMember
     });
   } catch (error) {
@@ -87233,6 +87465,7 @@ app.delete("/api/user/clear-data", requireAuth, async (c) => {
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
@@ -87260,6 +87493,7 @@ app.delete("/api/user/delete-account", requireAuth, async (c) => {
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
@@ -88398,6 +88632,24 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
       if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
     });
     const allNotes = Array.from(notesMap.values());
+    const SCRIPTURE_TRANSLATION_ATTR_RE2 = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
+    const extractScriptureTranslation = (content) => {
+      const m2 = content?.match(SCRIPTURE_TRANSLATION_ATTR_RE2);
+      const v2 = m2?.[1]?.trim();
+      return v2 ? v2.toUpperCase() : void 0;
+    };
+    const scriptureNoteIds = allNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+    let scriptureVersionMap = {};
+    if (scriptureNoteIds.length > 0) {
+      try {
+        const rows = await db.select({ noteId: ScriptureMetadata.noteId, translation: ScriptureMetadata.translation }).from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, scriptureNoteIds));
+        scriptureVersionMap = rows.reduce((acc, row) => {
+          if (row.noteId && row.translation) acc[row.noteId] = row.translation;
+          return acc;
+        }, {});
+      } catch (_3) {
+      }
+    }
     const creator = first(await db.select({
       firstName: UserMetadata.firstName,
       lastName: UserMetadata.lastName,
@@ -88412,7 +88664,21 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
     const displayName = firstName ? lastName ? `${firstName} ${lastInitial}.` : firstName : "A Harvous User";
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
-      notes: allNotes.map((n) => ({ id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt })),
+      notes: allNotes.map((n) => {
+        if (n.noteType !== "scripture") {
+          return { id: n.id, title: n.title, content: n.content, noteType: n.noteType, createdAt: n.createdAt };
+        }
+        const scriptureTranslation = scriptureVersionMap[n.id] ?? extractScriptureTranslation(n.content) ?? "NET";
+        return {
+          id: n.id,
+          title: n.title,
+          content: n.content,
+          noteType: n.noteType,
+          createdAt: n.createdAt,
+          version: scriptureTranslation,
+          scriptureTranslation
+        };
+      }),
       creator: { firstName, displayName, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: allNotes.length }
     });
@@ -90997,6 +91263,7 @@ var webhooks_default = app8;
 init_db2();
 init_dates();
 init_ids();
+init_unorganized_thread();
 var app9 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
@@ -91196,6 +91463,11 @@ async function processNoteThreadMutation(userId, operation, entityId, data) {
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: "Note not found" };
     await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)));
+    const remaining = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, data.noteId));
+    if (remaining.length === 0) {
+      await ensureUnorganizedThread(userId);
+      await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, data.noteId));
+    }
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };
@@ -91219,6 +91491,7 @@ async function processTagMutation(userId, operation, entityId, data) {
     await db.update(Tags).set({ name: data.name, color: data.color, category: data.category, updatedAt: nowISO() }).where(eq(Tags.id, entityId));
     return { success: true, entityId, serverId: entityId };
   } else if (operation === "delete") {
+    await db.delete(NoteTags).where(eq(NoteTags.tagId, entityId));
     await db.delete(Tags).where(and(eq(Tags.id, entityId), eq(Tags.userId, userId)));
     return { success: true, entityId, serverId: entityId };
   }
@@ -92557,6 +92830,7 @@ var getStore = (input, options) => {
 
 // server/routes/admin.ts
 init_db2();
+init_dates();
 
 // server/utils/analytics-aggregator.ts
 init_db2();
@@ -92789,6 +93063,119 @@ app11.get("/api/admin/cleanup-duplicate-scripture-refs", async (c) => {
     });
   } catch (error) {
     console.error("Error during cleanup:", error);
+    return c.json({ success: false, error: error.message || "Unknown error" }, 500);
+  }
+});
+app11.get("/api/admin/check-link-integrity", requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const dryRun = c.req.query("dryRun") === "true";
+    const report = {
+      dryRun,
+      threadLinks: {
+        missingJunctionsCreated: 0,
+        orphanJunctionsRemoved: 0,
+        details: []
+      },
+      scriptureLinks: {
+        missingJunctionsCreated: 0,
+        orphanJunctionsRemoved: 0,
+        details: []
+      }
+    };
+    const userNotes = await db.select({ id: Notes.id, threadId: Notes.threadId, content: Notes.content, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted }).from(Notes).where(eq(Notes.userId, auth.userId));
+    const userThreads = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.userId, auth.userId));
+    const threadIdSet = new Set(userThreads.map((t) => t.id));
+    const allNoteThreads = await db.select({ id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Notes, eq(Notes.id, NoteThreads.noteId)).where(eq(Notes.userId, auth.userId));
+    const noteThreadPairs = new Set(allNoteThreads.map((nt2) => `${nt2.noteId}::${nt2.threadId}`));
+    const noteIdSet = new Set(userNotes.map((n) => n.id));
+    for (const note of userNotes) {
+      if (note.threadId && note.threadId !== "thread_unorganized" && threadIdSet.has(note.threadId)) {
+        const key2 = `${note.id}::${note.threadId}`;
+        if (!noteThreadPairs.has(key2)) {
+          report.threadLinks.details.push({ type: "missing_junction_created", noteId: note.id, threadId: note.threadId });
+          if (!dryRun) {
+            const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
+            try {
+              await db.insert(NoteThreads).values({ id, noteId: note.id, threadId: note.threadId, createdAt: nowISO() });
+              report.threadLinks.missingJunctionsCreated++;
+            } catch {
+            }
+          } else {
+            report.threadLinks.missingJunctionsCreated++;
+          }
+        }
+      }
+    }
+    for (const nt2 of allNoteThreads) {
+      if (!noteIdSet.has(nt2.noteId) || !threadIdSet.has(nt2.threadId)) {
+        report.threadLinks.details.push({ type: "orphan_junction_removed", noteId: nt2.noteId, threadId: nt2.threadId });
+        if (!dryRun) {
+          await db.delete(NoteThreads).where(eq(NoteThreads.id, nt2.id));
+        }
+        report.threadLinks.orphanJunctionsRemoved++;
+      }
+    }
+    const allScriptureRefs = await db.select({ id: NoteScriptureReferences.id, noteId: NoteScriptureReferences.noteId, scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.noteId)).where(eq(Notes.userId, auth.userId));
+    const existingScriptureRefPairs = new Set(allScriptureRefs.map((r) => `${r.noteId}::${r.scriptureNoteId}`));
+    const allScriptureRefsAsScripture = await db.select({ id: NoteScriptureReferences.id, noteId: NoteScriptureReferences.noteId, scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.scriptureNoteId)).where(eq(Notes.userId, auth.userId));
+    const allScriptureRefsCombined = [...allScriptureRefs];
+    const seenRefIds = new Set(allScriptureRefs.map((r) => r.id));
+    for (const r of allScriptureRefsAsScripture) {
+      if (!seenRefIds.has(r.id)) {
+        allScriptureRefsCombined.push(r);
+        seenRefIds.add(r.id);
+      }
+    }
+    const dataNoteidRegex = /data-note-id="([^"]+)"/g;
+    const scriptureNoteIds = new Set(userNotes.filter((n) => n.noteType === "scripture").map((n) => n.id));
+    for (const note of userNotes) {
+      if (note.contentEncrypted || !note.content || note.noteType === "scripture") continue;
+      let match3;
+      dataNoteidRegex.lastIndex = 0;
+      const referencedIds = /* @__PURE__ */ new Set();
+      while ((match3 = dataNoteidRegex.exec(note.content)) !== null) {
+        const refId = match3[1];
+        if (refId && refId !== "pending" && scriptureNoteIds.has(refId)) {
+          referencedIds.add(refId);
+        }
+      }
+      for (const scriptureNoteId of referencedIds) {
+        const key2 = `${note.id}::${scriptureNoteId}`;
+        if (!existingScriptureRefPairs.has(key2)) {
+          report.scriptureLinks.details.push({ type: "missing_junction_created", noteId: note.id, scriptureNoteId });
+          if (!dryRun) {
+            const id = `note-scripture-heal-${note.id}-${scriptureNoteId}-${Date.now()}`;
+            try {
+              await db.insert(NoteScriptureReferences).values({ id, noteId: note.id, scriptureNoteId, createdAt: nowISO() });
+              report.scriptureLinks.missingJunctionsCreated++;
+            } catch {
+            }
+          } else {
+            report.scriptureLinks.missingJunctionsCreated++;
+          }
+          existingScriptureRefPairs.add(key2);
+        }
+      }
+    }
+    for (const ref of allScriptureRefsCombined) {
+      if (!noteIdSet.has(ref.noteId) || !noteIdSet.has(ref.scriptureNoteId)) {
+        report.scriptureLinks.details.push({ type: "orphan_junction_removed", noteId: ref.noteId, scriptureNoteId: ref.scriptureNoteId });
+        if (!dryRun) {
+          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, ref.id));
+        }
+        report.scriptureLinks.orphanJunctionsRemoved++;
+      }
+    }
+    const totalFixed = report.threadLinks.missingJunctionsCreated + report.threadLinks.orphanJunctionsRemoved + report.scriptureLinks.missingJunctionsCreated + report.scriptureLinks.orphanJunctionsRemoved;
+    return c.json({
+      success: true,
+      dryRun,
+      message: totalFixed === 0 ? "All links are healthy. No repairs needed." : dryRun ? `Found ${totalFixed} issues. Run without ?dryRun=true to fix.` : `Repaired ${totalFixed} link issues.`,
+      report
+    });
+  } catch (error) {
+    console.error("Error checking link integrity:", error);
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });

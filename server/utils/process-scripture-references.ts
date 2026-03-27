@@ -3,7 +3,7 @@
  * Can be called directly from API routes or other server-side code
  */
 
-import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
+import { db, first, Notes, UserMetadata, NoteThreads, ScriptureMetadata, NoteScriptureReferences, NoteTags, Comments, Threads, eq, and, desc, isNotNull, count, ne } from '../db';
 import { getEffectiveHighestSimpleNoteId } from './highest-simple-note-id';
 import { detectScriptureReferences, normalizeScriptureReference, parseScriptureReference } from '@/utils/scripture-detector';
 import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
@@ -19,6 +19,68 @@ export interface ProcessingResult {
   reference: string;
 }
 
+async function resolveParentThreadIds(
+  noteId: string,
+  threadId: string | string[] | undefined,
+  note: { threadId: string | null },
+): Promise<string[]> {
+  if (threadId !== undefined) {
+    const arr = Array.isArray(threadId) ? threadId : [threadId];
+    const out = new Set<string>();
+    for (const t of arr) {
+      if (t && t.trim() && t !== 'thread_unorganized' && !t.startsWith('thread_onboarding_')) {
+        out.add(t);
+      }
+    }
+    return [...out];
+  }
+  const ids = new Set<string>();
+  const rels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+  for (const r of rels) {
+    if (r.threadId && r.threadId !== 'thread_unorganized' && !r.threadId.startsWith('thread_onboarding_')) {
+      ids.add(r.threadId);
+    }
+  }
+  if (note.threadId && note.threadId !== 'thread_unorganized' && !note.threadId.startsWith('thread_onboarding_')) {
+    ids.add(note.threadId);
+  }
+  return [...ids];
+}
+
+/** Adds a scripture note to every parent thread (NoteThreads + Notes.threadId when leaving unorganized). */
+async function addScriptureNoteToParentThreads(scriptureNoteId: string, parentThreadIds: string[], userId: string): Promise<void> {
+  const filtered = parentThreadIds.filter((t) => t && t !== 'thread_unorganized' && !t.startsWith('thread_onboarding_'));
+  if (filtered.length === 0) return;
+
+  const scriptureNote = first(await db.select().from(Notes).where(eq(Notes.id, scriptureNoteId)).limit(1));
+  if (!scriptureNote) return;
+
+  const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
+  const existingSet = new Set(existingRels.map((r) => r.threadId));
+  const needsPrimary = existingRels.length === 0 || scriptureNote.threadId === 'thread_unorganized';
+  let primaryUpdated = false;
+
+  for (const tid of filtered) {
+    if (existingSet.has(tid)) continue;
+    try {
+      await db.insert(NoteThreads).values({
+        id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        noteId: scriptureNoteId,
+        threadId: tid,
+        createdAt: new Date(),
+      });
+      existingSet.add(tid);
+      if (needsPrimary && !primaryUpdated) {
+        await db.update(Notes).set({ threadId: tid }).where(eq(Notes.id, scriptureNoteId));
+        primaryUpdated = true;
+      }
+      await db.update(Threads).set({ updatedAt: new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+    } catch {
+      // ignore duplicate / race
+    }
+  }
+}
+
 // Per-user mutex: serializes concurrent processScriptureReferences calls for the same user
 // to prevent race conditions where two calls both see "no existing scripture" and create duplicates.
 const userProcessingQueue = new Map<string, Promise<any>>();
@@ -26,7 +88,7 @@ const userProcessingQueue = new Map<string, Promise<any>>();
 export async function processScriptureReferences(
   noteId: string,
   userId: string,
-  threadId?: string,
+  threadId?: string | string[],
   contentOverride?: string,
   translation: string = 'NET'
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
@@ -48,7 +110,7 @@ export async function processScriptureReferences(
 async function processScriptureReferencesInternal(
   noteId: string,
   userId: string,
-  threadId?: string,
+  threadId?: string | string[],
   contentOverride?: string, // Optional: use this content instead of reading from DB
   translation: string = 'NET'
 ): Promise<{ results: ProcessingResult[]; updatedContent: string }> {
@@ -66,20 +128,8 @@ async function processScriptureReferencesInternal(
   // Use let instead of const so we can update it when fixing pasted pill noteIds
   let noteContent = contentOverride || note.content;
 
-  // Determine the actual thread ID (use provided threadId or check NoteThreads)
-  let actualThreadId = threadId || 'thread_unorganized';
-
-  if (!threadId) {
-    // Check if note is in a specific thread via junction table
-    const threadRelation = first(await db.select()
-      .from(NoteThreads)
-      .where(eq(NoteThreads.noteId, noteId))
-      .limit(1));
-
-    if (threadRelation) {
-      actualThreadId = threadRelation.threadId;
-    }
-  }
+  // All threads the parent note belongs to (explicit param, or every NoteThreads row + Notes.threadId)
+  const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
 
   // Extract existing scripture references from the content (already processed)
   // This helps us track which references were already in the note
@@ -384,10 +434,12 @@ async function processScriptureReferencesInternal(
             }
           }
 
-          // Delete duplicate ScriptureMetadata and Notes rows
+          // Delete duplicate note and all associated data
           await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
-          // Also clean up NoteThreads for the duplicate
           await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
+          await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
+          await db.delete(Comments).where(eq(Comments.noteId, dupeId));
+          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
           await db.delete(Notes).where(eq(Notes.id, dupeId));
         }
 
@@ -601,20 +653,8 @@ async function processScriptureReferencesInternal(
             console.error('Auto-tagging failed for scripture note (non-critical):', error);
           }
 
-          // If not unorganized, add to thread
-          if (actualThreadId !== 'thread_unorganized') {
-            try {
-              await db.insert(NoteThreads).values({
-                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                noteId: scriptureNote.id,
-                threadId: actualThreadId,
-                createdAt: new Date()
-              });
-              await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, scriptureNote.id));
-            } catch (error) {
-              // Ignore if already exists
-            }
-          }
+          // Add new scripture note to every parent thread
+          await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);
 
           referenceMap.set(reference, scriptureNote.id);
           normalizedScriptureMap.set(normalizedReference, { noteId: scriptureNote.id, reference: normalizedReference });
@@ -672,23 +712,6 @@ async function processScriptureReferencesInternal(
           }
         }
 
-        // Check if in thread
-        let inThread = false;
-        if (actualThreadId) {
-          const threadRelation = first(await db.select()
-            .from(NoteThreads)
-            .where(
-              and(
-                eq(NoteThreads.noteId, existingNoteId),
-                eq(NoteThreads.threadId, actualThreadId)
-              )
-            )
-            .limit(1));
-
-          inThread = !!threadRelation;
-        }
-
-        // Check if in unorganized
         const threadCount = first(await db.select({ count: count() })
           .from(NoteThreads)
           .where(eq(NoteThreads.noteId, existingNoteId))
@@ -696,53 +719,46 @@ async function processScriptureReferencesInternal(
 
         const inUnorganized = !threadCount || threadCount.count === 0;
 
-        if (inThread) {
-          // Already in thread - skip
+        if (parentThreadIds.length === 0) {
           results.push({
-            action: 'skipped',
+            action: 'unorganized',
             noteId: existingNoteId,
             reference
           });
-        } else if (actualThreadId !== 'thread_unorganized') {
-          // Target is a specific thread - add the scripture note to it
-          // This handles both: notes in unorganized and notes in other threads
-          try {
-            await db.insert(NoteThreads).values({
-              id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              noteId: existingNoteId,
-              threadId: actualThreadId,
-              createdAt: new Date()
-            });
-
-            // If note was in unorganized, update the legacy threadId field to remove it from unorganized
-            if (inUnorganized) {
-              await db.update(Notes)
-                .set({ threadId: actualThreadId })
-                .where(eq(Notes.id, existingNoteId));
-            }
-
-            // Update the target thread's timestamp
-            await db.update(Threads)
-              .set({ updatedAt: new Date() })
-              .where(and(eq(Threads.id, actualThreadId), eq(Threads.userId, userId)));
-
-            results.push({
-              action: 'added',
-              noteId: existingNoteId,
-              reference
-            });
-          } catch (error) {
-            // Already exists - skip
-            results.push({
-              action: 'skipped',
-              noteId: existingNoteId,
-              reference
-            });
-          }
         } else {
-          // Target thread is unorganized - don't add, just mark as unorganized
+          const existingRels = await db.select({ threadId: NoteThreads.threadId })
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, existingNoteId));
+          const existingSet = new Set(existingRels.map((r) => r.threadId));
+
+          let addedAny = false;
+          for (const tid of parentThreadIds) {
+            if (existingSet.has(tid)) continue;
+            try {
+              await db.insert(NoteThreads).values({
+                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                noteId: existingNoteId,
+                threadId: tid,
+                createdAt: new Date()
+              });
+              existingSet.add(tid);
+              addedAny = true;
+              await db.update(Threads)
+                .set({ updatedAt: new Date() })
+                .where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+            } catch {
+              // duplicate — ignore
+            }
+          }
+
+          if (addedAny && inUnorganized) {
+            await db.update(Notes)
+              .set({ threadId: parentThreadIds[0] })
+              .where(eq(Notes.id, existingNoteId));
+          }
+
           results.push({
-            action: 'unorganized',
+            action: addedAny ? 'added' : 'skipped',
             noteId: existingNoteId,
             reference
           });
@@ -1043,20 +1059,7 @@ async function processScriptureReferencesInternal(
               `data-note-id="${newScriptureNote.id}"`
             );
 
-            // Add new scripture note to parent's thread (same as main creation path)
-            if (actualThreadId !== 'thread_unorganized') {
-              try {
-                await db.insert(NoteThreads).values({
-                  id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  noteId: newScriptureNote.id,
-                  threadId: actualThreadId,
-                  createdAt: new Date()
-                });
-                await db.update(Notes).set({ threadId: actualThreadId }).where(eq(Notes.id, newScriptureNote.id));
-              } catch (error) {
-                // Ignore if already exists
-              }
-            }
+            await addScriptureNoteToParentThreads(newScriptureNote.id, parentThreadIds, userId);
 
             // Add to normalizedScriptureMap so subsequent pasted pills reuse this note
             normalizedScriptureMap.set(normalizedRef, { noteId: newScriptureNote.id, reference: normalizedRef });
@@ -1097,6 +1100,34 @@ async function processScriptureReferencesInternal(
         console.error(`[processScriptureReferences] Failed to create junction for pill (noteId=${noteId}, scriptureNoteId=${scriptureNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
       }
     }
+  }
+
+  // Prune stale NoteScriptureReferences (pills removed from content)
+  // Collect all scripture note IDs that are still present in the final content
+  const presentScriptureNoteIds = new Set<string>();
+  for (const noteId of referenceMap.values()) {
+    if (noteId) presentScriptureNoteIds.add(noteId);
+  }
+  for (const noteId of existingReferences.values()) {
+    if (noteId) presentScriptureNoteIds.add(noteId);
+  }
+  for (const noteId of allExistingPills.keys()) {
+    if (noteId) presentScriptureNoteIds.add(noteId);
+  }
+
+  // Query existing junctions and delete any whose scriptureNoteId is not present
+  try {
+    const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+      .from(NoteScriptureReferences)
+      .where(eq(NoteScriptureReferences.noteId, noteId));
+    
+    for (const junction of existingJunctions) {
+      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
+        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+      }
+    }
+  } catch (pruneError: any) {
+    console.error('[processScriptureReferences] Failed to prune stale references (non-critical):', pruneError?.message ?? pruneError);
   }
 
   const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);

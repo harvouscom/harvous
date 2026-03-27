@@ -105,6 +105,22 @@ export async function removeScriptureNotesFromThread(
                     }
                   }
                 }
+              } else if (scriptureNote.threadId === threadId) {
+                // If removed thread was the primary, update to next remaining thread
+                let updateRetries = 3;
+                while (updateRetries > 0) {
+                  try {
+                    await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
+                    break;
+                  } catch (updateError: any) {
+                    if (updateError.message?.includes('SQLITE_BUSY') || updateError.message?.includes('database is locked')) {
+                      updateRetries--;
+                      if (updateRetries > 0) await sleep(50 * (4 - updateRetries));
+                    } else {
+                      throw updateError;
+                    }
+                  }
+                }
               }
             } catch (deleteError: any) {
               if (deleteError.message?.includes('SQLITE_BUSY') || deleteError.message?.includes('database is locked')) {

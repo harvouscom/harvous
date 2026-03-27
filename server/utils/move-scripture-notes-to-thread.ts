@@ -15,8 +15,6 @@ export async function moveScriptureNotesToThread(
 ): Promise<void> {
   if (threadId === 'thread_unorganized') return;
 
-  await sleep(1000);
-
   try {
     try {
       first(await db.select().from(NoteScriptureReferences).limit(1));

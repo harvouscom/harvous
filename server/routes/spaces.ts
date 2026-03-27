@@ -600,6 +600,8 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
         if (!thread) { errors.push(`Thread ${threadId} not found in space`); continue; }
         if (!isOwner && thread.userId !== auth.userId) { errors.push(`Thread ${threadId}: no permission`); continue; }
         await db.update(Threads).set({ spaceId: null }).where(eq(Threads.id, threadId));
+        // Also null Notes.spaceId for notes in this thread that belong to this space
+        await db.update(Notes).set({ spaceId: null }).where(and(eq(Notes.threadId, threadId), eq(Notes.spaceId, spaceId)));
         removedThreads++;
       } catch (e: any) { errors.push(`Thread ${threadId}: ${e.message}`); }
     }
