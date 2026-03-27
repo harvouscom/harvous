@@ -161,16 +161,18 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   if (syncError || failedCount > 0) {
     background = 'linear-gradient(168.707deg, rgba(239, 68, 68, 1.0) 11.711%, rgb(220, 38, 38) 71.325%)';
   } else if (showSyncSuccess) {
-    background = 'linear-gradient(168.707deg, rgba(34, 197, 94, 1.0) 11.711%, rgb(22, 163, 74) 71.325%)';
+    background = 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)';
   } else {
     background = 'linear-gradient(168.707deg, rgba(245, 158, 11, 1.0) 11.711%, rgb(217, 119, 6) 71.325%)';
   }
+
+  const textColor = showSyncSuccess ? 'var(--color-deep-grey)' : 'white';
 
   // Base styles matching ToastProvider
   const baseStyle: React.CSSProperties = {
     backgroundColor: 'rgb(255, 255, 255)',
     background,
-    color: 'white',
+    color: textColor,
     fontFamily: '"Reddit Sans", system-ui, -apple-system, sans-serif',
     fontSize: '16px',
     fontWeight: '600',
@@ -270,10 +272,10 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   return (
     <div className="offline-indicator" style={indicatorStyle}>
       {showSyncSuccess ? (
-        <>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-bold-blue)' }}>
           <Icon name="check" size={16} />
           <span>All items synced</span>
-        </>
+        </span>
       ) : syncError ? (
         <>
           <Icon name="circle-exclamation" size={16} />
