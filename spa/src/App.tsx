@@ -111,7 +111,8 @@ const windowToast = {
   },
 };
 
-/** Set .ios-pwa on documentElement when running as PWA on iOS so overlay starts below status bar only there. */
+/** Set .ios-pwa on documentElement and measure the real safe-area-inset-top via JS
+ *  so overlays can use var(--safe-area-top) instead of unreliable env(). */
 function IosPwaClass() {
   useEffect(() => {
     const isPwa =
@@ -123,7 +124,25 @@ function IosPwaClass() {
       /iPhone|iPad|iPod/.test(navigator.userAgent);
     if (isPwa && isIos) {
       document.documentElement.classList.add('ios-pwa');
-      return () => document.documentElement.classList.remove('ios-pwa');
+
+      const probe = document.createElement('div');
+      probe.style.cssText =
+        'position:fixed;top:env(safe-area-inset-top,0px);left:0;width:0;height:0;visibility:hidden;pointer-events:none';
+      document.documentElement.appendChild(probe);
+      let sat = probe.getBoundingClientRect().top;
+      document.documentElement.removeChild(probe);
+
+      if (sat <= 0) {
+        const h = window.screen.height;
+        sat = h >= 852 ? 59 : h >= 812 ? 47 : 20;
+      }
+
+      document.documentElement.style.setProperty('--safe-area-top', `${sat}px`);
+
+      return () => {
+        document.documentElement.classList.remove('ios-pwa');
+        document.documentElement.style.removeProperty('--safe-area-top');
+      };
     }
   }, []);
   return null;
@@ -427,7 +446,7 @@ function SpaToaster() {
         /* ── PWA install instructions modal ── */
         .pwa-install-modal-overlay {
           position: fixed;
-          top: env(safe-area-inset-top, 0px);
+          top: var(--safe-area-top, env(safe-area-inset-top, 0px));
           right: 0;
           bottom: 0;
           left: 0;

@@ -529,8 +529,8 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             )}
             <div
               ref={scrollContainerRef}
-              className="flex-stack px-3 pb-3 max-h-[200px] scroll-y" style={{ gap: '0.5rem' }}
-              style={{ touchAction: 'pan-y' }}
+              className="flex-stack px-3 pb-3 max-h-[200px] scroll-y"
+              style={{ gap: '0.5rem', touchAction: 'pan-y' }}
             >
               <style>{`
                 @keyframes fadeIn {

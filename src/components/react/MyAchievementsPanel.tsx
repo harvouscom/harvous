@@ -82,7 +82,7 @@ export default function MyAchievementsPanel({
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       {/* Content area - expands on mobile, fits content on desktop */}
-      <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0 }} style={{ position: 'relative' }}>
+      <div className={inBottomSheet ? "flex-fill flex-stack" : "flex-stack"} style={{ gap: 0, position: 'relative' }}>
         {/* Panel container */}
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           {/* Header section */}

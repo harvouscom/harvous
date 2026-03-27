@@ -1448,11 +1448,8 @@ export default function EditSpacePanel({
                 {/* Only show when at invisible people cap (no number shown) */}
                 {!isLoadingMembers && isOwner && memberLimit != null && memberCount >= memberLimit && (
                   <div
-                    className="bg-white rounded-xl p-3 flex-row" style={{ gap: "0.75rem" }}
-                    style={{
-                      border: '1px solid',
-                      borderColor: 'var(--color-red, #dc2626)'
-                    }}
+                    className="bg-white rounded-xl p-3 flex-row"
+                    style={{ gap: "0.75rem", border: '1px solid', borderColor: 'var(--color-red, #dc2626)' }}
                   >
                     <Icon
                       name="user-group"
@@ -1503,7 +1500,7 @@ export default function EditSpacePanel({
                 {activeTab === 'added' && (
                   <div className="w-full shrink-0 mb-3">
                     {!isLoadingCurrentItems && (currentSpaceNotes.length > 0 || currentSpaceThreads.length > 0) ? (
-                      <div className="flex-stack" style={{ gap: "0.5rem" }} style={{ paddingBottom: '12px' }}>
+                      <div className="flex-stack" style={{ gap: "0.5rem", paddingBottom: '12px' }}>
                         {/* Current Threads */}
                         {currentSpaceThreads.map(thread => (
                           <div key={thread.id} className="relative group">
