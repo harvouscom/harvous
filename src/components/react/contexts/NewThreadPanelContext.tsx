@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, use, useState, useEffect, useCallback } from 'react';
 import type { ThreadColor } from '@/utils/colors';
 
 interface Note {
@@ -113,14 +113,14 @@ export const NewThreadPanelProvider: React.FC<{ children: React.ReactNode }> = (
   };
   
   return (
-    <NewThreadPanelContext.Provider value={value}>
+    <NewThreadPanelContext value={value}>
       {children}
-    </NewThreadPanelContext.Provider>
+    </NewThreadPanelContext>
   );
 };
 
 export const useNewThreadPanelContext = () => {
-  const context = useContext(NewThreadPanelContext);
+  const context = use(NewThreadPanelContext);
   if (context === undefined) {
     throw new Error('useNewThreadPanelContext must be used within a NewThreadPanelProvider');
   }

@@ -31,6 +31,10 @@ export default function SignInPage() {
   const params = new URLSearchParams(window.location.search);
   const redirectUrl = params.get('redirect_url') ?? '/dashboard';
 
+  if (!isLoaded || isSignedIn) {
+    return null;
+  }
+
   return (
     <div id="sign-in-content" className="auth-page">
       <div className="auth-page__container">

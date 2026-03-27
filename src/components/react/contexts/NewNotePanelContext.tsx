@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, use, useState, useEffect, useRef, useCallback } from 'react';
 import { getTemplateById } from '@/data/note-templates';
 import { getCachedProfileData } from '@/utils/profile-cache';
 
@@ -426,14 +426,14 @@ export const NewNotePanelProvider: React.FC<{ children: React.ReactNode }> = ({ 
   };
   
   return (
-    <NewNotePanelContext.Provider value={value}>
+    <NewNotePanelContext value={value}>
       {children}
-    </NewNotePanelContext.Provider>
+    </NewNotePanelContext>
   );
 };
 
 export const useNewNotePanelContext = () => {
-  const context = useContext(NewNotePanelContext);
+  const context = use(NewNotePanelContext);
   if (context === undefined) {
     throw new Error('useNewNotePanelContext must be used within a NewNotePanelProvider');
   }

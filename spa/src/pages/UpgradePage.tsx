@@ -21,7 +21,6 @@ export default function UpgradePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    document.title = 'Upgrade | Harvous';
     sonnerToast.dismiss();
     Promise.all([
       api.get<{ hasUnlimited: boolean; currentCount: number; limit: number }>('/api/subscription/status'),
@@ -38,6 +37,8 @@ export default function UpgradePage() {
   }, []);
 
   return (
+    <>
+      <title>Upgrade | Harvous</title>
     <div className="auth-page">
       <div className="auth-page__container">
         {/* Left Column: Animated Mesh Gradient Background */}
@@ -70,5 +71,6 @@ export default function UpgradePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

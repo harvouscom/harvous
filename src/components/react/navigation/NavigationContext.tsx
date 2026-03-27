@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { createContext, use, useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
@@ -2107,15 +2107,15 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const contextValue = typeof window === 'undefined' ? defaultContextValue : value;
 
   return (
-    <NavigationContext.Provider value={contextValue}>
+    <NavigationContext value={contextValue}>
       {children}
-    </NavigationContext.Provider>
+    </NavigationContext>
   );
 };
 
 // Hook to use navigation context
 export const useNavigation = () => {
-  const context = useContext(NavigationContext);
+  const context = use(NavigationContext);
   
   // During SSR, return default context value
   if (typeof window === 'undefined') {

@@ -48,6 +48,23 @@ export default function AppLayout() {
         })()
       : '';
 
+  // ?thread= on note routes — which thread context the user opened from (notes can be in multiple threads).
+  const threadFromSearch: string | null = (() => {
+    const raw = searchRaw;
+    if (raw && typeof raw === 'object' && raw !== null) {
+      const t = (raw as Record<string, unknown>).thread;
+      if (typeof t === 'string' && t.startsWith('thread_')) return t;
+    }
+    if (typeof raw === 'string' && raw.length > 0) {
+      try {
+        const q = raw.startsWith('?') ? raw.slice(1) : raw;
+        const t = new URLSearchParams(q).get('thread');
+        if (t?.startsWith('thread_')) return t;
+      } catch { /* ignore */ }
+    }
+    return null;
+  })();
+
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
   // Run nav as soon as user is signed in (parallel with profile). Server is hardened so onboarding init is safe when multiple requests run.
   const { data: nav } = useNavigation({
@@ -81,9 +98,19 @@ export default function AppLayout() {
   const { data: currentThread } = useThread(threadIdForHook);
   const { data: currentSpaceDetail } = useSpace(spaceIdForHook);
 
-  // For note pages, parent thread id (for nav highlight and for add-note permission)
-  const noteParentThreadId = currentNote?.threads?.[0]?.id
-    ?? (isNoteEarly ? getCachedNoteParentThreadId(noteIdForHook) : null);
+  // For note pages, parent thread id (for nav highlight and for add-note permission).
+  // Prefer ?thread= when it matches a membership; while note is loading, trust URL for prefetch.
+  const noteParentThreadId = (() => {
+    if (!isNoteEarly) return null;
+    const fromUrl = threadFromSearch;
+    const threads = currentNote?.threads;
+    if (threads?.length) {
+      if (fromUrl && threads.some((th) => th.id === fromUrl)) return fromUrl;
+      return threads[0]?.id ?? null;
+    }
+    if (fromUrl) return fromUrl;
+    return getCachedNoteParentThreadId(noteIdForHook);
+  })();
   const { data: parentThreadData } = useThread(noteParentThreadId ?? '');
 
   // Redirect to sign-in if not authenticated
@@ -288,6 +315,16 @@ export default function AppLayout() {
   const memberOfSpaceIds = (nav?.memberOfSpaces ?? []).map(s => s.id);
   const ownedSpaceIds = (nav?.spaces ?? []).map(s => s.id);
 
+  // Match ?thread= to note.membership when a note is in multiple threads (same resolution as NotePage).
+  const resolvedNoteParentThread = (() => {
+    const threads = currentNote?.threads;
+    if (!threads?.length) return undefined;
+    if (threadFromSearch && threads.some((th) => th.id === threadFromSearch)) {
+      return threads.find((th) => th.id === threadFromSearch);
+    }
+    return threads[0];
+  })();
+
   // nav threads have full IDs like "thread_abc123"; match using normalized currentId
   const activeThreadFromNav = isThread
     ? (nav?.threads.find(t => t.id === currentId) ?? null)
@@ -312,7 +349,7 @@ export default function AppLayout() {
       if (isThread && currentThread?.backgroundGradient) {
         return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
       }
-      const noteParent = currentNote?.threads?.[0];
+      const noteParent = resolvedNoteParentThread;
       if (isNote && noteParent) {
         const parentWithCount = noteParent as { count?: number; spaceId?: string | null };
         // Only use noteParent values if they're meaningful (not defaults from seeded cache).
@@ -342,7 +379,7 @@ export default function AppLayout() {
     }
     // For note pages: prefer parentThreadData (from useThread, has correct data once loaded)
     // over noteParent (from seeded cache, may have fallback title/gradient).
-    const noteParent = currentNote?.threads?.[0];
+    const noteParent = resolvedNoteParentThread;
     const noteParentHasRealData = noteParent?.title && !DEFAULT_TITLES.has(noteParent.title);
     const parentData = noteParentHasRealData ? noteParent : (parentThreadData ?? noteParent);
     if (isNote && parentData?.id) {

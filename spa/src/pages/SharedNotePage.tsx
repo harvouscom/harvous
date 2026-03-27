@@ -51,12 +51,6 @@ export default function SharedNotePage() {
       .finally(() => setIsLoading(false));
   }, [shareToken]);
 
-  useEffect(() => {
-    if (data?.note) {
-      document.title = `${data.note.title || 'Shared Note'} | Shared Note`;
-    }
-  }, [data]);
-
   // Check for pending action after sign-in redirect
   useEffect(() => {
     if (!isSignedIn || !data) return;
@@ -140,6 +134,8 @@ export default function SharedNotePage() {
   const resourceMetadata = data?.resourceMetadata;
 
   return (
+    <>
+      {data?.note && <title>{`${data.note.title || 'Shared Note'} | Shared Note`}</title>}
     <div id="shared-note-content" className="auth-page">
       <div className="auth-page__container">
         {/* Left Column: Animated Mesh Gradient Background */}
@@ -240,5 +236,6 @@ export default function SharedNotePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

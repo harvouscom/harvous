@@ -29,7 +29,7 @@ import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
   UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
-  eq, and, desc, asc, isNotNull, isNull, sql, inArray,
+  eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
 
@@ -123,6 +123,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
@@ -158,6 +159,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     if (noteIds.length > 0) {
       for (const noteId of noteIds) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
         await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
         await db.delete(Comments).where(eq(Comments.noteId, noteId));
         await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));

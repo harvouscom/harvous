@@ -30,6 +30,7 @@ import { awardNewSeasonBonus } from '../utils/xp-system';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { handleAPIError } from '@/utils/error-handling';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
+import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference } from '@/utils/scripture-detector';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 
@@ -260,6 +261,11 @@ async function processNoteThreadMutation(userId: string, operation: string, enti
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, data.noteId), eq(Notes.userId, userId))).limit(1));
     if (!note) return { success: false, error: 'Note not found' };
     await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, data.noteId), eq(NoteThreads.threadId, data.threadId)));
+    const remaining = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, data.noteId));
+    if (remaining.length === 0) {
+      await ensureUnorganizedThread(userId);
+      await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, data.noteId));
+    }
     return { success: true, entityId, serverId: entityId };
   }
   return { success: false, error: `Unknown operation: ${operation}` };

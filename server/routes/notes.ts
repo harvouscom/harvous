@@ -467,6 +467,11 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
 
+    await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+    await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
+    await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+    await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
+    await db.delete(Comments).where(eq(Comments.noteId, noteId));
     await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
 
     // Strip note links (non-critical)
@@ -641,7 +646,21 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
   try {
     const auth = getAuthenticatedAuth(c);
 
-    await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
+    const unorgNotes = await db.select({ id: Notes.id }).from(Notes)
+      .where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
+    const noteIds = unorgNotes.map(n => n.id);
+
+    if (noteIds.length > 0) {
+      for (const nid of noteIds) {
+        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, nid));
+        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, nid), eq(NoteScriptureReferences.scriptureNoteId, nid)));
+        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, nid));
+        await db.delete(NoteTags).where(eq(NoteTags.noteId, nid));
+        await db.delete(Comments).where(eq(Comments.noteId, nid));
+      }
+      await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, 'thread_unorganized')));
+    }
+
     return c.json({ success: true, message: 'All notes deleted from unorganized thread' });
   } catch (error) {
     console.error('Error deleting unorganized thread notes:', error);

@@ -53,12 +53,6 @@ export default function SharedThreadPage() {
       .finally(() => setIsLoading(false));
   }, [shareToken]);
 
-  useEffect(() => {
-    if (data?.thread) {
-      document.title = `${data.thread.title || 'Shared Thread'} | Shared Thread`;
-    }
-  }, [data]);
-
   // Check for pending action after sign-in redirect
   useEffect(() => {
     if (!isSignedIn || !data) return;
@@ -142,6 +136,8 @@ export default function SharedThreadPage() {
   const threadColor = thread?.color || 'blue';
 
   return (
+    <>
+      {data?.thread && <title>{`${data.thread.title || 'Shared Thread'} | Shared Thread`}</title>}
     <div id="shared-thread-content" className="auth-page">
       <div className="auth-page__container">
         {/* Left Column: Animated Mesh Gradient Background */}
@@ -265,5 +261,6 @@ export default function SharedThreadPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

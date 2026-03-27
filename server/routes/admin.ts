@@ -7,6 +7,7 @@
  *   POST /api/admin/backup-exports
  *   GET  /api/admin/cleanup-duplicate-note-threads
  *   GET  /api/admin/cleanup-duplicate-scripture-refs
+ *   GET  /api/admin/check-link-integrity
  *   GET  /api/admin/debug-thread-counts
  *   GET  /api/admin/list-threads
  */
@@ -25,6 +26,7 @@ import {
   eq,
   and,
 } from '../db';
+import { nowISO } from '../db/dates';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '../utils/analytics-aggregator';
 import { generateUserExport } from '../utils/export-user-data';
 
@@ -234,6 +236,166 @@ app.get('/api/admin/cleanup-duplicate-scripture-refs', async (c) => {
     });
   } catch (error: any) {
     console.error('Error during cleanup:', error);
+    return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
+  }
+});
+
+// ─── GET /api/admin/check-link-integrity ──────────────────────────────
+
+app.get('/api/admin/check-link-integrity', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+    const dryRun = c.req.query('dryRun') === 'true';
+
+    const report = {
+      dryRun,
+      threadLinks: {
+        missingJunctionsCreated: 0,
+        orphanJunctionsRemoved: 0,
+        details: [] as Array<{ type: string; noteId: string; threadId: string }>,
+      },
+      scriptureLinks: {
+        missingJunctionsCreated: 0,
+        orphanJunctionsRemoved: 0,
+        details: [] as Array<{ type: string; noteId: string; scriptureNoteId: string }>,
+      },
+    };
+
+    // ── Thread link repairs ──────────────────────────────────────────────
+
+    // 1. Notes with a real threadId but no matching NoteThreads row
+    const userNotes = await db.select({ id: Notes.id, threadId: Notes.threadId, content: Notes.content, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted })
+      .from(Notes).where(eq(Notes.userId, auth.userId));
+
+    const userThreads = await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.userId, auth.userId));
+    const threadIdSet = new Set(userThreads.map(t => t.id));
+
+    const allNoteThreads = await db.select({ id: NoteThreads.id, noteId: NoteThreads.noteId, threadId: NoteThreads.threadId })
+      .from(NoteThreads)
+      .innerJoin(Notes, eq(Notes.id, NoteThreads.noteId))
+      .where(eq(Notes.userId, auth.userId));
+
+    const noteThreadPairs = new Set(allNoteThreads.map(nt => `${nt.noteId}::${nt.threadId}`));
+    const noteIdSet = new Set(userNotes.map(n => n.id));
+
+    for (const note of userNotes) {
+      if (note.threadId && note.threadId !== 'thread_unorganized' && threadIdSet.has(note.threadId)) {
+        const key = `${note.id}::${note.threadId}`;
+        if (!noteThreadPairs.has(key)) {
+          report.threadLinks.details.push({ type: 'missing_junction_created', noteId: note.id, threadId: note.threadId });
+          if (!dryRun) {
+            const id = `nt-heal-${note.id}-${note.threadId}-${Date.now()}`;
+            try {
+              await db.insert(NoteThreads).values({ id, noteId: note.id, threadId: note.threadId, createdAt: nowISO() });
+              report.threadLinks.missingJunctionsCreated++;
+            } catch {
+              // unique constraint = already exists, skip
+            }
+          } else {
+            report.threadLinks.missingJunctionsCreated++;
+          }
+        }
+      }
+    }
+
+    // 2. NoteThreads rows pointing to deleted notes or threads
+    for (const nt of allNoteThreads) {
+      if (!noteIdSet.has(nt.noteId) || !threadIdSet.has(nt.threadId)) {
+        report.threadLinks.details.push({ type: 'orphan_junction_removed', noteId: nt.noteId, threadId: nt.threadId });
+        if (!dryRun) {
+          await db.delete(NoteThreads).where(eq(NoteThreads.id, nt.id));
+        }
+        report.threadLinks.orphanJunctionsRemoved++;
+      }
+    }
+
+    // ── Scripture link repairs ────────────────────────────────────────────
+
+    const allScriptureRefs = await db.select({ id: NoteScriptureReferences.id, noteId: NoteScriptureReferences.noteId, scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+      .from(NoteScriptureReferences)
+      .innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.noteId))
+      .where(eq(Notes.userId, auth.userId));
+
+    const existingScriptureRefPairs = new Set(allScriptureRefs.map(r => `${r.noteId}::${r.scriptureNoteId}`));
+
+    // Also gather scripture refs where this user's notes are the *scripture* side
+    const allScriptureRefsAsScripture = await db.select({ id: NoteScriptureReferences.id, noteId: NoteScriptureReferences.noteId, scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+      .from(NoteScriptureReferences)
+      .innerJoin(Notes, eq(Notes.id, NoteScriptureReferences.scriptureNoteId))
+      .where(eq(Notes.userId, auth.userId));
+
+    const allScriptureRefsCombined = [...allScriptureRefs];
+    const seenRefIds = new Set(allScriptureRefs.map(r => r.id));
+    for (const r of allScriptureRefsAsScripture) {
+      if (!seenRefIds.has(r.id)) {
+        allScriptureRefsCombined.push(r);
+        seenRefIds.add(r.id);
+      }
+    }
+
+    // 1. Scan note content for data-note-id pills and ensure junctions exist
+    const dataNoteidRegex = /data-note-id="([^"]+)"/g;
+    const scriptureNoteIds = new Set(userNotes.filter(n => n.noteType === 'scripture').map(n => n.id));
+
+    for (const note of userNotes) {
+      if (note.contentEncrypted || !note.content || note.noteType === 'scripture') continue;
+
+      let match: RegExpExecArray | null;
+      dataNoteidRegex.lastIndex = 0;
+      const referencedIds = new Set<string>();
+      while ((match = dataNoteidRegex.exec(note.content)) !== null) {
+        const refId = match[1];
+        if (refId && refId !== 'pending' && scriptureNoteIds.has(refId)) {
+          referencedIds.add(refId);
+        }
+      }
+
+      for (const scriptureNoteId of referencedIds) {
+        const key = `${note.id}::${scriptureNoteId}`;
+        if (!existingScriptureRefPairs.has(key)) {
+          report.scriptureLinks.details.push({ type: 'missing_junction_created', noteId: note.id, scriptureNoteId });
+          if (!dryRun) {
+            const id = `note-scripture-heal-${note.id}-${scriptureNoteId}-${Date.now()}`;
+            try {
+              await db.insert(NoteScriptureReferences).values({ id, noteId: note.id, scriptureNoteId, createdAt: nowISO() });
+              report.scriptureLinks.missingJunctionsCreated++;
+            } catch {
+              // unique constraint = already exists, skip
+            }
+          } else {
+            report.scriptureLinks.missingJunctionsCreated++;
+          }
+          existingScriptureRefPairs.add(key);
+        }
+      }
+    }
+
+    // 2. NoteScriptureReferences rows pointing to deleted notes
+    for (const ref of allScriptureRefsCombined) {
+      if (!noteIdSet.has(ref.noteId) || !noteIdSet.has(ref.scriptureNoteId)) {
+        report.scriptureLinks.details.push({ type: 'orphan_junction_removed', noteId: ref.noteId, scriptureNoteId: ref.scriptureNoteId });
+        if (!dryRun) {
+          await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, ref.id));
+        }
+        report.scriptureLinks.orphanJunctionsRemoved++;
+      }
+    }
+
+    const totalFixed = report.threadLinks.missingJunctionsCreated + report.threadLinks.orphanJunctionsRemoved +
+      report.scriptureLinks.missingJunctionsCreated + report.scriptureLinks.orphanJunctionsRemoved;
+
+    return c.json({
+      success: true,
+      dryRun,
+      message: totalFixed === 0
+        ? 'All links are healthy. No repairs needed.'
+        : dryRun
+          ? `Found ${totalFixed} issues. Run without ?dryRun=true to fix.`
+          : `Repaired ${totalFixed} link issues.`,
+      report,
+    });
+  } catch (error: any) {
+    console.error('Error checking link integrity:', error);
     return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
   }
 });

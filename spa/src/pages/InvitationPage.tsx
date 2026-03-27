@@ -39,12 +39,6 @@ export default function InvitationPage() {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (data?.invitation) {
-      document.title = `${data.invitation.spaceTitle || 'Space Invitation'} | Space Invitation`;
-    }
-  }, [data]);
-
-  useEffect(() => {
     api.get<InvitationResponse>(`/api/invitations/${token}`)
       .then(setData)
       .catch((err: APIError | Error) => {
@@ -115,6 +109,10 @@ export default function InvitationPage() {
   const isExpiredError = error === 'expired' || invitation?.isExpired;
 
   return (
+    <>
+      {data?.invitation && (
+        <title>{`${data.invitation.spaceTitle || 'Space Invitation'} | Space Invitation`}</title>
+      )}
     <div id="invitation-content" className="auth-page" style={{ padding: '12px', minHeight: '100vh' }}>
       <div className="auth-page__container">
         {/* Left Column: Animated Mesh Gradient Background */}
@@ -263,5 +261,6 @@ export default function InvitationPage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

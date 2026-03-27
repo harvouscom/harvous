@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
@@ -46,6 +46,26 @@ export default function NotePage() {
     };
   }, [noteId, queryClient]);
 
+  // Capture ?thread= / ?space= from URL once per noteId so later logic (and async effects)
+  // don't lose context if the SPA strips the query string.
+  const noteThreadFromUrlRef = useRef<string | null>(null);
+  const noteSpaceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    let capturedThread: string | null = null;
+    let capturedSpace: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const thread = params.get('thread');
+        if (thread && thread.startsWith('thread_')) capturedThread = thread;
+        const space = params.get('space');
+        if (space && space.startsWith('space_')) capturedSpace = space;
+      } catch { /* ignore */ }
+    }
+    noteThreadFromUrlRef.current = capturedThread;
+    noteSpaceIdRef.current = capturedSpace;
+  }, [noteId]);
+
   // When opening a note that has scripture refs but no pill markup (e.g. onboarding or legacy notes),
   // or has pending pills (from deferred create), run scripture processing once then refetch.
   const reprocessAttemptedRef = useRef<string | null>(null);
@@ -61,7 +81,17 @@ export default function NotePage() {
 
     const runReprocess = () => {
       reprocessAttemptedRef.current = noteId;
-      const parentThread = note.threads?.[0];
+      const threads = note.threads ?? [];
+      let threadIdFromUrl: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const t = new URLSearchParams(window.location.search).get('thread');
+          if (t?.startsWith('thread_')) threadIdFromUrl = t;
+        } catch { /* ignore */ }
+      }
+      if (!threadIdFromUrl) threadIdFromUrl = noteThreadFromUrlRef.current;
+      const parentThread =
+        (threadIdFromUrl && threads.find((th) => th.id === threadIdFromUrl)) ?? threads[0];
       const threadId = parentThread?.id ?? undefined;
       processScriptureMutation.mutate(
         { noteId, contentOverride: content, threadId },
@@ -88,28 +118,27 @@ export default function NotePage() {
     runReprocess();
   }, [note, noteId, isLoading, processScriptureMutation]);
 
-  // The parent thread is the first thread this note belongs to (if any)
-  const parentThread = note?.threads?.[0];
-  const parentThreadId = parentThread?.id ?? undefined;
-
-  // Capture ?space= from URL once per noteId so later effect runs (triggered by
-  // async note data) don't re-read a stale URL after navigation.
-  const noteSpaceIdRef = useRef<string | null>(null);
-  useEffect(() => {
-    let captured: string | null = null;
+  // Parent thread: prefer ?thread= (multi-note membership) over API order (threads[0]).
+  const parentThread = useMemo(() => {
+    const threads = note?.threads ?? [];
+    if (!threads.length) return undefined;
+    let threadId: string | null = null;
     if (typeof window !== 'undefined') {
       try {
-        const fromUrl = new URLSearchParams(window.location.search).get('space');
-        if (fromUrl && fromUrl.startsWith('space_')) captured = fromUrl;
+        const fromUrl = new URLSearchParams(window.location.search).get('thread');
+        if (fromUrl?.startsWith('thread_')) threadId = fromUrl;
       } catch { /* ignore */ }
     }
-    noteSpaceIdRef.current = captured;
-  }, [noteId]);
+    if (!threadId) threadId = noteThreadFromUrlRef.current;
+    const match = threadId && threads.find((th) => th.id === threadId);
+    return match ?? threads[0];
+  }, [note?.threads, noteId]);
+  const parentThreadId = parentThread?.id ?? undefined;
 
   // Update navigation history with parent thread count/spaceId when note loads
   // so the left nav badge shows the correct count (e.g. when opening note without visiting thread page first).
   useEffect(() => {
-    const parent = note?.threads?.[0];
+    const parent = parentThread;
     if (!parent?.id || typeof (window as any).addToNavigationHistory !== 'function') return;
     const threadWithMeta = parent as { count?: number; spaceId?: string | null };
     // Skip update if note data is from seeded cache with fallback title ('Thread').
@@ -134,7 +163,7 @@ export default function NotePage() {
       openedInSpaceIds: [openedInSpaceId],
       openedInSpaceId: openedInSpaceId,
     });
-  }, [note]);
+  }, [note, parentThread]);
 
   // Diagnostic (dev): log whether note content has scripture pill markup (helps distinguish "no pills in content" vs "pills not rendering" for member view).
   useEffect(() => {

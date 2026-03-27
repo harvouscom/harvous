@@ -1,10 +1,11 @@
-import React, { forwardRef } from 'react';
+import React, { type Ref } from 'react';
 import Icon from '@/components/react/Icon';
 
 interface NoteTemplateHeaderProps {
   selectedTemplateName: string;
   isOpen: boolean;
   onClick: () => void;
+  ref?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -12,10 +13,7 @@ interface NoteTemplateHeaderProps {
  * Clicking opens the template dropdown (handled by parent). Styled like thread title bars
  * but with the gray gradient used for template selector.
  */
-const NoteTemplateHeader = forwardRef<HTMLDivElement, NoteTemplateHeaderProps>(function NoteTemplateHeader(
-  { selectedTemplateName, isOpen, onClick },
-  ref
-) {
+function NoteTemplateHeader({ selectedTemplateName, isOpen, onClick, ref }: NoteTemplateHeaderProps) {
   return (
     <div
       ref={ref}
@@ -52,6 +50,6 @@ const NoteTemplateHeader = forwardRef<HTMLDivElement, NoteTemplateHeaderProps>(f
       </div>
     </div>
   );
-});
+}
 
 export default NoteTemplateHeader;

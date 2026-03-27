@@ -69,12 +69,6 @@ export default function JoinSpacePage() {
       .finally(() => setIsLoading(false));
   }, [token]);
 
-  useEffect(() => {
-    if (space) {
-      document.title = `${space.title || 'Join Space'} | Join Space`;
-    }
-  }, [space]);
-
   function showToast(message: string, type: 'success' | 'error', duration = 5000) {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToastMessage(message);
@@ -123,6 +117,8 @@ export default function JoinSpacePage() {
   const spaceUrl = space ? idToUrl(space.id) : '';
 
   return (
+    <>
+      {space && <title>{`${space.title || 'Join Space'} | Join Space`}</title>}
     <div id="shared-space-content" className="auth-page" style={{ padding: '12px', minHeight: '100vh' }}>
       <div className="auth-page__container">
         {/* Left Column: Animated Mesh Gradient Background */}
@@ -287,5 +283,6 @@ export default function JoinSpacePage() {
         </div>
       </div>
     </div>
+    </>
   );
 }

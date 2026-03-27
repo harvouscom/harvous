@@ -8,10 +8,9 @@ import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNo
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
-import { getTranslation, TRANSLATIONS, TRANSLATION_ORDER } from '@/data/translations';
+import { getTranslation } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
-import { toast } from '@/utils/toast';
 import { useIsOffline } from '@/hooks/useIsOffline';
 import '@/styles/card-full-editable.css';
 import Icon from './Icon';
@@ -93,15 +92,12 @@ export default function CardFullEditable({
   const [displayTitle, setDisplayTitle] = useState(title);
   const [displayContent, setDisplayContent] = useState(content);
   const [displayScriptureVersion, setDisplayScriptureVersion] = useState(resolvedScriptureVersion);
-  const [showScriptureVersionDropdown, setShowScriptureVersionDropdown] = useState(false);
-  const [isUpdatingScriptureTranslation, setIsUpdatingScriptureTranslation] = useState(false);
   const [imageRemoved, setImageRemoved] = useState(false);
   const [isTitleFocused, setIsTitleFocused] = useState(false);
   
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement>(null);
   const contentDisplayRef = useRef<HTMLDivElement>(null);
-  const scriptureVersionDropdownRef = useRef<HTMLDivElement>(null);
   const editorInstanceRef = useRef<any>(null);
   const shouldFocusEditorRef = useRef(false);
   const contentClickCoordsRef = useRef<{ contentX: number; contentY: number } | null>(null);
@@ -203,111 +199,6 @@ export default function CardFullEditable({
   useEffect(() => {
     setDisplayScriptureVersion(resolvedScriptureVersion);
   }, [resolvedScriptureVersion]);
-
-  useEffect(() => {
-    if (!showScriptureVersionDropdown) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (scriptureVersionDropdownRef.current && !scriptureVersionDropdownRef.current.contains(e.target as Node)) {
-        setShowScriptureVersionDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showScriptureVersionDropdown]);
-
-  const handleScriptureVersionChange = async (nextTranslation: string) => {
-    if (!nextTranslation || nextTranslation === displayScriptureVersion) {
-      setShowScriptureVersionDropdown(false);
-      return;
-    }
-
-    const previousTranslation = displayScriptureVersion;
-    const previousContent = displayContent;
-    setDisplayScriptureVersion(nextTranslation);
-    setShowScriptureVersionDropdown(false);
-    setIsUpdatingScriptureTranslation(true);
-
-    try {
-      if (noteId) {
-        const updateRes = await fetch('/api/scripture/update-translation', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ noteId, newTranslation: nextTranslation }),
-        });
-
-        if (!updateRes.ok) {
-          throw new Error('Failed to update scripture translation');
-        }
-
-        const detailsRes = await fetch(`/api/notes/${noteId}/details`, { credentials: 'include' });
-        let didUpdateFromDetails = false;
-        if (detailsRes.ok) {
-          const data = await detailsRes.json();
-          const note = data?.note ?? data;
-          if (typeof note?.content === 'string') {
-            setDisplayContent(note.content);
-            setEditContent(note.content);
-            didUpdateFromDetails = note.content !== previousContent;
-          }
-        }
-
-        // Fallback: some older scripture notes can lack ScriptureMetadata, so update-translation
-        // succeeds without changing note content. Fetch verse text directly and persist content.
-        if (!didUpdateFromDetails) {
-          const cleanTitle = displayTitle.trim();
-          const referenceFromTitle = cleanTitle.replace(
-            new RegExp(`\\s+(${TRANSLATION_ORDER.join('|')})$`, 'i'),
-            '',
-          );
-          const verseRes = await fetch('/api/scripture/fetch-verse', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ reference: referenceFromTitle, translation: nextTranslation }),
-          });
-          if (verseRes.ok) {
-            const verseData = await verseRes.json();
-            if (typeof verseData?.text === 'string' && verseData.text.trim()) {
-              setDisplayContent(verseData.text);
-              setEditContent(verseData.text);
-              await fetch(`/api/notes/${noteId}/update-content`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ content: verseData.text }),
-              });
-            }
-          }
-        }
-
-        window.dispatchEvent(new CustomEvent('noteUpdated', { detail: { noteId } }));
-        return;
-      }
-
-      // Fallback when noteId is unavailable (defensive): fetch verse directly by displayed reference.
-      const fetchRes = await fetch('/api/scripture/fetch-verse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ reference: displayTitle, translation: nextTranslation }),
-      });
-
-      if (!fetchRes.ok) {
-        throw new Error('Failed to fetch verse for selected translation');
-      }
-      const verseData = await fetchRes.json();
-      if (typeof verseData?.text === 'string') {
-        setDisplayContent(verseData.text);
-        setEditContent(verseData.text);
-      }
-    } catch {
-      setDisplayScriptureVersion(previousTranslation);
-      toast.error('Unable to update translation right now.');
-    } finally {
-      setIsUpdatingScriptureTranslation(false);
-    }
-  };
 
   const SOURCE_NOTE_CONTENT_KEY = 'harvous-source-note-content';
   const SOURCE_NOTE_CONTENT_AT_KEY = 'harvous-source-note-content-at';
@@ -1664,49 +1555,17 @@ export default function CardFullEditable({
         {noteType === 'scripture' ? (
           <>
             {displayScriptureVersion && (
-              <div className="relative shrink-0" ref={scriptureVersionDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isUpdatingScriptureTranslation) return;
-                    setShowScriptureVersionDropdown((prev) => !prev);
-                  }}
-                  className="translation-dropdown-trigger"
-                  disabled={isUpdatingScriptureTranslation}
-                  style={isUpdatingScriptureTranslation ? { opacity: 0.6, pointerEvents: 'none' } : undefined}
-                >
-                  <span>{displayScriptureVersion}</span>
-                  <svg
-                    className={`translation-dropdown-chevron${showScriptureVersionDropdown ? ' translation-dropdown-chevron--open' : ''}`}
-                    viewBox="0 0 512 512"
-                  >
-                    <path fill="currentColor" d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z" />
-                  </svg>
-                </button>
-                {showScriptureVersionDropdown && (
-                  <div className="translation-dropdown-menu">
-                    {[displayScriptureVersion, ...TRANSLATION_ORDER.filter((id) => id !== displayScriptureVersion)].map((id) => {
-                      const t = TRANSLATIONS[id];
-                      if (!t) return null;
-                      const isSelected = id === displayScriptureVersion;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => {
-                            void handleScriptureVersionChange(id);
-                          }}
-                          className={`translation-dropdown-item${isSelected ? ' translation-dropdown-item--selected' : ''}`}
-                          disabled={isUpdatingScriptureTranslation}
-                        >
-                          <span className="translation-dropdown-abbr">{t.abbreviation}</span>
-                          <span className="translation-dropdown-name">{t.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <span
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  fontWeight: 'normal',
+                  color: 'var(--color-stone-grey)',
+                  flexShrink: 0,
+                }}
+              >
+                {displayScriptureVersion}
+              </span>
             )}
             <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
               <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)' }} />
