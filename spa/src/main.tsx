@@ -1,6 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { syncSafeAreaTopCssVar, subscribeSafeAreaTopCssVar } from '../../src/utils/safe-area';
 import App from './App';
+
+syncSafeAreaTopCssVar();
+subscribeSafeAreaTopCssVar();
 
 // ── Vite chunk load error recovery ──────────────────────────────────────────
 // After a new deployment, old hashed JS chunk URLs no longer exist on the CDN.

@@ -111,8 +111,7 @@ const windowToast = {
   },
 };
 
-/** Set .ios-pwa on documentElement and measure the real safe-area-inset-top via JS
- *  so overlays can use var(--safe-area-top) instead of unreliable env(). */
+/** Set .ios-pwa on documentElement; --safe-area-top is set by /scripts/safe-area-top.js + main.tsx (see src/utils/safe-area.ts). */
 function IosPwaClass() {
   useEffect(() => {
     const isPwa =
@@ -124,32 +123,7 @@ function IosPwaClass() {
       /iPhone|iPad|iPod/.test(navigator.userAgent);
     if (isPwa && isIos) {
       document.documentElement.classList.add('ios-pwa');
-
-      const probe = document.createElement('div');
-      probe.style.cssText =
-        'position:fixed;top:env(safe-area-inset-top,0px);left:0;width:0;height:0;visibility:hidden;pointer-events:none';
-      document.documentElement.appendChild(probe);
-      let sat = probe.getBoundingClientRect().top;
-      document.documentElement.removeChild(probe);
-
-      const fallbackSat = () => {
-        const h = window.screen.height;
-        return h >= 852 ? 59 : h >= 812 ? 47 : 20;
-      };
-
-      /* WebKit sometimes returns 0 for env(), or a wrong large value (e.g. offset from
-         top to main content, which includes the 64px nav + gap). Status bar inset is
-         always ~20–59px; never >= 64 (nav height). */
-      if (sat <= 0 || sat >= 64) {
-        sat = fallbackSat();
-      }
-
-      document.documentElement.style.setProperty('--safe-area-top', `${sat}px`);
-
-      return () => {
-        document.documentElement.classList.remove('ios-pwa');
-        document.documentElement.style.removeProperty('--safe-area-top');
-      };
+      return () => document.documentElement.classList.remove('ios-pwa');
     }
   }, []);
   return null;
