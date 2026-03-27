@@ -521,7 +521,19 @@ export async function getThreadNoteTypeCounts(threadId: string, userId: string) 
 
       const notesMap = new Map<string, { id: string | null; noteType: string | null }>();
       [...unorganizedNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
-      const allNotes = Array.from(notesMap.values());
+      let allNotes = Array.from(notesMap.values());
+
+      // Filter out scripture notes whose parent is in a real thread
+      const scriptureIds = allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
+      let organizedScriptureIds = new Set<string>();
+      if (scriptureIds.length > 0) {
+        const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+          .from(NoteScriptureReferences)
+          .innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId))
+          .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+        organizedScriptureIds = new Set(rows.map(r => r.scriptureNoteId));
+      }
+      allNotes = allNotes.filter(n => n.noteType !== 'scripture' || !organizedScriptureIds.has(n.id ?? ''));
 
       allCount = allNotes.length;
       defaultCount = allNotes.filter(n => !n.noteType || n.noteType === 'default').length;
@@ -607,6 +619,18 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const notesMap = new Map<string, (typeof unorganizedNotes)[0]>();
       [...unorganizedNotes, ...referencedScriptureNotes].forEach(n => { if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n); });
       allNotes = Array.from(notesMap.values());
+
+      // Filter out scripture notes whose parent is in a real thread
+      const scriptureIds = allNotes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
+      let organizedScriptureIds = new Set<string>();
+      if (scriptureIds.length > 0) {
+        const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+          .from(NoteScriptureReferences)
+          .innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId))
+          .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+        organizedScriptureIds = new Set(rows.map(r => r.scriptureNoteId));
+      }
+      allNotes = allNotes.filter(n => n.noteType !== 'scripture' || !organizedScriptureIds.has(n.id ?? ''));
     } else {
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
@@ -797,13 +821,25 @@ export async function getNotesForThreadForMember(
 
 export async function getUnorganizedNotesForDashboard(userId: string, limit = 10) {
   try {
-    const notes = await db.select(NOTE_SELECT_COLUMNS)
+    let notes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
       .orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
       ).limit(limit);
+
+    // Filter out scripture notes whose parent is in a real thread
+    const scriptureIds = notes.filter(n => n.noteType === 'scripture').map(n => n.id).filter(Boolean) as string[];
+    let organizedScriptureIds = new Set<string>();
+    if (scriptureIds.length > 0) {
+      const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
+        .from(NoteScriptureReferences)
+        .innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId))
+        .where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+      organizedScriptureIds = new Set(rows.map(r => r.scriptureNoteId));
+    }
+    notes = notes.filter(n => n.noteType !== 'scripture' || !organizedScriptureIds.has(n.id ?? ''));
 
     const noteIds = notes.map(n => n.id).filter(Boolean) as string[];
     const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
