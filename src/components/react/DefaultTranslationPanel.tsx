@@ -6,11 +6,13 @@ import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-c
 interface DefaultTranslationPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  backIconDirection?: "auto" | "left" | "down";
 }
 
 export default function DefaultTranslationPanel({
   onClose,
   inBottomSheet = false,
+  backIconDirection = "auto",
 }: DefaultTranslationPanelProps) {
   const [selectedTranslation, setSelectedTranslation] = useState<string>('NET');
   const [originalTranslation, setOriginalTranslation] = useState<string>('NET');
@@ -216,9 +218,14 @@ export default function DefaultTranslationPanel({
       </div>
 
       {/* Bottom buttons */}
-      <div className="panel__footer--buttons" style={inBottomSheet ? { paddingBottom: '12px' } : undefined}>
+      <div className="panel__footer--buttons">
         {/* Back button */}
-        <SquareButton variant="Back" onClick={handleClose} inBottomSheet={inBottomSheet} />
+        <SquareButton
+          variant="Back"
+          backIconDirection={backIconDirection}
+          onClick={handleClose}
+          inBottomSheet={inBottomSheet}
+        />
 
         {/* Save button */}
         <button

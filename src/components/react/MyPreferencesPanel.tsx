@@ -19,6 +19,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
       <DefaultTranslationPanel
         onClose={() => setView('list')}
         inBottomSheet={inBottomSheet}
+        backIconDirection="left"
       />
     );
   }
@@ -28,6 +29,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
       <MyChurchPanel
         onClose={() => setView('list')}
         inBottomSheet={inBottomSheet}
+        backIconDirection="left"
       />
     );
   }
@@ -37,6 +39,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
       <LockPinPanel
         onClose={() => setView('list')}
         inBottomSheet={inBottomSheet}
+        backIconDirection="left"
       />
     );
   }

@@ -17,6 +17,7 @@ const HashtagIcon = { src: 'hashtag' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";
+  backIconDirection?: "auto" | "left" | "down";
   onClick?: () => void;
   className?: string;
   type?: "button" | "submit" | "reset";
@@ -36,6 +37,7 @@ interface SquareButtonProps {
 
 export default function SquareButton({
   variant = "More",
+  backIconDirection = "auto",
   onClick,
   className = "",
   type = "button",
@@ -277,21 +279,26 @@ export default function SquareButton({
     // Default icons for variants without menu
     switch (variant) {
       case "Back":
-        if (inBottomSheet) {
+        {
+          const resolvedBackDirection = backIconDirection === "auto"
+            ? (inBottomSheet ? "down" : "left")
+            : backIconDirection;
+
+        if (resolvedBackDirection === "down") {
           // Angle down icon path (from FontAwesome)
           return (
             <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 448 512">
               <path d="M201.4 374.6c12.5 12.5 32.8 12.5 45.3 0l160-160c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L224 306.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l160 160z"/>
             </svg>
           );
-        } else {
-          // Angle left icon path (from FontAwesome)
-          return (
-            <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 320 512">
-              <path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
-            </svg>
-          );
         }
+        // Angle left icon path (from FontAwesome)
+        return (
+          <svg className="square-button__icon square-button__icon--default square-button__icon--pebble" viewBox="0 0 320 512">
+            <path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/>
+          </svg>
+        );
+      }
       case "Close":
         return (
           <svg 

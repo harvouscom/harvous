@@ -7,6 +7,7 @@ import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-c
 interface MyChurchPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  backIconDirection?: "auto" | "left" | "down";
   initialChurchData?: {
     churchName: string | null;
     churchCity: string | null;
@@ -18,6 +19,7 @@ interface MyChurchPanelProps {
 export default function MyChurchPanel({ 
   onClose,
   inBottomSheet = false,
+  backIconDirection = "auto",
   initialChurchData
 }: MyChurchPanelProps) {
   // Initialize form data from props if provided, otherwise empty
@@ -609,6 +611,7 @@ export default function MyChurchPanel({
           {/* Back button - SquareButton Back variant */}
           <SquareButton 
             variant="Back"
+            backIconDirection={backIconDirection}
             onClick={handleClose}
             inBottomSheet={inBottomSheet}
           />
@@ -702,6 +705,7 @@ export default function MyChurchPanel({
           {/* Back button - SquareButton Back variant */}
           <SquareButton 
             variant="Back"
+            backIconDirection={backIconDirection}
             onClick={handleClose}
             inBottomSheet={inBottomSheet}
           />

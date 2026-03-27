@@ -7,13 +7,15 @@ import { toast } from '@/utils/toast';
 interface LockPinPanelProps {
   onClose?: () => void;
   inBottomSheet?: boolean;
+  backIconDirection?: "auto" | "left" | "down";
 }
 
 type Step = 'set' | 'confirm' | 'changeCurrent' | 'changeNew' | 'changeConfirm' | 'reencrypting';
 
 export default function LockPinPanel({
   onClose,
-  inBottomSheet = false
+  inBottomSheet = false,
+  backIconDirection = "auto"
 }: LockPinPanelProps) {
   const [hasLockPinSet, setHasLockPinSet] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>('set');
@@ -284,7 +286,12 @@ export default function LockPinPanel({
           </div>
         </div>
         <div className="panel__footer--buttons">
-          <SquareButton variant="Back" onClick={handleBack} inBottomSheet={inBottomSheet} />
+          <SquareButton
+            variant="Back"
+            backIconDirection={backIconDirection}
+            onClick={handleBack}
+            inBottomSheet={inBottomSheet}
+          />
         </div>
       </div>
     );
@@ -405,6 +412,7 @@ export default function LockPinPanel({
       <div className="panel__footer--buttons">
         <SquareButton
           variant="Back"
+          backIconDirection={backIconDirection}
           onClick={step === 'reencrypting' ? () => {} : (step === 'set' || step === 'changeCurrent' ? handleBack : handleCancel)}
           inBottomSheet={inBottomSheet}
         />
