@@ -132,9 +132,16 @@ function IosPwaClass() {
       let sat = probe.getBoundingClientRect().top;
       document.documentElement.removeChild(probe);
 
-      if (sat <= 0) {
+      const fallbackSat = () => {
         const h = window.screen.height;
-        sat = h >= 852 ? 59 : h >= 812 ? 47 : 20;
+        return h >= 852 ? 59 : h >= 812 ? 47 : 20;
+      };
+
+      /* WebKit sometimes returns 0 for env(), or a wrong large value (e.g. offset from
+         top to main content, which includes the 64px nav + gap). Status bar inset is
+         always ~20–59px; never >= 64 (nav height). */
+      if (sat <= 0 || sat >= 64) {
+        sat = fallbackSat();
       }
 
       document.documentElement.style.setProperty('--safe-area-top', `${sat}px`);
