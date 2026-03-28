@@ -5,6 +5,9 @@
     },
     "supabase": {
       "enabled": true
+    },
+    "clerk": {
+      "enabled": true
     }
   }
 }

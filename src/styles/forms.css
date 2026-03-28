@@ -526,6 +526,8 @@
   max-width: 100% !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
+  min-width: 0 !important;
 }
 
 /* Target alert/verification elements within Clerk forms */
@@ -542,7 +544,9 @@
   box-sizing: border-box !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
   white-space: normal !important;
+  min-width: 0 !important;
 }
 
 /* Clerk form alert class */
@@ -553,7 +557,9 @@
   box-sizing: border-box !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
   white-space: normal !important;
+  min-width: 0 !important;
   overflow-x: hidden !important;
 }
 
@@ -788,7 +794,9 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   width: 100% !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
   white-space: normal !important;
+  min-width: 0 !important;
 }
 
 .clerk-form-root [class*="cl-alert"] *,
@@ -807,5 +815,7 @@ button.cl-button[data-variant="solid"][data-color="primary"] * {
   max-width: 100% !important;
   overflow-wrap: break-word !important;
   word-wrap: break-word !important;
+  word-break: break-word !important;
   white-space: normal !important;
+  min-width: 0 !important;
 }

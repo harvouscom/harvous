@@ -44,22 +44,9 @@ export default function EditThreadPanel({
   inBottomSheet = false
 }: EditThreadPanelProps) {
   const [isMounted, setIsMounted] = useState(false);
-  const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
-
-  // Auto-focus the thread name input when component mounts
-  useEffect(() => {
-    // Small delay to ensure the input is rendered and visible
-    const timer = setTimeout(() => {
-      if (titleInputRef.current) {
-        titleInputRef.current.focus();
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
   }, []);
 
   const userId = usePersistedUserId();
@@ -1630,7 +1617,6 @@ export default function EditThreadPanel({
                 {/* Thread Title Input */}
                 <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
                   <input 
-                    ref={titleInputRef}
                     type="text"
                     value={formData.title}
                     onChange={(e) => handleInputChange('title', e.target.value)}
