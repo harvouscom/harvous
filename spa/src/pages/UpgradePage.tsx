@@ -5,8 +5,6 @@ import { api } from '../lib/api';
 
 interface UpgradeData {
   hasUnlimited: boolean;
-  currentCount: number;
-  limit: number;
   limitsInfo: LimitsInfo | null;
 }
 
@@ -23,13 +21,11 @@ export default function UpgradePage() {
   useEffect(() => {
     sonnerToast.dismiss();
     Promise.all([
-      api.get<{ hasUnlimited: boolean; currentCount: number; limit: number }>('/api/subscription/status'),
+      api.get<{ hasUnlimited: boolean }>('/api/subscription/status'),
       api.get<LimitsInfo>('/api/user/limits'),
     ])
       .then(([sub, limits]) => setData({
         hasUnlimited: sub.hasUnlimited,
-        currentCount: sub.currentCount,
-        limit: sub.limit,
         limitsInfo: limits,
       }))
       .catch(() => setData(null))
@@ -59,8 +55,6 @@ export default function UpgradePage() {
               ) : (
                 <UpgradePageContent
                   initialHasUnlimited={data?.hasUnlimited ?? false}
-                  initialCurrentCount={data?.currentCount ?? 0}
-                  initialLimit={data?.limit ?? 0}
                   limitsInfo={data?.limitsInfo ?? null}
                   publishableKey={null}
                   unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}

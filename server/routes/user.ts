@@ -47,7 +47,7 @@ import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id
 // Pure @/utils (no astro:db)
 import { getSeasonDisplayName, getCurrentSeason } from '@/utils/season-helpers';
 import { handleAPIError } from '@/utils/error-handling';
-import { rateLimit } from '@/utils/rate-limit';
+import { rateLimit, tryConsumeNoteCreates, getClientIP } from '@/utils/rate-limit';
 import { validateName, validateColor } from '@/utils/validation';
 import { hashPinNew, validatePinFormat, verifyPin } from '@/utils/lock-pin-server';
 import { htmlToMarkdown, htmlToPlainText } from '@/utils/html-to-markdown';
@@ -767,6 +767,12 @@ app.post('/api/user/import', requireAuth, async (c) => {
         const capitalizedTitle = title ? (title.charAt(0).toUpperCase() + title.slice(1)) : null;
 
         if (await isDuplicateNote(auth.userId, capitalizedTitle, capitalizedContent)) { duplicatesSkipped++; continue; }
+
+        const slot = tryConsumeNoteCreates(auth.userId, getClientIP(c.req.raw), 1);
+        if (!slot.allowed) {
+          errors.push(`Import paused: ${slot.error}`);
+          break;
+        }
 
         const threadId = await getOrCreateThread(auth.userId, threadName || '', threadColor);
         if (!createdThreadIds.has(threadId) && threadId !== 'thread_unorganized') { createdThreadIds.add(threadId); threadsCreated++; }

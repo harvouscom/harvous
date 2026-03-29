@@ -29,6 +29,7 @@ import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNewSeasonBonus } from '../utils/xp-system';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { handleAPIError } from '@/utils/error-handling';
+import { tryConsumeNoteCreates, MAX_NOTE_CREATES_PER_SYNC_PUSH, getClientIP } from '@/utils/rate-limit';
 import { generateNoteId, generateThreadId, generateSpaceId } from '@/utils/ids';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { detectScripture, getPrimaryReference } from '@/utils/scripture-detector';
@@ -328,6 +329,32 @@ app.post('/api/sync/push', requireAuth, async (c) => {
     const { mutations } = await c.req.json();
     if (!Array.isArray(mutations) || mutations.length === 0) {
       return c.json({ error: 'mutations array is required', code: 'INVALID_REQUEST' }, 400);
+    }
+
+    const noteCreatesInBatch = mutations.filter(
+      (m: { entityType?: string; operation?: string }) => m.entityType === 'note' && m.operation === 'create'
+    ).length;
+
+    if (noteCreatesInBatch > MAX_NOTE_CREATES_PER_SYNC_PUSH) {
+      return c.json(
+        {
+          error: `Too many note creations in one sync (max ${MAX_NOTE_CREATES_PER_SYNC_PUSH}). Split into smaller batches.`,
+          code: 'SYNC_NOTE_BATCH_TOO_LARGE'
+        },
+        400
+      );
+    }
+
+    if (noteCreatesInBatch > 0) {
+      const ip = getClientIP(c.req.raw);
+      const reserved = tryConsumeNoteCreates(auth.userId, ip, noteCreatesInBatch);
+      if (!reserved.allowed) {
+        return c.json(
+          { error: reserved.error, code: 'NOTE_CREATE_RATE_LIMIT_EXCEEDED' },
+          429,
+          { 'Retry-After': String(reserved.retryAfterSec) }
+        );
+      }
     }
 
     const results: Array<{ success: boolean; operationId?: number; entityId?: string; serverId?: string; error?: string; data?: any }> = [];

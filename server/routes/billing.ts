@@ -158,7 +158,7 @@ app.post('/api/billing/downgrade', requireAuth, async (c) => {
 
 // ─── Subscription ───────────────────────────────────────────────────
 
-/** GET /api/subscription/status — do not cache so note count is always current (Manage Billing / Upgrade page). */
+/** GET /api/subscription/status — billing tier + note stats; note `limit` is always null (unlimited notes). */
 app.get('/api/subscription/status', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);

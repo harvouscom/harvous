@@ -7,7 +7,6 @@ import ButtonSmall from './ButtonSmall';
 import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
-import { toast } from '@/utils/toast';
 import { isNetworkError } from '@/utils/network';
 
 export interface MenuOption {
@@ -372,13 +371,6 @@ export default function Menu({
         console.error('Error dispatching openNewThreadPanel event:', error);
       }
     } else if (action === 'openNewNotePanel') {
-      // Handle Add Note action (show upgrade toast if at limit, do not open panel)
-      const addNoteOption = options.find((o) => o.action === 'openNewNotePanel');
-      if (addNoteOption?.disabled) {
-        const limit = addNoteOption.limit ?? 500;
-        toast.warning(`You've used all ${limit.toLocaleString()} notes. Upgrade for unlimited.`);
-        return;
-      }
       try {
         window.dispatchEvent(new CustomEvent('openNewNotePanel'));
       } catch (error) {

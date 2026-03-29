@@ -96,11 +96,6 @@ export default function NewNotePanel({
   const [scriptureCount, setScriptureCount] = useState(0);
   const [duplicateInfo, setDuplicateInfo] = useState<{ exists: boolean; noteId?: string; simpleNoteId?: number; title?: string; description?: string; image?: string; url?: string } | null>(null);
   const [pendingThreadName, setPendingThreadName] = useState<string | null>(null);
-  
-  // State for subscription limit check
-  const [isLimitReached, setIsLimitReached] = useState(false);
-  const [currentCount, setCurrentCount] = useState(0);
-  const [limit, setLimit] = useState(500);
 
   // Thread dropdown (CardStack header)
   const [isThreadDropdownOpen, setIsThreadDropdownOpen] = useState(false);
@@ -374,131 +369,18 @@ export default function NewNotePanel({
     loadNextNoteId();
   }, [loadNextNoteId]);
 
-  // Check subscription status via API with offline fallback
-  const checkSubscriptionStatus = useCallback(async () => {
-    // Don't check if page isn't ready
-    if (typeof window === 'undefined' || document.readyState === 'loading') {
-      return;
-    }
-
-    // Helper to check local count
-    const checkLocalCount = async () => {
-      if (!userId) return;
-      try {
-        const localCount = await getLocalNoteCount(userId);
-        // Use default limit of 500 if we can't get it from server
-        const defaultLimit = 500;
-        setCurrentCount(localCount);
-        setLimit(defaultLimit);
-        // Check if user is close to limit (within 10 notes) to prevent abuse
-        setIsLimitReached(localCount >= defaultLimit - 10);
-        
-        if (localCount >= defaultLimit - 10) {
-          console.warn('[NewNotePanel] User approaching note limit offline:', localCount, '/', defaultLimit);
-        }
-      } catch (offlineError) {
-        console.error('[NewNotePanel] Error checking offline note count:', offlineError);
-        // Keep default values on error
-      }
-    };
-
-    // If offline, skip network request and use local data directly
-    if (!navigator.onLine) {
-      await checkLocalCount();
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/subscription/status', {
-        credentials: 'include',
-        cache: 'no-store'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setCurrentCount(data.currentCount || 0);
-        setLimit(data.limit || 500);
-        setIsLimitReached(!data.hasUnlimited && (data.currentCount || 0) >= (data.limit || 500));
-      } else {
-        // Only log if it's not a 401 (unauthorized) - that's expected if user isn't logged in
-        if (response.status !== 401) {
-          console.warn('[NewNotePanel] Subscription status check returned:', response.status);
-        }
-        // Fall through to offline check
-        throw new Error('API check failed');
-      }
-    } catch (error) {
-      // Server request failed - try offline check
-      await checkLocalCount();
-    }
-  }, [userId]);
-
-  // Check subscription status on mount
-  useEffect(() => {
-    checkSubscriptionStatus();
-  }, [checkSubscriptionStatus]);
-
-  // Check URL parameters for upgrade success on mount
+  // Strip upgrade success query params from URL (checkout return) without reloading
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const upgradeSuccess = urlParams.get('upgrade') === 'success' || urlParams.get('success') === 'true';
-    
-    if (upgradeSuccess) {
-      console.log('[NewNotePanel] Detected upgrade success in URL, refreshing subscription status...');
-      // Small delay to ensure subscription is fully processed
-      setTimeout(() => {
-        checkSubscriptionStatus();
-      }, 500);
-      
-      // Clean up URL parameter without reloading
-      const newUrl = safeURL(window.location.href);
-      if (newUrl) {
-        newUrl.searchParams.delete('upgrade');
-        newUrl.searchParams.delete('success');
-        window.history.replaceState({}, '', newUrl.toString());
-      }
+    if (!upgradeSuccess) return;
+    const newUrl = safeURL(window.location.href);
+    if (newUrl) {
+      newUrl.searchParams.delete('upgrade');
+      newUrl.searchParams.delete('success');
+      window.history.replaceState({}, '', newUrl.toString());
     }
-  }, [checkSubscriptionStatus]);
-
-  // Re-check subscription when the route changes
-  useEffect(() => {
-    const handlePageLoad = () => {
-      console.log('[NewNotePanel] Page loaded, checking subscription status...');
-      checkSubscriptionStatus();
-    };
-    
-    document.addEventListener('app:route-change', handlePageLoad);
-    
-    return () => {
-      document.removeEventListener('app:route-change', handlePageLoad);
-    };
-  }, [checkSubscriptionStatus]);
-
-  // Listen for window focus/visibility changes to re-check subscription
-  // Only check when page becomes visible (not on every focus to avoid errors)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden && document.readyState === 'complete') {
-        checkSubscriptionStatus();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [checkSubscriptionStatus]);
-
-  // Listen for subscription upgrade events (triggered after successful payment)
-  useEffect(() => {
-    const handleSubscriptionUpgraded = () => {
-      checkSubscriptionStatus();
-    };
-    
-    window.addEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
-    return () => window.removeEventListener('subscriptionUpgraded', handleSubscriptionUpgraded);
-  }, [checkSubscriptionStatus]);
+  }, []);
 
   // Store timeout ref for cleanup
   const pendingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1355,9 +1237,6 @@ export default function NewNotePanel({
           onClose={handleClose}
           noteType={form.noteType}
           duplicateInfo={duplicateInfo}
-          isLimitReached={isLimitReached}
-          currentCount={currentCount}
-          limit={limit}
           showCloseButton={!inBottomSheet}
           inBottomSheet={inBottomSheet}
         />

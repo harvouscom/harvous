@@ -115,8 +115,94 @@ export const RATE_LIMITS = {
   INVITE: {
     maxRequests: 60,
     windowMs: 60 * 1000 // 1 minute
+  },
+  /**
+   * Note creation (POST /api/notes/create + note creates inside /api/sync/push).
+   * Stricter than generic WRITE to limit scripted / batched note spam.
+   */
+  NOTE_CREATE_PER_MINUTE: {
+    maxRequests: 30,
+    windowMs: 60 * 1000
+  },
+  NOTE_CREATE_PER_HOUR: {
+    maxRequests: 400,
+    windowMs: 60 * 60 * 1000
   }
 } as const;
+
+/** Max note `create` operations accepted in a single sync push (batch bypass guard). */
+export const MAX_NOTE_CREATES_PER_SYNC_PUSH = 50;
+
+const NOTE_CREATE_MINUTE_KEY = 'note-create:window:1m';
+const NOTE_CREATE_HOUR_KEY = 'note-create:window:1h';
+
+function getRecord(key: string, now: number, windowMs: number): RequestRecord {
+  let record = rateLimitStore.get(key);
+  if (!record || now > record.resetTime) {
+    record = { count: 0, resetTime: now + windowMs };
+    rateLimitStore.set(key, record);
+  }
+  return record;
+}
+
+/**
+ * Atomically reserves `delta` note-creation slots against per-minute and per-hour caps.
+ * All-or-nothing: neither bucket is updated unless both allow the reservation.
+ */
+export function tryConsumeNoteCreates(
+  userId: string | null,
+  ip: string | undefined,
+  delta: number
+): { allowed: true; remainingMinute: number; remainingHour: number; resetMinute: number; resetHour: number } | { allowed: false; error: string; retryAfterSec: number } {
+  if (delta <= 0) {
+    const now = Date.now();
+    return {
+      allowed: true,
+      remainingMinute: RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests,
+      remainingHour: RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests,
+      resetMinute: now + RATE_LIMITS.NOTE_CREATE_PER_MINUTE.windowMs,
+      resetHour: now + RATE_LIMITS.NOTE_CREATE_PER_HOUR.windowMs
+    };
+  }
+
+  const now = Date.now();
+  const kMin = getRateLimitKey(userId, NOTE_CREATE_MINUTE_KEY, ip);
+  const kHr = getRateLimitKey(userId, NOTE_CREATE_HOUR_KEY, ip);
+
+  const recMin = getRecord(kMin, now, RATE_LIMITS.NOTE_CREATE_PER_MINUTE.windowMs);
+  const recHr = getRecord(kHr, now, RATE_LIMITS.NOTE_CREATE_PER_HOUR.windowMs);
+
+  const nextMin = recMin.count + delta;
+  const nextHr = recHr.count + delta;
+
+  if (nextMin > RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests) {
+    return {
+      allowed: false,
+      error: `Too many notes created too quickly. Maximum ${RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests} new notes per minute.`,
+      retryAfterSec: Math.max(1, Math.ceil((recMin.resetTime - now) / 1000))
+    };
+  }
+  if (nextHr > RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests) {
+    return {
+      allowed: false,
+      error: `Note creation hourly limit reached (${RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests} per hour). Try again later.`,
+      retryAfterSec: Math.max(1, Math.ceil((recHr.resetTime - now) / 1000))
+    };
+  }
+
+  recMin.count = nextMin;
+  recHr.count = nextHr;
+  rateLimitStore.set(kMin, recMin);
+  rateLimitStore.set(kHr, recHr);
+
+  return {
+    allowed: true,
+    remainingMinute: RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests - recMin.count,
+    remainingHour: RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests - recHr.count,
+    resetMinute: recMin.resetTime,
+    resetHour: recHr.resetTime
+  };
+}
 
 /**
  * Middleware function for rate limiting API endpoints
@@ -170,6 +256,23 @@ export function rateLimit(type: 'read' | 'write'): (c: any, next: any) => Promis
     const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type, ip);
     if (!result.allowed) {
       return c.json({ error: result.error || 'Rate limit exceeded', code: 'RATE_LIMIT_EXCEEDED' }, 429);
+    }
+    return next();
+  };
+}
+
+/** Hono middleware: per-user note-creation caps (minute + hour), shared with sync push. */
+export function rateLimitNoteCreate(): (c: any, next: any) => Promise<any> {
+  return async (c, next) => {
+    const auth = c.get('auth') as { userId: string | null };
+    const ip = getClientIP(c.req.raw);
+    const reserved = tryConsumeNoteCreates(auth?.userId ?? null, ip, 1);
+    if (!reserved.allowed) {
+      return c.json(
+        { error: reserved.error, code: 'NOTE_CREATE_RATE_LIMIT_EXCEEDED' },
+        429,
+        { 'Retry-After': String(reserved.retryAfterSec) }
+      );
     }
     return next();
   };

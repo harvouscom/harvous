@@ -1,11 +1,14 @@
 /**
  * Subscription utilities — Drizzle port of src/utils/subscription.ts
+ *
+ * Note creation is unlimited for all users. `hasUnlimited` still reflects Clerk
+ * `unlimited_notes` (used for shared-space tier and billing UI). `limit` is
+ * always null for notes.
  */
 
 import { db, first, UserMetadata, Notes, eq, and, isNotNull, desc } from '../db';
 import type { Auth } from '../middleware/types';
 
-const FREE_TIER_LIMIT = 500;
 export const UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || 'cplan_37aJweoipC2wY2Pa94o7zMdoIyw';
 
 export async function getUserNoteCount(userId: string): Promise<number> {
@@ -26,7 +29,6 @@ export async function getUserNoteCount(userId: string): Promise<number> {
     ]);
     const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
     const maxFromNotes = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId ?? 0) : 0;
-    // Use the larger of the two so we never undercount (repairs stale metadata e.g. stuck at onboarding count)
     return Math.max(fromMetadata, maxFromNotes);
   } catch (error) {
     console.error('Error getting user note count:', error);
@@ -52,9 +54,10 @@ export function hasUnlimitedNotes(auth: Auth): boolean {
   return auth.has({ feature: 'unlimited_notes' });
 }
 
+/** All users may create notes; kept for call sites that expect this shape. */
 export async function canCreateNote(
-  userId: string,
-  auth: Auth
+  _userId: string,
+  _auth: Auth
 ): Promise<{
   allowed: boolean;
   reason?: string;
@@ -62,37 +65,7 @@ export async function canCreateNote(
   limit?: number;
   upgradeUrl?: string;
 }> {
-  try {
-    const hasUnlimited = hasUnlimitedNotes(auth);
-    if (hasUnlimited) {
-      return { allowed: true };
-    }
-
-    const [noteCount, referralBonusNotes] = await Promise.all([
-      getUserNoteCount(userId),
-      getReferralBonusNotes(userId),
-    ]);
-    const effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes;
-
-    if (noteCount >= effectiveLimit) {
-      return {
-        allowed: false,
-        reason: `You've used all ${effectiveLimit} notes. Upgrade for unlimited.`,
-        currentCount: noteCount,
-        limit: effectiveLimit,
-        upgradeUrl: '/upgrade',
-      };
-    }
-
-    return {
-      allowed: true,
-      currentCount: noteCount,
-      limit: effectiveLimit,
-    };
-  } catch (error) {
-    console.error('Error checking if user can create note:', error);
-    return { allowed: true };
-  }
+  return { allowed: true };
 }
 
 export async function getSubscriptionInfo(userId: string, auth: Auth) {
@@ -101,12 +74,11 @@ export async function getSubscriptionInfo(userId: string, auth: Auth) {
     getUserNoteCount(userId),
     getReferralBonusNotes(userId),
   ]);
-  const effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes;
 
   return {
     hasUnlimited,
     currentCount,
-    limit: hasUnlimited ? null : effectiveLimit,
+    limit: null as number | null,
     referralBonusNotes,
   };
 }

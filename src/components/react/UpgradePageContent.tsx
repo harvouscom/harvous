@@ -13,8 +13,6 @@ export interface LimitsInfo {
 
 interface UpgradePageContentProps {
   initialHasUnlimited: boolean;
-  initialCurrentCount: number;
-  initialLimit: number | null;
   limitsInfo?: LimitsInfo | null;
   publishableKey?: string | null;
   unlimitedPlanId?: string;
@@ -26,15 +24,11 @@ interface UpgradePageContentProps {
  */
 export default function UpgradePageContent({
   initialHasUnlimited,
-  initialCurrentCount,
-  initialLimit,
   limitsInfo: initialLimitsInfo = null,
   publishableKey,
   unlimitedPlanId,
 }: UpgradePageContentProps) {
   const [hasUnlimited, setHasUnlimited] = useState(initialHasUnlimited);
-  const [currentCount, setCurrentCount] = useState(initialCurrentCount);
-  const [limit, setLimit] = useState(initialLimit);
   const [limitsInfo, setLimitsInfo] = useState<LimitsInfo | null>(initialLimitsInfo ?? null);
 
   // Check subscription status via API (simplified)
@@ -48,8 +42,6 @@ export default function UpgradePageContent({
       if (subRes.ok) {
         const data = await subRes.json();
         setHasUnlimited(data.hasUnlimited);
-        setCurrentCount(data.currentCount || 0);
-        setLimit(data.limit || null);
       }
       if (limitsRes.ok) {
         const data = await limitsRes.json();
@@ -90,13 +82,13 @@ export default function UpgradePageContent({
         <div className="upgrade-content">
           <div className="upgrade-content__header">
             <div className="upgrade-content__success-icon">✓</div>
-            <h1 className="clerk-form-header-title">You have unlimited notes!</h1>
+            <h1 className="clerk-form-header-title">You&apos;re on Premium</h1>
             <p className="clerk-form-header-subtitle">
-              You're all set. Create as many notes as you need.
+              You have full sharing limits and premium features. Notes are always unlimited on every plan.
             </p>
             {safeLimitsInfo && (
               <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
-                <li>Unlimited notes</li>
+                <li>Unlimited notes (all plans)</li>
               </ul>
             )}
           </div>
@@ -111,40 +103,19 @@ export default function UpgradePageContent({
       ) : (
         <div className="upgrade-content">
           <div className="upgrade-content__header">
-            <h1 className="clerk-form-header-title">You're on the free plan</h1>
+            <h1 className="clerk-form-header-title">You&apos;re on the free plan</h1>
             <p className="clerk-form-header-subtitle" style={{ textWrap: 'balance' }}>
-              Get unlimited notes. Pay monthly or yearly which is only $4 per month.
+              Notes are unlimited for everyone. Upgrade for premium sharing: higher limits on owned shared spaces and collaboration.
             </p>
-            {safeLimitsInfo && (() => {
-              const limitRed = 'var(--color-red, #dc2626)';
-              const notesAtLimit = (limit ?? 500) - currentCount <= 100;
-              if (!notesAtLimit) return null;
-              return (
-                <div className="upgrade-content__limits flex flex-col" style={{ gap: 12, marginTop: '1rem', marginBottom: 0 }}>
-                  <div
-                    className="upgrade-content__limit-row bg-white rounded-xl p-3 flex items-center gap-3"
-                    style={{
-                      border: '1px solid',
-                      borderColor: limitRed
-                    }}
-                  >
-                    <svg className="w-4 h-4 flex-shrink-0 fill-current" style={{ color: limitRed }} viewBox="0 0 384 512" aria-hidden="true">
-                      <path d="M0 48V487.7C0 501.1 10.9 512 24.3 512c5 0 9.9-1.5 14-4.4L192 400 345.7 507.6c4.1 2.9 9 4.4 14 4.4c13.4 0 24.3-10.9 24.3-24.3V48c0-26.5-21.5-48-48-48H48C21.5 0 0 21.5 0 48z" />
-                    </svg>
-                    <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                      <span className="text-base font-semibold" style={{ color: limitRed }}>
-                        {currentCount.toLocaleString()} of {(limit ?? 500).toLocaleString()} notes
-                      </span>
-                      {!hasUnlimited && (
-                        <span className="text-xs flex-shrink-0" style={{ color: 'var(--color-pebble-grey)' }}>
-                          Upgrade for unlimited
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
+            {safeLimitsInfo && safeLimitsInfo.tier === 'free' && (
+              <ul className="upgrade-content__space-limits" style={{ marginTop: '0.75rem', paddingLeft: '1.25rem', textAlign: 'left', fontSize: '0.95rem', color: 'var(--color-pebble-grey)', listStyle: 'disc' }}>
+                <li>
+                  {safeLimitsInfo.limits.ownedSharedSpaces.remaining === Infinity
+                    ? 'Shared spaces: unlimited'
+                    : `${safeLimitsInfo.limits.ownedSharedSpaces.current} of ${safeLimitsInfo.limits.ownedSharedSpaces.limit} owned shared spaces used`}
+                </li>
+              </ul>
+            )}
           </div>
 
           {/* Checkout button using Clerk's React CheckoutButton component */}

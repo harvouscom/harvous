@@ -78,19 +78,15 @@ export default function ManageBillingPanel({
 
       // Update drawer description
       const description = document.querySelector('.cl-drawerConfirmationDescription[data-localization-key="billing.cancelSubscriptionAccessUntil"]');
-      if (description) {
+      if (description && !(description as HTMLElement).dataset.harvousCancelCopy) {
         const originalText = description.textContent || '';
-        // Check if we've already updated it (avoid infinite loop)
-        if (!originalText.includes('500 notes')) {
-          // Extract the date part from the original text
-          const dateMatch = originalText.match(/until ([^,]+),/);
-          if (dateMatch) {
-            const date = dateMatch[1];
-            description.textContent = `You can keep using 'Unlimited' features until ${date}, after which you will no longer have access. After canceling, you'll be moved to the free plan, which is limited to 500 notes.`;
-          } else {
-            // Fallback if date format is different
-            description.textContent = originalText + " After canceling, you'll be moved to the free plan, which is limited to 500 notes.";
-          }
+        (description as HTMLElement).dataset.harvousCancelCopy = '1';
+        const dateMatch = originalText.match(/until ([^,]+),/);
+        if (dateMatch) {
+          const date = dateMatch[1];
+          description.textContent = `You can keep using subscription features until ${date}, after which you will no longer have access. After canceling, you'll return to the free plan.`;
+        } else if (originalText.trim()) {
+          description.textContent = `${originalText.trim()} After canceling, you'll return to the free plan.`;
         }
       }
 
@@ -397,10 +393,7 @@ export default function ManageBillingPanel({
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`} style={{ gap: '12px' }}>
                 
                 {/* Subscription Status Display */}
-                {!isLoading && subscriptionInfo && (() => {
-                  const limitRed = 'var(--color-red, #dc2626)';
-                  const notesAtLimit = !subscriptionInfo.hasUnlimited && (subscriptionInfo.limit ?? 500) - subscriptionInfo.currentCount <= 100;
-                  return (
+                {!isLoading && subscriptionInfo && (
                   <div className="w-full">
                     <div
                       className="font-sans text-center px-4 pt-3 pb-2"
@@ -409,46 +402,26 @@ export default function ManageBillingPanel({
                       {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
                     </div>
                     <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
-                      {!subscriptionInfo.hasUnlimited ? (
-                        <a
-                          href="/upgrade"
-                          className="billing-limit-link bg-white rounded-xl p-3 flex-row"
-                          style={{
-                            gap: '0.75rem',
-                            border: '1px solid',
-                            borderColor: notesAtLimit ? limitRed : 'var(--color-fog-white)',
-                            textDecoration: 'none'
-                          }}
-                        >
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {`${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 500).toLocaleString()} notes`}
-                            </span>
-                            <span className="text-xs flex-shrink-0" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
-                              Upgrade for unlimited
-                            </span>
-                          </div>
-                        </a>
-                      ) : (
-                        <div
-                          className="bg-white rounded-xl p-3 flex-row"
-                          style={{
-                            gap: '0.75rem',
-                            border: '1px solid',
-                            borderColor: 'var(--color-fog-white)'
-                          }}
-                        >
-                          <div className="min-w-0 flex-1 flex justify-between items-center text-left">
-                            <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                              Unlimited notes
-                            </span>
-                          </div>
+                      <div
+                        className="bg-white rounded-xl p-3 flex-row"
+                        style={{
+                          gap: '0.75rem',
+                          border: '1px solid',
+                          borderColor: 'var(--color-fog-white)'
+                        }}
+                      >
+                        <div className="min-w-0 flex-1 text-left">
+                          <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                            Unlimited notes
+                          </span>
+                          <span className="block text-xs mt-1" style={{ color: 'var(--color-pebble-grey)' }}>
+                            {subscriptionInfo.currentCount.toLocaleString()} notes in your library
+                          </span>
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                  );
-                })()}
+                )}
 
                 {/* Upgrade to Unlimited Button - Only show for free plan users */}
                 {!isLoading && subscriptionInfo && !subscriptionInfo.hasUnlimited && (

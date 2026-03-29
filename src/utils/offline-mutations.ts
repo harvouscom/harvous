@@ -72,8 +72,7 @@ export async function getNextSimpleNoteIdPreview(userId: string): Promise<number
 }
 
 /**
- * Get the current note count from local IndexedDB
- * This is used to check subscription limits offline
+ * Get the current note count from local IndexedDB (e.g. ID preview fallbacks).
  */
 export async function getLocalNoteCount(userId: string): Promise<number> {
   try {

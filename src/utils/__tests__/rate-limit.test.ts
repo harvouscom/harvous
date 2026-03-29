@@ -4,6 +4,8 @@ import {
   rateLimitMiddleware,
   getClientIP,
   RATE_LIMITS,
+  tryConsumeNoteCreates,
+  MAX_NOTE_CREATES_PER_SYNC_PUSH,
 } from '../rate-limit';
 
 // We need to reset the in-memory store between tests.
@@ -172,11 +174,54 @@ describe('RATE_LIMITS config', () => {
     expect(RATE_LIMITS.READ.maxRequests).toBe(100);
     expect(RATE_LIMITS.WRITE.maxRequests).toBe(20);
     expect(RATE_LIMITS.INVITE.maxRequests).toBe(60);
+    expect(RATE_LIMITS.NOTE_CREATE_PER_MINUTE.maxRequests).toBe(30);
+    expect(RATE_LIMITS.NOTE_CREATE_PER_HOUR.maxRequests).toBe(400);
   });
 
   it('all windows are 1 minute', () => {
     expect(RATE_LIMITS.READ.windowMs).toBe(60_000);
     expect(RATE_LIMITS.WRITE.windowMs).toBe(60_000);
     expect(RATE_LIMITS.INVITE.windowMs).toBe(60_000);
+  });
+
+  it('note-create hour window is 1 hour', () => {
+    expect(RATE_LIMITS.NOTE_CREATE_PER_HOUR.windowMs).toBe(3_600_000);
+  });
+});
+
+describe('tryConsumeNoteCreates', () => {
+  let suffix: string;
+
+  beforeEach(() => {
+    suffix = `${Date.now()}-${Math.random()}`;
+  });
+
+  it('allows delta 0 without consuming', () => {
+    const r = tryConsumeNoteCreates(`u-nc-${suffix}`, undefined, 0);
+    expect(r.allowed).toBe(true);
+  });
+
+  it('reserves multiple slots in one call (batch)', () => {
+    const uid = `u-batch-${suffix}`;
+    const r1 = tryConsumeNoteCreates(uid, undefined, 10);
+    expect(r1.allowed).toBe(true);
+    const r2 = tryConsumeNoteCreates(uid, undefined, 21);
+    expect(r2.allowed).toBe(false);
+    if (!r2.allowed) {
+      expect(r2.retryAfterSec).toBeGreaterThan(0);
+    }
+  });
+
+  it('isolates users for note create buckets', () => {
+    const a = tryConsumeNoteCreates(`u-a-${suffix}`, undefined, 30);
+    const b = tryConsumeNoteCreates(`u-b-${suffix}`, undefined, 1);
+    expect(a.allowed).toBe(true);
+    expect(b.allowed).toBe(true);
+  });
+});
+
+describe('MAX_NOTE_CREATES_PER_SYNC_PUSH', () => {
+  it('is a positive cap for sync batches', () => {
+    expect(MAX_NOTE_CREATES_PER_SYNC_PUSH).toBe(50);
   });
 });

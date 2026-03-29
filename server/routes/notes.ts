@@ -32,7 +32,7 @@ import { nowISO } from '../db/dates';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
-import { rateLimit } from '@/utils/rate-limit';
+import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
 import { stripNoteLinksToNoteId } from '@/utils/tiptap-helpers';
@@ -62,7 +62,7 @@ const truncateAndCapitalizeTitle = (title: string): string => {
 };
 
 // ─── POST /api/notes/create ──────────────────────────────────────────────────
-route.post('/api/notes/create', requireAuth, rateLimit('write'), async (c) => {
+route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
