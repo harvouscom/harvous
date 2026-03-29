@@ -1,6 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { extractIdFromPath } from '@/utils/url-helpers';
 
+const TAB_COUNTS_CACHE_PREFIX = 'harvous-tab-counts-';
+
+function getCachedTabCounts(threadId: string): Record<string, number> | undefined {
+  try {
+    const raw = sessionStorage.getItem(`${TAB_COUNTS_CACHE_PREFIX}${threadId}`);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch { return undefined; }
+}
+
+function setCachedTabCounts(threadId: string, counts: Record<string, number>) {
+  try { sessionStorage.setItem(`${TAB_COUNTS_CACHE_PREFIX}${threadId}`, JSON.stringify(counts)); } catch { /* ignore */ }
+}
+
 export interface TabNavProps {
   tabs: Array<{
     id: string;
@@ -19,8 +32,12 @@ export default function TabNav({
   className = '',
   threadId
 }: TabNavProps) {
-  // State for badge counts - initialize from props (consistent server/client)
+  // State for badge counts — seed from sessionStorage cache so counts appear instantly on load.
   const [badgeCounts, setBadgeCounts] = useState<Record<string, number>>(() => {
+    if (threadId) {
+      const cached = getCachedTabCounts(threadId);
+      if (cached) return cached;
+    }
     const counts: Record<string, number> = {};
     tabs.forEach(tab => {
       if (tab.count !== undefined) {
@@ -36,6 +53,13 @@ export default function TabNav({
 
   // Ref to track if we're on a thread page
   const isThreadPageRef = useRef<boolean>(false);
+
+  // Sync reset: swap to the new thread's cached counts (or clear) when threadId changes.
+  const prevTabNavThreadRef = useRef(threadId);
+  if (prevTabNavThreadRef.current !== threadId) {
+    prevTabNavThreadRef.current = threadId;
+    setBadgeCounts(threadId ? getCachedTabCounts(threadId) ?? {} : {});
+  }
 
   // Initialize activeTabId from props after mount to avoid hydration mismatch
   useEffect(() => {
@@ -101,30 +125,33 @@ export default function TabNav({
     return null;
   }, [threadId]);
 
-  // Update badge counts from API
-  const updateBadgeCountsFromAPI = useCallback(async () => {
-    if (!isThreadPageRef.current) return;
-
-    const counts = await fetchNoteTypeCounts();
-    if (counts) {
-      setBadgeCounts(prev => ({
-        ...prev,
-        all: counts.all,
-        notes: counts.default,
-        scripture: counts.scripture
-      }));
-    }
-  }, [fetchNoteTypeCounts]);
-
-  // Handle note events with optimistic updates
+  // Handle note events with optimistic updates and badge count fetching.
+  // Uses a `cancelled` flag so API responses from a previous thread are discarded
+  // when the user navigates away before the response arrives.
   useEffect(() => {
     if (!isThreadPageRef.current) return;
 
-    const handleNoteCreated = async (event: Event) => {
+    let cancelled = false;
+    const pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
+
+    const fetchAndSetCounts = async () => {
+      const counts = await fetchNoteTypeCounts();
+      if (!cancelled && counts) {
+        const mapped = { all: counts.all, notes: counts.default, scripture: counts.scripture };
+        setBadgeCounts(prev => ({ ...prev, ...mapped }));
+        if (threadId) setCachedTabCounts(threadId, mapped);
+      }
+    };
+
+    const scheduleVerify = () => {
+      const tid = setTimeout(() => fetchAndSetCounts(), 200);
+      pendingTimeouts.push(tid);
+    };
+
+    const handleNoteCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId, note, actualThreadId } = customEvent.detail;
 
-      // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
         return extractIdFromPath(currentPath) || '';
@@ -132,7 +159,6 @@ export default function TabNav({
       const noteThreadId = eventThreadId || actualThreadId || note?.threadId;
 
       if (noteThreadId === currentThreadId || (noteThreadId === 'thread_unorganized' && currentThreadId === 'thread_unorganized')) {
-        // Optimistic update
         const noteType = note?.noteType || 'default';
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
@@ -144,52 +170,39 @@ export default function TabNav({
           }
           return newCounts;
         });
-
-        // Verify with API after short delay
-        setTimeout(() => {
-          updateBadgeCountsFromAPI();
-        }, 200);
+        scheduleVerify();
       }
     };
 
-    const handleNoteDeleted = async (event: Event) => {
+    const handleNoteDeleted = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId } = customEvent.detail;
 
-      // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
         return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {
-        // Optimistic update
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
           newCounts.all = Math.max(0, (newCounts.all || 0) - 1);
-          // We don't know the note type, so we'll verify with API
           return newCounts;
         });
-
-        // Verify with API after short delay
-        setTimeout(() => {
-          updateBadgeCountsFromAPI();
-        }, 200);
+        scheduleVerify();
       }
     };
 
-    const handleNoteAddedToThread = async (event: Event) => {
+    const handleNoteAddedToThread = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId, noteType = 'default' } = customEvent.detail;
 
-      // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
         return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {
-        // Optimistic update - update both all and specific note type count
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
           newCounts.all = (newCounts.all || 0) + 1;
@@ -200,26 +213,20 @@ export default function TabNav({
           }
           return newCounts;
         });
-
-        // Verify with API after short delay
-        setTimeout(() => {
-          updateBadgeCountsFromAPI();
-        }, 200);
+        scheduleVerify();
       }
     };
 
-    const handleNoteRemovedFromThread = async (event: Event) => {
+    const handleNoteRemovedFromThread = (event: Event) => {
       const customEvent = event as CustomEvent;
       const { threadId: eventThreadId, noteType = 'default' } = customEvent.detail;
 
-      // Use threadId prop if available, otherwise use pathname
       const currentThreadId = threadId || (() => {
         const currentPath = window.location.pathname;
         return extractIdFromPath(currentPath) || '';
       })();
 
       if (eventThreadId === currentThreadId) {
-        // Optimistic update - update both all and specific note type count
         setBadgeCounts(prev => {
           const newCounts = { ...prev };
           newCounts.all = Math.max(0, (newCounts.all || 0) - 1);
@@ -230,11 +237,7 @@ export default function TabNav({
           }
           return newCounts;
         });
-
-        // Verify with API after short delay
-        setTimeout(() => {
-          updateBadgeCountsFromAPI();
-        }, 200);
+        scheduleVerify();
       }
     };
 
@@ -243,16 +246,18 @@ export default function TabNav({
     window.addEventListener('noteAddedToThread', handleNoteAddedToThread);
     window.addEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
 
-    // Initial fetch on mount
-    updateBadgeCountsFromAPI();
+    // Initial fetch
+    fetchAndSetCounts();
 
     return () => {
+      cancelled = true;
+      pendingTimeouts.forEach(clearTimeout);
       window.removeEventListener('noteCreated', handleNoteCreated);
       window.removeEventListener('noteDeleted', handleNoteDeleted);
       window.removeEventListener('noteAddedToThread', handleNoteAddedToThread);
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread);
     };
-  }, [updateBadgeCountsFromAPI, threadId]);
+  }, [fetchNoteTypeCounts, threadId]);
 
   // Handle tab click
   const handleTabClick = (tabId: string) => {

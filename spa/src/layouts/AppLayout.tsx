@@ -34,6 +34,12 @@ export default function AppLayout() {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const searchRaw = useRouterState({ select: (s) => s.location.search });
+
+  // Computed early so hooks below can use it in their `enabled` options.
+  const hasSessionCookie = /(?:^|;\s*)__client_uat=[1-9]/.test(
+    typeof document !== 'undefined' ? document.cookie : '',
+  );
+
   // TanStack Router returns search as a parsed object (e.g. { space: 'space_xxx' }).
   // Components downstream expect a URL search string. Convert it.
   const search: string = typeof searchRaw === 'string' ? searchRaw
@@ -66,14 +72,16 @@ export default function AppLayout() {
   })();
 
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
-  // Run nav as soon as user is signed in (parallel with profile). Server is hardened so onboarding init is safe when multiple requests run.
+  // Fire nav immediately when cookie is present (parallel with profile — no waterfall).
   const { data: nav } = useNavigation({
-    enabled: (isLoaded && isSignedIn) || (profileSuccess && !!profile) || profileError,
+    enabled: hasSessionCookie || (isLoaded && isSignedIn) || (profileSuccess && !!profile) || profileError,
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
   const recordThreadVisit = useRecordThreadVisit();
   const recordNoteVisit = useRecordNoteVisit();
+  // Once we show the app shell, keep it mounted through Clerk init transitions (avoids double fade-in).
+  const committedToShellRef = useRef(false);
 
   // Derive current IDs from path before hooks (hooks must be called unconditionally)
   const pathSlugEarly = pathname.split('/').pop() || '';
@@ -199,15 +207,14 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
 
-  // Invalidate nav and dashboard on first sign-in and when user changes so we always show correct data (fixes onboarding not showing until refresh)
+  // Invalidate nav and dashboard when the signed-in user changes (account switch). Skip first Clerk load — cookie-auth queries already have the right data.
   const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
     const prev = prevUserIdRef.current;
     prevUserIdRef.current = user.id;
-    const isFirstUser = prev === null;
     const userChanged = prev != null && prev !== user.id;
-    if (isFirstUser || userChanged) {
+    if (userChanged) {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: navigationQueryKey });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -574,15 +581,13 @@ export default function AppLayout() {
     prevShowDockRef.current = showDock;
   }, [showDock]);
 
-  if (!isLoaded) {
-    return (
-      <div className="app-loading">
-        <div className="app-loading__spinner" />
-      </div>
-    );
+  // Render shell when session cookie exists or Clerk confirms sign-in; then stay mounted (no transient isLoaded/isSignedIn unmount).
+  const shouldShowShell = hasSessionCookie || (isLoaded && isSignedIn);
+  if (shouldShowShell) {
+    committedToShellRef.current = true;
   }
 
-  if (!isSignedIn) {
+  if (!committedToShellRef.current) {
     return null;
   }
 

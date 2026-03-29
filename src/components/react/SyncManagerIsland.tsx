@@ -4,7 +4,7 @@ import { persistUserId, getPersistedUserId } from '@/utils/user-id';
 import { executeOnlineRecovery, onOnlineRecovery, offOnlineRecovery } from '@/utils/network';
 import { syncNow } from '@/utils/sync-manager';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
-import { isOfflineModeEnabled } from '@/utils/posthog';
+import { isOfflineModeEnabled } from '@/utils/offline-mode';
 import OfflineIndicator from './OfflineIndicator';
 
 interface SyncManagerIslandProps {

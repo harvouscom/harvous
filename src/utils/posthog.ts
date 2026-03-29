@@ -163,13 +163,8 @@ export function getFeatureFlag(flagName: string): string | boolean | undefined {
   }
 }
 
-/**
- * Check if offline mode is enabled
- * Offline mode is now always enabled (feature flag removed)
- */
-export function isOfflineModeEnabled(): boolean {
-  return true;
-}
+// Re-export for backward compatibility — new callers should import from './offline-mode' directly.
+export { isOfflineModeEnabled } from './offline-mode';
 
 /**
  * Enable session recording (opt-in)

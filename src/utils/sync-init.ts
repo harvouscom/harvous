@@ -1,7 +1,7 @@
 import React from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { bootstrapSync, syncNow, needsBootstrap, startBackgroundSync } from './sync-manager';
-import { isOfflineModeEnabled } from './posthog';
+import { isOfflineModeEnabled } from './offline-mode';
 
 /**
  * Initialize sync on app load

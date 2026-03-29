@@ -3,6 +3,25 @@ import { api } from '../../lib/api';
 import { updateCachedProfileData } from '@/utils/profile-cache';
 
 const USER_COLOR_KEY = 'harvous-user-color';
+const PROFILE_CACHE_KEY = 'harvous-profile-cache';
+const XP_CACHE_KEY = 'harvous-xp-cache';
+
+function getCachedXP(): XPData | undefined {
+  try {
+    const raw = sessionStorage.getItem(XP_CACHE_KEY);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedXP(data: XPData) {
+  try {
+    sessionStorage.setItem(XP_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
 
 export function getCachedUserColor(): string | null {
   try { return localStorage.getItem(USER_COLOR_KEY); } catch { return null; }
@@ -10,6 +29,17 @@ export function getCachedUserColor(): string | null {
 
 function setCachedUserColor(color: string) {
   try { localStorage.setItem(USER_COLOR_KEY, color); } catch { /* ignore */ }
+}
+
+function getCachedProfile(): UserProfile | undefined {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch { return undefined; }
+}
+
+function setCachedProfile(profile: UserProfile) {
+  try { sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile)); } catch { /* ignore */ }
 }
 
 export interface UserProfile {
@@ -34,7 +64,7 @@ export interface XPData {
 }
 
 export function useProfile() {
-  const cached = getCachedUserColor();
+  const cachedProfile = getCachedProfile();
   return useQuery({
     queryKey: ['profile'],
     queryFn: () =>
@@ -52,27 +82,33 @@ export function useProfile() {
             churchState: data.churchState ?? null,
             hasLockPinSet: data.hasLockPinSet
           });
-          return {
+          const profile = {
             ...data,
-            // API doesn't return displayName — compute it from firstName + lastName
             displayName: (data.displayName
               ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()
               ) || 'User',
           } as UserProfile;
+          setCachedProfile(profile);
+          return profile;
         }),
     staleTime: 5 * 60_000,
-    // Seed with cached color so the avatar renders correctly before the first fetch completes
-    placeholderData: cached
-      ? { userColor: cached, displayName: '', firstName: null, lastName: null, email: '', id: '', profileImageUrl: null, church: null }
-      : undefined,
+    initialData: cachedProfile,
+    initialDataUpdatedAt: cachedProfile ? Date.now() - 30_000 : undefined,
   });
 }
 
 export function useXP() {
+  const cachedXP = getCachedXP();
   return useQuery({
     queryKey: ['xp'],
-    queryFn: () => api.get<XPData>('/api/user/xp'),
+    queryFn: () =>
+      api.get<XPData>('/api/user/xp').then((data) => {
+        setCachedXP(data);
+        return data;
+      }),
     staleTime: 60_000,
+    initialData: cachedXP,
+    initialDataUpdatedAt: cachedXP ? Date.now() - 30_000 : undefined,
   });
 }
 

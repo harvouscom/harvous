@@ -14,7 +14,7 @@ import { enqueueMutation } from './sync-manager';
 import { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from './offline-db';
 import { getCurrentSeason } from './season-helpers';
 import { generateNoteId, generateSpaceId, generateThreadId } from './ids';
-import { isOfflineModeEnabled } from './posthog';
+import { isOfflineModeEnabled } from './offline-mode';
 
 // Re-export from offline-db so existing consumers don't need to change imports
 export { cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId };

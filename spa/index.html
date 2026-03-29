@@ -49,12 +49,12 @@
     </script>
     <script src="/scripts/pwa-startup.js"></script>
     <script src="/scripts/haptics-handler.js"></script>
-    <script src="/scripts/tab-interaction-handler.js"></script>
+    <script defer src="/scripts/tab-interaction-handler.js"></script>
     <script src="/scripts/service-worker-manager.js"></script>
-    <script src="/scripts/navigation/history-tracker.js"></script>
+    <script defer src="/scripts/navigation/history-tracker.js"></script>
     <!-- Profile/avatar: shared components (ProfilePage, EditNameColorPanel) call window.updateAllAvatars -->
-    <script src="/scripts/avatar-manager-global.js"></script>
-    <script src="/scripts/profile-sync.js"></script>
+    <script defer src="/scripts/avatar-manager-global.js"></script>
+    <script defer src="/scripts/profile-sync.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -4,6 +4,42 @@ import { normalizeDate } from '../../../../src/utils/sorting';
 
 const bootstrapQueryKey = (spaceId: string) => ['space', spaceId, 'bootstrap'] as const;
 
+const SPACE_BOOTSTRAP_CACHE_PREFIX = 'harvous-space-bootstrap-';
+const SPACE_BOOTSTRAP_CACHE_INDEX = 'harvous-space-bootstrap-index';
+const MAX_CACHED_SPACES = 5;
+
+export type SpaceBootstrapData = { space: SpaceDetail; items: SpaceContentItem[] };
+
+function getCachedSpaceBootstrap(spaceId: string): SpaceBootstrapData | undefined {
+  try {
+    const raw = sessionStorage.getItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${spaceId}`);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedSpaceBootstrap(spaceId: string, data: SpaceBootstrapData) {
+  try {
+    sessionStorage.setItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${spaceId}`, JSON.stringify(data));
+    let index: string[] = [];
+    try {
+      const raw = sessionStorage.getItem(SPACE_BOOTSTRAP_CACHE_INDEX);
+      index = raw ? JSON.parse(raw) : [];
+    } catch {
+      index = [];
+    }
+    index = [spaceId, ...index.filter((id) => id !== spaceId)];
+    while (index.length > MAX_CACHED_SPACES) {
+      const evicted = index.pop()!;
+      sessionStorage.removeItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${evicted}`);
+    }
+    sessionStorage.setItem(SPACE_BOOTSTRAP_CACHE_INDEX, JSON.stringify(index));
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 export interface SpaceDetail {
   id: string;
   title: string;
@@ -174,6 +210,7 @@ export function useSpaceItems(spaceId: string) {
 
 /** Single request for space + items; use on SpacePage for one round-trip. Populates cache for useSpace/useSpaceItems. */
 export function useSpaceBootstrap(spaceId: string) {
+  const cachedBootstrap = spaceId ? getCachedSpaceBootstrap(spaceId) : undefined;
   return useQuery({
     queryKey: bootstrapQueryKey(spaceId),
     queryFn: async () => {
@@ -181,9 +218,13 @@ export function useSpaceBootstrap(spaceId: string) {
       const space = data.space;
       const items = mapSpaceItemsResponse(data.items);
       if (!space) throw new Error('Space not found');
-      return { space, items };
+      const payload: SpaceBootstrapData = { space, items };
+      setCachedSpaceBootstrap(spaceId, payload);
+      return payload;
     },
     enabled: !!spaceId,
     staleTime: 30_000,
+    initialData: cachedBootstrap,
+    initialDataUpdatedAt: cachedBootstrap ? Date.now() - 15_000 : undefined,
   });
 }

@@ -13,7 +13,6 @@ import TabNav from '../../../src/components/react/TabNav';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { showInitialLoadToast, dismissInitialLoadToast } from '../utils/initial-load-toast';
 
 type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -92,18 +91,6 @@ export default function SpacePage() {
 
   const initialItems = spaceItems ?? [];
   const parentIsLoading = initialItems.length === 0 && isFetching;
-  const spaceInitialLoad = initialItems.length === 0 && (isFetching || isLoading);
-
-  // Show "Loading the space..." toast during initial load of this space (shared with dashboard toast)
-  useEffect(() => {
-    if (spaceInitialLoad) {
-      showInitialLoadToast('Loading the space...');
-    } else {
-      dismissInitialLoadToast();
-    }
-    return () => dismissInitialLoadToast();
-  }, [spaceInitialLoad]);
-
   // Redirect when space no longer exists (e.g. deleted) so we don't render SpaceContentList for a 404 space
   useEffect(() => {
     if (isError) navigate({ to: '/', replace: true });

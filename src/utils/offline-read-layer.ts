@@ -7,7 +7,7 @@ import {
   type OfflineUserMetadata, 
   type SyncStatus 
 } from './offline-db';
-import { isOfflineModeEnabled } from './posthog';
+import { isOfflineModeEnabled } from './offline-mode';
 import { sortByLastVisited, sortThreadsByLastVisited, normalizeDate } from '@/utils/sorting';
 
 /**

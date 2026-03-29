@@ -82,6 +82,40 @@ function setCachedNoteParentThread(noteId: string, thread: CachedThread) {
 
 const NOTE_STALE_TIME = 10_000;
 
+const NOTE_DETAIL_CACHE_PREFIX = 'harvous-note-detail-';
+const NOTE_DETAIL_CACHE_INDEX = 'harvous-note-detail-index';
+const MAX_CACHED_NOTE_DETAILS = 10;
+
+function getCachedNoteDetail(noteId: string): NoteDetail | undefined {
+  try {
+    const raw = sessionStorage.getItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedNoteDetail(noteId: string, detail: NoteDetail) {
+  try {
+    sessionStorage.setItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`, JSON.stringify(detail));
+    let index: string[] = [];
+    try {
+      const raw = sessionStorage.getItem(NOTE_DETAIL_CACHE_INDEX);
+      index = raw ? JSON.parse(raw) : [];
+    } catch {
+      index = [];
+    }
+    index = [noteId, ...index.filter((id) => id !== noteId)];
+    while (index.length > MAX_CACHED_NOTE_DETAILS) {
+      const evicted = index.pop()!;
+      sessionStorage.removeItem(`${NOTE_DETAIL_CACHE_PREFIX}${evicted}`);
+    }
+    sessionStorage.setItem(NOTE_DETAIL_CACHE_INDEX, JSON.stringify(index));
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 /**
  * Converts a list note (from thread/space notes API) into NoteDetail shape
  * so it can be used as cached data for the note detail query.
@@ -129,6 +163,7 @@ export function seedNoteFromList(
   if (!listNote?.id) return;
   const detail = listNoteToNoteDetail(listNote, threadContext);
   queryClient.setQueryData(['note', listNote.id], detail);
+  setCachedNoteDetail(listNote.id, detail);
 }
 
 export function getNoteQueryOptions(noteId: string) {
@@ -153,6 +188,7 @@ export function getNoteQueryOptions(noteId: string) {
           spaceId: threadWithCount.spaceId ?? null,
         });
       }
+      setCachedNoteDetail(noteId, note);
       return note;
     },
     staleTime: NOTE_STALE_TIME,
@@ -161,8 +197,11 @@ export function getNoteQueryOptions(noteId: string) {
 
 export function useNote(noteId: string) {
   const options = getNoteQueryOptions(noteId);
+  const cachedDetail = noteId ? getCachedNoteDetail(noteId) : undefined;
   return useQuery({
     ...options,
     enabled: !!noteId,
+    initialData: cachedDetail,
+    initialDataUpdatedAt: cachedDetail ? Date.now() - 5_000 : undefined,
   });
 }

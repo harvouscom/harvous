@@ -71,16 +71,3 @@ export function useThreadNotes(threadId: string, limit = 20) {
     staleTime: 30_000,
   });
 }
-
-export function useThreadNoteTypeCounts(threadId: string) {
-  const normalizedId = normalizeThreadId(threadId);
-  return useQuery({
-    queryKey: ['thread', normalizedId, 'noteTypeCounts'],
-    queryFn: () =>
-      api.get<{ default: number; scripture: number; resource: number }>(
-        `/api/threads/${normalizedId}/note-type-counts`
-      ),
-    enabled: !!normalizedId,
-    staleTime: 30_000,
-  });
-}

@@ -10,7 +10,6 @@ import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { useIsMobile } from '../hooks/useIsMobile';
-import { showInitialLoadToast, dismissInitialLoadToast } from '../utils/initial-load-toast';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -21,53 +20,28 @@ const TABS: Array<{ id: DashboardFilter; label: string }> = [
   { id: 'scripture', label: 'Scripture' },
 ];
 
-// Only show the toast on the very first dashboard load this session (not when navigating back)
-let hasShownInitialDashboardToast = false;
-
 export default function DashboardPage() {
   const { user } = useUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardFilter>('all');
-  const { data: profile, isSuccess: profileSuccess, isError: profileError, isPending: profilePending } = useProfile();
+  const { isSuccess: profileSuccess } = useProfile();
 
-  // Load content only after profile has completed so get-profile (and NoteScriptureReferences) are committed before load-more; first response then includes scripture refs/pills.
-  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30, {
-    enabled: (profileSuccess && !!profile) || profileError,
-  });
+  // Fire immediately — cookie auth works before Clerk loads. Scripture refs are picked up by the background refetch below.
+  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30);
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
 
   // One-time refetch after first content load when profile succeeded, so we pick up scripture refs if the first response didn't have them (e.g. cross-instance timing).
   const didRefetchForScriptureRef = useRef(false);
-  const [isRefetchingForScripture, setIsRefetchingForScripture] = useState(false);
   useEffect(() => {
     if (!profileSuccess || !cachedItems.length || didRefetchForScriptureRef.current) return;
     didRefetchForScriptureRef.current = true;
-    const t = setTimeout(() => {
-      setIsRefetchingForScripture(true);
-      refetchContent().finally(() => setIsRefetchingForScripture(false));
-    }, 400);
-    return () => clearTimeout(t);
+    void refetchContent();
   }, [profileSuccess, cachedItems.length, refetchContent]);
 
-  // Keep loading animation until we have content and (if we ran it) the scripture refetch is done, so pills are loaded in card notes
-  const isInitialLoading =
-    (cachedItems.length === 0 && (isFetching || profilePending)) || isRefetchingForScripture;
-
-  // Keep toast visible until full initial load (including scripture refetch) so it matches the loading animation. Only once per session for dashboard.
-  useEffect(() => {
-    if (isInitialLoading) {
-      if (!hasShownInitialDashboardToast) {
-        showInitialLoadToast();
-        hasShownInitialDashboardToast = true;
-      }
-    } else {
-      dismissInitialLoadToast();
-    }
-    return () => dismissInitialLoadToast();
-  }, [isInitialLoading]);
+  const isInitialLoading = cachedItems.length === 0 && isFetching;
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.

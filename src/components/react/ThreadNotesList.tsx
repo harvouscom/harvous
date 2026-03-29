@@ -17,6 +17,38 @@ import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
 
+// ── Thread notes sessionStorage cache ──
+const THREAD_CACHE_PREFIX = 'harvous-thread-notes-';
+const THREAD_CACHE_INDEX = 'harvous-thread-notes-index';
+const MAX_CACHED_THREADS = 5;
+const MAX_CACHED_NOTES = 30;
+
+function getThreadNotesCache(threadId: string): Note[] | undefined {
+  try {
+    const raw = sessionStorage.getItem(`${THREAD_CACHE_PREFIX}${threadId}`);
+    return raw ? JSON.parse(raw) : undefined;
+  } catch { return undefined; }
+}
+
+function setThreadNotesCache(threadId: string, notes: Note[]) {
+  try {
+    sessionStorage.setItem(
+      `${THREAD_CACHE_PREFIX}${threadId}`,
+      JSON.stringify(notes.slice(0, MAX_CACHED_NOTES))
+    );
+    let index: string[] = [];
+    try {
+      const raw = sessionStorage.getItem(THREAD_CACHE_INDEX);
+      index = raw ? JSON.parse(raw) : [];
+    } catch { index = []; }
+    index = [threadId, ...index.filter(id => id !== threadId)];
+    while (index.length > MAX_CACHED_THREADS) {
+      const evicted = index.pop()!;
+      sessionStorage.removeItem(`${THREAD_CACHE_PREFIX}${evicted}`);
+    }
+    sessionStorage.setItem(THREAD_CACHE_INDEX, JSON.stringify(index));
+  } catch { /* quota or private browsing */ }
+}
 
 interface Note {
   id: string;
@@ -146,6 +178,26 @@ export default function ThreadNotesList({
   // True until first load completes (or timeout); used to show progress bar instead of full loading block
   const [isInitialLoadPending, setIsInitialLoadPending] = useState(() => initialNotes.length === 0);
 
+  // Sync reset: when threadId changes while the component stays mounted (same-route navigation),
+  // immediately swap to the new thread's cached notes (or clear stale notes). This runs during
+  // render (before paint) so the old thread's notes never flash on screen.
+  const prevCacheThreadRef = useRef(threadId);
+  if (prevCacheThreadRef.current !== threadId) {
+    prevCacheThreadRef.current = threadId;
+    const cached = getThreadNotesCache(threadId);
+    if (cached && cached.length > 0) {
+      setNotes(cached);
+      allFetchedNotesRef.current = cached;
+      setIsInitialLoadPending(false);
+    } else {
+      setNotes([]);
+      allFetchedNotesRef.current = [];
+      setIsInitialLoadPending(true);
+    }
+    setDeletedNoteIds(new Set());
+    deletedNoteIdsRef.current = new Set();
+  }
+
   // Keep ref in sync with state
   useEffect(() => {
     deletedNoteIdsRef.current = deletedNoteIds;
@@ -164,6 +216,9 @@ export default function ThreadNotesList({
   const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
   const prevInitialNotesRef = useRef<Note[]>(initialNotes);
   const isMountedRef = useRef<boolean>(true);
+  // Always reflects the current threadId; checked after async gaps to discard stale responses.
+  const activeThreadIdRef = useRef(threadId);
+  activeThreadIdRef.current = threadId;
   const hasRefreshedOnMountRef = useRef<boolean>(false);
   // Track refreshing state
   const isRefreshingRef = useRef<boolean>(false);
@@ -285,6 +340,7 @@ export default function ThreadNotesList({
       try {
         debug('[ThreadNotesList] Loading notes from IndexedDB', { threadId, reason: !navigator.onLine ? 'offline' : 'local_thread' });
         const localResult = await getNotesForThreadLocal(userId, threadId, 100, 0);
+        if (activeThreadIdRef.current !== threadId) return false;
         const localNotes = localResult.notes || [];
 
         // Normalize dates and preserve syncStatus
@@ -363,7 +419,7 @@ export default function ThreadNotesList({
           const data = await response.json();
           const freshNotesRaw = data.notes || [];
 
-          if (!isMountedRef.current) return false;
+          if (!isMountedRef.current || activeThreadIdRef.current !== threadId) return false;
 
           // Seed note detail cache so opening a note shows content immediately
           onNotesLoaded?.(freshNotesRaw);
@@ -406,6 +462,7 @@ export default function ThreadNotesList({
 
           // Store full unfiltered result for tab switching
           allFetchedNotesRef.current = filtered;
+          setThreadNotesCache(threadId, filtered);
 
           // Combine API notes with optimistic notes
           const combinedNotes = [...filtered, ...optimisticNotesToKeep];
@@ -838,10 +895,19 @@ export default function ThreadNotesList({
   }, [threadId, refreshNotesList]);
 
 
-  // SPA context: when no initial notes are provided (no SSR pre-fetch), load immediately on mount
+  // SPA context: when no initial notes are provided (no SSR pre-fetch), load immediately on mount.
+  // If sessionStorage has cached notes for this thread, show them instantly and refetch in the background.
   useEffect(() => {
     if (initialNotes.length > 0) {
       setIsInitialLoadPending(false);
+      return;
+    }
+    const cached = getThreadNotesCache(threadId);
+    if (cached && cached.length > 0) {
+      setNotes(cached);
+      allFetchedNotesRef.current = cached;
+      setIsInitialLoadPending(false);
+      refreshNotesList();
       return;
     }
     setIsInitialLoadPending(true);
