@@ -67992,6 +67992,8 @@ var XP_VALUES = {
   MONTHLY_ATTENDANCE: 25,
   NEW_SEASON_BONUS: 50,
   // One-time reward for returning in a new season
+  REFERRAL_BONUS: 100,
+  // XP for referrer when an invitee signs up via referral link
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -68031,6 +68033,7 @@ var ACTIVITY_TYPES = {
   MONTHLY_ATTENDANCE: "monthly_attendance",
   NEW_SEASON: "new_season",
   WEEKLY_STREAK: "weekly_streak",
+  REFERRAL_CREDITED: "referral_credited",
   // Legacy activity types (kept for backward compatibility)
   THREAD_CREATED: "thread_created",
   NOTE_CREATED: "note_created",
@@ -68498,6 +68501,7 @@ async function getXPBreakdown(userId) {
       monthlyAttendance: 0,
       newSeason: 0,
       weeklyStreak: 0,
+      referralCredited: 0,
       // Legacy
       threadCreated: 0,
       noteCreated: 0,
@@ -68523,6 +68527,9 @@ async function getXPBreakdown(userId) {
           break;
         case ACTIVITY_TYPES.WEEKLY_STREAK:
           breakdown.weeklyStreak += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.REFERRAL_CREDITED:
+          breakdown.referralCredited += record.xpAmount;
           break;
         // Legacy activity types
         case ACTIVITY_TYPES.THREAD_CREATED:
@@ -68555,6 +68562,7 @@ async function getXPBreakdown(userId) {
         monthlyAttendance: 0,
         newSeason: 0,
         weeklyStreak: 0,
+        referralCredited: 0,
         threadCreated: 0,
         noteCreated: 0,
         noteOpened: 0,
@@ -70505,7 +70513,14 @@ async function getThreadNoteTypeCounts(threadId, userId) {
       [...unorganizedNotes, ...referencedScriptureNotes].forEach((n) => {
         if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
       });
-      const allNotes = Array.from(notesMap.values());
+      let allNotes = Array.from(notesMap.values());
+      const scriptureIds = allNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+      let organizedScriptureIds = /* @__PURE__ */ new Set();
+      if (scriptureIds.length > 0) {
+        const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId)).where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+        organizedScriptureIds = new Set(rows.map((r) => r.scriptureNoteId));
+      }
+      allNotes = allNotes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
       allCount = allNotes.length;
       defaultCount = allNotes.filter((n) => !n.noteType || n.noteType === "default").length;
       scriptureCount = allNotes.filter((n) => n.noteType === "scripture").length;
@@ -70582,6 +70597,13 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
         if (n.id && !notesMap.has(n.id)) notesMap.set(n.id, n);
       });
       allNotes = Array.from(notesMap.values());
+      const scriptureIds = allNotes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+      let organizedScriptureIds = /* @__PURE__ */ new Set();
+      if (scriptureIds.length > 0) {
+        const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId)).where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+        organizedScriptureIds = new Set(rows.map((r) => r.scriptureNoteId));
+      }
+      allNotes = allNotes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
     } else {
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
@@ -70756,13 +70778,20 @@ async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, of
 }
 async function getUnorganizedNotesForDashboard(userId, limit = 10) {
   try {
-    const notes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
+    let notes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
       asc(Notes.id)
     ).limit(limit);
+    const scriptureIds = notes.filter((n) => n.noteType === "scripture").map((n) => n.id).filter(Boolean);
+    let organizedScriptureIds = /* @__PURE__ */ new Set();
+    if (scriptureIds.length > 0) {
+      const rows = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).innerJoin(NoteThreads, eq(NoteThreads.noteId, NoteScriptureReferences.noteId)).where(inArray(NoteScriptureReferences.scriptureNoteId, scriptureIds));
+      organizedScriptureIds = new Set(rows.map((r) => r.scriptureNoteId));
+    }
+    notes = notes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
     const noteIds = notes.map((n) => n.id).filter(Boolean);
     const threadColorsMap = await getThreadColorsForNotesBatch(noteIds, userId);
     return notes.map((note) => ({
@@ -89319,8 +89348,7 @@ app4.get("/api/subscription/status", requireAuth, async (c) => {
       {
         hasUnlimited: subscriptionInfo.hasUnlimited,
         currentCount: subscriptionInfo.currentCount,
-        limit: subscriptionInfo.limit,
-        referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0
+        limit: subscriptionInfo.limit
       },
       200,
       { "Cache-Control": "private, no-store, max-age=0" }
@@ -89330,7 +89358,6 @@ app4.get("/api/subscription/status", requireAuth, async (c) => {
     return c.json({ error: error.message || "Failed to check subscription status", hasUnlimited: false }, 500);
   }
 });
-var BONUS_PER_REFERRAL = 100;
 app4.post("/api/referral/credit", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
@@ -89340,10 +89367,21 @@ app4.post("/api/referral/credit", requireAuth, async (c) => {
     const referrerUserId = await resolveRefToUserId(ref);
     if (!referrerUserId) return c.json({ credited: false });
     if (referrerUserId === auth.userId) return c.json({ credited: false });
-    const referrerRow = first(await db.select({ referralBonusNotes: UserMetadata.referralBonusNotes }).from(UserMetadata).where(eq(UserMetadata.userId, referrerUserId)).limit(1));
+    const referrerRow = first(await db.select({ userId: UserMetadata.userId }).from(UserMetadata).where(eq(UserMetadata.userId, referrerUserId)).limit(1));
     if (!referrerRow) return c.json({ credited: false });
-    const newBonus = (referrerRow.referralBonusNotes ?? 0) + BONUS_PER_REFERRAL;
-    await db.update(UserMetadata).set({ referralBonusNotes: newBonus, updatedAt: nowISO() }).where(eq(UserMetadata.userId, referrerUserId));
+    const alreadyCredited = first(await db.select({ id: UserXP.id }).from(UserXP).where(and(
+      eq(UserXP.userId, referrerUserId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED),
+      eq(UserXP.relatedId, auth.userId)
+    )).limit(1));
+    if (alreadyCredited) return c.json({ credited: false });
+    await awardXP(
+      referrerUserId,
+      ACTIVITY_TYPES.REFERRAL_CREDITED,
+      XP_VALUES.REFERRAL_BONUS,
+      auth.userId,
+      { inviteeUserId: auth.userId }
+    );
     return c.json({ credited: true });
   } catch (error) {
     console.error("Referral credit error:", error);
@@ -89353,15 +89391,16 @@ app4.post("/api/referral/credit", requireAuth, async (c) => {
 app4.get("/api/referral/status", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
-    const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
-    const metaRow = first(await db.select({ referralBonusNotes: UserMetadata.referralBonusNotes, referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+    const metaRow = first(await db.select({ referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
     let referralCode = metaRow?.referralCode ?? null;
-    const referralBonusNotes = metaRow?.referralBonusNotes ?? 0;
     if (!referralCode) {
       referralCode = generateReferralCode(metaRow?.firstName ?? null, auth.userId);
       await db.update(UserMetadata).set({ referralCode, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
     }
-    return c.json({ referralBonusNotes, referralCode, limit: subscriptionInfo.limit });
+    const referralRows = await db.select({ xpAmount: UserXP.xpAmount }).from(UserXP).where(and(eq(UserXP.userId, auth.userId), eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED)));
+    const referralCount = referralRows.length;
+    const referralXP = referralRows.reduce((sum2, row) => sum2 + row.xpAmount, 0);
+    return c.json({ referralCount, referralXP, referralCode });
   } catch (error) {
     console.error("Referral status error:", error);
     return c.json({ error: "Failed to load referral status" }, 500);

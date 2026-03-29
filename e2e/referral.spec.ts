@@ -3,19 +3,19 @@ import { test, expect as authExpect } from './fixtures/auth';
 import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
 
 /**
- * E2E tests for referral link and bonus note count.
+ * E2E tests for referral link and XP bonus.
  *
  * Flow:
  * 1. User A (referrer) gets referral code and initial bonus count.
  * 2. User B visits /sign-up?ref=CODE (sets harvous_referrer cookie), then signs in.
- * 3. On first app load, ReferralCreditInit POSTs /api/referral/credit → referrer gets +100 bonus.
- * 4. Assert User A's referralBonusNotes increased by 100.
+ * 3. On first app load, ReferralCreditInit POSTs /api/referral/credit → referrer gets +100 XP.
+ * 4. Assert User A's referralXP increased by 100 (referralCount +1).
  *
  * Requires TEST_USER_A_* and TEST_USER_B_* in .env (same as other e2e).
  */
 
 /** GET /api/referral/status using the page context (same cookies/auth). */
-async function getReferralStatus(page: import('@playwright/test').Page): Promise<{ referralCode: string | null; referralBonusNotes: number; limit: number | null }> {
+async function getReferralStatus(page: import('@playwright/test').Page): Promise<{ referralCode: string | null; referralCount: number; referralXP: number }> {
   const response = await page.request.get('/api/referral/status');
   if (!response.ok()) throw new Error(`referral/status ${response.status()}`);
   return response.json();
@@ -27,8 +27,8 @@ test.describe('Referral link and status', () => {
     await page.goto('/');
     const status = await getReferralStatus(page);
     expect(status.referralCode).toBeTruthy();
-    expect(typeof status.referralBonusNotes).toBe('number');
-    expect(status.limit).toBeGreaterThanOrEqual(200);
+    expect(typeof status.referralCount).toBe('number');
+    expect(typeof status.referralXP).toBe('number');
   });
 
   test('Referral panel opens and shows referral content', async ({ userAContext }) => {
@@ -38,7 +38,7 @@ test.describe('Referral link and status', () => {
     const referralOption = page.getByText('Refer My Friends').first();
     await authExpect(referralOption).toBeVisible({ timeout: 8000 });
     await referralOption.click();
-    await authExpect(page.locator('.referral-panel').getByText(/100 extra notes|When friends sign up/i)).toBeVisible({ timeout: 10_000 });
+    await authExpect(page.locator('.referral-panel').getByText(/100 XP|When friends sign up/i)).toBeVisible({ timeout: 10_000 });
     const linkInput = page.locator('.referral-panel .referral-panel__link-input');
     if (await linkInput.isVisible().catch(() => false)) {
       expect(await linkInput.inputValue()).toMatch(/\/sign-up\?ref=/);
@@ -47,17 +47,17 @@ test.describe('Referral link and status', () => {
 });
 
 test.describe('Referral credit and bonus count', () => {
-  test('when User B signs up with User A referral link, User A receives +100 bonus notes', async ({
+  test('when User B signs up with User A referral link, User A receives +100 referral XP', async ({
     userAContext,
     browser,
   }) => {
-    test.skip(true, 'Clerk signIn from sign-in page does not redirect in this env; verify manually: /sign-up?ref=CODE → sign in → check referrer GET /api/referral/status for +100.');
+    test.skip(true, 'Clerk signIn from sign-in page does not redirect in this env; verify manually: /sign-up?ref=CODE → sign in → check referrer GET /api/referral/status for referralXP +100.');
     // 1. User A: get referral code and initial bonus
     const pageA = await userAContext.newPage();
     await pageA.goto('/');
     const statusBefore = await getReferralStatus(pageA);
     const referralCode = statusBefore.referralCode;
-    const initialBonus = statusBefore.referralBonusNotes ?? 0;
+    const initialXP = statusBefore.referralXP ?? 0;
     expect(referralCode).toBeTruthy();
     const origin = new URL(pageA.url()).origin;
 
@@ -83,10 +83,10 @@ test.describe('Referral credit and bonus count', () => {
     await creditPromise;
     await contextB.close();
 
-    const expectedBonus = initialBonus + 100;
+    const expectedXP = initialXP + 100;
     await authExpect(async () => {
       const statusAfter = await getReferralStatus(pageA);
-      expect(statusAfter.referralBonusNotes).toBe(expectedBonus);
+      expect(statusAfter.referralXP).toBe(expectedXP);
     }).toPass({ timeout: 10_000, intervals: [500, 1000, 1000] });
   });
 });

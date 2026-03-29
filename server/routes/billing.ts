@@ -11,11 +11,12 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, UserMetadata, eq } from '../db';
+import { db, first, UserMetadata, UserXP, eq, and } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { UNLIMITED_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
+import { ACTIVITY_TYPES, XP_VALUES, awardXP } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
 
 const app = new Hono();
@@ -169,7 +170,6 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
         hasUnlimited: subscriptionInfo.hasUnlimited,
         currentCount: subscriptionInfo.currentCount,
         limit: subscriptionInfo.limit,
-        referralBonusNotes: subscriptionInfo.referralBonusNotes ?? 0,
       },
       200,
       { 'Cache-Control': 'private, no-store, max-age=0' }
@@ -181,8 +181,6 @@ app.get('/api/subscription/status', requireAuth, async (c) => {
 });
 
 // ─── Referral ───────────────────────────────────────────────────────
-
-const BONUS_PER_REFERRAL = 100;
 
 /** POST /api/referral/credit */
 app.post('/api/referral/credit', requireAuth, async (c) => {
@@ -201,15 +199,32 @@ app.post('/api/referral/credit', requireAuth, async (c) => {
     if (referrerUserId === auth.userId) return c.json({ credited: false });
 
     const referrerRow = first(await db
-      .select({ referralBonusNotes: UserMetadata.referralBonusNotes })
+      .select({ userId: UserMetadata.userId })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, referrerUserId))
       .limit(1));
 
     if (!referrerRow) return c.json({ credited: false });
 
-    const newBonus = (referrerRow.referralBonusNotes ?? 0) + BONUS_PER_REFERRAL;
-    await db.update(UserMetadata).set({ referralBonusNotes: newBonus, updatedAt: nowISO() }).where(eq(UserMetadata.userId, referrerUserId));
+    const alreadyCredited = first(await db
+      .select({ id: UserXP.id })
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, referrerUserId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED),
+        eq(UserXP.relatedId, auth.userId)
+      ))
+      .limit(1));
+
+    if (alreadyCredited) return c.json({ credited: false });
+
+    await awardXP(
+      referrerUserId,
+      ACTIVITY_TYPES.REFERRAL_CREDITED,
+      XP_VALUES.REFERRAL_BONUS,
+      auth.userId,
+      { inviteeUserId: auth.userId }
+    );
 
     return c.json({ credited: true });
   } catch (error) {
@@ -223,22 +238,28 @@ app.get('/api/referral/status', requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
 
-    const subscriptionInfo = await getSubscriptionInfo(auth.userId, auth);
     const metaRow = first(await db
-      .select({ referralBonusNotes: UserMetadata.referralBonusNotes, referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName })
+      .select({ referralCode: UserMetadata.referralCode, firstName: UserMetadata.firstName })
       .from(UserMetadata)
       .where(eq(UserMetadata.userId, auth.userId))
       .limit(1));
 
     let referralCode = metaRow?.referralCode ?? null;
-    const referralBonusNotes = metaRow?.referralBonusNotes ?? 0;
 
     if (!referralCode) {
       referralCode = generateReferralCode(metaRow?.firstName ?? null, auth.userId);
       await db.update(UserMetadata).set({ referralCode, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
     }
 
-    return c.json({ referralBonusNotes, referralCode, limit: subscriptionInfo.limit });
+    const referralRows = await db
+      .select({ xpAmount: UserXP.xpAmount })
+      .from(UserXP)
+      .where(and(eq(UserXP.userId, auth.userId), eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED)));
+
+    const referralCount = referralRows.length;
+    const referralXP = referralRows.reduce((sum, row) => sum + row.xpAmount, 0);
+
+    return c.json({ referralCount, referralXP, referralCode });
   } catch (error) {
     console.error('Referral status error:', error);
     return c.json({ error: 'Failed to load referral status' }, 500);

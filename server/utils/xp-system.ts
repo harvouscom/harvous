@@ -9,6 +9,7 @@ export const XP_VALUES = {
   CHURCH_ADDED: 50,
   MONTHLY_ATTENDANCE: 25,
   NEW_SEASON_BONUS: 50, // One-time reward for returning in a new season
+  REFERRAL_BONUS: 100, // XP for referrer when an invitee signs up via referral link
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -51,6 +52,7 @@ export const ACTIVITY_TYPES = {
   MONTHLY_ATTENDANCE: 'monthly_attendance',
   NEW_SEASON: 'new_season',
   WEEKLY_STREAK: 'weekly_streak',
+  REFERRAL_CREDITED: 'referral_credited',
   // Legacy activity types (kept for backward compatibility)
   THREAD_CREATED: 'thread_created',
   NOTE_CREATED: 'note_created',
@@ -1034,6 +1036,7 @@ export async function getXPBreakdown(userId: string): Promise<{
     monthlyAttendance: number;
     newSeason: number;
     weeklyStreak: number;
+    referralCredited: number;
     // Legacy activity types
     threadCreated: number;
     noteCreated: number;
@@ -1053,6 +1056,7 @@ export async function getXPBreakdown(userId: string): Promise<{
       monthlyAttendance: 0,
       newSeason: 0,
       weeklyStreak: 0,
+      referralCredited: 0,
       // Legacy
       threadCreated: 0,
       noteCreated: 0,
@@ -1079,6 +1083,9 @@ export async function getXPBreakdown(userId: string): Promise<{
           break;
         case ACTIVITY_TYPES.WEEKLY_STREAK:
           breakdown.weeklyStreak += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.REFERRAL_CREDITED:
+          breakdown.referralCredited += record.xpAmount;
           break;
         // Legacy activity types
         case ACTIVITY_TYPES.THREAD_CREATED:
@@ -1113,6 +1120,7 @@ export async function getXPBreakdown(userId: string): Promise<{
         monthlyAttendance: 0,
         newSeason: 0,
         weeklyStreak: 0,
+        referralCredited: 0,
         threadCreated: 0,
         noteCreated: 0,
         noteOpened: 0,

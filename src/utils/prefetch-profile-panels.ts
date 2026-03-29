@@ -20,8 +20,7 @@ export function prefetchProfilePanelData(): void {
       setCachedPanelData(PANEL_CACHE_KEYS.subscription, {
         hasUnlimited: data.hasUnlimited,
         currentCount: data.currentCount ?? 0,
-        limit: data.limit ?? null,
-        referralBonusNotes: data.referralBonusNotes ?? 0
+        limit: data.limit ?? null
       });
     }),
     Promise.all([
@@ -43,9 +42,9 @@ export function prefetchProfilePanelData(): void {
       if (!res.ok) return;
       const data = await res.json();
       setCachedPanelData(PANEL_CACHE_KEYS.referral, {
-        referralBonusNotes: data.referralBonusNotes ?? 0,
-        referralCode: data.referralCode ?? null,
-        limit: data.limit ?? null
+        referralCount: data.referralCount ?? 0,
+        referralXP: data.referralXP ?? 0,
+        referralCode: data.referralCode ?? null
       });
     }),
     fetch('/api/user/achievements', opts).then(async (res) => {

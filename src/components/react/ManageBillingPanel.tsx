@@ -19,19 +19,17 @@ export default function ManageBillingPanel({
     hasUnlimited: boolean;
     currentCount: number;
     limit: number | null;
-    referralBonusNotes?: number;
   } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load subscription info when component mounts and on View Transitions
   useEffect(() => {
-    const cached = getCachedPanelData<{ hasUnlimited: boolean; currentCount: number; limit: number | null; referralBonusNotes?: number }>(PANEL_CACHE_KEYS.subscription);
+    const cached = getCachedPanelData<{ hasUnlimited: boolean; currentCount: number; limit: number | null }>(PANEL_CACHE_KEYS.subscription);
     if (cached) {
       setSubscriptionInfo({
         hasUnlimited: cached.hasUnlimited,
         currentCount: cached.currentCount,
-        limit: cached.limit,
-        referralBonusNotes: cached.referralBonusNotes ?? 0
+        limit: cached.limit
       });
       setIsLoading(false);
       loadSubscriptionInfo(true);
@@ -168,8 +166,7 @@ export default function ManageBillingPanel({
         const info = {
           hasUnlimited: data.hasUnlimited,
           currentCount: data.currentCount || 0,
-          limit: data.limit || null,
-          referralBonusNotes: data.referralBonusNotes ?? 0
+          limit: data.limit || null
         };
         setSubscriptionInfo(info);
         setCachedPanelData(PANEL_CACHE_KEYS.subscription, info);
@@ -425,7 +422,7 @@ export default function ManageBillingPanel({
                         >
                           <div className="min-w-0 flex-1 flex justify-between items-center text-left">
                             <span className="text-base font-semibold" style={{ color: notesAtLimit ? limitRed : 'var(--color-deep-grey)' }}>
-                              {`${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 500).toLocaleString()} notes${(subscriptionInfo.referralBonusNotes ?? 0) > 0 ? ` (+${subscriptionInfo.referralBonusNotes} from referrals)` : ''}`}
+                              {`${subscriptionInfo.currentCount.toLocaleString()} of ${(subscriptionInfo.limit ?? 500).toLocaleString()} notes`}
                             </span>
                             <span className="text-xs flex-shrink-0" style={{ color: notesAtLimit ? limitRed : 'var(--color-pebble-grey)' }}>
                               Upgrade for unlimited

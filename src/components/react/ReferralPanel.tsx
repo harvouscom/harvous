@@ -10,9 +10,9 @@ interface ReferralPanelProps {
 }
 
 interface ReferralStatus {
-  referralBonusNotes: number;
+  referralCount: number;
+  referralXP: number;
   referralCode: string | null;
-  limit: number | null;
 }
 
 export default function ReferralPanel({
@@ -30,9 +30,9 @@ export default function ReferralPanel({
       if (response?.ok) {
         const data = await response.json();
         const next: ReferralStatus = {
-          referralBonusNotes: data.referralBonusNotes ?? 0,
-          referralCode: data.referralCode ?? null,
-          limit: data.limit ?? null
+          referralCount: data.referralCount ?? 0,
+          referralXP: data.referralXP ?? 0,
+          referralCode: data.referralCode ?? null
         };
         setStatus(next);
         setCachedPanelData(PANEL_CACHE_KEYS.referral, next);
@@ -88,8 +88,8 @@ export default function ReferralPanel({
   };
 
   const referralUrl = getReferralUrl();
-  const referralCount = status ? Math.floor(status.referralBonusNotes / 100) : 0;
-  const totalNotesBeforeUnlimited = 500 + (status?.referralBonusNotes ?? 0) + 100;
+  const referralCount = status?.referralCount ?? 0;
+  const referralXP = status?.referralXP ?? 0;
 
   return (
     <div className={`referral-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
@@ -104,7 +104,7 @@ export default function ReferralPanel({
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px', textWrap: 'balance' }}>
-                When friends sign up with your link, you get 100 extra notes on top of your 500 free notes, so {totalNotesBeforeUnlimited.toLocaleString()} before you need unlimited.
+                When friends sign up with your link, you earn 100 XP. This is a boost toward your season score and us saying thanks.
               </div>
 
               {!isLoading && referralUrl ? (
@@ -123,7 +123,7 @@ export default function ReferralPanel({
                   </div>
                   {referralCount > 0 && (
                     <p className="referral-panel__stats" style={{ marginTop: '1rem', fontFamily: 'var(--font-sans)', fontSize: '14px', color: 'var(--color-stone-grey)' }}>
-                      You&apos;ve earned {status!.referralBonusNotes} bonus notes from {referralCount} successful referral{referralCount !== 1 ? 's' : ''}.
+                      You&apos;ve earned {referralXP.toLocaleString()} XP from {referralCount} successful referral{referralCount !== 1 ? 's' : ''}.
                     </p>
                   )}
                 </>
