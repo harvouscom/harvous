@@ -104,7 +104,7 @@ export default function ReferralPanel({
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
               <div className="text-center px-4 pt-3 pb-2" style={{ color: 'var(--color-pebble-grey)', fontSize: '14px', textWrap: 'balance' }}>
-                When friends sign up with your link, you earn 100 XP. This is a boost toward your season score and us saying thanks.
+                When friends sign up with your link, you earn bonus XP toward your season score.
               </div>
 
               {!isLoading && referralUrl ? (

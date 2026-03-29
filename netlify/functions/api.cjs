@@ -67992,8 +67992,6 @@ var XP_VALUES = {
   MONTHLY_ATTENDANCE: 25,
   NEW_SEASON_BONUS: 50,
   // One-time reward for returning in a new season
-  REFERRAL_BONUS: 100,
-  // XP for referrer when an invitee signs up via referral link
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -68004,6 +68002,14 @@ var XP_VALUES = {
   NOTE_OPENED: 1,
   FIRST_NOTE_DAILY_BONUS: 5
 };
+var REFERRAL_XP_FIRST = 100;
+var REFERRAL_XP_DECREMENT = 25;
+var REFERRAL_XP_MIN = 25;
+function getReferralCreditXpForOrdinal(ordinal1Based) {
+  if (ordinal1Based < 1) return REFERRAL_XP_MIN;
+  const raw2 = REFERRAL_XP_FIRST - (ordinal1Based - 1) * REFERRAL_XP_DECREMENT;
+  return Math.max(REFERRAL_XP_MIN, raw2);
+}
 var DAILY_CAPS = {
   SESSIONS: 3,
   // Max 3 sessions per day
@@ -89375,10 +89381,16 @@ app4.post("/api/referral/credit", requireAuth, async (c) => {
       eq(UserXP.relatedId, auth.userId)
     )).limit(1));
     if (alreadyCredited) return c.json({ credited: false });
+    const existingReferralAgg = first(await db.select({ cnt: count() }).from(UserXP).where(and(
+      eq(UserXP.userId, referrerUserId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED)
+    )));
+    const existingReferralCount = Number(existingReferralAgg?.cnt ?? 0);
+    const xpAmount = getReferralCreditXpForOrdinal(existingReferralCount + 1);
     await awardXP(
       referrerUserId,
       ACTIVITY_TYPES.REFERRAL_CREDITED,
-      XP_VALUES.REFERRAL_BONUS,
+      xpAmount,
       auth.userId,
       { inviteeUserId: auth.userId }
     );

@@ -11,12 +11,12 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, UserMetadata, UserXP, eq, and } from '../db';
+import { db, first, UserMetadata, UserXP, eq, and, count } from '../db';
 import { nowISO } from '../db/dates';
 import { handleAPIError } from '@/utils/error-handling';
 import { UNLIMITED_PLAN_ID, getSubscriptionInfo } from '../utils/subscription';
 import { resolveRefToUserId, generateReferralCode } from '../utils/referral-code';
-import { ACTIVITY_TYPES, XP_VALUES, awardXP } from '../utils/xp-system';
+import { ACTIVITY_TYPES, awardXP, getReferralCreditXpForOrdinal } from '../utils/xp-system';
 import { getCookie, deleteCookie } from 'hono/cookie';
 
 const app = new Hono();
@@ -218,10 +218,21 @@ app.post('/api/referral/credit', requireAuth, async (c) => {
 
     if (alreadyCredited) return c.json({ credited: false });
 
+    const existingReferralAgg = first(await db
+      .select({ cnt: count() })
+      .from(UserXP)
+      .where(and(
+        eq(UserXP.userId, referrerUserId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.REFERRAL_CREDITED)
+      )));
+
+    const existingReferralCount = Number(existingReferralAgg?.cnt ?? 0);
+    const xpAmount = getReferralCreditXpForOrdinal(existingReferralCount + 1);
+
     await awardXP(
       referrerUserId,
       ACTIVITY_TYPES.REFERRAL_CREDITED,
-      XP_VALUES.REFERRAL_BONUS,
+      xpAmount,
       auth.userId,
       { inviteeUserId: auth.userId }
     );

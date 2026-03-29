@@ -9,7 +9,6 @@ export const XP_VALUES = {
   CHURCH_ADDED: 50,
   MONTHLY_ATTENDANCE: 25,
   NEW_SEASON_BONUS: 50, // One-time reward for returning in a new season
-  REFERRAL_BONUS: 100, // XP for referrer when an invitee signs up via referral link
   WEEKLY_STREAK_3_4_DAYS: 15,
   WEEKLY_STREAK_5_6_DAYS: 25,
   WEEKLY_STREAK_7_DAYS: 35,
@@ -20,6 +19,21 @@ export const XP_VALUES = {
   NOTE_OPENED: 1,
   FIRST_NOTE_DAILY_BONUS: 5,
 } as const;
+
+/** Cascading XP when a referred friend signs up (referrer’s 1st → 100, then −25 each, floor 25). */
+export const REFERRAL_XP_FIRST = 100;
+export const REFERRAL_XP_DECREMENT = 25;
+export const REFERRAL_XP_MIN = 25;
+
+/**
+ * XP for the n-th successful referral for a referrer (1-based).
+ * Sequence: 100, 75, 50, 25, 25, …
+ */
+export function getReferralCreditXpForOrdinal(ordinal1Based: number): number {
+  if (ordinal1Based < 1) return REFERRAL_XP_MIN;
+  const raw = REFERRAL_XP_FIRST - (ordinal1Based - 1) * REFERRAL_XP_DECREMENT;
+  return Math.max(REFERRAL_XP_MIN, raw);
+}
 
 // Daily caps to prevent gaming
 export const DAILY_CAPS = {

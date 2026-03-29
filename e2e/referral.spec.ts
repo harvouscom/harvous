@@ -6,10 +6,10 @@ import { setupClerkTestingToken, clerk } from '@clerk/testing/playwright';
  * E2E tests for referral link and XP bonus.
  *
  * Flow:
- * 1. User A (referrer) gets referral code and initial bonus count.
+ * 1. User A (referrer) gets referral code and initial referral stats.
  * 2. User B visits /sign-up?ref=CODE (sets harvous_referrer cookie), then signs in.
- * 3. On first app load, ReferralCreditInit POSTs /api/referral/credit → referrer gets +100 XP.
- * 4. Assert User A's referralXP increased by 100 (referralCount +1).
+ * 3. On first app load, ReferralCreditInit POSTs /api/referral/credit → referrer gets cascading XP (see getReferralCreditXpForOrdinal in server).
+ * 4. Assert User A's referralXP increased by the amount for that ordinal (100 for User A's first-ever referral).
  *
  * Requires TEST_USER_A_* and TEST_USER_B_* in .env (same as other e2e).
  */
@@ -38,7 +38,7 @@ test.describe('Referral link and status', () => {
     const referralOption = page.getByText('Refer My Friends').first();
     await authExpect(referralOption).toBeVisible({ timeout: 8000 });
     await referralOption.click();
-    await authExpect(page.locator('.referral-panel').getByText(/100 XP|When friends sign up/i)).toBeVisible({ timeout: 10_000 });
+    await authExpect(page.locator('.referral-panel').getByText(/bonus XP|When friends sign up/i)).toBeVisible({ timeout: 10_000 });
     const linkInput = page.locator('.referral-panel .referral-panel__link-input');
     if (await linkInput.isVisible().catch(() => false)) {
       expect(await linkInput.inputValue()).toMatch(/\/sign-up\?ref=/);
@@ -47,11 +47,11 @@ test.describe('Referral link and status', () => {
 });
 
 test.describe('Referral credit and bonus count', () => {
-  test('when User B signs up with User A referral link, User A receives +100 referral XP', async ({
+  test('when User B signs up with User A referral link, User A receives cascading referral XP', async ({
     userAContext,
     browser,
   }) => {
-    test.skip(true, 'Clerk signIn from sign-in page does not redirect in this env; verify manually: /sign-up?ref=CODE → sign in → check referrer GET /api/referral/status for referralXP +100.');
+    test.skip(true, 'Clerk signIn from sign-in page does not redirect in this env; verify manually: /sign-up?ref=CODE → sign in → check referrer GET /api/referral/status for referralXP delta per getReferralCreditXpForOrdinal(priorCount + 1).');
     // 1. User A: get referral code and initial bonus
     const pageA = await userAContext.newPage();
     await pageA.goto('/');
@@ -83,7 +83,9 @@ test.describe('Referral credit and bonus count', () => {
     await creditPromise;
     await contextB.close();
 
-    const expectedXP = initialXP + 100;
+    const priorCount = statusBefore.referralCount ?? 0;
+    const expectedDelta = Math.max(25, 100 - priorCount * 25);
+    const expectedXP = initialXP + expectedDelta;
     await authExpect(async () => {
       const statusAfter = await getReferralStatus(pageA);
       expect(statusAfter.referralXP).toBe(expectedXP);
