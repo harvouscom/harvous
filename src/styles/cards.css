@@ -1298,21 +1298,3 @@
 .overlapping-note:first-child {
   margin-left: 0;
 }
-
-/* Section headers: subtle label, pebble-grey, centered */
-.organized-content__section-header {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: normal;
-  font-style: normal;
-  line-height: normal;
-  color: var(--color-pebble-grey);
-  white-space: nowrap;
-  margin-top: 16px;
-  padding-bottom: 8px;
-  text-align: center;
-}
-
-.organized-content__section-header:first-child {
-  margin-top: 0;
-}

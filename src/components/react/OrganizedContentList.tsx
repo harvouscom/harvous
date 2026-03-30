@@ -1671,6 +1671,15 @@ export default function OrganizedContentList({
     return out;
   })();
 
+  const itemOnlyIndexMap = new Map<number, number>();
+  let itemCounter = 0;
+  for (let i = 0; i < virtualList.length; i++) {
+    if (virtualList[i].type === 'item') {
+      itemOnlyIndexMap.set(i, itemCounter);
+      itemCounter++;
+    }
+  }
+
   // Placeholder used before hydration so server and client render identical HTML (avoids hydration mismatch from client-only state like isWaitingForFreshData, deletedItemIds, stale cache).
   const placeholderStyle = {
     display: 'flex' as const,
@@ -1708,14 +1717,9 @@ export default function OrganizedContentList({
           loadMore={loadMore}
           renderItem={(entry, index) =>
             entry.type === 'section' ? (
-              <div
-                className="organized-content__section-header card-enter"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {entry.label}
-              </div>
+              <div className="organized-content__section-header">{entry.label}</div>
             ) : (
-              renderItem(entry.item, index)
+              renderItem(entry.item, itemOnlyIndexMap.get(index) ?? index)
             )
           }
           itemKey={(entry) => (entry.type === 'section' ? `section-${entry.sectionKey}` : entry.item.id)}

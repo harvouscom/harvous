@@ -1253,15 +1253,10 @@ export default function SpaceContentList({
         const elements: React.ReactNode[] = [];
         if (label) {
           elements.push(
-            <div
-              key={`section-${sectionKey}`}
-              className="organized-content__section-header card-enter"
-              style={{ animationDelay: `${runningIndex * 50}ms` }}
-            >
+            <div key={`section-${sectionKey}`} className="organized-content__section-header">
               {label}
             </div>
           );
-          runningIndex += 1;
         }
         for (const item of itemsInSection) {
           elements.push(renderItem(item, runningIndex));
