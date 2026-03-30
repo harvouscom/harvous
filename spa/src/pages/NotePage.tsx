@@ -23,8 +23,10 @@ export default function NotePage() {
   const processScriptureMutation = useProcessScriptureRefs();
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
+  // Onboarding notes (addedBy: system) stay read-only even for the owner.
   const isNoteOwner = !!(user?.id && note?.userId && note.userId === user.id);
-  const isEditable = isNoteOwner;
+  const isSystemNote = note?.addedBy === 'system';
+  const isEditable = isNoteOwner && !isSystemNote;
 
   // Invalidate the note query when lock state or content changes externally
   // (e.g. after removeLock, or after a scripture pill's translation is changed

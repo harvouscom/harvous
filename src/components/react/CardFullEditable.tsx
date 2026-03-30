@@ -338,6 +338,11 @@ export default function CardFullEditable({
                   return false;
                 }
 
+                const pillType = editor.schema.marks.scripturePill;
+                if (pillType && editor.state.doc.rangeHasMark(positionFrom, positionTo, pillType)) {
+                  return false;
+                }
+
                 // Use Tiptap API to apply the mark
                 editor.chain()
                     .focus()

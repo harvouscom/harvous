@@ -8,6 +8,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
 import { TextSelection } from '@tiptap/pm/state';
+import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
@@ -3423,39 +3424,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     let extractedContent: string;
     
     if (preserveFormatting) {
-      // For formatted content, extract HTML from DOM selection
-      const view = editor?.view;
-      // Check for both view and docView - docView becomes null when editor is destroyed
-      if (!view || !(view as any).docView) {
-        // Fallback to plain text if view is not available or editor is destroyed
+      // Serialize from the ProseMirror doc so scripture pills (user-select:none in DOM) are not dropped
+      // (range.cloneContents() omits non-selectable nodes).
+      try {
+        const slice = editor.state.doc.slice(from, to);
+        const serializer = DOMSerializer.fromSchema(editor.schema);
+        const fragment = serializer.serializeFragment(slice.content);
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(fragment);
+        extractedContent = tempDiv.innerHTML;
+      } catch (e) {
         extractedContent = editor.state.doc.textBetween(from, to);
-      } else {
-        try {
-          const startPos = view.domAtPos(from);
-          const endPos = view.domAtPos(to);
-      
-          // Get the DOM nodes in the selection
-          if (startPos?.node && endPos?.node) {
-            try {
-              const range = document.createRange();
-              range.setStart(startPos.node, startPos.offset);
-              range.setEnd(endPos.node, endPos.offset);
-              const htmlFragment = range.cloneContents();
-              const tempDiv = document.createElement('div');
-              tempDiv.appendChild(htmlFragment);
-              extractedContent = tempDiv.innerHTML;
-            } catch (e) {
-              // Fallback to plain text if DOM extraction fails
-              extractedContent = editor.state.doc.textBetween(from, to);
-            }
-          } else {
-            // Fallback to plain text
-            extractedContent = editor.state.doc.textBetween(from, to);
-          }
-        } catch (e) {
-          // If domAtPos fails, fallback to plain text
-          extractedContent = editor.state.doc.textBetween(from, to);
-        }
       }
     } else {
       // Plain text - use textBetween
@@ -3479,7 +3458,14 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         if (detectResponse.ok) {
           const detection = await detectResponse.json();
           
-          if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference) {
+          // Only enter the scripture-specific flow when the selection is primarily a
+          // reference (e.g. "Romans 8:28"), not a broader passage that happens to contain one
+          // (e.g. "centered around Proverbs 25:2 to build a tool").
+          const refPattern = new RegExp(detection.primaryReference?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') || '', 'i');
+          const textBeyondRef = detection.primaryReference ? plainText.replace(refPattern, '').trim() : plainText;
+          const isJustScriptureRef = textBeyondRef.length <= 15;
+
+          if (detection.isScripture && detection.confidence >= 0.7 && detection.primaryReference && isJustScriptureRef) {
             try {
               // Normalize the reference before checking to ensure consistent format matching
               const normalizedReference = normalizeScriptureReference(detection.primaryReference);
@@ -3524,19 +3510,23 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                         }
                       }
                       
-                      // After adding to thread, fire event to create hyperlink in the source note
+                      // Create hyperlink only if the selection isn't already a scripture pill
+                      // (pills already link to the note — overlaying a noteLink would fail or corrupt markup)
                       const { from, to } = editor.state.selection;
-                      // Get plainText for HTML manipulation fallback (view mode)
-                      const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
-                      window.dispatchEvent(new CustomEvent('createHyperlink', {
-                          detail: {
-                              sourceNoteId,
-                              newNoteId: existingCheck.noteId, // Use the ID of the existing note
-                              from,
-                              to,
-                              plainText: plainTextForMatching || null, // Include plainText for fallback text matching
-                          }
-                      }));
+                      const pillMark = editor.schema.marks.scripturePill;
+                      const selectionIsPill = pillMark && editor.state.doc.rangeHasMark(from, to, pillMark);
+                      if (!selectionIsPill) {
+                        const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
+                        window.dispatchEvent(new CustomEvent('createHyperlink', {
+                            detail: {
+                                sourceNoteId,
+                                newNoteId: existingCheck.noteId,
+                                from,
+                                to,
+                                plainText: plainTextForMatching || null,
+                            }
+                        }));
+                      }
                     } else if (addThreadResponse.status === 400) {
                       // Handle 400 status - could be "already in thread" or other validation errors
                       const errorMessage = result.error || 'Unknown error';
@@ -3559,19 +3549,22 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                           }
                         }));
                         
-                        // After confirming note is in thread, fire event to create hyperlink in the source note
+                        // Create hyperlink only if the selection isn't already a scripture pill
                         const { from, to } = editor.state.selection;
-                        // Get plainText for HTML manipulation fallback (view mode)
-                        const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
-                        window.dispatchEvent(new CustomEvent('createHyperlink', {
-                            detail: {
-                                sourceNoteId,
-                                newNoteId: existingCheck.noteId, // Use the ID of the existing note
-                                from,
-                                to,
-                                plainText: plainTextForMatching || null, // Include plainText for fallback text matching
-                            }
-                        }));
+                        const pillMark2 = editor.schema.marks.scripturePill;
+                        const selectionIsPill2 = pillMark2 && editor.state.doc.rangeHasMark(from, to, pillMark2);
+                        if (!selectionIsPill2) {
+                          const plainTextForMatching = editor.state.doc.textBetween(from, to, ' ');
+                          window.dispatchEvent(new CustomEvent('createHyperlink', {
+                              detail: {
+                                  sourceNoteId,
+                                  newNoteId: existingCheck.noteId,
+                                  from,
+                                  to,
+                                  plainText: plainTextForMatching || null,
+                              }
+                          }));
+                        }
                       } else {
                         // Other 400 error - log but don't show toast (will fall through to new note creation)
                         console.warn('[TiptapEditor] Error adding note to thread (not "already in thread"):', errorMessage);

@@ -210,20 +210,37 @@ export function wrapTextWithNoteLink(
   // This pattern allows for whitespace variations (multiple spaces, newlines, etc.)
   const searchPattern = new RegExp(escapedSearchText.replace(/\s+/g, '\\s+'), 'gi');
 
-  // Find all note-link spans and their positions to avoid matching text inside them
-  const noteLinkPattern = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
-  const noteLinkRanges: Array<{ start: number; end: number }> = [];
-  let noteLinkMatch;
-  while ((noteLinkMatch = noteLinkPattern.exec(htmlContent)) !== null) {
-    noteLinkRanges.push({
-      start: noteLinkMatch.index,
-      end: noteLinkMatch.index + noteLinkMatch[0].length
-    });
+  // Opening tags like <span ...> — never inject markup inside attribute values
+  const tagPattern = /<[^>]+>/g;
+  const htmlTagRanges: Array<{ start: number; end: number }> = [];
+  let tagMatch: RegExpExecArray | null;
+  while ((tagMatch = tagPattern.exec(htmlContent)) !== null) {
+    htmlTagRanges.push({ start: tagMatch.index, end: tagMatch.index + tagMatch[0].length });
   }
 
-  // Helper function to check if a position is inside a note-link span
-  const isInsideNoteLink = (position: number): boolean => {
-    return noteLinkRanges.some(range => position >= range.start && position < range.end);
+  // Note-link and scripture-pill spans — do not wrap text inside them (avoids corrupting pills / double links)
+  const noteLinkPattern = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
+  const scripturePillPattern = /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
+  const protectedSpanRanges: Array<{ start: number; end: number }> = [];
+  let spanMatch: RegExpExecArray | null;
+  while ((spanMatch = noteLinkPattern.exec(htmlContent)) !== null) {
+    protectedSpanRanges.push({ start: spanMatch.index, end: spanMatch.index + spanMatch[0].length });
+  }
+  while ((spanMatch = scripturePillPattern.exec(htmlContent)) !== null) {
+    protectedSpanRanges.push({ start: spanMatch.index, end: spanMatch.index + spanMatch[0].length });
+  }
+
+  const rangesOverlap = (aStart: number, aEnd: number, bStart: number, bEnd: number): boolean =>
+    !(aEnd <= bStart || bEnd <= aStart);
+
+  const matchOverlapsProtectedRanges = (index: number, length: number): boolean => {
+    const end = index + length;
+    return protectedSpanRanges.some(r => rangesOverlap(index, end, r.start, r.end));
+  };
+
+  const matchOverlapsHtmlTags = (index: number, length: number): boolean => {
+    const end = index + length;
+    return htmlTagRanges.some(r => rangesOverlap(index, end, r.start, r.end));
   };
 
   // Find all matches of the search text in the HTML
@@ -243,17 +260,17 @@ export function wrapTextWithNoteLink(
     return null;
   }
 
-  // Find the first match that is NOT inside a note-link span
-  // We allow matches inside scripture pills (they don't have class="note-link")
+  // First match that is not inside an HTML tag (e.g. attribute value) or a protected span
   let validMatch: { match: string; index: number; length: number } | null = null;
-  
+
   for (const match of matches) {
-    // Check if this match is inside a note-link span (using the range check)
-    if (isInsideNoteLink(match.index)) {
+    if (matchOverlapsHtmlTags(match.index, match.length)) {
       continue;
     }
-    
-    // Found a valid match - use it
+    if (matchOverlapsProtectedRanges(match.index, match.length)) {
+      continue;
+    }
+
     validMatch = match;
     break;
   }

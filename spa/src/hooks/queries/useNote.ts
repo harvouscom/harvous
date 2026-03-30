@@ -33,6 +33,8 @@ export interface NoteDetail {
   title: string | null;
   content: string | null;
   noteType: string;
+  /** 'system' = onboarding seed notes; treat as read-only in the UI. */
+  addedBy?: string;
   contentEncrypted: boolean;
   version?: string;
   resourceTitle?: string | null;

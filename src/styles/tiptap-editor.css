@@ -143,6 +143,17 @@
   margin-bottom: 0 !important;
 }
 
+/* Inside the editor, scripture pills use user-select:all (atomic selection) so that
+   drag-selections span across pills and the highlight is visible. The global CSS keeps
+   user-select:none for view-mode pills where editing isn't relevant. */
+.tiptap-content .ProseMirror .scripture-pill,
+.tiptap-content .ProseMirror .scripture-pill * {
+  -webkit-user-select: all;
+  -moz-user-select: all;
+  -ms-user-select: all;
+  user-select: all;
+}
+
 /* Tiptap Toolbar container - solid background for sticky so content doesn't show through */
 .tiptap-toolbar {
   border-radius: 12px;
