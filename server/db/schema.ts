@@ -24,6 +24,7 @@ export const Spaces = pgTable('Spaces', {
   lastVisited: ts('lastVisited'),
   userId: text('userId').notNull(),
   isPublic: boolean('isPublic').notNull().default(false),
+  isFeatured: boolean('isFeatured').notNull().default(false),
   isActive: boolean('isActive').notNull().default(true),
   order: integer('order').notNull().default(0),
   shareToken: text('shareToken'),

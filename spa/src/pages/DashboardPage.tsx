@@ -10,6 +10,8 @@ import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useFeaturedSpace } from '../hooks/queries/useFeaturedSpace';
+import FeaturedSpaceCard from '../components/FeaturedSpaceCard';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -26,6 +28,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardFilter>('all');
   const { isSuccess: profileSuccess } = useProfile();
+  const { data: featuredSpace } = useFeaturedSpace();
 
   // Fire immediately — cookie auth works before Clerk loads. Scripture refs are picked up by the background refetch below.
   const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30);
@@ -95,6 +98,7 @@ export default function DashboardPage() {
         onTabChange={(id) => setFilter(id as DashboardFilter)}
         className="dashboard-tab-nav content-tabs"
       />
+      {featuredSpace ? <FeaturedSpaceCard space={featuredSpace} /> : null}
       <OrganizedContentList
         initialItems={cachedItems as any}
         filter={filter}

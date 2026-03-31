@@ -18,6 +18,7 @@ import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db,
   first,
+  Spaces,
   Notes,
   NoteThreads,
   NoteScriptureReferences,
@@ -29,6 +30,9 @@ import {
 import { nowISO } from '../db/dates';
 import { aggregateMonthlyAnalytics, getCurrentMonth, getPreviousMonth } from '../utils/analytics-aggregator';
 import { generateUserExport } from '../utils/export-user-data';
+import { validateColor, validateContent, validateTitle } from '@/utils/validation';
+import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
+import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
 
 const app = new Hono();
 
@@ -464,6 +468,183 @@ app.get('/api/admin/list-threads', requireAuth, async (c) => {
   } catch (error: any) {
     console.error('Error listing threads:', error);
     return c.json({ success: false, error: error.message || 'Unknown error' }, 500);
+  }
+});
+
+// ─── Harvous-curated content admin endpoints ───────────────────────────────────
+
+app.post('/api/admin/spaces', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const body = await c.req.json().catch(() => ({} as any));
+
+    const title = typeof body.title === 'string' ? body.title : '';
+    const description = typeof body.description === 'string' ? body.description : null;
+    const color = typeof body.color === 'string' && body.color ? body.color : 'paper';
+    const isFeatured = body.isFeatured === true;
+
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    const now = nowISO();
+    const capitalizedTitle = title.trim().charAt(0).toUpperCase() + title.trim().slice(1);
+    const shareToken = generateShareToken();
+
+    const space = first(
+      await db
+        .insert(Spaces)
+        .values({
+          id: generateSpaceId(),
+          title: capitalizedTitle,
+          description,
+          color,
+          backgroundGradient: null,
+          userId: systemUserId,
+          isPublic: true,
+          isFeatured,
+          isActive: true,
+          order: 0,
+          shareToken,
+          shareTokenCreatedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning(),
+    )!;
+
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      success: true,
+      space,
+      joinUrl: `${origin}/spaces/join/${shareToken}`,
+    });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Error creating space' }, 500);
+  }
+});
+
+app.post('/api/admin/spaces/:spaceId/threads', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param('spaceId');
+    if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
+
+    const space = first(
+      await db
+        .select({ id: Spaces.id, userId: Spaces.userId })
+        .from(Spaces)
+        .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, systemUserId)))
+        .limit(1),
+    );
+    if (!space) return c.json({ error: 'Space not found' }, 404);
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const title = typeof body.title === 'string' ? body.title : '';
+    const subtitle = typeof body.subtitle === 'string' ? body.subtitle : null;
+    const color = typeof body.color === 'string' && body.color ? body.color : null;
+
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+
+    const now = nowISO();
+    const capitalizedTitle = title.trim().charAt(0).toUpperCase() + title.trim().slice(1);
+
+    const thread = first(
+      await db
+        .insert(Threads)
+        .values({
+          id: generateThreadId(),
+          title: capitalizedTitle,
+          subtitle,
+          spaceId,
+          userId: systemUserId,
+          isPublic: false,
+          isPinned: false,
+          color,
+          order: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning(),
+    )!;
+
+    return c.json({ success: true, thread });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Error creating thread' }, 500);
+  }
+});
+
+app.post('/api/admin/threads/:threadId/notes', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const threadId = c.req.param('threadId');
+    if (!threadId) return c.json({ error: 'Thread ID is required' }, 400);
+
+    const thread = first(
+      await db
+        .select({ id: Threads.id, spaceId: Threads.spaceId, userId: Threads.userId })
+        .from(Threads)
+        .where(and(eq(Threads.id, threadId), eq(Threads.userId, systemUserId)))
+        .limit(1),
+    );
+    if (!thread) return c.json({ error: 'Thread not found' }, 404);
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const title = typeof body.title === 'string' ? body.title : null;
+    const content = typeof body.content === 'string' ? body.content : '';
+    const noteType = typeof body.noteType === 'string' ? body.noteType : 'default';
+
+    const contentValidation = validateContent(content, true);
+    if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    if (title != null) {
+      const titleValidation = validateTitle(title, false);
+      if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    }
+
+    const now = nowISO();
+    const note = first(
+      await db
+        .insert(Notes)
+        .values({
+          id: generateNoteId(),
+          title,
+          content,
+          noteType,
+          threadId,
+          spaceId: thread.spaceId ?? null,
+          userId: systemUserId,
+          isPublic: false,
+          isFeatured: false,
+          order: 0,
+          addedBy: 'harvous',
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning(),
+    )!;
+
+    // Ensure junction exists for the thread (most code expects it).
+    await db
+      .insert(NoteThreads)
+      .values({ id: generateTimestampId('notethread'), noteId: note.id, threadId, createdAt: now })
+      .onConflictDoNothing();
+
+    return c.json({ success: true, note });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Error creating note' }, 500);
   }
 });
 

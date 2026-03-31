@@ -37,6 +37,7 @@ import webhooks from './routes/webhooks';
 import sync from './routes/sync';
 import migrations from './routes/migrations';
 import admin from './routes/admin';
+import featured from './routes/featured';
 import test from './routes/test';
 
 const app = new Hono();
@@ -80,6 +81,7 @@ app.route('/', webhooks);
 app.route('/', sync);
 app.route('/', migrations);
 app.route('/', admin);
+app.route('/', featured);
 app.route('/', test);
 
 export default app;
