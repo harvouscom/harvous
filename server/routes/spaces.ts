@@ -710,6 +710,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       {
         userId: space.userId, role: 'owner', joinedAt: space.createdAt,
         firstName: ownerMeta.firstName || null,
+        lastName: ownerMeta.lastName || null,
         displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User'),
         email: ownerMeta.email || null, profileImageUrl: ownerMeta.profileImageUrl || null,
         userColor: ownerMeta.userColor || 'blue',
@@ -719,6 +720,7 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
         return {
           userId: m.userId, role: 'member', joinedAt: m.joinedAt || m.createdAt,
           firstName: meta.firstName || null,
+          lastName: meta.lastName || null,
           displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || 'Unknown User'),
           email: meta.email || null, profileImageUrl: meta.profileImageUrl || null,
           userColor: meta.userColor || 'blue',
