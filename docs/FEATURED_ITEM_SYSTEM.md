@@ -140,7 +140,7 @@ The original `InboxItems` / `UserInboxItems` system is untouched. Its auto-archi
 | `server/routes/featured.ts` | All Featured Item API endpoints |
 | `server/utils/harvous-admin.ts` | `requireHarvousAdmin` — used by `POST /api/admin/featured` |
 | `spa/src/components/FeaturedCard.tsx` | Dashboard card component |
-| `spa/src/hooks/queries/useFeaturedItem.ts` | React Query hook for `GET /api/featured/current` |
+| `spa/src/hooks/queries/useFeaturedItems.ts` | React Query hook for featured items feed |
 | `src/components/react/MyInboxPanel.tsx` | Profile inbox panel |
 | `src/components/react/ProfileOptionsList.tsx` | Exposes "My Inbox" profile option |
 | `src/utils/colors.ts` | `generateAccentMeshGradient` — deterministic 3-color gradient for card accents |
