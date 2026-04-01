@@ -26,6 +26,7 @@ interface SharedThreadResponse {
   notes: SharedThreadNote[];
   creator: {
     displayName: string;
+    isHarvousOwned?: boolean;
   };
   meta: {
     noteCount: number;
@@ -171,7 +172,11 @@ export default function SharedThreadPage() {
               <>
                 {/* Creator info (above CardStack) */}
                 <div className="shared-page__creator">
-                  <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
+                  <p>
+                    {creator?.isHarvousOwned
+                      ? 'A Harvous thread'
+                      : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
+                  </p>
                 </div>
 
                 {/* CardStack with notes and CTA */}

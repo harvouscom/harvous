@@ -254,6 +254,31 @@ function optimizeColorPositions(
   return optimized;
 }
 
+// Generate a deterministic multi-color mesh gradient from a seed string.
+// Picks 2-3 colors from the palette using a hash of the seed so every
+// unique ID gets a consistent but visually varied result.
+export function generateAccentMeshGradient(seed: string): string | null {
+  const vivid = THREAD_COLORS.filter(c => c !== 'paper') as string[];
+
+  // Always pick exactly 3 colors, deterministically, with no repeats
+  const count = 3;
+  const picked: Array<{ color: string; frequency: number }> = [];
+  const used = new Set<number>();
+  for (let i = 0; i < count; i++) {
+    let idx = hashString(`${seed}-pick-${i}`) % vivid.length;
+    // Avoid duplicates
+    let attempts = 0;
+    while (used.has(idx) && attempts < vivid.length) {
+      idx = (idx + 1) % vivid.length;
+      attempts++;
+    }
+    used.add(idx);
+    picked.push({ color: vivid[idx], frequency: 1 });
+  }
+
+  return generateThreadMeshGradient(picked, seed);
+}
+
 // Generate a mesh gradient CSS string from thread colors with frequency weighting
 // Uses color theory to position colors harmoniously
 // Returns null if no valid colors (for fallback to default background)

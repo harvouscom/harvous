@@ -2,7 +2,7 @@
  * Supabase Postgres database client via postgres.js + Drizzle ORM.
  *
  * Env: SUPABASE_DATABASE_URL (pooler, port 6543).
- * Rollback: revert to main branch which still uses Turso.
+ * For migrations/drizzle-kit: SUPABASE_DIRECT_URL (port 5432).
  */
 
 import postgres from 'postgres';

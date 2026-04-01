@@ -347,8 +347,7 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
       await db.insert(Threads).values(unorganizedThread);
       return c.json({ success: true, message: 'Unorganized thread created', thread: unorganizedThread }, 201);
     } catch (insertError: any) {
-      if (insertError.code === 'SQLITE_CONSTRAINT' || insertError.code === 'SQLITE_CONSTRAINT_PRIMARYKEY' ||
-          insertError.rawCode === 1555 || insertError.message?.includes('UNIQUE constraint failed')) {
+      if (insertError.code === '23505' || insertError.message?.includes('unique constraint')) {
         const createdThread = first(await db.select().from(Threads)
           .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
         if (createdThread) return c.json({ success: true, message: 'Unorganized thread already exists', thread: createdThread });

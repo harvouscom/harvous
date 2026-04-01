@@ -148,6 +148,15 @@ User drops file / pastes image
 - RLS policy: Users can only read/write their own `{userId}/` prefix
 - Optional: CDN via Supabase's built-in image transformation for thumbnails
 
+### RLS gotcha (don’t skip)
+
+Harvous currently accesses Postgres via the server (Drizzle + `SUPABASE_DATABASE_URL`) and can safely enable RLS with **no policies** to block PostgREST access.
+
+If/when we add **browser** usage of `@supabase/supabase-js` (Storage uploads / Realtime subscriptions), enabling RLS will start affecting client requests. At that point we must:
+
+- Add **Storage bucket policies** (read/write) for the user’s `{userId}/` prefix, and
+- Add any necessary **table policies** for Realtime (and PostgREST) if we expose tables client-side.
+
 ### Server-side changes
 
 - **New endpoint:** `POST /api/notes/:id/upload` — handles file upload to Supabase Storage

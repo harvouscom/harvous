@@ -14,6 +14,7 @@ interface SpacePreview {
   backgroundGradient?: string;
   ownerDisplayName: string;
   ownerColor?: string;
+  isHarvousOwned: boolean;
   memberCount: number;
   noteCount: number;
   isAlreadyMember: boolean;
@@ -30,7 +31,7 @@ interface JoinPreviewResponse {
     backgroundGradient?: string;
     description?: string;
   };
-  owner: { displayName: string; profileImageUrl?: string | null } | null;
+  owner: { displayName: string; isHarvousOwned?: boolean; profileImageUrl?: string | null } | null;
   memberCount: number;
   threadPreviews: Array<{ id: string; title: string; color: string; noteCount: number }>;
   notePreviews: Array<{ id: string; title: string; noteType: string; createdAt?: string }>;
@@ -57,6 +58,7 @@ export default function JoinSpacePage() {
         const normalized: SpacePreview = {
           ...res.space,
           ownerDisplayName: res.owner?.displayName ?? 'Anonymous',
+          isHarvousOwned: res.owner?.isHarvousOwned ?? false,
           memberCount: res.memberCount,
           noteCount: res.notePreviews?.length ?? 0,
           isAlreadyMember: res.isAlreadyMember,
@@ -93,6 +95,17 @@ export default function JoinSpacePage() {
         try {
           sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
         } catch (_) {}
+        // Update the nav history so the user-group icon shows immediately.
+        window.dispatchEvent(new CustomEvent('spaceCreated', {
+          detail: {
+            space: {
+              id: result.spaceId,
+              title: space?.title ?? '',
+              backgroundGradient: space?.backgroundGradient ?? 'var(--color-paper)',
+              isShared: true,
+            },
+          },
+        }));
         const path = result.redirectUrl || idToUrl(result.spaceId);
         navigate({ to: path as any });
       }
@@ -152,7 +165,11 @@ export default function JoinSpacePage() {
               <>
                 {/* Owner info (above CardStack) */}
                 <div className="shared-page__creator">
-                  <p>{space.ownerDisplayName || 'A Harvous User'} invited you to join this space on Harvous</p>
+                  <p>
+                    {space.isHarvousOwned
+                      ? "You're invited to join this space on Harvous"
+                      : `${space.ownerDisplayName || 'A Harvous User'} invited you to join this space on Harvous`}
+                  </p>
                 </div>
 
                 {/* CardStack with space content */}

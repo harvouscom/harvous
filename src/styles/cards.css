@@ -80,96 +80,153 @@
 }
 
 /* ==========================================================================
-   Featured Space Card
+   Featured Card — info header + full-width space-button group
    ========================================================================== */
 
-.featured-space-card {
-  position: relative;
-  border-radius: 16px;
-  background: white;
-  overflow: hidden;
-  margin: 12px 0 16px;
-}
-
-.featured-space-card__border {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: 16px;
-  border: 1px solid var(--color-fog-white);
-}
-
-.featured-space-card__header {
-  height: 56px;
-  display: flex;
-  align-items: center;
-}
-
-.featured-space-card__header-inner {
+.featured-card {
+  background-color: white;
+  border-radius: 20px;
+  overflow: clip;
   width: 100%;
+  margin: 0 0 4px;
+  box-shadow: 0 1px 2px rgba(120, 118, 111, 0.1);
+}
+
+/* Top info row: accent icon + text */
+.featured-card__info {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
+  gap: 12px;
+  padding: 12px 14px 10px;
 }
 
-.featured-space-card__label {
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.92);
-  font-weight: 600;
-}
+/* Small rounded square in space color */
+.featured-card__accent {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-.featured-space-card__dismiss {
-  height: 32px;
-  width: 32px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  background: rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s, transform 0.15s;
-
-  &:active {
-    transform: scale(0.98);
-  }
-
-  @media (hover: hover) {
-    &:hover {
-      background: rgba(255, 255, 255, 0.18);
-    }
+  & svg {
+    width: 20px;
+    height: 20px;
+    color: var(--color-deep-grey);
+    opacity: 0.25;
   }
 }
 
-.featured-space-card__content {
-  padding: 16px;
+.featured-card__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
 }
 
-.featured-space-card__title {
-  font-size: 18px;
+
+.featured-card__title {
+  font-size: 15px;
   font-weight: 700;
-  color: var(--color-ink);
-  margin-bottom: 6px;
+  color: var(--color-deep-grey);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.featured-space-card__description {
-  font-size: 14px;
-  color: rgba(28, 28, 28, 0.72);
-  line-height: 1.45;
-  margin-bottom: 14px;
+.featured-card__description {
+  font-size: 12px;
+  color: var(--color-stone-grey);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.featured-space-card__actions {
+/* Button group row — 1px gap shows as a hairline separator */
+.featured-card__actions {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 1px;
+  background-color: var(--color-fog-white);
 }
 
-.featured-space-card__cta {
-  width: 100%;
+/* Override space-btn-lg width:100% and border-radius so the card's clip handles rounding */
+.featured-card__join,
+.featured-card__dismiss-btn {
+  width: auto !important;
+  flex: 1;
+  height: 44px;
+  border-radius: 0 !important;
+  /* Reset asymmetric padding from space-btn-lg so text centers properly */
+  padding-left: 0;
+  padding-right: 0;
+
+  & .space-btn-lg__content {
+    padding-left: 0;
+    padding-right: 0;
+    justify-content: center;
+  }
+}
+
+/* Join: bolder text to signal primary action */
+.featured-card__join {
+  box-shadow: 0px -2px 0px 0px rgba(0, 0, 0, 0.08) inset;
+
+  & .space-btn-lg__label {
+    color: var(--color-deep-grey);
+    font-weight: 700;
+  }
+}
+
+/* Dismiss/Not-now: lighter text */
+.featured-card__dismiss-btn {
+  & .space-btn-lg__label {
+    color: var(--color-pebble-grey);
+    font-weight: 500;
+  }
+}
+
+/* Scale the label text down from the default 18px */
+.featured-card__actions .space-btn-lg__label {
+  font-size: 14px;
+}
+
+.featured-carousel {
+  touch-action: pan-y;
+  user-select: none;
+  cursor: grab;
+}
+
+.featured-carousel__dots {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  padding: 8px 0 6px;
+}
+
+.featured-carousel__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  border: none;
+  background: rgba(120, 118, 111, 0.2);
+  cursor: pointer;
+  padding: 0;
+  /* Expand hit area without changing visual size */
+  position: relative;
+}
+
+.featured-carousel__dot::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.featured-carousel__dot--active {
+  background: rgba(120, 118, 111, 0.5);
 }
 
 .card-note__content {

@@ -116,14 +116,10 @@ declare global {
 }
 
 interface ImportMetaEnv {
-  /** Turso database URL (fallback: ASTRO_DB_REMOTE_URL) */
-  readonly TURSO_DATABASE_URL?: string;
-  /** Turso auth token (fallback: ASTRO_DB_APP_TOKEN) */
-  readonly TURSO_AUTH_TOKEN?: string;
-  /** @deprecated Use TURSO_DATABASE_URL */
-  readonly ASTRO_DB_REMOTE_URL?: string;
-  /** @deprecated Use TURSO_AUTH_TOKEN */
-  readonly ASTRO_DB_APP_TOKEN?: string;
+  /** Supabase Postgres pooler URL (port 6543) */
+  readonly SUPABASE_DATABASE_URL?: string;
+  /** Supabase Postgres direct URL (port 5432, for drizzle-kit migrations) */
+  readonly SUPABASE_DIRECT_URL?: string;
 
   // Vite / build
   readonly DEV: boolean;

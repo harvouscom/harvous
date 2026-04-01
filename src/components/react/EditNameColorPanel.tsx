@@ -4,6 +4,7 @@ import { toast } from '@/utils/toast';
 import SquareButton from './SquareButton';
 import Icon from './Icon';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
+import { updateCachedProfile } from '../../../spa/src/hooks/queries/useProfile';
 
 interface EditNameColorPanelProps {
   firstName?: string;
@@ -192,6 +193,13 @@ export default function EditNameColorPanel({
           firstName: formData.firstName.trim(),
           lastName: formData.lastName.trim(),
           userColor: formData.selectedColor
+        });
+
+        // Keep SPA profile caches in sync so avatar updates on next navigation.
+        updateCachedProfile({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          userColor: formData.selectedColor,
         });
         
         // Also update legacy sessionStorage for backward compatibility with ProfilePage

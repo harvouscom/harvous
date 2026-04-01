@@ -22,13 +22,11 @@ export function validateEnvironmentVariables(): ValidationResult {
   // Required environment variables
   const clerkKey = import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY;
   const clerkSecret = import.meta.env.CLERK_SECRET_KEY;
-  const dbUrl = import.meta.env.TURSO_DATABASE_URL ?? import.meta.env.ASTRO_DB_REMOTE_URL;
-  const dbToken = import.meta.env.TURSO_AUTH_TOKEN ?? import.meta.env.ASTRO_DB_APP_TOKEN;
+  const dbUrl = import.meta.env.SUPABASE_DATABASE_URL ?? import.meta.env.SUPABASE_DIRECT_URL;
 
   if (!clerkKey || String(clerkKey).trim() === '') missing.push('PUBLIC_CLERK_PUBLISHABLE_KEY');
   if (!clerkSecret || String(clerkSecret).trim() === '') missing.push('CLERK_SECRET_KEY');
-  if (!dbUrl || String(dbUrl).trim() === '') missing.push('TURSO_DATABASE_URL (or ASTRO_DB_REMOTE_URL)');
-  if (!dbToken || String(dbToken).trim() === '') missing.push('TURSO_AUTH_TOKEN (or ASTRO_DB_APP_TOKEN)');
+  if (!dbUrl || String(dbUrl).trim() === '') missing.push('SUPABASE_DATABASE_URL');
 
   // Recommended but optional variables
   const recommended = {

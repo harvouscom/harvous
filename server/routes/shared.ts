@@ -29,6 +29,7 @@ import { canJoinSpace, canOwnerAddOneMoreSharedSpace } from '../utils/tier-limit
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { rateLimit } from '@/utils/rate-limit';
 import { idToUrl } from '@/utils/url-helpers';
+import { getHarvousSystemUserId } from '../utils/harvous-admin';
 
 const app = new Hono();
 
@@ -88,18 +89,23 @@ app.get('/api/shared/note/:shareToken', async (c) => {
       .where(eq(UserMetadata.userId, note.userId))
       .limit(1));
 
-    const firstName = creator?.firstName || '';
-    const lastName = creator?.lastName || '';
+    let noteIsHarvousOwned = false;
+    try { noteIsHarvousOwned = note.userId === getHarvousSystemUserId(); } catch { /* env not set */ }
+
+    const firstName = noteIsHarvousOwned ? 'Harvous' : (creator?.firstName || '');
+    const lastName = noteIsHarvousOwned ? '' : (creator?.lastName || '');
     const firstInitial = firstName.charAt(0).toUpperCase();
     const lastInitial = lastName.charAt(0).toUpperCase();
-    const initials = (firstInitial + lastInitial) || 'U';
-    const displayName = firstName ? (lastName ? `${firstName} ${lastInitial}.` : firstName) : 'A Harvous User';
+    const initials = noteIsHarvousOwned ? 'H' : ((firstInitial + lastInitial) || 'U');
+    const displayName = noteIsHarvousOwned
+      ? 'Harvous'
+      : (firstName ? (lastName ? `${firstName} ${lastInitial}.` : firstName) : 'A Harvous User');
 
     return c.json({
       note: { id: note.id, title: note.title, content: note.content, noteType: note.noteType, createdAt: note.createdAt, updatedAt: note.updatedAt },
       scriptureMetadata,
       resourceMetadata,
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, isHarvousOwned: noteIsHarvousOwned, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: '/api/shared/note/[shareToken]', action: 'get_shared_note' });
@@ -208,12 +214,17 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
       .where(eq(UserMetadata.userId, thread.userId))
       .limit(1));
 
-    const firstName = creator?.firstName || '';
-    const lastName = creator?.lastName || '';
+    let threadIsHarvousOwned = false;
+    try { threadIsHarvousOwned = thread.userId === getHarvousSystemUserId(); } catch { /* env not set */ }
+
+    const firstName = threadIsHarvousOwned ? 'Harvous' : (creator?.firstName || '');
+    const lastName = threadIsHarvousOwned ? '' : (creator?.lastName || '');
     const firstInitial = firstName.charAt(0).toUpperCase();
     const lastInitial = lastName.charAt(0).toUpperCase();
-    const initials = (firstInitial + lastInitial) || 'U';
-    const displayName = firstName ? (lastName ? `${firstName} ${lastInitial}.` : firstName) : 'A Harvous User';
+    const initials = threadIsHarvousOwned ? 'H' : ((firstInitial + lastInitial) || 'U');
+    const displayName = threadIsHarvousOwned
+      ? 'Harvous'
+      : (firstName ? (lastName ? `${firstName} ${lastInitial}.` : firstName) : 'A Harvous User');
 
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
@@ -232,7 +243,7 @@ app.get('/api/shared/thread/:shareToken', async (c) => {
           scriptureTranslation,
         };
       }),
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, isHarvousOwned: threadIsHarvousOwned, initials, userColor: creator?.userColor || 'blue', profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: allNotes.length },
     });
   } catch (error) {

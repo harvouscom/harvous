@@ -107,7 +107,11 @@ export async function clerkAuth(c: Context, next: Next) {
     const payload = await verifyToken(token, { secretKey });
 
     let userId = payload.sub;
-    const mapping = await resolveLiveToDevMapping(userId, secretKey);
+    // Only resolve live→dev mapping in production (live Clerk key).
+    // In dev (sk_test_*) both accounts share the same test instance; running
+    // the mapping would incorrectly merge one test user's data into another.
+    const isLiveKey = secretKey.startsWith('sk_live_');
+    const mapping = isLiveKey ? await resolveLiveToDevMapping(userId, secretKey) : null;
     if (mapping) {
       if (mapping.migratedToLiveAt) {
         userId = payload.sub;

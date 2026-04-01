@@ -1,12 +1,8 @@
 /**
- * Remove scripture notes from thread — Drizzle port of src/utils/remove-scripture-notes-from-thread.ts
+ * Remove scripture notes from thread
  */
 
 import { db, first, Notes, NoteThreads, NoteScriptureReferences, eq, and } from '../db';
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export async function removeScriptureNotesFromThread(
   parentNoteId: string,
@@ -15,30 +11,18 @@ export async function removeScriptureNotesFromThread(
 ): Promise<void> {
   if (threadId === 'thread_unorganized') return;
 
-  await sleep(1000);
-
   try {
-    try {
-      first(await db.select().from(NoteScriptureReferences).limit(1));
-    } catch (checkError: any) {
-      if (checkError.message?.includes('SQLITE_BUSY') || checkError.message?.includes('database is locked')) {
-        return;
-      }
-    }
-
     const scriptureReferences = await db
       .select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId })
       .from(NoteScriptureReferences)
-      .where(eq(NoteScriptureReferences.noteId, parentNoteId))
-      ;
+      .where(eq(NoteScriptureReferences.noteId, parentNoteId));
 
     if (scriptureReferences.length === 0) return;
 
     const notesInThread = await db
       .select({ noteId: NoteThreads.noteId })
       .from(NoteThreads)
-      .where(eq(NoteThreads.threadId, threadId))
-      ;
+      .where(eq(NoteThreads.threadId, threadId));
 
     const noteIdsInThread = new Set(notesInThread.map(n => n.noteId));
 
@@ -77,60 +61,17 @@ export async function removeScriptureNotesFromThread(
         }
 
         if (!stillReferenced) {
-          let retries = 3;
-          let deleted = false;
-          while (retries > 0 && !deleted) {
-            try {
-              await db.delete(NoteThreads)
-                .where(and(eq(NoteThreads.noteId, scriptureNoteId), eq(NoteThreads.threadId, threadId)));
-              deleted = true;
+          await db.delete(NoteThreads)
+            .where(and(eq(NoteThreads.noteId, scriptureNoteId), eq(NoteThreads.threadId, threadId)));
 
-              const remainingThreads = await db.select()
-                .from(NoteThreads)
-                .where(eq(NoteThreads.noteId, scriptureNoteId))
-                ;
+          const remainingThreads = await db.select()
+            .from(NoteThreads)
+            .where(eq(NoteThreads.noteId, scriptureNoteId));
 
-              if (remainingThreads.length === 0) {
-                let updateRetries = 3;
-                while (updateRetries > 0) {
-                  try {
-                    await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, scriptureNoteId));
-                    break;
-                  } catch (updateError: any) {
-                    if (updateError.message?.includes('SQLITE_BUSY') || updateError.message?.includes('database is locked')) {
-                      updateRetries--;
-                      if (updateRetries > 0) await sleep(50 * (4 - updateRetries));
-                    } else {
-                      throw updateError;
-                    }
-                  }
-                }
-              } else if (scriptureNote.threadId === threadId) {
-                // If removed thread was the primary, update to next remaining thread
-                let updateRetries = 3;
-                while (updateRetries > 0) {
-                  try {
-                    await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
-                    break;
-                  } catch (updateError: any) {
-                    if (updateError.message?.includes('SQLITE_BUSY') || updateError.message?.includes('database is locked')) {
-                      updateRetries--;
-                      if (updateRetries > 0) await sleep(50 * (4 - updateRetries));
-                    } else {
-                      throw updateError;
-                    }
-                  }
-                }
-              }
-            } catch (deleteError: any) {
-              if (deleteError.message?.includes('SQLITE_BUSY') || deleteError.message?.includes('database is locked')) {
-                retries--;
-                if (retries > 0) await sleep(50 * (4 - retries));
-                else console.error(`Failed to remove scripture note ${scriptureNoteId} from thread after retries:`, deleteError);
-              } else {
-                throw deleteError;
-              }
-            }
+          if (remainingThreads.length === 0) {
+            await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, scriptureNoteId));
+          } else if (scriptureNote.threadId === threadId) {
+            await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
           }
         }
       } catch (error: any) {

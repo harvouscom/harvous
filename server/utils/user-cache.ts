@@ -69,10 +69,10 @@ export async function ensureOnboardingThreadIfMissing(userId: string): Promise<v
   } catch (insertError: unknown) {
     // Another request already created the onboarding thread (e.g. parallel get-profile + nav).
     // Treat as idempotent and return so we don't throw UNIQUE constraint to the caller.
+    // Postgres unique violation (23505): thread already created by concurrent request
     const isUnique =
-      (insertError as { code?: string })?.code === 'SQLITE_CONSTRAINT' ||
-      (insertError as { cause?: { code?: string } })?.cause?.code === 'SQLITE_CONSTRAINT' ||
-      (insertError as Error)?.message?.includes('UNIQUE constraint failed');
+      (insertError as { code?: string })?.code === '23505' ||
+      (insertError as Error)?.message?.includes('unique constraint');
     if (isUnique) {
       console.log('[onboarding] thread already created by concurrent request, skipping', { userId });
       return;
@@ -289,10 +289,10 @@ async function fetchAndCacheUserData(userId: string, existingMetadata: any): Pro
         clerkDataUpdatedAt: nowISO(),
       });
     } catch (insertErr: unknown) {
+      // Postgres unique violation (23505): UserMetadata already created by concurrent request
       const isUnique =
-        (insertErr as { code?: string })?.code === 'SQLITE_CONSTRAINT' ||
-        (insertErr as { cause?: { code?: string } })?.cause?.code === 'SQLITE_CONSTRAINT' ||
-        (insertErr as Error)?.message?.includes('UNIQUE constraint failed');
+        (insertErr as { code?: string })?.code === '23505' ||
+        (insertErr as Error)?.message?.includes('unique constraint');
       if (isUnique) {
         insertSucceeded = false;
         console.log('[user-cache] UserMetadata already created by concurrent request', { userId });

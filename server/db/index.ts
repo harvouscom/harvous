@@ -34,6 +34,8 @@ export {
   InboxItems,
   InboxItemNotes,
   UserInboxItems,
+  FeaturedItems,
+  UserFeaturedItems,
   MonthlyAnalytics,
 } from './schema';
 

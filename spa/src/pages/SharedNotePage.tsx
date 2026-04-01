@@ -16,6 +16,7 @@ interface SharedNoteResponse {
   };
   creator: {
     displayName: string;
+    isHarvousOwned?: boolean;
     userColor?: string;
   };
   scriptureMetadata?: {
@@ -169,7 +170,11 @@ export default function SharedNotePage() {
               <>
                 {/* Creator info (above card) */}
                 <div className="shared-page__creator">
-                  <p>Created by {creator?.displayName || 'A Harvous User'} on Harvous</p>
+                  <p>
+                    {creator?.isHarvousOwned
+                      ? 'A Harvous note'
+                      : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
+                  </p>
                 </div>
 
                 {/* Card container */}

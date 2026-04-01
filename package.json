@@ -56,7 +56,6 @@
     "@fontsource/reddit-sans": "^5.1.1",
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@hono/node-server": "^1.19.9",
-    "@libsql/client": "^0.17.0",
     "@mozilla/readability": "^0.6.0",
     "@netlify/blobs": "^10.7.0",
     "@radix-ui/react-dialog": "^1.1.15",

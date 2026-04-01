@@ -9,7 +9,7 @@ const MEMBERS_PER_SPACE_CAP = 150;
 
 export const TIER_LIMITS = {
   free: {
-    ownedSharedSpaces: 3,
+    ownedSharedSpaces: Infinity,
     membersPerSpace: MEMBERS_PER_SPACE_CAP,
     joinableSpaces: Infinity,
   },

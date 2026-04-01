@@ -79,10 +79,7 @@ async function findUnorganizedThread(userId: string) {
       return newUnorganizedThread;
     } catch (createError: any) {
       // If creation failed due to UNIQUE on id, another user already has the single global row
-      if (createError.code === 'SQLITE_CONSTRAINT' ||
-          createError.cause?.code === 'SQLITE_CONSTRAINT' ||
-          createError.rawCode === 1555 ||
-          createError.message?.includes('UNIQUE constraint failed')) {
+      if (createError.code === '23505' || createError.message?.includes('unique constraint')) {
         const existingThread = first(await db.select({
           id: Threads.id,
           title: Threads.title,

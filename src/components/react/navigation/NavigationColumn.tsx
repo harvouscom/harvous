@@ -339,6 +339,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         title: item.title || 'Space',
         totalItemCount: typeof item.count === 'number' ? item.count : 0,
         backgroundGradient: item.backgroundGradient || 'var(--color-paper)',
+        isShared: item.isShared ?? false,
       } satisfies Space));
     
     const combined = [...fromLocal, ...fromRaw];
@@ -1001,6 +1002,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           ...history[existingIndex],
           title: space.title,
           backgroundGradient: space.backgroundGradient,
+          isShared: space.isShared ?? history[existingIndex].isShared ?? false,
           lastAccessed: Date.now()
         };
       } else {
@@ -1009,6 +1011,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           id: space.id,
           title: space.title,
           backgroundGradient: space.backgroundGradient,
+          isShared: space.isShared ?? false,
           firstAccessed: Date.now(),
           lastAccessed: Date.now()
         });

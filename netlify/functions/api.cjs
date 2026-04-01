@@ -18118,6 +18118,7 @@ __export(schema_exports, {
   BibleVerses: () => BibleVerses,
   ClerkUserMapping: () => ClerkUserMapping,
   Comments: () => Comments,
+  FeaturedItems: () => FeaturedItems,
   InboxItemNotes: () => InboxItemNotes,
   InboxItems: () => InboxItems,
   Members: () => Members,
@@ -18132,6 +18133,7 @@ __export(schema_exports, {
   Spaces: () => Spaces,
   Tags: () => Tags,
   Threads: () => Threads,
+  UserFeaturedItems: () => UserFeaturedItems,
   UserInboxItems: () => UserInboxItems,
   UserLifetimeXP: () => UserLifetimeXP,
   UserMetadata: () => UserMetadata,
@@ -18140,7 +18142,7 @@ __export(schema_exports, {
   VerseTextCache: () => VerseTextCache,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, UserFeaturedItems, MonthlyAnalytics;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18157,6 +18159,7 @@ var init_schema2 = __esm({
       lastVisited: ts("lastVisited"),
       userId: text("userId").notNull(),
       isPublic: boolean("isPublic").notNull().default(false),
+      isFeatured: boolean("isFeatured").notNull().default(false),
       isActive: boolean("isActive").notNull().default(true),
       order: integer("order").notNull().default(0),
       shareToken: text("shareToken"),
@@ -18435,6 +18438,46 @@ var init_schema2 = __esm({
       archivedAt: ts("archivedAt"),
       createdAt: ts("createdAt").notNull()
     });
+    FeaturedItems = pgTable(
+      "FeaturedItems",
+      {
+        id: text("id").primaryKey(),
+        contentType: text("contentType").notNull(),
+        // 'space' | 'recall' | 'challenge' | 'church'
+        title: text("title").notNull(),
+        description: text("description"),
+        refId: text("refId"),
+        shareToken: text("shareToken"),
+        color: text("color"),
+        isActive: boolean("isActive").notNull().default(true),
+        startsAt: ts("startsAt"),
+        endsAt: ts("endsAt"),
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt")
+      },
+      (table) => [
+        index("FeaturedItems_isActiveIndex").on(table.isActive),
+        index("FeaturedItems_createdAtIndex").on(table.createdAt)
+      ]
+    );
+    UserFeaturedItems = pgTable(
+      "UserFeaturedItems",
+      {
+        id: text("id").primaryKey(),
+        userId: text("userId").notNull(),
+        featuredItemId: text("featuredItemId").notNull(),
+        status: text("status").notNull(),
+        // 'active' | 'dismissed' | 'completed'
+        dismissedAt: ts("dismissedAt"),
+        completedAt: ts("completedAt"),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        index("UserFeaturedItems_userIdIndex").on(table.userId),
+        index("UserFeaturedItems_featuredItemIdIndex").on(table.featuredItemId),
+        uniqueIndex("UserFeaturedItems_userFeaturedItem_unique").on(table.userId, table.featuredItemId)
+      ]
+    );
     MonthlyAnalytics = pgTable("MonthlyAnalytics", {
       id: text("id").primaryKey(),
       month: text("month").notNull(),
@@ -18778,74 +18821,48 @@ var unorganized_thread_exports = {};
 __export(unorganized_thread_exports, {
   ensureUnorganizedThread: () => ensureUnorganizedThread
 });
-function sleep2(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function retryDbOperation(operation, maxRetries = 3, baseDelay = 50) {
-  let lastError;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if ((error.message?.includes("SQLITE_BUSY") || error.message?.includes("database is locked")) && attempt < maxRetries - 1) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        await sleep2(delay);
-        continue;
-      }
-      throw error;
-    }
-  }
-  throw lastError;
-}
 async function ensureUnorganizedThread(userId) {
   try {
-    const existingThread = await retryDbOperation(async () => {
-      return first(await db.select({
-        id: Threads.id,
-        title: Threads.title,
-        subtitle: Threads.subtitle,
-        color: Threads.color,
-        spaceId: Threads.spaceId,
-        isPublic: Threads.isPublic,
-        isPinned: Threads.isPinned,
-        createdAt: Threads.createdAt,
-        updatedAt: Threads.updatedAt
-      }).from(Threads).where(and(
-        eq(Threads.userId, userId),
-        eq(Threads.id, "thread_unorganized")
-      )).limit(1));
-    });
+    const existingThread = first(await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt
+    }).from(Threads).where(and(
+      eq(Threads.userId, userId),
+      eq(Threads.id, "thread_unorganized")
+    )).limit(1));
     if (!existingThread) {
       try {
-        await retryDbOperation(async () => {
-          await db.insert(Threads).values({
-            id: "thread_unorganized",
-            title: "Unorganized",
-            subtitle: "Notes that haven't been organized into threads yet",
-            spaceId: null,
-            userId,
-            isPublic: true,
-            isPinned: false,
-            color: null,
-            createdAt: nowISO(),
-            updatedAt: nowISO()
-          });
+        await db.insert(Threads).values({
+          id: "thread_unorganized",
+          title: "Unorganized",
+          subtitle: "Notes that haven't been organized into threads yet",
+          spaceId: null,
+          userId,
+          isPublic: true,
+          isPinned: false,
+          color: null,
+          createdAt: nowISO(),
+          updatedAt: nowISO()
         });
       } catch (insertError) {
-        if (insertError.code === "SQLITE_CONSTRAINT" || insertError.cause?.code === "SQLITE_CONSTRAINT" || insertError.rawCode === 1555 || insertError.message?.includes("UNIQUE constraint failed")) {
+        if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
         } else {
           console.error("Error creating unorganized thread:", insertError);
           throw insertError;
         }
       }
     }
-    const noteCount = await retryDbOperation(async () => {
-      return first(await db.select({ count: count() }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(
-        eq(Notes.userId, userId),
-        isNull(NoteThreads.id)
-      )).limit(1));
-    });
+    const noteCount = first(await db.select({ count: count() }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(
+      eq(Notes.userId, userId),
+      isNull(NoteThreads.id)
+    )).limit(1));
     const threadData = {
       id: "thread_unorganized",
       title: "Unorganized",
@@ -55135,9 +55152,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app14) => {
+var handle = (app15) => {
   return (req, context) => {
-    return app14.fetch(req, { context });
+    return app15.fetch(req, { context });
   };
 };
 
@@ -56330,14 +56347,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path, app14) {
+  route(path, app15) {
     const subApp = this.basePath(path);
-    app14.routes.map((r) => {
+    app15.routes.map((r) => {
       let handler5;
-      if (app14.errorHandler === errorHandler) {
+      if (app15.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app14.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app15.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -57468,7 +57485,8 @@ async function clerkAuth(c, next) {
   try {
     const payload = await verifyToken2(token, { secretKey });
     let userId = payload.sub;
-    const mapping = await resolveLiveToDevMapping(userId, secretKey);
+    const isLiveKey = secretKey.startsWith("sk_live_");
+    const mapping = isLiveKey ? await resolveLiveToDevMapping(userId, secretKey) : null;
     if (mapping) {
       if (mapping.migratedToLiveAt) {
         userId = payload.sub;
@@ -69728,7 +69746,7 @@ async function ensureOnboardingThreadIfMissing(userId) {
       lastVisited: ts2
     });
   } catch (insertError) {
-    const isUnique = insertError?.code === "SQLITE_CONSTRAINT" || insertError?.cause?.code === "SQLITE_CONSTRAINT" || insertError?.message?.includes("UNIQUE constraint failed");
+    const isUnique = insertError?.code === "23505" || insertError?.message?.includes("unique constraint");
     if (isUnique) {
       console.log("[onboarding] thread already created by concurrent request, skipping", { userId });
       return;
@@ -69914,7 +69932,7 @@ async function fetchAndCacheUserData(userId, existingMetadata) {
         clerkDataUpdatedAt: nowISO()
       });
     } catch (insertErr) {
-      const isUnique = insertErr?.code === "SQLITE_CONSTRAINT" || insertErr?.cause?.code === "SQLITE_CONSTRAINT" || insertErr?.message?.includes("UNIQUE constraint failed");
+      const isUnique = insertErr?.code === "23505" || insertErr?.message?.includes("unique constraint");
       if (isUnique) {
         insertSucceeded = false;
         console.log("[user-cache] UserMetadata already created by concurrent request", { userId });
@@ -70171,7 +70189,7 @@ async function findUnorganizedThread(userId) {
       }).returning());
       return newUnorganizedThread;
     } catch (createError2) {
-      if (createError2.code === "SQLITE_CONSTRAINT" || createError2.cause?.code === "SQLITE_CONSTRAINT" || createError2.rawCode === 1555 || createError2.message?.includes("UNIQUE constraint failed")) {
+      if (createError2.code === "23505" || createError2.message?.includes("unique constraint")) {
         const existingThread = first(await db.select({
           id: Threads.id,
           title: Threads.title,
@@ -73110,19 +73128,9 @@ async function requireSpaceAccess(spaceId, userId, requireOwner = false) {
 
 // server/utils/move-scripture-notes-to-thread.ts
 init_db2();
-function sleep3(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 async function moveScriptureNotesToThread(parentNoteId, threadId, userId) {
   if (threadId === "thread_unorganized") return;
   try {
-    try {
-      first(await db.select().from(NoteScriptureReferences).limit(1));
-    } catch (checkError) {
-      if (checkError.message?.includes("SQLITE_BUSY") || checkError.message?.includes("database is locked")) {
-        return;
-      }
-    }
     const scriptureReferences = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, parentNoteId));
     if (scriptureReferences.length === 0) return;
     for (const ref of scriptureReferences) {
@@ -73134,43 +73142,15 @@ async function moveScriptureNotesToThread(parentNoteId, threadId, userId) {
         const existingRelation = existingThreadRelations.find((rel) => rel.threadId === threadId);
         if (existingRelation) continue;
         const isInUnorganized = existingThreadRelations.length === 0 || scriptureNote.threadId === "thread_unorganized";
-        let retries = 3;
-        let inserted = false;
-        while (retries > 0 && !inserted) {
-          try {
-            const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            await db.insert(NoteThreads).values({
-              id: noteThreadId,
-              noteId: scriptureNoteId,
-              threadId,
-              createdAt: (/* @__PURE__ */ new Date()).toISOString()
-            });
-            inserted = true;
-            if (isInUnorganized && threadId !== "thread_unorganized") {
-              let updateRetries = 3;
-              while (updateRetries > 0) {
-                try {
-                  await db.update(Notes).set({ threadId }).where(eq(Notes.id, scriptureNoteId));
-                  break;
-                } catch (updateError) {
-                  if (updateError.message?.includes("SQLITE_BUSY") || updateError.message?.includes("database is locked")) {
-                    updateRetries--;
-                    if (updateRetries > 0) await sleep3(50 * (4 - updateRetries));
-                  } else {
-                    throw updateError;
-                  }
-                }
-              }
-            }
-          } catch (insertError) {
-            if (insertError.message?.includes("SQLITE_BUSY") || insertError.message?.includes("database is locked")) {
-              retries--;
-              if (retries > 0) await sleep3(50 * (4 - retries));
-              else console.error(`Failed to insert scripture note ${scriptureNoteId} after retries:`, insertError);
-            } else {
-              throw insertError;
-            }
-          }
+        const noteThreadId = `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await db.insert(NoteThreads).values({
+          id: noteThreadId,
+          noteId: scriptureNoteId,
+          threadId,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        if (isInUnorganized && threadId !== "thread_unorganized") {
+          await db.update(Notes).set({ threadId }).where(eq(Notes.id, scriptureNoteId));
         }
       } catch (error) {
         console.error(`Error moving scripture note ${scriptureNoteId} to thread:`, error);
@@ -73598,8 +73578,75 @@ var RATE_LIMITS2 = {
     maxRequests: 60,
     windowMs: 60 * 1e3
     // 1 minute
+  },
+  /**
+   * Note creation (POST /api/notes/create + note creates inside /api/sync/push).
+   * Stricter than generic WRITE to limit scripted / batched note spam.
+   */
+  NOTE_CREATE_PER_MINUTE: {
+    maxRequests: 30,
+    windowMs: 60 * 1e3
+  },
+  NOTE_CREATE_PER_HOUR: {
+    maxRequests: 400,
+    windowMs: 60 * 60 * 1e3
   }
 };
+var MAX_NOTE_CREATES_PER_SYNC_PUSH = 50;
+var NOTE_CREATE_MINUTE_KEY = "note-create:window:1m";
+var NOTE_CREATE_HOUR_KEY = "note-create:window:1h";
+function getRecord(key2, now2, windowMs) {
+  let record = rateLimitStore.get(key2);
+  if (!record || now2 > record.resetTime) {
+    record = { count: 0, resetTime: now2 + windowMs };
+    rateLimitStore.set(key2, record);
+  }
+  return record;
+}
+function tryConsumeNoteCreates(userId, ip, delta) {
+  if (delta <= 0) {
+    const now3 = Date.now();
+    return {
+      allowed: true,
+      remainingMinute: RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.maxRequests,
+      remainingHour: RATE_LIMITS2.NOTE_CREATE_PER_HOUR.maxRequests,
+      resetMinute: now3 + RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.windowMs,
+      resetHour: now3 + RATE_LIMITS2.NOTE_CREATE_PER_HOUR.windowMs
+    };
+  }
+  const now2 = Date.now();
+  const kMin = getRateLimitKey(userId, NOTE_CREATE_MINUTE_KEY, ip);
+  const kHr = getRateLimitKey(userId, NOTE_CREATE_HOUR_KEY, ip);
+  const recMin = getRecord(kMin, now2, RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.windowMs);
+  const recHr = getRecord(kHr, now2, RATE_LIMITS2.NOTE_CREATE_PER_HOUR.windowMs);
+  const nextMin = recMin.count + delta;
+  const nextHr = recHr.count + delta;
+  if (nextMin > RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.maxRequests) {
+    return {
+      allowed: false,
+      error: `Too many notes created too quickly. Maximum ${RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.maxRequests} new notes per minute.`,
+      retryAfterSec: Math.max(1, Math.ceil((recMin.resetTime - now2) / 1e3))
+    };
+  }
+  if (nextHr > RATE_LIMITS2.NOTE_CREATE_PER_HOUR.maxRequests) {
+    return {
+      allowed: false,
+      error: `Note creation hourly limit reached (${RATE_LIMITS2.NOTE_CREATE_PER_HOUR.maxRequests} per hour). Try again later.`,
+      retryAfterSec: Math.max(1, Math.ceil((recHr.resetTime - now2) / 1e3))
+    };
+  }
+  recMin.count = nextMin;
+  recHr.count = nextHr;
+  rateLimitStore.set(kMin, recMin);
+  rateLimitStore.set(kHr, recHr);
+  return {
+    allowed: true,
+    remainingMinute: RATE_LIMITS2.NOTE_CREATE_PER_MINUTE.maxRequests - recMin.count,
+    remainingHour: RATE_LIMITS2.NOTE_CREATE_PER_HOUR.maxRequests - recHr.count,
+    resetMinute: recMin.resetTime,
+    resetHour: recHr.resetTime
+  };
+}
 function rateLimitMiddleware(userId, endpoint, type, ip) {
   const isInviteEndpoint = endpoint.includes("members/invite");
   const config = isInviteEndpoint ? RATE_LIMITS2.INVITE : type === "read" ? RATE_LIMITS2.READ : RATE_LIMITS2.WRITE;
@@ -73627,6 +73674,21 @@ function rateLimit(type) {
     const result = rateLimitMiddleware(auth?.userId ?? null, endpoint, type, ip);
     if (!result.allowed) {
       return c.json({ error: result.error || "Rate limit exceeded", code: "RATE_LIMIT_EXCEEDED" }, 429);
+    }
+    return next();
+  };
+}
+function rateLimitNoteCreate() {
+  return async (c, next) => {
+    const auth = c.get("auth");
+    const ip = getClientIP(c.req.raw);
+    const reserved = tryConsumeNoteCreates(auth?.userId ?? null, ip, 1);
+    if (!reserved.allowed) {
+      return c.json(
+        { error: reserved.error, code: "NOTE_CREATE_RATE_LIMIT_EXCEEDED" },
+        429,
+        { "Retry-After": String(reserved.retryAfterSec) }
+      );
     }
     return next();
   };
@@ -73871,7 +73933,7 @@ route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
       await db.insert(Threads).values(unorganizedThread);
       return c.json({ success: true, message: "Unorganized thread created", thread: unorganizedThread }, 201);
     } catch (insertError) {
-      if (insertError.code === "SQLITE_CONSTRAINT" || insertError.code === "SQLITE_CONSTRAINT_PRIMARYKEY" || insertError.rawCode === 1555 || insertError.message?.includes("UNIQUE constraint failed")) {
+      if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
         const createdThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
         if (createdThread) return c.json({ success: true, message: "Unorganized thread already exists", thread: createdThread });
       }
@@ -74232,20 +74294,9 @@ async function healScriptureNoteThreadsFromParents(scriptureNoteId, userId) {
 
 // server/utils/remove-scripture-notes-from-thread.ts
 init_db2();
-function sleep4(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 async function removeScriptureNotesFromThread(parentNoteId, threadId, userId) {
   if (threadId === "thread_unorganized") return;
-  await sleep4(1e3);
   try {
-    try {
-      first(await db.select().from(NoteScriptureReferences).limit(1));
-    } catch (checkError) {
-      if (checkError.message?.includes("SQLITE_BUSY") || checkError.message?.includes("database is locked")) {
-        return;
-      }
-    }
     const scriptureReferences = await db.select({ scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, parentNoteId));
     if (scriptureReferences.length === 0) return;
     const notesInThread = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads).where(eq(NoteThreads.threadId, threadId));
@@ -74269,53 +74320,12 @@ async function removeScriptureNotesFromThread(parentNoteId, threadId, userId) {
           }
         }
         if (!stillReferenced) {
-          let retries = 3;
-          let deleted = false;
-          while (retries > 0 && !deleted) {
-            try {
-              await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, scriptureNoteId), eq(NoteThreads.threadId, threadId)));
-              deleted = true;
-              const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
-              if (remainingThreads.length === 0) {
-                let updateRetries = 3;
-                while (updateRetries > 0) {
-                  try {
-                    await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, scriptureNoteId));
-                    break;
-                  } catch (updateError) {
-                    if (updateError.message?.includes("SQLITE_BUSY") || updateError.message?.includes("database is locked")) {
-                      updateRetries--;
-                      if (updateRetries > 0) await sleep4(50 * (4 - updateRetries));
-                    } else {
-                      throw updateError;
-                    }
-                  }
-                }
-              } else if (scriptureNote.threadId === threadId) {
-                let updateRetries = 3;
-                while (updateRetries > 0) {
-                  try {
-                    await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
-                    break;
-                  } catch (updateError) {
-                    if (updateError.message?.includes("SQLITE_BUSY") || updateError.message?.includes("database is locked")) {
-                      updateRetries--;
-                      if (updateRetries > 0) await sleep4(50 * (4 - updateRetries));
-                    } else {
-                      throw updateError;
-                    }
-                  }
-                }
-              }
-            } catch (deleteError) {
-              if (deleteError.message?.includes("SQLITE_BUSY") || deleteError.message?.includes("database is locked")) {
-                retries--;
-                if (retries > 0) await sleep4(50 * (4 - retries));
-                else console.error(`Failed to remove scripture note ${scriptureNoteId} from thread after retries:`, deleteError);
-              } else {
-                throw deleteError;
-              }
-            }
+          await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, scriptureNoteId), eq(NoteThreads.threadId, threadId)));
+          const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
+          if (remainingThreads.length === 0) {
+            await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, scriptureNoteId));
+          } else if (scriptureNote.threadId === threadId) {
+            await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, scriptureNoteId));
           }
         }
       } catch (error) {
@@ -85019,7 +85029,7 @@ var truncateAndCapitalizeTitle = (title) => {
   const truncated = title.slice(0, TITLE_HARD_LIMIT);
   return truncated.charAt(0).toUpperCase() + truncated.slice(1);
 };
-route10.post("/api/notes/create", requireAuth, rateLimit("write"), async (c) => {
+route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const contentType = c.req.raw.headers.get("content-type") ?? "";
@@ -86040,7 +86050,7 @@ init_db2();
 var MEMBERS_PER_SPACE_CAP = 150;
 var TIER_LIMITS = {
   free: {
-    ownedSharedSpaces: 3,
+    ownedSharedSpaces: Infinity,
     membersPerSpace: MEMBERS_PER_SPACE_CAP,
     joinableSpaces: Infinity
   },
@@ -86201,6 +86211,33 @@ function idToUrl(id, threadContext, fromNoteId) {
     }
   }
   return url;
+}
+
+// server/utils/harvous-admin.ts
+function splitCsv(value) {
+  if (!value) return [];
+  return value.split(",").map((s2) => s2.trim()).filter(Boolean);
+}
+function getHarvousSystemUserId() {
+  const id = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
+  return id;
+}
+function isHarvousAdmin(c) {
+  const auth = getAuth(c);
+  const userId = auth?.userId ?? null;
+  const allowlist = splitCsv(process.env.HARVOUS_ADMIN_USER_IDS);
+  if (userId && allowlist.includes(userId)) return true;
+  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET;
+  if (!expectedSecret) return false;
+  const authHeader = c.req.header("authorization") ?? "";
+  return authHeader === `Bearer ${expectedSecret}`;
+}
+function requireHarvousAdmin(c) {
+  if (!isHarvousAdmin(c)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  return null;
 }
 
 // server/routes/spaces.ts
@@ -86595,6 +86632,7 @@ route11.post("/api/spaces/:spaceId/add-thread", requireAuth, rateLimit("write"),
     const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
     if (!thread) return c.json({ error: "Thread not found or access denied" }, 404);
     await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
     return c.json({ success: true, message: "Thread added to space" });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/add-thread", action: "add_thread_to_space" });
@@ -86647,6 +86685,7 @@ route11.post("/api/spaces/:spaceId/add-items", requireAuth, async (c) => {
           continue;
         }
         await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+        await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
         updatedThreads++;
       } catch (e) {
         errors.push(`Thread ${threadId}: ${e.message}`);
@@ -86784,19 +86823,28 @@ route11.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
       const metadata = await db.select().from(UserMetadata).where(inArray(UserMetadata.userId, allUserIds));
       userMetadataMap = Object.fromEntries(metadata.map((m2) => [m2.userId, m2]));
     }
+    let isHarvousOwned = false;
+    try {
+      isHarvousOwned = space.userId === getHarvousSystemUserId();
+    } catch {
+    }
     const ownerMeta = userMetadataMap[space.userId] || {};
     const toDisplayName = (firstName, lastName, fallback) => {
       const first2 = firstName || "";
       const lastInitial = lastName ? lastName.charAt(0).toUpperCase() : "";
       return first2 ? lastInitial ? `${first2} ${lastInitial}.` : first2 : fallback;
     };
+    const ownerFirstName = isHarvousOwned ? "Harvous" : ownerMeta.firstName || null;
+    const ownerLastName = isHarvousOwned ? null : ownerMeta.lastName || null;
+    const ownerDisplayName = isHarvousOwned ? "Harvous" : toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || "Unknown User");
     const memberList = [
       {
         userId: space.userId,
         role: "owner",
         joinedAt: space.createdAt,
-        firstName: ownerMeta.firstName || null,
-        displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || "Unknown User"),
+        firstName: ownerFirstName,
+        lastName: ownerLastName,
+        displayName: ownerDisplayName,
         email: ownerMeta.email || null,
         profileImageUrl: ownerMeta.profileImageUrl || null,
         userColor: ownerMeta.userColor || "blue"
@@ -86808,6 +86856,7 @@ route11.get("/api/spaces/:spaceId/members", requireAuth, async (c) => {
           role: "member",
           joinedAt: m2.joinedAt || m2.createdAt,
           firstName: meta.firstName || null,
+          lastName: meta.lastName || null,
           displayName: toDisplayName(meta.firstName ?? null, meta.lastName ?? null, meta.email || "Unknown User"),
           email: meta.email || null,
           profileImageUrl: meta.profileImageUrl || null,
@@ -86937,10 +86986,15 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
     const space = first(await db.select().from(Spaces).where(eq(Spaces.shareToken, token)).limit(1));
     if (!space) return c.json({ error: "Space not found or link expired" }, 404);
     if (!space.isPublic) return c.json({ error: "This space is no longer public" }, 403);
+    let isHarvousOwned = false;
+    try {
+      isHarvousOwned = space.userId === getHarvousSystemUserId();
+    } catch {
+    }
     const ownerMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).limit(1));
     const ownerFirst = ownerMeta?.firstName || "";
     const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : "";
-    const ownerDisplayName = ownerFirst ? ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst : "Anonymous";
+    const ownerDisplayName = isHarvousOwned ? "Harvous" : ownerFirst ? ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst : "Anonymous";
     const memberCount = await getSpaceMemberCount2(space.id);
     const totalMembers = memberCount + 1;
     const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color }).from(Threads).where(eq(Threads.spaceId, space.id)).orderBy(desc(Threads.updatedAt)).limit(5);
@@ -87020,7 +87074,7 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || "paper"),
         description: space.description
       },
-      owner: { displayName: ownerDisplayName, profileImageUrl: ownerMeta?.profileImageUrl || null },
+      owner: { displayName: ownerDisplayName, isHarvousOwned, profileImageUrl: ownerMeta?.profileImageUrl || null },
       memberCount: totalMembers,
       threadPreviews,
       notePreviews,
@@ -88027,6 +88081,11 @@ app.post("/api/user/import", requireAuth, async (c) => {
           duplicatesSkipped++;
           continue;
         }
+        const slot = tryConsumeNoteCreates(auth.userId, getClientIP(c.req.raw), 1);
+        if (!slot.allowed) {
+          errors.push(`Import paused: ${slot.error}`);
+          break;
+        }
         const threadId = await getOrCreateThread(auth.userId, threadName || "", threadColor);
         if (!createdThreadIds.has(threadId) && threadId !== "thread_unorganized") {
           createdThreadIds.add(threadId);
@@ -88586,17 +88645,22 @@ app3.get("/api/shared/note/:shareToken", async (c) => {
       userColor: UserMetadata.userColor,
       profileImageUrl: UserMetadata.profileImageUrl
     }).from(UserMetadata).where(eq(UserMetadata.userId, note.userId)).limit(1));
-    const firstName = creator?.firstName || "";
-    const lastName = creator?.lastName || "";
+    let noteIsHarvousOwned = false;
+    try {
+      noteIsHarvousOwned = note.userId === getHarvousSystemUserId();
+    } catch {
+    }
+    const firstName = noteIsHarvousOwned ? "Harvous" : creator?.firstName || "";
+    const lastName = noteIsHarvousOwned ? "" : creator?.lastName || "";
     const firstInitial = firstName.charAt(0).toUpperCase();
     const lastInitial = lastName.charAt(0).toUpperCase();
-    const initials = firstInitial + lastInitial || "U";
-    const displayName = firstName ? lastName ? `${firstName} ${lastInitial}.` : firstName : "A Harvous User";
+    const initials = noteIsHarvousOwned ? "H" : firstInitial + lastInitial || "U";
+    const displayName = noteIsHarvousOwned ? "Harvous" : firstName ? lastName ? `${firstName} ${lastInitial}.` : firstName : "A Harvous User";
     return c.json({
       note: { id: note.id, title: note.title, content: note.content, noteType: note.noteType, createdAt: note.createdAt, updatedAt: note.updatedAt },
       scriptureMetadata,
       resourceMetadata,
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null }
+      creator: { firstName, displayName, isHarvousOwned: noteIsHarvousOwned, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null }
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/shared/note/[shareToken]", action: "get_shared_note" });
@@ -88691,12 +88755,17 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
       userColor: UserMetadata.userColor,
       profileImageUrl: UserMetadata.profileImageUrl
     }).from(UserMetadata).where(eq(UserMetadata.userId, thread.userId)).limit(1));
-    const firstName = creator?.firstName || "";
-    const lastName = creator?.lastName || "";
+    let threadIsHarvousOwned = false;
+    try {
+      threadIsHarvousOwned = thread.userId === getHarvousSystemUserId();
+    } catch {
+    }
+    const firstName = threadIsHarvousOwned ? "Harvous" : creator?.firstName || "";
+    const lastName = threadIsHarvousOwned ? "" : creator?.lastName || "";
     const firstInitial = firstName.charAt(0).toUpperCase();
     const lastInitial = lastName.charAt(0).toUpperCase();
-    const initials = firstInitial + lastInitial || "U";
-    const displayName = firstName ? lastName ? `${firstName} ${lastInitial}.` : firstName : "A Harvous User";
+    const initials = threadIsHarvousOwned ? "H" : firstInitial + lastInitial || "U";
+    const displayName = threadIsHarvousOwned ? "Harvous" : firstName ? lastName ? `${firstName} ${lastInitial}.` : firstName : "A Harvous User";
     return c.json({
       thread: { id: thread.id, title: thread.title, subtitle: thread.subtitle, color: thread.color, createdAt: thread.createdAt },
       notes: allNotes.map((n) => {
@@ -88714,7 +88783,7 @@ app3.get("/api/shared/thread/:shareToken", async (c) => {
           scriptureTranslation
         };
       }),
-      creator: { firstName, displayName, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null },
+      creator: { firstName, displayName, isHarvousOwned: threadIsHarvousOwned, initials, userColor: creator?.userColor || "blue", profileImageUrl: creator?.profileImageUrl || null },
       meta: { noteCount: allNotes.length }
     });
   } catch (error) {
@@ -89038,7 +89107,6 @@ init_dates();
 
 // server/utils/subscription.ts
 init_db2();
-var FREE_TIER_LIMIT = 500;
 var UNLIMITED_PLAN_ID = process.env.CLERK_UNLIMITED_PLAN_ID || "cplan_37aJweoipC2wY2Pa94o7zMdoIyw";
 async function getUserNoteCount(userId) {
   try {
@@ -89072,11 +89140,10 @@ async function getSubscriptionInfo(userId, auth) {
     getUserNoteCount(userId),
     getReferralBonusNotes(userId)
   ]);
-  const effectiveLimit = FREE_TIER_LIMIT + referralBonusNotes;
   return {
     hasUnlimited,
     currentCount,
-    limit: hasUnlimited ? null : effectiveLimit,
+    limit: null,
     referralBonusNotes
   };
 }
@@ -91576,6 +91643,29 @@ app9.post("/api/sync/push", requireAuth, async (c) => {
     if (!Array.isArray(mutations) || mutations.length === 0) {
       return c.json({ error: "mutations array is required", code: "INVALID_REQUEST" }, 400);
     }
+    const noteCreatesInBatch = mutations.filter(
+      (m2) => m2.entityType === "note" && m2.operation === "create"
+    ).length;
+    if (noteCreatesInBatch > MAX_NOTE_CREATES_PER_SYNC_PUSH) {
+      return c.json(
+        {
+          error: `Too many note creations in one sync (max ${MAX_NOTE_CREATES_PER_SYNC_PUSH}). Split into smaller batches.`,
+          code: "SYNC_NOTE_BATCH_TOO_LARGE"
+        },
+        400
+      );
+    }
+    if (noteCreatesInBatch > 0) {
+      const ip = getClientIP(c.req.raw);
+      const reserved = tryConsumeNoteCreates(auth.userId, ip, noteCreatesInBatch);
+      if (!reserved.allowed) {
+        return c.json(
+          { error: reserved.error, code: "NOTE_CREATE_RATE_LIMIT_EXCEEDED" },
+          429,
+          { "Retry-After": String(reserved.retryAfterSec) }
+        );
+      }
+    }
     const results = [];
     for (const mutation of mutations) {
       try {
@@ -92255,7 +92345,7 @@ var fetchAndRetry = async (fetch4, url, options, attemptsLeft = MAX_RETRY) => {
     const res = await fetch4(url, options);
     if (attemptsLeft > 0 && (res.status === 429 || res.status >= 500)) {
       const delay = getDelay(res.headers.get(RATE_LIMIT_HEADER));
-      await sleep5(delay);
+      await sleep2(delay);
       return fetchAndRetry(fetch4, url, options, attemptsLeft - 1);
     }
     return res;
@@ -92264,7 +92354,7 @@ var fetchAndRetry = async (fetch4, url, options, attemptsLeft = MAX_RETRY) => {
       throw error;
     }
     const delay = getDelay();
-    await sleep5(delay);
+    await sleep2(delay);
     return fetchAndRetry(fetch4, url, options, attemptsLeft - 1);
   }
 };
@@ -92274,7 +92364,7 @@ var getDelay = (rateLimitReset) => {
   }
   return Math.max(Number(rateLimitReset) * 1e3 - Date.now(), MIN_RETRY_DELAY);
 };
-var sleep5 = (ms) => new Promise((resolve) => {
+var sleep2 = (ms) => new Promise((resolve) => {
   setTimeout(resolve, ms);
 });
 var SIGNED_URL_ACCEPT_HEADER = "application/json;type=signed-url";
@@ -92953,6 +93043,7 @@ function getPreviousMonth() {
 }
 
 // server/routes/admin.ts
+init_ids();
 var app11 = new Hono2();
 async function handleAggregateAnalytics(c) {
   try {
@@ -93280,7 +93371,422 @@ app11.get("/api/admin/list-threads", requireAuth, async (c) => {
     return c.json({ success: false, error: error.message || "Unknown error" }, 500);
   }
 });
+app11.post("/api/admin/spaces", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const body = await c.req.json().catch(() => ({}));
+    const title = typeof body.title === "string" ? body.title : "";
+    const description = typeof body.description === "string" ? body.description : null;
+    const color = typeof body.color === "string" && body.color ? body.color : "paper";
+    const isFeatured = body.isFeatured === true;
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+    const now2 = nowISO();
+    const capitalizedTitle = title.trim().charAt(0).toUpperCase() + title.trim().slice(1);
+    const shareToken = generateShareToken();
+    const space = first(
+      await db.insert(Spaces).values({
+        id: generateSpaceId(),
+        title: capitalizedTitle,
+        description,
+        color,
+        backgroundGradient: null,
+        userId: systemUserId,
+        isPublic: true,
+        isFeatured,
+        isActive: true,
+        order: 0,
+        shareToken,
+        shareTokenCreatedAt: now2,
+        createdAt: now2,
+        updatedAt: now2
+      }).returning()
+    );
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      success: true,
+      space,
+      joinUrl: `${origin}/spaces/join/${shareToken}`
+    });
+  } catch (error) {
+    return c.json({ error: error.message || "Error creating space" }, 500);
+  }
+});
+app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param("spaceId");
+    if (!spaceId) return c.json({ error: "Space ID is required" }, 400);
+    const space = first(
+      await db.select({ id: Spaces.id, userId: Spaces.userId }).from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, systemUserId))).limit(1)
+    );
+    if (!space) return c.json({ error: "Space not found" }, 404);
+    const body = await c.req.json().catch(() => ({}));
+    const title = typeof body.title === "string" ? body.title : "";
+    const subtitle = typeof body.subtitle === "string" ? body.subtitle : null;
+    const color = typeof body.color === "string" && body.color ? body.color : null;
+    const titleValidation = validateTitle(title, true);
+    if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    const colorValidation = validateColor(color);
+    if (!colorValidation.isValid) return c.json({ error: colorValidation.error, code: colorValidation.code }, 400);
+    const now2 = nowISO();
+    const capitalizedTitle = title.trim().charAt(0).toUpperCase() + title.trim().slice(1);
+    const thread = first(
+      await db.insert(Threads).values({
+        id: generateThreadId(),
+        title: capitalizedTitle,
+        subtitle,
+        spaceId,
+        userId: systemUserId,
+        isPublic: false,
+        isPinned: false,
+        color,
+        order: 0,
+        createdAt: now2,
+        updatedAt: now2
+      }).returning()
+    );
+    return c.json({ success: true, thread });
+  } catch (error) {
+    return c.json({ error: error.message || "Error creating thread" }, 500);
+  }
+});
+app11.post("/api/admin/threads/:threadId/notes", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const threadId = c.req.param("threadId");
+    if (!threadId) return c.json({ error: "Thread ID is required" }, 400);
+    const thread = first(
+      await db.select({ id: Threads.id, spaceId: Threads.spaceId, userId: Threads.userId }).from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, systemUserId))).limit(1)
+    );
+    if (!thread) return c.json({ error: "Thread not found" }, 404);
+    const body = await c.req.json().catch(() => ({}));
+    const title = typeof body.title === "string" ? body.title : null;
+    const content = typeof body.content === "string" ? body.content : "";
+    const noteType = typeof body.noteType === "string" ? body.noteType : "default";
+    const contentValidation = validateContent(content, true);
+    if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
+    if (title != null) {
+      const titleValidation = validateTitle(title, false);
+      if (!titleValidation.isValid) return c.json({ error: titleValidation.error, code: titleValidation.code }, 400);
+    }
+    const now2 = nowISO();
+    const note = first(
+      await db.insert(Notes).values({
+        id: generateNoteId(),
+        title,
+        content,
+        noteType,
+        threadId,
+        spaceId: thread.spaceId ?? null,
+        userId: systemUserId,
+        isPublic: false,
+        isFeatured: false,
+        order: 0,
+        addedBy: "harvous",
+        createdAt: now2,
+        updatedAt: now2
+      }).returning()
+    );
+    await db.insert(NoteThreads).values({ id: generateTimestampId("notethread"), noteId: note.id, threadId, createdAt: now2 }).onConflictDoNothing();
+    return c.json({ success: true, note });
+  } catch (error) {
+    return c.json({ error: error.message || "Error creating note" }, 500);
+  }
+});
 var admin_default = app11;
+
+// server/routes/featured.ts
+init_db2();
+init_dates();
+init_schema2();
+var app12 = new Hono2();
+app12.get("/api/featured/items", async (c) => {
+  try {
+    const auth = getAuth(c);
+    if (!auth.userId) {
+      c.res.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=30");
+      return c.json([]);
+    }
+    const currentTime = now();
+    let items = await db.select({
+      id: FeaturedItems.id,
+      contentType: FeaturedItems.contentType,
+      title: FeaturedItems.title,
+      description: FeaturedItems.description,
+      refId: FeaturedItems.refId,
+      shareToken: FeaturedItems.shareToken,
+      color: FeaturedItems.color,
+      createdAt: FeaturedItems.createdAt
+    }).from(FeaturedItems).where(
+      and(
+        eq(FeaturedItems.isActive, true),
+        or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
+        or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
+        notExists(
+          db.select({ id: UserFeaturedItems.id }).from(UserFeaturedItems).where(
+            and(
+              eq(UserFeaturedItems.userId, auth.userId),
+              eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
+              inArray(UserFeaturedItems.status, ["dismissed", "completed"])
+            )
+          )
+        )
+      )
+    ).orderBy(desc(FeaturedItems.createdAt));
+    const spaceItems = items.filter((i) => i.contentType === "space" && (i.shareToken || i.refId));
+    if (spaceItems.length > 0) {
+      const shareTokens = spaceItems.map((i) => i.shareToken).filter(Boolean);
+      const refIds = spaceItems.map((i) => i.refId).filter(Boolean);
+      const conditions = [];
+      if (shareTokens.length > 0) conditions.push(inArray(Spaces.shareToken, shareTokens));
+      if (refIds.length > 0) conditions.push(inArray(Spaces.id, refIds));
+      const matchedSpaces = await db.select({ id: Spaces.id, shareToken: Spaces.shareToken, ownerId: Spaces.userId }).from(Spaces).where(or(...conditions));
+      if (matchedSpaces.length > 0) {
+        const spaceIds = matchedSpaces.map((s2) => s2.id);
+        const ownedIds = new Set(matchedSpaces.filter((s2) => s2.ownerId === auth.userId).map((s2) => s2.id));
+        const memberships = spaceIds.length > 0 ? await db.select({ spaceId: Members.spaceId }).from(Members).where(and(eq(Members.userId, auth.userId), inArray(Members.spaceId, spaceIds))) : [];
+        const memberIds = new Set(memberships.map((m2) => m2.spaceId));
+        const spaceByToken = new Map(matchedSpaces.map((s2) => [s2.shareToken, s2.id]));
+        const spaceByRefId = new Map(matchedSpaces.map((s2) => [s2.id, s2.id]));
+        const toAutoDismiss = [];
+        for (const item of spaceItems) {
+          const spaceId = item.shareToken ? spaceByToken.get(item.shareToken) : item.refId ? spaceByRefId.get(item.refId) : null;
+          if (spaceId && (ownedIds.has(spaceId) || memberIds.has(spaceId))) {
+            toAutoDismiss.push(item.id);
+          }
+        }
+        if (toAutoDismiss.length > 0) {
+          const timestamp2 = now();
+          db.insert(UserFeaturedItems).values(
+            toAutoDismiss.map((featuredItemId) => ({
+              id: crypto.randomUUID(),
+              userId: auth.userId,
+              featuredItemId,
+              status: "completed",
+              dismissedAt: null,
+              completedAt: timestamp2,
+              createdAt: timestamp2
+            }))
+          ).onConflictDoUpdate({
+            target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+            set: { status: "completed", completedAt: timestamp2 }
+          }).catch(() => {
+          });
+          const autoDismissed = new Set(toAutoDismiss);
+          items = items.filter((i) => !autoDismissed.has(i.id));
+        }
+      }
+    }
+    c.res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    return c.json(
+      items.map((i) => ({
+        id: i.id,
+        contentType: i.contentType,
+        title: i.title,
+        description: i.description ?? null,
+        refId: i.refId ?? null,
+        shareToken: i.shareToken ?? null,
+        color: i.color ?? null
+      }))
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    c.res.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=30");
+    return c.json({ error: message }, 500);
+  }
+});
+app12.post("/api/featured/erase", requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = await c.req.json().catch(() => ({}));
+  const featuredItemId = body.featuredItemId?.trim() ?? "";
+  if (!featuredItemId) {
+    return c.json({ error: "featuredItemId is required" }, 400);
+  }
+  const timestamp2 = now();
+  await db.insert(UserFeaturedItems).values({
+    id: crypto.randomUUID(),
+    userId: auth.userId,
+    featuredItemId,
+    status: "completed",
+    dismissedAt: null,
+    completedAt: timestamp2,
+    createdAt: timestamp2
+  }).onConflictDoUpdate({
+    target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+    set: {
+      status: "completed",
+      completedAt: timestamp2
+    }
+  });
+  return c.json({ success: true });
+});
+app12.post("/api/featured/dismiss", requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = await c.req.json().catch(() => ({}));
+  const featuredItemId = body.featuredItemId?.trim() ?? "";
+  if (!featuredItemId) {
+    return c.json({ error: "featuredItemId is required" }, 400);
+  }
+  const timestamp2 = now();
+  await db.insert(UserFeaturedItems).values({
+    id: crypto.randomUUID(),
+    userId: auth.userId,
+    featuredItemId,
+    status: "dismissed",
+    dismissedAt: timestamp2,
+    completedAt: null,
+    createdAt: timestamp2
+  }).onConflictDoUpdate({
+    target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+    set: {
+      status: "dismissed",
+      dismissedAt: timestamp2,
+      completedAt: null
+    }
+  });
+  return c.json({ success: true });
+});
+app12.get("/api/featured/dismissed", requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const rows = await db.select({
+    featuredItemId: UserFeaturedItems.featuredItemId,
+    status: UserFeaturedItems.status,
+    dismissedAt: UserFeaturedItems.dismissedAt,
+    itemId: FeaturedItems.id,
+    contentType: FeaturedItems.contentType,
+    title: FeaturedItems.title,
+    description: FeaturedItems.description,
+    refId: FeaturedItems.refId,
+    shareToken: FeaturedItems.shareToken,
+    color: FeaturedItems.color,
+    createdAt: FeaturedItems.createdAt
+  }).from(UserFeaturedItems).innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id)).where(and(eq(UserFeaturedItems.userId, auth.userId), eq(UserFeaturedItems.status, "dismissed"))).orderBy(desc(UserFeaturedItems.dismissedAt));
+  return c.json(
+    rows.map((r) => ({
+      id: r.itemId,
+      contentType: r.contentType,
+      title: r.title,
+      description: r.description ?? null,
+      refId: r.refId ?? null,
+      shareToken: r.shareToken ?? null,
+      color: r.color ?? null,
+      dismissedAt: r.dismissedAt ?? null
+    }))
+  );
+});
+app12.get("/api/admin/check", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  return c.json({ isAdmin: true });
+});
+app12.get("/api/admin/featured/by-space/:shareToken", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const shareToken = c.req.param("shareToken")?.trim() ?? "";
+  if (!shareToken) return c.json({ error: "shareToken is required" }, 400);
+  const item = first(
+    await db.select().from(FeaturedItems).where(and(eq(FeaturedItems.contentType, "space"), eq(FeaturedItems.shareToken, shareToken), eq(FeaturedItems.isActive, true))).orderBy(desc(FeaturedItems.createdAt)).limit(1)
+  );
+  return c.json(item ?? null);
+});
+app12.post("/api/admin/featured", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const body = await c.req.json().catch(() => ({}));
+  const contentType = body.contentType?.trim() ?? "";
+  const title = body.title?.trim() ?? "";
+  if (!contentType || !title) {
+    return c.json({ error: "contentType and title are required" }, 400);
+  }
+  const allowed = /* @__PURE__ */ new Set(["space", "recall", "challenge", "church"]);
+  if (!allowed.has(contentType)) {
+    return c.json({ error: `Invalid contentType: ${contentType}` }, 400);
+  }
+  const timestamp2 = now();
+  const startsAt = body.startsAt ? new Date(body.startsAt) : null;
+  const endsAt = body.endsAt ? new Date(body.endsAt) : null;
+  const inserted = first(
+    await db.insert(FeaturedItems).values({
+      id: crypto.randomUUID(),
+      contentType,
+      title,
+      description: body.description ?? null,
+      refId: body.refId ?? null,
+      shareToken: body.shareToken ?? null,
+      color: body.color ?? null,
+      isActive: body.isActive ?? true,
+      startsAt,
+      endsAt,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    }).returning()
+  );
+  return c.json(inserted ?? { success: true });
+});
+app12.patch("/api/admin/featured/:id", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const id = c.req.param("id")?.trim() ?? "";
+  if (!id) return c.json({ error: "id is required" }, 400);
+  const body = await c.req.json().catch(() => ({}));
+  const set = { updatedAt: now() };
+  if (typeof body.isActive === "boolean") set.isActive = body.isActive;
+  if (body.description !== void 0) set.description = body.description;
+  if (body.color !== void 0) set.color = body.color;
+  if (Object.keys(set).length <= 1) {
+    return c.json({ error: "No fields to update" }, 400);
+  }
+  const updated = first(await db.update(FeaturedItems).set(set).where(eq(FeaturedItems.id, id)).returning());
+  if (!updated) return c.json({ error: "Not found" }, 404);
+  return c.json(updated);
+});
+app12.get("/api/featured/space", async (c) => {
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const space = first(
+      await db.select({
+        id: Spaces.id,
+        title: Spaces.title,
+        description: Spaces.description,
+        color: Spaces.color,
+        shareToken: Spaces.shareToken,
+        isPublic: Spaces.isPublic,
+        isFeatured: Spaces.isFeatured,
+        createdAt: Spaces.createdAt
+      }).from(Spaces).where(
+        and(eq(Spaces.userId, systemUserId), eq(Spaces.isFeatured, true), eq(Spaces.isPublic, true), eq(Spaces.isActive, true))
+      ).orderBy(desc(Spaces.createdAt)).limit(1)
+    );
+    if (!space?.shareToken || !space.isPublic || !space.isFeatured) {
+      c.res.headers.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+      return c.json(null);
+    }
+    const origin = new URL(c.req.url).origin;
+    const joinUrl = `${origin}/spaces/join/${space.shareToken}`;
+    c.res.headers.set("Cache-Control", "public, max-age=60, stale-while-revalidate=300");
+    return c.json({
+      id: space.id,
+      title: space.title,
+      description: space.description,
+      color: space.color,
+      shareToken: space.shareToken,
+      joinUrl
+    });
+  } catch {
+    c.res.headers.set("Cache-Control", "public, max-age=30, stale-while-revalidate=60");
+    return c.json(null);
+  }
+});
+var featured_default = app12;
 
 // server/utils/reset-user-to-new.ts
 init_db2();
@@ -93310,8 +93816,10 @@ async function resetUserToNew(userId) {
 }
 
 // server/routes/test.ts
-var app12 = new Hono2();
-app12.post("/api/test/reset-to-new-user", async (c) => {
+init_db2();
+init_schema2();
+var app13 = new Hono2();
+app13.post("/api/test/reset-to-new-user", async (c) => {
   if (process.env.NODE_ENV === "production") {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -93336,43 +93844,66 @@ app12.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-var test_default = app12;
+app13.post("/api/test/reset-featured", async (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "Test endpoint not available in production" }, 403);
+  }
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const auth = getAuth(c);
+    const userId = body.userId ?? auth.userId ?? null;
+    if (!userId) {
+      return c.json(
+        { error: 'Provide userId in request body (e.g. { "userId": "user_xxx" }) or be logged in' },
+        400
+      );
+    }
+    await db.delete(UserFeaturedItems).where(eq(UserFeaturedItems.userId, userId));
+    console.log(`\u2705 Cleared UserFeaturedItems for ${userId}`);
+    return c.json({ success: true, message: "Featured item dismissals cleared. Featured cards will reappear on next load." });
+  } catch (error) {
+    console.error("Reset featured error:", error);
+    return c.json({ error: error.message || "Failed to reset featured items" }, 500);
+  }
+});
+var test_default = app13;
 
 // server/app.ts
-var app13 = new Hono2();
-app13.use("/api/*", requestId());
-app13.use("/api/*", cors());
-app13.use("/api/*", clerkAuth);
-app13.use("/api/*", async (c, next) => {
+var app14 = new Hono2();
+app14.use("/api/*", requestId());
+app14.use("/api/*", cors());
+app14.use("/api/*", clerkAuth);
+app14.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app13.route("/", health_default);
-app13.route("/", navigation_default);
-app13.route("/", debug_default);
-app13.route("/", about_default);
-app13.route("/", og_default);
-app13.route("/", stats_default);
-app13.route("/", search_default);
-app13.route("/", content_default);
-app13.route("/", threads_default);
-app13.route("/", notes_default);
-app13.route("/", spaces_default);
-app13.route("/", user_default);
-app13.route("/", tags_scripture_default);
-app13.route("/", shared_default);
-app13.route("/", billing_default);
-app13.route("/", resource_default);
-app13.route("/", inbox_default);
-app13.route("/", webflow_default);
-app13.route("/", webhooks_default);
-app13.route("/", sync_default);
-app13.route("/", migrations_default);
-app13.route("/", admin_default);
-app13.route("/", test_default);
-var app_default = app13;
+app14.route("/", health_default);
+app14.route("/", navigation_default);
+app14.route("/", debug_default);
+app14.route("/", about_default);
+app14.route("/", og_default);
+app14.route("/", stats_default);
+app14.route("/", search_default);
+app14.route("/", content_default);
+app14.route("/", threads_default);
+app14.route("/", notes_default);
+app14.route("/", spaces_default);
+app14.route("/", user_default);
+app14.route("/", tags_scripture_default);
+app14.route("/", shared_default);
+app14.route("/", billing_default);
+app14.route("/", resource_default);
+app14.route("/", inbox_default);
+app14.route("/", webflow_default);
+app14.route("/", webhooks_default);
+app14.route("/", sync_default);
+app14.route("/", migrations_default);
+app14.route("/", admin_default);
+app14.route("/", featured_default);
+app14.route("/", test_default);
+var app_default = app14;
 
 // server/netlify.ts
 var honoHandler = handle(app_default);

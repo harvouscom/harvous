@@ -102,6 +102,11 @@ Since Clerk stays, configure it to work with Supabase:
 - Pass Clerk's session token to Supabase client for RLS: `supabase.auth.setSession({ access_token: clerkToken })`
 - Backend continues using Drizzle directly (no Supabase client needed server-side)
 
+### RLS gotcha (enable now vs later)
+
+- If the app only talks to Postgres via the server (Drizzle + `SUPABASE_DATABASE_URL` / service role), enabling RLS with **no policies** is a safe default that blocks PostgREST access.
+- Once the browser uses `@supabase/supabase-js` (Realtime / Storage), enabling RLS without the right policies will break client reads/writes/subscriptions. Plan to add **explicit RLS policies** for user-owned tables and membership-based access (Spaces), plus **Storage bucket policies** for per-user prefixes.
+
 ---
 
 ## Phase 3: Storage Migration (Netlify Blobs -> Supabase Storage) — Optional

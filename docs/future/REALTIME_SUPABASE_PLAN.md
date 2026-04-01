@@ -24,6 +24,15 @@ Real-time collaboration for Harvous, built on Supabase Realtime and Tiptap's Yjs
 | Document persistence | Supabase Postgres (BYTEA column for Yjs state) | Hocuspocus Database extension handles load/save |
 | Auth | Clerk (existing) | Hocuspocus `onAuthenticate` hook validates Clerk JWTs |
 
+### RLS gotcha (important for Phase 1/2 client subscriptions)
+
+Harvous can (and should) enable RLS on all `public.*` tables to prevent unintended PostgREST access.
+
+However, if we add **browser** usage of `@supabase/supabase-js` for Realtime channels/subscriptions, RLS will affect what the client can see/do. At that point:
+
+- We must ensure the client is authenticated with a Supabase-compatible JWT (e.g. Clerk-issued template), and
+- We must add **explicit RLS policies** for any tables/buckets that are accessed from the browser (Realtime filtering for Postgres Changes, Storage reads/writes, and any PostgREST access).
+
 ### Why Hocuspocus for Phase 3 (not pure Supabase Realtime)
 
 Community Yjs providers for Supabase (`y-supabase`, `@kamick/supabaseprovider`) exist but are explicitly early-stage and not production-ready. Hocuspocus is maintained by the Tiptap team, battle-tested, and designed specifically for Tiptap collaboration. It handles:

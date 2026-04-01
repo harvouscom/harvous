@@ -6,7 +6,7 @@
  *
  * Usage: npx tsx watch server/dev.ts
  *
- * Requires .env to be loaded (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, or ASTRO_DB_*; CLERK_SECRET_KEY).
+ * Requires .env to be loaded (SUPABASE_DATABASE_URL, CLERK_SECRET_KEY).
  *
  * Optional: DEV_RESET_USER_ID — Clerk user ID to reset on startup so each dev run
  * shows only onboarding (like a new user). Set in .env for a clean slate every time.

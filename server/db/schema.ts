@@ -2,8 +2,7 @@
  * Drizzle ORM schema for the Harvous database (Supabase Postgres).
  *
  * Date columns use `timestamp({ withTimezone: true, mode: 'date' })` which
- * returns native JS Date objects. JSON.stringify auto-converts them to ISO strings,
- * so API responses remain identical to the previous SQLite text-based dates.
+ * returns native JS Date objects. JSON.stringify auto-converts them to ISO strings.
  */
 
 import { pgTable, text, integer, real, boolean, timestamp, uniqueIndex, index, primaryKey } from 'drizzle-orm/pg-core';
@@ -372,6 +371,50 @@ export const UserInboxItems = pgTable('UserInboxItems', {
   archivedAt: ts('archivedAt'),
   createdAt: ts('createdAt').notNull(),
 });
+
+// ─── FeaturedItems (generic featured notifications) ─────────────────────────────
+
+export const FeaturedItems = pgTable(
+  'FeaturedItems',
+  {
+    id: text('id').primaryKey(),
+    contentType: text('contentType').notNull(), // 'space' | 'recall' | 'challenge' | 'church'
+    title: text('title').notNull(),
+    description: text('description'),
+    refId: text('refId'),
+    shareToken: text('shareToken'),
+    color: text('color'),
+    isActive: boolean('isActive').notNull().default(true),
+    startsAt: ts('startsAt'),
+    endsAt: ts('endsAt'),
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('FeaturedItems_isActiveIndex').on(table.isActive),
+    index('FeaturedItems_createdAtIndex').on(table.createdAt),
+  ],
+);
+
+// ─── UserFeaturedItems (per-user status for featured items) ─────────────────────
+
+export const UserFeaturedItems = pgTable(
+  'UserFeaturedItems',
+  {
+    id: text('id').primaryKey(),
+    userId: text('userId').notNull(),
+    featuredItemId: text('featuredItemId').notNull(),
+    status: text('status').notNull(), // 'active' | 'dismissed' | 'completed'
+    dismissedAt: ts('dismissedAt'),
+    completedAt: ts('completedAt'),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    index('UserFeaturedItems_userIdIndex').on(table.userId),
+    index('UserFeaturedItems_featuredItemIdIndex').on(table.featuredItemId),
+    uniqueIndex('UserFeaturedItems_userFeaturedItem_unique').on(table.userId, table.featuredItemId),
+  ],
+);
 
 // ─── MonthlyAnalytics ──────────────────────────────────────────────────────────
 

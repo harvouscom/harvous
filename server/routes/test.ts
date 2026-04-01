@@ -10,6 +10,8 @@
 import { Hono } from 'hono';
 import { getAuth } from '../middleware/auth';
 import { resetUserToNew } from '../utils/reset-user-to-new';
+import { db, eq } from '../db';
+import { UserFeaturedItems } from '../db/schema';
 
 const app = new Hono();
 
@@ -40,6 +42,33 @@ app.post('/api/test/reset-to-new-user', async (c) => {
   } catch (error: any) {
     console.error('Reset to new user error:', error);
     return c.json({ error: error.message || 'Failed to reset user' }, 500);
+  }
+});
+
+/** POST /api/test/reset-featured — dev only; clears UserFeaturedItems for the current user so featured cards reappear */
+app.post('/api/test/reset-featured', async (c) => {
+  if (process.env.NODE_ENV === 'production') {
+    return c.json({ error: 'Test endpoint not available in production' }, 403);
+  }
+
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as { userId?: string };
+    const auth = getAuth(c);
+    const userId = body.userId ?? auth.userId ?? null;
+    if (!userId) {
+      return c.json(
+        { error: 'Provide userId in request body (e.g. { "userId": "user_xxx" }) or be logged in' },
+        400
+      );
+    }
+
+    await db.delete(UserFeaturedItems).where(eq(UserFeaturedItems.userId, userId));
+    console.log(`✅ Cleared UserFeaturedItems for ${userId}`);
+
+    return c.json({ success: true, message: 'Featured item dismissals cleared. Featured cards will reappear on next load.' });
+  } catch (error: any) {
+    console.error('Reset featured error:', error);
+    return c.json({ error: error.message || 'Failed to reset featured items' }, 500);
   }
 });
 

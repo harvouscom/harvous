@@ -27,7 +27,7 @@ export function getCachedUserColor(): string | null {
   try { return localStorage.getItem(USER_COLOR_KEY); } catch { return null; }
 }
 
-function setCachedUserColor(color: string) {
+export function setCachedUserColor(color: string) {
   try { localStorage.setItem(USER_COLOR_KEY, color); } catch { /* ignore */ }
 }
 
@@ -40,6 +40,12 @@ function getCachedProfile(): UserProfile | undefined {
 
 function setCachedProfile(profile: UserProfile) {
   try { sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile)); } catch { /* ignore */ }
+}
+
+export function updateCachedProfile(updates: Partial<UserProfile>) {
+  const existing = getCachedProfile();
+  if (existing) setCachedProfile({ ...existing, ...updates });
+  if (updates.userColor) setCachedUserColor(updates.userColor);
 }
 
 export interface UserProfile {

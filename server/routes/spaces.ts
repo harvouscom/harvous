@@ -57,6 +57,7 @@ import { validateTitle, validateColor } from '@/utils/validation';
 import { rateLimit } from '@/utils/rate-limit';
 import { generateSpaceId, generateShareToken } from '@/utils/ids';
 import { idToUrl } from '@/utils/url-helpers';
+import { getHarvousSystemUserId } from '../utils/harvous-admin';
 
 const route = new Hono();
 
@@ -516,6 +517,7 @@ route.post('/api/spaces/:spaceId/add-thread', requireAuth, rateLimit('write'), a
     if (!thread) return c.json({ error: 'Thread not found or access denied' }, 404);
 
     await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+    await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
     return c.json({ success: true, message: 'Thread added to space' });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/add-thread', action: 'add_thread_to_space' });
@@ -555,6 +557,7 @@ route.post('/api/spaces/:spaceId/add-items', requireAuth, async (c) => {
         const thread = first(await db.select().from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
         if (!thread) { errors.push(`Thread ${threadId} not found`); continue; }
         await db.update(Threads).set({ spaceId }).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
+        await db.update(Notes).set({ spaceId }).where(and(eq(Notes.threadId, threadId), eq(Notes.userId, auth.userId)));
         updatedThreads++;
       } catch (e: any) { errors.push(`Thread ${threadId}: ${e.message}`); }
     }
@@ -700,18 +703,32 @@ route.get('/api/spaces/:spaceId/members', requireAuth, async (c) => {
       userMetadataMap = Object.fromEntries(metadata.map(m => [m.userId, m]));
     }
 
+    let isHarvousOwned = false;
+    try {
+      isHarvousOwned = space.userId === getHarvousSystemUserId();
+    } catch {
+      // env var not set in this environment — treat as normal user
+    }
+
     const ownerMeta = userMetadataMap[space.userId] || {};
     const toDisplayName = (firstName: string | null, lastName: string | null, fallback: string) => {
       const first = firstName || '';
       const lastInitial = lastName ? lastName.charAt(0).toUpperCase() : '';
       return first ? (lastInitial ? `${first} ${lastInitial}.` : first) : fallback;
     };
+
+    const ownerFirstName = isHarvousOwned ? 'Harvous' : (ownerMeta.firstName || null);
+    const ownerLastName = isHarvousOwned ? null : (ownerMeta.lastName || null);
+    const ownerDisplayName = isHarvousOwned
+      ? 'Harvous'
+      : toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User');
+
     const memberList = [
       {
         userId: space.userId, role: 'owner', joinedAt: space.createdAt,
-        firstName: ownerMeta.firstName || null,
-        lastName: ownerMeta.lastName || null,
-        displayName: toDisplayName(ownerMeta.firstName ?? null, ownerMeta.lastName ?? null, ownerMeta.email || 'Unknown User'),
+        firstName: ownerFirstName,
+        lastName: ownerLastName,
+        displayName: ownerDisplayName,
         email: ownerMeta.email || null, profileImageUrl: ownerMeta.profileImageUrl || null,
         userColor: ownerMeta.userColor || 'blue',
       },
@@ -891,12 +908,19 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
     if (!space.isPublic) return c.json({ error: 'This space is no longer public' }, 403);
 
     // Owner info (first name + last initial only; never full last name)
+    let isHarvousOwned = false;
+    try {
+      isHarvousOwned = space.userId === getHarvousSystemUserId();
+    } catch { /* env var not set in this environment — treat as normal user */ }
+
     const ownerMeta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, space.userId)).limit(1));
     const ownerFirst = ownerMeta?.firstName || '';
     const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : '';
-    const ownerDisplayName = ownerFirst
-      ? (ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst)
-      : 'Anonymous';
+    const ownerDisplayName = isHarvousOwned
+      ? 'Harvous'
+      : (ownerFirst
+        ? (ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst)
+        : 'Anonymous');
 
     // Member count
     const memberCount = await getSpaceMemberCount(space.id);
@@ -994,7 +1018,7 @@ route.get('/api/spaces/join-preview/:token', async (c) => {
         backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
         description: space.description,
       },
-      owner: { displayName: ownerDisplayName, profileImageUrl: ownerMeta?.profileImageUrl || null },
+      owner: { displayName: ownerDisplayName, isHarvousOwned, profileImageUrl: ownerMeta?.profileImageUrl || null },
       memberCount: totalMembers,
       threadPreviews,
       notePreviews,

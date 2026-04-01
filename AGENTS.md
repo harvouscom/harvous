@@ -8,8 +8,8 @@ npm run dev:spa          # SPA only on port 4322 (proxies /api to 3001). API mus
 npm run dev:all          # Same as dev: API + SPA
 npm run build            # Production build: inject SW version + build:api + build:spa (no Astro)
 npm run build:api        # Bundle Hono API to netlify/functions/api.cjs
-npm run db:sync          # Drizzle Kit push (sync schema to Turso)
-npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Turso)
+npm run db:sync          # Drizzle Kit push (sync schema to Supabase)
+npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supabase)
 npm run db:check         # Pre-commit schema check (server/db/schema.ts)
 npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data then run e2e
@@ -19,7 +19,7 @@ npm run test:e2e:setup   # Seed e2e data then run e2e
 
 ## Architecture Overview
 
-**Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Turso (Drizzle ORM), schema in `server/db/schema.ts`.
+**Harvous** is a Bible study notes app. Three-level hierarchy: Spaces → Threads → Notes. Data: Supabase Postgres (Drizzle ORM), schema in `server/db/schema.ts`.
 
 - **Production frontend**: React SPA in `spa/src/`, built with Vite. Uses TanStack Router, React Query, Clerk React. Deployed as static `index.html` + hashed JS/CSS. This is what users see in production and in the PWA.
 - **API backend**: Hono server in `server/` bundled as a single Netlify Function (`netlify/functions/api.cjs`). All `/api/*` requests are routed there by `public/_redirects`.
@@ -27,7 +27,7 @@ npm run test:e2e:setup   # Seed e2e data then run e2e
 - **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`.
 - **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`.
 
-**Production API contract:** The API is built as a single file (`netlify/functions/api.cjs`); Netlify uses `node_bundler = "none"`, so there is no `node_modules` at function runtime. All dependencies must be bundled (do not add `--packages=external` to `build:api`). Use `@libsql/client/web` for Turso in `server/db/client.ts` (not the default Node client) so the function works without native bindings. Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
+**Production API contract:** The API is built as a single file (`netlify/functions/api.cjs`); Netlify uses `node_bundler = "none"`, so there is no `node_modules` at function runtime. All dependencies must be bundled (do not add `--packages=external` to `build:api`). The DB client uses `postgres.js` which bundles cleanly for Netlify Functions. Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
 
 ## Project Structure
 
@@ -46,7 +46,7 @@ src/
   utils/                     # Shared utilities
   styles/                    # Vanilla CSS (imported by SPA)
 server/
-  db/                        # Drizzle schema (schema.ts), client (Turso), dates
+  db/                        # Drizzle schema (schema.ts), client (Supabase), dates
   routes/                    # Hono API routes
   utils/                     # Server-only utils (dashboard-data, user-cache, ...)
 public/                      # Static assets, sw.js, manifest.json
@@ -81,16 +81,16 @@ public/                      # Static assets, sw.js, manifest.json
 
 ## E2E Testing
 
-Playwright tests for **join** and **invite** flows live in `e2e/shared-space-join.spec.ts` and `e2e/invitation-accept.spec.ts`. Before each run, global setup runs **idempotent** `tsx scripts/seed-e2e.ts` (Drizzle + Turso) so tests pass.
+Playwright tests for **join** and **invite** flows live in `e2e/shared-space-join.spec.ts` and `e2e/invitation-accept.spec.ts`. Before each run, global setup runs **idempotent** `tsx scripts/seed-e2e.ts` (Drizzle + Supabase) so tests pass.
 
 - **Prerequisites**: `.env` (or `.env.local`) with `TEST_USER_A_EMAIL`, `TEST_USER_A_PASSWORD`, `TEST_USER_B_EMAIL`, `TEST_USER_B_PASSWORD`, and `TEST_USER_A_CLERK_ID` (Clerk user ID of User A, so space_test_2 is owned by the right account). `PUBLIC_CLERK_PUBLISHABLE_KEY` required.
 - **Run**: `npm run test:e2e` (all e2e) or `npm run test:e2e:join` (join/invite only, 1 worker for order). For a fresh data state: `npm run test:e2e:setup` (seeds both DBs then runs join/invite tests). Some tests skip when the dev server’s DB doesn’t have the seeded data or TEST_USER_A_CLERK_ID doesn’t match User A.
 
 ## Database
 
-Turso via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (fallback: `ASTRO_DB_REMOTE_URL`, `ASTRO_DB_APP_TOKEN`). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
+Supabase Postgres via Drizzle ORM. Schema in `server/db/schema.ts`. Env: `SUPABASE_DATABASE_URL` (pooler, port 6543 — used at runtime), `SUPABASE_DIRECT_URL` (port 5432 — used by drizzle-kit for migrations). Run `npm run db:push` (drizzle-kit push) pre-deploy, `npm run db:check` pre-commit.
 
-**Production data verification (no user data showing):** The API reads from the same Turso DB. If the app shows no data: (1) In Netlify, confirm `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (or `ASTRO_DB_*`) are set and point to the Turso DB that has your data. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
+**Production data verification (no user data showing):** The API reads from the same Supabase DB. If the app shows no data: (1) In Netlify, confirm `SUPABASE_DATABASE_URL` is set and points to the correct Supabase project. (2) Check Netlify function logs for `[api/content/load-more]` and `[api/user/get-profile]`: 401 = auth (cookies not sent or invalid), 0 items = DB empty or wrong user, 500 = exception. (3) Ensure Clerk cookies are valid for the production domain and that Netlify forwards the `Cookie` header to the function.
 
 ## Auth (Clerk)
 

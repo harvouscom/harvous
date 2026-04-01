@@ -342,6 +342,52 @@
   width: 100%;
 }
 
+/* ==========================================================================
+   EditSpacePanel — Admin section
+   ========================================================================== */
+
+.edit-space-panel__admin-section {
+  background: white;
+  border: 1px solid rgba(120, 118, 111, 0.14);
+  border-radius: 16px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edit-space-panel__admin-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.edit-space-panel__admin-label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-pebble-grey);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+
+.edit-space-panel__admin-description {
+  width: 100%;
+  border: 1px solid rgba(120, 118, 111, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--color-deep-grey);
+  resize: vertical;
+  min-height: 76px;
+}
+
+.edit-space-panel__admin-description::placeholder {
+  color: var(--color-pebble-grey);
+}
+
 /* Horizontal divider between sections */
 .panel__divider {
   width: 100%;

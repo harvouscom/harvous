@@ -106,6 +106,7 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       if (spaceRole === 'member') {
         return [
           { action: "viewSpace", label: "About Space" },
+          { action: "openEditSpacePanelPeople", label: "People" },
           { action: "leaveSpace", label: "Leave Space" }
         ];
       }

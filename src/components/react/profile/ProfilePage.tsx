@@ -17,6 +17,7 @@ import AboutHarvousPanel from '@/components/react/AboutHarvousPanel';
 import LockPinPanel from '@/components/react/LockPinPanel';
 import MySharingPanel from '@/components/react/MySharingPanel';
 import MyPreferencesPanel from '@/components/react/MyPreferencesPanel';
+import MyInboxPanel from '@/components/react/MyInboxPanel';
 
 // Type definitions for props
 export interface ProfilePageProps {
@@ -50,7 +51,7 @@ export interface ProfilePageProps {
 }
 
 // Type definition for a panel name
-type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'myPreferences' | 'mySharing' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
+type PanelName = 'editNameColor' | 'emailPassword' | 'myChurch' | 'myPreferences' | 'mySharing' | 'myInbox' | 'mySpaces' | 'myData' | 'myAchievements' | 'getSupport' | 'manageBilling' | 'referral' | 'aboutHarvous' | 'lockPin' | null;
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   displayName,
@@ -351,6 +352,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return <MyPreferencesPanel />;
       case 'mySharing':
         return <MySharingPanel />;
+      case 'myInbox':
+        return <MyInboxPanel />;
       case 'mySpaces':
         return <MySpacesPanel key={`mySpaces-${panelOpenTime}`} initialSpaces={spaces} initialMemberOfIds={initialMemberOfIds} />;
       case 'myData':
