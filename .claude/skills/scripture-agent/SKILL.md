@@ -1,4 +1,5 @@
 ---
+name: scripture-agent
 description: Scripture specialist — pill detection, translations, server-side processing
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task description>

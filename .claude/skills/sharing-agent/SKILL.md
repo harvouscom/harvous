@@ -1,4 +1,5 @@
 ---
+name: sharing-agent
 description: Sharing specialist — share tokens, public access, space membership, import flow
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task description>

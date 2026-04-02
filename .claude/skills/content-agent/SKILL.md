@@ -1,4 +1,5 @@
 ---
+name: content-agent
 description: Content specialist — cards, inbox, and recall/review surfaces
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task description>

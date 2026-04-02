@@ -1,4 +1,5 @@
 ---
+name: editor-agent
 description: TipTap editor specialist — marks, extensions, selection, floating UI
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task description>

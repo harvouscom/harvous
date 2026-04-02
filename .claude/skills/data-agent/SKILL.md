@@ -1,4 +1,5 @@
 ---
+name: data-agent
 description: Data layer specialist — Supabase, Drizzle, API endpoints, offline sync
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task description>

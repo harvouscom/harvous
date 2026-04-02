@@ -1,4 +1,5 @@
 ---
+name: coordinator
 description: Cross-domain coordinator — use when work spans 2+ agent domains (opt-in)
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash, Agent
 argument-hint: <task description>
