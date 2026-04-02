@@ -26,3 +26,6 @@ pnpm-debug.log*
 .idea/
 
 .netlify/
+
+# Agent team context files (local only, not shared)
+.claude/agents/
