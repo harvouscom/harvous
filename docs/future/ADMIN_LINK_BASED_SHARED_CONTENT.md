@@ -60,10 +60,10 @@ MVP can be **space-only**: admin creates a space (and its threads/notes) as syst
 
 ## 3. Admin Experience (Where and How)
 
-**Auth:** Only Harvous staff should act as "admin". Options:
+**Auth:** Only the Harvous Admin account should act as "admin":
 
-- **Allowlist:** Env list `HARVOUS_ADMIN_USER_IDS` (Clerk user IDs). Middleware or helper: if `auth.userId` is in that list, allow admin actions (e.g. create content as system user, regenerate share token).
-- Or reuse a secret (e.g. `INBOX_RESET_SECRET_TOKEN`-style) for server-to-server or script use only.
+- **System user match:** `isHarvousAdmin(c)` passes when `auth.userId` equals `HARVOUS_SYSTEM_USER_ID` (the Harvous Admin Clerk account).
+- **Optional:** `Authorization: Bearer HARVOUS_ADMIN_SECRET` for server-to-server or script use.
 
 **Where admin operates:**
 
@@ -112,16 +112,16 @@ sequenceDiagram
 ## 6. Implementation Outline (MVP)
 
 1. **Env and auth**
-   - Add `HARVOUS_SYSTEM_USER_ID` (and optionally `HARVOUS_ADMIN_USER_IDS`).
-   - Add a small helper (e.g. `isHarvousAdmin(c)` and `getSystemUserId()`) used only in admin paths.
+   - Add `HARVOUS_SYSTEM_USER_ID` (Harvous Admin Clerk user ID).
+   - Add a small helper (e.g. `isHarvousAdmin(c)` and `getHarvousSystemUserId()`) used only in admin paths.
 
 2. **Admin API (minimal)**
    - `POST /api/admin/spaces` — create space (body: title, description, color). Insert with `userId = HARVOUS_SYSTEM_USER_ID`. Return `{ spaceId, shareToken, joinUrl }` (join URL = existing join route with this space's `shareToken`).
    - Ensure space can get a share token (reuse or extract existing "generate invite" logic so the space has `isPublic` and `shareToken`).
-   - Optional: `POST /api/admin/spaces/:spaceId/threads`, `POST /api/admin/threads/:threadId/notes` to create threads/notes as system user (or admin uses existing create-thread/note endpoints with a "create as system" permission when caller is in `HARVOUS_ADMIN_USER_IDS`).
+   - Optional: `POST /api/admin/spaces/:spaceId/threads`, `POST /api/admin/threads/:threadId/notes` to create threads/notes as system user.
 
 3. **Access control**
-   - All of the above routes: require either allowlisted admin (by `HARVOUS_ADMIN_USER_IDS`) or a valid secret header (e.g. `Authorization: Bearer HARVOUS_ADMIN_SECRET`). Do not expose to normal users.
+   - All of the above routes: require signed-in Harvous Admin (`auth.userId === HARVOUS_SYSTEM_USER_ID`) or a valid secret header (`Authorization: Bearer HARVOUS_ADMIN_SECRET`). Do not expose to normal users.
 
 4. **UI (optional for MVP)**
    - If you skip internal dashboard: use scripts or one-off API calls to create a space, add threads/notes, then copy join URL from response.

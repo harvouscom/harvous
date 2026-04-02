@@ -86,13 +86,12 @@ New endpoints, all guarded by `isHarvousAdmin()`:
 | `POST /api/admin/threads/:threadId/notes` | Create a note in a system thread |
 
 `isHarvousAdmin()` checks either:
-- `auth.userId` is in `HARVOUS_ADMIN_USER_IDS` (comma-separated env list of Clerk user IDs), or
-- `Authorization: Bearer HARVOUS_ADMIN_SECRET` header
+- `auth.userId` equals `HARVOUS_SYSTEM_USER_ID` (the Harvous Admin Clerk account), or
+- `Authorization: Bearer HARVOUS_ADMIN_SECRET` header (optional script access)
 
 New environment variables (Netlify + `.env`):
-- `HARVOUS_SYSTEM_USER_ID` — Clerk user ID of the Harvous admin account
-- `HARVOUS_ADMIN_USER_IDS` — comma-separated Clerk IDs of staff who can call admin endpoints
-- `HARVOUS_ADMIN_SECRET` — bearer token for curl/script access
+- `HARVOUS_SYSTEM_USER_ID` — Clerk user ID of the Harvous admin account (also used as space owner for curated content)
+- `HARVOUS_ADMIN_SECRET` — optional bearer token for curl/script access
 
 ### 3.3 Featured Space Endpoint
 

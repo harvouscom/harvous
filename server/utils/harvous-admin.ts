@@ -1,14 +1,6 @@
 import type { Context } from 'hono';
 import { getAuth } from '../middleware/auth';
 
-function splitCsv(value: string | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(',')
-    .map(s => s.trim())
-    .filter(Boolean);
-}
-
 export function getHarvousSystemUserId(): string {
   const id = process.env.HARVOUS_SYSTEM_USER_ID;
   if (!id) throw new Error('Missing env HARVOUS_SYSTEM_USER_ID');
@@ -18,8 +10,8 @@ export function getHarvousSystemUserId(): string {
 export function isHarvousAdmin(c: Context): boolean {
   const auth = getAuth(c);
   const userId = auth?.userId ?? null;
-  const allowlist = splitCsv(process.env.HARVOUS_ADMIN_USER_IDS);
-  if (userId && allowlist.includes(userId)) return true;
+  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (userId && systemUserId && userId === systemUserId) return true;
 
   const expectedSecret = process.env.HARVOUS_ADMIN_SECRET;
   if (!expectedSecret) return false;
@@ -33,4 +25,3 @@ export function requireHarvousAdmin(c: Context) {
   }
   return null;
 }
-
