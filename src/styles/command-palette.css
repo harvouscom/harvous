@@ -1,0 +1,257 @@
+/* ==========================================================================
+ * Command Palette
+ * Follows the ActionStrip animation standard:
+ *   - Only transform + opacity animated (no layout properties)
+ *   - Spring easing: cubic-bezier(0.32, 0.72, 0, 1)
+ * ========================================================================== */
+
+/* ── Overlay backdrop ── */
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: oklch(var(--lch-deep-grey) / 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: clamp(80px, 12vh, 160px);
+  padding-inline: 16px;
+
+  /* Hidden state */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+}
+
+.cmd-overlay--open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ── Modal container ── */
+.cmd-modal {
+  width: 100%;
+  max-width: 640px;
+  background: oklch(var(--lch-snow-white));
+  border-radius: 16px;
+  box-shadow:
+    0 8px 32px oklch(var(--lch-deep-grey) / 0.15),
+    0 2px 8px oklch(var(--lch-deep-grey) / 0.08),
+    0 0 0 1px oklch(var(--lch-paper));
+  overflow: hidden;
+
+  /* Hidden state — scale down slightly + lift up */
+  transform: scale(0.96) translateY(-6px);
+  opacity: 0;
+  transition:
+    transform 0.22s cubic-bezier(0.32, 0.72, 0, 1),
+    opacity 0.16s ease;
+}
+
+.cmd-modal--open {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+/* ── Search input row ── */
+.cmd-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid oklch(var(--lch-paper));
+}
+
+.cmd-input-icon {
+  flex-shrink: 0;
+  color: oklch(var(--lch-pebble-grey));
+}
+
+.cmd-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 15px;
+  color: oklch(var(--lch-deep-grey));
+  caret-color: oklch(var(--lch-bold-blue));
+  line-height: 1.4;
+}
+
+.cmd-input::placeholder {
+  color: oklch(var(--lch-pebble-grey));
+}
+
+/* Loading spinner */
+.cmd-spinner {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border: 2px solid oklch(var(--lch-pebble-grey) / 0.3);
+  border-top-color: oklch(var(--lch-bold-blue));
+  border-radius: 50%;
+  animation: cmd-spin 0.6s linear infinite;
+}
+
+@keyframes cmd-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Results list ── */
+.cmd-list {
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 6px 0;
+}
+
+.cmd-list::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Empty state ── */
+.cmd-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: oklch(var(--lch-pebble-grey));
+}
+
+/* ── Group ── */
+.cmd-group {
+  padding: 0;
+}
+
+/* Group heading — cmdk renders as [cmdk-group-heading] */
+[cmdk-group-heading] {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: oklch(var(--lch-pebble-grey));
+  user-select: none;
+}
+
+/* ── Item ── */
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  border-radius: 0;
+  user-select: none;
+  transition: background 0.08s ease;
+}
+
+/* Selected / hover state — cmdk sets aria-selected */
+.cmd-item[aria-selected="true"] {
+  background: oklch(var(--lch-soft-paper));
+}
+
+.cmd-item__icon {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: oklch(var(--lch-stone-grey));
+  line-height: 1;
+}
+
+.cmd-item__color-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 5px;
+}
+
+.cmd-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.cmd-item__title {
+  font-size: 14px;
+  color: oklch(var(--lch-deep-grey));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+}
+
+.cmd-item__sub {
+  font-size: 12px;
+  color: oklch(var(--lch-pebble-grey));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.cmd-item__kbd {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: oklch(var(--lch-pebble-grey));
+  background: oklch(var(--lch-soft-paper));
+  border: 1px solid oklch(var(--lch-paper));
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: inherit;
+}
+
+/* ── Footer ── */
+.cmd-footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid oklch(var(--lch-paper));
+  font-size: 11px;
+  color: oklch(var(--lch-pebble-grey));
+  user-select: none;
+}
+
+.cmd-footer kbd {
+  font-family: inherit;
+  background: oklch(var(--lch-soft-paper));
+  border: 1px solid oklch(var(--lch-paper));
+  border-radius: 3px;
+  padding: 0 4px;
+  font-size: 11px;
+  margin-right: 3px;
+}
+
+/* ── Mobile adjustments ── */
+@media (max-width: 640px) {
+  .cmd-overlay {
+    padding-top: 16px;
+    padding-inline: 0;
+    align-items: flex-start;
+  }
+
+  .cmd-modal {
+    border-radius: 16px 16px 0 0;
+    max-width: 100%;
+    margin-top: auto;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  .cmd-modal--open {
+    transform: translateY(0) scale(1);
+  }
+
+  .cmd-list {
+    max-height: 60svh;
+  }
+}

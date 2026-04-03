@@ -18,6 +18,8 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
+import { CommandPaletteProvider } from '../../../src/components/react/CommandPaletteContext';
+import CommandPalette from '../../../src/components/react/CommandPalette';
 import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
@@ -593,6 +595,7 @@ export default function AppLayout() {
 
   return (
     <div className="app-layout">
+      <CommandPaletteProvider>
       <NavigationProvider>
         {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} />}
         <ReferralCreditInit userId={user?.id} />
@@ -761,7 +764,10 @@ export default function AppLayout() {
         />
 
       </div>
+        {/* Command palette — mounted once, always rendered, animates in/out */}
+        <CommandPalette />
       </NavigationProvider>
+      </CommandPaletteProvider>
     </div>
   );
 }

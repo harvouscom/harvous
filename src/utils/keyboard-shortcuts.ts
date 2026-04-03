@@ -145,7 +145,14 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   const modifier = isModifierPressed(event);
   const key = event.key.toLowerCase();
   const code = event.code;
-  
+
+  // Cmd/Ctrl + K - Open command palette (check before typing guard so it works everywhere)
+  if (modifier && key === 'k') {
+    event.preventDefault();
+    window.dispatchEvent(new CustomEvent('openCommandPalette'));
+    return;
+  }
+
   // Cmd/Ctrl + S - Save current note/thread (when editing)
   // Handle BEFORE isTypingInInput() check so it works in editors
   if (modifier && key === 's') {
