@@ -72,6 +72,10 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
 
     // Clear on attach so a freshly-opened sheet always starts with clean overlay.
     clearOverlayInlineStyles();
+    // Stale !important transform from a prior dismiss can beat CSS slide-up animation (e.g. iOS PWA).
+    el.style.removeProperty('transform');
+    el.style.removeProperty('transition');
+    el.style.removeProperty('will-change');
 
     const handleTouchStart = (e: TouchEvent) => {
       if (!enabledRef.current) return;

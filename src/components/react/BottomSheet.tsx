@@ -127,6 +127,9 @@ const getDrawerTitle = (drawerType: DrawerType): string => {
   return titleMap[drawerType] || 'Panel';
 };
 
+/** Matches layout.css mobile breakpoint and spa/src/hooks/useIsMobile.ts */
+const MOBILE_BREAKPOINT_MQL = '(max-width: 1159px)';
+
 const BottomSheet: React.FC<BottomSheetProps> = ({
   isOpen = false,
   onClose,
@@ -141,7 +144,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 }) => {
   const [drawerType, setDrawerType] = useState<DrawerType>('note');
   const [isVisible, setIsVisible] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_BREAKPOINT_MQL).matches
+  );
   const [panelKey, setPanelKey] = useState(0); // Force remount when panel opens
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
@@ -155,12 +160,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
 
-  // Check if we're on mobile
   const checkMobile = useCallback(() => {
-    const mobile = window.innerWidth < 1160;
+    const mobile = window.matchMedia(MOBILE_BREAKPOINT_MQL).matches;
     setIsMobile(mobile);
     if (!mobile) {
-      // If we're on desktop, don't show the bottom sheet
       setIsVisible(false);
     }
   }, []);
@@ -189,11 +192,19 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [isMobile]);
   
-  // Check mobile on mount and resize
-  useEffect(() => {
+  useLayoutEffect(() => {
     checkMobile();
+  }, [checkMobile]);
+
+  useEffect(() => {
+    const mql = window.matchMedia(MOBILE_BREAKPOINT_MQL);
+    const onMqlChange = () => checkMobile();
+    mql.addEventListener('change', onMqlChange);
     window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    return () => {
+      mql.removeEventListener('change', onMqlChange);
+      window.removeEventListener('resize', checkMobile);
+    };
   }, [checkMobile]);
   
   // Sync panel state when transitioning from desktop to mobile
@@ -225,10 +236,33 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [onClose]);
 
-  // Notify layout to run action strip exit animation when mobile sheet opens/closes
+  // Notify layout to hide the action strip while the mobile sheet is open.
+  // When crossing desktop→mobile, isVisible is often still false on the first mobile frame while
+  // DesktopPanelManager still has activePanel set — emitting open:false would clear AppLayout's
+  // panelOpen and incorrectly show the strip until the user resizes again.
+  const prevStripMobileRef = useRef(isMobile);
+  const prevStripVisibleRef = useRef(isVisible);
   useEffect(() => {
-    if (!isMobile) return;
-    window.dispatchEvent(new CustomEvent('actionStripPanelOpen', { detail: { open: isVisible } }));
+    const wasMobile = prevStripMobileRef.current;
+    prevStripMobileRef.current = isMobile;
+
+    if (!isMobile) {
+      prevStripVisibleRef.current = isVisible;
+      return;
+    }
+
+    if (!wasMobile) {
+      if (isVisible) {
+        window.dispatchEvent(new CustomEvent('actionStripPanelOpen', { detail: { open: true } }));
+      }
+      prevStripVisibleRef.current = isVisible;
+      return;
+    }
+
+    if (prevStripVisibleRef.current !== isVisible) {
+      window.dispatchEvent(new CustomEvent('actionStripPanelOpen', { detail: { open: isVisible } }));
+      prevStripVisibleRef.current = isVisible;
+    }
   }, [isMobile, isVisible]);
 
   const registerActiveCloseHandler = useCallback((handler: SheetCloseHandler | null) => {
@@ -609,19 +643,36 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Reset overlay inline styles when sheet opens so PWA edge cases (e.g. backgrounded, Radix state out of sync) don't leave overlay stuck invisible from drag hook
+  // Reset overlay + sheet content inline styles when sheet opens (PWA WebKit: stale !important transform
+  // from drag-dismiss can leave panel at translateY(100%); CSS animation fill-mode can also stick at "from").
+  useLayoutEffect(() => {
+    if (!isVisible) return;
+    const el = sheetContentElRef.current;
+    if (el) {
+      el.style.removeProperty('transform');
+      el.style.removeProperty('transition');
+      el.style.removeProperty('will-change');
+    }
+  }, [isVisible]);
+
   useEffect(() => {
     if (!isVisible) return;
-    const clearOverlayInlineStyles = () => {
+    const clearOpenInlineStyles = () => {
       const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
       if (overlay) {
         overlay.style.opacity = '';
         overlay.style.transition = '';
       }
+      const el = sheetContentElRef.current;
+      if (el) {
+        el.style.removeProperty('transform');
+        el.style.removeProperty('transition');
+        el.style.removeProperty('will-change');
+      }
     };
-    clearOverlayInlineStyles();
-    const raf = requestAnimationFrame(clearOverlayInlineStyles);
-    const t = window.setTimeout(clearOverlayInlineStyles, 50);
+    clearOpenInlineStyles();
+    const raf = requestAnimationFrame(clearOpenInlineStyles);
+    const t = window.setTimeout(clearOpenInlineStyles, 50);
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(t);

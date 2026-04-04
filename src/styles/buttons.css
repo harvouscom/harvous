@@ -164,10 +164,11 @@
 .btn--tag {
   background-image: var(--color-gradient-gray);
   color: var(--color-deep-grey) !important;
-  padding: 0.5rem 2.5rem 0.5rem 1rem; /* Extra right padding for close icon */
+  /* Compact vertical padding; left between tight (0.5rem) and original (1rem) */
+  padding: 0 2.5rem 0 0.75rem;
   font-size: 14px;
   font-weight: 600;
-  min-height: 40px;
+  min-height: 32px;
   border-radius: 0.75rem; /* 12px */
   box-shadow: 0px 2px 8px 0px rgba(120, 118, 111, 0.1);
 

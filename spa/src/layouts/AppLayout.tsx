@@ -656,7 +656,7 @@ export default function AppLayout() {
   }
 
   return (
-    <div className="app-layout">
+    <div id="layout-root" className="app-layout">
       <NavigationProvider>
         {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} />}
         <ReferralCreditInit userId={user?.id} />

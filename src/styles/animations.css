@@ -243,7 +243,7 @@
 }
 
 .bottom-sheet-slide-up {
-  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .bottom-sheet-slide-down {
@@ -267,8 +267,10 @@
   - Radix keeps it mounted briefly on close with data-state="closed"
   Use keyframes for reliable subtle movement.
 */
+/* forwards only (not both): avoids holding translateY(100%) before animation runs — WebKit PWA can skip
+   keyframes and leave the sheet stuck off-screen; default transform is none until animation applies. */
 [data-side="bottom"][data-state="open"] {
-  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: transform;
 }
 

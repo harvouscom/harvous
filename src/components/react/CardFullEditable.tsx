@@ -283,6 +283,72 @@ export default function CardFullEditable({
     };
   }, [isContentEditing, isTitleEditing]);
 
+  const [contentViewTopFade, setContentViewTopFade] = useState(false);
+  const [contentViewBottomFade, setContentViewBottomFade] = useState(false);
+
+  const viewScrollMaskClasses = [
+    contentViewTopFade ? 'card-full-editable__content-scroll--top-fade' : '',
+    contentViewBottomFade ? 'card-full-editable__content-scroll--bottom-fade' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  useEffect(() => {
+    if (isContentEditing) {
+      setContentViewTopFade(false);
+      setContentViewBottomFade(false);
+      return;
+    }
+    const el = contentDisplayRef.current;
+    if (!el) return;
+
+    const syncViewScrollMask = () => {
+      const t = contentDisplayRef.current;
+      if (!t) {
+        setContentViewTopFade(false);
+        setContentViewBottomFade(false);
+        return;
+      }
+      const { overflowY, overflow } = window.getComputedStyle(t);
+      const scrollable =
+        overflowY === 'auto' ||
+        overflowY === 'scroll' ||
+        overflow === 'auto' ||
+        overflow === 'scroll';
+      if (!scrollable) {
+        setContentViewTopFade(false);
+        setContentViewBottomFade(false);
+        return;
+      }
+      const { scrollTop, scrollHeight, clientHeight } = t;
+      const overflowing = scrollHeight > clientHeight + 1;
+      setContentViewTopFade(overflowing && scrollTop > 0);
+      setContentViewBottomFade(overflowing && scrollTop + clientHeight < scrollHeight - 2);
+    };
+
+    syncViewScrollMask();
+    const timer = setTimeout(syncViewScrollMask, 50);
+    const raf = requestAnimationFrame(syncViewScrollMask);
+    el.addEventListener('scroll', syncViewScrollMask, { passive: true });
+    const ro = new ResizeObserver(syncViewScrollMask);
+    ro.observe(el);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', syncViewScrollMask);
+      ro.disconnect();
+    };
+  }, [
+    isContentEditing,
+    displayContent,
+    resourceDescription,
+    noteType,
+    noteId,
+    lockStateOverride,
+    effectiveEncrypted,
+    imageRemoved,
+  ]);
+
   // Focus handling is now done directly in startEditing
   // This useEffect is kept for backward compatibility but focusTarget is no longer used
 
@@ -1427,7 +1493,7 @@ export default function CardFullEditable({
               <div className="relative flex-1 min-h-0 flex flex-col">
                 <div
                   ref={contentDisplayRef}
-                  className="flex-1 overflow-auto rounded px-3"
+                  className={`flex-1 overflow-auto rounded px-3${viewScrollMaskClasses ? ` ${viewScrollMaskClasses}` : ''}`}
                   style={{ lineHeight: '1.6', minHeight: 0, width: '100%', cursor: effectiveIsEditable ? 'text' : 'default' }}
                   onClick={handleContentClick}
                   onMouseOver={handleContentMouseOver}
@@ -1642,7 +1708,7 @@ export default function CardFullEditable({
                 ) : displayContent && displayContent.trim() ? (
                   <div 
                     ref={contentDisplayRef}
-                    className="card-full-editable__content-html flex-1 overflow-auto rounded"
+                    className={`card-full-editable__content-html flex-1 overflow-auto rounded${viewScrollMaskClasses ? ` ${viewScrollMaskClasses}` : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     onMouseOver={handleContentMouseOver}
@@ -1651,7 +1717,7 @@ export default function CardFullEditable({
                 ) : (
                   <div 
                     ref={contentDisplayRef}
-                    className="flex-1 overflow-auto rounded"
+                    className={`flex-1 overflow-auto rounded${viewScrollMaskClasses ? ` ${viewScrollMaskClasses}` : ''}`}
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                   >

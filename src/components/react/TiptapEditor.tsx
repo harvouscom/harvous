@@ -3811,43 +3811,38 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
   }, [editor]);
 
-  // Gradient overlay: check if tiptap-content is overflowing and update scroll state
+  const syncTiptapContentScrollMask = useCallback(() => {
+    const el = tiptapContentRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const overflowing = scrollHeight > clientHeight + 1;
+    setContentOverflowing(overflowing);
+    setContentHasScrolledDown(scrollTop > 0);
+    setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
+  }, []);
+
+  /* Top/bottom fade masks: keep overflow + scroll flags in sync (CardFullEditable flex layout often settles after first paint). */
   useEffect(() => {
-    if (!editor || !tiptapContentRef.current) return;
-    const checkOverflow = () => {
-      if (tiptapContentRef.current) {
-        const el = tiptapContentRef.current;
-        setContentOverflowing(el.scrollHeight > el.clientHeight);
-        const { scrollTop, scrollHeight, clientHeight } = el;
-        setContentHasScrolledDown(scrollTop > 0);
-        setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
-      }
-    };
-    checkOverflow();
-    const timer = setTimeout(checkOverflow, 50);
-    editor.on('update', checkOverflow);
+    if (!editor) return;
+    const el = tiptapContentRef.current;
+    if (!el) return;
+    syncTiptapContentScrollMask();
+    const timer = setTimeout(syncTiptapContentScrollMask, 50);
+    const raf = requestAnimationFrame(syncTiptapContentScrollMask);
+    editor.on('update', syncTiptapContentScrollMask);
+    el.addEventListener('scroll', syncTiptapContentScrollMask, { passive: true });
+    const ro = new ResizeObserver(syncTiptapContentScrollMask);
+    ro.observe(el);
     return () => {
       clearTimeout(timer);
+      cancelAnimationFrame(raf);
       if (editor && !editor.isDestroyed) {
-        editor.off('update', checkOverflow);
+        editor.off('update', syncTiptapContentScrollMask);
       }
+      el.removeEventListener('scroll', syncTiptapContentScrollMask);
+      ro.disconnect();
     };
-  }, [editor, content]);
-
-  // Gradient overlay: track scroll position for top and bottom gradient
-  useEffect(() => {
-    if (!tiptapContentRef.current) return;
-    const el = tiptapContentRef.current;
-    const updateScrollState = () => {
-      if (!tiptapContentRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = tiptapContentRef.current;
-      setContentHasScrolledDown(scrollTop > 0);
-      setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
-    };
-    el.addEventListener('scroll', updateScrollState);
-    updateScrollState();
-    return () => el.removeEventListener('scroll', updateScrollState);
-  }, [editor]);
+  }, [editor, content, isEditorFocused, minimalToolbar, toolbarAtBottom, syncTiptapContentScrollMask]);
 
   // Create Note bubble menu: ensure its root has higher z-index than the sticky toolbar (z-index 10)
   useLayoutEffect(() => {
