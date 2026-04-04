@@ -46,12 +46,9 @@ a, button {
   touch-action: manipulation;
 }
 
-/* SPA: html/body/#root already have overflow:hidden, so no scroll-lock needed.
-   Kept as empty rule in case other code checks for this class.
-   When sheet is open, collapse top padding so no 12px strip shows above overlay. */
-#layout-root.bottom-sheet-open {
-  padding-top: 0;
-}
+/* #layout-root.bottom-sheet-open: class is toggled from BottomSheet for scroll lock (see BottomSheet.tsx).
+   Do not zero padding-top here — that stripped .app-layout’s mobile top inset (0.75rem) and made the nav
+   flush with the viewport while a sheet was open. Backdrop positioning uses .sheet-overlay (safe-area top). */
 
 /* Remove default button styles */
 button {

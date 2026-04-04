@@ -173,6 +173,8 @@ const windowToast = {
 
 `ToastSetup` sets `window.toast = windowToast` and listens for `toast`/`showToast` custom events. `SpaToaster` renders the `<Toaster>` with matching styles (responsive positioning, 24px border radius).
 
+**Sonner author:** [Emil Kowalski](https://emilkowal.ski/) — we also use his **[Vaul](https://github.com/emilkowalski/vaul)** library for mobile bottom drawers; Vaul’s `style.css` is imported from `spa/src/main.tsx` via `../../node_modules/vaul/style.css` because the package `exports` field does not expose `./style.css` to bundlers.
+
 ### 5. Page Wrappers
 
 **Directory:** `spa/src/pages/`

@@ -2,6 +2,8 @@
 
 This doc describes how we keep the note editor usable when the virtual keyboard is open on mobile (iOS Safari and Android Chrome). The goal: toolbar stays 12px above the keyboard, the editor body fills the space above the toolbar and scrolls, and the sheet itself stays the standard bottom sheet (no resizing).
 
+**Shell:** The mobile panel host uses **[Vaul](https://github.com/emilkowalski/vaul)** ([`src/components/ui/drawer.tsx`](../src/components/ui/drawer.tsx)) on top of Radix Dialog, with Harvous classes (`sheet-overlay`, `.bottom-sheet-content`, etc.). Drawer motion follows Vaul’s defaults; layout and keyboard behavior below are Harvous-specific. UI direction credits **[Emil Kowalski](https://emilkowal.ski/)** (Vaul; we also use his **[Sonner](https://github.com/emilkowalski/sonner)** for toasts).
+
 ## Problem
 
 On mobile, when the user focuses the note editor in the new-note bottom sheet:
@@ -18,7 +20,7 @@ We use three targeted mechanisms and leave the sheet layout alone:
 2. **Toolbar fixed 12px above the keyboard** – One CSS variable (`--toolbar-bottom`) positions the formatting toolbar; the sheet is not resized.
 3. **Editor scroll area constrained when keyboard is open** – One CSS variable (`--editor-scroll-max-height`) so the editor body has a max height and scrolls; footer is hidden to free space.
 
-The sheet remains the standard bottom sheet (90vh, Radix positioning). All keyboard-specific behavior is driven by `window.visualViewport` and applies only when the keyboard is detected as open.
+The sheet remains the standard bottom sheet (capped height via `.bottom-sheet-content` / `bottom-sheet--full-height` in [`panels.css`](../src/styles/panels.css), Vaul + Radix positioning). All keyboard-specific behavior is driven by `window.visualViewport` and applies only when the keyboard is detected as open.
 
 ## Key Pieces
 
@@ -28,10 +30,9 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 
 **Where:**
 
-- [src/layouts/Layout.astro](src/layouts/Layout.astro) – The main content div has `id="layout-root"`.
-- [src/components/react/BottomSheet.tsx](src/components/react/BottomSheet.tsx) – When the sheet is open, we add `bottom-sheet-open` to `#layout-root` and set its `style.top` to preserve scroll position; on close we restore.
-- [src/styles/global.css](src/styles/global.css) – `#layout-root.bottom-sheet-open` gets `position: fixed`, `overflow: hidden`, etc. (not `body`).
-- [src/components/react/navigation/MobileNavigation.tsx](src/components/react/navigation/MobileNavigation.tsx) – Uses the same pattern for its sheet (lock `#layout-root`).
+- [spa/src/layouts/AppLayout.tsx](../spa/src/layouts/AppLayout.tsx) – The main shell div has `id="layout-root"` and class `app-layout`.
+- [src/components/react/BottomSheet.tsx](../src/components/react/BottomSheet.tsx) – When the sheet is open, adds `bottom-sheet-open` to `#layout-root` and sets `style.top` to preserve scroll position; on close restores. (We do **not** strip `.app-layout` top padding via global CSS — that caused the nav to sit flush with the viewport while the sheet was open.)
+- [src/styles/global.css](../src/styles/global.css) – Documents the `bottom-sheet-open` class only (no `padding-top: 0` override on `#layout-root`).
 
 ### 2. Toolbar 12px above keyboard
 
@@ -104,9 +105,9 @@ The sheet remains the standard bottom sheet (90vh, Radix positioning). All keybo
 
 | File | Role |
 |------|------|
-| [src/layouts/Layout.astro](src/layouts/Layout.astro) | `id="layout-root"` on main content; viewport meta with `interactive-widget=resizes-content` |
-| [src/components/react/BottomSheet.tsx](src/components/react/BottomSheet.tsx) | Scroll lock on `#layout-root`; when note/resource sheet on mobile, sets `--toolbar-bottom`, `--editor-scroll-max-height`, `data-keyboard-open` from `visualViewport` |
-| [src/styles/global.css](src/styles/global.css) | `#layout-root.bottom-sheet-open` scroll lock (not body) |
+| [spa/src/layouts/AppLayout.tsx](../spa/src/layouts/AppLayout.tsx) | `id="layout-root"` on main shell |
+| [src/components/react/BottomSheet.tsx](../src/components/react/BottomSheet.tsx) | Toggles `bottom-sheet-open` + `style.top` on `#layout-root`; note/resource sheet: `--toolbar-bottom`, `--editor-scroll-max-height`, `data-keyboard-open` from `visualViewport` |
+| [src/styles/global.css](../src/styles/global.css) | Comment for `bottom-sheet-open`; `.sheet-overlay` safe-area; no zeroing `#layout-root` top padding |
 | [src/styles/panels.css](src/styles/panels.css) | Toolbar fixed when `data-keyboard-open`; editor and container max-height; padding-bottom and scroll-margin-bottom; footer hidden when `data-keyboard-open` |
 | [src/components/react/TiptapEditor.tsx](src/components/react/TiptapEditor.tsx) | Toolbar at bottom when `toolbarAtBottom`; 12px spacing; when `inBottomSheet`, scrolls selection into view above toolbar on focus and selection update |
 | [src/components/react/NewNotePanel.tsx](src/components/react/NewNotePanel.tsx) | Passes `toolbarAtBottom={true}` and `inBottomSheet` to note forms; iOS focusin scroll reset |

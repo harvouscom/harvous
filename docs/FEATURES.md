@@ -190,8 +190,9 @@ N004: Prayer Request - Healing for Sarah
 ## 📱 Responsive Design ✅ **IMPLEMENTED**
 
 ### Modern Mobile Experience
-- **Shadcn Bottom Sheet System**: Modern mobile bottom sheet with smooth slide-up animations
-- **Unified Components**: Same React components for desktop and mobile using React Islands architecture
+- **Bottom sheet (Vaul)**: Mobile panels use **[Vaul](https://vaul.emilkowal.ski/)** ([Emil Kowalski](https://emilkowal.ski/)) with Harvous overlay and layout CSS; smooth slide-up / drag behavior from the library
+- **Toasts (Sonner)**: Notifications use **[Sonner](https://sonner.emilkowal.ski/)** (same author)
+- **Unified Components**: Same React components for desktop and mobile (SPA + shared `src/components/react/`)
 - **Fast Interactions**: 100ms redirects, immediate feedback with toast notifications
 - **Professional UX**: Smooth animations, proper easing, and overlay dismiss functionality
 - **Mobile-Only Rendering**: Bottom sheet only shows on mobile (< 1160px), desktop uses additional column

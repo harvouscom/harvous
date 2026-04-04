@@ -139,8 +139,11 @@
   #root:has(.mobile-main--with-dock) > *:not(.app-layout) {
     padding-bottom: 0 !important;
   }
+  /* Longhands only — padding shorthand would reset padding-top and undo PWA flush status bar (standalone). */
   .app-layout:has(.mobile-main--with-dock) {
-    padding: 0.75rem 0.75rem 12px 0.75rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    padding-bottom: 12px;
   }
   .app-layout:has(.mobile-main--with-dock) > * {
     padding-bottom: 0 !important;

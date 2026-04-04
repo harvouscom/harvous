@@ -10,7 +10,7 @@
 - Backdrop starts **too low** (e.g. below the full 64px mobile nav), so the nav row stays fully bright while content below is dimmed, or
 - After attempted fixes, behavior **improves** but alignment still feels wrong on a real device.
 
-**Environment:** iPhone, **installed PWA** (`display-mode: standalone` or `minimal-ui`), `viewport-fit=cover` in `spa/index.html`. In-app thread/space switcher uses **Radix `Sheet`** (`src/components/ui/sheet.tsx` → `SheetOverlay` with class `sheet-overlay`).
+**Environment:** iPhone, **installed PWA** (`display-mode: standalone` or `minimal-ui`), `viewport-fit=cover` in `spa/index.html`. Mobile bottom surfaces use **[Vaul](https://github.com/emilkowalski/vaul)** (`src/components/ui/drawer.tsx` → overlay still uses class `sheet-overlay`; Radix Dialog under the hood). Legacy references to `Sheet`/`SheetContent` in this doc may still apply to the same CSS hooks.
 
 **Related files (as of current `main` — verify after merges):**
 
@@ -20,11 +20,12 @@
 | Modal enter animation / clip | `src/styles/animations.css` (`.modal-overlay-enter`) |
 | Modal / drawer overlays | `src/styles/panels.css` (`.modal-overlay`, `.drawer-overlay`, `.drawer-slide`) |
 | Mobile nav overlay (if used) | `src/styles/navigation.css` (`.mobile-nav__overlay`) |
-| Sheet shell | `src/components/ui/sheet.tsx` |
+| Mobile drawer shell | `src/components/ui/drawer.tsx` (Vaul) |
+| Radix sheet primitives (optional) | `src/components/ui/sheet.tsx` |
 | Radix overlay | `@radix-ui/react-dialog` merges `style={{ pointerEvents: 'auto', ... }}` on the overlay node |
 | Layout / PWA padding | `src/styles/layout.css` (`.app-layout` standalone rules) |
 | SPA entry | `spa/index.html` (`viewport-fit`, `apple-mobile-web-app-status-bar-style`) |
-| Thread switcher sheet | `src/components/react/navigation/MobileNavigation.tsx` (uses `Sheet` / `SheetContent`) |
+| Thread switcher drawer | `src/components/react/navigation/MobileNavigation.tsx` (Vaul `Drawer` / `DrawerContent`) |
 
 ---
 
@@ -82,10 +83,11 @@
 - **`public/scripts/safe-area-top.js`:** run before React to set `--safe-area-top` early.
 - **`spa/src/main.tsx`:** `syncSafeAreaTopCssVar()` + `subscribeSafeAreaTopCssVar()` on resize / `visualViewport`.
 
-### G. `SheetOverlay` React `style={{ top: … }}`
+### G. Overlay `top` / `SheetOverlay` (historical vs current)
 
-- **`src/components/ui/sheet.tsx`:** state `topPx` from `getSafeAreaTopPx()`, merged into overlay `style`.
-- **Critical fix:** Removed **`!important` from `top`** on `.sheet-overlay` so inline `top` from React can override `var()` / `env()` in the stylesheet (Radix does not set `top` with `!important`).
+- **Historical (1.205.x experiment, reverted):** `sheet.tsx` briefly carried `topPx` from `getSafeAreaTopPx()`, merged into overlay `style`.
+- **Current:** Mobile drawers use **`src/components/ui/drawer.tsx`** (Vaul `Drawer.Overlay` + class `sheet-overlay`). Primary `top` / safe-area behavior is **`src/styles/global.css`** (`.sheet-overlay`); Radix may still merge inline styles on the overlay node.
+- **Critical fix (still relevant):** Avoid **`!important` on `top`** for `.sheet-overlay` if React must set `top` inline — otherwise overrides won’t apply (Radix does not set `top` with `!important`).
 
 ### H. Git revert
 

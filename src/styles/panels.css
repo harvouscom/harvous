@@ -61,7 +61,8 @@
 }
 
 /* ==========================================================================
-   Bottom Sheet (Radix SheetContent side="bottom") spacing
+   Bottom Sheet spacing (Harvous CSS for Vaul Drawer.Content + overlay)
+   Host: src/components/ui/drawer.tsx; panels: BottomSheet.tsx, MobileNavigation.
    ========================================================================== */
 
 /* Flex column; content-driven height with 89svh cap so sheet doesn't take full screen.

@@ -75,12 +75,14 @@ graph TD
 - `TiptapEditor.tsx` - Main Tiptap rich text editor
 
 **UI Components:**
-- `BottomSheet.tsx` - Mobile bottom sheet component
+- `BottomSheet.tsx` - Mobile bottom sheet host (panels, custom events). Shell: **Vaul** in `src/components/ui/drawer.tsx` with Harvous overlay / bottom-sheet CSS.
 - `ThreadCombobox.tsx` - Thread selection combobox
 - `SearchInput.tsx` - Search input component
 
 **Other:**
 - `CardFullEditable.tsx` - Inline editable note card
+
+**Credits — motion & toasts:** Drawer and toast UX follow the direction of **[Emil Kowalski](https://emilkowal.ski/)** via **[Vaul](https://vaul.emilkowal.ski/)** (mobile drawer) and **[Sonner](https://sonner.emilkowal.ski/)** (toasts). See [`docs/TECH_STACK.md`](./TECH_STACK.md).
 
 ## Component Communication
 

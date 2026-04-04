@@ -64,13 +64,13 @@ This document outlines our strategy for using React Islands within our Astro-bas
 #### 5. **Bottom Sheet System**
 - **Status**: ✅ **COMPLETED** - Modern mobile bottom sheet
 - **Features**:
-  - Shadcn UI Sheet component integration
-  - Smooth slide-up animations with proper easing
-  - Overlay dismiss functionality
+  - **[Vaul](https://vaul.emilkowal.ski/)** drawer shell ([`src/components/ui/drawer.tsx`](../src/components/ui/drawer.tsx)) on Radix Dialog; Harvous `sheet-overlay` / `.bottom-sheet-content` CSS
+  - Smooth slide-up / drag from Vaul; overlay dismiss
   - Mobile-only rendering (desktop uses additional column)
   - Event system integration for open/close
-  - Panel integration (NewNotePanel, NewThreadPanel)
-- **Files**: `src/components/react/BottomSheet.tsx`, `src/components/BottomSheetReact.astro`
+  - Panel integration (NewNotePanel, NewThreadPanel, profile panels, etc.)
+- **Credits**: Motion direction **[Emil Kowalski](https://emilkowal.ski/)** — Vaul + **[Sonner](https://sonner.emilkowal.ski/)** toasts
+- **Files**: `src/components/react/BottomSheet.tsx`, `src/components/ui/drawer.tsx` (legacy: `BottomSheetReact.astro` if still present in old trees)
 
 ### 🔧 **Technical Achievements:**
 
@@ -257,7 +257,7 @@ Based on analysis of our codebase, here are the components that would benefit mo
 #### 1. **MobileDrawer Component** 
 **Status**: ✅ **COMPLETED** - Replaced with modern bottom sheet
 - ✅ **BottomSheet React Component** - Modern mobile-first bottom sheet
-- ✅ **Shadcn UI Integration** - Professional bottom sheet with proper animations
+- ✅ **Vaul + Harvous CSS** - Drawer shell ([`drawer.tsx`](../src/components/ui/drawer.tsx)); credits **[Emil Kowalski](https://emilkowal.ski/)**
 - ✅ **Mobile/Desktop Responsive** - Only shows on mobile, desktop uses additional column
 - ✅ **Smooth Animations** - Slide up from bottom, proper easing curves
 - ✅ **Overlay Dismiss** - Tap overlay to close, no handle bar needed
@@ -334,7 +334,7 @@ Based on analysis of our codebase, here are the components that would benefit mo
 ### **What We've Achieved:**
 - ✅ **Successfully implemented React Islands** in a production Astro application
 - ✅ **Replaced 1300+ line QuillEditor.astro** with a clean, maintainable TiptapEditor.tsx
-- ✅ **Modern Mobile Experience** - Replaced MobileDrawer with Shadcn bottom sheet
+- ✅ **Modern Mobile Experience** - Replaced MobileDrawer with Vaul-based bottom sheet ([Emil Kowalski](https://emilkowal.ski/))
 - ✅ **Unified Panel Components** - Same React components for desktop and mobile
 - ✅ **Perfect styling match** - Pixel-perfect recreation of existing design
 - ✅ **Enhanced user experience** - Better form validation, error handling, and state management

@@ -103,7 +103,9 @@ Clerk                 - Authentication and user management
 
 ```
 Tiptap                - Modern rich text editor
-Radix UI              - Accessible component primitives
+Radix UI              - Accessible component primitives (dialogs, popovers, etc.)
+Vaul                  - Mobile bottom drawer (Radix Dialog–based); see src/components/ui/drawer.tsx
+Sonner                - Toast notifications (SPA + shared toast helpers)
 Shadcn-style          - Component design system
 Font Awesome + Lucide - Icons
 ```
@@ -122,10 +124,28 @@ Font Awesome + Lucide - Icons
 
 - **Purpose**: Accessible component primitives
 - **Usage**: Base components for complex UI patterns
-- **Features**: 
+- **Features**:
   - Accessibility built-in
   - Unstyled components
   - Keyboard navigation
+
+### Vaul (mobile bottom sheet / drawer)
+
+- **Purpose**: Slide-up **mobile** panels (`BottomSheet.tsx`, `MobileNavigation.tsx` space switcher)
+- **Package**: [`vaul`](https://github.com/emilkowalski/vaul) — built on `@radix-ui/react-dialog`
+- **Integration**: [`src/components/ui/drawer.tsx`](../src/components/ui/drawer.tsx) wraps Vaul with Harvous classes (`sheet-overlay`, `bottom-sheet-content`, `data-side="bottom"`). Vaul’s `style.css` is imported from [`spa/src/main.tsx`](../spa/src/main.tsx) (path resolves via `node_modules` because the package does not export `./style.css` in `exports`).
+- **Related CSS**: [`src/styles/panels.css`](../src/styles/panels.css) (`.bottom-sheet-content`, `.bottom-sheet__inner`, full-height drawers), [`src/styles/global.css`](../src/styles/global.css) (overlay z-index / safe area)
+
+### Sonner (toasts)
+
+- **Purpose**: In-app toast notifications
+- **Package**: [`sonner`](https://github.com/emilkowalski/sonner)
+- **SPA**: [`spa/src/App.tsx`](../spa/src/App.tsx) mounts `<Toaster />` and wires `window.toast` to the same Sonner instance (see [`SPA_MIGRATION.md`](../SPA_MIGRATION.md) for the Vite root / module-instance note)
+- **Shared helpers**: [`src/utils/toast.ts`](../src/utils/toast.ts), [`src/components/react/ToastProvider.tsx`](../src/components/react/ToastProvider.tsx) where used outside the SPA boundary
+
+### Credits (motion & UI libraries)
+
+Harvous’s motion direction for **drawers and toasts** is inspired by **[Emil Kowalski](https://emilkowal.ski/)**. We ship his open-source libraries **[Vaul](https://vaul.emilkowal.ski/)** (bottom drawer) and **[Sonner](https://sonner.emilkowal.ski/)** (toast stack) alongside our own styling and layout rules.
 
 ### Font Awesome
 

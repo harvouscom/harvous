@@ -26,6 +26,7 @@ npm run test:e2e:setup   # Seed e2e data then run e2e
 - **Shared React components**: `src/components/react/` are imported by the SPA. UI changes that must ship to production should be made in `spa/src/` or these shared components.
 - **Auth**: Clerk. In the SPA, `@clerk/clerk-react`; env var `VITE_CLERK_PUBLISHABLE_KEY`.
 - **Rich Text**: Tiptap editor in `src/components/react/TiptapEditor.tsx`.
+- **Mobile bottom sheet**: [Vaul](https://github.com/emilkowalski/vaul) via `src/components/ui/drawer.tsx` (`BottomSheet.tsx`, `MobileNavigation.tsx`). Harvous keeps existing overlay/sheet CSS. Toast UI uses [Sonner](https://github.com/emilkowalski/sonner). Motion direction credits **[Emil Kowalski](https://emilkowal.ski/)**.
 
 **Production API contract:** The API is built as a single file (`netlify/functions/api.cjs`); Netlify uses `node_bundler = "none"`, so there is no `node_modules` at function runtime. All dependencies must be bundled (do not add `--packages=external` to `build:api`). The DB client uses `postgres.js` which bundles cleanly for Netlify Functions. Before merging API-affecting branches, see [docs/CLEAR_SPLIT_MERGE_DELTA.md](docs/CLEAR_SPLIT_MERGE_DELTA.md) (pre-merge checklist).
 
@@ -76,7 +77,8 @@ public/                      # Static assets, sw.js, manifest.json
 - `docs/CLEAR_SPLIT_MERGE_DELTA.md` - What changed at merge, production API contract, pre-merge checklist
 - `docs/REACT_ISLANDS_STRATEGY.md` - Astro SSR / React islands (legacy); production is SPA
 - `docs/PROJECT_STRUCTURE.md` - Directory layout, naming conventions, imports
-- `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
+- `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (Vaul drawer shell; toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
+- `src/components/ui/drawer.tsx` - Vaul wrapper for mobile drawers; `src/components/ui/sheet.tsx` - Radix sheet primitives (retained for shadcn-style patterns)
 - `docs/MAIN_COLUMN_LAYOUT.md` - Main-column and CTA layout rules (scroll fill, CardStack chain, button positioning)
 
 ## E2E Testing

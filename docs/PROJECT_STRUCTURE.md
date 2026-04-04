@@ -26,7 +26,7 @@ harvous/
 │   │   │   ├── NewThreadPanel.tsx, EditThreadPanel.tsx, NoteDetailsPanel.tsx
 │   │   │   ├── SquareButton.tsx, Menu.tsx, BottomSheet.tsx
 │   │   │   └── ...         # Panels, profile, contexts
-│   │   └── ui/             # Radix UI primitives
+│   │   └── ui/             # Radix primitives, Vaul drawer wrapper (drawer.tsx), sheet.tsx
 │   │
 │   ├── hooks/              # React hooks
 │   │   ├── useOptimisticUpdates.ts
@@ -92,7 +92,7 @@ Component library organized by type.
 
 **Subdirectories:**
 - `react/` - React components used by the SPA
-- `ui/` - Radix UI component primitives
+- `ui/` - Radix UI primitives, [`drawer.tsx`](../src/components/ui/drawer.tsx) (Vaul mobile drawer), [`sheet.tsx`](../src/components/ui/sheet.tsx) (Radix sheet)
 
 **Key Components:**
 - `react/navigation/NavigationColumn.tsx`, `PersistentNavigation.tsx` - Navigation

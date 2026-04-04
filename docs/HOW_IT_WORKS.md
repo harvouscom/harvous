@@ -489,6 +489,8 @@ Imagine Harvous as a house with three main rooms:
 
 **The Trade-off:** More complex than a modal, but much better mobile experience.
 
+**Implementation:** The slide-up shell is **[Vaul](https://github.com/emilkowalski/vaul)** ([`src/components/ui/drawer.tsx`](../src/components/ui/drawer.tsx)), styled with Harvous overlay and bottom-sheet CSS. Toast feedback uses **[Sonner](https://github.com/emilkowalski/sonner)**. UX and motion direction credit **[Emil Kowalski](https://emilkowal.ski/)**.
+
 ### Why Inline Editing?
 
 **The Decision:** Click a note to edit it directly (no separate edit page).
