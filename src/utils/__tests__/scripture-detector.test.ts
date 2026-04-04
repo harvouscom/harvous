@@ -136,12 +136,9 @@ describe('parseScriptureReference', () => {
 
 // ─── Unit: normalizeScriptureReference ───────────────────
 describe('normalizeScriptureReference', () => {
-  it('normalizes spaces around colon (parseReference interprets "3: 16" as chapter 16)', () => {
-    // "John 3: 16" is ambiguous — the parser treats "16" as the chapter
-    // Manual normalization collapses the space: "John 3:16"
+  it('normalizes spaces around colon to a single verse reference', () => {
     const result = normalizeScriptureReference('John 3: 16');
-    // parseReference sees "John" + "16" as chapter-only → "John 16:1-33"
-    expect(result).toBe('John 16:1-33');
+    expect(result).toBe('John 3:16');
   });
 
   it('normalizes spaces around dash', () => {

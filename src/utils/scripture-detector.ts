@@ -149,7 +149,15 @@ export const formatBookNameForAPI = (bookName: string): string => {
 // Helper function to validate and log warnings for scripture references
 function validateAndWarn(ref: ScriptureReference): ScriptureReference {
   const { book, chapter, verse } = ref;
-  
+
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    const singleChapterRange = getChapterVerseRange(book, chapter);
+    if (singleChapterRange && end > singleChapterRange.end) {
+      return ref;
+    }
+  }
+
   if (Array.isArray(verse)) {
     // Verse range
     const [start, end] = verse;
@@ -305,6 +313,80 @@ const parseReference = (match: string): ScriptureReference | null => {
               chapter,
               verse,
               reference: `${canonicalBook} ${chapter}:${verse}`
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Chapter range without colon: "Matthew 5-7"
+  if (!normalizedMatch.includes(':')) {
+    const chapterRangeMatch = normalizedMatch.match(/^(.+?)\s+(\d+)\s*[-–—]\s*(\d+)$/);
+    if (chapterRangeMatch) {
+      const bookPart = chapterRangeMatch[1].trim();
+      const startCh = parseInt(chapterRangeMatch[2], 10);
+      const endCh = parseInt(chapterRangeMatch[3], 10);
+      if (!isNaN(startCh) && !isNaN(endCh) && endCh > startCh) {
+        for (const bookName of bookNames) {
+          const normalizedBookName = normalizeText(bookName);
+          const normalizedBookPart = normalizeText(bookPart);
+          if (
+            normalizedBookPart === normalizedBookName ||
+            normalizedBookPart.startsWith(normalizedBookName) ||
+            normalizedBookName.startsWith(normalizedBookPart)
+          ) {
+            const canonicalBook =
+              BIBLE_STUDY_KEYWORDS.find(
+                k =>
+                  k.category === 'book' &&
+                  (k.name.toLowerCase() === bookName.toLowerCase() ||
+                    k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase()))
+              )?.name || bookName;
+            const vrStart = getChapterVerseRange(canonicalBook, startCh);
+            const vrEnd = getChapterVerseRange(canonicalBook, endCh);
+            if (!vrStart || !vrEnd) continue;
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter: startCh,
+              verse: [vrStart.start, vrEnd.end],
+              reference: `${canonicalBook} ${startCh}-${endCh}`,
+            });
+          }
+        }
+      }
+    }
+
+    // Chapter-only: "John 3", "Psalm 23"
+    const chapterOnlyMatch = normalizedMatch.match(/^(.+?)\s+(\d+)$/);
+    if (chapterOnlyMatch) {
+      const bookPart = chapterOnlyMatch[1].trim();
+      const ch = parseInt(chapterOnlyMatch[2], 10);
+      if (!isNaN(ch)) {
+        for (const bookName of bookNames) {
+          const normalizedBookName = normalizeText(bookName);
+          const normalizedBookPart = normalizeText(bookPart);
+          if (
+            normalizedBookPart === normalizedBookName ||
+            normalizedBookPart.startsWith(normalizedBookName) ||
+            normalizedBookName.startsWith(normalizedBookPart)
+          ) {
+            const canonicalBook =
+              BIBLE_STUDY_KEYWORDS.find(
+                k =>
+                  k.category === 'book' &&
+                  (k.name.toLowerCase() === bookName.toLowerCase() ||
+                    k.synonyms.some(s => s.toLowerCase() === bookName.toLowerCase()))
+              )?.name || bookName;
+            const expanded = normalizeChapterReference(canonicalBook, ch);
+            if (!expanded) continue;
+            const vr = getChapterVerseRange(canonicalBook, ch);
+            if (!vr) continue;
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter: ch,
+              verse: [vr.start, vr.end],
+              reference: expanded,
             });
           }
         }
@@ -524,6 +606,54 @@ export const detectScriptureReferences = (text: string): ScriptureReference[] =>
     // Adjust the regex's lastIndex if we trimmed the match
     if (adjustedLastIndex !== originalMatchEnd) {
       referencePattern.lastIndex = adjustedLastIndex;
+    }
+  }
+
+  // Chapter range without colon (e.g. Matthew 5-7) — run before chapter-only so "Matthew 5" does not steal from "5-7"
+  const chapterRangePattern = new RegExp(
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?=\\s|$|[^\\d\\w-])`,
+    'gi'
+  );
+  while ((match = chapterRangePattern.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const extracted = parseReference(fullMatch.trim());
+    if (extracted && !fullMatch.includes(':')) {
+      if (!isValidScriptureContext(text, match.index, fullMatch.length)) continue;
+      extracted.reference = fullMatch;
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some(ref => {
+        const normalizedRef = normalizeScriptureReference(ref.reference);
+        return normalizedRef === normalizedExtracted;
+      });
+      if (!isDuplicate) {
+        references.push(extracted);
+      }
+    }
+  }
+
+  // Chapter-only (e.g. Psalm 23, John 3) — not followed by ":" or by "-chapter" range
+  const chapterOnlyPattern = new RegExp(
+    `\\b(${escapedBookNames.join('|')})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?=\\s|$|[^\\d\\w])`,
+    'gi'
+  );
+  while ((match = chapterOnlyPattern.exec(text)) !== null) {
+    const fullMatch = match[0];
+    const extracted = parseReference(fullMatch.trim());
+    if (extracted && !fullMatch.includes(':')) {
+      if (!isValidScriptureContext(text, match.index, fullMatch.length)) continue;
+      extracted.reference = fullMatch;
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some(ref => {
+        const normalizedRef = normalizeScriptureReference(ref.reference);
+        return normalizedRef === normalizedExtracted;
+      });
+      if (isDuplicate) continue;
+      // Drop chapter-only if we already have any verse-level ref in the same chapter (e.g. John 3:16 ⊃ John 3)
+      const hasVerseLevelInChapter = references.some(
+        r => r.book === extracted.book && r.chapter === extracted.chapter && r.reference.includes(':')
+      );
+      if (hasVerseLevelInChapter) continue;
+      references.push(extracted);
     }
   }
 

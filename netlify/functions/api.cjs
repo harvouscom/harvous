@@ -67541,6 +67541,13 @@ function validateVerseRange(book, chapter, startVerse, endVerse) {
   }
   return startVerse >= range.start && startVerse <= range.end && endVerse >= range.start && endVerse <= range.end && startVerse <= endVerse;
 }
+function normalizeChapterReference(book, chapter) {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return null;
+  }
+  return `${book} ${chapter}:${range.start}-${range.end}`;
+}
 var getBookNameVariations = () => {
   const variations = [];
   BIBLE_STUDY_KEYWORDS.filter((k2) => k2.category === "book").forEach((k2) => {
@@ -67554,6 +67561,13 @@ var normalizeText = (text2) => {
 };
 function validateAndWarn(ref) {
   const { book, chapter, verse } = ref;
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    const singleChapterRange = getChapterVerseRange(book, chapter);
+    if (singleChapterRange && end > singleChapterRange.end) {
+      return ref;
+    }
+  }
   if (Array.isArray(verse)) {
     const [start, end] = verse;
     if (!validateVerseRange(book, chapter, start, end)) {
@@ -67677,6 +67691,60 @@ var parseReference = (match3) => {
       }
     }
   }
+  if (!normalizedMatch.includes(":")) {
+    const chapterRangeMatch = normalizedMatch.match(/^(.+?)\s+(\d+)\s*[-–—]\s*(\d+)$/);
+    if (chapterRangeMatch) {
+      const bookPart = chapterRangeMatch[1].trim();
+      const startCh = parseInt(chapterRangeMatch[2], 10);
+      const endCh = parseInt(chapterRangeMatch[3], 10);
+      if (!isNaN(startCh) && !isNaN(endCh) && endCh > startCh) {
+        for (const bookName of bookNames) {
+          const normalizedBookName = normalizeText(bookName);
+          const normalizedBookPart = normalizeText(bookPart);
+          if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
+            const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+              (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
+            )?.name || bookName;
+            const vrStart = getChapterVerseRange(canonicalBook, startCh);
+            const vrEnd = getChapterVerseRange(canonicalBook, endCh);
+            if (!vrStart || !vrEnd) continue;
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter: startCh,
+              verse: [vrStart.start, vrEnd.end],
+              reference: `${canonicalBook} ${startCh}-${endCh}`
+            });
+          }
+        }
+      }
+    }
+    const chapterOnlyMatch = normalizedMatch.match(/^(.+?)\s+(\d+)$/);
+    if (chapterOnlyMatch) {
+      const bookPart = chapterOnlyMatch[1].trim();
+      const ch = parseInt(chapterOnlyMatch[2], 10);
+      if (!isNaN(ch)) {
+        for (const bookName of bookNames) {
+          const normalizedBookName = normalizeText(bookName);
+          const normalizedBookPart = normalizeText(bookPart);
+          if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
+            const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+              (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
+            )?.name || bookName;
+            const expanded = normalizeChapterReference(canonicalBook, ch);
+            if (!expanded) continue;
+            const vr = getChapterVerseRange(canonicalBook, ch);
+            if (!vr) continue;
+            return validateAndWarn({
+              book: canonicalBook,
+              chapter: ch,
+              verse: [vr.start, vr.end],
+              reference: expanded
+            });
+          }
+        }
+      }
+    }
+  }
   return null;
 };
 function isValidScriptureContext(text2, matchIndex, matchLength) {
@@ -67794,6 +67862,49 @@ var detectScriptureReferences = (text2) => {
     }
     if (adjustedLastIndex !== originalMatchEnd) {
       referencePattern.lastIndex = adjustedLastIndex;
+    }
+  }
+  const chapterRangePattern = new RegExp(
+    `\\b(${escapedBookNames.join("|")})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?=\\s|$|[^\\d\\w-])`,
+    "gi"
+  );
+  while ((match3 = chapterRangePattern.exec(text2)) !== null) {
+    const fullMatch = match3[0];
+    const extracted = parseReference(fullMatch.trim());
+    if (extracted && !fullMatch.includes(":")) {
+      if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
+      extracted.reference = fullMatch;
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some((ref) => {
+        const normalizedRef = normalizeScriptureReference(ref.reference);
+        return normalizedRef === normalizedExtracted;
+      });
+      if (!isDuplicate) {
+        references.push(extracted);
+      }
+    }
+  }
+  const chapterOnlyPattern = new RegExp(
+    `\\b(${escapedBookNames.join("|")})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?=\\s|$|[^\\d\\w])`,
+    "gi"
+  );
+  while ((match3 = chapterOnlyPattern.exec(text2)) !== null) {
+    const fullMatch = match3[0];
+    const extracted = parseReference(fullMatch.trim());
+    if (extracted && !fullMatch.includes(":")) {
+      if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
+      extracted.reference = fullMatch;
+      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+      const isDuplicate = references.some((ref) => {
+        const normalizedRef = normalizeScriptureReference(ref.reference);
+        return normalizedRef === normalizedExtracted;
+      });
+      if (isDuplicate) continue;
+      const hasVerseLevelInChapter = references.some(
+        (r) => r.book === extracted.book && r.chapter === extracted.chapter && r.reference.includes(":")
+      );
+      if (hasVerseLevelInChapter) continue;
+      references.push(extracted);
     }
   }
   return references;

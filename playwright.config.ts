@@ -5,7 +5,7 @@ export default defineConfig({
   timeout: 30_000,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:4321',
+    baseURL: 'http://localhost:4322',
     trace: 'on-first-retry',
   },
   projects: [
@@ -14,7 +14,7 @@ export default defineConfig({
   // Reuse existing dev server if already running, otherwise start one
   webServer: {
     command: 'npm run dev',
-    url: 'http://localhost:4321',
+    url: 'http://localhost:4322',
     reuseExistingServer: true,
     timeout: 60_000,
   },
