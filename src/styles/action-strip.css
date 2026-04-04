@@ -296,7 +296,6 @@
   justify-content: center;
   text-align: center;
   white-space: nowrap;
-  animation-name: action-strip-erase-option-in-mobile;
 }
 
 .action-strip__erase-cluster-item {
@@ -308,29 +307,41 @@
   font-size: 0.875rem;
   line-height: 1.2;
   color: var(--color-deep-grey);
-  opacity: 0;
+  opacity: 1;
   margin: 0;
   border-radius: 0.375rem;
+}
+
+/*
+ * Fade + motion live on the label, not the button: keyframes with fill-mode both on button
+ * opacity prevented :hover from ever winning after the intro animation (looked “stuck” muted / no hover).
+ * !important on :hover/:active beats animation fill so we match .action-strip__item (0.5 → 0.8 → 1).
+ */
+.action-strip__erase-cluster-item .action-strip__label {
+  display: inline-block;
+  opacity: 0.5;
   transition: opacity 0.15s ease-out;
-  /* cardFadeIn-style motion + resting opacity (matches prior static 0.55) */
-  animation: action-strip-erase-option-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: action-strip-erase-label-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.action-strip__erase-cluster-item:hover {
-  opacity: 1;
-  color: var(--color-deep-grey);
+.action-strip--mobile .action-strip__erase-cluster-item .action-strip__label {
+  animation-name: action-strip-erase-label-in-mobile;
 }
 
-.action-strip__erase-cluster-item:active {
-  opacity: 1;
+.action-strip__erase-cluster-item:hover .action-strip__label {
+  opacity: 0.8 !important;
+}
+
+.action-strip__erase-cluster-item:active .action-strip__label {
+  opacity: 1 !important;
 }
 
 /* Stagger after cluster has started opening */
-.action-strip__erase-cluster-item:nth-child(1) {
+.action-strip__erase-cluster-item:nth-child(1) .action-strip__label {
   animation-delay: 0.12s;
 }
 
-.action-strip__erase-cluster-item:nth-child(2) {
+.action-strip__erase-cluster-item:nth-child(2) .action-strip__label {
   animation-delay: 0.24s;
 }
 
@@ -368,26 +379,26 @@
   }
 }
 
-/* Staggered option load-in: same curve as card-enter / cardFadeIn; end opacity matches strip affordances */
-@keyframes action-strip-erase-option-in {
+/* Label intro: resting opacity matches .action-strip__item (0.5) */
+@keyframes action-strip-erase-label-in {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
   to {
-    opacity: 0.55;
+    opacity: 0.5;
     transform: translateY(0);
   }
 }
 
-/* Rotated counterpart: desktop options slide along the strip (Y); mobile along the row (X) */
-@keyframes action-strip-erase-option-in-mobile {
+/* Mobile: slide along row (X) */
+@keyframes action-strip-erase-label-in-mobile {
   from {
     opacity: 0;
     transform: translateX(6px);
   }
   to {
-    opacity: 0.55;
+    opacity: 0.5;
     transform: translateX(0);
   }
 }
@@ -399,9 +410,9 @@
     transform: none !important;
   }
 
-  .action-strip__erase-cluster-item {
+  .action-strip__erase-cluster-item .action-strip__label {
     animation: none !important;
-    opacity: 0.55 !important;
+    opacity: 0.5 !important;
     transform: none !important;
   }
 }

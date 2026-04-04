@@ -1442,6 +1442,11 @@ button.space-button .translation-abbrev--selected span {
   color: white !important;
 }
 
+/* Erase cluster: label uses button color + opacity (matches other strip tabs; beats generic button span) */
+.action-strip button.action-strip__erase-cluster-item .action-strip__label {
+  color: inherit !important;
+}
+
 /* ActionStrip meta note ID - same weight as date (600 desktop, 500 mobile) */
 .action-strip--desktop button.action-strip__meta-item--clickable,
 .action-strip--desktop button.action-strip__meta-item--clickable .action-strip__label {
