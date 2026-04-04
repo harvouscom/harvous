@@ -31,22 +31,23 @@ export interface NavigationData {
 
 export const navigationQueryKey = ['navigation'] as const;
 
-const NAV_CACHE_KEY = 'harvous-nav-cache';
+/** SessionStorage key for nav snapshot (must clear on thread delete to avoid ghost threads). */
+export const NAV_SESSION_CACHE_KEY = 'harvous-nav-cache';
 
 function getCachedNav(): NavigationData | undefined {
   try {
-    const raw = sessionStorage.getItem(NAV_CACHE_KEY);
+    const raw = sessionStorage.getItem(NAV_SESSION_CACHE_KEY);
     return raw ? JSON.parse(raw) : undefined;
   } catch { return undefined; }
 }
 
 function setCachedNav(data: NavigationData) {
-  try { sessionStorage.setItem(NAV_CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+    try { sessionStorage.setItem(NAV_SESSION_CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
 export function useNavigation(options?: { enabled?: boolean }) {
   const cached = getCachedNav();
-  return useQuery({
+  const query = useQuery({
     queryKey: navigationQueryKey,
     enabled: options?.enabled !== false,
     queryFn: async () => {
@@ -65,6 +66,13 @@ export function useNavigation(options?: { enabled?: boolean }) {
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
+
+  // When the query is disabled (e.g. Clerk still loading) or mid-refetch with no in-memory
+  // data, still surface last session's nav so thread routes don't flash "Thread" / paper.
+  return {
+    ...query,
+    data: query.data ?? cached,
+  };
 }
 
 export function useRefreshNavigation() {

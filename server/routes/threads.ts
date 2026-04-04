@@ -18,7 +18,7 @@ import { getAuthenticatedAuth, requireAuth, requireParam } from '../middleware/a
 import {
   db, Threads, Notes, NoteThreads, NoteTags, Comments, Spaces, Members,
   ScriptureMetadata, NoteScriptureReferences, ResourceMetadata,
-  eq, and, inArray, isNull,
+  eq, and, or, inArray, isNull,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -31,7 +31,7 @@ import {
 } from '../utils/dashboard-data';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
-import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem } from '../utils/xp-system';
+import { awardCreationBonusXP, revokeXPOnDeletion, revokeAllXPForItem, deleteAllXpForRelatedIds } from '../utils/xp-system';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { getNextUntitledThreadName } from '../utils/untitled-naming';
 import { getThreadColorCSS, getThreadGradientCSS, THREAD_COLORS, getRandomThreadColor } from '@/utils/colors';
@@ -41,6 +41,8 @@ import { rateLimit } from '@/utils/rate-limit';
 import { generateThreadId, generateShareToken } from '@/utils/ids';
 
 const route = new Hono();
+
+const ERASE_NOTE_CHUNK = 2000;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -373,38 +375,42 @@ route.delete('/api/threads/erase-with-notes', requireAuth, rateLimit('write'), a
     if (!existingThread) return c.json({ error: 'Thread not found or access denied' }, 404);
     if (threadId === 'thread_unorganized') return c.json({ error: 'Cannot erase the unorganized thread' }, 400);
 
-    const threadCreatedAt = existingThread.createdAt;
-
     const affectedNotes = await db.select({ noteId: NoteThreads.noteId }).from(NoteThreads)
       .where(eq(NoteThreads.threadId, threadId));
-    const noteIds = affectedNotes.map(n => n.noteId);
+    const candidateNoteIds = [...new Set(affectedNotes.map(n => n.noteId))];
 
-    // Delete all related data for each note
-    for (const noteId of noteIds) {
-      const note = first(await db.select().from(Notes)
-        .where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
-      if (note) {
-        await revokeXPOnDeletion(auth.userId, noteId, new Date(note.createdAt as string));
-        await revokeAllXPForItem(auth.userId, noteId);
-        await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-        await db.delete(Comments).where(eq(Comments.noteId, noteId));
-        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-        await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
-        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
-        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, noteId));
-      }
+    const ownedNoteIds: string[] = [];
+    for (let i = 0; i < candidateNoteIds.length; i += ERASE_NOTE_CHUNK) {
+      const chunk = candidateNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
+      const rows = await db.select({ id: Notes.id }).from(Notes).where(
+        and(eq(Notes.userId, auth.userId), inArray(Notes.id, chunk)),
+      );
+      ownedNoteIds.push(...rows.map(r => r.id));
+    }
+
+    await deleteAllXpForRelatedIds(auth.userId, [...ownedNoteIds, threadId]);
+
+    for (let i = 0; i < ownedNoteIds.length; i += ERASE_NOTE_CHUNK) {
+      const chunk = ownedNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
+      await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
+      await db.delete(Comments).where(inArray(Comments.noteId, chunk));
+      await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
+      await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
+      await db.delete(NoteScriptureReferences).where(
+        or(inArray(NoteScriptureReferences.noteId, chunk), inArray(NoteScriptureReferences.scriptureNoteId, chunk)),
+      );
     }
 
     await db.delete(NoteThreads).where(eq(NoteThreads.threadId, threadId));
-    for (const noteId of noteIds) {
-      await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId)));
+
+    for (let i = 0; i < ownedNoteIds.length; i += ERASE_NOTE_CHUNK) {
+      const chunk = ownedNoteIds.slice(i, i + ERASE_NOTE_CHUNK);
+      await db.delete(Notes).where(and(eq(Notes.userId, auth.userId), inArray(Notes.id, chunk)));
     }
 
-    await revokeXPOnDeletion(auth.userId, threadId, new Date(threadCreatedAt as string));
-    await revokeAllXPForItem(auth.userId, threadId);
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
 
-    return c.json({ success: 'Thread and all notes erased!', threadId, notesDeleted: noteIds.length });
+    return c.json({ success: 'Thread and all notes erased!', threadId, notesDeleted: ownedNoteIds.length });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/erase-with-notes', action: 'erase_thread_with_notes' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

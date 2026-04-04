@@ -10,7 +10,7 @@ import { highlightScriptureReferences } from '@/utils/scripture-highlighter';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import { awardNoteCreatedXP } from './xp-system';
-import { generateAutoTags, applyAutoTags } from './auto-tag-generator';
+import { generateAutoTags, applyAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from './auto-tag-generator';
 import { fetchVerseText } from './fetch-verse-text';
 
 export interface ProcessingResult {
@@ -329,43 +329,41 @@ async function processScriptureReferencesInternal(
   const results: ProcessingResult[] = [];
   const referenceMap: Map<string, string> = new Map(); // reference -> noteId
 
-  // OPTIMIZATION: Batch fetch all user scripture notes once at the start
-  // This prevents N+1 query problem when processing multiple references
-  // Duplicate detection: we match by normalized reference so the same verse (e.g. "John 3:16" / "Jn 3:16") links to one scripture note.
   const normalizedScriptureMap = new Map<string, { noteId: string; reference: string }>();
+  let scriptureMapLoaded = false;
 
-  // Fetch all user scripture notes once (before the loop)
-  const allUserScripture = await db.select({
-    noteId: ScriptureMetadata.noteId,
-    reference: ScriptureMetadata.reference
-  })
-    .from(ScriptureMetadata)
-    .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
-    .where(eq(Notes.userId, userId))
-    ;
+  /** Full user scripture index + duplicate consolidation — expensive; skip when save only touches existing pills. */
+  async function loadScriptureMapFromDb(): Promise<void> {
+    if (scriptureMapLoaded) return;
+    scriptureMapLoaded = true;
 
-  // Build normalized lookup map: normalizedReference -> { noteId, reference }
-  // Also detect duplicate scripture notes (same normalized reference, different noteIds)
-  const duplicatesByNormalized = new Map<string, string[]>(); // normalizedRef -> [noteId, noteId, ...]
+    const allUserScripture = await db.select({
+      noteId: ScriptureMetadata.noteId,
+      reference: ScriptureMetadata.reference
+    })
+      .from(ScriptureMetadata)
+      .innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id))
+      .where(eq(Notes.userId, userId));
 
-  for (const scripture of allUserScripture) {
-    const normalizedStored = normalizeScriptureReference(scripture.reference);
-    if (!normalizedScriptureMap.has(normalizedStored)) {
-      normalizedScriptureMap.set(normalizedStored, {
-        noteId: scripture.noteId,
-        reference: scripture.reference
-      });
-    } else {
-      // Duplicate detected — different noteId for same normalized reference
-      const existing = normalizedScriptureMap.get(normalizedStored)!;
-      if (existing.noteId !== scripture.noteId) {
-        if (!duplicatesByNormalized.has(normalizedStored)) {
-          duplicatesByNormalized.set(normalizedStored, [existing.noteId]);
+    const duplicatesByNormalized = new Map<string, string[]>();
+
+    for (const scripture of allUserScripture) {
+      const normalizedStored = normalizeScriptureReference(scripture.reference);
+      if (!normalizedScriptureMap.has(normalizedStored)) {
+        normalizedScriptureMap.set(normalizedStored, {
+          noteId: scripture.noteId,
+          reference: scripture.reference
+        });
+      } else {
+        const existing = normalizedScriptureMap.get(normalizedStored)!;
+        if (existing.noteId !== scripture.noteId) {
+          if (!duplicatesByNormalized.has(normalizedStored)) {
+            duplicatesByNormalized.set(normalizedStored, [existing.noteId]);
+          }
+          duplicatesByNormalized.get(normalizedStored)!.push(scripture.noteId);
         }
-        duplicatesByNormalized.get(normalizedStored)!.push(scripture.noteId);
       }
     }
-  }
 
   // Consolidate any duplicate scripture notes (safety net for past race conditions)
   if (duplicatesByNormalized.size > 0) {
@@ -451,6 +449,15 @@ async function processScriptureReferencesInternal(
       // Never block main processing if dedup cleanup fails
       console.error('[processScriptureReferences] Dedup cleanup failed (non-critical):', dedupError?.message ?? dedupError);
     }
+  }
+  }
+
+  const skipBulkScriptureLoad =
+    pendingPills.size === 0 &&
+    detectedReferences.every((d) => existingReferences.has(normalizeScriptureReference(d.reference)));
+
+  if (!skipBulkScriptureLoad) {
+    await loadScriptureMapFromDb();
   }
 
   // Track references processed in this run to prevent duplicates
@@ -637,7 +644,7 @@ async function processScriptureReferencesInternal(
               capitalizedTitle || '',
               capitalizedContent,
               userId,
-              0.8 // Generate high-confidence tags
+              AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
             );
 
             // Apply the auto-generated tags if any were found
@@ -875,6 +882,8 @@ async function processScriptureReferencesInternal(
         // Normalize the reference
         const normalizedRef = normalizeScriptureReference(reference);
 
+        await loadScriptureMapFromDb();
+
         // Check if a scripture note already exists for this reference using the normalized map
         // (handles legacy non-normalized stored references that an exact DB match would miss)
         const existingEntry = normalizedScriptureMap.get(normalizedRef);
@@ -1037,7 +1046,7 @@ async function processScriptureReferencesInternal(
 
             // Auto-generate and apply tags
             try {
-              const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, 0.8);
+              const autoTagResult = await generateAutoTags(capitalizedTitle || '', capitalizedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
               if (autoTagResult.suggestions.length > 0) {
                 await applyAutoTags(newScriptureNote.id, autoTagResult.suggestions, userId);
               }
@@ -1146,18 +1155,20 @@ async function processScriptureReferencesInternal(
     })
     .where(eq(Notes.id, noteId));
 
-  try {
-    const tagTitle = note.title ?? '';
-    const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, 0.8);
-    if (tagResult.suggestions.length > 0) {
-      await applyAutoTags(noteId, tagResult.suggestions, userId);
+  (async () => {
+    try {
+      const tagTitle = note.title ?? '';
+      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
+      if (tagResult.suggestions.length > 0) {
+        await applyAutoTags(noteId, tagResult.suggestions, userId);
+      }
+    } catch (tagErr: unknown) {
+      console.error(
+        '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
+        tagErr instanceof Error ? tagErr.message : tagErr
+      );
     }
-  } catch (tagErr: unknown) {
-    console.error(
-      '[processScriptureReferences] Auto-tag parent note failed (non-critical):',
-      tagErr instanceof Error ? tagErr.message : tagErr
-    );
-  }
+  })().catch(() => {});
 
   return {
     results,

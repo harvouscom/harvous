@@ -34,6 +34,23 @@ import { getHarvousSystemUserId } from '../utils/harvous-admin';
 
 const app = new Hono();
 
+/** Postgres-friendly batch size for multi-row inserts */
+const SHARED_BULK_INSERT_CHUNK = 400;
+const XP_AWARD_CONCURRENCY = 8;
+
+async function awardNoteCreatedXPInBatches(
+  userId: string,
+  items: Array<{ noteId: string; isScripture: boolean; content: string }>,
+  concurrency: number,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += concurrency) {
+    const slice = items.slice(i, i + concurrency);
+    await Promise.all(
+      slice.map((x) => awardNoteCreatedXP(userId, x.noteId, x.isScripture, x.content).catch(() => {})),
+    );
+  }
+}
+
 // ─── Shared Note / Thread (public GET) ──────────────────────────────
 
 /** GET /api/shared/note/:shareToken */
@@ -457,29 +474,46 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
     let currentSimpleNoteId = effectiveHighest + 1;
     const baseTimestamp = Date.now();
 
+    type NoteInsert = typeof Notes.$inferInsert;
+    const noteRows: NoteInsert[] = [];
+    const junctionRows: { id: string; noteId: string; threadId: string; createdAt: string }[] = [];
+    const scriptureRows: (typeof ScriptureMetadata.$inferInsert)[] = [];
+    const resourceRows: (typeof ResourceMetadata.$inferInsert)[] = [];
+    const xpItems: Array<{ noteId: string; isScripture: boolean; content: string }> = [];
+
     for (let noteIndex = 0; noteIndex < sourceNotes.length; noteIndex++) {
       const note = sourceNotes[noteIndex];
       const noteTimestamp = new Date(baseTimestamp + noteIndex);
-
       const newNoteId = generateNoteId();
       if (note.id) sourceToNewNoteId.set(note.id, newNoteId);
 
-      await db.insert(Notes).values({
-        id: newNoteId, title: note.title || null, content: note.content,
-        threadId: newThreadId, spaceId: null, simpleNoteId: currentSimpleNoteId,
-        noteType: note.noteType || 'default', userId: auth.userId,
-        isPublic: false, addedBy: 'shared', createdAt: noteTimestamp, lastVisited: noteTimestamp,
+      noteRows.push({
+        id: newNoteId,
+        title: note.title || null,
+        content: note.content ?? '',
+        threadId: newThreadId,
+        spaceId: null,
+        simpleNoteId: currentSimpleNoteId,
+        noteType: note.noteType || 'default',
+        userId: auth.userId,
+        isPublic: false,
+        addedBy: 'shared',
+        createdAt: noteTimestamp,
+        lastVisited: note.noteType === 'scripture' ? null : noteTimestamp,
       });
 
-      const junctionId = `note-thread-${newNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await db.insert(NoteThreads).values({ id: junctionId, noteId: newNoteId, threadId: newThreadId, createdAt: nowISO() });
+      junctionRows.push({
+        id: `note-thread-${newNoteId}-${baseTimestamp + noteIndex}-${Math.random().toString(36).substr(2, 9)}`,
+        noteId: newNoteId,
+        threadId: newThreadId,
+        createdAt: ts,
+      });
 
       if (note.noteType === 'scripture' && note.id) {
         const sourceScriptureMeta = scriptureMetaBySourceNoteId.get(note.id);
         if (sourceScriptureMeta) {
-          const metaId = `scripture_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`;
-          await db.insert(ScriptureMetadata).values({
-            id: metaId,
+          scriptureRows.push({
+            id: `scripture_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`,
             noteId: newNoteId,
             reference: sourceScriptureMeta.reference,
             book: sourceScriptureMeta.book,
@@ -496,9 +530,8 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
       if (note.noteType === 'resource' && note.id) {
         const sourceResourceMeta = resourceMetaBySourceNoteId.get(note.id);
         if (sourceResourceMeta) {
-          const metaId = `resource_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`;
-          await db.insert(ResourceMetadata).values({
-            id: metaId,
+          resourceRows.push({
+            id: `resource_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`,
             noteId: newNoteId,
             sourceUrl: sourceResourceMeta.sourceUrl,
             sourceDomain: sourceResourceMeta.sourceDomain || null,
@@ -511,11 +544,29 @@ app.post('/api/shared/add-to-harvous', requireAuth, async (c) => {
         }
       }
 
-      awardNoteCreatedXP(auth.userId, newNoteId, note.noteType === 'scripture', note.content || '').catch(() => {});
-
+      xpItems.push({
+        noteId: newNoteId,
+        isScripture: note.noteType === 'scripture',
+        content: note.content || '',
+      });
       createdNoteIds.push(newNoteId);
       currentSimpleNoteId++;
     }
+
+    for (let i = 0; i < noteRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+      await db.insert(Notes).values(noteRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+    }
+    for (let i = 0; i < junctionRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+      await db.insert(NoteThreads).values(junctionRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+    }
+    for (let i = 0; i < scriptureRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+      await db.insert(ScriptureMetadata).values(scriptureRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+    }
+    for (let i = 0; i < resourceRows.length; i += SHARED_BULK_INSERT_CHUNK) {
+      await db.insert(ResourceMetadata).values(resourceRows.slice(i, i + SHARED_BULK_INSERT_CHUNK));
+    }
+
+    await awardNoteCreatedXPInBatches(auth.userId, xpItems, XP_AWARD_CONCURRENCY);
 
     const copiedSourceIds = [...sourceToNewNoteId.keys()];
     if (copiedSourceIds.length > 0) {

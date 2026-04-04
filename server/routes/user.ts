@@ -28,7 +28,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import {
   db, first, Notes, Threads, Spaces, Tags, NoteTags, NoteThreads, UserMetadata,
-  UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences,
+  UserXP, Comments, ScriptureMetadata, Members, NoteScriptureReferences, ResourceMetadata,
   eq, and, or, desc, asc, isNotNull, isNull, sql, inArray,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -61,6 +61,24 @@ import { parseScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 
 const app = new Hono();
+
+/** Stay under Postgres parameter limits when bulk-deleting by note id. */
+const NOTE_ID_DELETE_CHUNK = 2000;
+
+async function deleteNoteRelatedRowsBulk(noteIds: string[]): Promise<void> {
+  if (noteIds.length === 0) return;
+  for (let i = 0; i < noteIds.length; i += NOTE_ID_DELETE_CHUNK) {
+    const chunk = noteIds.slice(i, i + NOTE_ID_DELETE_CHUNK);
+    await db.delete(NoteThreads).where(inArray(NoteThreads.noteId, chunk));
+    await db.delete(NoteScriptureReferences).where(
+      or(inArray(NoteScriptureReferences.noteId, chunk), inArray(NoteScriptureReferences.scriptureNoteId, chunk)),
+    );
+    await db.delete(NoteTags).where(inArray(NoteTags.noteId, chunk));
+    await db.delete(Comments).where(inArray(Comments.noteId, chunk));
+    await db.delete(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, chunk));
+    await db.delete(ResourceMetadata).where(inArray(ResourceMetadata.noteId, chunk));
+  }
+}
 
 // ─── GET /api/user/achievements ──────────────────────────────────────────────
 
@@ -120,15 +138,7 @@ app.delete('/api/user/clear-data', requireAuth, async (c) => {
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
 
-    if (noteIds.length > 0) {
-      for (const noteId of noteIds) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
-        await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-        await db.delete(Comments).where(eq(Comments.noteId, noteId));
-        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-      }
-    }
+    await deleteNoteRelatedRowsBulk(noteIds);
 
     await db.delete(Notes).where(eq(Notes.userId, auth.userId));
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
@@ -156,15 +166,7 @@ app.delete('/api/user/delete-account', requireAuth, async (c) => {
     // Delete data (same as clear-data)
     const userNotes = await db.select({ id: Notes.id }).from(Notes).where(eq(Notes.userId, auth.userId));
     const noteIds = userNotes.map(n => n.id);
-    if (noteIds.length > 0) {
-      for (const noteId of noteIds) {
-        await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-        await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
-        await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-        await db.delete(Comments).where(eq(Comments.noteId, noteId));
-        await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
-      }
-    }
+    await deleteNoteRelatedRowsBulk(noteIds);
     await db.delete(Notes).where(eq(Notes.userId, auth.userId));
     await db.delete(Threads).where(eq(Threads.userId, auth.userId));
 

@@ -10,6 +10,8 @@
  *   GET  /api/admin/check-link-integrity
  *   GET  /api/admin/debug-thread-counts
  *   GET  /api/admin/list-threads
+ *   POST /api/admin/backfill-auto-tags
+ *   POST /api/admin/regenerate-note-tags
  */
 
 import { Hono } from 'hono';
@@ -21,6 +23,7 @@ import {
   Spaces,
   Notes,
   NoteThreads,
+  NoteTags,
   NoteScriptureReferences,
   ScriptureMetadata,
   Threads,
@@ -33,7 +36,7 @@ import { generateUserExport } from '../utils/export-user-data';
 import { validateColor, validateContent, validateTitle } from '@/utils/validation';
 import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import { generateAutoTags, applyAutoTags } from '../utils/auto-tag-generator';
+import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
 
 const app = new Hono();
 
@@ -644,7 +647,7 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
       .onConflictDoNothing();
 
     try {
-      const tagResult = await generateAutoTags(title || '', content, systemUserId, 0.8);
+      const tagResult = await generateAutoTags(title || '', content, systemUserId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
       if (tagResult.suggestions.length > 0) {
         await applyAutoTags(note.id, tagResult.suggestions, systemUserId);
       }
@@ -655,6 +658,179 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
     return c.json({ success: true, note });
   } catch (error: any) {
     return c.json({ error: error.message || 'Error creating note' }, 500);
+  }
+});
+
+// ─── POST /api/admin/regenerate-note-tags ───────────────────────────────
+// Re-apply keyword auto-tags for one Harvous-owned note (server-loaded content).
+
+app.post('/api/admin/regenerate-note-tags', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const noteId = typeof body.noteId === 'string' ? body.noteId.trim() : '';
+    if (!noteId) return c.json({ error: 'noteId is required' }, 400);
+
+    const note = first(
+      await db
+        .select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          contentEncrypted: Notes.contentEncrypted,
+          userId: Notes.userId,
+        })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1),
+    );
+    if (!note) return c.json({ error: 'Note not found' }, 404);
+    if (note.userId !== systemUserId) {
+      return c.json({ error: 'Note is not Harvous system-owned content' }, 403);
+    }
+    if (note.contentEncrypted) {
+      return c.json({ error: 'Cannot regenerate tags for encrypted notes' }, 400);
+    }
+
+    const { applied, errors, suggestionCount } = await regenerateAutoTags(
+      note.id,
+      note.title ?? '',
+      note.content ?? '',
+      systemUserId,
+      AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN,
+      { removeAllNoteTagLinks: true },
+    );
+
+    return c.json({
+      success: true,
+      applied,
+      suggestionCount,
+      errors: errors.length ? errors : undefined,
+    });
+  } catch (error: unknown) {
+    console.error('[admin regenerate-note-tags]', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : String(error) },
+      500,
+    );
+  }
+});
+
+// ─── POST /api/admin/backfill-auto-tags ───────────────────────────────
+// Re-run keyword auto-tags for Harvous system user notes (e.g. thin content or
+// older notes). Harvous Admin only.
+
+app.post('/api/admin/backfill-auto-tags', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const dryRun = body.dryRun === true;
+    const minConfidence =
+      typeof body.minConfidence === 'number' && body.minConfidence >= 0 && body.minConfidence <= 1
+        ? body.minConfidence
+        : AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN;
+    const onlyWithoutTags = body.onlyWithoutTags !== false;
+    const noteIdsFilter = Array.isArray(body.noteIds)
+      ? (body.noteIds as unknown[]).filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : null;
+
+    const allNotes = await db
+      .select({
+        id: Notes.id,
+        title: Notes.title,
+        content: Notes.content,
+        contentEncrypted: Notes.contentEncrypted,
+      })
+      .from(Notes)
+      .where(eq(Notes.userId, systemUserId));
+
+    let candidates = allNotes.filter((n) => !n.contentEncrypted);
+    if (noteIdsFilter && noteIdsFilter.length > 0) {
+      const idSet = new Set(noteIdsFilter);
+      candidates = candidates.filter((n) => idSet.has(n.id));
+    }
+
+    if (onlyWithoutTags) {
+      const taggedRows = await db
+        .select({ noteId: NoteTags.noteId })
+        .from(NoteTags)
+        .innerJoin(Notes, eq(Notes.id, NoteTags.noteId))
+        .where(eq(Notes.userId, systemUserId));
+      const taggedSet = new Set(taggedRows.map((r) => r.noteId));
+      candidates = candidates.filter((n) => !taggedSet.has(n.id));
+    }
+
+    const details: Array<{
+      noteId: string;
+      title: string | null;
+      suggestionCount: number;
+      keywords: string[];
+      applied: number;
+    }> = [];
+    let notesWithSuggestions = 0;
+    let totalApplied = 0;
+
+    for (const note of candidates) {
+      const result = await generateAutoTags(note.title || '', note.content || '', systemUserId, minConfidence);
+      const keywords = result.suggestions.map((s) => s.keyword);
+
+      if (result.suggestions.length === 0) {
+        details.push({
+          noteId: note.id,
+          title: note.title ?? null,
+          suggestionCount: 0,
+          keywords: [],
+          applied: 0,
+        });
+        continue;
+      }
+
+      notesWithSuggestions++;
+
+      if (dryRun) {
+        details.push({
+          noteId: note.id,
+          title: note.title ?? null,
+          suggestionCount: result.suggestions.length,
+          keywords,
+          applied: 0,
+        });
+        continue;
+      }
+
+      const { applied } = await applyAutoTags(note.id, result.suggestions, systemUserId);
+      totalApplied += applied;
+      details.push({
+        noteId: note.id,
+        title: note.title ?? null,
+        suggestionCount: result.suggestions.length,
+        keywords,
+        applied,
+      });
+    }
+
+    return c.json({
+      success: true,
+      dryRun,
+      minConfidence,
+      onlyWithoutTags,
+      candidateCount: candidates.length,
+      notesWithSuggestions,
+      totalApplied: dryRun ? 0 : totalApplied,
+      details,
+    });
+  } catch (error: unknown) {
+    console.error('[admin backfill-auto-tags]', error);
+    return c.json(
+      { success: false, error: error instanceof Error ? error.message : String(error) },
+      500,
+    );
   }
 });
 

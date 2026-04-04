@@ -89,6 +89,12 @@ export default function SharedNotePage() {
         const id = result.createdIds.noteId;
         const path = id.startsWith('note_') ? `/note/${id.slice(5)}` : `/${id}`;
         setTimeout(() => {
+          try {
+            sessionStorage.removeItem('harvous_pending_redirect');
+            sessionStorage.removeItem('pendingSharedNoteAdd');
+          } catch {
+            /* ignore */
+          }
           navigate({ to: path as any });
         }, 800);
       }

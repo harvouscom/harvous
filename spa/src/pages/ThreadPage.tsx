@@ -130,8 +130,11 @@ export default function ThreadPage() {
   useEffect(() => {
     const effectSpaceId = spaceIdRef.current;
     const navThread = nav?.threads.find(t => t.id === threadId);
+    const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title);
+    // Never push placeholder "Thread" into history — it overwrites real titles from localStorage on reload.
+    if (!isUnorganized && !title) return;
+
     const count = navThread?.noteCount ?? thread?.noteCount ?? 0;
-    const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread');
     const gradient = thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)';
     const spaceId = navThread?.spaceId ?? thread?.spaceId ?? effectSpaceId ?? null;
     const openedInSpaceId = effectSpaceId ?? null;

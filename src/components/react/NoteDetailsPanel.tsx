@@ -5,6 +5,7 @@ import AddToSection from './AddToSection';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
 import ButtonSmall from './ButtonSmall';
+import Icon from './Icon';
 import NewTagPanel from './NewTagPanel';
 import NewThreadPanel from './NewThreadPanel';
 import { toast } from '@/utils/toast';
@@ -91,6 +92,10 @@ export default function NoteDetailsPanel({
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [noteUserId, setNoteUserId] = useState<string | null>(null);
+  const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
+  const [isRegeneratingTags, setIsRegeneratingTags] = useState(false);
+  const [tagsScrollTopFade, setTagsScrollTopFade] = useState(false);
+  const tagsScrollRef = useRef<HTMLDivElement | null>(null);
 
   const currentUserId = usePersistedUserId();
 
@@ -99,6 +104,24 @@ export default function NoteDetailsPanel({
   const isUnorganizedThread = (thread: Thread) =>
     thread.id === 'thread_unorganized' || thread.title?.trim().toLowerCase() === 'unorganized';
   const visibleThreads = localThreads.filter((thread) => !isUnorganizedThread(thread));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/check', { credentials: 'include' })
+      .then((res) => {
+        if (!res.ok) return { isAdmin: false };
+        return res.json().catch(() => ({ isAdmin: true }));
+      })
+      .then((data: { isAdmin?: boolean }) => {
+        if (!cancelled) setIsHarvousAdmin(Boolean(data?.isAdmin));
+      })
+      .catch(() => {
+        if (!cancelled) setIsHarvousAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fetch data when component mounts; use cache to avoid loading when we have recent data
   useEffect(() => {
@@ -128,6 +151,32 @@ export default function NoteDetailsPanel({
       fetchNoteDetails(false, false);
     }
   }, [noteId]);
+
+  /* Tags tab: top fade mask when list overflows and user has scrolled (matches Tiptap / nav column) */
+  useEffect(() => {
+    if (activeTab !== 'tags') {
+      setTagsScrollTopFade(false);
+      return;
+    }
+    const el = tagsScrollRef.current;
+    if (!el) return;
+    const update = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const overflowing = scrollHeight > clientHeight + 1;
+      setTagsScrollTopFade(overflowing && scrollTop > 0);
+    };
+    update();
+    let raf = 0;
+    raf = requestAnimationFrame(update);
+    el.addEventListener('scroll', update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener('scroll', update);
+      ro.disconnect();
+    };
+  }, [activeTab, localTags.length, noteUserId, isLoading]);
 
   const fetchNoteDetails = async (preserveTab: boolean = false, backgroundRefetch: boolean = false) => {
     if (!backgroundRefetch) setIsLoading(true);
@@ -420,6 +469,46 @@ export default function NoteDetailsPanel({
     await fetchNoteDetails(true, true);
   };
 
+  const handleRegenerateTags = async () => {
+    if (!noteId || isRegeneratingTags) return;
+    setIsRegeneratingTags(true);
+    try {
+      const response = await fetch('/api/admin/regenerate-note-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ noteId }),
+      });
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        applied?: number;
+        suggestionCount?: number;
+        errors?: string[];
+      };
+      if (!response.ok) {
+        toast.error(typeof data.error === 'string' ? data.error : 'Could not regenerate tags');
+        return;
+      }
+      const applied = typeof data.applied === 'number' ? data.applied : 0;
+      const suggestionCount = typeof data.suggestionCount === 'number' ? data.suggestionCount : 0;
+      if (applied > 0) {
+        toast.success(`Applied ${applied} tag${applied === 1 ? '' : 's'}`);
+      } else if (suggestionCount === 0) {
+        toast.info('No Bible study keywords matched this note text');
+      } else {
+        const firstErr = Array.isArray(data.errors) && typeof data.errors[0] === 'string' ? data.errors[0] : null;
+        toast.error(
+          firstErr ?? 'Tags were suggested but could not be saved; try again or check the server logs',
+        );
+      }
+      await fetchNoteDetails(true, true);
+    } catch {
+      toast.error('Could not regenerate tags');
+    } finally {
+      setIsRegeneratingTags(false);
+    }
+  };
+
   const addNewThread = () => {
     setShowNewThreadPanel(true);
   };
@@ -707,60 +796,92 @@ export default function NoteDetailsPanel({
                   </div>
                 )}
                     {activeTab === 'tags' && (
-                      <div className="tab-content__section" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                        {/* Existing tags - takes available space */}
-                        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-                          {localTags.length === 0 ? (
-                            <div className="panel__empty-state-with-description">
-                              <p>No tags found for this note</p>
-                              <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes</p>
-                            </div>
-                          ) : (
-                            <div className="tag-list">
-                              {localTags.map((tag: Tag) => (
-                                <div key={tag.id} className="content-item tag-item">
-                                  <div className="relative nav-item-container">
-                                    <div className="btn btn--tag group w-auto">
-                                      <div className="btn__content">
-                                        <span className="whitespace-nowrap">
-                                          {tag.name}
-                                        </span>
+                      <div className="tab-content__section note-details-panel__tags-tab flex-1 min-h-0 flex flex-col">
+                        <div
+                          ref={tagsScrollRef}
+                          className={`note-details-panel__tags-scroll${tagsScrollTopFade ? ' note-details-panel__tags-scroll--top-fade' : ''}`}
+                        >
+                          <div className="note-details-panel__tags-body">
+                            {localTags.length === 0 ? (
+                              <div className="panel__empty-state-with-description">
+                                <p>No tags found for this note</p>
+                                <p className="panel__empty-state-description">Tags are automatically generated based on your note content when you create or update notes</p>
+                              </div>
+                            ) : (
+                              <div className="tag-list">
+                                {localTags.map((tag: Tag) => (
+                                  <div key={tag.id} className="content-item tag-item">
+                                    <div className="relative nav-item-container">
+                                      <div className="btn btn--tag group w-auto">
+                                        <div className="btn__content">
+                                          <span className="whitespace-nowrap">
+                                            {tag.name}
+                                          </span>
+                                        </div>
+                                        <div className="btn__shadow-overlay" />
                                       </div>
-                                      <div className="btn__shadow-overlay" />
+                                      {/* Close icon - only for notes the current user owns */}
+                                      {noteUserId === currentUserId && (
+                                        <div
+                                          onClick={(e: any) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            removeTagFromNote(tag.id);
+                                          }}
+                                          className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex-center w-4 h-4 cursor-pointer"
+                                          data-item-id={tag.id}
+                                        >
+                                          <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
+                                            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
+                                          </svg>
+                                        </div>
+                                      )}
                                     </div>
-                                    {/* Close icon - only for notes the current user owns */}
-                                    {noteUserId === currentUserId && (
-                                      <div
-                                        onClick={(e: any) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          removeTagFromNote(tag.id);
-                                        }}
-                                        className="tag-close-icon absolute top-1/2 right-3 transform -translate-y-1/2 flex-center w-4 h-4 cursor-pointer"
-                                        data-item-id={tag.id}
-                                      >
-                                        <svg className="w-4 h-4 fill-current" style={{ color: 'var(--color-deep-grey)' }} viewBox="0 0 384 512">
-                                          <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-                                        </svg>
-                                      </div>
-                                    )}
                                   </div>
-                                </div>
-                              ))}
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {noteUserId === currentUserId && (
+                            <div className="note-details-panel__tags-compose-sticky">
+                              <NewTagPanel
+                                noteId={noteId}
+                                onClose={() => {}} // No-op since it's always visible
+                                onTagCreated={handleTagCreated}
+                                inBottomSheet={inBottomSheet}
+                                inline={true}
+                              />
                             </div>
                           )}
                         </div>
 
-                        {/* New Tag Form - only for notes the current user owns */}
-                        {noteUserId === currentUserId && (
-                          <div style={{ marginTop: 'auto', flexShrink: 0 }}>
-                            <NewTagPanel
-                              noteId={noteId}
-                              onClose={() => {}} // No-op since it's always visible
-                              onTagCreated={handleTagCreated}
-                              inBottomSheet={inBottomSheet}
-                              inline={true}
-                            />
+                        {isHarvousAdmin && noteUserId === currentUserId && (
+                          <div className="edit-space-panel__admin-section shrink-0">
+                            <div className="edit-space-panel__admin-header">
+                              <span className="edit-space-panel__admin-label">Admin</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRegenerateTags}
+                              disabled={isRegeneratingTags || isLoading}
+                              className="note-details-panel__admin-regen-btn space-button relative rounded-3xl h-[64px] w-full transition-[scale,shadow] duration-300"
+                              style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                            >
+                              <div className="relative w-full h-full pl-4 pr-4 transition-transform duration-125 min-w-0 flex flex-row items-center justify-center gap-3">
+                                <Icon
+                                  name="arrows-rotate"
+                                  size={18}
+                                  style={{ color: 'var(--color-deep-grey)', flexShrink: 0 }}
+                                />
+                                <span className="text-[var(--color-deep-grey)] font-sans text-[18px] font-semibold whitespace-nowrap">
+                                  {isRegeneratingTags ? 'Regenerating…' : 'Regenerate tags'}
+                                </span>
+                              </div>
+                              <div
+                                className="absolute inset-0 pointer-events-none rounded-3xl transition-shadow duration-125 shadow-[0px_-2.622px_0px_0px_inset_rgba(176,176,176,0.25)]"
+                                aria-hidden
+                              />
+                            </button>
                           </div>
                         )}
                       </div>

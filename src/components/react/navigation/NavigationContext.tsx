@@ -390,9 +390,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const preservedCount = typeof incomingCount === 'number' && incomingCount > 0
         ? incomingCount
         : ((existingItem as any).count != null ? (existingItem as any).count : (item as any).count);
+      const existingTitle = (existingItem as any).title as string | undefined;
+      const incomingTitle = item.title;
+      const preservedTitle =
+        incomingTitle === 'Thread' && existingTitle && existingTitle !== 'Thread' && existingTitle !== ''
+          ? existingTitle
+          : incomingTitle;
+      const existingGrad = (existingItem as any).backgroundGradient as string | undefined;
+      const incomingGrad = (item as any).backgroundGradient as string | undefined;
+      const defaultGrads = new Set(['var(--color-gradient-gray)', 'var(--color-paper)', '', undefined, null]);
+      const preservedGradient =
+        defaultGrads.has(incomingGrad as any) && existingGrad && !defaultGrads.has(existingGrad as any)
+          ? existingGrad
+          : incomingGrad;
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
+        title: preservedTitle,
+        backgroundGradient: preservedGradient,
         count: preservedCount,
         // When explicit scopes are provided (e.g. from ThreadPage/NotePage), replace
         // existing scopes — but guard against [null] overwriting a real space scope.
@@ -1556,11 +1571,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const handleThreadDeleted = (event: CustomEvent) => {
       const threadId = event.detail?.threadId;
       if (threadId) {
-        // Remove the thread from navigation history immediately
-        removeFromNavigationHistory(threadId);
-        
-        // Force validation to catch any edge cases and clear cache
-        // This is necessary after deletion to ensure consistency
+        // Caller (e.g. performThreadErase) navigates; do not navigate from here to avoid races.
+        removeFromNavigationHistory(threadId, { navigateIfActive: false });
+        validationCache.current = null;
         validateNavigationHistory(true);
       }
     };

@@ -48,6 +48,22 @@ import { verifyInboxItemInWebflow } from '@/utils/webflow-verification';
 
 const app = new Hono();
 
+const INBOX_BULK_INSERT_CHUNK = 400;
+const INBOX_XP_AWARD_CONCURRENCY = 8;
+
+async function awardNoteCreatedXPInBatchesInbox(
+  userId: string,
+  items: Array<{ noteId: string; isScripture: boolean; content: string }>,
+  concurrency: number,
+): Promise<void> {
+  for (let i = 0; i < items.length; i += concurrency) {
+    const slice = items.slice(i, i + concurrency);
+    await Promise.all(
+      slice.map((x) => awardNoteCreatedXP(userId, x.noteId, x.isScripture, x.content).catch(() => {})),
+    );
+  }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────
 
 // Reverse color mapping: convert long color names (from Webflow) to short names (for Threads)
@@ -333,52 +349,56 @@ app.post('/api/inbox/add-to-harvous', requireAuth, rateLimit('write'), async (c)
       const notes = inboxItem.notes || [];
       let currentSimpleNoteId: number = effectiveHighest + 1;
       const baseTimestamp = Date.now();
+      const junctionTs = nowISO();
+
+      type NoteInsert = typeof Notes.$inferInsert;
+      const noteRows: NoteInsert[] = [];
+      const junctionRows: { id: string; noteId: string; threadId: string; createdAt: string }[] = [];
+      const xpItems: Array<{ noteId: string; isScripture: boolean; content: string }> = [];
 
       for (let noteIndex = 0; noteIndex < notes.length; noteIndex++) {
         const note = notes[noteIndex];
         const noteTimestamp = new Date(baseTimestamp + noteIndex);
+        const newNoteId = generateNoteId();
 
-        const newNote = first(await db.insert(Notes)
-          .values({
-            id: generateNoteId(),
-            title: note.title || null,
-            content: note.content,
-            threadId: newThreadId,
-            spaceId: targetSpaceId || null,
-            simpleNoteId: currentSimpleNoteId,
-            userId: auth.userId,
-            isPublic: false,
-            addedBy: 'harvous',
-            createdAt: noteTimestamp,
-            lastVisited: noteTimestamp,
-          })
-          .returning())!;
+        noteRows.push({
+          id: newNoteId,
+          title: note.title || null,
+          content: note.content,
+          threadId: newThreadId,
+          spaceId: targetSpaceId || null,
+          simpleNoteId: currentSimpleNoteId,
+          userId: auth.userId,
+          isPublic: false,
+          addedBy: 'harvous',
+          createdAt: noteTimestamp,
+          lastVisited: noteTimestamp,
+        });
 
-        const junctionId = `note-thread-${newNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        try {
-          await db.insert(NoteThreads).values({
-            id: junctionId,
-            noteId: newNote.id,
-            threadId: newThreadId,
-            createdAt: nowISO(),
-          });
+        junctionRows.push({
+          id: `note-thread-${newNoteId}-${baseTimestamp + noteIndex}-${Math.random().toString(36).substr(2, 9)}`,
+          noteId: newNoteId,
+          threadId: newThreadId,
+          createdAt: junctionTs,
+        });
 
-          const verifyJunction = first(await db.select().from(NoteThreads)
-            .where(and(eq(NoteThreads.noteId, newNote.id), eq(NoteThreads.threadId, newThreadId)))
-            .limit(1));
-          if (!verifyJunction) {
-            console.error(`Junction entry verification failed: note ${newNote.id} -> thread ${newThreadId}`);
-          }
-        } catch (junctionError: any) {
-          console.error(`Error creating junction entry for note ${newNote.id}:`, junctionError);
-          throw new Error(`Failed to link note to thread: ${junctionError.message}`);
-        }
-
-        const isScriptureNote = newNote.noteType === 'scripture';
-        awardNoteCreatedXP(auth.userId, newNote.id, isScriptureNote, newNote.content || '').catch(() => {});
-        createdIds.noteIds.push(newNote.id);
+        xpItems.push({
+          noteId: newNoteId,
+          isScripture: false,
+          content: note.content || '',
+        });
+        createdIds.noteIds.push(newNoteId);
         currentSimpleNoteId++;
       }
+
+      for (let i = 0; i < noteRows.length; i += INBOX_BULK_INSERT_CHUNK) {
+        await db.insert(Notes).values(noteRows.slice(i, i + INBOX_BULK_INSERT_CHUNK));
+      }
+      for (let i = 0; i < junctionRows.length; i += INBOX_BULK_INSERT_CHUNK) {
+        await db.insert(NoteThreads).values(junctionRows.slice(i, i + INBOX_BULK_INSERT_CHUNK));
+      }
+
+      await awardNoteCreatedXPInBatchesInbox(auth.userId, xpItems, INBOX_XP_AWARD_CONCURRENCY);
 
       await db.update(UserMetadata)
         .set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() })

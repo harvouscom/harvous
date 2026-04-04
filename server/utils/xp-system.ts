@@ -1,4 +1,4 @@
-import { db, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, UserMetadata, Notes, Threads, eq, and, gte, desc } from '../db';
+import { db, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, UserMetadata, Notes, Threads, eq, and, gte, desc, inArray } from '../db';
 import { getCurrentSeason, getSeasonDisplayName } from '@/utils/season-helpers';
 
 // XP values for different activities
@@ -196,6 +196,22 @@ export async function revokeAllXPForItem(
   } catch (error) {
     console.error('Error revoking all XP for item:', error);
     return 0;
+  }
+}
+
+const XP_RELATED_ID_CHUNK = 2000;
+
+/** Bulk-delete UserXP rows for many relatedIds (e.g. erase thread + notes). Chunked for Postgres limits. */
+export async function deleteAllXpForRelatedIds(userId: string, relatedIds: string[]): Promise<void> {
+  const unique = [...new Set(relatedIds.filter(Boolean))];
+  if (unique.length === 0) return;
+  try {
+    for (let i = 0; i < unique.length; i += XP_RELATED_ID_CHUNK) {
+      const chunk = unique.slice(i, i + XP_RELATED_ID_CHUNK);
+      await db.delete(UserXP).where(and(eq(UserXP.userId, userId), inArray(UserXP.relatedId, chunk)));
+    }
+  } catch (error) {
+    console.error('Error bulk-deleting XP for related ids:', error);
   }
 }
 

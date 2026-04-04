@@ -4,6 +4,28 @@ import DefaultTranslationPanel from './DefaultTranslationPanel';
 import MyChurchPanel from './MyChurchPanel';
 import LockPinPanel from './LockPinPanel';
 
+const REDUCE_MOTION_STORAGE_KEY = 'harvous-reduce-motion';
+
+function readReduceMotionFromStorage(): boolean {
+  try {
+    return localStorage.getItem(REDUCE_MOTION_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeReduceMotionToStorage(on: boolean) {
+  try {
+    if (on) {
+      localStorage.setItem(REDUCE_MOTION_STORAGE_KEY, '1');
+    } else {
+      localStorage.removeItem(REDUCE_MOTION_STORAGE_KEY);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 type PreferenceView = 'list' | 'bibleTranslation' | 'myChurch' | 'lockPin';
 
 interface MyPreferencesPanelProps {
@@ -13,6 +35,7 @@ interface MyPreferencesPanelProps {
 
 export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: MyPreferencesPanelProps) {
   const [view, setView] = useState<PreferenceView>('list');
+  const [reduceMotion, setReduceMotion] = useState(readReduceMotionFromStorage);
 
   if (view === 'bibleTranslation') {
     return (
@@ -89,6 +112,39 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
     </div>
   );
 
+  const toggleReduceMotion = () => {
+    setReduceMotion((prev) => {
+      const next = !prev;
+      writeReduceMotionToStorage(next);
+      return next;
+    });
+  };
+
+  const renderReduceMotionToggle = () => (
+    <button
+      type="button"
+      onClick={toggleReduceMotion}
+      aria-pressed={reduceMotion}
+      className="w-full cursor-pointer border-0 bg-transparent p-0 font-inherit text-left"
+    >
+      <div
+        className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+      >
+        <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">
+          <div className="flex-fill overflow-hidden">
+            <span
+              className="panel__list-item-label"
+              style={{ color: 'var(--color-deep-grey)' }}
+            >
+              {reduceMotion ? 'Restore Motion' : 'Reduce Motion'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
       <div className="flex-fill flex-stack" style={{ gap: 0 }}>
@@ -105,6 +161,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                 {renderOption('Preferred Bible', () => setView('bibleTranslation'))}
                 {renderOption('My Church', () => setView('myChurch'))}
                 {renderOption('Lock PIN', () => setView('lockPin'))}
+                {renderReduceMotionToggle()}
               </div>
             </div>
           </div>

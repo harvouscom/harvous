@@ -60,6 +60,42 @@ function normalizeThreadId(id: string): string {
   return id.startsWith('thread/') ? 'thread_' + id.slice(7) : id;
 }
 
+const THREAD_PREFETCH_CACHE_PREFIX = 'harvous-thread-prefetch-';
+const THREAD_PREFETCH_CACHE_INDEX = 'harvous-thread-prefetch-index';
+const MAX_CACHED_THREAD_PREFETCH = 15;
+
+function getCachedThreadPrefetch(threadId: string): ThreadPrefetchData | undefined {
+  if (!threadId) return undefined;
+  try {
+    const raw = sessionStorage.getItem(`${THREAD_PREFETCH_CACHE_PREFIX}${threadId}`);
+    if (!raw) return undefined;
+    return normalizeThreadPrefetchData(JSON.parse(raw) as ThreadPrefetchData | ThreadDetail);
+  } catch {
+    return undefined;
+  }
+}
+
+function setCachedThreadPrefetch(threadId: string, data: ThreadPrefetchData) {
+  try {
+    sessionStorage.setItem(`${THREAD_PREFETCH_CACHE_PREFIX}${threadId}`, JSON.stringify(data));
+    let index: string[] = [];
+    try {
+      const raw = sessionStorage.getItem(THREAD_PREFETCH_CACHE_INDEX);
+      index = raw ? JSON.parse(raw) : [];
+    } catch {
+      index = [];
+    }
+    index = [threadId, ...index.filter((id) => id !== threadId)];
+    while (index.length > MAX_CACHED_THREAD_PREFETCH) {
+      const evicted = index.pop()!;
+      sessionStorage.removeItem(`${THREAD_PREFETCH_CACHE_PREFIX}${evicted}`);
+    }
+    sessionStorage.setItem(THREAD_PREFETCH_CACHE_INDEX, JSON.stringify(index));
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 /** Keep low so thread title/color edits (e.g. admin patches) show without long stale UI. */
 const THREAD_STALE_TIME = 0;
 
@@ -73,7 +109,9 @@ export function getThreadQueryOptions(threadId: string) {
         noteTypeCounts?: ThreadNoteTypeCounts;
       }>(`/api/threads/${normalizedId}/prefetch`);
       if (res.thread === undefined) throw new Error('Thread not found');
-      return { thread: res.thread, noteTypeCounts: res.noteTypeCounts };
+      const data: ThreadPrefetchData = { thread: res.thread, noteTypeCounts: res.noteTypeCounts };
+      setCachedThreadPrefetch(normalizedId, data);
+      return data;
     },
     staleTime: THREAD_STALE_TIME,
   };
@@ -81,10 +119,14 @@ export function getThreadQueryOptions(threadId: string) {
 
 export function useThread(threadId: string) {
   const options = getThreadQueryOptions(threadId);
+  const normalizedId = normalizeThreadId(threadId);
+  const cached = threadId ? getCachedThreadPrefetch(normalizedId) : undefined;
   return useQuery({
     ...options,
     enabled: !!threadId,
     select: (data) => normalizeThreadPrefetchData(data as ThreadPrefetchData | ThreadDetail),
+    initialData: cached,
+    initialDataUpdatedAt: cached ? Date.now() - 5_000 : undefined,
   });
 }
 

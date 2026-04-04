@@ -1,6 +1,7 @@
 import { SignUp, useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useRef } from 'react';
+import { postAuthClerkFallbackUrl, postAuthRedirectPath } from '../utils/post-auth-redirect';
 
 /** Mirror of Astro sign-up.astro: persist ?ref= code as a cookie so
  *  ReferralCreditInit can credit the referrer after the user signs up. */
@@ -25,13 +26,16 @@ export default function SignUpPage() {
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       const params = new URLSearchParams(window.location.search);
-      const redirectUrl = params.get('redirect_url') || '/dashboard';
-      navigate({ to: redirectUrl });
+      const path = postAuthRedirectPath(params.get('redirect_url'));
+      navigate({ to: path as any });
     }
   }, [isLoaded, isSignedIn, navigate]);
 
   const params = new URLSearchParams(window.location.search);
-  const redirectUrl = params.get('redirect_url') ?? '/dashboard';
+  const redirectRaw = params.get('redirect_url');
+  const hasCustomRedirect = redirectRaw != null && redirectRaw !== '';
+  const redirectPath = postAuthRedirectPath(redirectRaw);
+  const clerkFallbackUrl = postAuthClerkFallbackUrl(redirectPath);
 
   if (isSignedIn || (!isLoaded && /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie))) {
     return null;
@@ -68,11 +72,11 @@ export default function SignUpPage() {
             <SignUp
               routing="hash"
               signInUrl={
-                redirectUrl !== '/dashboard'
-                  ? `/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`
+                hasCustomRedirect
+                  ? `/sign-in?redirect_url=${encodeURIComponent(redirectRaw!)}`
                   : '/sign-in'
               }
-              fallbackRedirectUrl={redirectUrl}
+              fallbackRedirectUrl={clerkFallbackUrl}
               appearance={{
                 elements: {
                   rootBox: 'clerk-form-root',

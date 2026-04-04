@@ -100,7 +100,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 640 512"
@@ -116,7 +116,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 384 512"
@@ -132,7 +132,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 448 512"
@@ -148,7 +148,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 576 512"
@@ -163,7 +163,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 512 512"
@@ -179,7 +179,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 640 640"
@@ -194,7 +194,7 @@ export default function CondensedThreadItem({
                 width: '100%',
                 height: '100%',
                 color: 'var(--color-deep-grey)',
-                opacity: 0.3
+                opacity: 0.8
               }}
               fill="currentColor"
               viewBox="0 0 24 24"

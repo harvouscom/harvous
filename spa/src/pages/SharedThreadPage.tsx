@@ -109,6 +109,13 @@ export default function SharedThreadPage() {
         window.dispatchEvent(new CustomEvent('threadCreated', { detail }));
         document.dispatchEvent(new CustomEvent('threadCreated', { detail }));
 
+        try {
+          sessionStorage.removeItem('harvous_pending_redirect');
+          sessionStorage.removeItem('pendingSharedThreadAdd');
+        } catch {
+          /* ignore */
+        }
+
         navigate({ to: path as any });
       }
     } catch (err: any) {

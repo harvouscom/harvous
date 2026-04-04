@@ -1,6 +1,7 @@
 import { SignIn, useAuth } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect } from 'react';
+import { postAuthClerkFallbackUrl, postAuthRedirectPath } from '../utils/post-auth-redirect';
 
 export default function SignInPage() {
   const { isLoaded, isSignedIn } = useAuth();
@@ -10,8 +11,9 @@ export default function SignInPage() {
   useEffect(() => {
     if (isLoaded && isSignedIn) {
       const params = new URLSearchParams(window.location.search);
-      const redirectUrl = params.get('redirect_url') || '/dashboard';
-      navigate({ to: redirectUrl });
+      const raw = params.get('redirect_url');
+      const path = postAuthRedirectPath(raw);
+      navigate({ to: path as any });
     }
   }, [isLoaded, isSignedIn, navigate]);
 
@@ -29,7 +31,10 @@ export default function SignInPage() {
   }, []);
 
   const params = new URLSearchParams(window.location.search);
-  const redirectUrl = params.get('redirect_url') ?? '/dashboard';
+  const redirectRaw = params.get('redirect_url');
+  const hasCustomRedirect = redirectRaw != null && redirectRaw !== '';
+  const redirectPath = postAuthRedirectPath(redirectRaw);
+  const clerkFallbackUrl = postAuthClerkFallbackUrl(redirectPath);
 
   if (isSignedIn || (!isLoaded && /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie))) {
     return null;
@@ -66,11 +71,11 @@ export default function SignInPage() {
             <SignIn
               routing="hash"
               signUpUrl={
-                redirectUrl !== '/dashboard'
-                  ? `/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`
+                hasCustomRedirect
+                  ? `/sign-up?redirect_url=${encodeURIComponent(redirectRaw!)}`
                   : '/sign-up'
               }
-              fallbackRedirectUrl={redirectUrl}
+              fallbackRedirectUrl={clerkFallbackUrl}
               appearance={{
                 elements: {
                   rootBox: 'clerk-form-root',

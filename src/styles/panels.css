@@ -375,6 +375,11 @@
   text-transform: uppercase;
 }
 
+/* Center icon + label in Harvous admin regenerate-tags space button (navigation .space-button forces divs to flex-start) */
+.note-details-panel .note-details-panel__admin-regen-btn > div {
+  justify-content: center !important;
+}
+
 
 .edit-space-panel__admin-description {
   width: 100%;
@@ -1020,6 +1025,87 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;  /* 12px / gap-3 */
+}
+
+/* Note details — Tags tab: tag chips scroll behind sticky compose (like floating add-note CTA) */
+.note-details-panel__tags-tab {
+  gap: 0;
+}
+
+.note-details-panel__tags-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  gap: 0;
+  -webkit-overflow-scrolling: touch;
+  /* Space to scroll the last tag row fully above the sticky compose (gradient + field + Add tag) */
+  --note-details-tags-compose-clearance: calc(1.35rem + 4.5rem + 0.75rem + 4.5rem + 0.75rem);
+}
+
+/* Same idea as .tiptap-content--top-fade / .nav-column-scroll--top-fade */
+.note-details-panel__tags-scroll.note-details-panel__tags-scroll--top-fade {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black 100%
+  );
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+.note-details-panel__tags-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Only when there are chips — empty state should not gain a tall dead zone */
+.note-details-panel__tags-scroll:has(.note-details-panel__tags-compose-sticky)
+  .note-details-panel__tags-body:has(.tag-list) {
+  padding-bottom: var(--note-details-tags-compose-clearance);
+}
+
+.note-details-panel__tags-compose-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  margin-top: auto;
+  padding-top: 1.25rem;
+  padding-bottom: 2px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.88) 38%,
+    #fff 72%
+  );
+}
+
+/* Lift “Type here…” + Add tag off the scrolling tags */
+.note-details-panel__tags-compose-sticky .search-input {
+  box-shadow:
+    0 -4px 14px rgba(120, 118, 111, 0.1),
+    0 4px 4px rgba(0, 0, 0, 0.18);
+}
+
+.note-details-panel__tags-compose-sticky .btn-cta {
+  box-shadow:
+    0 4px 14px rgba(120, 118, 111, 0.12),
+    0 4px 4px rgba(0, 0, 0, 0.25);
+}
+
+.note-details-panel__tags-tab > .edit-space-panel__admin-section {
+  margin-top: 0.75rem;
 }
 
 /* ==========================================================================

@@ -23,7 +23,13 @@ import { getMenuOptions, shouldShowActionStripMenu } from '../../../src/utils/me
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
 import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
-import { useNavigation, useRefreshNavigation, navigationQueryKey } from '../hooks/queries/useNavigation';
+import {
+  useNavigation,
+  useRefreshNavigation,
+  navigationQueryKey,
+  NAV_SESSION_CACHE_KEY,
+  type NavigationData,
+} from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
 import { useThread } from '../hooks/queries/useThread';
@@ -283,8 +289,35 @@ export default function AppLayout() {
     window.addEventListener('threadCreated', refresh);
     window.addEventListener('threadUpdated', handleThreadUpdated);
     window.addEventListener('spaceUpdated', handleSpaceUpdated);
+    const handleThreadDeleted = (e: Event) => {
+      const threadId = (e as CustomEvent).detail?.threadId;
+      if (threadId) {
+        try {
+          sessionStorage.removeItem(NAV_SESSION_CACHE_KEY);
+        } catch {
+          // ignore
+        }
+        try {
+          const stored = localStorage.getItem('harvous-navigation-history-v2');
+          if (stored) {
+            const history = JSON.parse(stored).filter((item: { id?: string }) => item.id !== threadId);
+            localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(history));
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+          }
+        } catch {
+          // ignore
+        }
+        queryClient.setQueryData(navigationQueryKey, (old: NavigationData | undefined) => {
+          if (!old) return old;
+          return { ...old, threads: old.threads.filter((t) => t.id !== threadId) };
+        });
+        queryClient.removeQueries({ queryKey: ['thread', threadId] });
+      }
+      refreshNavigation();
+    };
+
     window.addEventListener('spaceDeleted', handleSpaceDeleted);
-    window.addEventListener('threadDeleted', refresh);
+    window.addEventListener('threadDeleted', handleThreadDeleted);
     window.addEventListener('noteCreated', refresh);
     window.addEventListener('noteDeleted', refresh);
     return () => {
@@ -293,7 +326,7 @@ export default function AppLayout() {
       window.removeEventListener('threadUpdated', handleThreadUpdated);
       window.removeEventListener('spaceUpdated', handleSpaceUpdated);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted);
-      window.removeEventListener('threadDeleted', refresh);
+      window.removeEventListener('threadDeleted', handleThreadDeleted);
       window.removeEventListener('noteCreated', refresh);
       window.removeEventListener('noteDeleted', refresh);
     };
