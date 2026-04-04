@@ -88961,6 +88961,13 @@ app3.post("/api/shared/add-to-harvous", requireAuth, async (c) => {
       if (n.id && !srcMap.has(n.id)) srcMap.set(n.id, n);
     });
     const sourceNotes = Array.from(srcMap.values());
+    const sourceNoteIdsForMeta = sourceNotes.map((n) => n.id).filter(Boolean);
+    const [sourceScriptureMetaRows, sourceResourceMetaRows] = await Promise.all([
+      sourceNoteIdsForMeta.length > 0 ? db.select().from(ScriptureMetadata).where(inArray(ScriptureMetadata.noteId, sourceNoteIdsForMeta)) : Promise.resolve([]),
+      sourceNoteIdsForMeta.length > 0 ? db.select().from(ResourceMetadata).where(inArray(ResourceMetadata.noteId, sourceNoteIdsForMeta)) : Promise.resolve([])
+    ]);
+    const scriptureMetaBySourceNoteId = new Map(sourceScriptureMetaRows.map((m2) => [m2.noteId, m2]));
+    const resourceMetaBySourceNoteId = new Map(sourceResourceMetaRows.map((m2) => [m2.noteId, m2]));
     const newThreadId = generateThreadId();
     const ts2 = nowISO();
     await db.insert(Threads).values({
@@ -88993,12 +89000,14 @@ app3.post("/api/shared/add-to-harvous", requireAuth, async (c) => {
     }
     const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
     const createdNoteIds = [];
+    const sourceToNewNoteId = /* @__PURE__ */ new Map();
     let currentSimpleNoteId = effectiveHighest + 1;
     const baseTimestamp = Date.now();
     for (let noteIndex = 0; noteIndex < sourceNotes.length; noteIndex++) {
       const note = sourceNotes[noteIndex];
       const noteTimestamp = new Date(baseTimestamp + noteIndex);
       const newNoteId = generateNoteId();
+      if (note.id) sourceToNewNoteId.set(note.id, newNoteId);
       await db.insert(Notes).values({
         id: newNoteId,
         title: note.title || null,
@@ -89015,15 +89024,90 @@ app3.post("/api/shared/add-to-harvous", requireAuth, async (c) => {
       });
       const junctionId = `note-thread-${newNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       await db.insert(NoteThreads).values({ id: junctionId, noteId: newNoteId, threadId: newThreadId, createdAt: nowISO() });
+      if (note.noteType === "scripture" && note.id) {
+        const sourceScriptureMeta = scriptureMetaBySourceNoteId.get(note.id);
+        if (sourceScriptureMeta) {
+          const metaId = `scripture_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`;
+          await db.insert(ScriptureMetadata).values({
+            id: metaId,
+            noteId: newNoteId,
+            reference: sourceScriptureMeta.reference,
+            book: sourceScriptureMeta.book,
+            chapter: sourceScriptureMeta.chapter,
+            verse: sourceScriptureMeta.verse,
+            verseEnd: sourceScriptureMeta.verseEnd || null,
+            translation: sourceScriptureMeta.translation,
+            originalText: sourceScriptureMeta.originalText,
+            createdAt: ts2
+          });
+        }
+      }
+      if (note.noteType === "resource" && note.id) {
+        const sourceResourceMeta = resourceMetaBySourceNoteId.get(note.id);
+        if (sourceResourceMeta) {
+          const metaId = `resource_${newNoteId}_${baseTimestamp + noteIndex}_${Math.random().toString(36).slice(2, 11)}`;
+          await db.insert(ResourceMetadata).values({
+            id: metaId,
+            noteId: newNoteId,
+            sourceUrl: sourceResourceMeta.sourceUrl,
+            sourceDomain: sourceResourceMeta.sourceDomain || null,
+            sourceName: sourceResourceMeta.sourceName || null,
+            sourceTitle: sourceResourceMeta.sourceTitle || null,
+            sourceDescription: sourceResourceMeta.sourceDescription || null,
+            sourceImage: sourceResourceMeta.sourceImage || null,
+            createdAt: ts2
+          });
+        }
+      }
       awardNoteCreatedXP(auth.userId, newNoteId, note.noteType === "scripture", note.content || "").catch(() => {
       });
       createdNoteIds.push(newNoteId);
       currentSimpleNoteId++;
     }
+    const copiedSourceIds = [...sourceToNewNoteId.keys()];
+    if (copiedSourceIds.length > 0) {
+      const sourceJunctionRows = await db.select({
+        noteId: NoteScriptureReferences.noteId,
+        scriptureNoteId: NoteScriptureReferences.scriptureNoteId
+      }).from(NoteScriptureReferences).where(inArray(NoteScriptureReferences.noteId, copiedSourceIds));
+      const newJunctionValues = [];
+      const seenNewPairs = /* @__PURE__ */ new Set();
+      for (const row of sourceJunctionRows) {
+        const newParentId = sourceToNewNoteId.get(row.noteId);
+        const newScriptureId = sourceToNewNoteId.get(row.scriptureNoteId);
+        if (!newParentId || !newScriptureId) continue;
+        const pairKey = `${newParentId}:${newScriptureId}`;
+        if (seenNewPairs.has(pairKey)) continue;
+        seenNewPairs.add(pairKey);
+        newJunctionValues.push({
+          id: `note-scripture-${newParentId}-${newScriptureId}-${baseTimestamp}-${Math.random().toString(36).slice(2, 11)}`,
+          noteId: newParentId,
+          scriptureNoteId: newScriptureId,
+          createdAt: ts2
+        });
+      }
+      if (newJunctionValues.length > 0) {
+        await db.insert(NoteScriptureReferences).values(newJunctionValues);
+      }
+    }
     if (sourceNotes.length > 0) {
       await db.update(UserMetadata).set({ highestSimpleNoteId: currentSimpleNoteId - 1, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
     }
-    return c.json({ success: true, message: "Thread added to your Harvous!", createdIds: { threadId: newThreadId, noteIds: createdNoteIds } });
+    const threadColor = sourceThread.color || "paper";
+    return c.json({
+      success: true,
+      message: "Thread added to your Harvous!",
+      createdIds: { threadId: newThreadId, noteIds: createdNoteIds },
+      thread: {
+        id: newThreadId,
+        title: sourceThread.title,
+        color: threadColor,
+        backgroundGradient: getThreadGradientCSS(threadColor),
+        noteCount: createdNoteIds.length,
+        spaceId: null,
+        isPublic: false
+      }
+    });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/shared/add-to-harvous", action: "add_shared_thread" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);

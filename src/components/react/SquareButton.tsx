@@ -112,6 +112,7 @@ export default function SquareButton({
             icon = LeaveSpaceIcon;
             break;
           case "eraseThread":
+          case "eraseThreadAndNotes":
           case "eraseNote":
           case "eraseSpace":
             icon = EraseIcon;

@@ -3,6 +3,14 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+  getSolidThreadAccentBarStyle,
+} from './CondensedNoteRowLayout';
+import { CONDENSED_NOTE_ICON_PX, CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
 import { captureException } from '@/utils/posthog';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -639,39 +647,28 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
-  // Helper function to get note type icon
-  const getNoteTypeIcon = (noteType: string = 'default') => {
-    if (noteType === 'scripture') {
-      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else if (noteType === 'resource') {
-      return <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else {
-      // Default note - use bookmark icon
-      return (
-        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-        </svg>
-      );
-    }
-  };
-
-  // Render compact thread item (similar to EditSpacePanel)
+  // Render compact thread item (same row metrics as EditSpacePanel / AddToSpaceSection)
   const renderCompactThreadItem = (thread: Thread) => {
     const threadAccentColor = thread.color ? `var(--color-${thread.color})` : "var(--color-purple)";
-    
+    const iconStyle = { color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY } as const;
+    const threadRowIcon =
+      thread.isPublic === true ? (
+        <Icon name="user-group" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
+      ) : (
+        <Icon name="user" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
+      );
+
     return (
       <div
         className="relative cursor-pointer"
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          overflow: 'hidden',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -680,95 +677,58 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: threadAccentColor
-          }}
-        />
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getSolidThreadAccentBarStyle(threadAccentColor)}
+          icon={threadRowIcon}
+          style={{ cursor: 'pointer' }}
         >
-          {/* User icon (Private) or User group icon (Shared) */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {thread.isPublic === true ? (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 640 640">
-                <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
-              </svg>
-            ) : (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            )}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title with badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0
-              }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 700,
+                  color: 'var(--color-deep-grey)',
+                  fontSize: '16px',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
                 {thread.title || 'Untitled Thread'}
               </div>
-              {/* Item count badge */}
-              {((thread.count !== undefined && thread.count !== null && thread.count > 0) || 
+              {((thread.count !== undefined && thread.count !== null && thread.count > 0) ||
                 (thread.noteCount !== undefined && thread.noteCount !== null && thread.noteCount > 0)) && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
-                  <span className="badge-number">
-                    {formatBadgeCount(thread.count ?? thread.noteCount)}
-                  </span>
+                  <span className="badge-number">{formatBadgeCount(thread.count ?? thread.noteCount)}</span>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </CondensedNoteRowLayout>
       </div>
     );
   };
 
-  // Render compact note item (similar to EditThreadPanel)
   const renderCompactNoteItem = (note: Note) => {
-    const noteType = (note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default';
-    
+    const noteType =
+      note.noteType === 'resource' || note.noteType === 'scripture' ? note.noteType : 'default';
+    const mesh = getCondensedNoteMeshGradient(
+      (note as { threadColors?: { color: string; frequency: number }[] }).threadColors,
+      note.id,
+    );
     return (
       <div
         className="relative cursor-pointer"
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
+          overflow: 'hidden',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -777,54 +737,30 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)'
-          }}
-        />
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getCondensedNoteAccentBarStyle(mesh)}
+          icon={condensedNoteRowIcon({
+            noteType: noteType as 'default' | 'scripture' | 'resource',
+          })}
+          style={{ cursor: 'pointer' }}
         >
-          {/* Note type icon */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {getNoteTypeIcon(noteType)}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title */}
-            <div style={{ 
-              fontFamily: 'var(--font-sans)', 
-              fontWeight: 700, 
-              color: 'var(--color-deep-grey)', 
-              fontSize: '16px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontWeight: 700,
+                color: 'var(--color-deep-grey)',
+                fontSize: '16px',
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {note.title || 'Untitled Note'}
             </div>
           </div>
-        </div>
+        </CondensedNoteRowLayout>
       </div>
     );
   };
@@ -936,7 +872,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(thread.id, 'thread');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
+                                className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover z-10 -translate-y-1/2"
                                 disabled={isSubmitting}
                               />
                             </div>
@@ -959,7 +895,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
                                   e.stopPropagation();
                                   handleItemSelect(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
+                                className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover z-10 -translate-y-1/2"
                                 disabled={isSubmitting}
                               />
                             </div>

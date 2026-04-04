@@ -1,10 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import CardStack from '../components/CardStack';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { api } from '../lib/api';
 import { useJoinSpace } from '../hooks/mutations/useJoinSpace';
+import { navigationQueryKey } from '../hooks/queries/useNavigation';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface SpacePreview {
@@ -41,6 +43,7 @@ interface JoinPreviewResponse {
 export default function JoinSpacePage() {
   const { token } = useParams({ from: '/spaces/join/$token' });
   const { isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [space, setSpace] = useState<SpacePreview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,6 +109,7 @@ export default function JoinSpacePage() {
             },
           },
         }));
+        await queryClient.refetchQueries({ queryKey: navigationQueryKey });
         const path = result.redirectUrl || idToUrl(result.spaceId);
         navigate({ to: path as any });
       }

@@ -3,7 +3,16 @@ import { api } from '../../lib/api';
 
 interface AddSharedThreadResult {
   success: boolean;
-  createdIds?: { threadId: string };
+  createdIds?: { threadId: string; noteIds?: string[] };
+  thread?: {
+    id: string;
+    title: string;
+    color: string | null;
+    backgroundGradient: string;
+    noteCount: number;
+    spaceId: string | null;
+    isPublic: boolean;
+  };
 }
 
 /**

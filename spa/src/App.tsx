@@ -1,10 +1,10 @@
 import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
-import { ClerkProvider, useUser } from '@clerk/clerk-react';
+import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
@@ -33,27 +33,9 @@ const queryClient = new QueryClient({
   },
 });
 
-// Global handler: redirect to sign-in when any query/mutation gets a 401.
-// Uses a debounce flag so we only redirect once per session expiry.
+// Global handler lives in QueryClient401Redirect (inside ClerkProvider) so we do not redirect
+// on 401 while Clerk is still loading — avoids localhost refresh flashing /sign-in then dashboard.
 let redirecting401 = false;
-queryClient.getQueryCache().subscribe((event) => {
-  if (event.type === 'updated' && event.query.state.status === 'error') {
-    const error = event.query.state.error;
-    if (error instanceof APIError && error.status === 401 && !redirecting401) {
-      redirecting401 = true;
-      window.location.href = '/sign-in';
-    }
-  }
-});
-queryClient.getMutationCache().subscribe((event) => {
-  if (event.type === 'updated' && event.mutation?.state.status === 'error') {
-    const error = event.mutation.state.error;
-    if (error instanceof APIError && error.status === 401 && !redirecting401) {
-      redirecting401 = true;
-      window.location.href = '/sign-in';
-    }
-  }
-});
 
 const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
@@ -203,6 +185,39 @@ function ToastSetup() {
     return () => {
       window.removeEventListener('toast', handleToastEvent);
       window.removeEventListener('showToast', handleToastEvent);
+    };
+  }, []);
+
+  return null;
+}
+
+function QueryClient401Redirect() {
+  const { isLoaded } = useAuth();
+  const isLoadedRef = useRef(isLoaded);
+  isLoadedRef.current = isLoaded;
+
+  useEffect(() => {
+    const maybeRedirect = (error: unknown) => {
+      if (!(error instanceof APIError && error.status === 401)) return;
+      if (!isLoadedRef.current) return;
+      if (redirecting401) return;
+      redirecting401 = true;
+      window.location.href = '/sign-in';
+    };
+
+    const unsubQueries = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type === 'updated' && event.query.state.status === 'error') {
+        maybeRedirect(event.query.state.error);
+      }
+    });
+    const unsubMutations = queryClient.getMutationCache().subscribe((event) => {
+      if (event.type === 'updated' && event.mutation?.state.status === 'error') {
+        maybeRedirect(event.mutation.state.error);
+      }
+    });
+    return () => {
+      unsubQueries();
+      unsubMutations();
     };
   }, []);
 
@@ -581,6 +596,7 @@ export default function App() {
   return (
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
+        <QueryClient401Redirect />
         <IosPwaClass />
         <WebHapticsSetup />
         <DevApiHealthBanner />

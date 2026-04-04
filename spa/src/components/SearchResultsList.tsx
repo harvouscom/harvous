@@ -8,10 +8,10 @@ import {
   recentSearchesUpdatedEvent,
   type RecentSearchStorageScope,
 } from '../../../src/utils/recent-search-storage';
-import { api } from '../lib/api';
-import { useSearch, type SearchResult, type SearchScope } from '../hooks/queries/useSearch';
+import { useSearch, type SearchResult, type SearchScope } from '@/hooks/useSearch';
 
-export type { SearchScope } from '../hooks/queries/useSearch';
+export type { SearchScope, SearchResult } from '@/hooks/useSearch';
+export { searchQueryKey, fetchSearchResults } from '@/hooks/useSearch';
 
 export interface SearchResultsListProps {
   query: string;
@@ -162,17 +162,4 @@ export default function SearchResultsList({
       )}
     </div>
   );
-}
-
-export function searchQueryKey(query: string, scope?: SearchScope) {
-  const q = query.trim();
-  return ['search', q, scope?.threadId ?? null, scope?.spaceId ?? null] as const;
-}
-
-export function fetchSearchResults(query: string, scope?: SearchScope) {
-  const q = query.trim();
-  const params: Record<string, string> = { q };
-  if (scope?.threadId) params.threadId = scope.threadId;
-  if (scope?.spaceId) params.spaceId = scope.spaceId;
-  return api.get<{ results: SearchResult[] }>('/api/search', params);
 }

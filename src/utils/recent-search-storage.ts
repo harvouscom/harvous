@@ -3,7 +3,11 @@
  * Global key stays `harvous-recent-searches` for backward compatibility.
  */
 
-export type RecentSearchStorageScope = null | { type: 'thread' | 'space'; id: string };
+export type RecentSearchStorageScope =
+  | null
+  | { type: 'thread' | 'space'; id: string }
+  | { type: 'space-add'; id: string }
+  | { type: 'thread-add'; id: string };
 
 export function recentSearchStorageKey(scope: RecentSearchStorageScope): string {
   if (!scope) return 'harvous-recent-searches';

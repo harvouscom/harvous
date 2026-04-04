@@ -4,11 +4,12 @@ import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import ButtonSmall from './ButtonSmall';
-import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
+import { deleteNoteOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
 import { getMenuOptions, shouldShowActionStripMenu } from '@/utils/menu-options';
+import { performThreadErase, threadEraseModeFromMenuAction, getThreadEraseConfirmCopy } from '@/utils/perform-thread-erase';
 import Icon from './Icon';
 
 export interface ActionStripItem {
@@ -25,9 +26,12 @@ function getShortLabel(fullLabel: string): string {
     'Leave Space': 'Leave',
     'Edit Thread': 'Edit',
     'Erase Thread': 'Erase',
-    'Erase Thread & Notes': 'Erase'
   };
   return map[fullLabel] ?? fullLabel;
+}
+
+function isThreadEraseStripAction(action: string): boolean {
+  return action === 'eraseThread' || action === 'eraseThreadAndNotes';
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
@@ -96,17 +100,25 @@ export default function ActionStrip({
     effectiveUserId,
     options.length
   );
-  const stripItems: ActionStripItem[] = options.map((o) => ({
+  const stripSourceOptions =
+    contentType === 'thread' ? options.filter((o) => !isThreadEraseStripAction(o.action)) : options;
+  const stripItems: ActionStripItem[] = stripSourceOptions.map((o) => ({
     action: o.action,
-    label: getShortLabel(o.label)
+    label: getShortLabel(o.label),
   }));
+  const showThreadEraseDropdown =
+    contentType === 'thread' && options.some((o) => isThreadEraseStripAction(o.action));
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [isThreadEraseBusy, setIsThreadEraseBusy] = useState(false);
+  const [eraseDropdownOpen, setEraseDropdownOpen] = useState(false);
+  const eraseWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setLockStateOverride(null);
     setContentEncryptedServerOverride(null);
+    setEraseDropdownOpen(false);
   }, [contentId, contentEncrypted]);
 
   useEffect(() => {
@@ -124,37 +136,65 @@ export default function ActionStrip({
     return () => window.removeEventListener('noteLockStateChanged', handler);
   }, [contentId]);
 
-  const performErase = async () => {
+  useEffect(() => {
+    if (!eraseDropdownOpen) return;
+    const onPointerDown = (e: MouseEvent | TouchEvent) => {
+      const el = eraseWrapRef.current;
+      const target = e.target as Node | null;
+      if (el && target && !el.contains(target)) {
+        setEraseDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown, true);
+    document.addEventListener('touchstart', onPointerDown, true);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown, true);
+      document.removeEventListener('touchstart', onPointerDown, true);
+    };
+  }, [eraseDropdownOpen]);
+
+  useEffect(() => {
+    if (!eraseDropdownOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEraseDropdownOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [eraseDropdownOpen]);
+
+  const performErase = async (eraseAction?: string) => {
     if (!contentId || !contentType) return;
-    let apiUrl: string, paramName: string, successMessage: string;
-    switch (contentType) {
-      case 'thread':
-        apiUrl = '/api/threads/delete';
-        paramName = 'threadId';
-        successMessage = 'Thread erased!';
-        break;
-      case 'note':
-        apiUrl = '/api/notes/delete';
-        paramName = 'noteId';
-        successMessage = 'Note erased!';
-        break;
-      case 'space':
-        apiUrl = '/api/spaces/delete';
-        paramName = 'spaceId';
-        successMessage = 'Space erased!';
-        break;
-      default:
-        return;
+    if (contentType === 'thread') {
+      if (!eraseAction) return;
+      await performThreadErase({
+        threadId: contentId,
+        threadEraseMode: threadEraseModeFromMenuAction(eraseAction),
+        userId: effectiveUserId,
+      });
+      return;
     }
+
+    let apiUrl: string;
+    let paramName: string;
+    let successMessage: string;
+    if (contentType === 'note') {
+      apiUrl = '/api/notes/delete';
+      paramName = 'noteId';
+      successMessage = 'Note erased!';
+    } else if (contentType === 'space') {
+      apiUrl = '/api/spaces/delete';
+      paramName = 'spaceId';
+      successMessage = 'Space erased!';
+    } else {
+      return;
+    }
+
     let deletedOffline = false;
     try {
       if (effectiveUserId) {
         try {
           if (contentType === 'note') {
             await deleteNoteOffline(effectiveUserId, contentId);
-            deletedOffline = true;
-          } else if (contentType === 'thread') {
-            await deleteThreadOffline(effectiveUserId, contentId);
             deletedOffline = true;
           } else if (contentType === 'space') {
             await deleteSpaceOffline(effectiveUserId, contentId);
@@ -177,9 +217,7 @@ export default function ActionStrip({
           (window as any).toast.error("Couldn't erase. Please check your connection and try again.");
         }
         if (!deletedOffline) return;
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', { detail: { threadId: contentId } }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', { detail: { noteId: contentId, threadId: currentThreadId } }));
         } else if (contentType === 'space') {
           window.dispatchEvent(new CustomEvent('spaceDeleted', { detail: { spaceId: contentId } }));
@@ -200,9 +238,10 @@ export default function ActionStrip({
       }
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', { detail: { threadId: contentId } }));
-        } else if (contentType === 'note') {
+        if (data?.success && typeof data.success === 'string') {
+          successMessage = data.success;
+        }
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', { detail: { noteId: contentId, threadId: currentThreadId } }));
         } else if (contentType === 'space') {
           window.dispatchEvent(new CustomEvent('spaceDeleted', { detail: { spaceId: contentId } }));
@@ -223,9 +262,7 @@ export default function ActionStrip({
         }
         safeNavigate(redirectUrl, { history: 'replace' });
       } else if (deletedOffline) {
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', { detail: { threadId: contentId } }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', { detail: { noteId: contentId, threadId: currentThreadId } }));
         } else if (contentType === 'space') {
           window.dispatchEvent(new CustomEvent('spaceDeleted', { detail: { spaceId: contentId } }));
@@ -243,9 +280,7 @@ export default function ActionStrip({
       }
     } catch (error) {
       if (isNetworkError(error) && deletedOffline) {
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', { detail: { threadId: contentId } }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', { detail: { noteId: contentId, threadId: currentThreadId } }));
         } else if (contentType === 'space') {
           window.dispatchEvent(new CustomEvent('spaceDeleted', { detail: { spaceId: contentId } }));
@@ -341,33 +376,65 @@ export default function ActionStrip({
   };
 
   const handleConfirm = async () => {
-    setShowConfirmDialog(false);
     if (!pendingAction) return;
     const action = pendingAction;
+
+    const isThreadErase =
+      contentType === 'thread' &&
+      (action === 'eraseThread' || action === 'eraseThreadAndNotes');
+
+    if (isThreadErase) {
+      setIsThreadEraseBusy(true);
+      try {
+        await performErase(action);
+      } finally {
+        setIsThreadEraseBusy(false);
+        setShowConfirmDialog(false);
+        setPendingAction(null);
+      }
+      return;
+    }
+
+    setShowConfirmDialog(false);
     setPendingAction(null);
     if (action === 'leaveSpace') {
       await executeLeaveSpace();
     } else if (action.includes('erase')) {
-      await performErase();
+      await performErase(action);
     }
   };
 
   const handleCancel = () => {
+    if (isThreadEraseBusy) return;
     setShowConfirmDialog(false);
     setPendingAction(null);
   };
 
-  if (!showStrip || stripItems.length === 0) {
+  if (!showStrip || (stripItems.length === 0 && !showThreadEraseDropdown)) {
     return null;
   }
 
   const isDesktop = variant === 'desktop';
   const className = isDesktop ? 'action-strip action-strip--desktop' : 'action-strip action-strip--mobile';
+
+  const isThreadErasePending =
+    contentType === 'thread' &&
+    (pendingAction === 'eraseThread' || pendingAction === 'eraseThreadAndNotes');
+  const threadEraseDialogCopy =
+    isThreadErasePending && pendingAction
+      ? getThreadEraseConfirmCopy(threadEraseModeFromMenuAction(pendingAction))
+      : null;
   const showMeta =
     (contentType === 'note' && (noteSimpleId != null || (noteCreatedAt != null && noteCreatedAt !== ''))) ||
     (contentType === 'space' && spaceIsShared !== undefined);
 
-  const buttons = stripItems.map((item) => (
+  const openThreadEraseConfirm = (menuAction: 'eraseThread' | 'eraseThreadAndNotes') => {
+    setEraseDropdownOpen(false);
+    setPendingAction(menuAction);
+    setShowConfirmDialog(true);
+  };
+
+  const stripItemButtons = stripItems.map((item) => (
     <button
       key={item.action}
       type="button"
@@ -377,6 +444,56 @@ export default function ActionStrip({
       <span className="action-strip__label">{item.label}</span>
     </button>
   ));
+
+  const threadEraseTrigger = (
+    <button
+      type="button"
+      className="action-strip__item action-strip__erase-trigger"
+      aria-expanded={eraseDropdownOpen}
+      aria-controls="action-strip-erase-cluster"
+      id="action-strip-erase-trigger"
+      aria-label={eraseDropdownOpen ? 'Close erase options' : 'Erase thread options'}
+      onClick={() => setEraseDropdownOpen((open) => !open)}
+    >
+      <span className="action-strip__label">{eraseDropdownOpen ? 'Close' : 'Erase'}</span>
+    </button>
+  );
+
+  const threadEraseCluster = eraseDropdownOpen ? (
+    <div
+      className="action-strip__erase-cluster"
+      id="action-strip-erase-cluster"
+      role="group"
+      aria-label="Choose how to erase this thread"
+    >
+      <button
+        type="button"
+        className="action-strip__erase-cluster-item"
+        onClick={() => openThreadEraseConfirm('eraseThread')}
+      >
+        <span className="action-strip__label">Erase Thread</span>
+      </button>
+      <button
+        type="button"
+        className="action-strip__erase-cluster-item"
+        onClick={() => openThreadEraseConfirm('eraseThreadAndNotes')}
+      >
+        <span className="action-strip__label">Erase All</span>
+      </button>
+    </div>
+  ) : null;
+
+  const buttons = (
+    <>
+      {stripItemButtons}
+      {showThreadEraseDropdown && (
+        <div className="action-strip__erase-wrap" ref={eraseWrapRef}>
+          {threadEraseTrigger}
+          {threadEraseCluster}
+        </div>
+      )}
+    </>
+  );
 
   const metaBlock = showMeta ? (
     <div className="action-strip__meta">
@@ -444,7 +561,7 @@ export default function ActionStrip({
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) handleCancel();
+            if (e.target === e.currentTarget && !isThreadEraseBusy) handleCancel();
           }}
         >
           <div
@@ -461,13 +578,19 @@ export default function ActionStrip({
             }}
           >
             <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-deep-grey)', marginBottom: '0.5rem' }}>
-              {pendingAction === 'leaveSpace' ? 'Leave this space?' : 'Are you sure?'}
+              {pendingAction === 'leaveSpace'
+                ? 'Leave this space?'
+                : threadEraseDialogCopy
+                  ? threadEraseDialogCopy.title
+                  : 'Are you sure?'}
             </h3>
             <p style={{ color: 'var(--color-pebble-grey)', marginBottom: '1.5rem' }}>
               {pendingAction === 'leaveSpace' ? (
                 <>Anything you&apos;ve added to this space will remain in the space unless you remove it. You can rejoin later with the same link.</>
               ) : contentType === 'space' ? (
                 <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
+              ) : threadEraseDialogCopy ? (
+                <>{threadEraseDialogCopy.body}</>
               ) : (
                 <>Are you sure you want to erase this {contentType}?</>
               )}
@@ -478,7 +601,12 @@ export default function ActionStrip({
                 <ButtonSmall type="button" onClick={handleConfirm} state="Default">Leave Space</ButtonSmall>
               </div>
             ) : (
-              <EraseConfirmDialog contentType={contentType} onCancel={handleCancel} onConfirm={handleConfirm} />
+              <EraseConfirmDialog
+                contentType={contentType}
+                onCancel={handleCancel}
+                onConfirm={handleConfirm}
+                busy={isThreadEraseBusy}
+              />
             )}
           </div>
         </div>,

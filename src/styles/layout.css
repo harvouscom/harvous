@@ -122,8 +122,12 @@
 
 /* Reserve space for the action strip dock only when the dock is present */
 .mobile-main--with-dock {
-  /* Extra slack below the peek so .app-layout overflow:hidden does not clip the dock (safe area / subpixel) */
-  margin-bottom: 4rem;
+  /*
+   * Slack below the card so the dock peek is not clipped by app-layout overflow.
+   * When the mobile strip matched a 3.5rem peek, 4rem worked; strip is now 2.75rem (desktop parity),
+   * so we reclaim 0.75rem for the main column — CardStack fills via flex:1 on .mobile-main.
+   */
+  margin-bottom: calc(4rem - 0.75rem);
 }
 
 /* On mobile with a dock, exactly 12px bottom padding on .app-layout.
@@ -148,12 +152,13 @@
     padding-bottom: 0;
   }
   /* Reserve space so scroll content never extends under the action strip dock */
+  /* Dock height matches desktop: calc(2.75rem + 1.5rem); +0.25rem buffer (was 5.25 for the old 3.5rem strip) */
   .mobile-main--with-dock .main-column__scroll {
-    padding-bottom: 5.25rem;
+    padding-bottom: 4.5rem;
   }
   /* Edit mode: ensure Tiptap editor content can scroll above the dock when it is still visible (e.g. before hide animation completes) */
   .mobile-main--with-dock .card-full-editable[data-editing="true"] .tiptap-content {
-    padding-bottom: 5.25rem;
+    padding-bottom: 4.5rem;
   }
 }
 
@@ -410,17 +415,18 @@ button.new-space-floating-button {
 
 /* Mobile action strip dock: cream panel behind the card, bottom edge peeks out.
    Mirrors the desktop dock but at the bottom instead of the right. Use --showing or --hiding for animation. */
+/* Cross-axis size matches desktop action strip width (2.75rem); underlap matches desktop dock (+1.5rem) */
 .mobile-action-strip-dock {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -3.5rem;
+  bottom: -2.75rem;
   z-index: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
-  height: calc(3.5rem + 1.5rem);
+  height: calc(2.75rem + 1.5rem);
   padding-top: 1.5rem;
   box-sizing: border-box;
   background-color: #ebe8e0;
@@ -440,7 +446,7 @@ button.new-space-floating-button {
 /* Dock starts fully behind the card, then slides down to reveal actions */
 @keyframes mobile-dock-slide-in {
   from {
-    transform: translateY(-3.5rem);
+    transform: translateY(-2.75rem);
     opacity: 0;
   }
   to {
@@ -455,11 +461,11 @@ button.new-space-floating-button {
     opacity: 1;
   }
   70% {
-    transform: translateY(-3.5rem);
+    transform: translateY(-2.75rem);
     opacity: 1;
   }
   100% {
-    transform: translateY(-3.5rem);
+    transform: translateY(-2.75rem);
     opacity: 0;
   }
 }

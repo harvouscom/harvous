@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { recentSearchStorageKey, recentSearchesUpdatedEvent } from '@/utils/recent-search-storage';
+import {
+  recentSearchStorageKey,
+  recentSearchesUpdatedEvent,
+  type RecentSearchStorageScope,
+} from '@/utils/recent-search-storage';
 
 interface RecentSearch {
   term: string;
@@ -10,8 +14,8 @@ interface RecentSearch {
 interface RecentSearchesProps {
   /** Called when user hovers a recent search; use to prefetch so click shows results instantly. */
   onPrefetchSearch?: (term: string) => void;
-  /** Per-thread / per-space storage; omit for global Find. */
-  storageScope?: { type: 'thread' | 'space'; id: string };
+  /** Per-thread / per-space / add-tab storage; omit for global Find. */
+  storageScope?: Exclude<RecentSearchStorageScope, null>;
   /** When set (scoped search), apply the term on the current page instead of opening `/search`. */
   onSelectRecentTerm?: (term: string) => void;
 }

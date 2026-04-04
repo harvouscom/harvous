@@ -865,6 +865,17 @@
   height: 36px;
 }
 
+/* Edit Space / Edit Thread panels: shorter tab row, tighter gap to list/search below */
+.tab-nav-container.content-tabs.content-tabs--panel .tab-nav__button {
+  padding-top: 0;
+  padding-bottom: 4px;
+  height: 28px;
+}
+
+.tab-nav-container.content-tabs.content-tabs--panel button[data-active="true"]:not(.tab-btn)::after {
+  bottom: 2px;
+}
+
 .tab-nav__button {
   display: flex;
   gap: 8px;

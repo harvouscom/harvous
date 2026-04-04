@@ -114,7 +114,7 @@
     width: 20px;
     height: 20px;
     color: var(--color-deep-grey);
-    opacity: 0.25;
+    opacity: 0.6;
   }
 }
 
@@ -466,7 +466,8 @@
     width: 100%;
     height: 100%;
     color: var(--color-deep-grey);
-    opacity: 0.3;
+    /* Same as .featured-card__accent svg — icon sits on thread color strip */
+    opacity: 0.6;
   }
 }
 

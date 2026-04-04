@@ -2,6 +2,12 @@ import React, { useState } from 'react';
 import Icon from './Icon';
 import { generateThreadMeshGradient } from '@/utils/colors';
 import { idToUrl } from '@/utils/url-helpers';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+} from './CondensedNoteRowLayout';
 
 interface CardNoteProps {
   variant?: "default" | "withImage";
@@ -320,28 +326,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     className="card-note__scripture-refs-list"
                   >
                     {uniqueScriptureRefs.map((ref, index) => {
-                      // Generate mesh gradient from thread colors for this scripture note
-                      const meshGradient = ref.threadColors && ref.threadColors.length > 0
-                        ? generateThreadMeshGradient(ref.threadColors, ref.noteId)
-                        : null;
-                      
-                      const accentBarStyle: React.CSSProperties = {
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: 0,
-                        width: '2.75rem',
-                        borderTopLeftRadius: '0.75rem',
-                        borderBottomLeftRadius: '0.75rem',
-                        overflow: 'hidden',
-                        ...(meshGradient 
-                          ? { 
-                              backgroundColor: 'var(--color-light-paper)',
-                              backgroundImage: meshGradient
-                            }
-                          : { backgroundColor: 'var(--color-light-paper)' }
-                        )
-                      };
+                      const meshGradient = getCondensedNoteMeshGradient(ref.threadColors, ref.noteId);
 
                       return (
                         <a
@@ -358,67 +343,38 @@ const CardNote: React.FC<CardNoteProps> = ({
                             animationDelay: `${index * 50}ms`
                           }}
                         >
-                          <div
-                            className="relative cursor-pointer"
-                            style={{
-                              position: 'relative',
-                              borderRadius: '0.75rem',
-                              height: '48px',
-                              width: '100%',
-                              textAlign: 'left',
-                              backgroundColor: 'white',
-                              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                              transition: 'transform 0.2s',
-                              cursor: 'pointer'
-                            }}
+                          <CondensedNoteRowLayout
+                            accentBarStyle={getCondensedNoteAccentBarStyle(meshGradient)}
+                            icon={condensedNoteRowIcon({ noteType: 'scripture' })}
+                            style={{ cursor: 'pointer' }}
+                            boxShadow="0 1px 2px 0 rgba(0, 0, 0, 0.05)"
                           >
-                            {/* Accent bar on left */}
-                            <div style={accentBarStyle} />
-                            
-                            {/* Content */}
-                            <div 
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '1.5rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '3rem',
-                                height: '100%',
-                                overflow: 'hidden'
-                              }}
-                            >
-                              {/* Scripture icon */}
-                              <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-                                <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontFamily: 'var(--font-sans)',
+                                fontWeight: 700,
+                                color: 'var(--color-deep-grey)',
+                                fontSize: '16px',
+                                lineHeight: 1.2,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {ref.reference || 'Untitled Scripture'}
                               </div>
-                              
-                              {/* Text content */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                                <div style={{
+                              {ref.translation && (
+                                <span style={{
                                   fontFamily: 'var(--font-sans)',
-                                  fontWeight: 700,
-                                  color: 'var(--color-deep-grey)',
-                                  fontSize: '16px',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  fontSize: '12px',
+                                  fontWeight: 'normal',
+                                  color: 'var(--color-stone-grey)',
+                                  flexShrink: 0,
                                 }}>
-                                  {ref.reference || 'Untitled Scripture'}
-                                </div>
-                                {ref.translation && (
-                                  <span style={{
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: '12px',
-                                    fontWeight: 'normal',
-                                    color: 'var(--color-stone-grey)',
-                                    flexShrink: 0,
-                                  }}>
-                                    {ref.translation}
-                                  </span>
-                                )}
-                              </div>
+                                  {ref.translation}
+                                </span>
+                              )}
                             </div>
-                          </div>
+                          </CondensedNoteRowLayout>
                         </a>
                       );
                     })}
@@ -638,28 +594,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                     className="card-note__scripture-refs-list"
                   >
                     {uniqueScriptureRefs.map((ref, index) => {
-                      // Generate mesh gradient from thread colors for this scripture note
-                      const meshGradient = ref.threadColors && ref.threadColors.length > 0
-                        ? generateThreadMeshGradient(ref.threadColors, ref.noteId)
-                        : null;
-                      
-                      const accentBarStyle: React.CSSProperties = {
-                        position: 'absolute',
-                        top: 0,
-                        bottom: 0,
-                        left: 0,
-                        width: '2.75rem',
-                        borderTopLeftRadius: '0.75rem',
-                        borderBottomLeftRadius: '0.75rem',
-                        overflow: 'hidden',
-                        ...(meshGradient 
-                          ? { 
-                              backgroundColor: 'var(--color-light-paper)',
-                              backgroundImage: meshGradient
-                            }
-                          : { backgroundColor: 'var(--color-light-paper)' }
-                        )
-                      };
+                      const meshGradient = getCondensedNoteMeshGradient(ref.threadColors, ref.noteId);
 
                       return (
                         <a
@@ -676,67 +611,38 @@ const CardNote: React.FC<CardNoteProps> = ({
                             animationDelay: `${index * 50}ms`
                           }}
                         >
-                          <div
-                            className="relative cursor-pointer"
-                            style={{
-                              position: 'relative',
-                              borderRadius: '0.75rem',
-                              height: '48px',
-                              width: '100%',
-                              textAlign: 'left',
-                              backgroundColor: 'white',
-                              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-                              transition: 'transform 0.2s',
-                              cursor: 'pointer'
-                            }}
+                          <CondensedNoteRowLayout
+                            accentBarStyle={getCondensedNoteAccentBarStyle(meshGradient)}
+                            icon={condensedNoteRowIcon({ noteType: 'scripture' })}
+                            style={{ cursor: 'pointer' }}
+                            boxShadow="0 1px 2px 0 rgba(0, 0, 0, 0.05)"
                           >
-                            {/* Accent bar on left */}
-                            <div style={accentBarStyle} />
-                            
-                            {/* Content */}
-                            <div 
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '1.5rem',
-                                paddingLeft: '0.75rem',
-                                paddingRight: '3rem',
-                                height: '100%',
-                                overflow: 'hidden'
-                              }}
-                            >
-                              {/* Scripture icon */}
-                              <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-                                <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontFamily: 'var(--font-sans)',
+                                fontWeight: 700,
+                                color: 'var(--color-deep-grey)',
+                                fontSize: '16px',
+                                lineHeight: 1.2,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}>
+                                {ref.reference || 'Untitled Scripture'}
                               </div>
-                              
-                              {/* Text content */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                                <div style={{
+                              {ref.translation && (
+                                <span style={{
                                   fontFamily: 'var(--font-sans)',
-                                  fontWeight: 700,
-                                  color: 'var(--color-deep-grey)',
-                                  fontSize: '16px',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap'
+                                  fontSize: '12px',
+                                  fontWeight: 'normal',
+                                  color: 'var(--color-stone-grey)',
+                                  flexShrink: 0,
                                 }}>
-                                  {ref.reference || 'Untitled Scripture'}
-                                </div>
-                                {ref.translation && (
-                                  <span style={{
-                                    fontFamily: 'var(--font-sans)',
-                                    fontSize: '12px',
-                                    fontWeight: 'normal',
-                                    color: 'var(--color-stone-grey)',
-                                    flexShrink: 0,
-                                  }}>
-                                    {ref.translation}
-                                  </span>
-                                )}
-                              </div>
+                                  {ref.translation}
+                                </span>
+                              )}
                             </div>
-                          </div>
+                          </CondensedNoteRowLayout>
                         </a>
                       );
                     })}

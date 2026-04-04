@@ -4,7 +4,6 @@ import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
-import Icon from './Icon';
 import { stripHtml } from '@/utils/html-stripper';
 import { normalizeDate } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
@@ -16,6 +15,13 @@ import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
+import { CONDENSED_NOTE_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+} from './CondensedNoteRowLayout';
 
 // ── Thread notes sessionStorage cache ──
 const THREAD_CACHE_PREFIX = 'harvous-thread-notes-';
@@ -1512,81 +1518,48 @@ export default function ThreadNotesList({
           onMouseDown={() => onPrefetchNote?.(note.id)}
         >
           {isScriptureNote ? (
-            // Condensed/mini version for scripture notes (matching AddToSpaceSection NoteItem)
-            <div
-              className="relative cursor-pointer"
-              style={{
-                position: 'relative',
-                borderRadius: '0.75rem',
-                height: '48px',
-                width: '100%',
-                textAlign: 'left',
-                backgroundColor: 'white',
-                boxShadow: 'none',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}
-            >
-              {/* Accent bar on left */}
-              <div 
-                style={{ 
-                  position: 'absolute',
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  width: '2.75rem',
-                  borderTopLeftRadius: '0.75rem',
-                  borderBottomLeftRadius: '0.75rem',
-                  overflow: 'hidden',
-                  backgroundColor: 'var(--color-light-paper)'
-                }}
-              />
-              
-              {/* Content */}
-              <div 
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1.5rem',
-                  paddingLeft: '0.75rem',
-                  paddingRight: '3rem',
-                  height: '100%',
-                  overflow: 'hidden'
-                }}
-              >
-                {/* Note type icon - scroll icon with opacity */}
-                <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-                  <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />
-                </div>
-                
-                {/* Text content - title + translation badge */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
-                  {/* Title */}
-                  <div style={{
-                    fontFamily: 'var(--font-sans)',
-                    fontWeight: 700,
-                    color: 'var(--color-deep-grey)',
-                    fontSize: '16px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {note.title || 'Untitled Note'}
+            (() => {
+              const tc =
+                note.threadColors ?? (threadColor ? [{ color: threadColor, frequency: 1 }] : undefined);
+              const mesh = getCondensedNoteMeshGradient(tc, note.id);
+              return (
+                <CondensedNoteRowLayout
+                  accentBarStyle={getCondensedNoteAccentBarStyle(mesh)}
+                  icon={condensedNoteRowIcon({ noteType: 'scripture' })}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-sans)',
+                        fontWeight: 700,
+                        color: 'var(--color-deep-grey)',
+                        fontSize: '16px',
+                        lineHeight: 1.2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {note.title || 'Untitled Note'}
+                    </div>
+                    {note.version && (
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-sans)',
+                          fontSize: '12px',
+                          fontWeight: 'normal',
+                          color: 'var(--color-stone-grey)',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {note.version}
+                      </span>
+                    )}
                   </div>
-                  {note.version && (
-                    <span style={{
-                      fontFamily: 'var(--font-sans)',
-                      fontSize: '12px',
-                      fontWeight: 'normal',
-                      color: 'var(--color-stone-grey)',
-                      flexShrink: 0,
-                    }}>
-                      {note.version}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+                </CondensedNoteRowLayout>
+              );
+            })()
           ) : (
             // Full CardNote for non-scripture notes – pass threadColors so accent shows (e.g. member in shared space)
             <CardNote 
@@ -1646,7 +1619,7 @@ export default function ThreadNotesList({
             minimumExpectedCount={totalCountForFilter}
           />
         ) : isInitialLoadPending ? (
-          <div style={{ minHeight: '48px' }} aria-hidden="true" />
+          <div style={{ minHeight: `${CONDENSED_NOTE_ROW_HEIGHT_PX}px` }} aria-hidden="true" />
         ) : committedFilter !== noteTypeFilter ? null : (
           <div style={{ textAlign: 'center', paddingTop: '64px', paddingBottom: '64px' }}>
             <p style={{ fontWeight: 600, color: 'var(--color-pebble-grey)', fontSize: '18px' }}>

@@ -1,10 +1,32 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import SearchInput from './SearchInput';
+import FindSearchInput from './FindSearchInput';
+import RecentSearches from './RecentSearches';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
+import {
+  useSearch,
+  fetchSearchResults,
+  searchQueryKey,
+  type SearchResult,
+  type SearchResultType,
+} from '@/hooks/useSearch';
+import {
+  recentSearchStorageKey,
+  recentSearchesUpdatedEvent,
+  type RecentSearchStorageScope,
+} from '@/utils/recent-search-storage';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
-import { generateThreadMeshGradient } from '@/utils/colors';
+import { CONDENSED_NOTE_ICON_PX, CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+  getSolidThreadAccentBarStyle,
+} from './CondensedNoteRowLayout';
 
 // Note Item Component with hover state
 const NoteItem: React.FC<{
@@ -16,15 +38,10 @@ const NoteItem: React.FC<{
   const [isHovered, setIsHovered] = useState(false);
   const [hasHover, setHasHover] = useState(true); // Default to true (desktop)
 
-  const meshGradient = useMemo(() => {
-    const threadColors = item.threadColors;
-    if (!threadColors || !Array.isArray(threadColors) || threadColors.length === 0) {
-      return null;
-    }
-    const validColors = threadColors.filter(c => c && c.color && typeof c.frequency === 'number');
-    if (validColors.length === 0) return null;
-    return generateThreadMeshGradient(validColors, item.id);
-  }, [item.threadColors, item.id]);
+  const meshGradient = useMemo(
+    () => getCondensedNoteMeshGradient(item.threadColors, item.id),
+    [item.threadColors, item.id],
+  );
   
   useEffect(() => {
     // Detect if device supports hover (has cursor)
@@ -41,29 +58,8 @@ const NoteItem: React.FC<{
     }
   };
 
-  // Get note type icon - consistent size for all icons (20px to match CardNote)
-  const getNoteTypeIcon = () => {
-    const noteType = item.noteType || 'default';
-    const iconSize = 20;
-    if (noteType === 'scripture') {
-      return <Icon name="scroll" size={iconSize} style={{ color: 'var(--color-deep-grey)' }} />;
-    } else if (noteType === 'resource') {
-      return <Icon name="newspaper" size={iconSize} style={{ color: 'var(--color-deep-grey)' }} />;
-    } else {
-      // Default note - use bookmark icon (same as CardNote) - ensure same size as Icon component
-      return (
-        <svg 
-          width={iconSize} 
-          height={iconSize} 
-          style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} 
-          fill="currentColor" 
-          viewBox="0 0 24 24"
-        >
-          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-        </svg>
-      );
-    }
-  };
+  const rowNoteType =
+    item.noteType === 'resource' || item.noteType === 'scripture' ? item.noteType : 'default';
 
   return (
     <div
@@ -83,14 +79,12 @@ const NoteItem: React.FC<{
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
           border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          overflow: 'hidden',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -101,103 +95,57 @@ const NoteItem: React.FC<{
           setIsHovered(false);
         }}
       >
-        {/* Accent bar on left - thread mesh gradient (dashboard parity) or light paper; icon for resource/scripture */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)',
-            ...(meshGradient ? { backgroundImage: meshGradient } : {}),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getCondensedNoteAccentBarStyle(meshGradient)}
+          icon={condensedNoteRowIcon({ noteType: rowNoteType })}
+          style={{ cursor: 'pointer' }}
         >
-          {/* Show icon for resource/scripture notes */}
-          {(item.noteType === 'resource' || item.noteType === 'scripture') && (
-            <div style={{ 
-              width: '20px', 
-              height: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0.3
-            }}>
-              {getNoteTypeIcon()}
-            </div>
-          )}
-        </div>
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            // Add extra left padding for resource/scripture notes to account for sidebar icon
-            paddingLeft: (item.noteType === 'resource' || item.noteType === 'scripture') ? '3.5rem' : '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
-        >
-          {/* Note type icon - only show for default notes (resource/scripture show in sidebar) */}
-          {(!item.noteType || item.noteType === 'default') && (
-            <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-              {getNoteTypeIcon()}
-            </div>
-          )}
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0
-              }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 700,
+                  color: 'var(--color-deep-grey)',
+                  fontSize: '16px',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
                 {item.title}
               </div>
               {item.noteType === 'scripture' && (item.version || item.scriptureTranslation) && (
-                <span style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontSize: '12px',
-                  fontWeight: 'normal',
-                  color: 'var(--color-stone-grey)',
-                  flexShrink: 0,
-                  whiteSpace: 'nowrap',
-                }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: '12px',
+                    fontWeight: 'normal',
+                    color: 'var(--color-stone-grey)',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {item.version || item.scriptureTranslation}
                 </span>
               )}
             </div>
           </div>
-        </div>
-        
+        </CondensedNoteRowLayout>
+
         {/* Add button - appears on hover (desktop) or always visible (touch) */}
         <div
           style={{
             position: 'absolute',
-            top: '50%',
+            top: 0,
+            bottom: 0,
             right: '0.75rem',
-            transform: 'translateY(-50%)',
-            width: '2rem',
-            height: '2rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            width: '2rem',
             opacity: hasHover ? (isHovered ? 1 : 0) : 1,
             transition: 'opacity 0.2s',
             zIndex: 10,
@@ -248,6 +196,21 @@ const ThreadItem: React.FC<{
     }
   };
 
+  const threadRowIcon =
+    item.isPublic === true ? (
+      <Icon
+        name="user-group"
+        size={CONDENSED_NOTE_ICON_PX}
+        style={{ color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY }}
+      />
+    ) : (
+      <Icon
+        name="user"
+        size={CONDENSED_NOTE_ICON_PX}
+        style={{ color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY }}
+      />
+    );
+
   return (
     <div
       className="group"
@@ -266,14 +229,12 @@ const ThreadItem: React.FC<{
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: '0px 2px 8px 0px rgba(120, 118, 111, 0.1)',
           border: isSelected ? '2px solid var(--color-bold-blue)' : 'none',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          overflow: 'hidden',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -284,103 +245,49 @@ const ThreadItem: React.FC<{
           setIsHovered(false);
         }}
       >
-        {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: threadAccentColor,
-            zIndex: 10
-          }}
-        />
-        
-        {/* White background for content area (starts after colored bar) */}
-        <div 
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: '2.75rem',
-            right: 0,
-            borderTopRightRadius: '0.75rem',
-            borderBottomRightRadius: '0.75rem',
-            backgroundColor: 'white'
-          }}
-        />
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden',
-            position: 'relative',
-            zIndex: 20
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getSolidThreadAccentBarStyle(threadAccentColor)}
+          icon={threadRowIcon}
+          boxShadow="0px 2px 8px 0px rgba(120, 118, 111, 0.1)"
+          style={{ cursor: 'pointer' }}
         >
-          {/* User icon (Private) or User group icon (Shared) */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {item.isPublic === true ? (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 640 640">
-                <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
-              </svg>
-            ) : (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            )}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title with badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0
-              }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 700,
+                  color: 'var(--color-deep-grey)',
+                  fontSize: '16px',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
                 {item.title}
               </div>
-              {/* Item count badge */}
               {item.count !== undefined && item.count !== null && item.count > 0 && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
-                  <span className="badge-number">
-                    {formatBadgeCount(item.count)}
-                  </span>
+                  <span className="badge-number">{formatBadgeCount(item.count)}</span>
                 </div>
               )}
             </div>
           </div>
-        </div>
-        
+        </CondensedNoteRowLayout>
+
         {/* Add button - appears on hover (desktop) or always visible (touch) */}
         <div
           style={{
             position: 'absolute',
-            top: '50%',
+            top: 0,
+            bottom: 0,
             right: '0.75rem',
-            transform: 'translateY(-50%)',
-            width: '2rem',
-            height: '2rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            width: '2rem',
             opacity: hasHover ? (isHovered ? 1 : 0) : 1,
             transition: 'opacity 0.2s',
             zIndex: 10,
@@ -456,6 +363,12 @@ interface AddToSpaceSectionProps {
   emptyMessage?: string;
   itemsToShow?: 'notes' | 'all'; // Filter to show only notes or all items
   currentThreadNoteIds?: string[]; // Array of note IDs already in the thread (for filtering)
+  /** Use `/api/search` (FTS) after submit; browse lists stay from `allNotes` / `allThreads`. */
+  enableFullTextSearch?: boolean;
+  /** Override API `type` (default: `notes` when itemsToShow is notes, else `all`). */
+  fullTextSearchApiType?: SearchResultType;
+  /** Required when enableFullTextSearch — separate recent list for this add surface. */
+  recentSearchRecordScope?: Exclude<RecentSearchStorageScope, null>;
 }
 
 export default function AddToSpaceSection({
@@ -469,9 +382,117 @@ export default function AddToSpaceSection({
   placeholder = "Search notes and threads",
   emptyMessage = "No items found",
   itemsToShow = 'all',
-  currentThreadNoteIds = []
+  currentThreadNoteIds = [],
+  enableFullTextSearch = false,
+  fullTextSearchApiType: fullTextSearchApiTypeProp,
+  recentSearchRecordScope,
 }: AddToSpaceSectionProps) {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
+  const [ftsLiveQuery, setFtsLiveQuery] = useState("");
+  const [ftsDebouncedQuery, setFtsDebouncedQuery] = useState("");
+
+  const FTS_DEBOUNCE_MS = 200;
+  useEffect(() => {
+    if (!enableFullTextSearch) return;
+    const t = window.setTimeout(() => setFtsDebouncedQuery(ftsLiveQuery.trim()), FTS_DEBOUNCE_MS);
+    return () => window.clearTimeout(t);
+  }, [ftsLiveQuery, enableFullTextSearch]);
+
+  const apiResultType: SearchResultType =
+    fullTextSearchApiTypeProp ?? (itemsToShow === 'notes' ? 'notes' : 'all');
+
+  const ftsQuery = enableFullTextSearch ? ftsDebouncedQuery : '';
+  const { data: ftsData, isLoading: ftsLoading, isError: ftsError, error: ftsErr } = useSearch(
+    ftsQuery,
+    undefined,
+    apiResultType,
+  );
+
+  const ftsLiveTrim = ftsLiveQuery.trim();
+  const ftsDebouncePending = ftsLiveTrim.length > 0 && ftsDebouncedQuery !== ftsLiveTrim;
+
+  const prefetchFts = useCallback(
+    (term: string) => {
+      if (!term.trim() || !enableFullTextSearch) return;
+      queryClient.prefetchQuery({
+        queryKey: searchQueryKey(term, undefined, apiResultType),
+        queryFn: () => fetchSearchResults(term, undefined, apiResultType),
+      });
+    },
+    [queryClient, enableFullTextSearch, apiResultType],
+  );
+
+  const searchResultToSpaceItem = useCallback((r: SearchResult): SpaceItem | null => {
+    if (r.type === 'note') {
+      return {
+        id: r.id,
+        title: r.title || 'Untitled Note',
+        type: 'note',
+        spaceId: r.spaceId ?? null,
+        content: r.content ?? undefined,
+        noteType: (r.noteType as SpaceItem['noteType']) || 'default',
+        version: r.version ?? null,
+        scriptureTranslation: r.scriptureTranslation ?? null,
+        threadColors: r.threadColors,
+      };
+    }
+    return {
+      id: r.id,
+      title: r.title || 'Untitled',
+      type: 'thread',
+      spaceId: r.spaceId ?? null,
+      color: r.color ?? undefined,
+      isPublic: false,
+      subtitle: r.subtitle ?? undefined,
+    };
+  }, []);
+
+  const addableFtsResults = useMemo(() => {
+    if (!enableFullTextSearch || !ftsData?.results?.length) return [];
+    return ftsData.results.filter((r) => {
+      if (selectedItems.includes(r.id)) return false;
+      if (r.type === 'note') {
+        if (currentThreadId && currentThreadNoteIds.includes(r.id)) return false;
+        if (currentSpaceId !== null && r.spaceId === currentSpaceId) return false;
+        return true;
+      }
+      if (r.type === 'thread') {
+        if (itemsToShow !== 'all') return false;
+        if (r.id === 'thread_unorganized') return false;
+        if (currentSpaceId !== null && r.spaceId === currentSpaceId) return false;
+        return true;
+      }
+      return false;
+    });
+  }, [
+    enableFullTextSearch,
+    ftsData?.results,
+    selectedItems,
+    currentThreadId,
+    currentThreadNoteIds,
+    currentSpaceId,
+    itemsToShow,
+  ]);
+
+  useEffect(() => {
+    if (!enableFullTextSearch || !recentSearchRecordScope) return;
+    const trimmed = ftsDebouncedQuery.trim();
+    if (!trimmed) return;
+    try {
+      const key = recentSearchStorageKey(recentSearchRecordScope);
+      const stored = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = stored.map((s: { term?: string } | string) => {
+        const term = typeof s === 'string' ? s : s.term;
+        if (term === trimmed) return { term, count: addableFtsResults.length };
+        return s;
+      });
+      localStorage.setItem(key, JSON.stringify(updated));
+      window.dispatchEvent(new CustomEvent(recentSearchesUpdatedEvent(recentSearchRecordScope)));
+    } catch {
+      /* ignore */
+    }
+  }, [enableFullTextSearch, recentSearchRecordScope, ftsDebouncedQuery, addableFtsResults.length]);
 
   // Combine notes and threads into unified items, filtered by space
   const availableItems = useMemo(() => {
@@ -616,7 +637,9 @@ export default function AddToSpaceSection({
 
   const handleItemClick = (itemId: string, itemType: 'note' | 'thread') => {
     onItemSelect(itemId, itemType);
-    setSearchQuery(""); // Clear search after selection
+    setSearchQuery("");
+    setFtsLiveQuery("");
+    setFtsDebouncedQuery("");
   };
 
   // Use centralized stripHtml utility
@@ -662,121 +685,257 @@ export default function AddToSpaceSection({
           }
         }
       `}</style>
-      
-      {/* Search Input */}
-      <div className="mb-3">
-        <SearchInput
-          placeholder={placeholder || (itemsToShow === 'notes' ? "Search notes" : "Search notes and threads")}
-          value={searchQuery}
-          onChange={setSearchQuery}
-        />
-      </div>
 
-      {/* Search Results */}
-      {searchQuery && (
-        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
-          {filteredItems.length === 0 ? (
-            <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
-              {emptyMessage} matching "{searchQuery}"
-            </div>
-          ) : (
-            <>
-              <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
-                {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} found
-              </div>
-              <div className="flex-stack" style={{ gap: "0.5rem" }}>
-                {filteredItems.map(item => {
-                  const onClick = () => handleItemClick(item.id, item.type);
-                  return (
-                    <React.Fragment key={item.id}>
-                      {item.type === 'note' 
-                        ? renderNoteItem(item, onClick)
-                        : renderThreadItem(item, onClick)}
-                    </React.Fragment>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Show available items when no search query */}
-      {!searchQuery && (
+      {enableFullTextSearch && recentSearchRecordScope ? (
         <>
-          {availableItems.length === 0 ? (
-            <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
-              {currentSpaceId === null 
-                ? "No items available to add"
-                : "All items are already in this space"}
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 flex-1 overflow-y-auto min-h-0">
-              {/* Recent Items Section */}
-              {recentItems.length > 0 && (
-                <div className="flex-stack" style={{ gap: "0.5rem" }}>
-                  <div className="flex items-center justify-between px-2">
-                    <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
-                      Most Recent
-                    </div>
-                    {availableItems.length > 0 && (
-                      <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
-                        {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-stack" style={{ gap: "0.5rem" }}>
-                    {recentItems.map(item => {
-                      const onClick = () => handleItemClick(item.id, item.type);
-                      return (
-                        <React.Fragment key={item.id}>
-                          {item.type === 'note' 
-                            ? renderNoteItem(item, onClick)
-                            : renderThreadItem(item, onClick)}
-                        </React.Fragment>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+          <div className="mb-1">
+            <FindSearchInput
+              placeholder={
+                placeholder || (itemsToShow === 'notes' ? 'Search notes…' : 'Search notes and threads…')
+              }
+              value={ftsLiveQuery}
+              onValueChange={setFtsLiveQuery}
+              disableAutoFocus
+              onBeforeSearchNavigate={prefetchFts}
+              onSubmitSearch={() => {
+                /* Enter: recent term recorded in FindSearchInput */
+              }}
+              recentSearchRecordScope={recentSearchRecordScope}
+            />
+          </div>
 
-              {/* All Items Section */}
-              {otherItems.length > 0 && (
-                <div className="flex-stack" style={{ gap: "0.5rem" }}>
+          {!ftsLiveTrim ? (
+            <>
+              <div className="mb-2">
+                <RecentSearches
+                  storageScope={recentSearchRecordScope}
+                  onPrefetchSearch={prefetchFts}
+                  onSelectRecentTerm={(term) => {
+                    prefetchFts(term);
+                    setFtsLiveQuery(term);
+                    setFtsDebouncedQuery(term.trim());
+                  }}
+                />
+              </div>
+              {availableItems.length === 0 ? (
+                <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
+                  {currentSpaceId === null
+                    ? 'No items available to add'
+                    : 'All items are already in this space'}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 flex-1 overflow-y-auto min-h-0">
                   {recentItems.length > 0 && (
-                    <div className="pt-2 border-t border-[rgba(120,118,111,0.15)]">
-                      <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap mb-2">
-                        All items
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                      <div className="flex items-center justify-between px-2">
+                        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                          Most Recent
+                        </div>
+                        {availableItems.length > 0 && (
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                            {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                        {recentItems.map((item) => {
+                          const onClick = () => handleItemClick(item.id, item.type);
+                          return (
+                            <React.Fragment key={item.id}>
+                              {item.type === 'note'
+                                ? renderNoteItem(item, onClick)
+                                : renderThreadItem(item, onClick)}
+                            </React.Fragment>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
-                  {recentItems.length === 0 && (
-                    <div className="flex items-center justify-between px-2">
-                      <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
-                        All items
-                      </div>
-                      {availableItems.length > 0 && (
-                        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
-                          {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
+                  {otherItems.length > 0 && (
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                      {recentItems.length > 0 && (
+                        <div className="pt-2 border-t border-[rgba(120,118,111,0.15)]">
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap mb-2">
+                            All items
+                          </div>
                         </div>
                       )}
+                      {recentItems.length === 0 && (
+                        <div className="flex items-center justify-between px-2">
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                            All items
+                          </div>
+                          {availableItems.length > 0 && (
+                            <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                              {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                        {otherItems.map((item) => {
+                          const onClick = () => handleItemClick(item.id, item.type);
+                          return (
+                            <React.Fragment key={item.id}>
+                              {item.type === 'note'
+                                ? renderNoteItem(item, onClick)
+                                : renderThreadItem(item, onClick)}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-                  <div className="flex-stack" style={{ gap: "0.5rem" }}>
-                    {otherItems.map(item => {
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
+              {ftsDebouncePending || ftsLoading ? (
+                <div className="text-center py-6 text-[var(--color-stone-grey)] text-sm font-sans">Searching…</div>
+              ) : ftsError ? (
+                <div className="text-center py-6 text-[var(--color-stone-grey)] text-sm font-sans">
+                  {ftsErr instanceof Error ? ftsErr.message : 'Search failed. Try again.'}
+                </div>
+              ) : addableFtsResults.length === 0 ? (
+                <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
+                  {emptyMessage} matching &quot;{ftsLiveTrim}&quot;
+                </div>
+              ) : (
+                <>
+                  <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1 px-1">
+                    {addableFtsResults.length} {addableFtsResults.length === 1 ? 'item' : 'items'} found
+                  </div>
+                  <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                    {addableFtsResults.map((r) => {
+                      const item = searchResultToSpaceItem(r);
                       const onClick = () => handleItemClick(item.id, item.type);
                       return (
-                        <React.Fragment key={item.id}>
-                          {item.type === 'note' 
+                        <React.Fragment key={r.id}>
+                          {item.type === 'note'
                             ? renderNoteItem(item, onClick)
                             : renderThreadItem(item, onClick)}
                         </React.Fragment>
                       );
                     })}
                   </div>
-                </div>
+                </>
               )}
             </div>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="mb-3">
+            <SearchInput
+              placeholder={placeholder || (itemsToShow === 'notes' ? 'Search notes' : 'Search notes and threads')}
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+          </div>
+
+          {searchQuery && (
+            <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+              {filteredItems.length === 0 ? (
+                <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
+                  {emptyMessage} matching "{searchQuery}"
+                </div>
+              ) : (
+                <>
+                  <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1">
+                    {filteredItems.length} {filteredItems.length === 1 ? 'item' : 'items'} found
+                  </div>
+                  <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                    {filteredItems.map((item) => {
+                      const onClick = () => handleItemClick(item.id, item.type);
+                      return (
+                        <React.Fragment key={item.id}>
+                          {item.type === 'note'
+                            ? renderNoteItem(item, onClick)
+                            : renderThreadItem(item, onClick)}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {!searchQuery && (
+            <>
+              {availableItems.length === 0 ? (
+                <div className="text-center py-4 text-[var(--color-stone-grey)] text-sm font-sans">
+                  {currentSpaceId === null
+                    ? 'No items available to add'
+                    : 'All items are already in this space'}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3 flex-1 overflow-y-auto min-h-0">
+                  {recentItems.length > 0 && (
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                      <div className="flex items-center justify-between px-2">
+                        <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                          Most Recent
+                        </div>
+                        {availableItems.length > 0 && (
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                            {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                        {recentItems.map((item) => {
+                          const onClick = () => handleItemClick(item.id, item.type);
+                          return (
+                            <React.Fragment key={item.id}>
+                              {item.type === 'note'
+                                ? renderNoteItem(item, onClick)
+                                : renderThreadItem(item, onClick)}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {otherItems.length > 0 && (
+                    <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                      {recentItems.length > 0 && (
+                        <div className="pt-2 border-t border-[rgba(120,118,111,0.15)]">
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap mb-2">
+                            All items
+                          </div>
+                        </div>
+                      )}
+                      {recentItems.length === 0 && (
+                        <div className="flex items-center justify-between px-2">
+                          <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                            All items
+                          </div>
+                          {availableItems.length > 0 && (
+                            <div className="text-[12px] text-[var(--color-stone-grey)] font-sans leading-[normal] text-nowrap">
+                              {availableItems.length} {availableItems.length === 1 ? 'item' : 'items'} available
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex-stack" style={{ gap: '0.5rem' }}>
+                        {otherItems.map((item) => {
+                          const onClick = () => handleItemClick(item.id, item.type);
+                          return (
+                            <React.Fragment key={item.id}>
+                              {item.type === 'note'
+                                ? renderNoteItem(item, onClick)
+                                : renderThreadItem(item, onClick)}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

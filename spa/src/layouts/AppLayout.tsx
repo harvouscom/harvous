@@ -55,6 +55,23 @@ export default function AppLayout() {
         })()
       : '';
 
+  // ?space= on thread/note routes — which space context the user opened from.
+  const spaceFromSearch: string | null = (() => {
+    const raw = searchRaw;
+    if (raw && typeof raw === 'object' && raw !== null) {
+      const s = (raw as Record<string, unknown>).space;
+      if (typeof s === 'string' && s.startsWith('space_')) return s;
+    }
+    if (typeof raw === 'string' && raw.length > 0) {
+      try {
+        const q = raw.startsWith('?') ? raw.slice(1) : raw;
+        const s = new URLSearchParams(q).get('space');
+        if (s?.startsWith('space_')) return s;
+      } catch { /* ignore */ }
+    }
+    return null;
+  })();
+
   // ?thread= on note routes — which thread context the user opened from (notes can be in multiple threads).
   const threadFromSearch: string | null = (() => {
     const raw = searchRaw;
@@ -72,11 +89,10 @@ export default function AppLayout() {
     return null;
   })();
 
-  const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
+  const { data: profile } = useProfile();
   const navAvatarInitials = useMemo(() => getNavAvatarInitials(user ?? undefined, profile), [user, profile]);
-  // Fire nav immediately when cookie is present (parallel with profile — no waterfall).
   const { data: nav } = useNavigation({
-    enabled: hasSessionCookie || (isLoaded && isSignedIn) || (profileSuccess && !!profile) || profileError,
+    enabled: isLoaded && isSignedIn,
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
@@ -411,7 +427,7 @@ export default function AppLayout() {
   // When on space page, merge currentSpaceDetail (title, color) and isOwner so Edit Space panel paints correctly without waiting for fetch.
   const currentSpaceBase = spaceId
     ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
-    : (activeThread?.spaceId ? (allSpaces.find(s => s.id === activeThread.spaceId) ?? { id: activeThread.spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
+    : (spaceFromSearch ? (allSpaces.find(s => s.id === spaceFromSearch) ?? { id: spaceFromSearch, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
   const currentSpace = (() => {
     if (!currentSpaceBase) return currentSpaceBase;
     const isOwnerForSpace =

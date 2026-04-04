@@ -1241,7 +1241,11 @@ export default function SpaceContentList({
                   e.stopPropagation();
                   handleRemoveFromSpace(item.id, item.itemType);
                 }}
-                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover"
+                className={
+                  item.itemType === 'note' && item.noteType === 'scripture'
+                    ? 'absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover -translate-y-1/2'
+                    : 'absolute top-2 right-2 w-8 h-8 flex-center action-button-hover'
+                }
                 disabled={isRemovingItem}
                 style={{ pointerEvents: 'auto', zIndex: 11 }}
               />

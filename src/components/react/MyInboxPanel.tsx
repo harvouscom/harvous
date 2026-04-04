@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import SquareButton from './SquareButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { generateAccentMeshGradient } from '@/utils/colors';
+import Icon from './Icon';
 
 type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
 
@@ -38,11 +39,7 @@ function getIconForContentType(contentType: FeaturedContentType) {
     );
   }
   if (contentType === 'thread') {
-    return (
-      <svg fill="currentColor" viewBox="0 0 512 512" aria-hidden="true">
-        <path d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-8.8 0-16 7.2-16 16s7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16L192 64zM16 232c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM192 232c0 8.8 7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-288 0c-8.8 0-16 7.2-16 16zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0zM192 384c-8.8 0-16 7.2-16 16s7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-288 0z" />
-      </svg>
-    );
+    return <Icon name="layer-group" size={20} />;
   }
   if (contentType === 'recall') {
     return (

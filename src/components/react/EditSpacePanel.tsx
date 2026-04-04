@@ -2,6 +2,14 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+  getSolidThreadAccentBarStyle,
+} from './CondensedNoteRowLayout';
+import { CONDENSED_NOTE_ICON_PX, CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import TabNav from './TabNav';
@@ -455,7 +463,7 @@ export default function EditSpacePanel({
         setAdminFeaturedItem(created);
         setAdminDescription(created?.description ?? adminDescription);
         window.dispatchEvent(
-          new CustomEvent('toast', { detail: { message: 'Featured for all users', type: 'success' } }),
+          new CustomEvent('toast', { detail: { message: 'Featured for everyone', type: 'success' } }),
         );
       }
     } catch (err: any) {
@@ -1327,23 +1335,28 @@ export default function EditSpacePanel({
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
-  // Render compact thread item (similar to ThreadItem in AddToSpaceSection)
+  // Render compact thread item (same row metrics as CondensedNoteItem / AddToSpaceSection ThreadItem)
   const renderCompactThreadItem = (thread: Thread) => {
     const threadAccentColor = thread.color ? `var(--color-${thread.color})` : "var(--color-purple)";
-    
+    const iconStyle = { color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY } as const;
+    const threadRowIcon =
+      formData.selectedType === 'Shared' ? (
+        <Icon name="layer-group" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
+      ) : (
+        <Icon name="user" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
+      );
+
     return (
       <div
         className="relative cursor-pointer"
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          overflow: 'hidden',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -1352,110 +1365,56 @@ export default function EditSpacePanel({
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: threadAccentColor
-          }}
-        />
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getSolidThreadAccentBarStyle(threadAccentColor)}
+          icon={threadRowIcon}
+          style={{ cursor: 'pointer' }}
         >
-          {/* Layer-group (space Shared) or user icon (space Private) */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {formData.selectedType === 'Shared' ? (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 576 512">
-                <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
-              </svg>
-            ) : (
-              <svg style={{ display: 'block', maxWidth: 'none', width: '100%', height: '100%', color: 'var(--color-deep-grey)', opacity: 0.3 }} fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            )}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title with badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-              <div style={{ 
-                fontFamily: 'var(--font-sans)', 
-                fontWeight: 700, 
-                color: 'var(--color-deep-grey)', 
-                fontSize: '16px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-                minWidth: 0
-              }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+              <div
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontWeight: 700,
+                  color: 'var(--color-deep-grey)',
+                  fontSize: '16px',
+                  lineHeight: 1.2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                }}
+              >
                 {thread.title || 'Untitled Thread'}
               </div>
-              {/* Item count badge */}
-              {((thread.count !== undefined && thread.count !== null && thread.count > 0) || 
+              {((thread.count !== undefined && thread.count !== null && thread.count > 0) ||
                 (thread.noteCount !== undefined && thread.noteCount !== null && thread.noteCount > 0)) && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
-                  <span className="badge-number">
-                    {formatBadgeCount(thread.count ?? thread.noteCount)}
-                  </span>
+                  <span className="badge-number">{formatBadgeCount(thread.count ?? thread.noteCount)}</span>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </CondensedNoteRowLayout>
       </div>
     );
   };
 
-  // Helper function to get note type icon (matches EditThreadPanel)
-  const getNoteTypeIcon = (noteType: string = 'default') => {
-    if (noteType === 'scripture') {
-      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else if (noteType === 'resource') {
-      return <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else {
-      // Default note - use bookmark icon
-      return (
-        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-        </svg>
-      );
-    }
-  };
-
-  // Render compact note item (similar to EditThreadPanel)
+  // Render compact note item (shared layout with CondensedNoteItem)
   const renderCompactNoteItem = (note: Note) => {
-    const noteType = (note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default';
+    const noteType =
+      note.noteType === 'resource' || note.noteType === 'scripture' ? note.noteType : 'default';
+    const mesh = getCondensedNoteMeshGradient((note as { threadColors?: { color: string; frequency: number }[] }).threadColors, note.id);
     return (
       <div
         className="relative cursor-pointer"
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
+          overflow: 'hidden',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -1464,54 +1423,30 @@ export default function EditSpacePanel({
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        {/* Accent bar on left */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)'
-          }}
-        />
-
-        {/* Content */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getCondensedNoteAccentBarStyle(mesh)}
+          icon={condensedNoteRowIcon({
+            noteType: noteType as 'default' | 'scripture' | 'resource',
+          })}
+          style={{ cursor: 'pointer' }}
         >
-          {/* Note type icon - scroll for scripture, newspaper for resource, bookmark for default */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {getNoteTypeIcon(noteType)}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title */}
-            <div style={{ 
-              fontFamily: 'var(--font-sans)', 
-              fontWeight: 700, 
-              color: 'var(--color-deep-grey)', 
-              fontSize: '16px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontWeight: 700,
+                color: 'var(--color-deep-grey)',
+                fontSize: '16px',
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {note.title || 'Untitled Note'}
             </div>
           </div>
-        </div>
+        </CondensedNoteRowLayout>
       </div>
     );
   };
@@ -1755,6 +1690,7 @@ export default function EditSpacePanel({
                   </div>
                 )}
 
+                <div className="edit-panel-tab-stack w-full flex flex-col gap-1 min-h-0 flex-1">
                 {/* Tab navigation and Created by (same row, justify-between); Created by only for members */}
                 <div className="flex-between w-full shrink-0" style={{ gap: "0.5rem" }}>
                   <TabNav
@@ -1763,7 +1699,7 @@ export default function EditSpacePanel({
                       { id: 'search', label: 'Add', isActive: activeTab === 'all' }
                     ]}
                     onTabChange={(id) => setActiveTab(id === 'search' ? 'all' : 'added')}
-                    className="content-tabs"
+                    className="content-tabs content-tabs--panel"
                   />
                   {!isLoadingMembers && !isOwner && (() => {
                     const owner = members.find((m: any) => m.role === 'owner');
@@ -1774,9 +1710,9 @@ export default function EditSpacePanel({
                         className="leading-[normal] text-nowrap text-metadata shrink-0"
                         style={{
                           display: 'inline-block',
-                          height: '36px',
+                          height: '28px',
                           paddingTop: 0,
-                          paddingBottom: '8px',
+                          paddingBottom: '4px',
                           paddingLeft: '12px',
                           paddingRight: '12px',
                           boxSizing: 'border-box'
@@ -1811,7 +1747,7 @@ export default function EditSpacePanel({
                                   e.stopPropagation();
                                   handleRemoveFromSpace(thread.id, 'thread');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
+                                className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover z-10 -translate-y-1/2"
                                 disabled={isRemovingItem}
                               />
                             )}
@@ -1836,7 +1772,7 @@ export default function EditSpacePanel({
                                   e.stopPropagation();
                                   handleRemoveFromSpace(note.id, 'note');
                                 }}
-                                className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
+                                className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover z-10 -translate-y-1/2"
                                 disabled={isRemovingItem}
                               />
                             )}
@@ -1870,10 +1806,13 @@ export default function EditSpacePanel({
                         isLoading={isAddingItems}
                         placeholder="Search notes and threads"
                         emptyMessage="No items found"
+                        enableFullTextSearch
+                        recentSearchRecordScope={{ type: 'space-add', id: spaceId }}
                       />
                     )}
                   </div>
                 )}
+                </div>
 
               </div>
             </div>

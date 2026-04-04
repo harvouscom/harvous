@@ -4,10 +4,11 @@ import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import ButtonSmall from './ButtonSmall';
-import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
+import { deleteNoteOffline, deleteSpaceOffline } from '@/utils/offline-mutations';
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
+import { performThreadErase, threadEraseModeFromMenuAction, getThreadEraseConfirmCopy } from '@/utils/perform-thread-erase';
 
 export interface MenuOption {
   action: string;
@@ -159,6 +160,7 @@ export default function Menu({
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [isThreadEraseBusy, setIsThreadEraseBusy] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const firstItemRef = useRef<HTMLButtonElement>(null);
@@ -204,6 +206,7 @@ export default function Menu({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && showConfirmDialog) {
+        if (isThreadEraseBusy) return;
         setShowConfirmDialog(false);
         setPendingAction(null);
       }
@@ -216,7 +219,7 @@ export default function Menu({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [showConfirmDialog]);
+  }, [showConfirmDialog, isThreadEraseBusy]);
 
   // Focus management: Focus first menu item when menu opens
   useEffect(() => {
@@ -240,14 +243,13 @@ export default function Menu({
   };
 
   const handleAction = async (action: string, label: string) => {
-    // Handle delete actions - show confirmation dialog first
+    // Handle delete actions — confirm dialog (thread / note / space)
     if (action.includes('erase')) {
       if (!contentId || !contentType) {
         console.error('No content ID or type provided for delete action');
         return;
       }
-      
-      // Show confirmation dialog (don't close menu yet)
+
       setPendingAction(action);
       setShowConfirmDialog(true);
       return;
@@ -284,7 +286,7 @@ export default function Menu({
       }
       closeMenu();
     } else if (action.includes('erase')) {
-      await performErase();
+      await performErase(action);
     } else if (action === 'openNoteDetailsThreads') {
       // Handle Threads shortcut action for notes
       try {
@@ -406,7 +408,7 @@ export default function Menu({
     }
   };
 
-  const performErase = async () => {
+  const performErase = async (eraseAction?: string) => {
     if (!contentId || !contentType) {
       console.error('No content ID or type provided for erase');
       if ((window as any).toast) {
@@ -417,32 +419,32 @@ export default function Menu({
       return;
     }
 
-    // Determine the API endpoint and parameter name
-    let apiUrl, paramName, successMessage;
-    switch (contentType) {
-      case 'thread':
-        apiUrl = '/api/threads/delete';
-        paramName = 'threadId';
-        successMessage = 'Thread erased!';
-        break;
-      case 'note':
-        apiUrl = '/api/notes/delete';
-        paramName = 'noteId';
-        successMessage = 'Note erased!';
-        break;
-      case 'space':
-        apiUrl = '/api/spaces/delete';
-        paramName = 'spaceId';
-        successMessage = 'Space erased!';
-        break;
-      default:
-        console.error('Unknown content type for delete:', contentType);
-        if ((window as any).toast) {
-          (window as any).toast.error('Unknown content type for erase.');
-        } else {
-          alert('Unknown content type for erase.');
-        }
-        return;
+    if (contentType === 'thread') {
+      const mode = threadEraseModeFromMenuAction(eraseAction ?? 'eraseThread');
+      await performThreadErase({ threadId: contentId, threadEraseMode: mode, userId });
+      return;
+    }
+
+    // Determine the API endpoint and parameter name (note and space only)
+    let apiUrl: string;
+    let paramName: string;
+    let successMessage: string;
+    if (contentType === 'note') {
+      apiUrl = '/api/notes/delete';
+      paramName = 'noteId';
+      successMessage = 'Note erased!';
+    } else if (contentType === 'space') {
+      apiUrl = '/api/spaces/delete';
+      paramName = 'spaceId';
+      successMessage = 'Space erased!';
+    } else {
+      console.error('Unknown content type for delete:', contentType);
+      if ((window as any).toast) {
+        (window as any).toast.error('Unknown content type for erase.');
+      } else {
+        alert('Unknown content type for erase.');
+      }
+      return;
     }
 
     let deletedOffline = false;
@@ -453,9 +455,6 @@ export default function Menu({
         try {
           if (contentType === 'note') {
             await deleteNoteOffline(userId, contentId);
-            deletedOffline = true;
-          } else if (contentType === 'thread') {
-            await deleteThreadOffline(userId, contentId);
             deletedOffline = true;
           } else if (contentType === 'space') {
             await deleteSpaceOffline(userId, contentId);
@@ -499,11 +498,7 @@ export default function Menu({
         console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
 
         // Dispatch deletion events for navigation updates
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', {
-            detail: { threadId: contentId }
-          }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', {
             detail: {
               noteId: contentId,
@@ -546,21 +541,20 @@ export default function Menu({
       } catch (error) {
         console.error('[Menu] Failed to parse response JSON', error);
       }
-      
+
       if (response && response.ok) {
+        if (data?.success && typeof data.success === 'string') {
+          successMessage = data.success;
+        }
         // Don't show toast here when we'll redirect with ?toast= params (avoids double toast).
         // For space/thread we always redirect with params. For note we redirect with params unless
         // NavigationContext already navigated; show toast only when we're not redirecting.
-        const willRedirectWithToast = contentType === 'space' || contentType === 'thread';
+        const willRedirectWithToast = contentType === 'space';
         if (!deletedOffline && !willRedirectWithToast && contentType !== 'note' && (window as any).toast) {
           (window as any).toast.success(successMessage);
         }
         // Dispatch appropriate deletion event for navigation updates
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', {
-            detail: { threadId: contentId }
-          }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           const pathBeforeEvent = window.location.pathname;
           
           window.dispatchEvent(new CustomEvent('noteDeleted', {
@@ -601,11 +595,7 @@ export default function Menu({
         }
 
         // Item is already deleted locally, proceed with navigation
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', {
-            detail: { threadId: contentId }
-          }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', {
             detail: { 
               noteId: contentId,
@@ -667,7 +657,7 @@ export default function Menu({
             redirectUrl = '/dashboard' + toastQuery;
           }
         } else {
-          // For threads and spaces, redirect to dashboard
+          // Space: redirect to dashboard
           redirectUrl = '/dashboard' + toastQuery;
         }
         // Use View Transitions instead of hard redirect to maintain React state
@@ -677,11 +667,7 @@ export default function Menu({
       if (isNetworkError(error) && deletedOffline) {
         console.log('[Menu] Network error but item deleted offline, proceeding with navigation', { contentType, contentId });
 
-        if (contentType === 'thread') {
-          window.dispatchEvent(new CustomEvent('threadDeleted', {
-            detail: { threadId: contentId }
-          }));
-        } else if (contentType === 'note') {
+        if (contentType === 'note') {
           window.dispatchEvent(new CustomEvent('noteDeleted', {
             detail: { 
               noteId: contentId,
@@ -728,24 +714,40 @@ export default function Menu({
   };
 
   const handleConfirmErase = async () => {
-    setShowConfirmDialog(false);
-    
-    // Execute action BEFORE closing menu to ensure component stays mounted
-    if (pendingAction) {
-      const actionToExecute = pendingAction;
-      setPendingAction(null);
+    if (!pendingAction) return;
+    const actionToExecute = pendingAction;
+
+    const isThreadErase =
+      contentType === 'thread' &&
+      (actionToExecute === 'eraseThread' || actionToExecute === 'eraseThreadAndNotes');
+
+    if (isThreadErase) {
+      setIsThreadEraseBusy(true);
       try {
         await executeAction(actionToExecute);
       } catch (error) {
         console.error('Error executing action:', error);
+      } finally {
+        setIsThreadEraseBusy(false);
+        setShowConfirmDialog(false);
+        setPendingAction(null);
+        closeMenu();
       }
+      return;
     }
-    
-    // Close menu after action completes
+
+    setShowConfirmDialog(false);
+    setPendingAction(null);
+    try {
+      await executeAction(actionToExecute);
+    } catch (error) {
+      console.error('Error executing action:', error);
+    }
     closeMenu();
   };
 
   const handleCancelErase = () => {
+    if (isThreadEraseBusy) return;
     setShowConfirmDialog(false);
     setPendingAction(null);
     // Keep menu open if user cancels
@@ -754,6 +756,14 @@ export default function Menu({
   if (options.length === 0) {
     return null;
   }
+
+  const isThreadErasePending =
+    contentType === 'thread' &&
+    (pendingAction === 'eraseThread' || pendingAction === 'eraseThreadAndNotes');
+  const threadEraseDialogCopy =
+    isThreadErasePending && pendingAction
+      ? getThreadEraseConfirmCopy(threadEraseModeFromMenuAction(pendingAction))
+      : null;
 
   return (
     <>
@@ -808,8 +818,7 @@ export default function Menu({
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
           onClick={(e) => {
-            // Close dialog if clicking on the overlay (but not the dialog content)
-            if (e.target === e.currentTarget) {
+            if (e.target === e.currentTarget && !isThreadEraseBusy) {
               handleCancelErase();
             }
           }}
@@ -833,7 +842,11 @@ export default function Menu({
               color: 'var(--color-deep-grey)',
               marginBottom: '0.5rem'
             }}>
-              {pendingAction === 'leaveSpace' ? 'Leave this space?' : 'Are you sure?'}
+              {pendingAction === 'leaveSpace'
+                ? 'Leave this space?'
+                : threadEraseDialogCopy
+                  ? threadEraseDialogCopy.title
+                  : 'Are you sure?'}
             </h3>
             <p style={{
               color: 'var(--color-pebble-grey)',
@@ -843,6 +856,8 @@ export default function Menu({
                 <>Anything you&apos;ve added to this space will remain in the space unless you remove it. You can rejoin later with the same link.</>
               ) : contentType === 'space' ? (
                 <>When you erase a space your notes and threads will stay in your Harvous. Only the space will be erased.</>
+              ) : threadEraseDialogCopy ? (
+                <>{threadEraseDialogCopy.body}</>
               ) : (
                 <>Are you sure you want to erase this {contentType}?</>
               )}
@@ -861,6 +876,7 @@ export default function Menu({
                 contentType={contentType!}
                 onCancel={handleCancelErase}
                 onConfirm={handleConfirmErase}
+                busy={isThreadEraseBusy}
               />
             )}
           </div>

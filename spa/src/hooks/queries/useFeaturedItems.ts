@@ -15,9 +15,10 @@ export interface FeaturedItem {
 
 export const featuredItemsQueryKey = ['featured-items'] as const;
 
-export function useFeaturedItems() {
+export function useFeaturedItems(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: featuredItemsQueryKey,
+    enabled: options?.enabled !== false,
     queryFn: async () => {
       const res = await fetch('/api/featured/items', { credentials: 'include' });
       if (!res.ok) {

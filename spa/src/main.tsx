@@ -38,6 +38,9 @@ window.addEventListener('vite:preloadError', () => {
   }
 });
 
+// Preload critical webfonts before @font-face rules (reduces swap → system font on fast route changes)
+import './font-preload';
+
 // Fonts — import directly from installed npm packages so they bundle correctly
 import '@fontsource/reddit-sans/400.css';
 import '@fontsource/reddit-sans/500.css';

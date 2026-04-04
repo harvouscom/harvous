@@ -259,7 +259,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     
     case 'CLOSE_EDIT_THREAD':
       return { activePanel: null, panelKey: state.panelKey };
-    
+
     case 'OPEN_EDIT_SPACE':
       // Close all other panels and open EditSpace
       return { activePanel: 'editSpace', panelKey: state.panelKey + 1 };
@@ -519,7 +519,6 @@ export default function DesktopPanelManager({
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
   const [requestedNoteId, setRequestedNoteId] = useState<string | null>(null);
   const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
-
   // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
   useEffect(() => {
     preloadPanelChunks();

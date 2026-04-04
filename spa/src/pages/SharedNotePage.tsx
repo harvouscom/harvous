@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
 import { api } from '../lib/api';
 import { APIError } from '../lib/api';
@@ -34,6 +35,7 @@ interface SharedNoteResponse {
 export default function SharedNotePage() {
   const { shareToken } = useParams({ from: '/shared/note/$shareToken' });
   const { isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [data, setData] = useState<SharedNoteResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -172,7 +174,7 @@ export default function SharedNotePage() {
                 <div className="shared-page__creator">
                   <p>
                     {creator?.isHarvousOwned
-                      ? 'A Harvous note'
+                      ? "You're invited to add this note on Harvous"
                       : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
                   </p>
                 </div>
@@ -204,7 +206,10 @@ export default function SharedNotePage() {
                         {alreadyOwned ? (
                           <button
                             className="btn btn--lg btn--primary shared-page__cta-button"
-                            onClick={() => navigate({ to: '/' as any })}
+                            onClick={() => {
+                              void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                              navigate({ to: '/' as any });
+                            }}
                           >
                             <div className="btn__content">
                               <span className="shared-page__cta-text">View in my Harvous</span>

@@ -1,11 +1,14 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import CardNote from '../../../src/components/react/CardNote';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import CardStack from '../components/CardStack';
 import { api, APIError } from '../lib/api';
 import { useAddSharedThread } from '../hooks/mutations/useAddSharedThread';
+import { getThreadGradientCSS } from '../../../src/utils/colors';
+import type { ThreadDetail, ThreadPrefetchData } from '../hooks/queries/useThread';
 
 interface SharedThreadNote {
   id: string;
@@ -36,6 +39,8 @@ interface SharedThreadResponse {
 export default function SharedThreadPage() {
   const { shareToken } = useParams({ from: '/shared/thread/$shareToken' });
   const { isSignedIn } = useAuth();
+  const { user } = useUser();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [data, setData] = useState<SharedThreadResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,6 +51,86 @@ export default function SharedThreadPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [alreadyOwned, setAlreadyOwned] = useState(false);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info', duration = 3000) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(message);
+    setToastType(type);
+    setToastVisible(true);
+    if (duration > 0) {
+      toastTimerRef.current = setTimeout(() => setToastVisible(false), duration);
+    }
+  }, []);
+
+  const doAdd = useCallback(async () => {
+    try {
+      const result = await addSharedThreadMutation.mutateAsync(shareToken);
+      if (result.success && result.createdIds?.threadId) {
+        showToast('Added to your Harvous!', 'success', 0);
+        const id = result.createdIds.threadId;
+        const path = id.startsWith('thread_') ? `/thread/${id.slice(7)}` : `/${id}`;
+        const preview = data?.thread;
+        const fromApi = result.thread;
+        const colorRaw = fromApi?.color ?? preview?.color ?? 'paper';
+        const color = (colorRaw || 'paper') as string;
+        const title = fromApi?.title ?? preview?.title ?? 'Untitled Thread';
+        const noteCount =
+          fromApi?.noteCount ?? data?.meta?.noteCount ?? data?.notes?.length ?? 0;
+        const backgroundGradient =
+          fromApi?.backgroundGradient ?? getThreadGradientCSS(color);
+
+        const threadDetail: ThreadDetail = {
+          id,
+          title,
+          color: colorRaw ?? 'paper',
+          backgroundGradient,
+          noteCount,
+          spaceId: fromApi?.spaceId ?? null,
+          isPublic: fromApi?.isPublic ?? false,
+          ...(user?.id ? { userId: user.id } : {}),
+        };
+
+        const prefetch: ThreadPrefetchData = {
+          thread: threadDetail,
+          noteTypeCounts: undefined,
+        };
+        queryClient.setQueryData(['thread', id], prefetch);
+
+        const threadForEvent = {
+          id,
+          title: threadDetail.title,
+          color: threadDetail.color,
+          spaceId: threadDetail.spaceId,
+          noteCount: threadDetail.noteCount,
+          isPublic: threadDetail.isPublic,
+          backgroundGradient: threadDetail.backgroundGradient,
+        };
+        const detail = { thread: threadForEvent, threadId: id, spaceId: null as string | null };
+        window.dispatchEvent(new CustomEvent('threadCreated', { detail }));
+        document.dispatchEvent(new CustomEvent('threadCreated', { detail }));
+
+        navigate({ to: path as any });
+      }
+    } catch (err: any) {
+      const msg = err?.message || '';
+      if (msg.includes('Already in your Harvous') || msg.includes('already')) {
+        setAlreadyOwned(true);
+        showToast('This thread is already in your Harvous', 'info', 0);
+      } else {
+        showToast('Failed to add thread. Please try again.', 'error');
+      }
+    }
+  }, [
+    addSharedThreadMutation,
+    data?.meta?.noteCount,
+    data?.notes?.length,
+    data?.thread,
+    navigate,
+    queryClient,
+    shareToken,
+    showToast,
+    user?.id,
+  ]);
 
   useEffect(() => {
     api.get<SharedThreadResponse>(`/api/shared/thread/${shareToken}`)
@@ -63,45 +148,13 @@ export default function SharedThreadPage() {
         const pending = JSON.parse(pendingStr);
         if (pending.shareToken === shareToken && (Date.now() - pending.timestamp) < 600000) {
           sessionStorage.removeItem('pendingSharedThreadAdd');
-          doAdd();
+          void doAdd();
         } else {
           sessionStorage.removeItem('pendingSharedThreadAdd');
         }
       }
     } catch { /* ignore */ }
-  }, [isSignedIn, data]);
-
-  function showToast(message: string, type: 'success' | 'error' | 'info', duration = 3000) {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToastMessage(message);
-    setToastType(type);
-    setToastVisible(true);
-    if (duration > 0) {
-      toastTimerRef.current = setTimeout(() => setToastVisible(false), duration);
-    }
-  }
-
-  async function doAdd() {
-    try {
-      const result = await addSharedThreadMutation.mutateAsync(shareToken);
-      if (result.success && result.createdIds?.threadId) {
-        showToast('Added to your Harvous!', 'success', 0);
-        const id = result.createdIds.threadId;
-        const path = id.startsWith('thread_') ? `/thread/${id.slice(7)}` : `/${id}`;
-        setTimeout(() => {
-          navigate({ to: path as any });
-        }, 800);
-      }
-    } catch (err: any) {
-      const msg = err?.message || '';
-      if (msg.includes('Already in your Harvous') || msg.includes('already')) {
-        setAlreadyOwned(true);
-        showToast('This thread is already in your Harvous', 'info', 0);
-      } else {
-        showToast('Failed to add thread. Please try again.', 'error');
-      }
-    }
-  }
+  }, [isSignedIn, data, shareToken, doAdd]);
 
   const handleAddToHarvous = async () => {
     if (!isSignedIn) {
@@ -174,7 +227,7 @@ export default function SharedThreadPage() {
                 <div className="shared-page__creator">
                   <p>
                     {creator?.isHarvousOwned
-                      ? 'A Harvous thread'
+                      ? "You're invited to add this thread on Harvous"
                       : `Created by ${creator?.displayName || 'A Harvous User'} on Harvous`}
                   </p>
                 </div>
@@ -230,7 +283,10 @@ export default function SharedThreadPage() {
                       {alreadyOwned ? (
                         <button
                           className="btn btn--lg btn--primary shared-page__cta-button"
-                          onClick={() => navigate({ to: '/' as any })}
+                          onClick={() => {
+                            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                            navigate({ to: '/' as any });
+                          }}
                         >
                           <div className="btn__content">
                             <span className="shared-page__cta-text">View in my Harvous</span>

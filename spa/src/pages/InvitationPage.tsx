@@ -1,9 +1,11 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import CardStack from '../components/CardStack';
 import { api, APIError } from '../lib/api';
 import { useAcceptInvitation } from '../hooks/mutations/useAcceptInvitation';
+import { navigationQueryKey } from '../hooks/queries/useNavigation';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface InvitationResponse {
@@ -27,6 +29,7 @@ interface InvitationResponse {
 export default function InvitationPage() {
   const { token } = useParams({ from: '/invitations/$token' });
   const { isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [data, setData] = useState<InvitationResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -80,6 +83,7 @@ export default function InvitationPage() {
         try {
           sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
         } catch (_) {}
+        await queryClient.refetchQueries({ queryKey: navigationQueryKey });
         const path = result.redirectUrl || idToUrl(result.space.id);
         navigate({ to: path as any });
       }

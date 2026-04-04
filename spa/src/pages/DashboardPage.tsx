@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useUser } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
@@ -24,14 +24,17 @@ const TABS: Array<{ id: DashboardFilter; label: string }> = [
 
 export default function DashboardPage() {
   const { user } = useUser();
+  const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardFilter>('all');
+  const authReady = isLoaded && isSignedIn;
   const { isSuccess: profileSuccess } = useProfile();
-  const { data: featuredItems } = useFeaturedItems();
+  const { data: featuredItems } = useFeaturedItems({ enabled: authReady });
 
-  // Fire immediately — cookie auth works before Clerk loads. Scripture refs are picked up by the background refetch below.
-  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30);
+  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30, {
+    enabled: authReady,
+  });
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;

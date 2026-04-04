@@ -77,16 +77,18 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
 
   switch (contentType) {
     case "thread":
-      // Onboarding thread: only "Erase Thread & Notes", no Edit Thread (only for owner)
       const isOnboardingThread = contentId?.startsWith('thread_onboarding_');
-      if (isOnboardingThread) {
-        if (!canEditContent) return [];
-        return [{ action: "eraseThreadAndNotes", label: "Erase Thread & Notes" }];
-      }
       if (!canEditContent) return [];
+      if (isOnboardingThread) {
+        return [
+          { action: "eraseThread", label: "Erase Thread" },
+          { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
+        ];
+      }
       return [
         { action: "editThread", label: "Edit Thread" },
-        { action: "eraseThread", label: "Erase Thread" }
+        { action: "eraseThread", label: "Erase Thread" },
+        { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
       ];
     case "note":
       const options = [];

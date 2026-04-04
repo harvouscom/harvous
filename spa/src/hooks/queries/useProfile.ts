@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../lib/api';
 import { updateCachedProfileData } from '@/utils/profile-cache';
@@ -70,9 +71,11 @@ export interface XPData {
 }
 
 export function useProfile() {
+  const { isLoaded, isSignedIn } = useAuth();
   const cachedProfile = getCachedProfile();
   return useQuery({
     queryKey: ['profile'],
+    enabled: isLoaded && isSignedIn,
     queryFn: () =>
       api.get<Omit<UserProfile, 'displayName'> & { displayName?: string; emailVerified?: boolean; churchName?: string | null; churchCity?: string | null; churchState?: string | null; hasLockPinSet?: boolean }>('/api/user/get-profile')
         .then(data => {
@@ -104,9 +107,11 @@ export function useProfile() {
 }
 
 export function useXP() {
+  const { isLoaded, isSignedIn } = useAuth();
   const cachedXP = getCachedXP();
   return useQuery({
     queryKey: ['xp'],
+    enabled: isLoaded && isSignedIn,
     queryFn: () =>
       api.get<XPData>('/api/user/xp').then((data) => {
         setCachedXP(data);
@@ -119,8 +124,10 @@ export function useXP() {
 }
 
 export function useUserLimits() {
+  const { isLoaded, isSignedIn } = useAuth();
   return useQuery({
     queryKey: ['limits'],
+    enabled: isLoaded && isSignedIn,
     queryFn: () => api.get<{ tier: string; limits: Record<string, number>; usage: Record<string, number> }>('/api/user/limits'),
     staleTime: 5 * 60_000,
   });

@@ -374,7 +374,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         persistentItems = persistentItems.filter(
           (i) => !(i.title === activeThreadItem.title && i.id !== activeThreadItem.id)
         );
-        persistentItems = [activeThreadItem, ...persistentItems];
+        // Insert at the correct chronological position (by firstAccessed) rather than
+        // prepending — prepend was causing the thread to appear ahead of older items.
+        persistentItems = [...persistentItems, activeThreadItem];
+        persistentItems.sort((a: any, b: any) => {
+          const aFirst = a.firstAccessed ?? Number.MAX_SAFE_INTEGER;
+          const bFirst = b.firstAccessed ?? Number.MAX_SAFE_INTEGER;
+          return aFirst - bFirst;
+        });
       }
     }
 

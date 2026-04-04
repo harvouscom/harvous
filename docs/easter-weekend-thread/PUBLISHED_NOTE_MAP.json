@@ -1,6 +1,10 @@
 {
   "_comment": "Filled in by npm run easter-weekend:publish. Maps contentFile → note id for future sync.",
-  "spaceId": "",
-  "threadId": "",
-  "notes": {}
+  "spaceId": "space_1775233360402",
+  "threadId": "thread_1775269256738",
+  "notes": {
+    "01-good-friday.html": "note_1775269256959",
+    "02-holy-saturday.html": "note_1775269258254",
+    "03-easter-sunday.html": "note_1775269259713"
+  }
 }

@@ -6,6 +6,14 @@ interface FindSearchInputProps {
   className?: string;
   placeholder?: string;
   initialQuery?: string;
+  /**
+   * Controlled mode: parent owns the value (disables URL `?q=` sync and initialQuery sync).
+   * Use with `onValueChange` for live search in panels.
+   */
+  value?: string;
+  onValueChange?: (value: string) => void;
+  /** Skip focus-stealing on mount (e.g. edit panels). */
+  disableAutoFocus?: boolean;
   /** Called before navigating to search results; use to prefetch (fire-and-forget). */
   onBeforeSearchNavigate?: (term: string) => void;
   /** When set, submit stays on the current page (no `/search` navigation). */
@@ -20,21 +28,28 @@ export default function FindSearchInput({
   className = "",
   placeholder = "Search my Harvous...",
   initialQuery = "",
+  value: controlledValue,
+  onValueChange,
+  disableAutoFocus = false,
   onBeforeSearchNavigate,
   onSubmitSearch,
   onClearSearch,
   recentSearchRecordScope,
 }: FindSearchInputProps) {
+  const isControlled = controlledValue !== undefined && onValueChange !== undefined;
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
+  const displayValue = isControlled ? controlledValue : searchQuery;
 
   // Sync when initialQuery prop changes (e.g. SPA navigates to /search?q=term)
   useEffect(() => {
+    if (isControlled) return;
     setSearchQuery(initialQuery);
-  }, [initialQuery]);
+  }, [initialQuery, isControlled]);
 
   // Sync with URL query parameter
   const updateSearchQuery = () => {
+    if (isControlled) return;
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get('q') || '';
     setSearchQuery(query);
@@ -42,46 +57,45 @@ export default function FindSearchInput({
 
   // Initialize from URL and listen for changes
   useEffect(() => {
+    if (isControlled) return;
     updateSearchQuery();
-    
-    // Listen for URL changes (for View Transitions)
+
     window.addEventListener('popstate', updateSearchQuery);
     document.addEventListener('app:route-change', updateSearchQuery);
-    
+
     return () => {
       window.removeEventListener('popstate', updateSearchQuery);
       document.removeEventListener('app:route-change', updateSearchQuery);
     };
-  }, []);
+  }, [isControlled]);
 
   // Auto-focus input on mount and page load
   useEffect(() => {
+    if (disableAutoFocus || isControlled) return;
     const focusInput = () => {
-      // Small delay to ensure input is rendered and ready
       setTimeout(() => {
         inputRef.current?.focus();
       }, 0);
     };
 
-    // Focus on initial mount
     focusInput();
 
-    // Focus on View Transitions page load
     document.addEventListener('app:route-change', focusInput);
 
     return () => {
       document.removeEventListener('app:route-change', focusInput);
     };
-  }, []);
+  }, [disableAutoFocus, isControlled]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
+    if (isControlled) onValueChange(e.target.value);
+    else setSearchQuery(e.target.value);
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    const trimmedQuery = searchQuery.trim();
+    const trimmedQuery = displayValue.trim();
     
     if (!trimmedQuery) {
       return;
@@ -104,12 +118,13 @@ export default function FindSearchInput({
   };
 
   const handleClear = () => {
-    setSearchQuery('');
+    if (isControlled) onValueChange('');
+    else setSearchQuery('');
     if (onClearSearch) {
       onClearSearch();
       return;
     }
-    safeNavigate('/search', { history: 'replace' });
+    if (!isControlled) safeNavigate('/search', { history: 'replace' });
   };
 
   return (
@@ -125,7 +140,7 @@ export default function FindSearchInput({
           ref={inputRef}
           type="text" 
           name="q"
-          value={searchQuery}
+          value={displayValue}
           onChange={handleInputChange}
           role="searchbox"
           aria-label="Find"
@@ -134,7 +149,7 @@ export default function FindSearchInput({
         />
         
         {/* Clear Icon */}
-        {searchQuery && (
+        {displayValue && (
           <button
             type="button"
             onClick={handleClear}

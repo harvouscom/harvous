@@ -16,6 +16,12 @@ import { isNetworkError } from '@/utils/network';
 import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import TabNav from './TabNav';
+import {
+  CondensedNoteRowLayout,
+  condensedNoteRowIcon,
+  getCondensedNoteAccentBarStyle,
+  getCondensedNoteMeshGradient,
+} from './CondensedNoteRowLayout';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 
 interface Note {
@@ -697,7 +703,7 @@ export default function EditThreadPanel({
         setAdminFeaturedItem(created);
         setAdminDescription(created?.description ?? adminDescription);
         window.dispatchEvent(
-          new CustomEvent('toast', { detail: { message: 'Featured for all users', type: 'success' } }),
+          new CustomEvent('toast', { detail: { message: 'Featured for everyone', type: 'success' } }),
         );
       }
     } catch (err: unknown) {
@@ -1658,39 +1664,21 @@ export default function EditThreadPanel({
   // Use centralized stripHtml utility
   const stripHtml = (html: string): string => stripHtmlForPreview(html, 150);
 
-  // Helper function to get note type icon
-  const getNoteTypeIcon = (noteType: string = 'default') => {
-    if (noteType === 'scripture') {
-      return <Icon name="scroll" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else if (noteType === 'resource') {
-      return <Icon name="newspaper" size={20} style={{ color: 'var(--color-deep-grey)', opacity: 0.3 }} />;
-    } else {
-      // Default note - use bookmark icon
-      return (
-        <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-30" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
-        </svg>
-      );
-    }
-  };
-
-  // Render compact note item (similar to AddToSpaceSection)
+  // Render compact note item (shared layout with CondensedNoteItem)
   const renderCompactNoteItem = (note: Note) => {
-    const noteType = (note.noteType === 'resource' || note.noteType === 'scripture') ? note.noteType : 'default';
-    
+    const noteType =
+      note.noteType === 'resource' || note.noteType === 'scripture' ? note.noteType : 'default';
+    const mesh = getCondensedNoteMeshGradient(note.threadColors, note.id);
     return (
       <div
         className="relative cursor-pointer"
         style={{
           position: 'relative',
           borderRadius: '0.75rem',
-          height: '48px',
           width: '100%',
           textAlign: 'left',
-          backgroundColor: 'white',
-          boxShadow: 'none',
+          overflow: 'hidden',
           transition: 'transform 0.2s',
-          cursor: 'pointer'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.transform = 'scale(1.002)';
@@ -1699,54 +1687,30 @@ export default function EditThreadPanel({
           e.currentTarget.style.transform = 'scale(1)';
         }}
       >
-        {/* Accent bar on left */}
-        <div 
-          style={{ 
-            position: 'absolute',
-            top: 0,
-            bottom: 0,
-            left: 0,
-            width: '2.75rem',
-            borderTopLeftRadius: '0.75rem',
-            borderBottomLeftRadius: '0.75rem',
-            overflow: 'hidden',
-            backgroundColor: 'var(--color-light-paper)'
-          }}
-        />
-        
-        {/* Content */}
-        <div 
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '1.5rem',
-            paddingLeft: '0.75rem',
-            paddingRight: '3rem',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <CondensedNoteRowLayout
+          accentBarStyle={getCondensedNoteAccentBarStyle(mesh)}
+          icon={condensedNoteRowIcon({
+            noteType: noteType as 'default' | 'scripture' | 'resource',
+          })}
+          style={{ cursor: 'pointer' }}
         >
-          {/* Note type icon */}
-          <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
-            {getNoteTypeIcon(noteType)}
-          </div>
-          
-          {/* Text content - only title */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
-            {/* Title */}
-            <div style={{ 
-              fontFamily: 'var(--font-sans)', 
-              fontWeight: 700, 
-              color: 'var(--color-deep-grey)', 
-              fontSize: '16px',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
-            }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontWeight: 700,
+                color: 'var(--color-deep-grey)',
+                fontSize: '16px',
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
               {note.title || 'Untitled Note'}
             </div>
           </div>
-        </div>
+        </CondensedNoteRowLayout>
       </div>
     );
   };
@@ -1949,6 +1913,7 @@ export default function EditThreadPanel({
                   </div>
                 ) : null}
 
+                <div className="edit-panel-tab-stack w-full flex flex-col gap-1 min-h-0 flex-1">
                 {/* Tab navigation */}
                 {(() => {
                   const addedCount = currentThreadNotes.filter(n => !removedNoteIds.has(n.id) && !pendingRemovalsRef.current.has(n.id)).length;
@@ -1960,7 +1925,7 @@ export default function EditThreadPanel({
                     <TabNav
                       tabs={tabs}
                       onTabChange={(id) => setActiveTab(id === 'search' ? 'all' : id as 'added' | 'all')}
-                      className="content-tabs"
+                      className="content-tabs content-tabs--panel"
                     />
                   );
                 })()}
@@ -2063,7 +2028,7 @@ export default function EditThreadPanel({
                                       }
                                       handleRemoveFromThread(note.id);
                                     }}
-                                    className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover"
+                                    className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover -translate-y-1/2"
                                     disabled={isRemovingNote}
                                     style={{ pointerEvents: 'auto', zIndex: 11 }}
                                   />
@@ -2100,7 +2065,7 @@ export default function EditThreadPanel({
                                       e.stopPropagation();
                                       handleItemSelect(note.id, 'note');
                                     }}
-                                    className="absolute top-2 right-2 w-8 h-8 flex-center action-button-hover z-10"
+                                    className="absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover z-10 -translate-y-1/2"
                                     disabled={isSaving}
                                   />
                                 </div>
@@ -2134,10 +2099,13 @@ export default function EditThreadPanel({
                         emptyMessage="No notes found"
                         itemsToShow="notes"
                         currentThreadNoteIds={currentThreadNoteIds}
+                        enableFullTextSearch
+                        recentSearchRecordScope={{ type: 'thread-add', id: threadId }}
                       />
                     )}
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>

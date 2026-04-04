@@ -5,12 +5,15 @@ interface EraseConfirmDialogProps {
   contentType?: string;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Thread erase in flight: disables actions and shows progress on the confirm button */
+  busy?: boolean;
 }
 
 export default function EraseConfirmDialog({
   contentType = '',
   onCancel,
-  onConfirm
+  onConfirm,
+  busy = false,
 }: EraseConfirmDialogProps) {
   return (
     <div style={{
@@ -23,6 +26,7 @@ export default function EraseConfirmDialog({
         type="button"
         onClick={onCancel}
         state="Secondary"
+        disabled={busy}
       >
         Cancel
       </ButtonSmall>
@@ -30,8 +34,9 @@ export default function EraseConfirmDialog({
         type="button"
         onClick={onConfirm}
         state="Delete"
+        disabled={busy}
       >
-        Erase
+        {busy ? 'Erasing…' : 'Erase'}
       </ButtonSmall>
     </div>
   );
