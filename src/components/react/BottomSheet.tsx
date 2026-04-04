@@ -719,7 +719,18 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           }
         }}
         onCloseAutoFocus={(e) => e.preventDefault()}
+        onFocusOutside={(e) => {
+          const t = e.target;
+          if (t instanceof Element && t.closest('[data-harvous-bottom-sheet-floating]')) {
+            e.preventDefault();
+          }
+        }}
         onInteractOutside={async (e) => {
+          const t = e.target;
+          if (t instanceof Element && t.closest('[data-harvous-bottom-sheet-floating]')) {
+            e.preventDefault();
+            return;
+          }
           // Intercept overlay click / outside interactions and run panel close logic first.
           e.preventDefault();
           isHandlingDismissRef.current = true;
@@ -749,7 +760,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         </button>
         
         {/* Content - flex-1 so it fills the sheet (no h-full) and footer stays 16px from bottom */}
-        <div ref={sheetContentRef} className="bottom-sheet__inner flex-fill flex-stack" style={{ gap: 0 }}>
+        <div
+          ref={sheetContentRef}
+          className="bottom-sheet__inner flex-fill flex-stack"
+          data-vaul-no-drag=""
+          style={{ gap: 0 }}
+        >
           {/* New Note Panel */}
           {drawerType === 'note' && (
             <div className="panel-container panel-container--note flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>

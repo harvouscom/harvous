@@ -100,6 +100,18 @@
   max-height: none;
 }
 
+/* Vaul sets touch-action: none on [data-vaul-drawer] — restore pan/zoom and input taps inside the sheet. */
+.bottom-sheet-content[data-vaul-drawer] .bottom-sheet__inner {
+  touch-action: pan-y pinch-zoom;
+}
+
+.bottom-sheet-content[data-vaul-drawer] .bottom-sheet__inner input,
+.bottom-sheet-content[data-vaul-drawer] .bottom-sheet__inner textarea,
+.bottom-sheet-content[data-vaul-drawer] .bottom-sheet__inner [contenteditable="true"],
+.bottom-sheet-content[data-vaul-drawer] .bottom-sheet__inner .ProseMirror {
+  touch-action: manipulation;
+}
+
 /* New note panel inside bottom sheet only: strict flex chain so .tiptap-content gets a height and scrolls */
 .bottom-sheet-content .new-note-panel--in-sheet {
   min-height: 0;

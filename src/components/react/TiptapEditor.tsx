@@ -4148,6 +4148,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {selectionActionBar && enableCreateNoteFromSelection && createPortal(
           <div
             ref={createNoteBubbleRef}
+            data-harvous-bottom-sheet-floating=""
             className="selection-action-bar floating-picker-enter"
             style={{
               position: 'fixed',
@@ -4206,6 +4207,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         {/* BubbleMenu can't detect non-inclusive marks at cursor boundary positions */}
         {translationPicker && createPortal(
           <div
+            data-harvous-bottom-sheet-floating=""
             className="scripture-translation-picker floating-picker-enter"
             style={{
               position: 'fixed',
