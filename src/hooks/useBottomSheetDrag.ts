@@ -71,11 +71,10 @@ export function useBottomSheetDrag({ onDismiss, enabled = true }: UseBottomSheet
     };
 
     // Clear on attach so a freshly-opened sheet always starts with clean overlay.
+    // Do not removeProperty(transform) here — it aborts WebKit CSS slide-up on the same node and can leave
+    // the sheet stuck at translateY(100%). Stale inline transform is cleared on open in BottomSheet after
+    // the animation window, or overridden by PWA standalone CSS (no slide animation).
     clearOverlayInlineStyles();
-    // Stale !important transform from a prior dismiss can beat CSS slide-up animation (e.g. iOS PWA).
-    el.style.removeProperty('transform');
-    el.style.removeProperty('transition');
-    el.style.removeProperty('will-change');
 
     const handleTouchStart = (e: TouchEvent) => {
       if (!enabledRef.current) return;

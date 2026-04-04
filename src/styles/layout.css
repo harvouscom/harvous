@@ -126,8 +126,9 @@
    * Slack below the card so the dock peek is not clipped by app-layout overflow.
    * When the mobile strip matched a 3.5rem peek, 4rem worked; strip is now 2.75rem (desktop parity),
    * so we reclaim 0.75rem for the main column — CardStack fills via flex:1 on .mobile-main.
+   * + safe-area: dock extends by env(safe-area-inset-bottom) via .mobile-action-strip-dock.
    */
-  margin-bottom: calc(4rem - 0.75rem);
+  margin-bottom: calc(4rem - 0.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* On mobile with a dock, exactly 12px bottom padding on .app-layout.
@@ -152,21 +153,18 @@
     padding-bottom: 0;
   }
   /* Reserve space so scroll content never extends under the action strip dock */
-  /* Dock height matches desktop: calc(2.75rem + 1.5rem); +0.25rem buffer (was 5.25 for the old 3.5rem strip) */
+  /* Dock height matches desktop: calc(2.75rem + 1.5rem); +0.25rem buffer; + safe-area on PWA/notch */
   .mobile-main--with-dock .main-column__scroll {
-    padding-bottom: 4.5rem;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
   /* Edit mode: ensure Tiptap editor content can scroll above the dock when it is still visible (e.g. before hide animation completes) */
   .mobile-main--with-dock .card-full-editable[data-editing="true"] .tiptap-content {
-    padding-bottom: 4.5rem;
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
-/* PWA standalone: 12px + safe area when dock present; top stays 0 (set by rule above). */
-@media (max-width: 1159px) and (display-mode: standalone) {
-  .app-layout:has(.mobile-main--with-dock) {
-    padding: 0 0.75rem calc(12px + env(safe-area-inset-bottom, 0px)) 0.75rem;
-  }
+/* PWA: dock absorbs bottom safe-area (.mobile-action-strip-dock); keep app-layout bottom padding same as browser (12px with dock). */
+@media (max-width: 1159px) and (display-mode: standalone), (max-width: 1159px) and (display-mode: minimal-ui) {
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -420,14 +418,16 @@ button.new-space-floating-button {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -2.75rem;
+  /* Grow downward by home-indicator inset; top edge stays aligned with pre–safe-area layout */
+  bottom: calc(-2.75rem - env(safe-area-inset-bottom, 0px));
   z-index: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
-  height: calc(2.75rem + 1.5rem);
+  height: calc(2.75rem + 1.5rem + env(safe-area-inset-bottom, 0px));
   padding-top: 1.5rem;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   box-sizing: border-box;
   background-color: #ebe8e0;
   border-bottom-left-radius: 1.5rem;
@@ -443,10 +443,10 @@ button.new-space-floating-button {
   pointer-events: none;
 }
 
-/* Dock starts fully behind the card, then slides down to reveal actions */
+/* Dock starts fully behind the card, then slides down to reveal actions (peek includes bottom safe-area) */
 @keyframes mobile-dock-slide-in {
   from {
-    transform: translateY(-2.75rem);
+    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
     opacity: 0;
   }
   to {
@@ -461,11 +461,11 @@ button.new-space-floating-button {
     opacity: 1;
   }
   70% {
-    transform: translateY(-2.75rem);
+    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
     opacity: 1;
   }
   100% {
-    transform: translateY(-2.75rem);
+    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
     opacity: 0;
   }
 }

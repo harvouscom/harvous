@@ -274,6 +274,27 @@
   will-change: transform;
 }
 
+/*
+  Installed PWA (standalone / minimal-ui): iOS WebKit often never completes bottomSheetSlideUp, leaving the
+  panel at translateY(100%) (thin sliver at bottom). JS removeProperty('transform') on open also aborts the
+  animation. Skip the slide-up here — instant, reliable sheet. Browser tab keeps the animation above.
+*/
+@media (max-width: 1159px) {
+  @media (display-mode: standalone), (display-mode: minimal-ui) {
+    [data-side="bottom"][data-state="open"] {
+      animation: none !important;
+      transform: none !important;
+      will-change: auto;
+    }
+  }
+  /* iOS A2HS: spa/src/App.tsx sets html.ios-pwa; some WebKit builds are flaky on display-mode alone */
+  html.ios-pwa [data-side="bottom"][data-state="open"] {
+    animation: none !important;
+    transform: none !important;
+    will-change: auto;
+  }
+}
+
 [data-side="bottom"][data-state="closed"] {
   animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
   will-change: transform;

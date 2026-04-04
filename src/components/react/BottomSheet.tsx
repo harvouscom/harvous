@@ -296,7 +296,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     if (ok) closeBottomSheet();
   }, [requestClose, closeBottomSheet]);
 
-  const dragRef = useBottomSheetDrag({ onDismiss: dragDismiss, enabled: isVisible && isMobile });
+  /** Delay drag-to-dismiss until after open animation / layout — avoids touch + !important transform fighting WebKit. */
+  const [dragDismissReady, setDragDismissReady] = useState(false);
+  useEffect(() => {
+    if (!isVisible) {
+      setDragDismissReady(false);
+      return;
+    }
+    const t = window.setTimeout(() => setDragDismissReady(true), 380);
+    return () => window.clearTimeout(t);
+  }, [isVisible]);
+
+  const dragRef = useBottomSheetDrag({
+    onDismiss: dragDismiss,
+    enabled: isVisible && isMobile && dragDismissReady,
+  });
 
   // Merge the drag ref with the existing sheetContentElRef (used for keyboard viewport logic)
   const mergedSheetRef = useCallback((el: HTMLDivElement | null) => {
@@ -643,36 +657,20 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Reset overlay + sheet content inline styles when sheet opens (PWA WebKit: stale !important transform
-  // from drag-dismiss can leave panel at translateY(100%); CSS animation fill-mode can also stick at "from").
-  useLayoutEffect(() => {
-    if (!isVisible) return;
-    const el = sheetContentElRef.current;
-    if (el) {
-      el.style.removeProperty('transform');
-      el.style.removeProperty('transition');
-      el.style.removeProperty('will-change');
-    }
-  }, [isVisible]);
-
+  // Overlay only on open — do not clear sheet transform in a loop; that aborts CSS slide-up in Safari/WebKit
+  // and matched the PWA "stuck sliver" bug. Stale post-dismiss inline transform is cleared once after open settles.
   useEffect(() => {
     if (!isVisible) return;
-    const clearOpenInlineStyles = () => {
+    const clearOverlayOnly = () => {
       const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
       if (overlay) {
         overlay.style.opacity = '';
         overlay.style.transition = '';
       }
-      const el = sheetContentElRef.current;
-      if (el) {
-        el.style.removeProperty('transform');
-        el.style.removeProperty('transition');
-        el.style.removeProperty('will-change');
-      }
     };
-    clearOpenInlineStyles();
-    const raf = requestAnimationFrame(clearOpenInlineStyles);
-    const t = window.setTimeout(clearOpenInlineStyles, 50);
+    clearOverlayOnly();
+    const raf = requestAnimationFrame(clearOverlayOnly);
+    const t = window.setTimeout(clearOverlayOnly, 50);
     return () => {
       cancelAnimationFrame(raf);
       window.clearTimeout(t);
