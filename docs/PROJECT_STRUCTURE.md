@@ -31,7 +31,6 @@ harvous/
 │   ├── hooks/              # React hooks
 │   │   ├── useOptimisticUpdates.ts
 │   │   ├── usePWAAndNavigationRefresh.ts
-│   │   ├── useBottomSheetDrag.ts
 │   │   └── useNavigationFeedback.ts
 │   │
 │   ├── scripts/            # Client/build scripts

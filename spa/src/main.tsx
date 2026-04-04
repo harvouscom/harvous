@@ -52,6 +52,7 @@ import '@fontsource/reddit-mono/600.css';
 // Global styles — global.css already @imports: colors, spacing, typography, buttons,
 // navigation, cards, forms, panels, animations, layout, utilities.
 // Only import separately what global.css does NOT include.
+import '../../node_modules/vaul/style.css';
 import '../../src/styles/global.css';
 import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';

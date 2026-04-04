@@ -7,10 +7,9 @@ import Icon from '../Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
-import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 
@@ -1086,9 +1085,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setItemsInCloseMode(new Set());
   }, []);
 
-  // Pull-down-to-dismiss for the navigation bottom sheet
-  const navDragRef = useBottomSheetDrag({ onDismiss: closeSheet, enabled: isSheetOpen });
-
   const handleItemClick = (itemId?: string) => {
     closeSheet();
     // If clicking on a specific item, exit its close mode
@@ -1529,16 +1525,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
           </button>
         </div>
         
-        <Sheet
+        <Drawer.Root
           open={isSheetOpen}
           onOpenChange={(open) => {
             if (!open) closeSheet();
           }}
+          shouldScaleBackground={false}
+          noBodyStyles={true}
         >
-          <SheetContent
-            ref={navDragRef}
-            side="bottom"
+          <DrawerContent
             className="mobile-nav__sheet"
+            onOverlayClick={closeSheet}
             style={{
               background: 'white',
               padding: 0,
@@ -1547,7 +1544,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             }}
             onPointerDownOutside={(e) => e.preventDefault()}
             onInteractOutside={(e) => e.preventDefault()}
-            onOverlayClick={closeSheet}
             onOpenAutoFocus={(e) => {
               // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
               e.preventDefault();
@@ -1555,11 +1551,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
             }}
             onCloseAutoFocus={(e) => e.preventDefault()}
           >
-            {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
-            <SheetHeader>
-              <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <SheetDescription className="sr-only">Switch spaces and threads</SheetDescription>
-            </SheetHeader>
+            <Drawer.Title className="sr-only">Navigation</Drawer.Title>
+            <Drawer.Description className="sr-only">Switch spaces and threads</Drawer.Description>
 
             {/* Focus anchor: keeps focus out of aria-hidden background */}
             <button ref={sheetFocusRef} type="button" className="sr-only">
@@ -1922,8 +1915,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 ) : null}
               </div>
             </div>
-          </SheetContent>
-        </Sheet>
+          </DrawerContent>
+        </Drawer.Root>
       </div>
 
       {/* Avatar (Column 3: auto) */}

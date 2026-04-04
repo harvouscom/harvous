@@ -1,13 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import type { ThreadColor } from '@/utils/colors';
-import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import EditNameColorPanel from './EditNameColorPanel';
 import EditThreadPanel from './EditThreadPanel';
 import EditSpacePanel from './EditSpacePanel';
@@ -289,23 +282,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     []
   );
 
-  // Pull-down-to-dismiss: reuse the existing drag hook (goes through same close flow as overlay click)
-  const dragDismiss = useCallback(async () => {
-    isHandlingDismissRef.current = true;
-    const ok = await requestClose('dismiss');
-    if (ok) closeBottomSheet();
-  }, [requestClose, closeBottomSheet]);
-
-  const dragRef = useBottomSheetDrag({
-    onDismiss: dragDismiss,
-    enabled: isVisible && isMobile,
-  });
-
-  // Merge the drag ref with the existing sheetContentElRef (used for keyboard viewport logic)
-  const mergedSheetRef = useCallback((el: HTMLDivElement | null) => {
-    sheetContentElRef.current = el;
-    dragRef(el);
-  }, [dragRef]);
+  // Drag-to-dismiss is handled by Vaul on Drawer.Content; close still flows through onOpenChange → requestClose.
 
   // Set up event listeners
   useEffect(() => {
@@ -533,6 +510,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     drawerType === 'thread' ||
     drawerType === 'resource' ||
     drawerType === 'noteDetails' ||
+    drawerType === 'editThread' ||
+    drawerType === 'editSpace' ||
+    drawerType === 'addToSpace' ||
+    drawerType === 'editSpacePeople' ||
     drawerType === 'editNameColor' ||
     drawerType === 'emailPassword' ||
     drawerType === 'myChurch' ||
@@ -646,8 +627,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Overlay only on open — do not clear sheet transform in a loop; that aborts CSS slide-up in Safari/WebKit
-  // and matched the PWA "stuck sliver" bug. Stale post-dismiss inline transform is cleared once after open settles.
+  // Overlay only on open — clear stale inline opacity/transition on our `.sheet-overlay` (Radix/Vaul may set these during drag/close).
   useEffect(() => {
     if (!isVisible) return;
     const clearOverlayOnly = () => {
@@ -666,7 +646,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
   }, [isVisible]);
 
-  // Clear overlay inline styles when sheet closes so Radix's CSS transition can fire and transitionend triggers unmount (fixes multi-tap after dismiss)
+  // Clear overlay inline styles when sheet closes so exit transitions can finish (fixes multi-tap after dismiss).
   useLayoutEffect(() => {
     if (isVisible) return;
     const overlay = document.querySelector('.sheet-overlay') as HTMLElement;
@@ -694,11 +674,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return null;
   }
 
+  const keyboardHeavyDrawer = drawerType === 'note' || drawerType === 'resource';
+
   return (
-    <Sheet
+    <Drawer.Root
       open={isVisible}
       onOpenChange={async (open) => {
-        // Fallback: if Radix requests a close without going through our interceptors,
+        // Fallback: if Radix/Vaul requests a close without going through our interceptors,
         // treat it as a dismiss and ask the active panel.
         if (!open && !isHandlingDismissRef.current) {
           const ok = await requestClose('dismiss');
@@ -707,10 +689,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         }
         isHandlingDismissRef.current = false;
       }}
+      shouldScaleBackground={false}
+      noBodyStyles={true}
+      fixed={keyboardHeavyDrawer}
+      dismissible={!isPinSheet}
     >
-      <SheetContent
-        ref={mergedSheetRef}
-        side="bottom"
+      <DrawerContent
+        ref={(el) => {
+          sheetContentElRef.current = el;
+        }}
         className={`rounded-t-3xl p-0 bg-[var(--color-light-paper)] bottom-sheet-content border-0${
           isFullHeightDrawer ? ' bottom-sheet--full-height' : ''
         }`}
@@ -747,15 +734,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         }}
         tabIndex={-1}
       >
-        {/* Accessibility: Required SheetTitle and SheetDescription for screen readers */}
-        <SheetHeader>
-          <SheetTitle className="sr-only">
-            {getDrawerTitle(drawerType)}
-          </SheetTitle>
-          <SheetDescription className="sr-only">
-            {`${getDrawerTitle(drawerType)} panel`}
-          </SheetDescription>
-        </SheetHeader>
+        {/* Accessibility: Radix Dialog requires Title and Description */}
+        <Drawer.Title className="sr-only">
+          {getDrawerTitle(drawerType)}
+        </Drawer.Title>
+        <Drawer.Description className="sr-only">
+          {`${getDrawerTitle(drawerType)} panel`}
+        </Drawer.Description>
 
         {/* Focus anchor: keeps focus out of aria-hidden background (used when not PIN sheet) */}
         <button ref={sheetFocusRef} type="button" className="sr-only">
@@ -870,7 +855,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Edit Thread Panel */}
           {drawerType === 'editThread' && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               {contentType === 'thread' && currentThread && (
                 <EditThreadPanel 
                   key={`mobile-edit-thread-${panelKey}`}
@@ -888,7 +873,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           
           {/* Edit Space Panel */}
           {drawerType === 'editSpace' && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               {contentType === 'space' && currentSpace && (
                 <EditSpacePanel
                   key={`mobile-edit-space-${panelKey}`}
@@ -907,7 +892,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Add to Space Panel */}
           {drawerType === 'addToSpace' && addToSpaceSpaceId && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               <AddToSpacePanel
                 key={`mobile-add-to-space-${panelKey}`}
                 spaceId={addToSpaceSpaceId}
@@ -921,7 +906,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* Edit Space People Panel */}
           {drawerType === 'editSpacePeople' && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               {contentType === 'space' && currentSpace && (
                 <EditSpacePeoplePanel
                   key={`mobile-edit-space-people-${panelKey}`}
@@ -1143,8 +1128,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer.Root>
   );
 };
 

@@ -106,6 +106,7 @@
     "sonner": "^2.0.7",
     "turndown": "^7.2.2",
     "typescript": "^5.9.2",
+    "vaul": "^1.1.2",
     "web-haptics": "^0.0.6"
   },
   "devDependencies": {
