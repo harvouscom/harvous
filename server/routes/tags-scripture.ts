@@ -12,7 +12,8 @@
 
 import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
-import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, VerseTextCache, eq, and, count } from '../db';
+import { db, first, Tags, NoteTags, ScriptureMetadata, Notes, NoteThreads, Threads, VerseTextCache, eq, and, count, isNotNull } from '../db';
+import { requireSpaceAccess, SpaceAccessError } from '../utils/space-permissions';
 import { handleAPIError } from '@/utils/error-handling';
 import { rateLimit } from '@/utils/rate-limit';
 import {
@@ -379,6 +380,31 @@ app.get('/api/note-tags/list', requireAuth, async (c) => {
     const noteId = c.req.query('noteId');
     if (!noteId) return c.json({ error: 'Note ID is required' }, 400);
 
+    const noteRow = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!noteRow) return c.json({ error: 'Note not found' }, 404);
+
+    if (noteRow.userId !== auth.userId) {
+      let spaceIdForAccess = noteRow.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = first(
+          await db
+            .select({ spaceId: Threads.spaceId })
+            .from(NoteThreads)
+            .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+            .where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId)))
+            .limit(1)
+        );
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: 'Note not found' }, 404);
+      try {
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
+    }
+
     const noteTags = await db
       .select({
         id: NoteTags.id, noteId: NoteTags.noteId, tagId: NoteTags.tagId,
@@ -387,7 +413,7 @@ app.get('/api/note-tags/list', requireAuth, async (c) => {
       })
       .from(NoteTags)
       .innerJoin(Tags, eq(NoteTags.tagId, Tags.id))
-      .where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, auth.userId)));
+      .where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteRow.userId)));
 
     return c.json({ success: true, tags: noteTags });
   } catch (error) {

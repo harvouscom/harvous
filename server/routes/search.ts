@@ -27,6 +27,8 @@ route.get('/api/search', requireAuth, async (c) => {
     const query = url.searchParams.get('q');
     const type = url.searchParams.get('type') || 'all';
     const limit = parseInt(url.searchParams.get('limit') || '50');
+    const threadIdParam = url.searchParams.get('threadId')?.trim() || null;
+    const spaceIdParam = url.searchParams.get('spaceId')?.trim() || null;
 
     if (!query || query.trim().length === 0) {
       return c.json({ results: [] });
@@ -34,7 +36,16 @@ route.get('/api/search', requireAuth, async (c) => {
 
     const trimmedQuery = query.trim();
     const searchNotes = type === 'all' || type === 'notes';
-    const searchThreads = type === 'all' || type === 'threads';
+    // Thread-scoped search is notes-only (one thread). If both threadId and spaceId are sent, threadId wins for notes; threads are not searched.
+    const searchThreads =
+      (type === 'all' || type === 'threads') && !threadIdParam;
+    const noteScopeFilters = threadIdParam
+      ? [eq(Notes.threadId, threadIdParam)]
+      : spaceIdParam
+        ? [eq(Notes.spaceId, spaceIdParam)]
+        : [];
+    const threadScopeFilters =
+      spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
 
     // Use full-text search for queries >= 3 chars, ILIKE for shorter ones.
     // FTS provides stemming ("running" matches "run") and is indexed via GIN.
@@ -91,6 +102,7 @@ route.get('/api/search', requireAuth, async (c) => {
             and(
               eq(Notes.userId, userId),
               not(eq(Notes.contentEncrypted, true)),
+              ...noteScopeFilters,
               sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')) @@ ${tsQuery}`,
             ),
           )
@@ -119,6 +131,7 @@ route.get('/api/search', requireAuth, async (c) => {
             and(
               eq(Notes.userId, userId),
               not(eq(Notes.contentEncrypted, true)),
+              ...noteScopeFilters,
               or(
                 like(Notes.title, searchTerm),
                 like(Notes.content, searchTerm),
@@ -148,6 +161,7 @@ route.get('/api/search', requireAuth, async (c) => {
           .where(
             and(
               eq(Threads.userId, userId),
+              ...threadScopeFilters,
               sql`to_tsvector('english', ${Threads.title}) @@ ${tsQuery}`,
             ),
           )
@@ -172,6 +186,7 @@ route.get('/api/search', requireAuth, async (c) => {
           .where(
             and(
               eq(Threads.userId, userId),
+              ...threadScopeFilters,
               like(Threads.title, searchTerm),
             ),
           )

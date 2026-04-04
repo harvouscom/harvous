@@ -33,6 +33,7 @@ import { generateUserExport } from '../utils/export-user-data';
 import { validateColor, validateContent, validateTitle } from '@/utils/validation';
 import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
+import { generateAutoTags, applyAutoTags } from '../utils/auto-tag-generator';
 
 const app = new Hono();
 
@@ -641,6 +642,15 @@ app.post('/api/admin/threads/:threadId/notes', async (c) => {
       .insert(NoteThreads)
       .values({ id: generateTimestampId('notethread'), noteId: note.id, threadId, createdAt: now })
       .onConflictDoNothing();
+
+    try {
+      const tagResult = await generateAutoTags(title || '', content, systemUserId, 0.8);
+      if (tagResult.suggestions.length > 0) {
+        await applyAutoTags(note.id, tagResult.suggestions, systemUserId);
+      }
+    } catch (tagErr: unknown) {
+      console.error('[admin create note] auto-tags failed (non-critical):', tagErr instanceof Error ? tagErr.message : tagErr);
+    }
 
     return c.json({ success: true, note });
   } catch (error: any) {

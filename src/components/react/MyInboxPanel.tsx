@@ -3,7 +3,7 @@ import SquareButton from './SquareButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { generateAccentMeshGradient } from '@/utils/colors';
 
-type FeaturedContentType = 'space' | 'recall' | 'challenge' | 'church';
+type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
 
 interface DismissedFeaturedItem {
   id: string;
@@ -23,6 +23,7 @@ interface MyInboxPanelProps {
 
 const CTA: Record<FeaturedContentType, string> = {
   space: 'View this space',
+  thread: 'View shared thread',
   recall: 'Review now',
   challenge: 'Start challenge',
   church: 'Open',
@@ -33,6 +34,13 @@ function getIconForContentType(contentType: FeaturedContentType) {
     return (
       <svg fill="currentColor" viewBox="0 0 640 512" aria-hidden="true">
         <path d="M96 128a128 128 0 1 1 256 0A128 128 0 1 1 96 128zM0 482.3C0 383.8 79.8 304 178.3 304l91.4 0C368.2 304 448 383.8 448 482.3c0 16.4-13.3 29.7-29.7 29.7L29.7 512C13.3 512 0 498.7 0 482.3zM609.3 512l-137.8 0c5.4-9.4 8.6-20.3 8.6-32l0-8c0-60.7-27.1-115.2-69.8-151.8c2.4-.1 4.7-.2 7.1-.2l61.4 0C567.8 320 640 392.2 640 481.3c0 17-13.8 30.7-30.7 30.7zM432 256c-31 0-59-12.6-79.3-32.9C372.4 196.5 384 163.6 384 128c0-26.8-6.6-52.1-18.3-74.3C384.3 40.1 407.2 32 432 32c61.9 0 112 50.1 112 112s-50.1 112-112 112z" />
+      </svg>
+    );
+  }
+  if (contentType === 'thread') {
+    return (
+      <svg fill="currentColor" viewBox="0 0 512 512" aria-hidden="true">
+        <path d="M40 48C26.7 48 16 58.7 16 72l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24L40 48zM192 64c-8.8 0-16 7.2-16 16s7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16L192 64zM16 232c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0c-13.3 0-24 10.7-24 24zM192 232c0 8.8 7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-288 0c-8.8 0-16 7.2-16 16zM40 368c-13.3 0-24 10.7-24 24l0 48c0 13.3 10.7 24 24 24l48 0c13.3 0 24-10.7 24-24l0-48c0-13.3-10.7-24-24-24l-48 0zM192 384c-8.8 0-16 7.2-16 16s7.2 16 16 16l288 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-288 0z" />
       </svg>
     );
   }
@@ -67,7 +75,7 @@ function InboxFeaturedCard({
   const accentGradient = useMemo(() => generateAccentMeshGradient(item.id), [item.id]);
 
   const accentStyle =
-    item.contentType === 'space' && item.color
+    (item.contentType === 'space' || item.contentType === 'thread') && item.color
       ? { backgroundColor: `var(--color-${item.color})` }
       : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined };
 
@@ -75,6 +83,11 @@ function InboxFeaturedCard({
     if (item.contentType === 'space' && item.shareToken) {
       window.dispatchEvent(new CustomEvent('closeProfilePanel'));
       safeNavigate(`/spaces/join/${item.shareToken}`, { history: 'push' });
+      return;
+    }
+    if (item.contentType === 'thread' && item.shareToken) {
+      window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+      safeNavigate(`/shared/thread/${item.shareToken}`, { history: 'push' });
       return;
     }
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));

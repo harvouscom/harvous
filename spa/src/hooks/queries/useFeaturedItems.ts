@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { APIError } from '../../lib/api';
 
-export type FeaturedContentType = 'space' | 'recall' | 'challenge' | 'church';
+export type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
 
 export interface FeaturedItem {
   id: string;

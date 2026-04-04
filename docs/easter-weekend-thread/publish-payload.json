@@ -1,0 +1,25 @@
+{
+  "spaceId": "space_1775233360402",
+  "thread": {
+    "title": "Easter weekend, day by day",
+    "subtitle": "Good Friday through Sunday",
+    "color": "purple"
+  },
+  "notes": [
+    {
+      "title": "Good Friday — what happened",
+      "contentFile": "01-good-friday.html",
+      "noteType": "default"
+    },
+    {
+      "title": "Holy Saturday — the waiting",
+      "contentFile": "02-holy-saturday.html",
+      "noteType": "default"
+    },
+    {
+      "title": "Easter Sunday — the empty tomb",
+      "contentFile": "03-easter-sunday.html",
+      "noteType": "default"
+    }
+  ]
+}

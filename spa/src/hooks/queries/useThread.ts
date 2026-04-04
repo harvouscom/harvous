@@ -24,6 +24,31 @@ export interface ThreadDetail {
   userId?: string;
 }
 
+/** From GET /api/threads/:id/prefetch — drives per-tab totals / infinite scroll for filtered note lists. */
+export interface ThreadNoteTypeCounts {
+  all: number;
+  default: number;
+  scripture: number;
+  resource: number;
+}
+
+export interface ThreadPrefetchData {
+  thread: ThreadDetail;
+  noteTypeCounts?: ThreadNoteTypeCounts;
+}
+
+/**
+ * React Query may still hold a legacy cache entry where `data` was the thread object itself
+ * (before prefetch returned `{ thread, noteTypeCounts }`). Normalize so consumers always get
+ * ThreadPrefetchData — otherwise `data.thread` is undefined and nav/history break.
+ */
+function normalizeThreadPrefetchData(raw: ThreadPrefetchData | ThreadDetail): ThreadPrefetchData {
+  if (raw && typeof raw === 'object' && 'thread' in raw && (raw as ThreadPrefetchData).thread) {
+    return raw as ThreadPrefetchData;
+  }
+  return { thread: raw as ThreadDetail, noteTypeCounts: undefined };
+}
+
 interface NotesPage {
   notes: NoteItem[];
   hasMore: boolean;
@@ -35,16 +60,20 @@ function normalizeThreadId(id: string): string {
   return id.startsWith('thread/') ? 'thread_' + id.slice(7) : id;
 }
 
-const THREAD_STALE_TIME = 60_000;
+/** Keep low so thread title/color edits (e.g. admin patches) show without long stale UI. */
+const THREAD_STALE_TIME = 0;
 
 export function getThreadQueryOptions(threadId: string) {
   const normalizedId = normalizeThreadId(threadId);
   return {
     queryKey: ['thread', normalizedId] as const,
-    queryFn: async (): Promise<ThreadDetail> => {
-      const res = await api.get<{ thread: ThreadDetail }>(`/api/threads/${normalizedId}/prefetch`);
+    queryFn: async (): Promise<ThreadPrefetchData> => {
+      const res = await api.get<{
+        thread: ThreadDetail;
+        noteTypeCounts?: ThreadNoteTypeCounts;
+      }>(`/api/threads/${normalizedId}/prefetch`);
       if (res.thread === undefined) throw new Error('Thread not found');
-      return res.thread;
+      return { thread: res.thread, noteTypeCounts: res.noteTypeCounts };
     },
     staleTime: THREAD_STALE_TIME,
   };
@@ -55,6 +84,7 @@ export function useThread(threadId: string) {
   return useQuery({
     ...options,
     enabled: !!threadId,
+    select: (data) => normalizeThreadPrefetchData(data as ThreadPrefetchData | ThreadDetail),
   });
 }
 

@@ -78,7 +78,7 @@ export default function NotePage() {
     if (reprocessAttemptedRef.current === noteId) return;
 
     const hasPills = content.includes('data-scripture-reference');
-    const hasPendingPills = content.includes('data-note-id="pending"');
+    const hasPendingPills = /data-note-id\s*=\s*["']pending["']/.test(content);
     if (hasPills && !hasPendingPills) return; // Already has real pill IDs
 
     const runReprocess = () => {

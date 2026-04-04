@@ -29,3 +29,6 @@ pnpm-debug.log*
 
 # Agent team context files (local only, not shared)
 .claude/agents/
+
+# Local publish gate — copy from docs/easter-2026-shared-space/SIGNOFF.template.txt
+docs/easter-2026-shared-space/SIGNOFF.txt

@@ -1667,9 +1667,6 @@ export default function EditSpacePanel({
                         >
                           <div className="thread-visibility-dropdown__option-content">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="thread-visibility-dropdown__icon-slot">
-                                <Icon name="user" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                              </div>
                               <span className="thread-visibility-dropdown__option-text">Not featured</span>
                             </div>
                             {!adminFeaturedItem?.isActive && !pendingFeature && (
@@ -1695,9 +1692,6 @@ export default function EditSpacePanel({
                         >
                           <div className="thread-visibility-dropdown__option-content">
                             <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <div className="thread-visibility-dropdown__icon-slot">
-                                <Icon name="megaphone" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                              </div>
                               <span className="thread-visibility-dropdown__option-text">Feature for everyone</span>
                             </div>
                             {(adminFeaturedItem?.isActive || pendingFeature) && (

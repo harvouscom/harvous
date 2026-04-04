@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { recentSearchStorageKey, recentSearchesUpdatedEvent } from '@/utils/recent-search-storage';
 
 interface RecentSearch {
   term: string;
@@ -9,17 +10,33 @@ interface RecentSearch {
 interface RecentSearchesProps {
   /** Called when user hovers a recent search; use to prefetch so click shows results instantly. */
   onPrefetchSearch?: (term: string) => void;
+  /** Per-thread / per-space storage; omit for global Find. */
+  storageScope?: { type: 'thread' | 'space'; id: string };
+  /** When set (scoped search), apply the term on the current page instead of opening `/search`. */
+  onSelectRecentTerm?: (term: string) => void;
 }
 
-const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => {
+const RecentSearches: React.FC<RecentSearchesProps> = ({
+  onPrefetchSearch,
+  storageScope,
+  onSelectRecentTerm,
+}) => {
+  const storageKey = useMemo(
+    () => recentSearchStorageKey(storageScope ?? null),
+    [storageScope?.type, storageScope?.id],
+  );
+  const updateEventName = useMemo(
+    () => recentSearchesUpdatedEvent(storageScope ?? null),
+    [storageScope?.type, storageScope?.id],
+  );
   // Always start with empty array to avoid hydration mismatch
   // Will be populated from localStorage in useEffect after mount
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
 
   const updateRecentSearches = useCallback(() => {
     if (typeof window === 'undefined') return;
-    
-    const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     // Handle both old format (strings) and new format (objects)
     const searches = stored.map((item: any) => {
       if (typeof item === 'string') {
@@ -29,12 +46,12 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
     }).slice(0, 5);
     
     setRecentSearches(searches);
-  }, []);
+  }, [storageKey]);
 
   const removeFromRecentSearches = useCallback((searchTerm: string) => {
     if (typeof window === 'undefined') return;
-    
-    const stored = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
+
+    const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     
     const updatedSearches = stored.filter((search: any) => {
       // Handle both old format (strings) and new format (objects)
@@ -42,8 +59,8 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
       return term !== searchTerm;
     });
     
-    localStorage.setItem('harvous-recent-searches', JSON.stringify(updatedSearches));
-    
+    localStorage.setItem(storageKey, JSON.stringify(updatedSearches));
+
     // Update state directly with the filtered results
     const formattedSearches = updatedSearches.map((item: any) => {
       if (typeof item === 'string') {
@@ -53,10 +70,9 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
     }).slice(0, 5);
     
     setRecentSearches(formattedSearches);
-    
-    // Trigger reactivity by dispatching a custom event
-    window.dispatchEvent(new CustomEvent('recent-searches-updated'));
-  }, []);
+
+    window.dispatchEvent(new CustomEvent(updateEventName));
+  }, [storageKey, updateEventName]);
 
   // Update recent searches on mount and listen for updates
   useEffect(() => {
@@ -71,12 +87,12 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
       updateRecentSearches();
     };
     
-    window.addEventListener('recent-searches-updated', handleUpdate);
-    
+    window.addEventListener(updateEventName, handleUpdate);
+
     return () => {
-      window.removeEventListener('recent-searches-updated', handleUpdate);
+      window.removeEventListener(updateEventName, handleUpdate);
     };
-  }, [updateRecentSearches]);
+  }, [updateRecentSearches, updateEventName]);
 
   if (recentSearches.length === 0) {
     return null;
@@ -98,6 +114,10 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({ onPrefetchSearch }) => 
                 onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
+                  if (onSelectRecentTerm) {
+                    onSelectRecentTerm(search.term);
+                    return;
+                  }
                   safeNavigate(`/search?q=${encodeURIComponent(search.term)}`, { history: 'replace' });
                 }}
               >

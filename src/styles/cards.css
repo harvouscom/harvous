@@ -252,12 +252,12 @@
   align-items: flex-start;
   justify-content: flex-start;
   overflow: clip;
-  padding: 8px;
+  padding: 4px 8px 8px 4px;
   position: relative;
   border-radius: 8px;
   flex-shrink: 0;
-  width: 80px;
-  height: 57px;
+  width: 48px;
+  height: 48px;
 }
 
 .card-note__sidebar--with-image {
@@ -265,10 +265,6 @@
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-}
-
-.card-note__sidebar--resource {
-  width: 104px; /* 24px wider than default 80px */
 }
 
 .card-note__sidebar-icon {
@@ -314,8 +310,8 @@
   position: relative;
   align-self: stretch;
   flex-shrink: 0;
-  padding-top: 8px;
-  padding-bottom: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
   padding-left: 0;
   padding-right: 0;
 }
@@ -330,7 +326,7 @@
   position: relative;
   flex-shrink: 0;
   color: var(--color-deep-grey);
-  font-size: 18px;
+  font-size: 16px;
   white-space: nowrap;
   width: 100%;
 

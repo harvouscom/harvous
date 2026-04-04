@@ -1,0 +1,19 @@
+{
+  "_comment": "Example output from one successful local run (2026-04-03). Production IDs will differ.",
+  "publishedAt": "2026-04-03T16:22:44.032Z",
+  "spaceId": "space_1775233360402",
+  "threadId": "thread_1775233361457",
+  "joinUrl": "http://localhost:3001/spaces/join/HHnFW8s26sTO",
+  "shareToken": "HHnFW8s26sTO",
+  "noteIds": [
+    "note_1775233361671",
+    "note_1775233361961",
+    "note_1775233362248",
+    "note_1775233362526",
+    "note_1775233362810",
+    "note_1775233363091",
+    "note_1775233363375",
+    "note_1775233363659"
+  ],
+  "featuredItemId": "eca1aaa6-93ef-4665-a020-d80a0b0d7417"
+}

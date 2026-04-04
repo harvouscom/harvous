@@ -39,7 +39,11 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:join": "playwright test e2e/shared-space-join.spec.ts e2e/invitation-accept.spec.ts --workers=1",
-    "test:e2e:setup": "tsx scripts/seed-e2e.ts && tsx scripts/seed-e2e.ts && npm run test:e2e:join"
+    "test:e2e:setup": "tsx scripts/seed-e2e.ts && tsx scripts/seed-e2e.ts && npm run test:e2e:join",
+    "easter:publish": "tsx scripts/publish-easter-2026-shared-space.ts",
+    "easter:patch-metadata": "tsx scripts/patch-easter-2026-metadata.ts",
+    "easter:sync-notes": "tsx scripts/sync-easter-2026-notes.ts",
+    "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

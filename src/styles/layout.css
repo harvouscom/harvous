@@ -75,6 +75,8 @@
   flex: 1;
   min-height: 0;
   width: 100%;
+  /* Let the action strip dock (negative bottom offset) paint outside the flex box when needed */
+  overflow: visible;
 }
 
 @media (min-width: 1160px) {
@@ -120,7 +122,8 @@
 
 /* Reserve space for the action strip dock only when the dock is present */
 .mobile-main--with-dock {
-  margin-bottom: 3.5rem;
+  /* Extra slack below the peek so .app-layout overflow:hidden does not clip the dock (safe area / subpixel) */
+  margin-bottom: 4rem;
 }
 
 /* On mobile with a dock, exactly 12px bottom padding on .app-layout.
@@ -146,11 +149,11 @@
   }
   /* Reserve space so scroll content never extends under the action strip dock */
   .mobile-main--with-dock .main-column__scroll {
-    padding-bottom: 5rem;
+    padding-bottom: 5.25rem;
   }
   /* Edit mode: ensure Tiptap editor content can scroll above the dock when it is still visible (e.g. before hide animation completes) */
   .mobile-main--with-dock .card-full-editable[data-editing="true"] .tiptap-content {
-    padding-bottom: 5rem;
+    padding-bottom: 5.25rem;
   }
 }
 

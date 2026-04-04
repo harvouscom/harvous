@@ -3,7 +3,7 @@ import { and, db, desc, eq, first, gt, inArray, isNull, lte, notExists, or } fro
 import { now } from '../db/dates';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import { FeaturedItems, Members, Spaces, UserFeaturedItems } from '../db/schema';
+import { FeaturedItems, Members, Spaces, Threads, UserFeaturedItems } from '../db/schema';
 
 const app = new Hono();
 
@@ -269,6 +269,26 @@ app.get('/api/admin/featured/by-space/:shareToken', async (c) => {
   return c.json(item ?? null);
 });
 
+// Admin: get the currently-active featured item for a thread share token.
+app.get('/api/admin/featured/by-thread/:shareToken', async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+
+  const shareToken = c.req.param('shareToken')?.trim() ?? '';
+  if (!shareToken) return c.json({ error: 'shareToken is required' }, 400);
+
+  const item = first(
+    await db
+      .select()
+      .from(FeaturedItems)
+      .where(and(eq(FeaturedItems.contentType, 'thread'), eq(FeaturedItems.shareToken, shareToken), eq(FeaturedItems.isActive, true)))
+      .orderBy(desc(FeaturedItems.createdAt))
+      .limit(1),
+  );
+
+  return c.json(item ?? null);
+});
+
 // Admin: create a featured item.
 app.post('/api/admin/featured', async (c) => {
   const unauthorized = requireHarvousAdmin(c);
@@ -292,9 +312,22 @@ app.post('/api/admin/featured', async (c) => {
     return c.json({ error: 'contentType and title are required' }, 400);
   }
 
-  const allowed = new Set(['space', 'recall', 'challenge', 'church']);
+  const allowed = new Set(['space', 'thread', 'recall', 'challenge', 'church']);
   if (!allowed.has(contentType)) {
     return c.json({ error: `Invalid contentType: ${contentType}` }, 400);
+  }
+
+  const token = body.shareToken?.trim() ?? '';
+  if (contentType === 'thread') {
+    if (!token) return c.json({ error: 'shareToken is required for thread featured items' }, 400);
+    const thread = first(
+      await db
+        .select({ id: Threads.id })
+        .from(Threads)
+        .where(and(eq(Threads.shareToken, token), eq(Threads.isPublic, true)))
+        .limit(1),
+    );
+    if (!thread) return c.json({ error: 'No public shared thread found for this shareToken' }, 400);
   }
 
   const timestamp = now();
@@ -310,7 +343,7 @@ app.post('/api/admin/featured', async (c) => {
         title,
         description: body.description ?? null,
         refId: body.refId ?? null,
-        shareToken: body.shareToken ?? null,
+        shareToken: token || null,
         color: body.color ?? null,
         isActive: body.isActive ?? true,
         startsAt,

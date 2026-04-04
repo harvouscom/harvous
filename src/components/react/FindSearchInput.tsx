@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { addRecentSearchTerm, type RecentSearchStorageScope } from '@/utils/recent-search-storage';
 
 interface FindSearchInputProps {
   className?: string;
@@ -7,6 +8,12 @@ interface FindSearchInputProps {
   initialQuery?: string;
   /** Called before navigating to search results; use to prefetch (fire-and-forget). */
   onBeforeSearchNavigate?: (term: string) => void;
+  /** When set, submit stays on the current page (no `/search` navigation). */
+  onSubmitSearch?: (term: string) => void;
+  /** Used with `onSubmitSearch` when the clear button should reset parent state instead of navigating to `/search`. */
+  onClearSearch?: () => void;
+  /** With `onSubmitSearch`, record the term under this scope (thread/space search tab). */
+  recentSearchRecordScope?: Exclude<RecentSearchStorageScope, null>;
 }
 
 export default function FindSearchInput({
@@ -14,6 +21,9 @@ export default function FindSearchInput({
   placeholder = "Search my Harvous...",
   initialQuery = "",
   onBeforeSearchNavigate,
+  onSubmitSearch,
+  onClearSearch,
+  recentSearchRecordScope,
 }: FindSearchInputProps) {
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -77,21 +87,17 @@ export default function FindSearchInput({
       return;
     }
 
-    // Save to recent searches - count will be updated after search results load
-    const recentSearches = JSON.parse(localStorage.getItem('harvous-recent-searches') || '[]');
-    const newSearchItem = { term: trimmedQuery, count: 0 };
-    const filteredSearches = recentSearches.filter((s: any) => {
-      const term = typeof s === 'string' ? s : s.term;
-      return term !== trimmedQuery;
-    });
-    const newSearches = [newSearchItem, ...filteredSearches];
-    localStorage.setItem('harvous-recent-searches', JSON.stringify(newSearches.slice(0, 10)));
-    
-    // Trigger event for RecentSearches component to update
-    window.dispatchEvent(new CustomEvent('recent-searches-updated'));
-
-    // Start prefetch so results may be ready when the page mounts
     onBeforeSearchNavigate?.(trimmedQuery);
+
+    if (onSubmitSearch) {
+      if (recentSearchRecordScope) {
+        addRecentSearchTerm(recentSearchRecordScope, trimmedQuery);
+      }
+      onSubmitSearch(trimmedQuery);
+      return;
+    }
+
+    addRecentSearchTerm(null, trimmedQuery);
 
     // Navigate to search results (no view transition for instant feedback)
     safeNavigate(`/search?q=${encodeURIComponent(trimmedQuery)}`, { history: 'replace' });
@@ -99,6 +105,10 @@ export default function FindSearchInput({
 
   const handleClear = () => {
     setSearchQuery('');
+    if (onClearSearch) {
+      onClearSearch();
+      return;
+    }
     safeNavigate('/search', { history: 'replace' });
   };
 
@@ -106,7 +116,7 @@ export default function FindSearchInput({
     <form method="GET" action="/search" className="w-full relative" onSubmit={handleSubmit}>
       <div className={`search-input ${className}`}>
         {/* Search Icon */}
-        <svg width="20" height="20" className="search-input__icon" viewBox="0 0 512 512">
+        <svg width="16" height="16" className="search-input__icon" viewBox="0 0 512 512">
           <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"/>
         </svg>
         
@@ -131,7 +141,7 @@ export default function FindSearchInput({
             aria-label="Clear find"
             className="search-input__clear"
           >
-          <svg width="20" height="20" viewBox="0 0 384 512" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 384 512" aria-hidden="true">
             <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
           </svg>
           </button>

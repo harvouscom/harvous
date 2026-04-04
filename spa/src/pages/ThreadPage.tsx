@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouterState } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
@@ -7,16 +7,25 @@ import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../
 import ThreadNotesList from '../../../src/components/react/ThreadNotesList';
 import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
+import FindSearchInput from '../../../src/components/react/FindSearchInput';
+import RecentSearches from '../../../src/components/react/RecentSearches';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
+import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useIsMobile } from '../hooks/useIsMobile';
+import {
+  getStoredThreadContentTab,
+  setStoredThreadContentTab,
+  type ThreadContentTabId,
+} from '../../../src/utils/content-tab-storage';
 
-type NoteTypeFilter = 'all' | 'notes' | 'scripture';
+type NoteTypeFilter = 'all' | 'notes' | 'scripture' | 'search';
 
 const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
   { id: 'all',       label: 'All' },
   { id: 'notes',     label: 'Notes' },
   { id: 'scripture', label: 'Scripture' },
+  { id: 'search',    label: 'Search' },
 ];
 
 function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
@@ -39,9 +48,38 @@ export default function ThreadPage() {
   const threadId = threadSlug.startsWith('thread_') ? threadSlug : `thread_${threadSlug}`;
   const isUnorganized = threadId === 'thread_unorganized';
   const queryClient = useQueryClient();
-  const { data: thread, isLoading } = useThread(threadId);
+  const { data: threadPrefetch, isLoading } = useThread(threadId);
+  const thread = threadPrefetch?.thread;
+  const threadNoteTypeCounts = threadPrefetch?.noteTypeCounts;
   const { data: nav } = useNavigation();
-  const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>('all');
+  const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>(
+    () => getStoredThreadContentTab(threadId) ?? 'all',
+  );
+  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
+  const [prevThreadId, setPrevThreadId] = useState(threadId);
+  if (threadId !== prevThreadId) {
+    setPrevThreadId(threadId);
+    setNoteTypeFilter(getStoredThreadContentTab(threadId) ?? 'all');
+  }
+
+  const handleThreadTabChange = useCallback(
+    (id: string) => {
+      setNoteTypeFilter(id as NoteTypeFilter);
+      setStoredThreadContentTab(threadId, id as ThreadContentTabId);
+    },
+    [threadId],
+  );
+
+  const prefetchThreadSearch = useCallback(
+    (term: string) => {
+      if (!term.trim()) return;
+      queryClient.prefetchQuery({
+        queryKey: searchQueryKey(term, { threadId }),
+        queryFn: () => fetchSearchResults(term, { threadId }),
+      });
+    },
+    [queryClient, threadId],
+  );
   // TanStack Router may not include unvalidated search params in location.search;
   // fall back to window.location.search so ?space= is always picked up.
   let urlSpaceId = getSpaceIdFromSearch(search);
@@ -140,18 +178,47 @@ export default function ThreadPage() {
       <div>
         <TabNav
           tabs={tabs}
-          onTabChange={(id) => setNoteTypeFilter(id as NoteTypeFilter)}
+          onTabChange={handleThreadTabChange}
           threadId={threadId}
           className="content-tabs"
         />
-        <ThreadNotesList
-          initialNotes={[]}
-          threadId={threadId}
-          threadColor={thread?.color ?? undefined}
-          noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
-          onPrefetchNote={prefetchNote}
-          onNotesLoaded={onNotesLoaded}
-        />
+        {noteTypeFilter === 'search' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <FindSearchInput
+              placeholder="Search notes in this thread…"
+              initialQuery={scopedSearchQuery}
+              onBeforeSearchNavigate={prefetchThreadSearch}
+              onSubmitSearch={setScopedSearchQuery}
+              onClearSearch={() => setScopedSearchQuery('')}
+              recentSearchRecordScope={{ type: 'thread', id: threadId }}
+            />
+            {!scopedSearchQuery.trim() && (
+              <RecentSearches
+                storageScope={{ type: 'thread', id: threadId }}
+                onPrefetchSearch={prefetchThreadSearch}
+                onSelectRecentTerm={(term) => {
+                  prefetchThreadSearch(term);
+                  setScopedSearchQuery(term);
+                }}
+              />
+            )}
+            <SearchResultsList
+              query={scopedSearchQuery}
+              scope={{ threadId }}
+              recentSearchCountSync={{ type: 'thread', id: threadId }}
+            />
+          </div>
+        ) : (
+          <ThreadNotesList
+            initialNotes={[]}
+            threadId={threadId}
+            threadColor={thread?.color ?? undefined}
+            noteTypeFilter={noteTypeFilter === 'notes' ? 'default' : noteTypeFilter}
+            noteTypeCounts={threadNoteTypeCounts}
+            onPrefetchNote={prefetchNote}
+            onNotesLoaded={onNotesLoaded}
+          />
+        )}
       </div>
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}
       <div data-cta-spacer className="create-note-cta-spacer" />

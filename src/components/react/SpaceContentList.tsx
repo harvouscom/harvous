@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
 import ActionButton from './ActionButton';
 import { debug } from '@/utils/logger';
-import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { normalizeDate, sortByLastVisited, sortByCreatedAtAsc } from '@/utils/sorting';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { safeParseReferrer, referrerMatchesPattern } from '@/utils/safe-url';
@@ -82,8 +82,11 @@ export default function SpaceContentList({
   // Sort initial items by lastVisited on mount
   // Use inline sorting logic in initializers (can't use useCallback here)
   const [items, setItems] = useState<SpaceItem[]>(() => {
-    // Use shared sorting function that matches API logic
-    const itemsWithUpdatedAt = (initialItems || []).map(item => ({
+    const raw = initialItems || [];
+    if (spaceIsShared) {
+      return sortByCreatedAtAsc(raw);
+    }
+    const itemsWithUpdatedAt = raw.map(item => ({
       ...item,
       updatedAt: item.lastUpdated
     }));
@@ -95,7 +98,11 @@ export default function SpaceContentList({
   const isMountedRef = useRef(true);
   // Compute initial sorted items for ref (useRef doesn't support lazy initializers)
   const initialSortedItems = (() => {
-    const itemsWithUpdatedAt = (initialItems || []).map(item => ({
+    const raw = initialItems || [];
+    if (spaceIsShared) {
+      return sortByCreatedAtAsc(raw);
+    }
+    const itemsWithUpdatedAt = raw.map(item => ({
       ...item,
       updatedAt: item.lastUpdated
     }));
@@ -174,23 +181,25 @@ export default function SpaceContentList({
     [spaceId]
   );
 
-  // Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
-  // Note: SpaceItem uses lastUpdated (string) instead of updatedAt, so we need to map it
-  const sortItemsByLastVisited = useCallback((items: SpaceItem[]): SpaceItem[] => {
-    // Map lastUpdated to updatedAt for the shared sorting function
-    const itemsWithUpdatedAt = items.map(item => ({
-      ...item,
-      updatedAt: item.lastUpdated
-    }));
-    
-    const sorted = sortByLastVisited(itemsWithUpdatedAt);
-    
-    // Map back to remove updatedAt (keep lastUpdated)
-    return sorted.map(({ updatedAt, ...item }) => item);
-  }, []);
+  // Public/shared spaces: oldest first (createdAt) for curated series. Private: lastVisited (newest first).
+  const sortItemsByLastVisited = useCallback(
+    (items: SpaceItem[]): SpaceItem[] => {
+      if (spaceIsShared) {
+        return sortByCreatedAtAsc(items);
+      }
+      const itemsWithUpdatedAt = items.map(item => ({
+        ...item,
+        updatedAt: item.lastUpdated
+      }));
+      const sorted = sortByLastVisited(itemsWithUpdatedAt);
+      return sorted.map(({ updatedAt, ...item }) => item);
+    },
+    [spaceIsShared],
+  );
 
-  // Sync state from initialItems when props change (e.g. after View Transition or re-render)
-  useEffect(() => {
+  // Sync state from initialItems before paint so tab filters apply to full data immediately
+  // (useEffect deferred this one frame and felt laggy when switching content tabs).
+  useLayoutEffect(() => {
     if (initialItems && initialItems.length > 0) {
       const sorted = sortItemsByLastVisited(initialItems);
       setItems(sorted);
@@ -201,7 +210,7 @@ export default function SpaceContentList({
       itemsRef.current = [];
       setHasResolvedFirstLoad(false); // New space or no data yet; wait for first refresh
     }
-  }, [initialItems, spaceId, sortItemsByLastVisited]);
+  }, [initialItems, spaceId, sortItemsByLastVisited, spaceIsShared]);
 
   // Keep refs in sync with state
   useEffect(() => {

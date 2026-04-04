@@ -154,7 +154,10 @@
   flex-wrap: nowrap;
   align-items: center;
   gap: 0.25rem;
-  width: 100%;
+  /* max-content so overflow-x: auto on the parent can scroll; min-width keeps short rows full-width */
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
 }
 
 .action-strip--mobile .action-strip__item {

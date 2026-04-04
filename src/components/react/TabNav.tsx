@@ -47,12 +47,8 @@ export default function TabNav({
     return counts;
   });
 
-  // Track active tab - initialize from props to avoid hydration mismatch
-  // Use empty string initially, then set in useEffect to ensure consistency
-  const [activeTabId, setActiveTabId] = useState<string>('');
-
-  // Ref to track if we're on a thread page
-  const isThreadPageRef = useRef<boolean>(false);
+  // Active tab is controlled by parent via tabs[].isActive (no post-paint sync — avoids tab flash).
+  const parentActiveTabId = tabs.find((tab) => tab.isActive)?.id ?? tabs[0]?.id ?? '';
 
   // Sync reset: swap to the new thread's cached counts (or clear) when threadId changes.
   const prevTabNavThreadRef = useRef(threadId);
@@ -60,17 +56,6 @@ export default function TabNav({
     prevTabNavThreadRef.current = threadId;
     setBadgeCounts(threadId ? getCachedTabCounts(threadId) ?? {} : {});
   }
-
-  // Initialize activeTabId from props after mount to avoid hydration mismatch
-  useEffect(() => {
-    const activeTab = tabs.find(tab => tab.isActive);
-    setActiveTabId(activeTab?.id || tabs[0]?.id || '');
-    
-    // Check if we're on a thread page (client-only)
-    const currentPath = window.location.pathname;
-    const currentThreadId = extractIdFromPath(currentPath) || '';
-    isThreadPageRef.current = currentThreadId.startsWith('thread_') || currentThreadId === 'thread_unorganized';
-  }, [tabs]);
 
   // Function to fetch fresh note type counts from API
   const fetchNoteTypeCounts = useCallback(async (): Promise<{
@@ -129,7 +114,7 @@ export default function TabNav({
   // Uses a `cancelled` flag so API responses from a previous thread are discarded
   // when the user navigates away before the response arrives.
   useEffect(() => {
-    if (!isThreadPageRef.current) return;
+    if (!threadId) return;
 
     let cancelled = false;
     const pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
@@ -261,8 +246,6 @@ export default function TabNav({
 
   // Handle tab click
   const handleTabClick = (tabId: string) => {
-    setActiveTabId(tabId);
-
     // Dispatch tabChange event for compatibility
     window.dispatchEvent(new CustomEvent('tabChange', {
       detail: { tabId }
@@ -279,7 +262,7 @@ export default function TabNav({
     const tab = tabs.find(t => t.id === tabId);
     const countKey = tabId === 'notes' ? 'notes' : tabId === 'scripture' ? 'scripture' : tabId === 'all' ? 'all' : undefined;
 
-    if (isThreadPageRef.current && countKey && badgeCounts[countKey] !== undefined) {
+    if (threadId && countKey && badgeCounts[countKey] !== undefined) {
       return badgeCounts[countKey];
     }
     return tab?.count;
@@ -292,7 +275,7 @@ export default function TabNav({
       {/* Tab Navigation */}
       <div className="tab-nav">
         {tabs.map((tab) => {
-          const isActive = activeTabId === tab.id || (activeTabId === '' && tab.isActive);
+          const isActive = tab.id === parentActiveTabId;
           const count = getTabCount(tab.id);
           
           return (

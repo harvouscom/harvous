@@ -480,7 +480,8 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
       notes,
       noteTypeCounts,
     }, 200, {
-      'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',
+      // Title/color change often; avoid browser HTTP cache serving stale thread headers for minutes.
+      'Cache-Control': 'private, no-cache',
     });
   } catch (error: any) {
     console.error('[prefetch] Error fetching thread data:', error);

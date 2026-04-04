@@ -7,20 +7,29 @@ import { useNavigation } from '../hooks/queries/useNavigation';
 import { getThreadQueryOptions } from '../hooks/queries/useThread';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
+import {
+  getStoredSpaceContentTab,
+  setStoredSpaceContentTab,
+  type SpaceContentTabId,
+} from '../../../src/utils/content-tab-storage';
 import SpaceContentList from '../../../src/components/react/SpaceContentList';
 import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHeader';
 import TabNav from '../../../src/components/react/TabNav';
+import FindSearchInput from '../../../src/components/react/FindSearchInput';
+import RecentSearches from '../../../src/components/react/RecentSearches';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
+import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useIsMobile } from '../hooks/useIsMobile';
 
-type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
+type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources' | 'search';
 
 const TABS: Array<{ id: SpaceFilter; label: string }> = [
   { id: 'all',       label: 'All' },
   { id: 'threads',   label: 'Threads' },
   { id: 'notes',     label: 'Notes' },
   { id: 'scripture', label: 'Scripture' },
+  { id: 'search',    label: 'Search' },
 ];
 
 export default function SpacePage() {
@@ -34,7 +43,32 @@ export default function SpacePage() {
   const { data: nav } = useNavigation();
   const space = bootstrap?.space;
   const spaceItems = bootstrap?.items;
-  const [filter, setFilter] = useState<SpaceFilter>('all');
+  const [filter, setFilter] = useState<SpaceFilter>(() => getStoredSpaceContentTab(spaceId) ?? 'all');
+  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
+  const [prevSpaceId, setPrevSpaceId] = useState(spaceId);
+  if (spaceId !== prevSpaceId) {
+    setPrevSpaceId(spaceId);
+    setFilter(getStoredSpaceContentTab(spaceId) ?? 'all');
+  }
+
+  const handleSpaceTabChange = useCallback(
+    (id: string) => {
+      setFilter(id as SpaceFilter);
+      setStoredSpaceContentTab(spaceId, id as SpaceContentTabId);
+    },
+    [spaceId],
+  );
+
+  const prefetchSpaceSearch = useCallback(
+    (term: string) => {
+      if (!term.trim()) return;
+      queryClient.prefetchQuery({
+        queryKey: searchQueryKey(term, { spaceId }),
+        queryFn: () => fetchSearchResults(term, { spaceId }),
+      });
+    },
+    [queryClient, spaceId],
+  );
 
   // Prefetch thread details for threads in this space that aren't in nav (e.g. joined space)
   // so the thread page header shows title/color immediately when the user clicks a thread.
@@ -167,20 +201,48 @@ export default function SpacePage() {
     >
       <TabNav
         tabs={tabs}
-        onTabChange={(id) => setFilter(id as SpaceFilter)}
+        onTabChange={handleSpaceTabChange}
         className="content-tabs"
       />
-      <SpaceContentList
-        initialItems={initialItems}
-        spaceId={spaceId}
-        filter={filter}
-        spaceIsShared={space?.isPublic}
-        isOwner={space?.ownerId === user?.id}
-        currentUserId={user?.id ?? null}
-        parentIsLoading={parentIsLoading}
-        onPrefetchNote={prefetchNote}
-        onNotesLoaded={onNotesLoaded}
-      />
+      {filter === 'search' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <FindSearchInput
+            placeholder="Search this space…"
+            initialQuery={scopedSearchQuery}
+            onBeforeSearchNavigate={prefetchSpaceSearch}
+            onSubmitSearch={setScopedSearchQuery}
+            onClearSearch={() => setScopedSearchQuery('')}
+            recentSearchRecordScope={{ type: 'space', id: spaceId }}
+          />
+          {!scopedSearchQuery.trim() && (
+            <RecentSearches
+              storageScope={{ type: 'space', id: spaceId }}
+              onPrefetchSearch={prefetchSpaceSearch}
+              onSelectRecentTerm={(term) => {
+                prefetchSpaceSearch(term);
+                setScopedSearchQuery(term);
+              }}
+            />
+          )}
+          <SearchResultsList
+            query={scopedSearchQuery}
+            scope={{ spaceId }}
+            recentSearchCountSync={{ type: 'space', id: spaceId }}
+          />
+        </div>
+      ) : (
+        <SpaceContentList
+          initialItems={initialItems}
+          spaceId={spaceId}
+          filter={filter}
+          spaceIsShared={space?.isPublic}
+          isOwner={space?.ownerId === user?.id}
+          currentUserId={user?.id ?? null}
+          parentIsLoading={parentIsLoading}
+          onPrefetchNote={prefetchNote}
+          onNotesLoaded={onNotesLoaded}
+        />
+      )}
       {/* Spacer so the last item can scroll above the floating "Create a note" button */}
       <div data-cta-spacer className="create-note-cta-spacer" />
       {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}

@@ -348,12 +348,16 @@
 
 .edit-space-panel__admin-section {
   background: white;
-  border: 1px solid rgba(120, 118, 111, 0.14);
+  border: none;
   border-radius: 16px;
   padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Full width when parent uses align-items: flex-start (e.g. EditThreadPanel); spaces use stretch already */
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
 }
 
 .edit-space-panel__admin-header {
@@ -374,7 +378,7 @@
 
 .edit-space-panel__admin-description {
   width: 100%;
-  border: 1px solid rgba(120, 118, 111, 0.12);
+  border: none;
   border-radius: 12px;
   padding: 10px 12px;
   font-family: var(--font-sans);
@@ -382,6 +386,16 @@
   color: var(--color-deep-grey);
   resize: vertical;
   min-height: 76px;
+  background: transparent;
+  outline: none;
+  box-shadow: none;
+}
+
+.edit-space-panel__admin-description:focus,
+.edit-space-panel__admin-description:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border: none;
 }
 
 .edit-space-panel__admin-description::placeholder {

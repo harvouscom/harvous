@@ -18,10 +18,18 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc } from "@/utils/sorting";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
+
+/** Public/shared spaces list notes and threads oldest-first (curated series). */
+async function spaceUsesChronologicalOrdering(spaceId: string): Promise<boolean> {
+  const row = first(
+    await db.select({ isPublic: Spaces.isPublic }).from(Spaces).where(eq(Spaces.id, spaceId)).limit(1),
+  );
+  return row?.isPublic === true;
+}
 
 const SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
 
@@ -593,10 +601,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
-        .orderBy(
-          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-        ).limit(fetchLimit);
+        .orderBy(asc(Notes.createdAt), asc(Notes.id))
+        .limit(fetchLimit);
 
       const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean);
       let referencedScriptureNotes: typeof unorganizedNotes = [];
@@ -632,10 +638,8 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-        .orderBy(
-          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-        ).limit(fetchLimit);
+        .orderBy(asc(Notes.createdAt), asc(Notes.id))
+        .limit(fetchLimit);
 
       const threadNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
       let referencedScriptureNotes: typeof junctionNotes = [];
@@ -657,16 +661,9 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       allNotes = Array.from(notesMap.values());
     }
 
-    const isOnboardingThread = threadId.startsWith('thread_onboarding_');
-    const sortedAllNotes = isOnboardingThread
-      ? allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }))
-          .sort((a, b) => {
-            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            if (aTime !== bTime) return aTime - bTime;
-            if (a.id < b.id) return -1; if (a.id > b.id) return 1; return 0;
-          })
-      : sortByLastVisited(allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })));
+    const sortedAllNotes = sortByCreatedAtAsc(
+      allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
+    );
 
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
@@ -745,14 +742,12 @@ export async function getNotesForThreadForMember(
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-      ).limit(fetchLimit);
+      .orderBy(asc(Notes.createdAt), asc(Notes.id))
+      .limit(fetchLimit);
 
-    const sortedAllNotes = sortByLastVisited(junctionNotes.map(note => ({
-      ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || ''
-    })));
+    const sortedAllNotes = sortByCreatedAtAsc(
+      junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
+    );
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
@@ -1169,18 +1164,32 @@ export async function getScriptureNotesForDashboard(userId: string, limit = 20, 
 
 export async function getThreadsForSpace(spaceId: string, userId: string) {
   try {
-    const threads = await db.select({
-      id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
-      color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
-      isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt,
-      updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
-    }).from(Threads)
-      .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
-      .orderBy(
-        desc(Threads.isPinned),
-        asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), asc(Threads.id)
-      );
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const threads = chronological
+      ? await db
+          .select({
+            id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
+            color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
+            isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt,
+            updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
+          })
+          .from(Threads)
+          .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
+          .orderBy(desc(Threads.isPinned), asc(Threads.createdAt), asc(Threads.id))
+      : await db
+          .select({
+            id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
+            color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
+            isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt,
+            updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
+          })
+          .from(Threads)
+          .where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId)))
+          .orderBy(
+            desc(Threads.isPinned),
+            asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+            desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), asc(Threads.id)
+          );
 
     const threadIds = threads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
@@ -1210,17 +1219,32 @@ export async function getThreadsForSpace(spaceId: string, userId: string) {
 
 export async function getThreadsForSpaceBySpaceId(spaceId: string) {
   try {
-    const threads = await db.select({
-      id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
-      color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
-      isPublic: Threads.isPublic, isPinned: Threads.isPinned,
-      createdAt: Threads.createdAt, updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
-    }).from(Threads).where(eq(Threads.spaceId, spaceId))
-      .orderBy(
-        desc(Threads.isPinned),
-        asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), asc(Threads.id)
-      );
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const threads = chronological
+      ? await db
+          .select({
+            id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
+            color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
+            isPublic: Threads.isPublic, isPinned: Threads.isPinned,
+            createdAt: Threads.createdAt, updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
+          })
+          .from(Threads)
+          .where(eq(Threads.spaceId, spaceId))
+          .orderBy(desc(Threads.isPinned), asc(Threads.createdAt), asc(Threads.id))
+      : await db
+          .select({
+            id: Threads.id, title: Threads.title, subtitle: Threads.subtitle,
+            color: Threads.color, spaceId: Threads.spaceId, userId: Threads.userId,
+            isPublic: Threads.isPublic, isPinned: Threads.isPinned,
+            createdAt: Threads.createdAt, updatedAt: Threads.updatedAt, lastVisited: Threads.lastVisited,
+          })
+          .from(Threads)
+          .where(eq(Threads.spaceId, spaceId))
+          .orderBy(
+            desc(Threads.isPinned),
+            asc(sql`CASE WHEN ${Threads.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+            desc(Threads.lastVisited), desc(Threads.updatedAt), desc(Threads.createdAt), asc(Threads.id)
+          );
 
     const threadIds = threads.map(t => t.id);
     let noteCountsMap = new Map<string, number>();
@@ -1250,16 +1274,26 @@ export async function getThreadsForSpaceBySpaceId(spaceId: string) {
 export async function getNotesForSpace(spaceId: string, userId: string, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select(NOTE_SELECT_COLUMNS)
-      .from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-      ).limit(fetchLimit);
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const allNotes = chronological
+      ? await db
+          .select(NOTE_SELECT_COLUMNS)
+          .from(Notes)
+          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
+          .orderBy(asc(Notes.createdAt), asc(Notes.id))
+          .limit(fetchLimit)
+      : await db
+          .select(NOTE_SELECT_COLUMNS)
+          .from(Notes)
+          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
+          .orderBy(
+            asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+            desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+          )
+          .limit(fetchLimit);
 
-    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
-      ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || ''
-    })));
+    const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
@@ -1329,19 +1363,26 @@ export async function getNotesForSpaceForMember(
 ): Promise<{ notes: any[]; hasMore: boolean }> {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select({
-      ...NOTE_SELECT_COLUMNS,
-      userId: Notes.userId,
-    }).from(Notes)
-      .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-      ).limit(fetchLimit);
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const allNotes = chronological
+      ? await db
+          .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          .from(Notes)
+          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
+          .orderBy(asc(Notes.createdAt), asc(Notes.id))
+          .limit(fetchLimit)
+      : await db
+          .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
+          .from(Notes)
+          .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
+          .orderBy(
+            asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+            desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+          )
+          .limit(fetchLimit);
 
-    const sortedAllNotes = sortByLastVisited(allNotes.map(note => ({
-      ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || ''
-    })));
+    const mapped = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 

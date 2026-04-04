@@ -8,7 +8,13 @@ import {
   type SyncStatus 
 } from './offline-db';
 import { isOfflineModeEnabled } from './offline-mode';
-import { sortByLastVisited, sortThreadsByLastVisited, normalizeDate } from '@/utils/sorting';
+import {
+  sortByLastVisited,
+  sortThreadsByLastVisited,
+  sortByCreatedAtAsc,
+  sortThreadsChronologicallyForSpace,
+  normalizeDate,
+} from '@/utils/sorting';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render
@@ -199,8 +205,7 @@ export async function getThreadsLocal(userId: string): Promise<OfflineThread[]> 
 
 /**
  * Get threads for a specific space from local DB
- * Sorted by isPinned (pinned first), then lastVisited/updatedAt/createdAt (newest first)
- * This matches the server-side sorting in getThreadsForSpace
+ * Matches getThreadsForSpace: public spaces → pinned first, then oldest thread first; private → activity sort.
  */
 export async function getThreadsForSpaceLocal(userId: string, spaceId: string): Promise<OfflineThread[]> {
   try {
@@ -210,13 +215,17 @@ export async function getThreadsForSpaceLocal(userId: string, spaceId: string): 
       .filter(thread => thread.syncStatus !== 'deleted')
       .toArray();
 
-    // Sort using shared sorting utility that matches server-side logic
-    // isPinned first, then by lastVisited/updatedAt/createdAt, with ID tiebreaker
-    return sortThreadsByLastVisited(threads.map(thread => ({
-      ...thread,
-      updatedAt: thread.updatedAt || thread.createdAt,
-      id: thread.id
-    })));
+    const space = await getSpaceLocal(userId, spaceId);
+    if (space?.isPublic === true) {
+      return sortThreadsChronologicallyForSpace(threads);
+    }
+    return sortThreadsByLastVisited(
+      threads.map(thread => ({
+        ...thread,
+        updatedAt: thread.updatedAt || thread.createdAt,
+        id: thread.id,
+      })),
+    );
   } catch (error) {
     console.error('Error getting threads for space from local DB:', error);
     return [];
@@ -348,17 +357,17 @@ export async function getNotesForThreadLocal(userId: string, threadId: string, l
       .filter(note => noteIds.includes(note.id) && note.syncStatus !== 'deleted')
       .toArray();
     
-    // Sort using shared sorting utility that matches server-side logic
-    // Items with lastVisited come first, then items without (sorted by updatedAt/createdAt)
-    const sorted = sortByLastVisited(allNotes.map(note => ({
-      ...note,
-      updatedAt: note.updatedAt || note.createdAt,
-      id: note.id
-    })));
-    
+    const sorted = sortByCreatedAtAsc(
+      allNotes.map(note => ({
+        ...note,
+        updatedAt: note.updatedAt || note.createdAt,
+        id: note.id,
+      })),
+    );
+
     const hasMore = sorted.length > offset + limit;
     const notes = sorted.slice(offset, offset + limit);
-    
+
     return { notes, hasMore };
   } catch (error) {
     console.error('Error getting notes for thread from local DB:', error);
@@ -376,14 +385,15 @@ export async function getNotesForSpaceLocal(userId: string, spaceId: string, lim
       .equals([userId, spaceId])
       .filter(note => note.syncStatus !== 'deleted')
       .toArray();
-    
-    // Sort using shared sorting utility that matches server-side logic
-    // Items with lastVisited come first, then items without (sorted by updatedAt/createdAt)
-    const sorted = sortByLastVisited(allNotes.map(note => ({
+
+    const space = await getSpaceLocal(userId, spaceId);
+    const chronological = space?.isPublic === true;
+    const mapped = allNotes.map(note => ({
       ...note,
       updatedAt: note.updatedAt || note.createdAt,
-      id: note.id
-    })));
+      id: note.id,
+    }));
+    const sorted = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
     
     const hasMore = sorted.length > offset + limit;
     const notes = sorted.slice(offset, offset + limit);

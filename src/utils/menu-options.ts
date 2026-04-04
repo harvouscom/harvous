@@ -35,6 +35,26 @@ export function shouldShowMoreButton(contentType: "thread" | "note" | "space" | 
 }
 
 /**
+ * Whether the action strip should show any menu items. Pass `menuOptionCount` from
+ * `getMenuOptions(...).length` so callers avoid duplicating visibility rules.
+ */
+export function shouldShowActionStripMenu(
+  contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space",
+  contentId: string | undefined,
+  contentOwnerId: string | null | undefined,
+  currentUserId: string | null | undefined,
+  menuOptionCount: number
+): boolean {
+  if (contentType !== "thread" && contentType !== "note" && contentType !== "space") {
+    return false;
+  }
+  if (!shouldShowMoreButton(contentType, contentId, contentOwnerId, currentUserId)) {
+    return false;
+  }
+  return menuOptionCount > 0;
+}
+
+/**
  * Gets the menu options for a given content type
  * @param contentType The type of content being displayed
  * @param contentId Optional content ID to check for special cases (e.g., unorganized thread)

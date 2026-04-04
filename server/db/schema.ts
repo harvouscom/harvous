@@ -378,7 +378,7 @@ export const FeaturedItems = pgTable(
   'FeaturedItems',
   {
     id: text('id').primaryKey(),
-    contentType: text('contentType').notNull(), // 'space' | 'recall' | 'challenge' | 'church'
+    contentType: text('contentType').notNull(), // 'space' | 'thread' | 'recall' | 'challenge' | 'church'
     title: text('title').notNull(),
     description: text('description'),
     refId: text('refId'),

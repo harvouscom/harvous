@@ -8,8 +8,7 @@ import { deleteNoteOffline, deleteThreadOffline, deleteSpaceOffline } from '@/ut
 import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
-import { getMenuOptions } from '@/utils/menu-options';
-import { shouldShowMoreButton } from '@/utils/menu-options';
+import { getMenuOptions, shouldShowActionStripMenu } from '@/utils/menu-options';
 import Icon from './Icon';
 
 export interface ActionStripItem {
@@ -78,7 +77,6 @@ export default function ActionStrip({
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveContentEncryptedServer = contentEncryptedServerOverride ?? contentEncryptedServer;
 
-  const showStrip = shouldShowMoreButton(contentType, contentId, contentOwnerId, effectiveUserId);
   const options = getMenuOptions(
     contentType,
     contentId,
@@ -91,6 +89,13 @@ export default function ActionStrip({
     effectiveUserId,
     spaceIsShared
   );
+  const showStrip = shouldShowActionStripMenu(
+    contentType,
+    contentId,
+    contentOwnerId,
+    effectiveUserId,
+    options.length
+  );
   const stripItems: ActionStripItem[] = options.map((o) => ({
     action: o.action,
     label: getShortLabel(o.label)
@@ -98,7 +103,6 @@ export default function ActionStrip({
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
 
   useEffect(() => {
     setLockStateOverride(null);
@@ -119,15 +123,6 @@ export default function ActionStrip({
     window.addEventListener('noteLockStateChanged', handler);
     return () => window.removeEventListener('noteLockStateChanged', handler);
   }, [contentId]);
-
-  useEffect(() => {
-    const handleEditModeChange = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setIsEditMode(detail?.editing === true);
-    };
-    window.addEventListener('contentEditModeChange', handleEditModeChange);
-    return () => window.removeEventListener('contentEditModeChange', handleEditModeChange);
-  }, []);
 
   const performErase = async () => {
     if (!contentId || !contentType) return;
@@ -362,7 +357,7 @@ export default function ActionStrip({
     setPendingAction(null);
   };
 
-  if (!showStrip || stripItems.length === 0 || isEditMode) {
+  if (!showStrip || stripItems.length === 0) {
     return null;
   }
 

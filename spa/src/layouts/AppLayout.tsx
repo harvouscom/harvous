@@ -9,7 +9,8 @@ import ReferralCreditInit from '../../../src/components/react/ReferralCreditInit
 import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { getNavAvatarInitials } from '@/utils/nav-avatar-initials';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
 import { NavigationProvider } from '../../../src/components/react/navigation/NavigationContext';
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
@@ -18,7 +19,7 @@ import MobileBottomSheetWithContext from '../../../src/components/react/MobileBo
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
-import { getMenuOptions, shouldShowMoreButton } from '../../../src/utils/menu-options';
+import { getMenuOptions, shouldShowActionStripMenu } from '../../../src/utils/menu-options';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { api } from '../lib/api';
 import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
@@ -72,6 +73,7 @@ export default function AppLayout() {
   })();
 
   const { data: profile, isSuccess: profileSuccess, isError: profileError } = useProfile();
+  const navAvatarInitials = useMemo(() => getNavAvatarInitials(user ?? undefined, profile), [user, profile]);
   // Fire nav immediately when cookie is present (parallel with profile — no waterfall).
   const { data: nav } = useNavigation({
     enabled: hasSessionCookie || (isLoaded && isSignedIn) || (profileSuccess && !!profile) || profileError,
@@ -103,7 +105,8 @@ export default function AppLayout() {
   // When viewing a note page, fetch note details to get parent thread/type
   // This will be a cache hit (NotePage already fetched it) — no extra network request
   const { data: currentNote } = useNote(noteIdForHook);
-  const { data: currentThread } = useThread(threadIdForHook);
+  const { data: currentThreadPrefetch } = useThread(threadIdForHook);
+  const currentThread = currentThreadPrefetch?.thread;
   const { data: currentSpaceDetail } = useSpace(spaceIdForHook);
 
   // For note pages, parent thread id (for nav highlight and for add-note permission).
@@ -119,7 +122,8 @@ export default function AppLayout() {
     if (fromUrl) return fromUrl;
     return getCachedNoteParentThreadId(noteIdForHook);
   })();
-  const { data: parentThreadData } = useThread(noteParentThreadId ?? '');
+  const { data: parentThreadPrefetch } = useThread(noteParentThreadId ?? '');
+  const parentThreadData = parentThreadPrefetch?.thread;
 
   // Redirect to sign-in if not authenticated
   useEffect(() => {
@@ -503,23 +507,34 @@ export default function AppLayout() {
     user?.id ?? null,
     spaceIsShared
   );
-  const hasVisibleMoreButton = shouldShowMoreButton(
+  const showActionStrip = shouldShowActionStripMenu(
     contentType,
     currentId,
     contentOwnerId,
-    user?.id ?? null
+    user?.id ?? null,
+    actionStripOptions.length
   );
-  const showActionStrip =
-    (contentType === 'thread' || contentType === 'note' || contentType === 'space') &&
-    !isUnorganized &&
-    actionStripOptions.length > 0 &&
-    hasVisibleMoreButton;
 
   // Action strip dock: hide with slide-out animation when entering note edit mode, when a panel opens, or when navigating away
   const [isEditMode, setIsEditMode] = useState(false);
   const [exiting, setExiting] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const prevShowActionStripRef = useRef(showActionStrip);
+  /** Preserves pathname while the strip exit animation runs so the dock key does not jump to the next route. */
+  const lastStripPathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    if (showActionStrip) {
+      lastStripPathnameRef.current = pathname;
+    }
+  }, [showActionStrip, pathname]);
+
+  // Remount the dock when navigating between thread/space/note so slide-in CSS runs again; keep key stable during exiting.
+  const actionStripDockKey = showActionStrip
+    ? pathname
+    : exiting
+      ? lastStripPathnameRef.current
+      : pathname;
 
   useEffect(() => {
     const handleEditModeChange = (e: Event) => {
@@ -610,7 +625,7 @@ export default function AppLayout() {
             isNote={isNote}
             currentId={currentId}
             showProfile={false}
-            initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
+            initials={navAvatarInitials}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
             search={search}
@@ -643,6 +658,7 @@ export default function AppLayout() {
             )}
             {showDock && (
               <div
+                key={actionStripDockKey}
                 id="square-buttons-container"
                 className={`action-strip-dock ${dockHiding ? 'action-strip-dock--hiding' : 'action-strip-dock--showing'}`}
                 onAnimationEnd={handleDockAnimationEnd}
@@ -693,7 +709,7 @@ export default function AppLayout() {
             inboxCount={nav?.inboxCount ?? 0}
             currentSpace={currentSpace}
             currentThread={activeThread}
-            initials={`${user?.firstName?.[0] ?? ''}${user?.lastName?.[0] ?? ''}`.trim()}
+            initials={navAvatarInitials}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
             search={search}
@@ -728,6 +744,7 @@ export default function AppLayout() {
             )}
             {showDock && (
               <div
+                key={actionStripDockKey}
                 className={`mobile-action-strip-dock ${dockHiding ? 'mobile-action-strip-dock--hiding' : 'mobile-action-strip-dock--showing'}`}
                 onAnimationEnd={handleDockAnimationEnd}
               >

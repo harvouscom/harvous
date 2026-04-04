@@ -114,6 +114,42 @@ export function sortByLastVisited<T extends {
  * CRITICAL: Pinned items first, then items with lastVisited above items without.
  * This ensures visited threads appear above unvisited threads.
  */
+/**
+ * Oldest first by createdAt, then id — for curated / shared space lists and thread notes.
+ */
+export function sortByCreatedAtAsc<T extends { createdAt?: Date | string | null; id?: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
+
+/**
+ * Shared / public space thread list: pinned first, then oldest thread first.
+ */
+export function sortThreadsChronologicallyForSpace<
+  T extends { isPinned?: boolean; createdAt?: Date | string | null; id?: string },
+>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
+
 export function sortThreadsByLastVisited<T extends {
   isPinned?: boolean;
   lastVisited?: Date | string | null;

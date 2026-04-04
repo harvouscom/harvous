@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type MutableRefObject } from 'react';
 import { createPortal } from 'react-dom';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
@@ -6,7 +6,7 @@ import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import Icon from './Icon';
 import { stripHtml } from '@/utils/html-stripper';
-import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { normalizeDate } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
@@ -116,6 +116,106 @@ function filterNotesByType(notes: Note[], filter?: 'all' | 'default' | 'scriptur
   return notes;
 }
 
+/** Expected total notes for the active type tab — used for infinite scroll and loadMore refs. */
+function totalCountForNoteFilter(
+  noteTypeFilter: 'all' | 'default' | 'scripture' | 'resource' | undefined,
+  noteTypeCounts: NoteTypeCounts | undefined,
+  initialNotesLength: number,
+  filteredLen: number,
+  ntf: string,
+): number {
+  if (ntf === 'all' && initialNotesLength > 0) {
+    return initialNotesLength;
+  }
+  if (!noteTypeCounts) {
+    return filteredLen;
+  }
+  switch (noteTypeFilter) {
+    case 'all':
+      return noteTypeCounts.all;
+    case 'default':
+      return noteTypeCounts.default;
+    case 'scripture':
+      return noteTypeCounts.scripture;
+    case 'resource':
+      return noteTypeCounts.resource;
+    default:
+      return noteTypeCounts.all;
+  }
+}
+
+/** Union by id; state wins so load-more rows survive while allFetchedNotesRef is only first pages. */
+function mergeNotesByIdPreferState(refNotes: Note[], stateNotes: Note[]): Note[] {
+  if (!refNotes.length) return stateNotes;
+  if (!stateNotes.length) return [...refNotes];
+  const m = new Map<string, Note>();
+  for (const n of refNotes) m.set(n.id, n);
+  for (const n of stateNotes) m.set(n.id, n);
+  return Array.from(m.values());
+}
+
+type OptimisticMergeFn = (
+  confirmedIds: Set<string>,
+  maxAgeMs: number,
+  belongsToThread: (note: Note) => boolean,
+) => Note[];
+
+/**
+ * Single pipeline for tab filtering — used during render (useMemo) so the first paint matches
+ * the selected tab, and in useLayoutEffect to keep `notes` state aligned.
+ */
+function computeThreadNotesViewList(options: {
+  initialNotes: Note[];
+  prevInitialNotesRef: MutableRefObject<Note[]>;
+  allFetchedNotes: Note[];
+  notesState: Note[];
+  deletedNoteIds: Set<string>;
+  noteTypeFilter: 'all' | 'default' | 'scripture' | 'resource' | undefined;
+  ntf: string;
+  threadId: string;
+  getOptimisticItemsToMerge: OptimisticMergeFn;
+}): Note[] {
+  const initialNotesChanged = options.prevInitialNotesRef.current !== options.initialNotes;
+  const hasFreshServerData = initialNotesChanged && options.initialNotes.length > 0;
+  let sourceNotes = hasFreshServerData
+    ? options.initialNotes
+    : mergeNotesByIdPreferState(options.allFetchedNotes, options.notesState);
+
+  const confirmedIds = new Set(sourceNotes.map((n) => n.id));
+  const optimisticNotesToMerge = options.getOptimisticItemsToMerge(
+    confirmedIds,
+    5000,
+    (note) => {
+      const noteThreadId = (note as any).threadId;
+      return (
+        noteThreadId === options.threadId ||
+        (options.threadId === 'thread_unorganized' &&
+          (!noteThreadId || noteThreadId === 'thread_unorganized'))
+      );
+    },
+  );
+
+  if (optimisticNotesToMerge.length > 0) {
+    sourceNotes = [...optimisticNotesToMerge, ...sourceNotes];
+  }
+
+  const filtered = sourceNotes.filter((note) => !options.deletedNoteIds.has(note.id));
+
+  const normalized = filtered.map((note) => ({
+    ...note,
+    lastVisited: note.lastVisited ? normalizeDate(note.lastVisited) || note.lastVisited : note.lastVisited,
+    updatedAt: note.updatedAt ? normalizeDate(note.updatedAt) || note.updatedAt : note.updatedAt,
+    createdAt: note.createdAt ? normalizeDate(note.createdAt) || note.createdAt : note.createdAt,
+  }));
+
+  const typeFiltered =
+    options.ntf === 'all' ? normalized : filterNotesByType(normalized, options.noteTypeFilter);
+
+  const uniqueNotes = Array.from(new Map(typeFiltered.map((note) => [note.id, note])).values());
+
+  return sortNotesByTime(uniqueNotes, options.threadId);
+}
+
 // Helper function to sort notes chronologically by createdAt (oldest first)
 function sortNotesChronologically(notes: Note[]): Note[] {
   return [...notes].sort((a, b) => {
@@ -134,15 +234,9 @@ function sortNotesChronologically(notes: Note[]): Note[] {
   });
 }
 
-// Use shared sorting function that matches API logic (lastVisited → updatedAt → createdAt → id)
-// For onboarding thread, use chronological sorting by createdAt instead
-// Note: Note interface uses updatedAt, so it matches the shared function directly
-function sortNotesByTime(notes: Note[], threadId: string): Note[] {
-  // Check if this is the onboarding thread
-  if (threadId.startsWith('thread_onboarding_')) {
-    return sortNotesChronologically(notes);
-  }
-  return sortByLastVisited(notes);
+// Oldest first (createdAt) — matches server getNotesForThread / onboarding; better for study series.
+function sortNotesByTime(notes: Note[], _threadId: string): Note[] {
+  return sortNotesChronologically(notes);
 }
 
 export default function ThreadNotesList({
@@ -213,7 +307,6 @@ export default function ThreadNotesList({
   const databaseOffsetRef = useRef<number>(0);
 
   // Track previous values to detect what changed
-  const prevNoteTypeFilterRef = useRef<string>(noteTypeFilter);
   const prevInitialNotesRef = useRef<Note[]>(initialNotes);
   const isMountedRef = useRef<boolean>(true);
   // Always reflects the current threadId; checked after async gaps to discard stale responses.
@@ -225,7 +318,12 @@ export default function ThreadNotesList({
   const lastBackgroundTimeRef = useRef<number>(0);
   const lastVisibilityRefreshRef = useRef<number>(0);
   // Track optimistically added notes that haven't been confirmed by API yet
-  const optimisticUpdates = useOptimisticUpdates<Note>();
+  const {
+    getOptimisticItemsToMerge,
+    addOptimistic,
+    removeOptimistic,
+    hasOptimistic,
+  } = useOptimisticUpdates<Note>();
   
   // Cleanup on unmount
   useEffect(() => {
@@ -235,85 +333,41 @@ export default function ThreadNotesList({
   }, []);
 
   
-  // Handle both initialNotes changes and noteTypeFilter changes in a single useEffect
-  // This ensures proper initialization and preserves optimistic updates when switching tabs
-  useEffect(() => {
+  // Handle both initialNotes changes and noteTypeFilter changes before paint so the list
+  // matches the selected tab immediately (useEffect caused a visible lag after tab changes).
+  useLayoutEffect(() => {
     const initialNotesChanged = prevInitialNotesRef.current !== initialNotes;
-    const filterChanged = prevNoteTypeFilterRef.current !== noteTypeFilter;
 
-    
-    // Use initialNotes when it has fresh server data; for filter-only changes
-    // use allFetchedNotesRef (full unfiltered API result) so tab switching
-    // correctly re-slices from the full set.
-    const hasFreshServerData = initialNotesChanged && initialNotes.length > 0;
-    let sourceNotes = hasFreshServerData ? initialNotes : allFetchedNotesRef.current;
-    
-    // Merge optimistic notes with sourceNotes to preserve optimistic updates
-    // Optimistic notes are notes that were added optimistically but haven't been confirmed by API yet
-    const confirmedIds = new Set(sourceNotes.map(n => n.id));
-    const optimisticNotesToMerge = optimisticUpdates.getOptimisticItemsToMerge(
-      confirmedIds,
-      5000, // 5 seconds
-      (note) => {
-        // Only include notes that belong to this thread
-        // Note: optimistic notes may have threadId set explicitly during creation
-        const noteThreadId = (note as any).threadId;
-        const belongsToThread = noteThreadId === threadId ||
-                                (threadId === 'thread_unorganized' && (!noteThreadId || noteThreadId === 'thread_unorganized'));
-        return belongsToThread;
-      }
-    );
-    
-    // Merge optimistic notes with sourceNotes
-    if (optimisticNotesToMerge.length > 0) {
-      sourceNotes = [...optimisticNotesToMerge, ...sourceNotes];
-    }
-    
-    const filtered = sourceNotes
-      .filter(note => !deletedNoteIds.has(note.id));
-    
-    // Normalize dates BEFORE filtering/sorting (matching OrganizedContentList pattern)
-    const normalized = filtered.map(note => ({
-      ...note,
-      lastVisited: note.lastVisited ? normalizeDate(note.lastVisited) || note.lastVisited : note.lastVisited,
-      updatedAt: note.updatedAt ? normalizeDate(note.updatedAt) || note.updatedAt : note.updatedAt,
-      createdAt: note.createdAt ? normalizeDate(note.createdAt) || note.createdAt : note.createdAt
-    }));
-    
-    // If noteTypeFilter is 'all', skip type filtering (notes are already pre-filtered on server)
-    // Otherwise, apply the type filter
-    const typeFiltered = ntf ==='all' 
-      ? normalized 
-      : filterNotesByType(normalized, noteTypeFilter);
-    
-    // Deduplicate by note ID to prevent duplicates
-    const uniqueNotes = Array.from(
-      new Map(typeFiltered.map(note => [note.id, note])).values()
-    );
-    
-    // Sort by time (newest first) to ensure proper animation order
-    // This maintains chronological order regardless of note type
-    // sortNotesByTime uses sortByLastVisited which normalizes internally, but we normalized above for consistency
-    // For onboarding thread, uses chronological sorting by createdAt
-    const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
-    
-    // Batch both state updates together — React 18 automatically batches these so
-    // committedFilter and notes are always in sync on the same render. The empty state
-    // only shows when committedFilter === noteTypeFilter, preventing any flash.
+    const sortedNotes = computeThreadNotesViewList({
+      initialNotes,
+      prevInitialNotesRef,
+      allFetchedNotes: allFetchedNotesRef.current,
+      notesState: notes,
+      deletedNoteIds,
+      noteTypeFilter,
+      ntf,
+      threadId,
+      getOptimisticItemsToMerge,
+    });
+
     setNotes(sortedNotes);
     setCommittedFilter(noteTypeFilter);
-    // Initialize accumulatedFilteredCountRef immediately with the filtered count
     accumulatedFilteredCountRef.current = sortedNotes.length;
+    totalCountForFilterRef.current = totalCountForNoteFilter(
+      noteTypeFilter,
+      noteTypeCounts,
+      initialNotes.length,
+      sortedNotes.length,
+      ntf,
+    );
 
-    // Update database offset only when initialNotes change
     if (initialNotesChanged) {
       databaseOffsetRef.current = initialNotes.length;
     }
 
-    // Update previous refs
-    prevNoteTypeFilterRef.current = noteTypeFilter;
     prevInitialNotesRef.current = initialNotes;
-  }, [initialNotes, deletedNoteIds, noteTypeFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omit `notes`: would re-run every loadMore and loop setNotes; closure notes is correct when filter/initial/deleted change
+  }, [initialNotes, deletedNoteIds, noteTypeFilter, threadId, noteTypeCounts, ntf, getOptimisticItemsToMerge]);
 
   // Use ref to track current notes without causing effect re-runs
   const notesRef = useRef<Note[]>(notes);
@@ -447,7 +501,7 @@ export default function ThreadNotesList({
           
           // Merge with optimistic notes that haven't been confirmed yet
           const confirmedNoteIds = new Set<string>(filtered.map((note: Note) => note.id));
-          const optimisticNotesToKeep = optimisticUpdates.getOptimisticItemsToMerge(
+          const optimisticNotesToKeep = getOptimisticItemsToMerge(
             confirmedNoteIds,
             5000, // 5 seconds
             (note) => {
@@ -489,7 +543,7 @@ export default function ThreadNotesList({
           if (expectedNoteId) {
             const noteExists = sortedNotes.some(note => note.id === expectedNoteId);
             if (noteExists && confirmedNoteIds.has(expectedNoteId)) {
-              optimisticUpdates.removeOptimistic(expectedNoteId);
+              removeOptimistic(expectedNoteId);
             }
           }
           
@@ -514,7 +568,7 @@ export default function ThreadNotesList({
       // PHASE 4: Return success status so caller can clean up sessionStorage
       return success;
     }
-  }, [threadId, noteTypeFilter, optimisticUpdates, onNotesLoaded]);
+  }, [threadId, noteTypeFilter, getOptimisticItemsToMerge, removeOptimistic, onNotesLoaded]);
 
   // Unified event handler for all note-related events
   useEffect(() => {
@@ -523,7 +577,7 @@ export default function ThreadNotesList({
       // Only remove if the note belongs to this thread or if threadId matches
       if (noteId && (deletedThreadId === threadId || !deletedThreadId)) {
         // Remove from optimistic tracking if it exists
-        optimisticUpdates.removeOptimistic(noteId);
+        removeOptimistic(noteId);
         
         setDeletedNoteIds(prev => {
           const newSet = new Set([...prev, noteId]);
@@ -682,7 +736,7 @@ export default function ThreadNotesList({
           debug('[ThreadNotesList] Adding note optimistically', { noteId, title: noteToAdd.title });
           
           // Track as optimistic note
-          optimisticUpdates.addOptimistic(noteId, noteToAdd);
+          addOptimistic(noteId, noteToAdd);
 
           // Add note optimistically (synchronous - happens immediately)
           setNotes(prev => {
@@ -721,10 +775,10 @@ export default function ThreadNotesList({
           } else {
             // Verification failed after all attempts - check if we should remove optimistic note
             // Only remove if it's been more than 2 seconds since creation (database likely doesn't have it)
-            if (optimisticUpdates.hasOptimistic(noteId)) {
+            if (hasOptimistic(noteId)) {
               // Check timestamp from the ref (hook doesn't expose timestamp directly)
               // For now, just remove if verification failed - the hook will clean up old items
-              optimisticUpdates.removeOptimistic(noteId);
+              removeOptimistic(noteId);
               setNotes(prev => prev.filter(n => n.id !== noteId));
             }
           }
@@ -744,7 +798,7 @@ export default function ThreadNotesList({
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as EventListener);
       window.removeEventListener('noteCreated', handleNoteCreated as unknown as EventListener);
     };
-  }, [threadId, threadColor, noteTypeFilter, optimisticUpdates, refreshNotesList]);
+  }, [threadId, threadColor, noteTypeFilter, addOptimistic, removeOptimistic, hasOptimistic, refreshNotesList]);
 
   // PHASE 4: Check sessionStorage on mount for recently created notes
   // Only remove from sessionStorage after successful verification
@@ -849,7 +903,7 @@ export default function ThreadNotesList({
             });
             
             // Track as optimistic note
-            optimisticUpdates.addOptimistic(relevantNote.noteId, optimisticNote);
+            addOptimistic(relevantNote.noteId, optimisticNote);
             
             // Add note optimistically (synchronous - happens immediately)
             setNotes(prev => {
@@ -1247,37 +1301,31 @@ export default function ThreadNotesList({
     setNoteToDelete(null);
   };
 
-  // Filter out deleted notes (note type filtering is already applied in state)
-  const filteredNotes = notes.filter(note => !deletedNoteIds.has(note.id));
+  // Derive visible rows from current tab + merged fetch state on every render so the first paint
+  // after switching to Scripture (etc.) never shows the previous tab's CardNote rows.
+  const filteredNotes = useMemo(
+    () =>
+      computeThreadNotesViewList({
+        initialNotes,
+        prevInitialNotesRef,
+        allFetchedNotes: allFetchedNotesRef.current,
+        notesState: notes,
+        deletedNoteIds,
+        noteTypeFilter,
+        ntf,
+        threadId,
+        getOptimisticItemsToMerge,
+      }),
+    [initialNotes, notes, deletedNoteIds, noteTypeFilter, ntf, threadId, getOptimisticItemsToMerge],
+  );
 
-  // Calculate initial hasMore based on filtered items vs total count for the filter type
-  const getTotalCountForFilter = (): number => {
-    // If noteTypeFilter is 'all' and we have pre-filtered notes, use the length of initialNotes
-    // This handles the case where notes are pre-filtered on the server
-    if (ntf ==='all' && initialNotes.length > 0) {
-      return initialNotes.length;
-    }
-    
-    if (!noteTypeCounts) {
-      // Fallback: if no counts provided, assume there might be more if we have a full page
-      return filteredNotes.length;
-    }
-    
-    switch (noteTypeFilter) {
-      case 'all':
-        return noteTypeCounts.all;
-      case 'default':
-        return noteTypeCounts.default;
-      case 'scripture':
-        return noteTypeCounts.scripture;
-      case 'resource':
-        return noteTypeCounts.resource;
-      default:
-        return noteTypeCounts.all;
-    }
-  };
-
-  const totalCountForFilter = getTotalCountForFilter();
+  const totalCountForFilter = totalCountForNoteFilter(
+    noteTypeFilter,
+    noteTypeCounts,
+    initialNotes.length,
+    filteredNotes.length,
+    ntf,
+  );
   // hasMore is true if we have fewer filtered items than the total count for this filter type
   // This ensures we continue loading until all matching notes are loaded
   const initialHasMore = filteredNotes.length < totalCountForFilter;
@@ -1585,6 +1633,7 @@ export default function ThreadNotesList({
       <div ref={containerRef} style={{ paddingBottom: '12px' }}>
         {filteredNotes.length > 0 ? (
           <InfiniteScrollList
+            key={`${threadId}-${noteTypeFilter}`}
             initialItems={filteredNotes}
             items={filteredNotes}
             onItemsChange={handleItemsChange}

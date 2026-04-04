@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import type { NoteDetail } from '../queries/useNote';
 
 interface ProcessScriptureInput {
   noteId: string;
@@ -7,19 +8,34 @@ interface ProcessScriptureInput {
   threadId?: string;
 }
 
+interface ProcessScriptureResponse {
+  results?: unknown[];
+  updatedContent?: string;
+}
+
 /**
  * Mutation hook for processing scripture references in a note.
  * Triggers the server to detect scripture references and create pill markup.
  *
- * On success, invalidates the note cache so the updated content (with pills) is refetched.
+ * On success, patches cached note content immediately when the API returns updated HTML, then invalidates
+ * so a background refetch stays in sync (thread lists, version, etc.).
  */
 export function useProcessScriptureRefs() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ noteId, contentOverride, threadId }: ProcessScriptureInput) =>
-      api.post(`/api/notes/${noteId}/process-scripture-references`, { contentOverride, threadId }),
-    onSuccess: (_data, variables) => {
+      api.post<ProcessScriptureResponse>(`/api/notes/${noteId}/process-scripture-references`, {
+        contentOverride,
+        threadId,
+      }),
+    onSuccess: (data, variables) => {
+      const updated = data?.updatedContent;
+      if (typeof updated === 'string' && updated.length > 0) {
+        queryClient.setQueryData<NoteDetail | undefined>(['note', variables.noteId], (old) =>
+          old ? { ...old, content: updated, updatedAt: new Date().toISOString() } : old
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['note', variables.noteId] });
     },
   });

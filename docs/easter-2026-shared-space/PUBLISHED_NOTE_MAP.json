@@ -1,0 +1,14 @@
+{
+  "_comment": "Maps publish-payload contentFile → existing note id for npm run easter:sync-notes. Update if you publish a new thread.",
+  "threadId": "thread_1775233361457",
+  "notes": {
+    "01-welcome.html": "note_1775233361671",
+    "02-what-easter-is.html": "note_1775233361961",
+    "03-why-resurrection-matters.html": "note_1775233362248",
+    "04-history-and-sources.html": "note_1775233362526",
+    "05-manuscripts.html": "note_1775233362810",
+    "06-science-and-faith.html": "note_1775233363091",
+    "07-curiosity-doubt-hope.html": "note_1775233363375",
+    "08-further-reading.html": "note_1775233363659"
+  }
+}

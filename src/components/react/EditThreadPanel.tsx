@@ -36,6 +36,17 @@ interface EditThreadPanelProps {
   inBottomSheet?: boolean;
 }
 
+interface AdminFeaturedItem {
+  id: string;
+  contentType: string;
+  title: string;
+  description: string | null;
+  refId: string | null;
+  shareToken: string | null;
+  color: string | null;
+  isActive: boolean;
+}
+
 export default function EditThreadPanel({ 
   threadId,
   initialTitle = '', 
@@ -103,7 +114,16 @@ export default function EditThreadPanel({
   // Share settings state
   const [isShared, setIsShared] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
+
+  const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
+  const [adminFeaturedItem, setAdminFeaturedItem] = useState<AdminFeaturedItem | null>(null);
+  const [adminDescription, setAdminDescription] = useState('');
+  const [isSavingAdminFeature, setIsSavingAdminFeature] = useState(false);
+  const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(false);
+  const [pendingFeature, setPendingFeature] = useState(false);
+  const adminDropdownRef = useRef<HTMLDivElement>(null);
   
   // Refs to track current values for save functions (avoid stale closures)
   // Must be declared after isShared state
@@ -220,6 +240,7 @@ export default function EditThreadPanel({
           const isPublic = data.isPublic || false;
           setIsShared(isPublic);
           setShareUrl(data.shareUrl || null);
+          setShareToken(data.shareToken || null);
           if (isPublic) {
             setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
           }
@@ -233,6 +254,66 @@ export default function EditThreadPanel({
 
     fetchShareStatus();
   }, [threadId]);
+
+  // Admin check (server-gated) so we can conditionally show admin controls.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/check', { credentials: 'include' })
+      .then((res) => {
+        if (!res.ok) return { isAdmin: false };
+        return res.json().catch(() => ({ isAdmin: true }));
+      })
+      .then((data: { isAdmin?: boolean }) => {
+        if (cancelled) return;
+        setIsHarvousAdmin(Boolean(data?.isAdmin));
+      })
+      .catch(() => {
+        if (!cancelled) setIsHarvousAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // If admin + shared thread has token, load current featured state.
+  useEffect(() => {
+    if (!isHarvousAdmin) return;
+    const token = shareToken?.trim();
+    if (!token) {
+      setAdminFeaturedItem(null);
+      setAdminDescription('');
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/admin/featured/by-thread/${encodeURIComponent(token)}`, { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((item: AdminFeaturedItem | null) => {
+        if (cancelled) return;
+        setAdminFeaturedItem(item);
+        setAdminDescription(item?.description ?? '');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAdminFeaturedItem(null);
+          setAdminDescription('');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isHarvousAdmin, shareToken]);
+
+  // Close admin dropdown on outside click
+  useEffect(() => {
+    if (!isAdminDropdownOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (adminDropdownRef.current && !adminDropdownRef.current.contains(e.target as Node)) {
+        setIsAdminDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [isAdminDropdownOpen]);
   
   // Update initial values when data is loaded
   useEffect(() => {
@@ -489,6 +570,7 @@ export default function EditThreadPanel({
         const data = await response.json();
         setIsShared(data.isPublic);
         setShareUrl(data.shareUrl);
+        setShareToken(data.shareToken ?? null);
         setFormData(prev => ({ ...prev, selectedType: data.isPublic ? 'Shared' : 'Private' }));
 
         window.dispatchEvent(new CustomEvent('toast', {
@@ -545,6 +627,7 @@ export default function EditThreadPanel({
       if (response.ok) {
         const data = await response.json();
         setShareUrl(data.shareUrl);
+        setShareToken(data.shareToken ?? null);
 
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
@@ -571,6 +654,88 @@ export default function EditThreadPanel({
       }));
     } finally {
       setShareLoading(false);
+    }
+  };
+
+  const handleToggleAdminFeature = async () => {
+    if (!isHarvousAdmin) return;
+    const token = shareToken?.trim();
+    if (!token) return;
+    if (isSavingAdminFeature) return;
+
+    setIsSavingAdminFeature(true);
+    try {
+      if (adminFeaturedItem?.isActive) {
+        const res = await fetch(`/api/admin/featured/${adminFeaturedItem.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ isActive: false }),
+        });
+        if (!res.ok) throw new Error('Failed to update featured item');
+        const updated = (await res.json()) as AdminFeaturedItem;
+        setAdminFeaturedItem(updated);
+        window.dispatchEvent(
+          new CustomEvent('toast', { detail: { message: 'Removed from featured', type: 'success' } }),
+        );
+      } else {
+        const res = await fetch('/api/admin/featured', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            contentType: 'thread',
+            title: formData.title?.trim() || 'Thread',
+            description: adminDescription?.trim() || null,
+            shareToken: token,
+            color: formData.selectedColor,
+            isActive: true,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to create featured item');
+        const created = (await res.json()) as AdminFeaturedItem;
+        setAdminFeaturedItem(created);
+        setAdminDescription(created?.description ?? adminDescription);
+        window.dispatchEvent(
+          new CustomEvent('toast', { detail: { message: 'Featured for all users', type: 'success' } }),
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update featured state';
+      window.dispatchEvent(
+        new CustomEvent('toast', {
+          detail: { message: msg, type: 'error' },
+        }),
+      );
+    } finally {
+      setIsSavingAdminFeature(false);
+    }
+  };
+
+  const handleSaveAdminDescription = async () => {
+    if (!isHarvousAdmin) return;
+    if (!adminFeaturedItem?.id) return;
+    if (!adminFeaturedItem.isActive) return;
+    if (isSavingAdminFeature) return;
+
+    const next = adminDescription?.trim() || null;
+    if ((adminFeaturedItem.description ?? null) === next) return;
+
+    setIsSavingAdminFeature(true);
+    try {
+      const res = await fetch(`/api/admin/featured/${adminFeaturedItem.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ description: next }),
+      });
+      if (!res.ok) throw new Error('Failed to update description');
+      const updated = (await res.json()) as AdminFeaturedItem;
+      setAdminFeaturedItem(updated);
+    } catch {
+      // non-fatal
+    } finally {
+      setIsSavingAdminFeature(false);
     }
   };
 
@@ -1663,6 +1828,126 @@ export default function EditThreadPanel({
                   isLoading={shareLoading}
                   isEditMode={true}
                 />
+
+                {isHarvousAdmin && isShared && shareToken ? (
+                  <div className="edit-space-panel__admin-section">
+                    <div className="edit-space-panel__admin-header">
+                      <span className="edit-space-panel__admin-label">Admin</span>
+                    </div>
+
+                    <div className="thread-visibility-dropdown" ref={adminDropdownRef}>
+                      <button
+                        type="button"
+                        className="thread-visibility-dropdown__trigger space-button h-[64px] w-full"
+                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+                        onClick={() => setIsAdminDropdownOpen((o) => !o)}
+                        disabled={isSavingAdminFeature}
+                      >
+                        <div className="flex items-center justify-between gap-3 relative w-full h-full">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="size-4 flex-center shrink-0">
+                              <Icon name="megaphone" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                            </div>
+                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap truncate text-[var(--color-deep-grey)]">
+                              {adminFeaturedItem?.isActive ? 'Featured for everyone' : 'Not featured'}
+                            </span>
+                          </div>
+                          <div className="size-4 flex-center shrink-0">
+                            <Icon
+                              name={isAdminDropdownOpen ? 'chevron-up' : 'chevron-down'}
+                              size={16}
+                              style={{ color: 'var(--color-deep-grey)' }}
+                            />
+                          </div>
+                        </div>
+                      </button>
+
+                      {isAdminDropdownOpen && (
+                        <div className="thread-visibility-dropdown__options">
+                          <button
+                            type="button"
+                            className="thread-visibility-dropdown__option"
+                            onClick={() => {
+                              if (adminFeaturedItem?.isActive) {
+                                void handleToggleAdminFeature();
+                                setIsAdminDropdownOpen(false);
+                                setPendingFeature(false);
+                              } else {
+                                setPendingFeature(false);
+                                setIsAdminDropdownOpen(false);
+                              }
+                            }}
+                            disabled={isSavingAdminFeature}
+                          >
+                            <div className="thread-visibility-dropdown__option-content">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <span className="thread-visibility-dropdown__option-text">Not featured</span>
+                              </div>
+                              {!adminFeaturedItem?.isActive && !pendingFeature && (
+                                <div className="thread-visibility-dropdown__check-slot">
+                                  <span className="thread-visibility-dropdown__check" aria-hidden="true">
+                                    <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="thread-visibility-dropdown__option"
+                            onClick={() => {
+                              if (!adminFeaturedItem?.isActive) {
+                                setPendingFeature(true);
+                              }
+                            }}
+                            disabled={isSavingAdminFeature}
+                          >
+                            <div className="thread-visibility-dropdown__option-content">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <span className="thread-visibility-dropdown__option-text">Feature for everyone</span>
+                              </div>
+                              {(adminFeaturedItem?.isActive || pendingFeature) && (
+                                <div className="thread-visibility-dropdown__check-slot">
+                                  <span className="thread-visibility-dropdown__check" aria-hidden="true">
+                                    <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </button>
+
+                          {(pendingFeature || adminFeaturedItem?.isActive) && (
+                            <div className="thread-visibility-dropdown__sharing-ui">
+                              <textarea
+                                className="edit-space-panel__admin-description"
+                                placeholder="Description shown on the card…"
+                                value={adminDescription}
+                                onChange={(e) => setAdminDescription(e.target.value)}
+                                onBlur={adminFeaturedItem?.isActive ? handleSaveAdminDescription : undefined}
+                                rows={3}
+                              />
+                              {pendingFeature && !adminFeaturedItem?.isActive && (
+                                <button
+                                  type="button"
+                                  className="btn btn--lg btn--secondary"
+                                  disabled={isSavingAdminFeature}
+                                  onClick={async () => {
+                                    await handleToggleAdminFeature();
+                                    setPendingFeature(false);
+                                    setIsAdminDropdownOpen(false);
+                                  }}
+                                >
+                                  {isSavingAdminFeature ? 'Sending…' : 'Send to everyone'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
 
                 {/* Tab navigation */}
                 {(() => {

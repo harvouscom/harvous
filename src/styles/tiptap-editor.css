@@ -218,13 +218,14 @@
   color: white !important;
 }
 
-/* Rich text link styling - primary blue with underline */
-.tiptap-content .ProseMirror a {
-  color: var(--color-bold-blue) !important;
-  text-decoration: underline !important;
+/* Rich text link styling - primary blue; underline on hover only */
+.tiptap-content .ProseMirror a:any-link {
+  color: var(--primary-color) !important;
+  text-decoration: none !important;
 }
 
-.tiptap-content .ProseMirror a:hover {
+.tiptap-content .ProseMirror a:any-link:hover {
+  text-decoration: underline !important;
   text-decoration-thickness: 2px !important;
 }
 

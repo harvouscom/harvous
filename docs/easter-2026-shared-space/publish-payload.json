@@ -1,0 +1,31 @@
+{
+  "space": {
+    "title": "Easter 2026",
+    "description": "Welcome. This space is for anyone curious about Jesus or walking with Him for years—we're exploring Easter together: what happened, why it matters, and how people thoughtfully weigh the claims. Questions and respectful disagreement are welcome. This isn't professional counseling or therapy; it's a study conversation. Ground rule: kind speech, honest questions, no pile-ons.",
+    "color": "purple",
+    "isFeatured": false
+  },
+  "thread": {
+    "title": "When the tomb was empty",
+    "subtitle": "Hope for every heart",
+    "color": "purple"
+  },
+  "notes": [
+    { "title": "Welcome — Easter 2026 shared study", "contentFile": "01-welcome.html", "noteType": "default" },
+    { "title": "What Easter is (the story in one arc)", "contentFile": "02-what-easter-is.html", "noteType": "default" },
+    { "title": "Why Jesus' resurrection matters", "contentFile": "03-why-resurrection-matters.html", "noteType": "scripture" },
+    { "title": "History and sources: what we can know", "contentFile": "04-history-and-sources.html", "noteType": "default" },
+    { "title": "Manuscripts and the New Testament text", "contentFile": "05-manuscripts.html", "noteType": "default" },
+    { "title": "Science, history, and resurrection claims", "contentFile": "06-science-and-faith.html", "noteType": "default" },
+    { "title": "Curiosity, doubt, and hope together", "contentFile": "07-curiosity-doubt-hope.html", "noteType": "default" },
+    { "title": "Further reading and links", "contentFile": "08-further-reading.html", "noteType": "default" }
+  ],
+  "featured": {
+    "enabled": true,
+    "contentType": "space",
+    "title": "Join Easter 2026",
+    "description": "Hope for every heart—walk through the resurrection together. New to Jesus or walking with Him for years. Open the card to join.",
+    "color": null,
+    "isActive": true
+  }
+}

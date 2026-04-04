@@ -407,7 +407,7 @@ route.get('/api/spaces/:spaceId/bootstrap', requireAuth, async (c) => {
     return c.json(
       { space: spaceDetail, items: { threads, notes: notesResult.notes } },
       200,
-      { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' }
+      { 'Cache-Control': 'private, no-cache' },
     );
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/bootstrap', action: 'get_space_bootstrap' });
@@ -437,7 +437,7 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
           ownerId: auth.userId,
           memberCount: 0,
         },
-      }, 200, { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' });
+      }, 200, { 'Cache-Control': 'private, no-cache' });
     }
 
     // Member path
@@ -462,7 +462,7 @@ route.get('/api/spaces/:spaceId/prefetch', requireAuth, async (c) => {
         ownerId: space.userId,
         memberCount: 0,
       },
-    }, 200, { 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300' });
+    }, 200, { 'Cache-Control': 'private, no-cache' });
   } catch (error: any) {
     console.error('Error prefetching space:', error);
     return c.json({ error: 'Failed to fetch space data' }, 500);

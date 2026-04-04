@@ -18443,7 +18443,7 @@ var init_schema2 = __esm({
       {
         id: text("id").primaryKey(),
         contentType: text("contentType").notNull(),
-        // 'space' | 'recall' | 'challenge' | 'church'
+        // 'space' | 'thread' | 'recall' | 'challenge' | 'church'
         title: text("title").notNull(),
         description: text("description"),
         refId: text("refId"),
@@ -69705,6 +69705,18 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
     content: updatedContent,
     updatedAt: /* @__PURE__ */ new Date()
   }).where(eq(Notes.id, noteId));
+  try {
+    const tagTitle = note.title ?? "";
+    const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, 0.8);
+    if (tagResult.suggestions.length > 0) {
+      await applyAutoTags(noteId, tagResult.suggestions, userId);
+    }
+  } catch (tagErr) {
+    console.error(
+      "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
+      tagErr instanceof Error ? tagErr.message : tagErr
+    );
+  }
   return {
     results,
     updatedContent
@@ -70143,9 +70155,27 @@ function sortByLastVisited(items) {
     return 0;
   });
 }
+function sortByCreatedAtAsc(items) {
+  return [...items].sort((a, b3) => {
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b3.createdAt ? normalizeDate(b3.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    const aId = a.id || "";
+    const bId = b3.id || "";
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
 
 // server/utils/dashboard-data.ts
 init_html_stripper();
+async function spaceUsesChronologicalOrdering(spaceId) {
+  const row = first(
+    await db.select({ isPublic: Spaces.isPublic }).from(Spaces).where(eq(Spaces.id, spaceId)).limit(1)
+  );
+  return row?.isPublic === true;
+}
 var SCRIPTURE_TRANSLATION_ATTR_RE = /data-scripture-translation\s*=\s*["']([^"']+)["']/i;
 function extractScriptureTranslationFromNoteContent(content) {
   if (!content) return void 0;
@@ -70598,13 +70628,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
     const fetchLimit = limit + offset + 1;
     let allNotes = [];
     if (threadId === "thread_unorganized") {
-      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited),
-        desc(Notes.updatedAt),
-        desc(Notes.createdAt),
-        asc(Notes.id)
-      ).limit(fetchLimit);
+      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
       const unorganizedNoteIds = unorganizedNotes.map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (unorganizedNoteIds.length > 0) {
@@ -70629,13 +70653,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       }
       allNotes = allNotes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
     } else {
-      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited),
-        desc(Notes.updatedAt),
-        desc(Notes.createdAt),
-        asc(Notes.id)
-      ).limit(fetchLimit);
+      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
       const threadNoteIds = junctionNotes.map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (threadNoteIds.length > 0) {
@@ -70653,15 +70671,9 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       });
       allNotes = Array.from(notesMap.values());
     }
-    const isOnboardingThread = threadId.startsWith("thread_onboarding_");
-    const sortedAllNotes = isOnboardingThread ? allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" })).sort((a, b3) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b3.createdAt ? new Date(b3.createdAt).getTime() : 0;
-      if (aTime !== bTime) return aTime - bTime;
-      if (a.id < b3.id) return -1;
-      if (a.id > b3.id) return 1;
-      return 0;
-    }) : sortByLastVisited(allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" })));
+    const sortedAllNotes = sortByCreatedAtAsc(
+      allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
+    );
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -70728,18 +70740,10 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
 async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(
-      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-      desc(Notes.lastVisited),
-      desc(Notes.updatedAt),
-      desc(Notes.createdAt),
-      asc(Notes.id)
-    ).limit(fetchLimit);
-    const sortedAllNotes = sortByLastVisited(junctionNotes.map((note) => ({
-      ...note,
-      updatedAt: note.updatedAt || note.createdAt,
-      id: note.id || ""
-    })));
+    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
+    const sortedAllNotes = sortByCreatedAtAsc(
+      junctionNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
+    );
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -71131,7 +71135,20 @@ async function getScriptureNotesForDashboard(userId, limit = 20, offset = 0) {
 }
 async function getThreadsForSpace(spaceId, userId) {
   try {
-    const threads = await db.select({
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const threads = chronological ? await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      userId: Threads.userId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited
+    }).from(Threads).where(and(eq(Threads.spaceId, spaceId), eq(Threads.userId, userId))).orderBy(desc(Threads.isPinned), asc(Threads.createdAt), asc(Threads.id)) : await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -71181,7 +71198,20 @@ async function getThreadsForSpace(spaceId, userId) {
 }
 async function getThreadsForSpaceBySpaceId(spaceId) {
   try {
-    const threads = await db.select({
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const threads = chronological ? await db.select({
+      id: Threads.id,
+      title: Threads.title,
+      subtitle: Threads.subtitle,
+      color: Threads.color,
+      spaceId: Threads.spaceId,
+      userId: Threads.userId,
+      isPublic: Threads.isPublic,
+      isPinned: Threads.isPinned,
+      createdAt: Threads.createdAt,
+      updatedAt: Threads.updatedAt,
+      lastVisited: Threads.lastVisited
+    }).from(Threads).where(eq(Threads.spaceId, spaceId)).orderBy(desc(Threads.isPinned), asc(Threads.createdAt), asc(Threads.id)) : await db.select({
       id: Threads.id,
       title: Threads.title,
       subtitle: Threads.subtitle,
@@ -71232,18 +71262,16 @@ async function getThreadsForSpaceBySpaceId(spaceId) {
 async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const allNotes = chronological ? await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select(NOTE_SELECT_COLUMNS).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
       asc(Notes.id)
     ).limit(fetchLimit);
-    const sortedAllNotes = sortByLastVisited(allNotes.map((note) => ({
-      ...note,
-      updatedAt: note.updatedAt || note.createdAt,
-      id: note.id || ""
-    })));
+    const mapped = allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }));
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -71307,21 +71335,16 @@ async function getNotesForSpace(spaceId, userId, limit = 20, offset = 0) {
 async function getNotesForSpaceForMember(spaceId, ownerUserId, limit = 100, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const allNotes = await db.select({
-      ...NOTE_SELECT_COLUMNS,
-      userId: Notes.userId
-    }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
+    const chronological = await spaceUsesChronologicalOrdering(spaceId);
+    const allNotes = chronological ? await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit) : await db.select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId }).from(Notes).where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false))).orderBy(
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
       asc(Notes.id)
     ).limit(fetchLimit);
-    const sortedAllNotes = sortByLastVisited(allNotes.map((note) => ({
-      ...note,
-      updatedAt: note.updatedAt || note.createdAt,
-      id: note.id || ""
-    })));
+    const mapped = allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }));
+    const sortedAllNotes = chronological ? sortByCreatedAtAsc(mapped) : sortByLastVisited(mapped);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -72869,12 +72892,16 @@ route7.get("/api/search", requireAuth, async (c) => {
     const query2 = url.searchParams.get("q");
     const type = url.searchParams.get("type") || "all";
     const limit = parseInt(url.searchParams.get("limit") || "50");
+    const threadIdParam = url.searchParams.get("threadId")?.trim() || null;
+    const spaceIdParam = url.searchParams.get("spaceId")?.trim() || null;
     if (!query2 || query2.trim().length === 0) {
       return c.json({ results: [] });
     }
     const trimmedQuery = query2.trim();
     const searchNotes = type === "all" || type === "notes";
-    const searchThreads = type === "all" || type === "threads";
+    const searchThreads = (type === "all" || type === "threads") && !threadIdParam;
+    const noteScopeFilters = threadIdParam ? [eq(Notes.threadId, threadIdParam)] : spaceIdParam ? [eq(Notes.spaceId, spaceIdParam)] : [];
+    const threadScopeFilters = spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
     const useFTS = trimmedQuery.length >= 3;
     let notesRows = [];
     let threadsRows = [];
@@ -72901,6 +72928,7 @@ route7.get("/api/search", requireAuth, async (c) => {
           and(
             eq(Notes.userId, userId),
             not(eq(Notes.contentEncrypted, true)),
+            ...noteScopeFilters,
             sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')) @@ ${tsQuery}`
           )
         ).orderBy(
@@ -72923,6 +72951,7 @@ route7.get("/api/search", requireAuth, async (c) => {
           and(
             eq(Notes.userId, userId),
             not(eq(Notes.contentEncrypted, true)),
+            ...noteScopeFilters,
             or(
               like(Notes.title, searchTerm),
               like(Notes.content, searchTerm),
@@ -72946,6 +72975,7 @@ route7.get("/api/search", requireAuth, async (c) => {
         }).from(Threads).where(
           and(
             eq(Threads.userId, userId),
+            ...threadScopeFilters,
             sql`to_tsvector('english', ${Threads.title}) @@ ${tsQuery}`
           )
         ).orderBy(
@@ -72965,6 +72995,7 @@ route7.get("/api/search", requireAuth, async (c) => {
         }).from(Threads).where(
           and(
             eq(Threads.userId, userId),
+            ...threadScopeFilters,
             like(Threads.title, searchTerm)
           )
         ).orderBy(desc(Threads.updatedAt), desc(Threads.createdAt), Threads.id).limit(limit);
@@ -74043,7 +74074,8 @@ route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
       notes,
       noteTypeCounts
     }, 200, {
-      "Cache-Control": "private, max-age=120, stale-while-revalidate=300"
+      // Title/color change often; avoid browser HTTP cache serving stale thread headers for minutes.
+      "Cache-Control": "private, no-cache"
     });
   } catch (error) {
     console.error("[prefetch] Error fetching thread data:", error);
@@ -85765,7 +85797,7 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       };
     }));
     const comments = await db.select({ id: Comments.id, content: Comments.content, createdAt: Comments.createdAt, updatedAt: Comments.updatedAt }).from(Comments).where(and(eq(Comments.noteId, noteId), eq(Comments.userId, auth.userId))).orderBy(Comments.createdAt);
-    const noteTags = await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, auth.userId))).orderBy(Tags.name);
+    const noteTags = await db.select({ id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem, isAutoGenerated: NoteTags.isAutoGenerated, confidence: NoteTags.confidence }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, note.userId))).orderBy(Tags.name);
     let referencingNotes = [];
     if (note.noteType === "scripture") {
       try {
@@ -85924,7 +85956,6 @@ route10.post("/api/notes/:id/process-scripture-references", requireAuth, rateLim
       } catch {
         return c.json({ error: "Note not found" }, 404);
       }
-      return c.json({ results: [], updatedContent: noteRow.content ?? "" });
     }
     let threadId;
     let contentOverride;
@@ -85936,7 +85967,7 @@ route10.post("/api/notes/:id/process-scripture-references", requireAuth, rateLim
       translation = body?.translation;
     } catch {
     }
-    const result = await processScriptureReferences(noteId, auth.userId, threadId, contentOverride, translation || "NET");
+    const result = await processScriptureReferences(noteId, noteRow.userId, threadId, contentOverride, translation || "NET");
     return c.json(result);
   } catch (error) {
     console.error("Error processing scripture references:", error);
@@ -86538,7 +86569,7 @@ route11.get("/api/spaces/:spaceId/bootstrap", requireAuth, async (c) => {
     return c.json(
       { space: spaceDetail, items: { threads, notes: notesResult.notes } },
       200,
-      { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" }
+      { "Cache-Control": "private, no-cache" }
     );
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/spaces/[spaceId]/bootstrap", action: "get_space_bootstrap" });
@@ -86563,7 +86594,7 @@ route11.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
           ownerId: auth.userId,
           memberCount: 0
         }
-      }, 200, { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" });
+      }, 200, { "Cache-Control": "private, no-cache" });
     }
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, spaceId)).limit(1));
     if (!space) return c.json({ error: "Space not found" }, 404);
@@ -86583,7 +86614,7 @@ route11.get("/api/spaces/:spaceId/prefetch", requireAuth, async (c) => {
         ownerId: space.userId,
         memberCount: 0
       }
-    }, 200, { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" });
+    }, 200, { "Cache-Control": "private, no-cache" });
   } catch (error) {
     console.error("Error prefetching space:", error);
     return c.json({ error: "Failed to fetch space data" }, 500);
@@ -88574,6 +88605,24 @@ app2.get("/api/note-tags/list", requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
     const noteId = c.req.query("noteId");
     if (!noteId) return c.json({ error: "Note ID is required" }, 400);
+    const noteRow = first(await db.select({ id: Notes.id, userId: Notes.userId, spaceId: Notes.spaceId }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    if (!noteRow) return c.json({ error: "Note not found" }, 404);
+    if (noteRow.userId !== auth.userId) {
+      let spaceIdForAccess = noteRow.spaceId;
+      if (!spaceIdForAccess) {
+        const threadWithSpace = first(
+          await db.select({ spaceId: Threads.spaceId }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), isNotNull(Threads.spaceId))).limit(1)
+        );
+        spaceIdForAccess = threadWithSpace?.spaceId ?? null;
+      }
+      if (!spaceIdForAccess) return c.json({ error: "Note not found" }, 404);
+      try {
+        await requireSpaceAccess(spaceIdForAccess, auth.userId);
+      } catch (err) {
+        if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+        throw err;
+      }
+    }
     const noteTags = await db.select({
       id: NoteTags.id,
       noteId: NoteTags.noteId,
@@ -88582,7 +88631,7 @@ app2.get("/api/note-tags/list", requireAuth, async (c) => {
       confidence: NoteTags.confidence,
       createdAt: NoteTags.createdAt,
       tag: { id: Tags.id, name: Tags.name, color: Tags.color, category: Tags.category, isSystem: Tags.isSystem }
-    }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, auth.userId)));
+    }).from(NoteTags).innerJoin(Tags, eq(NoteTags.tagId, Tags.id)).where(and(eq(NoteTags.noteId, noteId), eq(Tags.userId, noteRow.userId)));
     return c.json({ success: true, tags: noteTags });
   } catch (error) {
     console.error("Error fetching note tags:", error);
@@ -93493,6 +93542,14 @@ app11.post("/api/admin/threads/:threadId/notes", async (c) => {
       }).returning()
     );
     await db.insert(NoteThreads).values({ id: generateTimestampId("notethread"), noteId: note.id, threadId, createdAt: now2 }).onConflictDoNothing();
+    try {
+      const tagResult = await generateAutoTags(title || "", content, systemUserId, 0.8);
+      if (tagResult.suggestions.length > 0) {
+        await applyAutoTags(note.id, tagResult.suggestions, systemUserId);
+      }
+    } catch (tagErr) {
+      console.error("[admin create note] auto-tags failed (non-critical):", tagErr instanceof Error ? tagErr.message : tagErr);
+    }
     return c.json({ success: true, note });
   } catch (error) {
     return c.json({ error: error.message || "Error creating note" }, 500);
@@ -93694,6 +93751,16 @@ app12.get("/api/admin/featured/by-space/:shareToken", async (c) => {
   );
   return c.json(item ?? null);
 });
+app12.get("/api/admin/featured/by-thread/:shareToken", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const shareToken = c.req.param("shareToken")?.trim() ?? "";
+  if (!shareToken) return c.json({ error: "shareToken is required" }, 400);
+  const item = first(
+    await db.select().from(FeaturedItems).where(and(eq(FeaturedItems.contentType, "thread"), eq(FeaturedItems.shareToken, shareToken), eq(FeaturedItems.isActive, true))).orderBy(desc(FeaturedItems.createdAt)).limit(1)
+  );
+  return c.json(item ?? null);
+});
 app12.post("/api/admin/featured", async (c) => {
   const unauthorized = requireHarvousAdmin(c);
   if (unauthorized) return unauthorized;
@@ -93703,9 +93770,17 @@ app12.post("/api/admin/featured", async (c) => {
   if (!contentType || !title) {
     return c.json({ error: "contentType and title are required" }, 400);
   }
-  const allowed = /* @__PURE__ */ new Set(["space", "recall", "challenge", "church"]);
+  const allowed = /* @__PURE__ */ new Set(["space", "thread", "recall", "challenge", "church"]);
   if (!allowed.has(contentType)) {
     return c.json({ error: `Invalid contentType: ${contentType}` }, 400);
+  }
+  const token = body.shareToken?.trim() ?? "";
+  if (contentType === "thread") {
+    if (!token) return c.json({ error: "shareToken is required for thread featured items" }, 400);
+    const thread = first(
+      await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.shareToken, token), eq(Threads.isPublic, true))).limit(1)
+    );
+    if (!thread) return c.json({ error: "No public shared thread found for this shareToken" }, 400);
   }
   const timestamp2 = now();
   const startsAt = body.startsAt ? new Date(body.startsAt) : null;
@@ -93717,7 +93792,7 @@ app12.post("/api/admin/featured", async (c) => {
       title,
       description: body.description ?? null,
       refId: body.refId ?? null,
-      shareToken: body.shareToken ?? null,
+      shareToken: token || null,
       color: body.color ?? null,
       isActive: body.isActive ?? true,
       startsAt,

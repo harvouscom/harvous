@@ -11,10 +11,10 @@
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
-  padding: 20px 16px;
-  min-height: 64px;
-  border-radius: 24px;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 52px;
+  border-radius: 20px;
   background: var(--color-gradient-gray);
   box-shadow: var(--shadow-small);
 
@@ -40,8 +40,8 @@
 }
 
 .search-input__icon {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   fill: var(--color-pebble-grey);
   flex-shrink: 0;
 }
@@ -51,7 +51,7 @@
   background: transparent;
   border: none;
   font-family: var(--font-sans);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--color-deep-grey);
   width: 100%;
@@ -72,8 +72,8 @@
   box-shadow: none !important;
 
   & svg {
-    width: 20px;
-    height: 20px;
+    width: 16px;
+    height: 16px;
     fill: var(--color-pebble-grey);
   }
 }

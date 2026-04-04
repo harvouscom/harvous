@@ -107,13 +107,19 @@
   min-height: 0;
 }
 
-/* Link styling for view-mode note content (matches Tiptap editor: primary blue + underline) */
-.card-full-editable__content-html a {
-  color: var(--color-bold-blue) !important;
-  text-decoration: underline !important;
+/* Link styling for view-mode note content (primary blue; underline on hover only) */
+.card-full-editable .card-full-editable__content-html a:any-link {
+  color: var(--primary-color) !important;
+  text-decoration: none !important;
 }
 
-.card-full-editable__content-html a:hover {
+/* Higher specificity than list body text so bullets stay grey but link text stays primary */
+.card-full-editable .flex-1.overflow-auto.card-full-editable__content-html li a:any-link {
+  color: var(--primary-color) !important;
+}
+
+.card-full-editable .card-full-editable__content-html a:any-link:hover {
+  text-decoration: underline !important;
   text-decoration-thickness: 2px !important;
 }
 
