@@ -519,6 +519,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     drawerType === 'myChurch' ||
     drawerType === 'myPreferences' ||
     drawerType === 'mySharing' ||
+    drawerType === 'myInbox' ||
     drawerType === 'mySpaces' ||
     drawerType === 'myData' ||
     drawerType === 'myAchievements' ||
@@ -999,7 +1000,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* My Inbox Panel */}
           {drawerType === 'myInbox' && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               <MyInboxPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));
