@@ -223,35 +223,12 @@
   animation: modalContentScaleOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
-/* Bottom Sheet Animations */
-@keyframes bottomSheetSlideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes bottomSheetSlideDown {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100%);
-  }
-}
-
-.bottom-sheet-slide-up {
-  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.bottom-sheet-slide-down {
-  animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
-}
-
 /* ==========================================================================
-   Radix Sheet (Bottom) - data-state driven animation
+   Radix Sheet (Bottom) — no translateY slide animation
+   ==========================================================================
+   Previously used bottomSheetSlideUp/Down keyframes (translateY 100% → 0). iOS PWA WebKit often never
+   completes the animation and leaves the sheet stuck off-screen (only a sliver visible). Browser mobile
+   was also fragile. Bottom sheets now appear/disappear instantly; drag-to-dismiss still animates via JS.
    ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -259,54 +236,6 @@
     animation: none !important;
     transform: none !important;
   }
-}
-
-/*
-  Radix Dialog sheets:
-  - Content mounts with data-state="open" (so transitions may not run)
-  - Radix keeps it mounted briefly on close with data-state="closed"
-  Use keyframes for reliable subtle movement.
-*/
-/* forwards only (not both): avoids holding translateY(100%) before animation runs — WebKit PWA can skip
-   keyframes and leave the sheet stuck off-screen; default transform is none until animation applies. */
-[data-side="bottom"][data-state="open"] {
-  animation: bottomSheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform;
-}
-
-/*
-  Installed PWA (standalone / minimal-ui): iOS WebKit often never completes bottomSheetSlideUp, leaving the
-  panel at translateY(100%) (thin sliver at bottom). JS removeProperty('transform') on open also aborts the
-  animation. Skip the slide-up here — instant, reliable sheet. Browser tab keeps the animation above.
-*/
-@media (max-width: 1159px) {
-  @media (display-mode: standalone), (display-mode: minimal-ui) {
-    [data-side="bottom"][data-state="open"] {
-      animation: none !important;
-      transform: none !important;
-      will-change: auto;
-    }
-  }
-  /* iOS A2HS: spa/src/App.tsx sets html.ios-pwa; some WebKit builds are flaky on display-mode alone */
-  html.ios-pwa [data-side="bottom"][data-state="open"] {
-    animation: none !important;
-    transform: none !important;
-    will-change: auto;
-  }
-}
-
-[data-side="bottom"][data-state="closed"] {
-  animation: bottomSheetSlideDown 0.25s cubic-bezier(0.4, 0, 1, 1) both;
-  will-change: transform;
-}
-
-/* Mobile navigation: snappier open/close than other sheets */
-.mobile-nav__sheet[data-side="bottom"][data-state="open"] {
-  animation-duration: 0.24s;
-}
-
-.mobile-nav__sheet[data-side="bottom"][data-state="closed"] {
-  animation-duration: 0.18s;
 }
 
 /* Card Animations */

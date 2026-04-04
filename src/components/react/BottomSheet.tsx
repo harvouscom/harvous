@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import type { ThreadColor } from '@/utils/colors';
 import { useBottomSheetDrag } from '@/hooks/useBottomSheetDrag';
-import { isPWA } from '@/utils/content-list-helpers';
 import {
   Sheet,
   SheetContent,
@@ -160,8 +159,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const sheetContentElRef = useRef<HTMLDivElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
-  /** Runtime PWA detection — not SW-cached; used to kill broken slide-up animation on installed app. */
-  const isPwaRef = useRef(typeof window !== 'undefined' && isPWA());
 
   const checkMobile = useCallback(() => {
     const mobile = window.matchMedia(MOBILE_BREAKPOINT_MQL).matches;
@@ -307,12 +304,6 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   // Merge the drag ref with the existing sheetContentElRef (used for keyboard viewport logic)
   const mergedSheetRef = useCallback((el: HTMLDivElement | null) => {
     sheetContentElRef.current = el;
-    if (el && isPwaRef.current) {
-      // Kill slide-up animation before first paint — avoids translateY(100%) stuck state.
-      // CSS PWA overrides may not reach a SW-cached bundle; navigator.standalone is always live.
-      el.style.animation = 'none';
-      el.style.willChange = 'auto';
-    }
     dragRef(el);
   }, [dragRef]);
 
