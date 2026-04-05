@@ -82,11 +82,6 @@
   height: 89vh;
 }
 
-/* When keyboard is open on iOS, shrink drawer to fit the visual viewport */
-.bottom-sheet-content.bottom-sheet--full-height[data-keyboard-open] {
-  height: var(--drawer-keyboard-height);
-}
-
 /* Prevent header/focus anchor from shrinking so title and toolbar stay visible every time */
 .bottom-sheet-content > div:first-of-type,
 .bottom-sheet-content > button {

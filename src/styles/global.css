@@ -1624,8 +1624,8 @@ button .menu-item__label {
   position: fixed !important;
   left: 0 !important;
   right: 0 !important;
-  /* No !important on bottom: Vaul sets inline bottom when the keyboard opens (visualViewport). */
-  bottom: 0;
+  /* !important: prevent Vaul from pushing the drawer up when keyboard opens — we handle editor/toolbar positioning ourselves. */
+  bottom: 0 !important;
   z-index: 1000021 !important;
   box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08);
 }
