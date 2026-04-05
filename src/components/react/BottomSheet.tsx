@@ -563,6 +563,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const clearOverrides = (element: HTMLDivElement) => {
       element.style.removeProperty('--toolbar-bottom');
       element.style.removeProperty('--editor-scroll-max-height');
+      element.style.removeProperty('--drawer-keyboard-height');
       element.removeAttribute('data-keyboard-open');
     };
 
@@ -575,10 +576,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
       if (keyboardOpen) {
         const keyboardHeight = window.innerHeight - effectiveHeight;
-        const toolbarBottom = keyboardHeight + 12;
+        // Vaul uses transform on the drawer, so position:fixed children are relative to the drawer.
+        // Since the drawer now shrinks to the visual viewport, toolbar just needs a small offset from drawer bottom.
+        const toolbarBottom = 12;
         const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
         el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
         el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
+        el.style.setProperty('--drawer-keyboard-height', `${effectiveHeight}px`);
         el.setAttribute('data-keyboard-open', '');
       } else {
         clearOverrides(el);
