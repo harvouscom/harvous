@@ -38,6 +38,8 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   const [showSyncSuccess, setShowSyncSuccess] = useState(false);
   const [failedCount, setFailedCount] = useState(0);
   const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  /** Desktop: additional column panel open (synced via window events from DesktopPanelManager). */
+  const [desktopHelpOpen, setDesktopHelpOpen] = useState(false);
   const [chipPosition, setChipPosition] = useState<{ anchored: boolean; top: number; left: number } | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
   const prevPendingRef = useRef(0);
@@ -53,6 +55,19 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     window.addEventListener('resize', checkViewport);
     return () => window.removeEventListener('resize', checkViewport);
   }, [checkViewport]);
+
+  useEffect(() => {
+    const onDesktopHelpOpen = () => setDesktopHelpOpen(true);
+    const onDesktopHelpClose = () => setDesktopHelpOpen(false);
+    window.addEventListener('openOfflineHelpPanel', onDesktopHelpOpen);
+    window.addEventListener('closeOfflineHelpPanel', onDesktopHelpClose);
+    window.addEventListener('closeAllPanels', onDesktopHelpClose);
+    return () => {
+      window.removeEventListener('openOfflineHelpPanel', onDesktopHelpOpen);
+      window.removeEventListener('closeOfflineHelpPanel', onDesktopHelpClose);
+      window.removeEventListener('closeAllPanels', onDesktopHelpClose);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -343,8 +358,16 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         className="offline-indicator offline-indicator--chip"
         data-offline-interactive
         aria-haspopup="dialog"
-        aria-expanded={helpDialogOpen}
-        onClick={() => setHelpDialogOpen(true)}
+        aria-expanded={isMobile ? helpDialogOpen : desktopHelpOpen}
+        onClick={() => {
+          if (isMobile) {
+            setHelpDialogOpen(true);
+          } else {
+            window.dispatchEvent(
+              new CustomEvent('openOfflineHelpPanel', { detail: { pendingSyncCount } })
+            );
+          }
+        }}
         style={{
           ...chipStyle,
           appearance: 'none',
@@ -370,11 +393,13 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     return (
       <>
         {offlineChipPortal}
-        <OfflineModeInfoDialog
-          isOpen={helpDialogOpen}
-          onClose={() => setHelpDialogOpen(false)}
-          pendingSyncCount={pendingSyncCount}
-        />
+        {isMobile ? (
+          <OfflineModeInfoDialog
+            isOpen={helpDialogOpen}
+            onClose={() => setHelpDialogOpen(false)}
+            pendingSyncCount={pendingSyncCount}
+          />
+        ) : null}
       </>
     );
   }

@@ -1,6 +1,7 @@
 import React, { useReducer, useEffect, useCallback, useState, lazy, Suspense } from 'react';
 import PanelErrorBoundary from './PanelErrorBoundary';
 import ButtonSmall from './ButtonSmall';
+import OfflineModeInfoPanel from './OfflineModeInfoPanel';
 import { prefetchSpacePanelData } from '@/utils/prefetch-space-panel';
 
 // Helper function to create lazy-loaded components with error handling
@@ -131,6 +132,7 @@ type PanelType =
   | 'aboutHarvous'
   | 'noteShare'
   | 'pinEntry'
+  | 'offlineHelp'
   | null;
 
 interface InboxItem {
@@ -205,6 +207,8 @@ type PanelAction =
   | { type: 'CLOSE_NOTE_SHARE' }
   | { type: 'OPEN_PIN_ENTRY' }
   | { type: 'CLOSE_PIN_ENTRY' }
+  | { type: 'OPEN_OFFLINE_HELP' }
+  | { type: 'CLOSE_OFFLINE_HELP' }
   | { type: 'LOAD_FROM_STORAGE' }
   | { type: 'CLOSE_ALL' };
 
@@ -435,6 +439,12 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     case 'CLOSE_PIN_ENTRY':
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_OFFLINE_HELP':
+      return { activePanel: 'offlineHelp', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_OFFLINE_HELP':
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'LOAD_FROM_STORAGE':
       // Check localStorage for saved panel state
       const savedNotePanel = localStorage.getItem('showNewNotePanel');
@@ -519,6 +529,7 @@ export default function DesktopPanelManager({
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
   const [requestedNoteId, setRequestedNoteId] = useState<string | null>(null);
   const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
+  const [offlineHelpPendingCount, setOfflineHelpPendingCount] = useState(0);
   // Preload panel chunks so opening a panel resolves Suspense immediately (shared with mobile)
   useEffect(() => {
     preloadPanelChunks();
@@ -733,6 +744,13 @@ export default function DesktopPanelManager({
       setPinEntryData(null);
     };
 
+    const handleOpenOfflineHelpPanel = (event: Event) => {
+      const e = event as CustomEvent<{ pendingSyncCount?: number }>;
+      const n = e.detail?.pendingSyncCount;
+      setOfflineHelpPendingCount(typeof n === 'number' ? n : 0);
+      dispatch({ type: 'OPEN_OFFLINE_HELP' });
+    };
+
     // Register all event listeners
     window.addEventListener('openNewNotePanel', handleOpenNewNote);
     window.addEventListener('closeNewNotePanel', handleCloseNewNote);
@@ -758,6 +776,7 @@ export default function DesktopPanelManager({
     window.addEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
     window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
     window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
+    window.addEventListener('openOfflineHelpPanel', handleOpenOfflineHelpPanel as EventListener);
 
     // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
     const handleCloseAllPanels = () => {
@@ -794,6 +813,7 @@ export default function DesktopPanelManager({
       window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleClosePinEntryPanel);
+      window.removeEventListener('openOfflineHelpPanel', handleOpenOfflineHelpPanel as EventListener);
       window.removeEventListener('closeAllPanels', handleCloseAllPanels);
     };
   }, []);
@@ -916,6 +936,11 @@ export default function DesktopPanelManager({
 
   const handleClosePinEntry = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
+  }, []);
+
+  const handleCloseOfflineHelp = useCallback(() => {
+    dispatch({ type: 'CLOSE_OFFLINE_HELP' });
+    window.dispatchEvent(new CustomEvent('closeOfflineHelpPanel'));
   }, []);
 
   // Notify layout to run action strip exit animation when a panel opens/closes (dock uses --hiding class)
@@ -1099,6 +1124,18 @@ export default function DesktopPanelManager({
             </div>
           </Suspense>
         </PanelErrorBoundary>
+      )}
+
+      {/* Offline help — desktop additional column (mobile uses OfflineModeInfoDialog / Vaul) */}
+      {state.activePanel === 'offlineHelp' && (
+        <div className="h-full w-full flex-1 hidden min-[1160px]:block" data-offline-help-dialog style={{ width: '100%', minWidth: 0 }}>
+          <OfflineModeInfoPanel
+            key={`offline-help-${state.panelKey}`}
+            pendingSyncCount={offlineHelpPendingCount}
+            onClose={handleCloseOfflineHelp}
+            inBottomSheet={false}
+          />
+        </div>
       )}
 
       {/* Inbox Item Preview Panel - Desktop Only */}

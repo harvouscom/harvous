@@ -22,6 +22,10 @@ We use three targeted mechanisms and leave the sheet layout alone:
 
 The sheet remains the standard bottom sheet (capped height via `.bottom-sheet-content` / `bottom-sheet--full-height` in [`panels.css`](../src/styles/panels.css), Vaul + Radix positioning). All keyboard-specific behavior is driven by `window.visualViewport` and applies only when the keyboard is detected as open.
 
+### Vaul + Harvous CSS (whole drawer lift)
+
+Vaul’s `repositionInputs` path sets an **inline `bottom`** on the drawer content when the virtual keyboard opens (`visualViewport` resize) so the sheet sits above the keyboard. **Do not use `bottom: … !important` on `[data-side="bottom"]` in global CSS** — author `!important` overrides non-`!important` inline styles, so Vaul’s lift is ignored and the drawer stays behind the keyboard on iOS. The rule lives in [`src/styles/global.css`](../src/styles/global.css) (`[data-side="bottom"]`: default `bottom: 0` without `!important`).
+
 ## Key Pieces
 
 ### 1. Scroll lock: `#layout-root` instead of `body`
