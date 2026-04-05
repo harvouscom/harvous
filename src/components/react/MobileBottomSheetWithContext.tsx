@@ -33,7 +33,7 @@ export default function MobileBottomSheetWithContext({
       <NewThreadPanelProvider>
         {/* Keep this out of document flow so it doesn't affect mobile layout */}
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 1000030 }}>
-          <div style={{ pointerEvents: 'auto' }}>
+          <div style={{ pointerEvents: 'auto' }} data-offline-mobile-panels>
             <BottomSheet
               currentThread={currentThread}
               currentSpace={currentSpace}

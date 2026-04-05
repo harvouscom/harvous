@@ -1402,15 +1402,15 @@ button {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Offline indicator retry button - white text override */
-.offline-indicator button {
+/* Offline indicator toast actions — white text (not the portaled chip button) */
+.offline-indicator button:not(.offline-indicator--chip) {
   color: white !important;
 }
 
-.offline-indicator button span,
-.offline-indicator button div,
-.offline-indicator button p,
-.offline-indicator button * {
+.offline-indicator button:not(.offline-indicator--chip) span,
+.offline-indicator button:not(.offline-indicator--chip) div,
+.offline-indicator button:not(.offline-indicator--chip) p,
+.offline-indicator button:not(.offline-indicator--chip) * {
   color: white !important;
 }
 
@@ -1701,5 +1701,160 @@ button .menu-item__label {
 
 .inbox-chevron {
   transition: transform 0.2s ease;
+}
+
+/* ==========================================================================
+   Offline UI lock — only Add-a-note flow stays interactive (see AppLayout)
+   ========================================================================== */
+#layout-root[data-offline-restricted="1"] .desktop-layout > .layout-column:first-child {
+  pointer-events: none;
+}
+
+#layout-root[data-offline-restricted="1"] .mobile-nav-slot {
+  pointer-events: none;
+}
+
+#layout-root[data-offline-restricted="1"] .action-strip-dock,
+#layout-root[data-offline-restricted="1"] .mobile-action-strip-dock {
+  pointer-events: none;
+}
+
+#layout-root[data-offline-restricted="1"] .desktop-additional-column {
+  pointer-events: none;
+}
+
+#layout-root[data-offline-restricted="1"] .desktop-additional-column .new-note-panel-container,
+#layout-root[data-offline-restricted="1"] .desktop-additional-column .new-note-panel-container * {
+  pointer-events: auto;
+}
+
+/* Offline chip — frosted glass pill above Add a note (see OfflineIndicator) */
+.offline-indicator--chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: none;
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-family: "Reddit Sans", var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  /* Label + icon use currentColor; beat global `button` / `button span` !important rules */
+  color: rgb(217, 119, 6) !important;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(255, 255, 255, 0.38) 45%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+  backdrop-filter: blur(14px) saturate(165%);
+  -webkit-backdrop-filter: blur(14px) saturate(165%);
+  box-shadow:
+    0 2px 14px rgba(120, 118, 111, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.offline-indicator--chip:hover {
+  box-shadow:
+    0 3px 18px rgba(120, 118, 111, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.offline-indicator--chip:focus-visible {
+  outline: 2px solid rgba(217, 119, 6, 0.55);
+  outline-offset: 2px;
+}
+
+.offline-indicator--chip-label {
+  color: rgb(217, 119, 6) !important;
+  -webkit-text-fill-color: rgb(217, 119, 6);
+}
+
+/* Beat global `button * { color: var(--color-deep-grey) !important }` so Icon inner span + svg match label */
+.offline-indicator--chip-icon,
+.offline-indicator--chip-icon * {
+  color: rgb(217, 119, 6) !important;
+}
+.offline-indicator--chip-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+/* Offline help — bottom sheet above offline chip + nav; overlay stacks with content */
+.offline-help-drawer-overlay.sheet-overlay {
+  z-index: 1000028 !important;
+}
+
+.bottom-sheet-content.offline-help-drawer {
+  z-index: 1000030 !important;
+}
+
+/* Panel header: dark orange + white title (same idea as offline chip, stronger fill) */
+.bottom-sheet-content.offline-help-drawer .offline-help-panel__header.panel__header {
+  /* Same amber as offline chip / “Currently offline” label */
+  background-color: rgb(217, 119, 6);
+  color: #fff;
+}
+
+.bottom-sheet-content.offline-help-drawer .offline-help-panel__title.panel__title,
+.bottom-sheet-content.offline-help-drawer .offline-help-panel__title.panel__title p {
+  color: #fff !important;
+}
+
+.offline-help-dialog__list {
+  list-style: none;
+  margin: 0 0 0.75rem 0;
+  padding: 0;
+}
+
+.offline-help-dialog__bullet {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--color-deep-grey);
+}
+
+.offline-help-dialog__bullet:last-child {
+  margin-bottom: 0;
+}
+
+/* Font Awesome check only — no badge (beats button * color on nested span) */
+.offline-help-dialog__bullet-icon {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  line-height: 0;
+  color: #111 !important;
+}
+
+.offline-help-dialog__bullet-icon span {
+  color: inherit !important;
+}
+
+/* Match MyDataPanel sync strip: .panel__footer inside dialog */
+.offline-help-dialog__sync-footer.panel__footer {
+  padding-top: 0;
+  padding-bottom: 0.75rem;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.offline-help-dialog__sync-footer.panel__footer p {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-pebble-grey);
+}
+
+.offline-help-dialog__sync-footer.panel__footer p + p {
+  margin-top: 0.35rem;
 }
 

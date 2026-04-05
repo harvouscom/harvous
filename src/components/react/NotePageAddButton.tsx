@@ -41,10 +41,12 @@ export default function NotePageAddButton() {
   }
 
   return (
-    <SquareButton
-      variant="Add"
-      withMenu={false}
-      onClick={() => window.dispatchEvent(new CustomEvent('openNewNotePanel'))}
-    />
+    <span data-offline-interactive>
+      <SquareButton
+        variant="Add"
+        withMenu={false}
+        onClick={() => window.dispatchEvent(new CustomEvent('openNewNotePanel'))}
+      />
+    </span>
   );
 }

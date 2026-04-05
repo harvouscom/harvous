@@ -34,8 +34,22 @@ import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
 import { useThread } from '../hooks/queries/useThread';
 import { useSpace } from '../hooks/queries/useSpace';
+import { useIsOffline } from '@/hooks/useIsOffline';
+
+function isOfflineInteractionAllowed(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  if (target.closest('[data-offline-interactive]')) return true;
+  if (target.closest('[data-offline-help-dialog]')) return true;
+  if (target.closest('.new-note-panel-container')) return true;
+  if (target.closest('[data-offline-mobile-panels]')) return true;
+  /* Vaul Drawer.Portal renders sheet overlay + content under body */
+  if (target.closest('[data-side="bottom"]')) return true;
+  if (target.closest('.sheet-overlay')) return true;
+  return false;
+}
 
 export default function AppLayout() {
+  const isOffline = useIsOffline();
   const { isLoaded, isSignedIn, signOut } = useAuth();
   const { user } = useUser();
   const router = useRouter();
@@ -651,12 +665,31 @@ export default function AppLayout() {
     committedToShellRef.current = true;
   }
 
+  const layoutShellActive = committedToShellRef.current;
+
+  /* Routes like search / profile have no create-note CTA — shell is mostly inert offline (no logout). */
+  useEffect(() => {
+    if (!isOffline || !layoutShellActive) return;
+    const stop = (e: MouseEvent) => {
+      if (isOfflineInteractionAllowed(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    };
+    document.addEventListener('click', stop, true);
+    document.addEventListener('auxclick', stop, true);
+    return () => {
+      document.removeEventListener('click', stop, true);
+      document.removeEventListener('auxclick', stop, true);
+    };
+  }, [isOffline, layoutShellActive]);
+
   if (!committedToShellRef.current) {
     return null;
   }
 
   return (
-    <div id="layout-root" className="app-layout">
+    <div id="layout-root" className="app-layout" data-offline-restricted={isOffline ? '1' : undefined}>
       <NavigationProvider>
         {isLoaded && isSignedIn && user?.id && <SyncManagerIsland userId={user.id} />}
         <ReferralCreditInit userId={user?.id} />

@@ -1,46 +1,59 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/offline-db';
 import { getSyncState, syncNow } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
 import { formatBadgeCount } from '@/utils/badge-count';
 import Icon from './Icon';
+import OfflineModeInfoDialog from './dialogs/OfflineModeInfoDialog';
+
+const CHIP_GAP_PX = 8;
+const CHIP_FALLBACK_BOTTOM_PX = 100;
+const OFFLINE_CHIP_Z = 1000004;
+
+function pickAddNoteAnchor(): Element | null {
+  const wrapper = document.querySelector('.create-note-button-wrapper');
+  const notePage = document.querySelector('.note-page-add-button');
+  for (const el of [wrapper, notePage]) {
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return el;
+  }
+  return null;
+}
 
 /**
  * Offline indicator component showing sync status
- * Displays offline banner, pending sync count, and error state
- * Self-contained - reads userId directly instead of relying on prop
- * Matches ToastProvider design and positioning
+ * Offline-only: pill chip above Add a note + help dialog; errors use toast
  */
 export default function OfflineIndicator({ userId: propUserId }: { userId?: string }) {
-  // Use persisted userId directly - works online and offline
   const persistedUserId = usePersistedUserId();
   const userId = propUserId || persistedUserId;
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [showSyncSuccess, setShowSyncSuccess] = useState(false);
   const [failedCount, setFailedCount] = useState(0);
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false);
+  const [chipPosition, setChipPosition] = useState<{ anchored: boolean; top: number; left: number } | null>(null);
+  const chipRef = useRef<HTMLButtonElement>(null);
   const prevPendingRef = useRef(0);
 
-  // Check viewport (same logic as ToastProvider)
   const checkViewport = useCallback(() => {
     const width = window.innerWidth;
     setIsMobile(width < 1160);
     setIsSmallScreen(width < 800);
   }, []);
 
-  // Check viewport on mount and resize
   useEffect(() => {
     checkViewport();
     window.addEventListener('resize', checkViewport);
     return () => window.removeEventListener('resize', checkViewport);
   }, [checkViewport]);
 
-  // Unconditional useEffect for online/offline detection
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -54,7 +67,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     };
   }, []);
 
-  // Separate useEffect for sync status checking (requires userId)
   useEffect(() => {
     if (!userId) return;
 
@@ -72,7 +84,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
             .count();
         });
 
-        // Detect sync completion: pending went from >0 to 0 while online
         if (prevPendingRef.current > 0 && pendingCount === 0 && !isOffline) {
           setShowSyncSuccess(true);
           setTimeout(() => setShowSyncSuccess(false), 3000);
@@ -80,7 +91,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         prevPendingRef.current = pendingCount;
         setPendingSyncCount(pendingCount);
 
-        // Count permanently failed items
         const failed = await retryIndexedDBOperation(async () => {
           return await offlineDB.syncQueue
             .where('userId')
@@ -92,7 +102,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
 
         const syncState = await getSyncState(userId);
         if (syncState) {
-          setIsSyncing(syncState.isSyncing || false);
           setSyncError(syncState.syncError);
         }
       } catch (error) {
@@ -118,7 +127,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     };
   }, [userId, isOffline]);
 
-  // Retry sync handler
   const handleRetrySync = useCallback(async () => {
     if (!userId || isRetrying || !navigator.onLine) return;
 
@@ -152,23 +160,66 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     }
   }, [userId, isRetrying]);
 
-  // Determine if we should show the indicator
   const shouldShow = isOffline || syncError || showSyncSuccess || failedCount > 0;
+  const showOfflineChip = isOffline && !showSyncSuccess && !syncError && failedCount === 0;
+
+  const updateChipPosition = useCallback(() => {
+    if (typeof document === 'undefined') return;
+    const anchor = pickAddNoteAnchor();
+    const chipH = chipRef.current?.offsetHeight ?? 36;
+    if (anchor) {
+      const r = anchor.getBoundingClientRect();
+      setChipPosition({
+        anchored: true,
+        top: r.top - CHIP_GAP_PX - chipH,
+        left: r.left + r.width / 2,
+      });
+    } else {
+      setChipPosition({ anchored: false, top: 0, left: 0 });
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!showOfflineChip) {
+      setChipPosition(null);
+      return;
+    }
+    updateChipPosition();
+    const ro = new ResizeObserver(() => updateChipPosition());
+    ro.observe(document.body);
+    const scrollRoots = [
+      ...document.querySelectorAll('.main-column__scroll'),
+      ...document.querySelectorAll('.mobile-main__body'),
+    ];
+    const onScroll = () => updateChipPosition();
+    scrollRoots.forEach((el) => el.addEventListener('scroll', onScroll, { passive: true }));
+    window.addEventListener('resize', updateChipPosition);
+    const raf1 = requestAnimationFrame(() => {
+      updateChipPosition();
+      requestAnimationFrame(updateChipPosition);
+    });
+    return () => {
+      ro.disconnect();
+      scrollRoots.forEach((el) => el.removeEventListener('scroll', onScroll));
+      window.removeEventListener('resize', updateChipPosition);
+      cancelAnimationFrame(raf1);
+    };
+  }, [showOfflineChip, updateChipPosition, pendingSyncCount, helpDialogOpen]);
+
   if (!shouldShow) return null;
 
-  // Determine background color based on state
+  const lightCardBackground =
+    'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)';
+
   let background: string;
   if (syncError || failedCount > 0) {
     background = 'linear-gradient(168.707deg, rgba(239, 68, 68, 1.0) 11.711%, rgb(220, 38, 38) 71.325%)';
-  } else if (showSyncSuccess) {
-    background = 'linear-gradient(168.707deg, rgba(255, 255, 255, 1.0) 11.711%, rgb(248, 248, 248) 71.325%)';
   } else {
-    background = 'linear-gradient(168.707deg, rgba(245, 158, 11, 1.0) 11.711%, rgb(217, 119, 6) 71.325%)';
+    background = lightCardBackground;
   }
 
-  const textColor = showSyncSuccess ? 'var(--color-deep-grey)' : 'white';
+  const textColor = syncError || failedCount > 0 ? 'white' : 'var(--color-deep-grey)';
 
-  // Base styles matching ToastProvider
   const baseStyle: React.CSSProperties = {
     backgroundColor: 'rgb(255, 255, 255)',
     background,
@@ -189,7 +240,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     zIndex: 1000,
   };
 
-  // Apply responsive positioning (matching ToastProvider CSS from global.css)
   const indicatorStyle: React.CSSProperties = isSmallScreen
     ? {
         ...baseStyle,
@@ -209,7 +259,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         maxWidth: 'calc(100vw - 32px)',
       }
     : {
-        // Desktop: Left side, above nav column (matches toast positioning)
         ...baseStyle,
         left: '24px',
         bottom: '100px',
@@ -219,7 +268,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         transform: 'none',
       };
 
-  // Get a user-friendly error message
   const getFriendlyErrorMessage = (error: string): string => {
     if (error.toLowerCase().includes('network') || error.toLowerCase().includes('fetch')) {
       return 'Network issue';
@@ -250,7 +298,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         display: 'flex',
         alignItems: 'center',
         gap: '4px',
-        flexShrink: 0
+        flexShrink: 0,
       }}
     >
       {isRetrying ? (
@@ -269,6 +317,68 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     </button>
   );
 
+  const chipStyle: React.CSSProperties =
+    chipPosition?.anchored === true
+      ? {
+          position: 'fixed',
+          top: Math.max(8, chipPosition.top),
+          left: chipPosition.left,
+          transform: 'translateX(-50%)',
+          zIndex: OFFLINE_CHIP_Z,
+        }
+      : {
+          position: 'fixed',
+          bottom: CHIP_FALLBACK_BOTTOM_PX,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: OFFLINE_CHIP_Z,
+        };
+
+  const offlineChipPortal =
+    showOfflineChip &&
+    createPortal(
+      <button
+        ref={chipRef}
+        type="button"
+        className="offline-indicator offline-indicator--chip"
+        data-offline-interactive
+        aria-haspopup="dialog"
+        aria-expanded={helpDialogOpen}
+        onClick={() => setHelpDialogOpen(true)}
+        style={{
+          ...chipStyle,
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          maxWidth: 'min(calc(100vw - 32px), 320px)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        <span className="offline-indicator--chip-icon" aria-hidden>
+          <Icon name="wifi-slash" size={15} />
+        </span>
+        <span className="offline-indicator--chip-label" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          Currently offline
+          {pendingSyncCount > 0 ? ` · ${formatBadgeCount(pendingSyncCount)} pending` : ''}
+        </span>
+      </button>,
+      document.body
+    );
+
+  if (showOfflineChip) {
+    return (
+      <>
+        {offlineChipPortal}
+        <OfflineModeInfoDialog
+          isOpen={helpDialogOpen}
+          onClose={() => setHelpDialogOpen(false)}
+          pendingSyncCount={pendingSyncCount}
+        />
+      </>
+    );
+  }
+
   return (
     <div className="offline-indicator" style={indicatorStyle}>
       {showSyncSuccess ? (
@@ -283,7 +393,8 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
             Sync failed: {getFriendlyErrorMessage(syncError)}
             {pendingSyncCount > 0 && (
               <span style={{ fontWeight: 400, opacity: 0.9 }}>
-                {' '}&middot; {pendingSyncCount} pending
+                {' '}
+                &middot; {pendingSyncCount} pending
               </span>
             )}
           </span>
@@ -297,18 +408,6 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
           </span>
           {retryButton}
         </>
-      ) : isOffline ? (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Icon name="wifi" size={16} />
-            <span>You're offline{pendingSyncCount > 0 ? ` \u00B7 ${formatBadgeCount(pendingSyncCount)} pending` : ''}</span>
-          </div>
-          <span style={{ fontWeight: 400, fontSize: '13px', opacity: 0.85 }}>
-            {pendingSyncCount > 0
-              ? 'Will sync when you reconnect'
-              : 'New notes will sync when you reconnect'}
-          </span>
-        </div>
       ) : null}
     </div>
   );

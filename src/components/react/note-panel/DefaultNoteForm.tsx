@@ -1,6 +1,5 @@
-import React, { lazy, Suspense } from 'react';
-
-const TiptapEditor = lazy(() => import('../TiptapEditor'));
+import React from 'react';
+import TiptapEditor from '../TiptapEditor';
 
 // Title character limits
 const TITLE_SOFT_LIMIT = 30;  // Show counter when >= 30
@@ -109,23 +108,21 @@ export default function DefaultNoteForm({
       {/* Content - flex-1 + min-h-0 so editor takes all remaining height; overflow hidden so only .tiptap-content scrolls */}
       <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden" style={{ marginTop: '12px' }}>
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)] text-sm">Loading editor…</div>}>
-            <TiptapEditor
-              content={content}
-              id="new-note-content"
-              name="content"
-              placeholder="Type your note..."
-              tabindex={2}
-              minimalToolbar={false}
-              toolbarAtBottom={toolbarAtBottom}
-              toolbarBottomMargin={toolbarBottomMargin}
-              onEditorReady={onEditorReady}
-              onContentChange={onContentChange}
-              parentThreadId={parentThreadId}
-              onEditorInstanceReady={onEditorInstanceReady}
-              inBottomSheet={inBottomSheet}
-            />
-          </Suspense>
+          <TiptapEditor
+            content={content}
+            id="new-note-content"
+            name="content"
+            placeholder="Type your note..."
+            tabindex={2}
+            minimalToolbar={false}
+            toolbarAtBottom={toolbarAtBottom}
+            toolbarBottomMargin={toolbarBottomMargin}
+            onEditorReady={onEditorReady}
+            onContentChange={onContentChange}
+            parentThreadId={parentThreadId}
+            onEditorInstanceReady={onEditorInstanceReady}
+            inBottomSheet={inBottomSheet}
+          />
         </div>
       </div>
     </div>

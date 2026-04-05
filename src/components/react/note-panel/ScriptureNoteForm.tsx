@@ -1,8 +1,7 @@
-import React, { lazy, Suspense, useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Icon from '../Icon';
+import TiptapEditor from '../TiptapEditor';
 import { TRANSLATIONS, TRANSLATION_ORDER } from '@/data/translations';
-
-const TiptapEditor = lazy(() => import('../TiptapEditor'));
 
 export interface ScriptureNoteFormProps {
   scriptureReference: string;
@@ -118,23 +117,21 @@ export default function ScriptureNoteForm({
       {/* Editor */}
       <div className="flex-1 flex flex-col min-h-0 w-full" style={{ marginTop: '20px', maxHeight: '100%' }}>
         <div className="flex-1 flex flex-col min-h-0" style={{ maxHeight: '100%' }}>
-          <Suspense fallback={<div className="flex-1 flex items-center justify-center text-[var(--color-pebble-grey)] text-sm">Loading editor…</div>}>
-            <TiptapEditor
-              content={content}
-              id="new-note-content"
-              name="content"
-              placeholder="Share your thoughts about this scripture..."
-              tabindex={2}
-              minimalToolbar={false}
-              toolbarAtBottom={toolbarAtBottom}
-              toolbarBottomMargin={toolbarBottomMargin}
-              onEditorReady={onEditorReady}
-              onContentChange={onContentChange}
-              parentThreadId={parentThreadId}
-              onEditorInstanceReady={onEditorInstanceReady}
-              inBottomSheet={inBottomSheet}
-            />
-          </Suspense>
+          <TiptapEditor
+            content={content}
+            id="new-note-content"
+            name="content"
+            placeholder="Share your thoughts about this scripture..."
+            tabindex={2}
+            minimalToolbar={false}
+            toolbarAtBottom={toolbarAtBottom}
+            toolbarBottomMargin={toolbarBottomMargin}
+            onEditorReady={onEditorReady}
+            onContentChange={onContentChange}
+            parentThreadId={parentThreadId}
+            onEditorInstanceReady={onEditorInstanceReady}
+            inBottomSheet={inBottomSheet}
+          />
         </div>
       </div>
 

@@ -130,6 +130,10 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
 
   const handleClick = () => {
     if (addToSpaceSpaceId) {
+      if (!navigator.onLine) {
+        window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+        return;
+      }
       if (menuOpen) {
         setMenuOpen(false);
         return;
@@ -157,7 +161,7 @@ export default function CreateNoteButton({ className = '', addToSpaceSpaceId = n
   }
 
   return (
-    <div ref={wrapperRef} className={`create-note-button-wrapper ${className}`.trim()}>
+    <div ref={wrapperRef} className={`create-note-button-wrapper ${className}`.trim()} data-offline-interactive>
       {addToSpaceSpaceId && menuOpen && (
         <div
           className="create-note-button-menu-container"

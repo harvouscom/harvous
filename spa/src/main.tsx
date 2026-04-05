@@ -1,6 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import {
+  REDUCE_MOTION_APP_PREFERENCE_ENABLED,
+  REDUCE_MOTION_STORAGE_KEY,
+  syncReduceMotionFromStorage,
+} from '@/utils/reduce-motion';
 
 // ── Vite chunk load error recovery ──────────────────────────────────────────
 // After a new deployment, old hashed JS chunk URLs no longer exist on the CDN.
@@ -58,6 +63,15 @@ import '../../src/styles/tiptap-editor.css';
 import '../../src/styles/card-full-editable.css';
 import '../../src/styles/auth-gradient.css';
 import '../../src/styles/shared-page.css';
+
+syncReduceMotionFromStorage();
+if (REDUCE_MOTION_APP_PREFERENCE_ENABLED) {
+  window.addEventListener('storage', (e) => {
+    if (e.key === REDUCE_MOTION_STORAGE_KEY) {
+      syncReduceMotionFromStorage();
+    }
+  });
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <App />

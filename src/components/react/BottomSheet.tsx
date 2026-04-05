@@ -152,6 +152,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const sheetContentElRef = useRef<HTMLDivElement | null>(null);
   const activeCloseHandlerRef = useRef<SheetCloseHandler | null>(null);
   const isHandlingDismissRef = useRef(false);
+  const drawerTypeRef = useRef(drawerType);
+  const isVisibleRef = useRef(isVisible);
+  drawerTypeRef.current = drawerType;
+  isVisibleRef.current = isVisible;
 
   const checkMobile = useCallback(() => {
     const mobile = window.matchMedia(MOBILE_BREAKPOINT_MQL).matches;
@@ -168,6 +172,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const openBottomSheet = useCallback((type: DrawerType = 'note') => {
     // Only open on mobile
     if (!isMobile) {
+      return;
+    }
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine && type !== 'note' && type !== 'resource') {
       return;
     }
 
@@ -215,7 +223,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         openBottomSheet('resource');
       } else if (showNewNote) {
         openBottomSheet('note');
-      } else if (showNewThread) {
+      } else if (showNewThread && typeof navigator !== 'undefined' && navigator.onLine) {
         openBottomSheet('thread');
       }
     }
@@ -229,7 +237,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     }
   }, [onClose]);
 
-  // Notify layout to hide the action strip while the mobile sheet is open.
+  useEffect(() => {
+    const onOffline = () => {
+      if (!isMobile) return;
+      if (
+        isVisibleRef.current &&
+        drawerTypeRef.current !== 'note' &&
+        drawerTypeRef.current !== 'resource'
+      ) {
+        window.dispatchEvent(new CustomEvent('closeMobileDrawer'));
+      }
+    };
+    window.addEventListener('offline', onOffline);
+    return () => window.removeEventListener('offline', onOffline);
+  }, [isMobile]);
+
   // When crossing desktop→mobile, isVisible is often still false on the first mobile frame while
   // DesktopPanelManager still has activePanel set — emitting open:false would clear AppLayout's
   // panelOpen and incorrectly show the strip until the user resizes again.

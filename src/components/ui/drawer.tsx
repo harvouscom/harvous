@@ -31,14 +31,16 @@ const bottomDrawerContentBase =
 
 export type DrawerContentProps = React.ComponentPropsWithoutRef<typeof Drawer.Content> & {
   onOverlayClick?: () => void
+  /** Optional class on the overlay (e.g. z-index above other fixed UI). */
+  overlayClassName?: string
 }
 
 const DrawerContent = React.forwardRef<
   React.ElementRef<typeof Drawer.Content>,
   DrawerContentProps
->(({ className, children, onOverlayClick, ...props }, ref) => (
+>(({ className, children, onOverlayClick, overlayClassName, ...props }, ref) => (
   <Drawer.Portal>
-    <DrawerOverlay onOverlayClick={onOverlayClick} />
+    <DrawerOverlay onOverlayClick={onOverlayClick} className={overlayClassName} />
     <Drawer.Content
       ref={ref}
       data-side="bottom"
