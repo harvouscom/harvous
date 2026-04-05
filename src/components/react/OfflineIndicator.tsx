@@ -4,23 +4,16 @@ import { offlineDB, ensureDatabaseOpen, retryIndexedDBOperation } from '@/utils/
 import { getSyncState, syncNow } from '@/utils/sync-manager';
 import { usePersistedUserId } from '@/utils/user-id';
 import { formatBadgeCount } from '@/utils/badge-count';
+import {
+  CHIP_FALLBACK_BOTTOM_PX,
+  CHIP_GAP_PX,
+  DEFAULT_OFFLINE_CHIP_HEIGHT_PX,
+  pickAddNoteAnchor,
+} from '@/utils/mobile-offline-chip-layout';
 import Icon from './Icon';
 import OfflineModeInfoDialog from './dialogs/OfflineModeInfoDialog';
 
-const CHIP_GAP_PX = 8;
-const CHIP_FALLBACK_BOTTOM_PX = 100;
 const OFFLINE_CHIP_Z = 1000004;
-
-function pickAddNoteAnchor(): Element | null {
-  const wrapper = document.querySelector('.create-note-button-wrapper');
-  const notePage = document.querySelector('.note-page-add-button');
-  for (const el of [wrapper, notePage]) {
-    if (!el) continue;
-    const r = el.getBoundingClientRect();
-    if (r.width > 0 && r.height > 0) return el;
-  }
-  return null;
-}
 
 /**
  * Offline indicator component showing sync status
@@ -181,7 +174,7 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   const updateChipPosition = useCallback(() => {
     if (typeof document === 'undefined') return;
     const anchor = pickAddNoteAnchor();
-    const chipH = chipRef.current?.offsetHeight ?? 36;
+    const chipH = chipRef.current?.offsetHeight ?? DEFAULT_OFFLINE_CHIP_HEIGHT_PX;
     if (anchor) {
       const r = anchor.getBoundingClientRect();
       setChipPosition({

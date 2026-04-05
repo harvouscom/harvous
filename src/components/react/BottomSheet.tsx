@@ -563,6 +563,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const clearOverrides = (element: HTMLDivElement) => {
       element.style.removeProperty('--toolbar-bottom');
       element.style.removeProperty('--editor-scroll-max-height');
+      element.style.removeProperty('height');
       element.removeAttribute('data-keyboard-open');
     };
 
@@ -579,6 +580,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
         el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
         el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
+        // Override Vaul's inline height/bottom — keep drawer full-size behind the keyboard
+        el.style.setProperty('height', '89vh', 'important');
+        el.style.setProperty('bottom', '0', 'important');
         el.setAttribute('data-keyboard-open', '');
       } else {
         clearOverrides(el);
@@ -697,6 +701,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return null;
   }
 
+  const keyboardHeavyDrawer = drawerType === 'note' || drawerType === 'resource';
+
   return (
     <Drawer.Root
       open={isVisible}
@@ -712,6 +718,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }}
       shouldScaleBackground={false}
       noBodyStyles={true}
+      fixed={keyboardHeavyDrawer}
       dismissible={!isPinSheet}
     >
       <DrawerContent

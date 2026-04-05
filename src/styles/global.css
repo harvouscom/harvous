@@ -870,6 +870,7 @@ button[disabled] {
 }
 
 /* Mobile: Ensure toast is centered with same size as desktop */
+/* bottom: set from SpaToaster via --harvous-toaster-mobile-bottom (align with offline chip) */
 @media (max-width: 1159px) {
     [data-sonner-toaster] {
         left: 0 !important;
@@ -881,6 +882,7 @@ button[disabled] {
         display: flex !important;
         justify-content: center !important;
         align-items: flex-end !important;
+        bottom: var(--harvous-toaster-mobile-bottom, 16px) !important;
     }
     
     [data-sonner-toast] {

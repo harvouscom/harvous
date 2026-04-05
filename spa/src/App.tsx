@@ -4,12 +4,16 @@ import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
 import { APIError } from './lib/api';
+import {
+  getMobileChipBottomInsetPx,
+  HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
+} from '@/utils/mobile-offline-chip-layout';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -305,6 +309,38 @@ function SpaToaster() {
     window.addEventListener('resize', checkViewport);
     return () => window.removeEventListener('resize', checkViewport);
   }, [checkViewport]);
+
+  useLayoutEffect(() => {
+    if (!isMobile) {
+      document.documentElement.style.removeProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR);
+      return;
+    }
+    const update = () => {
+      const px = getMobileChipBottomInsetPx();
+      document.documentElement.style.setProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR, `${px}px`);
+    };
+    update();
+    const ro = new ResizeObserver(() => update());
+    ro.observe(document.body);
+    const scrollRoots = [
+      ...document.querySelectorAll('.main-column__scroll'),
+      ...document.querySelectorAll('.mobile-main__body'),
+    ];
+    const onScroll = () => update();
+    scrollRoots.forEach((el) => el.addEventListener('scroll', onScroll, { passive: true }));
+    window.addEventListener('resize', update);
+    const raf1 = requestAnimationFrame(() => {
+      update();
+      requestAnimationFrame(update);
+    });
+    return () => {
+      ro.disconnect();
+      scrollRoots.forEach((el) => el.removeEventListener('scroll', onScroll));
+      window.removeEventListener('resize', update);
+      cancelAnimationFrame(raf1);
+      document.documentElement.style.removeProperty(HARVOUS_TOASTER_MOBILE_BOTTOM_VAR);
+    };
+  }, [isMobile]);
 
   const baseStyle: React.CSSProperties = {
     backgroundColor: 'rgb(255, 255, 255)',
