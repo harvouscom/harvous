@@ -560,6 +560,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const RESERVE_EDITOR_PX = 130;
     const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+
     const clearOverrides = (element: HTMLDivElement) => {
       element.style.removeProperty('--toolbar-bottom');
       element.style.removeProperty('--editor-scroll-max-height');
@@ -575,6 +577,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       const keyboardOpen = effectiveHeight < window.innerHeight * 0.75;
 
       if (keyboardOpen) {
+        // Cancel any pending clear so overrides stay while keyboard is up
+        if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
         const keyboardHeight = window.innerHeight - effectiveHeight;
         const toolbarBottom = keyboardHeight + 12;
         const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
@@ -585,7 +589,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         el.style.setProperty('bottom', '0', 'important');
         el.setAttribute('data-keyboard-open', '');
       } else {
-        clearOverrides(el);
+        // Debounce clear so overrides don't snap away mid-keyboard-animation
+        if (!clearTimer) {
+          clearTimer = setTimeout(() => {
+            clearTimer = null;
+            const current = sheetContentElRef.current;
+            if (current) clearOverrides(current);
+          }, 300);
+        }
       }
     };
 
@@ -622,6 +633,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(rafFocus);
+      if (clearTimer) clearTimeout(clearTimer);
       vv.removeEventListener('resize', resizeHandler);
       vv.removeEventListener('scroll', scrollHandler);
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
