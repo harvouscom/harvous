@@ -63,10 +63,7 @@ export default function OfflineModeInfoPanel({ pendingSyncCount, onClose, inBott
                 {pendingSyncCount > 0 ? (
                   <>
                     <div className="offline-help-panel__sync-title-row">
-                      <span
-                        className="offline-help-panel__sync-icon offline-help-panel__sync-icon--pending"
-                        aria-hidden
-                      >
+                      <span className="offline-help-panel__sync-icon" aria-hidden>
                         <Icon name="cloud-arrow-up" size={20} />
                       </span>
                       <p className="offline-help-panel__sync-title">
@@ -81,10 +78,7 @@ export default function OfflineModeInfoPanel({ pendingSyncCount, onClose, inBott
                 ) : (
                   <>
                     <div className="offline-help-panel__sync-title-row">
-                      <span
-                        className="offline-help-panel__sync-icon offline-help-panel__sync-icon--ok"
-                        aria-hidden
-                      >
+                      <span className="offline-help-panel__sync-icon" aria-hidden>
                         <Icon name="check" size={16} />
                       </span>
                       <p className="offline-help-panel__sync-title">All caught up</p>

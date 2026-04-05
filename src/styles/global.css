@@ -1872,7 +1872,7 @@ button .menu-item__label {
   color: inherit !important;
 }
 
-/* Sync status — intentional card (left-aligned with bullets, not a floating footer). */
+/* Sync status — nested surface like white cards on snow-white panel content (not warm paper). */
 .offline-help-panel__sync-card {
   box-sizing: border-box;
   width: 100%;
@@ -1881,9 +1881,9 @@ button .menu-item__label {
   margin-bottom: 1.25rem;
   padding: 1rem 1.125rem;
   border-radius: 16px;
-  background-color: var(--color-paper);
-  border: 1px solid rgba(120, 118, 111, 0.14);
-  box-shadow: 0 1px 2px rgba(120, 118, 111, 0.06);
+  background-color: var(--color-white);
+  border: 1px solid oklch(var(--lch-stone-grey) / 0.22);
+  box-shadow: 0 1px 3px oklch(var(--lch-stone-grey) / 0.12);
 }
 
 .offline-help-panel__sync-eyebrow {
@@ -1912,16 +1912,8 @@ button .menu-item__label {
   height: 2.5rem;
   border-radius: 12px;
   line-height: 0;
-}
-
-.offline-help-panel__sync-icon--ok {
-  background-color: rgba(34, 197, 94, 0.12);
-  color: rgb(21, 128, 61);
-}
-
-.offline-help-panel__sync-icon--pending {
-  background-color: rgba(217, 119, 6, 0.14);
-  color: rgb(180, 83, 9);
+  background-color: var(--color-stone-grey-10);
+  color: var(--color-deep-grey);
 }
 
 .offline-help-panel__sync-title {
