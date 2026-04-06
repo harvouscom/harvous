@@ -145,7 +145,9 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
       const $p = doc.resolve(p);
       const marks = $p.marks();
       const hasPill = marks.some((m: any) => m.type.name === 'scripturePill');
-      if (!hasPill) {
+      // Also check nodeAfter marks — $p.marks() misses inclusive:false marks at the start boundary
+      const nodeAfterHasPill = $p.nodeAfter?.marks?.some((m: any) => m.type.name === 'scripturePill');
+      if (!hasPill && !nodeAfterHasPill) {
         pillStart = p + 1;
         break;
       }
@@ -191,6 +193,89 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
   }
   
   return { start: pillStart, end: pillEnd };
+}
+
+// Helper: find pill boundaries by iterating the paragraph's child nodes directly
+// This avoids all the inclusive:false mark resolution issues at boundaries
+function findAdjacentPillBoundaries(
+  doc: any,
+  pos: number,
+  direction: 'before' | 'after'
+): { start: number; end: number } | null {
+  try {
+    const $pos = doc.resolve(pos);
+    const parent = $pos.parent;
+    const parentStart = $pos.start($pos.depth); // absolute position of parent content start
+
+    if (direction === 'before') {
+      // Walk backward through children to find a pill just before cursor
+      let offset = 0;
+      let lastPillStart = -1;
+      let lastPillEnd = -1;
+
+      for (let i = 0; i < parent.childCount; i++) {
+        const child = parent.child(i);
+        const childStart = parentStart + offset;
+        const childEnd = childStart + child.nodeSize;
+
+        if (child.marks.some((m: any) => m.type.name === 'scripturePill')) {
+          // Extend or start a pill range (pills can span multiple text nodes)
+          if (lastPillEnd === childStart) {
+            // Contiguous with previous pill node
+            lastPillEnd = childEnd;
+          } else {
+            lastPillStart = childStart;
+            lastPillEnd = childEnd;
+          }
+        }
+
+        // If this child ends at or past the cursor, we've gone far enough
+        if (childEnd >= pos) break;
+        offset += child.nodeSize;
+      }
+
+      // Check if the found pill is adjacent (directly or with one space gap)
+      if (lastPillStart >= 0 && lastPillEnd > 0) {
+        const gap = pos - lastPillEnd;
+        if (gap <= 1) {
+          // Delete pill + any trailing space
+          return { start: lastPillStart, end: pos };
+        }
+      }
+    }
+
+    if (direction === 'after') {
+      // Walk forward through children to find a pill just after cursor
+      let offset = 0;
+
+      for (let i = 0; i < parent.childCount; i++) {
+        const child = parent.child(i);
+        const childStart = parentStart + offset;
+        const childEnd = childStart + child.nodeSize;
+
+        if (childStart >= pos && child.marks.some((m: any) => m.type.name === 'scripturePill')) {
+          // Find the full pill end (may span multiple nodes)
+          let pillEnd = childEnd;
+          for (let j = i + 1; j < parent.childCount; j++) {
+            const next = parent.child(j);
+            if (next.marks.some((m: any) => m.type.name === 'scripturePill')) {
+              pillEnd = parentStart + offset + child.nodeSize;
+              // recalculate properly
+              let o2 = 0;
+              for (let k = 0; k <= j; k++) o2 += parent.child(k).nodeSize;
+              pillEnd = parentStart + o2;
+            } else break;
+          }
+          return { start: pos, end: pillEnd };
+        }
+
+        if (childStart > pos + 1) break;
+        offset += child.nodeSize;
+      }
+    }
+  } catch (e) {}
+
+  return null;
 }
 
 // Helper function to check if there's a hard break node at a given position
@@ -2891,6 +2976,33 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const { from, to } = view.state.selection;
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
+
+        // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
+        // This must fire first to prevent ProseMirror's default backspace from eating pill characters
+        if ((event.key === 'Backspace' || event.key === 'Delete') && from === to) {
+          if (scripturePillMark) {
+            // Cursor is inside the pill — delete entire pill atomically
+            const boundaries = findPillBoundaries(view.state.doc, from);
+            if (boundaries) {
+              event.preventDefault();
+              editor.chain()
+                .deleteRange({ from: boundaries.start, to: boundaries.end })
+                .run();
+              return true;
+            }
+          } else {
+            // Cursor is outside — check if adjacent to a pill
+            const direction = event.key === 'Backspace' ? 'before' : 'after';
+            const adjacentBoundaries = findAdjacentPillBoundaries(view.state.doc, from, direction);
+            if (adjacentBoundaries) {
+              event.preventDefault();
+              editor.chain()
+                .deleteRange({ from: adjacentBoundaries.start, to: adjacentBoundaries.end })
+                .run();
+              return true;
+            }
+          }
+        }
         
         // Detect scripture references when space or Enter is pressed (desktop only)
         // On mobile, scripture detection happens in onUpdate to avoid interfering
@@ -3046,20 +3158,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               }
             }
             
-            // Handle Backspace/Delete - remove entire pill when cursor inside (avoid partial-pill state)
-            if (event.key === 'Backspace' || event.key === 'Delete') {
-              if (!isEntirePillSelected(view.state.doc, from, to) && boundaries) {
-                event.preventDefault();
-                editor.chain()
-                  .setTextSelection({ from: boundaries.start, to: boundaries.end })
-                  .unsetMark('scripturePill')
-                  .setTextSelection(boundaries.end)
-                  .run();
-                return true;
-              }
-              // If entire pill is selected, allow normal deletion (return false)
-            }
-            
           if (from === to) {
             // Check if this is a printable character (not a control key)
             const isControlKey = event.key.length > 1 || 
@@ -3075,7 +3173,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           }
           }
         }
-        
+
         // Auto-capitalize first letter is now handled via onUpdate handler below
         // (using post-input transformation instead of keydown prevention to avoid
         // race conditions with mobile keyboards that cause double letters like "Wwhenever")

@@ -181,62 +181,6 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
     };
   },
 
-  addKeyboardShortcuts() {
-    // Helper function to find pill boundaries
-    const findPillBoundaries = (doc: any, pos: number): { start: number; end: number } | null => {
-      let pillStart = pos;
-      let pillEnd = pos;
-
-      const $pos = doc.resolve(pos);
-      const marks = $pos.marks();
-      const scripturePillMark = marks.find((m: any) => m.type.name === 'scripturePill');
-
-      if (!scripturePillMark) return null;
-
-      // Scan backwards
-      while (pillStart > 0) {
-        const $p = doc.resolve(pillStart - 1);
-        if (!$p.marks().some((m: any) => m.type.name === 'scripturePill' && m.attrs.reference === scripturePillMark.attrs.reference)) {
-          break;
-        }
-        pillStart--;
-      }
-
-      // Scan forwards
-      while (pillEnd < doc.content.size) {
-        const $p = doc.resolve(pillEnd + 1);
-        if (!$p.marks().some((m: any) => m.type.name === 'scripturePill' && m.attrs.reference === scripturePillMark.attrs.reference)) {
-          break;
-        }
-        pillEnd++;
-      }
-
-      return { start: pillStart, end: pillEnd };
-    };
-
-    const removePillWhenInside = ({ editor }: { editor: any }) => {
-      const { state } = editor;
-      const { selection } = state;
-      const { $from, from, to } = selection;
-
-      const scripturePillMark = $from.marks().find((mark: any) => mark.type.name === 'scripturePill');
-
-      if (scripturePillMark && from === to) {
-        const boundaries = findPillBoundaries(state.doc, from);
-        if (boundaries) {
-          editor.chain().setTextSelection({ from: boundaries.start, to: boundaries.end }).unsetMark('scripturePill').run();
-          return true;
-        }
-      }
-      return false;
-    };
-
-    return {
-      'Backspace': removePillWhenInside,
-      'Delete': removePillWhenInside,
-    };
-  },
-
   addProseMirrorPlugins() {
     return [
       // Safety net: strip scripturePill from stored marks when cursor is after a pill
