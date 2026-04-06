@@ -126,12 +126,12 @@
    * Slack below the card so the dock peek is not clipped by app-layout overflow.
    * When the mobile strip matched a 3.5rem peek, 4rem worked; strip is now 2.75rem (desktop parity),
    * so we reclaim 0.75rem for the main column — CardStack fills via flex:1 on .mobile-main.
-   * + safe-area: dock extends by env(safe-area-inset-bottom) via .mobile-action-strip-dock.
+   * Bottom safe-area (home indicator) is not added here: it lives in .app-layout padding when the dock is present.
    */
-  margin-bottom: calc(4rem - 0.75rem + env(safe-area-inset-bottom, 0px));
+  margin-bottom: calc(4rem - 0.75rem);
 }
 
-/* On mobile with a dock, exactly 12px bottom padding on .app-layout.
+/* On mobile with a dock, .app-layout bottom padding is 12px + bottom safe-area (see rule below).
    Zero bottom padding on #root and on wrappers (but not .app-layout — it is often #root's direct child). */
 @media (max-width: 1159px) {
   #root:has(.mobile-main--with-dock) {
@@ -144,7 +144,8 @@
   .app-layout:has(.mobile-main--with-dock) {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
-    padding-bottom: 12px;
+    /* 12px matches prior dock layout; + env() clears home indicator without a tall empty cream band on the dock */
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
   .app-layout:has(.mobile-main--with-dock) > * {
     padding-bottom: 0 !important;
@@ -156,17 +157,17 @@
     padding-bottom: 0;
   }
   /* Reserve space so scroll content never extends under the action strip dock */
-  /* Dock height matches desktop: calc(2.75rem + 1.5rem); +0.25rem buffer; + safe-area on PWA/notch */
+  /* Dock height matches desktop: calc(2.75rem + 1.5rem); +0.25rem buffer; bottom inset is on .app-layout */
   .mobile-main--with-dock .main-column__scroll {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4.5rem);
   }
   /* Edit mode: ensure Tiptap editor content can scroll above the dock when it is still visible (e.g. before hide animation completes) */
   .mobile-main--with-dock .card-full-editable[data-editing="true"] .tiptap-content {
-    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(4.5rem);
   }
 }
 
-/* PWA: dock absorbs bottom safe-area (.mobile-action-strip-dock); keep app-layout bottom padding same as browser (12px with dock). */
+/* PWA: unorganized screens — keep prior bottom inset behavior. Dock screens use .app-layout padding-bottom + env() above. */
 @media (max-width: 1159px) and (display-mode: standalone), (max-width: 1159px) and (display-mode: minimal-ui) {
   .app-layout:has(.mobile-main--unorganized) {
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -421,16 +422,16 @@ button.new-space-floating-button {
   position: absolute;
   left: 0;
   right: 0;
-  /* Grow downward by home-indicator inset; top edge stays aligned with pre–safe-area layout */
-  bottom: calc(-2.75rem - env(safe-area-inset-bottom, 0px));
+  /* Peek below card lip; home-indicator clearance is .app-layout padding-bottom, not empty dock padding */
+  bottom: -2.75rem;
   z-index: 0;
   display: flex;
   justify-content: center;
   align-items: center;
   pointer-events: auto;
-  height: calc(2.75rem + 1.5rem + env(safe-area-inset-bottom, 0px));
+  height: calc(2.75rem + 1.5rem);
   padding-top: 1.5rem;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-bottom: 0;
   box-sizing: border-box;
   background-color: #ebe8e0;
   border-bottom-left-radius: 1.5rem;
@@ -446,10 +447,10 @@ button.new-space-floating-button {
   pointer-events: none;
 }
 
-/* Dock starts fully behind the card, then slides down to reveal actions (peek includes bottom safe-area) */
+/* Dock starts fully behind the card, then slides down to reveal actions */
 @keyframes mobile-dock-slide-in {
   from {
-    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
+    transform: translateY(-2.75rem);
     opacity: 0;
   }
   to {
@@ -464,11 +465,11 @@ button.new-space-floating-button {
     opacity: 1;
   }
   70% {
-    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
+    transform: translateY(-2.75rem);
     opacity: 1;
   }
   100% {
-    transform: translateY(calc(-2.75rem - env(safe-area-inset-bottom, 0px)));
+    transform: translateY(-2.75rem);
     opacity: 0;
   }
 }
