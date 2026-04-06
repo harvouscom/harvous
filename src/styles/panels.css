@@ -600,6 +600,7 @@
 .modal-overlay {
   position: fixed;
   top: env(safe-area-inset-top, 0px);
+  top: max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
   right: 0;
   bottom: 0;
   left: 0;
@@ -608,6 +609,11 @@
   align-items: center;
   justify-content: center;
   z-index: 50;
+}
+
+html.ios-pwa .modal-overlay {
+  top: var(--sheet-overlay-top, env(safe-area-inset-top, 0px));
+  top: var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
 }
 
 /* Centered modal overlay with padding */
@@ -735,6 +741,7 @@
 .drawer-overlay {
   position: fixed;
   top: env(safe-area-inset-top, 0px);
+  top: max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
   right: 0;
   bottom: 0;
   left: 0;
@@ -756,11 +763,18 @@
   pointer-events: none;
   position: fixed;
   top: env(safe-area-inset-top, 0px);
+  top: max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px));
   bottom: 0;
   right: 0;
   display: flex;
   max-width: 100%;
   padding-left: 2.5rem;
+}
+
+html.ios-pwa .drawer-overlay,
+html.ios-pwa .drawer-slide {
+  top: var(--sheet-overlay-top, env(safe-area-inset-top, 0px));
+  top: var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
 }
 
 .drawer-panel {

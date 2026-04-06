@@ -213,6 +213,14 @@
   /* Clip the dark backdrop below the iOS safe area so it never renders behind
      the status bar — prevents WebKit compositing artifacts on overlay dismiss. */
   clip-path: inset(env(safe-area-inset-top, 0px) 0 0 0);
+  clip-path: inset(max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)) 0 0 0);
+}
+
+html.ios-pwa .modal-overlay-enter {
+  clip-path: inset(var(--sheet-overlay-top, env(safe-area-inset-top, 0px)) 0 0 0);
+  clip-path: inset(
+    var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))) 0 0 0
+  );
 }
 
 .modal-content-enter {

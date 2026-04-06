@@ -14,6 +14,7 @@ import {
   getMobileChipBottomInsetPx,
   HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
 } from '@/utils/mobile-offline-chip-layout';
+import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -97,20 +98,25 @@ const windowToast = {
   },
 };
 
-/** Set .ios-pwa on documentElement when running as PWA on iOS so overlay starts below status bar only there. */
-function IosPwaClass() {
-  useEffect(() => {
+/**
+ * iOS standalone PWA only: set .ios-pwa on html, sync --sheet-overlay-top (padding probe + heuristics),
+ * and subscribe to viewport / sheet open so scrims stay below the status bar.
+ */
+function IosPwaSheetOverlayInset() {
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return undefined;
     const isPwa =
-      typeof window !== 'undefined' &&
-      (window.matchMedia('(display-mode: standalone)').matches ||
-        window.matchMedia('(display-mode: minimal-ui)').matches);
-    const isIos =
-      typeof navigator !== 'undefined' &&
-      /iPhone|iPad|iPod/.test(navigator.userAgent);
-    if (isPwa && isIos) {
-      document.documentElement.classList.add('ios-pwa');
-      return () => document.documentElement.classList.remove('ios-pwa');
-    }
+      window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: minimal-ui)').matches;
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    if (!isPwa || !isIos) return undefined;
+
+    document.documentElement.classList.add('ios-pwa');
+    const unsub = subscribeSheetOverlayInset();
+    return () => {
+      unsub();
+      document.documentElement.classList.remove('ios-pwa');
+    };
   }, []);
   return null;
 }
@@ -633,7 +639,7 @@ export default function App() {
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
         <QueryClient401Redirect />
-        <IosPwaClass />
+        <IosPwaSheetOverlayInset />
         <WebHapticsSetup />
         <DevApiHealthBanner />
         <ToastSetup />
