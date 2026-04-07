@@ -86,10 +86,25 @@ async function resolveLiveToDevMapping(liveUserId: string, secretKey: string): P
  * Clerk auth middleware for Hono.
  * Sets c.set('auth', { userId, has }) on every request.
  */
+function parseBearerSecret(authorizationHeader: string | undefined): string | null {
+  const raw = authorizationHeader?.trim() ?? '';
+  const m = raw.match(/^Bearer\s+(.+)$/i);
+  return m?.[1]?.trim() ?? null;
+}
+
 export async function clerkAuth(c: Context, next: Next) {
   const sessionToken = getSessionToken(c.req.header('Cookie'));
-  const bearerToken = c.req.header('Authorization')?.replace('Bearer ', '');
-  const token = sessionToken || bearerToken;
+  const authHeader = c.req.header('Authorization') ?? c.req.header('authorization');
+  const bearerSecret = parseBearerSecret(authHeader);
+
+  // VOTD cron (and similar): Bearer value is a shared secret, not a Clerk JWT — do not verifyToken.
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
+  if (votdCronSecret && bearerSecret === votdCronSecret) {
+    c.set('auth', NULL_AUTH);
+    return next();
+  }
+
+  const token = sessionToken || bearerSecret;
 
   if (!token) {
     c.set('auth', NULL_AUTH);

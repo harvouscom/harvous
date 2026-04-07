@@ -13,10 +13,12 @@ export function isHarvousAdmin(c: Context): boolean {
   const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
   if (userId && systemUserId && userId === systemUserId) return true;
 
-  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET;
+  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
   if (!expectedSecret) return false;
-  const authHeader = c.req.header('authorization') ?? '';
-  return authHeader === `Bearer ${expectedSecret}`;
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').trim();
+  const m = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = m?.[1]?.trim();
+  return provided === expectedSecret;
 }
 
 export function requireHarvousAdmin(c: Context) {

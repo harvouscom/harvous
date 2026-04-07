@@ -20,10 +20,12 @@ const app = new Hono();
 
 // Require VOTD cron secret or regular admin credentials for the publish endpoint
 function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
-  const expectedSecret = process.env.VOTD_CRON_SECRET;
+  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
   if (expectedSecret) {
-    const authHeader = c.req.header('authorization') ?? '';
-    if (authHeader === `Bearer ${expectedSecret}`) return null;
+    const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').trim();
+    const m = authHeader.match(/^Bearer\s+(.+)$/i);
+    const provided = m?.[1]?.trim();
+    if (provided === expectedSecret) return null;
   }
   return requireHarvousAdmin(c);
 }
