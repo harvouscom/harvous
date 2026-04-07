@@ -57506,9 +57506,10 @@ async function clerkAuth(c, next) {
   const sessionToken = getSessionToken(c.req.header("Cookie"));
   const authHeader = c.req.header("Authorization") ?? c.req.header("authorization");
   const bearerSecret = parseBearerSecret(authHeader);
-  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
-  if (votdCronSecret && bearerSecret === votdCronSecret) {
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.replace(/\s+/g, "");
+  if (votdCronSecret && bearerSecret?.replace(/\s+/g, "") === votdCronSecret) {
     c.set("auth", NULL_AUTH);
+    c.set("cronAuthed", true);
     return next();
   }
   const token = sessionToken || bearerSecret;
@@ -94551,20 +94552,31 @@ init_db2();
 init_dates();
 init_schema2();
 var app13 = new Hono2();
+function stripNonPrintable(s2) {
+  return s2.replace(/[^\x21-\x7e]/g, "");
+}
 function requireVotdAuth(c) {
-  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
-  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
+  if (c.get("cronAuthed")) return null;
+  const raw2 = process.env.VOTD_CRON_SECRET ?? "";
+  const expectedSecret = stripNonPrintable(raw2);
+  const authHeader = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
   const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = m2?.[1]?.trim();
-  console.log("[requireVotdAuth]", {
-    hasEnvSecret: !!expectedSecret,
-    envSecretLength: expectedSecret?.length ?? 0,
-    hasProvidedToken: !!provided,
-    providedLength: provided?.length ?? 0,
-    match: expectedSecret ? provided === expectedSecret : false
-  });
-  if (expectedSecret && provided === expectedSecret) return null;
-  return requireHarvousAdmin(c);
+  const provided = stripNonPrintable(m2?.[1] ?? "");
+  if (expectedSecret && provided && provided === expectedSecret) return null;
+  const adminResult = requireHarvousAdmin(c);
+  if (!adminResult) return null;
+  return c.json({
+    error: "Unauthorized",
+    _debug: {
+      cronAuthed: !!c.get("cronAuthed"),
+      envSet: !!raw2,
+      envLen: expectedSecret.length,
+      providedLen: provided.length,
+      envFirst4: expectedSecret.slice(0, 4) || "(empty)",
+      providedFirst4: provided.slice(0, 4) || "(empty)",
+      match: expectedSecret === provided
+    }
+  }, 401);
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = requireHarvousAdmin(c);

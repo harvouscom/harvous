@@ -18,24 +18,36 @@ import { parseScriptureReference, normalizeScriptureReference } from '@/utils/sc
 
 const app = new Hono();
 
-// Require VOTD cron secret or regular admin credentials for the publish endpoint
+function stripNonPrintable(s: string): string {
+  return s.replace(/[^\x21-\x7e]/g, '');
+}
+
 function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
-  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
-  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').trim();
+  if (c.get('cronAuthed')) return null;
+
+  const raw = process.env.VOTD_CRON_SECRET ?? '';
+  const expectedSecret = stripNonPrintable(raw);
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '');
   const m = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = m?.[1]?.trim();
+  const provided = stripNonPrintable(m?.[1] ?? '');
 
-  // Temporary auth debug — remove once cron secret is confirmed working
-  console.log('[requireVotdAuth]', {
-    hasEnvSecret: !!expectedSecret,
-    envSecretLength: expectedSecret?.length ?? 0,
-    hasProvidedToken: !!provided,
-    providedLength: provided?.length ?? 0,
-    match: expectedSecret ? provided === expectedSecret : false,
-  });
+  if (expectedSecret && provided && provided === expectedSecret) return null;
 
-  if (expectedSecret && provided === expectedSecret) return null;
-  return requireHarvousAdmin(c);
+  const adminResult = requireHarvousAdmin(c);
+  if (!adminResult) return null;
+
+  return c.json({
+    error: 'Unauthorized',
+    _debug: {
+      cronAuthed: !!c.get('cronAuthed'),
+      envSet: !!raw,
+      envLen: expectedSecret.length,
+      providedLen: provided.length,
+      envFirst4: expectedSecret.slice(0, 4) || '(empty)',
+      providedFirst4: provided.slice(0, 4) || '(empty)',
+      match: expectedSecret === provided,
+    },
+  }, 401);
 }
 
 // ─── POST /api/admin/votd/schedule ───────────────────────────────────────────

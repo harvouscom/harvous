@@ -98,9 +98,10 @@ export async function clerkAuth(c: Context, next: Next) {
   const bearerSecret = parseBearerSecret(authHeader);
 
   // VOTD cron (and similar): Bearer value is a shared secret, not a Clerk JWT — do not verifyToken.
-  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
-  if (votdCronSecret && bearerSecret === votdCronSecret) {
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.replace(/\s+/g, '');
+  if (votdCronSecret && bearerSecret?.replace(/\s+/g, '') === votdCronSecret) {
     c.set('auth', NULL_AUTH);
+    c.set('cronAuthed', true);
     return next();
   }
 
