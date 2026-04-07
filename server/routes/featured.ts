@@ -46,7 +46,7 @@ app.get('/api/featured/items', async (c) => {
           ),
       ),
     ];
-    if (shouldExcludeDevSampleFeaturedItems()) {
+    if (shouldExcludeDevSampleFeaturedItems(c)) {
       baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
 
@@ -234,6 +234,15 @@ app.post('/api/featured/dismiss', requireAuth, async (c) => {
 // VOTD items are explicitly excluded — they never appear in My Inbox.
 app.get('/api/featured/dismissed', requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
+  const dismissedConditions = [
+    eq(UserFeaturedItems.userId, auth.userId),
+    eq(UserFeaturedItems.status, 'dismissed'),
+    ne(FeaturedItems.contentType, 'votd'),
+  ];
+  if (shouldExcludeDevSampleFeaturedItems(c)) {
+    dismissedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+  }
+
   const rows = await db
     .select({
       featuredItemId: UserFeaturedItems.featuredItemId,
@@ -250,13 +259,7 @@ app.get('/api/featured/dismissed', requireAuth, async (c) => {
     })
     .from(UserFeaturedItems)
     .innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id))
-    .where(
-      and(
-        eq(UserFeaturedItems.userId, auth.userId),
-        eq(UserFeaturedItems.status, 'dismissed'),
-        ne(FeaturedItems.contentType, 'votd'),
-      ),
-    )
+    .where(and(...dismissedConditions))
     .orderBy(desc(UserFeaturedItems.dismissedAt));
 
   return c.json(

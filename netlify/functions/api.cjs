@@ -94052,17 +94052,43 @@ var ALL_SAMPLE_FEATURED_IDS = [
   SAMPLE_FEATURED_CHURCH_ID
 ];
 var DEV_SAMPLE_FEATURED_ITEM_IDS = [...ALL_SAMPLE_FEATURED_IDS];
-function shouldExcludeDevSampleFeaturedItems() {
-  if (process.env.HARVOUS_ALLOW_DEV_FEATURED_SAMPLES === "true") {
-    return false;
+function isDeployedProductionLike() {
+  return process.env.NODE_ENV === "production" || process.env.NETLIFY === "true";
+}
+function getInboundHost(c) {
+  const fwd = c.req.header("x-forwarded-host")?.split(",")[0]?.trim();
+  if (fwd) return fwd;
+  return c.req.header("host")?.trim() ?? "";
+}
+function isLocalhostHost(hostWithPort) {
+  if (!hostWithPort.trim()) return false;
+  let h = hostWithPort.trim().toLowerCase();
+  if (h.startsWith("[")) {
+    const end = h.indexOf("]");
+    h = end === -1 ? h : h.slice(1, end);
+  } else {
+    const lastColon = h.lastIndexOf(":");
+    if (lastColon > 0 && /^\d+$/.test(h.slice(lastColon + 1))) {
+      h = h.slice(0, lastColon);
+    }
   }
-  if (process.env.NODE_ENV === "production") {
+  return h === "localhost" || h === "127.0.0.1" || h === "::1" || h === "0:0:0:0:0:0:0:1";
+}
+function shouldExcludeDevSampleFeaturedItems(c) {
+  if (isDeployedProductionLike()) {
     return true;
   }
-  if (process.env.NETLIFY === "true") {
-    return true;
+  return !isLocalhostHost(getInboundHost(c));
+}
+var SAMPLE_FORBIDDEN = "Featured sample endpoints are only available on localhost (local dev).";
+function featuredSampleSeedForbiddenResponse(c) {
+  if (isDeployedProductionLike()) {
+    return c.json({ error: SAMPLE_FORBIDDEN }, 403);
   }
-  return false;
+  if (!isLocalhostHost(getInboundHost(c))) {
+    return c.json({ error: SAMPLE_FORBIDDEN }, 403);
+  }
+  return null;
 }
 function isTestRoutesForbidden() {
   if (process.env.HARVOUS_ALLOW_TEST_API_ROUTES === "true") {
@@ -94101,7 +94127,7 @@ app12.get("/api/featured/items", async (c) => {
         )
       )
     ];
-    if (shouldExcludeDevSampleFeaturedItems()) {
+    if (shouldExcludeDevSampleFeaturedItems(c)) {
       baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
     let items = await db.select({
@@ -94242,6 +94268,14 @@ app12.post("/api/featured/dismiss", requireAuth, async (c) => {
 });
 app12.get("/api/featured/dismissed", requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
+  const dismissedConditions = [
+    eq(UserFeaturedItems.userId, auth.userId),
+    eq(UserFeaturedItems.status, "dismissed"),
+    ne(FeaturedItems.contentType, "votd")
+  ];
+  if (shouldExcludeDevSampleFeaturedItems(c)) {
+    dismissedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+  }
   const rows = await db.select({
     featuredItemId: UserFeaturedItems.featuredItemId,
     status: UserFeaturedItems.status,
@@ -94254,13 +94288,7 @@ app12.get("/api/featured/dismissed", requireAuth, async (c) => {
     shareToken: FeaturedItems.shareToken,
     color: FeaturedItems.color,
     createdAt: FeaturedItems.createdAt
-  }).from(UserFeaturedItems).innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id)).where(
-    and(
-      eq(UserFeaturedItems.userId, auth.userId),
-      eq(UserFeaturedItems.status, "dismissed"),
-      ne(FeaturedItems.contentType, "votd")
-    )
-  ).orderBy(desc(UserFeaturedItems.dismissedAt));
+  }).from(UserFeaturedItems).innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id)).where(and(...dismissedConditions)).orderBy(desc(UserFeaturedItems.dismissedAt));
   return c.json(
     rows.map((r) => ({
       id: r.itemId,
@@ -94728,9 +94756,8 @@ app14.post("/api/test/reset-featured", async (c) => {
   }
 });
 app14.post("/api/test/seed-sample-votd", async (c) => {
-  if (isTestRoutesForbidden()) {
-    return c.json({ error: "Test endpoint not available in production" }, 403);
-  }
+  const seedBlock = featuredSampleSeedForbiddenResponse(c);
+  if (seedBlock) return seedBlock;
   try {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
@@ -94794,9 +94821,8 @@ app14.post("/api/test/seed-sample-votd", async (c) => {
   }
 });
 app14.post("/api/test/seed-sample-featured", async (c) => {
-  if (isTestRoutesForbidden()) {
-    return c.json({ error: "Test endpoint not available in production" }, 403);
-  }
+  const seedBlock = featuredSampleSeedForbiddenResponse(c);
+  if (seedBlock) return seedBlock;
   try {
     const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
