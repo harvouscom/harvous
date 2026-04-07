@@ -184,7 +184,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   }, [effectiveSelectedSpaceId, localSpaces, currentItemId]);
 
   // Route-aware display: on dashboard show "My Home"; on other pages show stored selected space (so profile/search keep last space).
-  const displaySelectedSpaceId = isDashboard ? null : effectiveSelectedSpaceId;
+  const displaySelectedSpaceId = isDashboard ? null : (effectiveSelectedSpaceId && !deletedSpaceIdsRef.current.has(effectiveSelectedSpaceId) ? effectiveSelectedSpaceId : null);
   const displaySelectedSpace = useMemo(() => {
     if (!displaySelectedSpaceId) return null;
     const fromList = localSpaces.find((s) => s.id === displaySelectedSpaceId) ?? null;
@@ -394,7 +394,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
 
   // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when the space is in the dropdown but not in localSpaces (e.g. find page).
   const displaySpaceForLabel = displaySelectedSpace ?? (displaySelectedSpaceId ? spacesForDropdown.find((s) => s.id === displaySelectedSpaceId) ?? null : null);
-  const resolvedTopSpaceLabel = displaySpaceForLabel ? displaySpaceForLabel.title : displaySelectedSpaceId ? 'Space' : 'My Home';
+  const resolvedTopSpaceLabel = displaySpaceForLabel ? displaySpaceForLabel.title : 'My Home';
   const resolvedTopSpaceBackground = displaySpaceForLabel?.backgroundGradient || 'var(--color-paper)';
 
   // Calculate available spaces that aren't in the dropdown (exclude deleted so they disappear without refresh)
@@ -432,6 +432,14 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
       if (!spaceId) return;
       deletedSpaceIdsRef.current.add(spaceId);
       setLocalSpaces(prev => prev.filter(s => s.id !== spaceId));
+      // Prune the deleted space from the "closed" list so stale IDs don't accumulate
+      try {
+        const stored = safeGetItem('harvous-closed-navigation-items');
+        if (stored) {
+          const pruned = (JSON.parse(stored) as string[]).filter((id) => id !== spaceId);
+          safeSetItem('harvous-closed-navigation-items', JSON.stringify(pruned), { cleanupOldest: true, fallbackToSession: true });
+        }
+      } catch { /* ignore */ }
     };
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);

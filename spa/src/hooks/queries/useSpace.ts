@@ -40,6 +40,19 @@ function setCachedSpaceBootstrap(spaceId: string, data: SpaceBootstrapData) {
   }
 }
 
+export function clearCachedSpaceBootstrap(spaceId: string): void {
+  try {
+    sessionStorage.removeItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${spaceId}`);
+    const raw = sessionStorage.getItem(SPACE_BOOTSTRAP_CACHE_INDEX);
+    if (raw) {
+      const index: string[] = JSON.parse(raw).filter((id: string) => id !== spaceId);
+      sessionStorage.setItem(SPACE_BOOTSTRAP_CACHE_INDEX, JSON.stringify(index));
+    }
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 export interface SpaceDetail {
   id: string;
   title: string;

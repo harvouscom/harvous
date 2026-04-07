@@ -31,9 +31,9 @@ import {
   type NavigationData,
 } from '../hooks/queries/useNavigation';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
-import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread } from '../hooks/queries/useNote';
-import { useThread } from '../hooks/queries/useThread';
-import { useSpace } from '../hooks/queries/useSpace';
+import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearNoteParentThreadCacheByThreadId } from '../hooks/queries/useNote';
+import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
+import { useSpace, clearCachedSpaceBootstrap } from '../hooks/queries/useSpace';
 import { useIsOffline } from '@/hooks/useIsOffline';
 
 function isOfflineInteractionAllowed(target: EventTarget | null): boolean {
@@ -279,6 +279,9 @@ export default function AppLayout() {
         } catch {
           // ignore
         }
+        // Clear SPA session + React Query caches so back-navigation doesn't show deleted space
+        clearCachedSpaceBootstrap(deletedId);
+        queryClient.removeQueries({ queryKey: ['space', deletedId] });
       }
       refreshNavigation();
     };
@@ -326,6 +329,9 @@ export default function AppLayout() {
           return { ...old, threads: old.threads.filter((t) => t.id !== threadId) };
         });
         queryClient.removeQueries({ queryKey: ['thread', threadId] });
+        // Clear SPA session caches so back-navigation doesn't flash deleted thread or broken note links
+        clearCachedThreadPrefetch(threadId);
+        clearNoteParentThreadCacheByThreadId(threadId);
       }
       refreshNavigation();
     };

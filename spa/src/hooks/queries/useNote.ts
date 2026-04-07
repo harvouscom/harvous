@@ -97,6 +97,46 @@ function getCachedNoteDetail(noteId: string): NoteDetail | undefined {
   }
 }
 
+export function clearCachedNoteDetail(noteId: string): void {
+  try {
+    sessionStorage.removeItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`);
+    const raw = sessionStorage.getItem(NOTE_DETAIL_CACHE_INDEX);
+    if (raw) {
+      const index: string[] = JSON.parse(raw).filter((id: string) => id !== noteId);
+      sessionStorage.setItem(NOTE_DETAIL_CACHE_INDEX, JSON.stringify(index));
+    }
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
+/**
+ * Scans localStorage for all note-thread cache entries pointing to `threadId`
+ * and removes them. Call on threadDeleted so notes don't back-link to a 404 thread.
+ */
+export function clearNoteParentThreadCacheByThreadId(threadId: string): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key?.startsWith('harvous-note-thread-')) continue;
+      // Skip the -data- variant here; we'll remove it by derived key below
+      if (key.startsWith('harvous-note-thread-data-')) continue;
+      const storedThreadId = localStorage.getItem(key);
+      if (storedThreadId === threadId) {
+        keysToRemove.push(key);
+      }
+    }
+    for (const key of keysToRemove) {
+      const noteId = key.slice('harvous-note-thread-'.length);
+      localStorage.removeItem(key);
+      localStorage.removeItem(`harvous-note-thread-data-${noteId}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function setCachedNoteDetail(noteId: string, detail: NoteDetail) {
   try {
     sessionStorage.setItem(`${NOTE_DETAIL_CACHE_PREFIX}${noteId}`, JSON.stringify(detail));

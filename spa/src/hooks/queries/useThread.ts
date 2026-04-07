@@ -96,6 +96,19 @@ function setCachedThreadPrefetch(threadId: string, data: ThreadPrefetchData) {
   }
 }
 
+export function clearCachedThreadPrefetch(threadId: string): void {
+  try {
+    sessionStorage.removeItem(`${THREAD_PREFETCH_CACHE_PREFIX}${threadId}`);
+    const raw = sessionStorage.getItem(THREAD_PREFETCH_CACHE_INDEX);
+    if (raw) {
+      const index: string[] = JSON.parse(raw).filter((id: string) => id !== threadId);
+      sessionStorage.setItem(THREAD_PREFETCH_CACHE_INDEX, JSON.stringify(index));
+    }
+  } catch {
+    /* quota or private browsing */
+  }
+}
+
 /** Keep low so thread title/color edits (e.g. admin patches) show without long stale UI. */
 const THREAD_STALE_TIME = 0;
 

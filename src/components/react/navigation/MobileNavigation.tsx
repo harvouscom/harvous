@@ -1239,6 +1239,14 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       deletedSpaceIdsRef.current.add(spaceId);
       setLocalSpaces((prev) => prev.filter((s) => s.id !== spaceId));
       forceUpdate((prev) => prev + 1);
+      // Prune the deleted space from the "closed" list so stale IDs don't accumulate
+      try {
+        const stored = safeGetItem('harvous-closed-navigation-items');
+        if (stored) {
+          const pruned = (JSON.parse(stored) as string[]).filter((id) => id !== spaceId);
+          safeSetItem('harvous-closed-navigation-items', JSON.stringify(pruned), { cleanupOldest: true, fallbackToSession: true });
+        }
+      } catch { /* ignore */ }
     };
     window.addEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
     return () => window.removeEventListener('spaceDeleted', handleSpaceDeleted as EventListener);
@@ -1450,15 +1458,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   }, [effectiveSelectedSpaceId, filteredSpaces, currentSpace, localSpaces, updatedCurrentSpace]);
 
   // Fallback to spacesForDropdown so we show the actual space name (e.g. "MySpace") when selectedSpace is null (e.g. search page).
-  const selectedSpaceLabel = selectedSpace ? selectedSpace.title : (selectedSpaceId ? (spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'Space') : 'My Home');
+  const selectedSpaceLabel = selectedSpace ? selectedSpace.title : (selectedSpaceId ? (spacesForDropdown.find((s) => s.id === selectedSpaceId)?.title ?? 'My Home') : 'My Home');
   const selectedSpaceCount = selectedSpace ? selectedSpace.totalItemCount : inboxCount;
   const selectedSpaceBackground = selectedSpace?.backgroundGradient || getThreadGradientCSS('paper');
   
   // Route-aware display: use effectiveSelectedSpaceId so after resize from desktop we show the space we're actually in
-  const displaySelectedSpaceLabel = isDashboard ? 'My Home' : (displaySelectedSpace ? displaySelectedSpace.title : (effectiveSelectedSpaceId ? (spacesForDropdown.find((s) => s.id === effectiveSelectedSpaceId)?.title ?? 'Space') : 'My Home'));
+  const displaySelectedSpaceLabel = isDashboard ? 'My Home' : (displaySelectedSpace ? displaySelectedSpace.title : (effectiveSelectedSpaceId && !deletedSpaceIdsRef.current.has(effectiveSelectedSpaceId) ? (spacesForDropdown.find((s) => s.id === effectiveSelectedSpaceId)?.title ?? 'My Home') : 'My Home'));
   const displaySelectedSpaceCount = isDashboard ? inboxCount : (displaySelectedSpace ? displaySelectedSpace.totalItemCount : inboxCount);
   const displaySelectedSpaceBackground = isDashboard ? getThreadGradientCSS('paper') : (displaySelectedSpace?.backgroundGradient || getThreadGradientCSS('paper'));
-  const displaySelectedSpaceId = isDashboard ? null : effectiveSelectedSpaceId;
+  const displaySelectedSpaceId = isDashboard ? null : (effectiveSelectedSpaceId && !deletedSpaceIdsRef.current.has(effectiveSelectedSpaceId) ? effectiveSelectedSpaceId : null);
 
   const spaceButtonKey = `space-button-${effectiveSelectedSpaceId}-${displaySelectedSpaceLabel}-${displaySelectedSpaceBackground}`;
 
