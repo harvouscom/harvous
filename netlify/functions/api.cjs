@@ -94553,12 +94553,17 @@ init_schema2();
 var app13 = new Hono2();
 function requireVotdAuth(c) {
   const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
-  if (expectedSecret) {
-    const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
-    const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
-    const provided = m2?.[1]?.trim();
-    if (provided === expectedSecret) return null;
-  }
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
+  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = m2?.[1]?.trim();
+  console.log("[requireVotdAuth]", {
+    hasEnvSecret: !!expectedSecret,
+    envSecretLength: expectedSecret?.length ?? 0,
+    hasProvidedToken: !!provided,
+    providedLength: provided?.length ?? 0,
+    match: expectedSecret ? provided === expectedSecret : false
+  });
+  if (expectedSecret && provided === expectedSecret) return null;
   return requireHarvousAdmin(c);
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
