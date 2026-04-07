@@ -21,6 +21,7 @@ import { updateSpaceOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import { getCachedPanelData, setCachedPanelData, getSpaceMembersCacheKey, type SpaceMembersCache } from '@/utils/panel-data-cache';
+import { DebouncedEntityTitleInput } from './DebouncedEntityTitleInput';
 
 interface Note {
   id: string;
@@ -135,9 +136,7 @@ export default function EditSpacePanel({
   const formDataRef = useRef(formData);
   
   // Refs to track pending saves and debounce timers
-  const pendingTitleSaveRef = useRef<string | null>(null);
   const pendingColorSaveRef = useRef<ThreadColor | null>(null);
-  const titleDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeSaveOperationsRef = useRef<Set<string>>(new Set());
   // Track if we've fetched space data to prevent props from overwriting it
   const hasFetchedSpaceDataRef = useRef(false);
@@ -450,7 +449,7 @@ export default function EditSpacePanel({
           credentials: 'include',
           body: JSON.stringify({
             contentType: 'space',
-            title: formData.title?.trim() || 'Space',
+            title: formDataRef.current.title?.trim() || 'Space',
             description: adminDescription?.trim() || null,
             shareToken: token,
             color: formData.selectedColor,
@@ -710,12 +709,10 @@ export default function EditSpacePanel({
     }
     
     if (title.trim() === initialValues.title) {
-      // Clear pending save if it matches initial value
-      pendingTitleSaveRef.current = null;
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
       }
-      return; // No change
+      return;
     }
     
     // Track this save operation
@@ -728,8 +725,7 @@ export default function EditSpacePanel({
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
     }
-    pendingTitleSaveRef.current = null;
-    
+
     try {
       // Use refs to get current values (avoid stale closures)
       const currentColor = formDataRef.current.selectedColor;
@@ -766,6 +762,7 @@ export default function EditSpacePanel({
         
         if (networkError && offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
+          setFormData(prev => ({ ...prev, title: title.trim() }));
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
           lastFetchedSpaceIdRef.current = spaceId;
@@ -789,6 +786,7 @@ export default function EditSpacePanel({
       const data = await response.json();
       
       if (response && response.ok) {
+        setFormData(prev => ({ ...prev, title: title.trim() }));
         setInitialValues(prev => ({ ...prev, title: title.trim() }));
         // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
         lastFetchedSpaceIdRef.current = spaceId;
@@ -804,6 +802,7 @@ export default function EditSpacePanel({
       } else {
         if (offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
+          setFormData(prev => ({ ...prev, title: title.trim() }));
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           // Update lastFetchedSpaceIdRef to indicate we have fresh data from save
           lastFetchedSpaceIdRef.current = spaceId;
@@ -998,7 +997,7 @@ export default function EditSpacePanel({
           if (linkResult && !linkResult.ok && linkResult.limitExceeded) {
             // Revert: server rejected creating share link due to limit; set space back to private
             const revertFormData = new FormData();
-            revertFormData.append('title', formData.title.trim());
+            revertFormData.append('title', formDataRef.current.title.trim());
             revertFormData.append('color', formData.selectedColor);
             revertFormData.append('isPublic', 'false');
             await fetch(`/api/spaces/${spaceId}/update`, {
@@ -1071,8 +1070,6 @@ export default function EditSpacePanel({
     const pendingColor = sessionStorage.getItem(`pendingSpaceColor_${spaceId}`);
     
     if (pendingTitle && pendingTitle !== initialTitle) {
-      // Restore pending title save
-      pendingTitleSaveRef.current = pendingTitle;
       // Clear from sessionStorage
       sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
       // Trigger save after a small delay to ensure component is fully mounted
@@ -1097,25 +1094,11 @@ export default function EditSpacePanel({
     }
   }, [saveTitleChange, saveColorChange, spaceId, initialTitle, initialColor]); // Run when save functions are available
   
-  // Cleanup effect: ensure all pending saves complete before unmount
+  // Cleanup effect: wait for active save operations (title flush handled by DebouncedEntityTitleInput)
   useEffect(() => {
     return () => {
-      // Complete any pending debounced saves
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-        
-        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
-          // Complete the save synchronously if possible, but don't block
-          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
-            console.error('[EditSpacePanel] Error completing pending title save on unmount:', err);
-          });
-        }
-      }
-      
-      // Wait for active save operations to complete (with timeout)
       if (activeSaveOperationsRef.current.size > 0) {
-        const maxWait = 2000; // Max 2 seconds
+        const maxWait = 2000;
         const startTime = Date.now();
         const checkInterval = setInterval(() => {
           if (activeSaveOperationsRef.current.size === 0 || Date.now() - startTime > maxWait) {
@@ -1124,59 +1107,7 @@ export default function EditSpacePanel({
         }, 100);
       }
     };
-  }, [saveTitleChange, initialValues.title]);
-  
-  // Debounced auto-save for title changes
-  useEffect(() => {
-    if (formData.title === initialValues.title) {
-      // Clear any pending save
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-      }
-      pendingTitleSaveRef.current = null;
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(`pendingSpaceTitle_${spaceId}`);
-      }
-      return; // No change
-    }
-    
-    // Store pending save in sessionStorage (for mobile remounts)
-    pendingTitleSaveRef.current = formData.title;
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(`pendingSpaceTitle_${spaceId}`, formData.title);
-    }
-    
-    // Clear existing timer
-    if (titleDebounceTimerRef.current) {
-      clearTimeout(titleDebounceTimerRef.current);
-    }
-    
-    const timeoutId = setTimeout(() => {
-      saveTitleChange(formData.title);
-      titleDebounceTimerRef.current = null;
-    }, 1500); // 1.5 second debounce
-    
-    titleDebounceTimerRef.current = timeoutId;
-    
-    return () => {
-      // On unmount, if there's a pending save, complete it immediately
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-        
-        // Complete the pending save before unmounting
-        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
-          // Use a small delay to ensure the save function can access current state
-          // But don't block unmount - the save will complete asynchronously
-          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
-            console.error('[EditSpacePanel] Error completing pending title save on unmount:', err);
-          });
-        }
-      }
-    };
-  }, [formData.title, initialValues.title, saveTitleChange, spaceId]);
-
+  }, []);
 
   // Remove items from space
   const handleRemoveFromSpace = async (itemId: string, itemType: 'note' | 'thread') => {
@@ -1237,20 +1168,6 @@ export default function EditSpacePanel({
       }));
     } finally {
       setIsRemovingItem(false);
-    }
-  };
-
-  // Handle input changes
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear validation error for this field
-    if (validationErrors[field]) {
-      setValidationErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
     }
   };
 
@@ -1487,20 +1404,25 @@ export default function EditSpacePanel({
                 {/* Space title and color: owner only; members only see tab nav below */}
                 {isOwner && (
                   <>
-                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                      <input
-                        type="text"
-                        value={formData.title}
-                        onChange={(e) => handleInputChange('title', e.target.value)}
-                        placeholder={formData.title ? '' : 'Space Title'}
-                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
-                      />
-                      {validationErrors.title && (
-                        <div className="text-red-500 text-sm mt-1 text-center">
-                          {validationErrors.title}
-                        </div>
-                      )}
-                    </div>
+                    <DebouncedEntityTitleInput
+                      key={spaceId}
+                      pendingStorageKey={`pendingSpaceTitle_${spaceId}`}
+                      committedTitle={initialValues.title}
+                      formDataRef={formDataRef}
+                      onSave={saveTitleChange}
+                      emptyPlaceholder="Space Title"
+                      className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full"
+                      inputClassName="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      validationError={validationErrors.title}
+                      onClearValidation={() => {
+                        if (!validationErrors.title) return;
+                        setValidationErrors(prev => {
+                          const next = { ...prev };
+                          delete next.title;
+                          return next;
+                        });
+                      }}
+                    />
                     <div className="color-selection flex gap-2 items-center justify-start w-full">
                       {THREAD_COLORS.map((color) => (
                         <button

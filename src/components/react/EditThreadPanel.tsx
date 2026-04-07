@@ -23,6 +23,7 @@ import {
   getCondensedNoteMeshGradient,
 } from './CondensedNoteRowLayout';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
+import { DebouncedEntityTitleInput } from './DebouncedEntityTitleInput';
 
 interface Note {
   id: string;
@@ -84,6 +85,7 @@ export default function EditThreadPanel({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [titleResetKey, setTitleResetKey] = useState(0);
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<'added' | 'all'>('added');
@@ -137,9 +139,7 @@ export default function EditThreadPanel({
   const isSharedRef = useRef(isShared);
   
   // Refs to track pending saves and debounce timers
-  const pendingTitleSaveRef = useRef<string | null>(null);
   const pendingColorSaveRef = useRef<ThreadColor | null>(null);
-  const titleDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const notesDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const activeSaveOperationsRef = useRef<Set<string>>(new Set());
   // Track if we've fetched thread data to prevent props from overwriting it
@@ -691,7 +691,7 @@ export default function EditThreadPanel({
           credentials: 'include',
           body: JSON.stringify({
             contentType: 'thread',
-            title: formData.title?.trim() || 'Thread',
+            title: formDataRef.current.title?.trim() || 'Thread',
             description: adminDescription?.trim() || null,
             shareToken: token,
             color: formData.selectedColor,
@@ -871,12 +871,10 @@ export default function EditThreadPanel({
     }
     
     if (title.trim() === initialValues.title) {
-      // Clear pending save if it matches initial value
-      pendingTitleSaveRef.current = null;
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
       }
-      return; // No change
+      return;
     }
     
     // Track this save operation
@@ -889,8 +887,7 @@ export default function EditThreadPanel({
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
     }
-    pendingTitleSaveRef.current = null;
-    
+
     try {
       // Use refs to get current values (avoid stale closures)
       const currentColor = formDataRef.current.selectedColor;
@@ -929,6 +926,7 @@ export default function EditThreadPanel({
         
         if (networkError && offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
+          setFormData(prev => ({ ...prev, title: title.trim() }));
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           // Update lastFetchedThreadIdRef to indicate we have fresh data from save
           lastFetchedThreadIdRef.current = threadId;
@@ -952,6 +950,7 @@ export default function EditThreadPanel({
       const data = await response.json();
       
       if (response && response.ok) {
+        setFormData(prev => ({ ...prev, title: title.trim() }));
         setInitialValues(prev => ({ ...prev, title: title.trim() }));
         // Update lastFetchedThreadIdRef to indicate we have fresh data from save
         lastFetchedThreadIdRef.current = threadId;
@@ -967,6 +966,7 @@ export default function EditThreadPanel({
       } else {
         if (offlineUpdateSuccess) {
           // Offline update succeeded - treat as success
+          setFormData(prev => ({ ...prev, title: title.trim() }));
           setInitialValues(prev => ({ ...prev, title: title.trim() }));
           // Update lastFetchedThreadIdRef to indicate we have fresh data from save
           lastFetchedThreadIdRef.current = threadId;
@@ -1137,8 +1137,6 @@ export default function EditThreadPanel({
     const pendingColor = sessionStorage.getItem(`pendingThreadColor_${threadId}`);
     
     if (pendingTitle && pendingTitle !== initialTitle) {
-      // Restore pending title save
-      pendingTitleSaveRef.current = pendingTitle;
       // Clear from sessionStorage
       sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
       // Trigger save after a small delay to ensure component is fully mounted
@@ -1163,30 +1161,16 @@ export default function EditThreadPanel({
     }
   }, [saveTitleChange, saveColorChange, threadId, initialTitle, initialColor]); // Run when save functions are available
   
-  // Cleanup effect: ensure all pending saves complete before unmount
+  // Cleanup effect: notes timer + active saves (title flush handled by DebouncedEntityTitleInput)
   useEffect(() => {
     return () => {
-      // Complete any pending debounced saves
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-        
-        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
-          // Complete the save synchronously if possible, but don't block
-          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
-            console.error('[EditThreadPanel] Error completing pending title save on unmount:', err);
-          });
-        }
-      }
-      
       if (notesDebounceTimerRef.current) {
         clearTimeout(notesDebounceTimerRef.current);
         notesDebounceTimerRef.current = null;
       }
-      
-      // Wait for active save operations to complete (with timeout)
+
       if (activeSaveOperationsRef.current.size > 0) {
-        const maxWait = 2000; // Max 2 seconds
+        const maxWait = 2000;
         const startTime = Date.now();
         const checkInterval = setInterval(() => {
           if (activeSaveOperationsRef.current.size === 0 || Date.now() - startTime > maxWait) {
@@ -1195,58 +1179,7 @@ export default function EditThreadPanel({
         }, 100);
       }
     };
-  }, [saveTitleChange, initialValues.title]);
-  
-  // Debounced auto-save for title changes
-  useEffect(() => {
-    if (formData.title === initialValues.title) {
-      // Clear any pending save
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-      }
-      pendingTitleSaveRef.current = null;
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem(`pendingThreadTitle_${threadId}`);
-      }
-      return; // No change
-    }
-    
-    // Store pending save in sessionStorage (for mobile remounts)
-    pendingTitleSaveRef.current = formData.title;
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem(`pendingThreadTitle_${threadId}`, formData.title);
-    }
-    
-    // Clear existing timer
-    if (titleDebounceTimerRef.current) {
-      clearTimeout(titleDebounceTimerRef.current);
-    }
-    
-    const timeoutId = setTimeout(() => {
-      saveTitleChange(formData.title);
-      titleDebounceTimerRef.current = null;
-    }, 1500); // 1.5 second debounce
-    
-    titleDebounceTimerRef.current = timeoutId;
-    
-    return () => {
-      // On unmount, if there's a pending save, complete it immediately
-      if (titleDebounceTimerRef.current) {
-        clearTimeout(titleDebounceTimerRef.current);
-        titleDebounceTimerRef.current = null;
-        
-        // Complete the pending save before unmounting
-        if (pendingTitleSaveRef.current && pendingTitleSaveRef.current !== initialValues.title) {
-          // Use a small delay to ensure the save function can access current state
-          // But don't block unmount - the save will complete asynchronously
-          saveTitleChange(pendingTitleSaveRef.current).catch(err => {
-            console.error('[EditThreadPanel] Error completing pending title save on unmount:', err);
-          });
-        }
-      }
-    };
-  }, [formData.title, initialValues.title, saveTitleChange, threadId]);
+  }, []);
 
   // Handle adding selected notes to thread (auto-save)
   const handleAddNotesToThread = async () => {
@@ -1294,7 +1227,7 @@ export default function EditThreadPanel({
     try {
       const formDataToSend = new FormData();
       formDataToSend.append('id', threadId);
-      formDataToSend.append('title', formData.title.trim());
+      formDataToSend.append('title', formDataRef.current.title.trim());
       formDataToSend.append('color', formData.selectedColor);
       formDataToSend.append('isPublic', isShared ? 'true' : 'false');
       
@@ -1334,7 +1267,7 @@ export default function EditThreadPanel({
         window.dispatchEvent(new CustomEvent('threadUpdated', {
           detail: { 
             threadId,
-            title: formData.title.trim(),
+            title: formDataRef.current.title.trim(),
             color: formData.selectedColor,
             backgroundGradient: getThreadGradientCSS(formData.selectedColor)
           }
@@ -1404,20 +1337,6 @@ export default function EditThreadPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedItems]);
 
-  // Handle input changes
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear validation error for this field
-    if (validationErrors[field]) {
-      setValidationErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  };
-
   // Handle color selection (auto-save immediately)
   const handleColorSelect = async (color: ThreadColor) => {
     setFormData(prev => ({ ...prev, selectedColor: color }));
@@ -1427,7 +1346,7 @@ export default function EditThreadPanel({
   // Check if there are unsaved changes or pending saves
   const hasUnsavedChanges = () => {
     return (
-      formData.title.trim() !== initialValues.title ||
+      formDataRef.current.title.trim() !== initialValues.title ||
       formData.selectedColor !== initialValues.color ||
       isShared !== initialValues.isShared ||
       selectedItems.length > 0
@@ -1456,11 +1375,14 @@ export default function EditThreadPanel({
   // Handle unsaved changes dialog actions
   const handleDiscardChanges = () => {
     // Reset to initial values
-    setFormData({
+    const next = {
       title: initialValues.title,
       selectedColor: initialValues.color,
-      selectedType: initialValues.isShared ? 'Shared' : 'Private'
-    });
+      selectedType: initialValues.isShared ? 'Shared' : 'Private',
+    };
+    setFormData(next);
+    formDataRef.current = { ...formDataRef.current, ...next };
+    setTitleResetKey(k => k + 1);
     setIsShared(initialValues.isShared);
     setSelectedItems([]);
     setShowUnsavedDialog(false);
@@ -1482,8 +1404,9 @@ export default function EditThreadPanel({
     }
     
     // Save any remaining changes
-    if (formData.title.trim() !== initialValues.title) {
-      await saveTitleChange(formData.title);
+    const draftTitle = formDataRef.current.title;
+    if (draftTitle.trim() !== initialValues.title) {
+      await saveTitleChange(draftTitle);
     }
     if (formData.selectedColor !== initialValues.color) {
       await saveColorChange(formData.selectedColor);
@@ -1744,20 +1667,26 @@ export default function EditThreadPanel({
               <div className="flex-1 bg-[var(--color-snow-white)] box-border content-stretch flex flex-col gap-3 items-start justify-start min-h-0 overflow-x-clip overflow-y-auto p-[12px] relative rounded-tl-[24px] rounded-tr-[24px] w-full">
                 
                 {/* Thread Title Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="text"
-                    value={formData.title}
-                    onChange={(e) => handleInputChange('title', e.target.value)}
-                    placeholder={formData.title ? '' : 'Thread Title'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
-                  {validationErrors.title && (
-                    <div className="text-red-500 text-sm mt-1 text-center">
-                      {validationErrors.title}
-                    </div>
-                  )}
-                </div>
+                <DebouncedEntityTitleInput
+                  key={threadId}
+                  pendingStorageKey={`pendingThreadTitle_${threadId}`}
+                  committedTitle={initialValues.title}
+                  formDataRef={formDataRef}
+                  onSave={saveTitleChange}
+                  resetKey={titleResetKey}
+                  emptyPlaceholder="Thread Title"
+                  className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full"
+                  inputClassName="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                  validationError={validationErrors.title}
+                  onClearValidation={() => {
+                    if (!validationErrors.title) return;
+                    setValidationErrors(prev => {
+                      const next = { ...prev };
+                      delete next.title;
+                      return next;
+                    });
+                  }}
+                />
                 
                 {/* Color selection */}
                 <div className="color-selection flex gap-2 items-center justify-start w-full">

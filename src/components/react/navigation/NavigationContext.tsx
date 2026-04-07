@@ -1237,14 +1237,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         await Promise.all(sharedThreadIds.map(async (threadId) => {
           try {
             const resp = await safeFetch(`/api/threads/${threadId}/prefetch`, { timeout: 15000 });
+            const idx = updatedHistory.findIndex(item => item?.id === threadId);
+            if (idx === -1) return;
+            // Gone or no access — drop stale nav pills (e.g. erased thread, left shared space).
+            if (resp?.status === 404) {
+              updatedHistory[idx] = null;
+              return;
+            }
             if (resp && resp.ok) {
               const data = await resp.json();
-              const idx = updatedHistory.findIndex(item => item?.id === threadId);
-              if (idx !== -1 && data.thread?.noteCount != null) {
+              if (data.thread?.noteCount != null) {
                 updatedHistory[idx] = { ...updatedHistory[idx]!, count: data.thread.noteCount };
               }
             }
-          } catch { /* skip — thread might have been deleted */ }
+          } catch { /* skip — offline / transient */ }
         }));
       }
 
@@ -1808,14 +1814,37 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     // Listen for note addition to thread events
     const handleThreadUpdated = (event: CustomEvent) => {
-      const { threadId } = event.detail || {};
+      const { threadId, title, backgroundGradient } = event.detail || {};
       if (!threadId) return;
-      
-      // Fetch updated thread data and update navigation history
-      if (!isAuthReady()) {
-        return; // Auth not ready yet
+
+      const applyHistoryUpdate = (nextTitle: string, nextGradient: string) => {
+        const rawHistory = getRawNavigationHistory();
+        const threadIndex = rawHistory.findIndex((item: any) => item.id === threadId);
+        if (threadIndex === -1) return;
+        const updatedRawHistory = rawHistory.map((item: any, index: number) =>
+          index === threadIndex
+            ? {
+                ...item,
+                title: nextTitle,
+                backgroundGradient: nextGradient || item.backgroundGradient,
+              }
+            : item,
+        );
+        saveNavigationHistory(updatedRawHistory);
+        setNavigationHistory(getNavigationHistory());
+        window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+      };
+
+      // Same pattern as spaceUpdated: use event detail when complete (avoids /api/threads/list on every rename)
+      if (title && backgroundGradient) {
+        applyHistoryUpdate(title, backgroundGradient);
+        return;
       }
-      
+
+      if (!isAuthReady()) {
+        return;
+      }
+
       safeFetch('/api/threads/list')
         .then(response => {
           if (response && response.ok) {
@@ -1827,22 +1856,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (threads) {
             const threadData = threads.find((t: any) => t.id === threadId);
             if (threadData) {
-              const rawHistory = getRawNavigationHistory();
-              const threadIndex = rawHistory.findIndex((item: any) => item.id === threadId);
-              if (threadIndex !== -1) {
-                const updatedRawHistory = rawHistory.map((item: any, index: number) =>
-                  index === threadIndex
-                    ? {
-                        ...item,
-                        title: threadData.title,
-                        backgroundGradient: threadData.backgroundGradient || item.backgroundGradient
-                      }
-                    : item
-                );
-                saveNavigationHistory(updatedRawHistory);
-                setNavigationHistory(getNavigationHistory());
-                window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-              }
+              applyHistoryUpdate(
+                threadData.title,
+                threadData.backgroundGradient || '',
+              );
             }
           }
         })

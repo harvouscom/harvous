@@ -12,6 +12,7 @@
  *   GET  /api/admin/list-threads
  *   POST /api/admin/backfill-auto-tags
  *   POST /api/admin/regenerate-note-tags
+ *   POST /api/admin/spaces/:spaceId/members  (body: { userId } — Harvous system-owned spaces only)
  */
 
 import { Hono } from 'hono';
@@ -27,6 +28,7 @@ import {
   NoteScriptureReferences,
   ScriptureMetadata,
   Threads,
+  Members,
   eq,
   and,
 } from '../db';
@@ -36,6 +38,13 @@ import { generateUserExport } from '../utils/export-user-data';
 import { validateColor, validateContent, validateTitle } from '@/utils/validation';
 import { generateNoteId, generateShareToken, generateSpaceId, generateThreadId, generateTimestampId } from '@/utils/ids';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
+import {
+  canAddMemberToSpaceByOwnerId,
+  canOwnerAddOneMoreSharedSpace,
+  getSpaceMembershipCount,
+  getTierForUserId,
+  getTierLimits,
+} from '../utils/tier-limits';
 import { generateAutoTags, applyAutoTags, regenerateAutoTags, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN } from '../utils/auto-tag-generator';
 
 const app = new Hono();
@@ -585,6 +594,92 @@ app.post('/api/admin/spaces/:spaceId/threads', async (c) => {
     return c.json({ success: true, thread });
   } catch (error: any) {
     return c.json({ error: error.message || 'Error creating thread' }, 500);
+  }
+});
+
+/** Add a Clerk user as member of a Harvous system-owned space (curated / Easter, etc.). */
+app.post('/api/admin/spaces/:spaceId/members', async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param('spaceId');
+    if (!spaceId) return c.json({ error: 'Space ID is required' }, 400);
+
+    const body = await c.req.json().catch(() => ({} as Record<string, unknown>));
+    const userId = typeof body.userId === 'string' ? body.userId.trim() : '';
+    if (!userId) return c.json({ error: 'userId is required' }, 400);
+
+    const space = first(
+      await db
+        .select()
+        .from(Spaces)
+        .where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, systemUserId)))
+        .limit(1),
+    );
+    if (!space) {
+      return c.json({ error: 'Space not found or not owned by Harvous system user' }, 404);
+    }
+
+    if (space.userId === userId) {
+      return c.json({ error: 'User is already the space owner' }, 400);
+    }
+
+    const existing = first(
+      await db
+        .select()
+        .from(Members)
+        .where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId)))
+        .limit(1),
+    );
+    if (existing) {
+      return c.json({ success: true, alreadyMember: true, spaceId, userId });
+    }
+
+    const memberCheck = await canAddMemberToSpaceByOwnerId(spaceId, systemUserId);
+    if (!memberCheck.allowed) {
+      return c.json({ error: memberCheck.reason, code: 'MEMBER_LIMIT_EXCEEDED' }, 403);
+    }
+
+    const sharedCheck = await canOwnerAddOneMoreSharedSpace(systemUserId, spaceId);
+    if (!sharedCheck.allowed) {
+      return c.json({ error: sharedCheck.reason, code: 'SHARED_SPACE_LIMIT_EXCEEDED' }, 403);
+    }
+
+    const granteeTier = await getTierForUserId(userId);
+    const granteeLimits = getTierLimits(granteeTier);
+    if (granteeLimits.joinableSpaces !== Infinity) {
+      const membershipCount = await getSpaceMembershipCount(userId);
+      if (membershipCount >= granteeLimits.joinableSpaces) {
+        return c.json(
+          {
+            error: `That user is at their limit of ${granteeLimits.joinableSpaces} joined spaces for their plan.`,
+            code: 'JOIN_LIMIT_EXCEEDED',
+          },
+          403,
+        );
+      }
+    }
+
+    const now = nowISO();
+    const member = first(
+      await db
+        .insert(Members)
+        .values({
+          id: `member_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+          spaceId,
+          userId,
+          role: 'member',
+          joinedAt: now,
+          createdAt: now,
+        })
+        .returning(),
+    )!;
+
+    return c.json({ success: true, spaceId, userId, member });
+  } catch (error: any) {
+    return c.json({ error: error.message || 'Error adding member' }, 500);
   }
 });
 

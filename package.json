@@ -43,7 +43,8 @@
     "easter:publish": "tsx scripts/publish-easter-2026-shared-space.ts",
     "easter:patch-metadata": "tsx scripts/patch-easter-2026-metadata.ts",
     "easter:sync-notes": "tsx scripts/sync-easter-2026-notes.ts",
-    "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts"
+    "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts",
+    "harvous:grant-space-member": "tsx scripts/grant-harvous-space-member.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",

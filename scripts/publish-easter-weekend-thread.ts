@@ -2,7 +2,8 @@
  * Publish Easter weekend thread into the existing Easter 2026 shared space.
  *
  * Prerequisites:
- * - .env: HARVOUS_ADMIN_SECRET, EASTER_2026_SPACE_ID
+ * - .env: HARVOUS_ADMIN_SECRET, HARVOUS_SYSTEM_USER_ID
+ * - Optional: EASTER_2026_SPACE_ID overrides publish-payload.json spaceId (same DB as your app)
  * - API running (default http://localhost:3001) or EASTER_PUBLISH_API_BASE
  *
  * Usage:
@@ -92,7 +93,7 @@ async function main() {
   }
 
   const secret = process.env.HARVOUS_ADMIN_SECRET;
-  const spaceId = payload.spaceId;
+  const spaceId = process.env.EASTER_2026_SPACE_ID?.trim() || payload.spaceId;
   const base = (process.env.EASTER_PUBLISH_API_BASE || 'http://localhost:3001').replace(/\/$/, '');
 
   if (dryRun) {
@@ -145,6 +146,9 @@ async function main() {
 
   console.log('\nDone. PUBLISHED_NOTE_MAP.json updated.');
   console.log(JSON.stringify({ spaceId, threadId, notes: noteMap }, null, 2));
+  console.log(
+    '\nAccess: Content is owned by HARVOUS_SYSTEM_USER_ID. Another Clerk user (e.g. your admin login) needs a Members row for this space — run: npm run harvous:grant-space-member (see script header), or join via the Easter space share link.',
+  );
 }
 
 main().catch((err) => {
