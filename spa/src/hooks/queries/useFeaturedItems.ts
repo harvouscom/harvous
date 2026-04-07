@@ -1,7 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { APIError } from '../../lib/api';
 
-export type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
+export type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church' | 'votd';
+
+export interface VotdMetadata {
+  reference: string;
+  translation: string;
+  verseText: string;
+  book: string;
+  chapter: number | null;
+  verse: number | null;
+  verseEnd: number | null;
+}
 
 export interface FeaturedItem {
   id: string;
@@ -11,6 +21,7 @@ export interface FeaturedItem {
   refId: string | null;
   shareToken: string | null;
   color: string | null;
+  metadata: VotdMetadata | null;
 }
 
 export const featuredItemsQueryKey = ['featured-items'] as const;

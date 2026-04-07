@@ -34,7 +34,7 @@ This document describes the major UX/UI change in how users **edit** and **creat
 - Same color and border radius (bottom corners only). **Same padding as desktop:** 0.75rem (12px) on the action strip on all sides; strip items also use 0.75rem padding.
 - The strip is a **horizontal** row of text labels.
 - **Animation:** The dock slides up from behind the card (0.35s ease-out). It starts fully behind the card, then moves down so the strip is visible.
-- **Positioning:** The main column reserves space for the dock via `mobile-main--with-dock` margin-bottom. With the dock visible, `.app-layout` uses `padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px))` so iOS home-indicator clearance sits in the layout margin (same paper as the app) instead of as a tall empty cream slab inside `.mobile-action-strip-dock`. In Safari tabs, `env(safe-area-inset-bottom)` is often `0`, so this matches the tighter strip look; installed PWAs still get the extra inset.
+- **Positioning:** The main column reserves space for the dock via `mobile-main--with-dock` margin-bottom. On mobile, `.app-layout` uses `padding-bottom: 12px` when the main column has the dock and/or `mobile-main--unorganized` (no `env(safe-area-inset-bottom)` — enough clearance for the dock peek on phones including PWA).
 
 ### Where the action strip appears
 

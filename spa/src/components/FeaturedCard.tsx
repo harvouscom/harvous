@@ -1,9 +1,18 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import type { FeaturedItem } from '../hooks/queries/useFeaturedItems';
+import { featuredItemsQueryKey, type FeaturedItem, type VotdMetadata } from '../hooks/queries/useFeaturedItems';
+import { navigationQueryKey } from '../hooks/queries/useNavigation';
+import { useProfile } from '../hooks/queries/useProfile';
+import { getCachedProfileData } from '@/utils/profile-cache';
 import { generateAccentMeshGradient } from '../../../src/utils/colors';
+import {
+  stripLeadingVerseNumberFromPlainText,
+  stripRedundantEdgeQuotesForVotdCard,
+} from '@/utils/verse-plain-display';
 import Icon from '@/components/react/Icon';
+import { FeaturedCardActionsDock } from '@/components/react/FeaturedCardActionsDock';
 
 function dismissKey(featuredItemId: string) {
   return `dismissed_featured_${featuredItemId}`;
@@ -52,6 +61,9 @@ function getIconForContentType(contentType: FeaturedItem['contentType']) {
       </svg>
     );
   }
+  if (contentType === 'votd') {
+    return <Icon name="scroll" size={20} />;
+  }
   // church (building)
   return (
     <svg fill="currentColor" viewBox="0 0 640 512" aria-hidden="true">
@@ -66,9 +78,222 @@ const CTA: Record<FeaturedItem['contentType'], string> = {
   recall: 'Review now',
   challenge: 'Start challenge',
   church: 'Open',
+  votd: 'Add to my Harvous',
 };
 
+// Strip HTML tags for plain text display
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function votdPlainFromHtml(html: string, meta: VotdMetadata | null | undefined): string {
+  const plain = stripHtml(html);
+  const withoutVerseNum = stripLeadingVerseNumberFromPlainText(
+    plain,
+    meta?.verse ?? undefined,
+    meta?.verseEnd ?? undefined,
+  );
+  return stripRedundantEdgeQuotesForVotdCard(withoutVerseNum);
+}
+
+// Dismisses a VOTD card (marks complete server-side + fires local dismiss)
+function dismissVotd(item: FeaturedItem, onClose: () => void) {
+  writeDismissedFeaturedItem(item.id);
+  void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
+  window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
+  onClose();
+}
+
+// Builds the scripture pill HTML for pre-populating the note editor
+function buildScripturePillHtml(metadata: VotdMetadata, translationForPill: string): string {
+  const ref = metadata.reference;
+  const translation = translationForPill || metadata.translation || 'NET';
+  // NBSP after pill so a visible gap remains before typed text (normal space can collapse at block end)
+  return `<p><span data-scripture-reference="${ref}" data-note-id="pending" data-scripture-translation="${translation}" class="scripture-pill scripture-pill-clickable">${ref}</span>\u00A0</p>`;
+}
+
+function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const { data: profile } = useProfile();
+  const [isAdding, setIsAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  const metadata = item.metadata;
+  const catalogTranslation = metadata?.translation ?? 'NET';
+  const catalogVersePlain = metadata?.verseText
+    ? votdPlainFromHtml(metadata.verseText, metadata)
+    : stripRedundantEdgeQuotesForVotdCard(item.description ?? '');
+
+  const [displayVerse, setDisplayVerse] = useState(catalogVersePlain);
+  const [displayTranslation, setDisplayTranslation] = useState(catalogTranslation);
+
+  useEffect(() => {
+    const catalogT = metadata?.translation ?? 'NET';
+    const catalogV = metadata?.verseText
+      ? votdPlainFromHtml(metadata.verseText, metadata)
+      : stripRedundantEdgeQuotesForVotdCard(item.description ?? '');
+    // Prefer sessionStorage profile-cache first: DefaultTranslationPanel updates it on save but does not
+    // update React Query until refetch; useProfile can be stale for staleTime (5m) with wrong translation.
+    const fromSession = getCachedProfileData()?.defaultTranslation?.trim();
+    const fromProfile = profile?.defaultTranslation?.trim();
+    const effective = (fromSession || fromProfile || catalogT);
+
+    if (!metadata?.reference || effective === catalogT) {
+      setDisplayVerse(catalogV);
+      setDisplayTranslation(catalogT);
+      return;
+    }
+
+    let cancelled = false;
+    void api
+      .post<{ text?: string }>('/api/scripture/fetch-verse', {
+        reference: metadata.reference,
+        translation: effective,
+      })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.text && res.text.trim()) {
+          setDisplayVerse(votdPlainFromHtml(res.text, metadata));
+          setDisplayTranslation(effective);
+        } else {
+          setDisplayVerse(catalogV);
+          setDisplayTranslation(catalogT);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setDisplayVerse(catalogV);
+          setDisplayTranslation(catalogT);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    item.description,
+    item.id,
+    metadata?.reference,
+    metadata?.translation,
+    metadata?.verseText,
+    profile?.defaultTranslation,
+  ]);
+
+  const handleQuickAdd = async () => {
+    if (isAdding) return;
+    setIsAdding(true);
+    try {
+      await api.post<{ success: boolean; noteId?: string }>('/api/featured/votd/quick-add', {
+        featuredItemId: item.id,
+      });
+      setAdded(true);
+      writeDismissedFeaturedItem(item.id);
+      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'content'] });
+      void queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey });
+      void queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+      void queryClient.invalidateQueries({ queryKey: ['thread', 'thread_unorganized'] });
+      window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
+      setTimeout(() => onClose(), 900);
+    } catch {
+      setIsAdding(false);
+    }
+  };
+
+  const handleCreateNote = () => {
+    if (!metadata) return;
+    const pillHtml = buildScripturePillHtml(metadata, displayTranslation);
+    // Pre-populate the new note panel with the scripture pill
+    try {
+      localStorage.removeItem('newNoteTitle');
+      localStorage.setItem('newNoteContent', pillHtml);
+      localStorage.removeItem('newNoteType');
+    } catch {}
+    dismissVotd(item, onClose);
+    window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+  };
+
+  return (
+    <div className="featured-card-shell">
+      <div className="featured-card featured-card--votd" role="region" aria-label="Verse of the Day">
+        {displayVerse ? (
+          <div className="featured-card__verse-row">
+            <div className="featured-card__votd-verse-icon" aria-hidden="true">
+              {getIconForContentType('votd')}
+            </div>
+            <div className="featured-card__verse-text">
+              &ldquo;{displayVerse}&rdquo;
+              {metadata?.reference ? (
+                <>
+                  {' '}
+                  <span
+                    className="scripture-pill"
+                    data-scripture-reference={metadata.reference}
+                    data-scripture-translation={displayTranslation}
+                  >
+                    {metadata.reference}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {!displayVerse ? (
+          <div className="featured-card__info">
+            <div
+              className="featured-card__accent"
+              style={{ backgroundColor: 'var(--color-light-paper)', backgroundImage: 'none' }}
+              aria-hidden="true"
+            >
+              {getIconForContentType('votd')}
+            </div>
+            <div className="featured-card__text">
+              <div className="featured-card__title">{item.title}</div>
+              {metadata?.reference ? (
+                <div className="featured-card__description">
+                  {metadata.reference} · {displayTranslation}
+                </div>
+              ) : item.description ? (
+                <div className="featured-card__description">{item.description}</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <FeaturedCardActionsDock
+        trailing={
+          <button
+            type="button"
+            className="action-strip__item featured-card__strip-item--muted"
+            aria-label="Dismiss verse of the day"
+            onClick={() => dismissVotd(item, onClose)}
+          >
+            <span className="action-strip__label">Close</span>
+          </button>
+        }
+      >
+        <button
+          type="button"
+          className="action-strip__item featured-card__strip-item--primary"
+          disabled={isAdding}
+          onClick={handleQuickAdd}
+        >
+          <span className="action-strip__label">{added ? 'Added!' : isAdding ? 'Adding…' : 'Add to my Harvous'}</span>
+        </button>
+        <button type="button" className="action-strip__item" onClick={handleCreateNote}>
+          <span className="action-strip__label">Create note</span>
+        </button>
+      </FeaturedCardActionsDock>
+    </div>
+  );
+}
+
 export default function FeaturedCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
+  if (item.contentType === 'votd') {
+    return <VotdCard item={item} onClose={onClose} />;
+  }
+
   const navigate = useNavigate();
 
   const accentGradient = useMemo(() => generateAccentMeshGradient(item.id), [item.id]);
@@ -78,75 +303,64 @@ export default function FeaturedCard({ item, onClose }: { item: FeaturedItem; on
       ? { backgroundColor: `var(--color-${item.color})` }
       : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined };
 
+  const handlePrimary = () => {
+    if (item.contentType === 'space') {
+      if (item.shareToken) {
+        navigate({ to: (`/spaces/join/${item.shareToken}`) as any });
+      }
+      return;
+    }
+    if (item.contentType === 'thread') {
+      if (item.shareToken) {
+        navigate({ to: (`/shared/thread/${item.shareToken}`) as any });
+      }
+      writeDismissedFeaturedItem(item.id);
+      void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
+      onClose();
+      return;
+    }
+    writeDismissedFeaturedItem(item.id);
+    void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
+    onClose();
+  };
+
+  const handleClose = () => {
+    writeDismissedFeaturedItem(item.id);
+    void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
+    window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
+    onClose();
+  };
+
   return (
-    <div className="featured-card" role="region" aria-label="Featured item">
-      {/* Info header row */}
-      <div className="featured-card__info">
-        <div
-          className="featured-card__accent"
-          style={accentStyle}
-          aria-hidden="true"
-        >
-          {getIconForContentType(item.contentType)}
-        </div>
-        <div className="featured-card__text">
-          <div className="featured-card__title">{item.title}</div>
-          {item.description ? (
-            <div className="featured-card__description">{item.description}</div>
-          ) : null}
+    <div className="featured-card-shell">
+      <div className="featured-card" role="region" aria-label="Featured item">
+        <div className="featured-card__info">
+          <div className="featured-card__accent" style={accentStyle} aria-hidden="true">
+            {getIconForContentType(item.contentType)}
+          </div>
+          <div className="featured-card__text">
+            <div className="featured-card__title">{item.title}</div>
+            {item.description ? <div className="featured-card__description">{item.description}</div> : null}
+          </div>
         </div>
       </div>
 
-      {/* Full-width action button group — border-radius removed, card clip handles rounding */}
-      <div className="featured-card__actions">
-        <button
-          type="button"
-          className="space-btn-lg featured-card__join"
-          onClick={() => {
-            if (item.contentType === 'space') {
-              // For spaces: navigate first, don't dismiss — auto-dismissal fires server-side
-              // once the user actually joins (detected by GET /api/featured/items membership check).
-              if (item.shareToken) {
-                navigate({ to: (`/spaces/join/${item.shareToken}`) as any });
-              }
-              return;
-            }
-            if (item.contentType === 'thread') {
-              if (item.shareToken) {
-                navigate({ to: (`/shared/thread/${item.shareToken}`) as any });
-              }
-              writeDismissedFeaturedItem(item.id);
-              void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
-              onClose();
-              return;
-            }
-            // For all other types: completing the primary action counts as done.
-            writeDismissedFeaturedItem(item.id);
-            void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
-            onClose();
-          }}
-        >
-          <div className="space-btn-lg__content">
-            <span className="space-btn-lg__label">{CTA[item.contentType]}</span>
-          </div>
+      <FeaturedCardActionsDock
+        trailing={
+          <button
+            type="button"
+            className="action-strip__item featured-card__strip-item--muted"
+            aria-label="Close featured item"
+            onClick={handleClose}
+          >
+            <span className="action-strip__label">Close</span>
+          </button>
+        }
+      >
+        <button type="button" className="action-strip__item featured-card__strip-item--primary" onClick={handlePrimary}>
+          <span className="action-strip__label">{CTA[item.contentType]}</span>
         </button>
-
-        <button
-          type="button"
-          className="space-btn-lg featured-card__dismiss-btn"
-          aria-label="Close featured item"
-          onClick={() => {
-            writeDismissedFeaturedItem(item.id);
-            void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
-            window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
-            onClose();
-          }}
-        >
-          <div className="space-btn-lg__content">
-            <span className="space-btn-lg__label">Close</span>
-          </div>
-        </button>
-      </div>
+      </FeaturedCardActionsDock>
     </div>
   );
 }

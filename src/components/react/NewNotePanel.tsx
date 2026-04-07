@@ -342,7 +342,6 @@ export default function NewNotePanel({
 
     editorRef.current = editor;
     const isTouchPrimary = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
-    if (isTouchPrimary) return;
 
     setTimeout(() => {
       // Check if editor is still valid (not destroyed)
@@ -352,14 +351,39 @@ export default function NewNotePanel({
       if (!editor.view || !editor.view.docView) return;
 
       try {
-        editor.commands.focus();
-        try {
-          editor.commands.setTextSelection(0);
-        } catch {
-          // If setTextSelection fails, just focus
+        const doc = editor.state.doc;
+        const maxPos = doc.content.size;
+        const isEmpty = doc.textContent.trim().length === 0;
+        const html = typeof editor.getHTML === 'function' ? editor.getHTML() : '';
+        const hasLeadingScripturePill = html.includes('scripture-pill');
+        if (isEmpty) {
+          editor.commands.setTextSelection(1);
+        } else if (!hasLeadingScripturePill) {
+          editor.commands.setTextSelection(maxPos);
         }
-      } catch (e) {
-        // Ignore errors during focus
+        // Leading pill: TiptapEditor hydrates from localStorage after mount and places the caret after the mark
+      } catch {
+        // If setTextSelection fails, continue to optional focus
+      }
+
+      if (!isTouchPrimary) {
+        try {
+          editor.commands.focus();
+          // Prefill can land after onEditorReady; refocus once content sync runs
+          setTimeout(() => {
+            if (!editor || editor.isDestroyed) return;
+            const html = typeof editor.getHTML === 'function' ? editor.getHTML() : '';
+            if (html.includes('scripture-pill')) {
+              try {
+                editor.commands.focus();
+              } catch {
+                /* ignore */
+              }
+            }
+          }, 200);
+        } catch {
+          // Ignore errors during focus
+        }
       }
     }, 50);
   };

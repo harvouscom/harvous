@@ -18140,9 +18140,10 @@ __export(schema_exports, {
   UserSeasonalXP: () => UserSeasonalXP,
   UserXP: () => UserXP,
   VerseTextCache: () => VerseTextCache,
+  VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, UserFeaturedItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, UserFeaturedItems, MonthlyAnalytics;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18443,7 +18444,7 @@ var init_schema2 = __esm({
       {
         id: text("id").primaryKey(),
         contentType: text("contentType").notNull(),
-        // 'space' | 'thread' | 'recall' | 'challenge' | 'church'
+        // 'space' | 'thread' | 'recall' | 'challenge' | 'church' | 'votd'
         title: text("title").notNull(),
         description: text("description"),
         refId: text("refId"),
@@ -18452,12 +18453,40 @@ var init_schema2 = __esm({
         isActive: boolean("isActive").notNull().default(true),
         startsAt: ts("startsAt"),
         endsAt: ts("endsAt"),
+        metadata: text("metadata"),
+        // JSON string for type-specific data (e.g. VOTD: { reference, translation, verseText, book, chapter, verse, verseEnd })
         createdAt: ts("createdAt").notNull(),
         updatedAt: ts("updatedAt")
       },
       (table) => [
         index("FeaturedItems_isActiveIndex").on(table.isActive),
         index("FeaturedItems_createdAtIndex").on(table.createdAt)
+      ]
+    );
+    VotdSchedule = pgTable(
+      "VotdSchedule",
+      {
+        id: text("id").primaryKey(),
+        reference: text("reference").notNull(),
+        // e.g. "Romans 8:28"
+        translation: text("translation").notNull().default("NET"),
+        verseText: text("verseText"),
+        // pre-fetched verse text HTML
+        book: text("book"),
+        chapter: integer("chapter"),
+        verse: integer("verse"),
+        verseEnd: integer("verseEnd"),
+        scheduledDate: text("scheduledDate"),
+        // ISO date string 'YYYY-MM-DD', null = unscheduled pool entry
+        isPublished: boolean("isPublished").notNull().default(false),
+        featuredItemId: text("featuredItemId"),
+        // set once published to FeaturedItems
+        createdAt: ts("createdAt").notNull(),
+        updatedAt: ts("updatedAt")
+      },
+      (table) => [
+        index("VotdSchedule_scheduledDateIndex").on(table.scheduledDate),
+        index("VotdSchedule_isPublishedIndex").on(table.isPublished)
       ]
     );
     UserFeaturedItems = pgTable(
@@ -55152,9 +55181,9 @@ __export(netlify_exports, {
 module.exports = __toCommonJS(netlify_exports);
 
 // node_modules/hono/dist/adapter/netlify/handler.js
-var handle = (app15) => {
+var handle = (app16) => {
   return (req, context) => {
-    return app15.fetch(req, { context });
+    return app16.fetch(req, { context });
   };
 };
 
@@ -56347,14 +56376,14 @@ var Hono = class _Hono {
    * app.route("/api", app2) // GET /api/user
    * ```
    */
-  route(path, app15) {
+  route(path, app16) {
     const subApp = this.basePath(path);
-    app15.routes.map((r) => {
+    app16.routes.map((r) => {
       let handler5;
-      if (app15.errorHandler === errorHandler) {
+      if (app16.errorHandler === errorHandler) {
         handler5 = r.handler;
       } else {
-        handler5 = async (c, next) => (await compose([], app15.errorHandler)(c, () => r.handler(c, next))).res;
+        handler5 = async (c, next) => (await compose([], app16.errorHandler)(c, () => r.handler(c, next))).res;
         handler5[COMPOSED_HANDLER] = r.handler;
       }
       subApp.#addRoute(r.method, r.path, handler5);
@@ -93990,6 +94019,8 @@ var admin_default = app11;
 init_db2();
 init_dates();
 init_schema2();
+init_ids();
+init_unorganized_thread();
 var app12 = new Hono2();
 app12.get("/api/featured/items", async (c) => {
   try {
@@ -94007,6 +94038,7 @@ app12.get("/api/featured/items", async (c) => {
       refId: FeaturedItems.refId,
       shareToken: FeaturedItems.shareToken,
       color: FeaturedItems.color,
+      metadata: FeaturedItems.metadata,
       createdAt: FeaturedItems.createdAt
     }).from(FeaturedItems).where(
       and(
@@ -94077,7 +94109,14 @@ app12.get("/api/featured/items", async (c) => {
         description: i.description ?? null,
         refId: i.refId ?? null,
         shareToken: i.shareToken ?? null,
-        color: i.color ?? null
+        color: i.color ?? null,
+        metadata: i.metadata ? (() => {
+          try {
+            return JSON.parse(i.metadata);
+          } catch {
+            return null;
+          }
+        })() : null
       }))
     );
   } catch (err) {
@@ -94118,21 +94157,26 @@ app12.post("/api/featured/dismiss", requireAuth, async (c) => {
   if (!featuredItemId) {
     return c.json({ error: "featuredItemId is required" }, 400);
   }
+  const featuredItem = first(
+    await db.select({ contentType: FeaturedItems.contentType }).from(FeaturedItems).where(eq(FeaturedItems.id, featuredItemId)).limit(1)
+  );
+  const isVotd = featuredItem?.contentType === "votd";
   const timestamp2 = now();
+  const status = isVotd ? "completed" : "dismissed";
   await db.insert(UserFeaturedItems).values({
     id: crypto.randomUUID(),
     userId: auth.userId,
     featuredItemId,
-    status: "dismissed",
-    dismissedAt: timestamp2,
-    completedAt: null,
+    status,
+    dismissedAt: isVotd ? null : timestamp2,
+    completedAt: isVotd ? timestamp2 : null,
     createdAt: timestamp2
   }).onConflictDoUpdate({
     target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
     set: {
-      status: "dismissed",
-      dismissedAt: timestamp2,
-      completedAt: null
+      status,
+      dismissedAt: isVotd ? null : timestamp2,
+      completedAt: isVotd ? timestamp2 : null
     }
   });
   return c.json({ success: true });
@@ -94151,7 +94195,13 @@ app12.get("/api/featured/dismissed", requireAuth, async (c) => {
     shareToken: FeaturedItems.shareToken,
     color: FeaturedItems.color,
     createdAt: FeaturedItems.createdAt
-  }).from(UserFeaturedItems).innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id)).where(and(eq(UserFeaturedItems.userId, auth.userId), eq(UserFeaturedItems.status, "dismissed"))).orderBy(desc(UserFeaturedItems.dismissedAt));
+  }).from(UserFeaturedItems).innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id)).where(
+    and(
+      eq(UserFeaturedItems.userId, auth.userId),
+      eq(UserFeaturedItems.status, "dismissed"),
+      ne(FeaturedItems.contentType, "votd")
+    )
+  ).orderBy(desc(UserFeaturedItems.dismissedAt));
   return c.json(
     rows.map((r) => ({
       id: r.itemId,
@@ -94199,7 +94249,7 @@ app12.post("/api/admin/featured", async (c) => {
   if (!contentType || !title) {
     return c.json({ error: "contentType and title are required" }, 400);
   }
-  const allowed = /* @__PURE__ */ new Set(["space", "thread", "recall", "challenge", "church"]);
+  const allowed = /* @__PURE__ */ new Set(["space", "thread", "recall", "challenge", "church", "votd"]);
   if (!allowed.has(contentType)) {
     return c.json({ error: `Invalid contentType: ${contentType}` }, 400);
   }
@@ -94214,6 +94264,7 @@ app12.post("/api/admin/featured", async (c) => {
   const timestamp2 = now();
   const startsAt = body.startsAt ? new Date(body.startsAt) : null;
   const endsAt = body.endsAt ? new Date(body.endsAt) : null;
+  const metadataStr = body.metadata ? JSON.stringify(body.metadata) : null;
   const inserted = first(
     await db.insert(FeaturedItems).values({
       id: crypto.randomUUID(),
@@ -94226,6 +94277,7 @@ app12.post("/api/admin/featured", async (c) => {
       isActive: body.isActive ?? true,
       startsAt,
       endsAt,
+      metadata: metadataStr,
       createdAt: timestamp2,
       updatedAt: timestamp2
     }).returning()
@@ -94248,6 +94300,125 @@ app12.patch("/api/admin/featured/:id", async (c) => {
   const updated = first(await db.update(FeaturedItems).set(set).where(eq(FeaturedItems.id, id)).returning());
   if (!updated) return c.json({ error: "Not found" }, 404);
   return c.json(updated);
+});
+app12.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = await c.req.json().catch(() => ({}));
+  const featuredItemId = body.featuredItemId?.trim() ?? "";
+  if (!featuredItemId) {
+    return c.json({ error: "featuredItemId is required" }, 400);
+  }
+  const featuredItem = first(
+    await db.select().from(FeaturedItems).where(eq(FeaturedItems.id, featuredItemId)).limit(1)
+  );
+  if (!featuredItem || featuredItem.contentType !== "votd") {
+    return c.json({ error: "VOTD featured item not found" }, 404);
+  }
+  let metadata = {};
+  try {
+    if (featuredItem.metadata) metadata = JSON.parse(featuredItem.metadata);
+  } catch {
+  }
+  const reference = metadata.reference || featuredItem.title;
+  const catalogTranslation = metadata.translation || "NET";
+  const catalogVerseHtml = metadata.verseText || featuredItem.description || "";
+  await ensureUnorganizedThread(auth.userId);
+  let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+  if (!userMetadata) {
+    const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1);
+    const highestExistingId = existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0;
+    const season = getCurrentSeason();
+    await db.insert(UserMetadata).values({
+      id: `user_metadata_${auth.userId}`,
+      userId: auth.userId,
+      highestSimpleNoteId: highestExistingId,
+      userColor: "blue",
+      currentSeason: season,
+      createdAt: nowISO()
+    });
+    userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+  }
+  const preferredTranslation = userMetadata?.defaultTranslation && userMetadata.defaultTranslation.trim() || catalogTranslation;
+  let noteContentHtml = catalogVerseHtml;
+  let scriptureTranslationStored = catalogTranslation;
+  let scriptureOriginalStored = catalogVerseHtml;
+  if (preferredTranslation !== catalogTranslation || !catalogVerseHtml.trim()) {
+    try {
+      const refForFetch = reference.replace(/,\s+/g, ",");
+      const fetched = await fetchVerseText(refForFetch, preferredTranslation);
+      if (fetched.trim().length > 0) {
+        noteContentHtml = fetched;
+        scriptureTranslationStored = preferredTranslation;
+        scriptureOriginalStored = fetched;
+      }
+    } catch {
+    }
+  }
+  const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+  const nextSimpleNoteId = effectiveHighest + 1;
+  const timestamp2 = nowISO();
+  const shareToken = generateShareToken();
+  const newNote = first(
+    await db.insert(Notes).values({
+      id: generateNoteId(),
+      content: noteContentHtml,
+      title: reference,
+      threadId: "thread_unorganized",
+      spaceId: null,
+      simpleNoteId: nextSimpleNoteId,
+      noteType: "scripture",
+      userId: auth.userId,
+      isPublic: true,
+      shareToken,
+      shareTokenCreatedAt: timestamp2,
+      contentEncrypted: false,
+      createdAt: timestamp2,
+      lastVisited: timestamp2
+    }).returning()
+  );
+  if (!newNote) return c.json({ error: "Failed to create note" }, 500);
+  await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
+  await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, "thread_unorganized"), eq(Threads.userId, auth.userId)));
+  try {
+    const normalizedReference = normalizeScriptureReference(reference);
+    const parsed = parseScriptureReference(normalizedReference);
+    if (parsed) {
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+      await db.insert(ScriptureMetadata).values({
+        id: `scripture_${newNote.id}_${Date.now()}`,
+        noteId: newNote.id,
+        reference: normalizedReference,
+        book: parsed.book,
+        chapter: parsed.chapter,
+        verse: verseStart,
+        verseEnd: verseEnd || null,
+        translation: scriptureTranslationStored,
+        originalText: scriptureOriginalStored,
+        createdAt: nowISO()
+      });
+    }
+  } catch (err) {
+    console.error("[votd/quick-add] ScriptureMetadata error (non-critical):", err);
+  }
+  try {
+    await awardCreationBonusXP(auth.userId, "note");
+  } catch {
+  }
+  const completedAt = now();
+  await db.insert(UserFeaturedItems).values({
+    id: crypto.randomUUID(),
+    userId: auth.userId,
+    featuredItemId,
+    status: "completed",
+    dismissedAt: null,
+    completedAt,
+    createdAt: completedAt
+  }).onConflictDoUpdate({
+    target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+    set: { status: "completed", completedAt }
+  });
+  return c.json({ success: true, noteId: newNote.id });
 });
 app12.get("/api/featured/space", async (c) => {
   try {
@@ -94288,6 +94459,134 @@ app12.get("/api/featured/space", async (c) => {
 });
 var featured_default = app12;
 
+// server/routes/votd.ts
+init_db2();
+init_dates();
+init_schema2();
+var app13 = new Hono2();
+function requireVotdAuth(c) {
+  const expectedSecret = process.env.VOTD_CRON_SECRET;
+  if (expectedSecret) {
+    const authHeader = c.req.header("authorization") ?? "";
+    if (authHeader === `Bearer ${expectedSecret}`) return null;
+  }
+  return requireHarvousAdmin(c);
+}
+app13.post("/api/admin/votd/schedule", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const body = await c.req.json().catch(() => ({}));
+  const reference = body.reference?.trim() ?? "";
+  if (!reference) return c.json({ error: "reference is required" }, 400);
+  const translation = body.translation?.trim() || "NET";
+  const scheduledDate = body.scheduledDate?.trim() || null;
+  const normalizedRef = normalizeScriptureReference(reference);
+  const parsed = parseScriptureReference(normalizedRef);
+  if (!parsed) return c.json({ error: `Could not parse scripture reference: "${reference}"` }, 400);
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+  let verseText = "";
+  try {
+    verseText = await fetchVerseText(normalizedRef, translation);
+  } catch (err) {
+    console.error("[votd/schedule] fetchVerseText error (non-critical):", err);
+  }
+  const timestamp2 = nowISO();
+  const id = `votd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const inserted = first(
+    await db.insert(VotdSchedule).values({
+      id,
+      reference: normalizedRef,
+      translation,
+      verseText: verseText || null,
+      book: parsed.book,
+      chapter: parsed.chapter,
+      verse: verseStart,
+      verseEnd: verseEnd || null,
+      scheduledDate,
+      isPublished: false,
+      featuredItemId: null,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    }).returning()
+  );
+  return c.json(inserted ?? { success: true }, 201);
+});
+app13.get("/api/admin/votd/schedule", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const rows = await db.select().from(VotdSchedule).orderBy(desc(VotdSchedule.createdAt));
+  return c.json(rows);
+});
+app13.delete("/api/admin/votd/schedule/:id", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const id = c.req.param("id")?.trim() ?? "";
+  if (!id) return c.json({ error: "id is required" }, 400);
+  const entry = first(
+    await db.select().from(VotdSchedule).where(eq(VotdSchedule.id, id)).limit(1)
+  );
+  if (!entry) return c.json({ error: "Not found" }, 404);
+  if (entry.isPublished) return c.json({ error: "Cannot delete a published VOTD entry" }, 409);
+  await db.delete(VotdSchedule).where(eq(VotdSchedule.id, id));
+  return c.json({ success: true });
+});
+app13.post("/api/admin/votd/publish-daily", async (c) => {
+  const unauthorized = requireVotdAuth(c);
+  if (unauthorized) return unauthorized;
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const alreadyPublished = first(
+    await db.select({ id: FeaturedItems.id }).from(FeaturedItems).innerJoin(VotdSchedule, eq(VotdSchedule.featuredItemId, FeaturedItems.id)).where(and(eq(FeaturedItems.contentType, "votd"), eq(VotdSchedule.scheduledDate, todayStr))).limit(1)
+  );
+  if (alreadyPublished) {
+    return c.json({ success: true, alreadyPublished: true, featuredItemId: alreadyPublished.id });
+  }
+  let entry = first(
+    await db.select().from(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, todayStr), eq(VotdSchedule.isPublished, false))).limit(1)
+  );
+  if (!entry) {
+    entry = first(
+      await db.select().from(VotdSchedule).where(and(isNull(VotdSchedule.scheduledDate), eq(VotdSchedule.isPublished, false))).orderBy(VotdSchedule.createdAt).limit(1)
+    );
+  }
+  if (!entry) {
+    return c.json({ error: "No unpublished VOTD entries available. Add verses via POST /api/admin/votd/schedule." }, 404);
+  }
+  const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1e3);
+  const plainText = (entry.verseText ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const excerpt = plainText.length > 280 ? plainText.slice(0, 280) + "\u2026" : plainText;
+  const metadata = {
+    reference: entry.reference,
+    translation: entry.translation,
+    verseText: entry.verseText ?? "",
+    book: entry.book ?? "",
+    chapter: entry.chapter ?? null,
+    verse: entry.verse ?? null,
+    verseEnd: entry.verseEnd ?? null
+  };
+  const timestamp2 = now();
+  const featuredItemId = `votd_fi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  await db.insert(FeaturedItems).values({
+    id: featuredItemId,
+    contentType: "votd",
+    title: entry.reference,
+    description: excerpt || null,
+    refId: entry.id,
+    shareToken: null,
+    color: null,
+    isActive: true,
+    startsAt: todayStart,
+    endsAt: tomorrowStart,
+    metadata: JSON.stringify(metadata),
+    createdAt: timestamp2,
+    updatedAt: timestamp2
+  });
+  await db.update(VotdSchedule).set({ isPublished: true, featuredItemId, scheduledDate: todayStr, updatedAt: nowISO() }).where(eq(VotdSchedule.id, entry.id));
+  return c.json({ success: true, featuredItemId, reference: entry.reference, scheduledDate: todayStr });
+});
+var votd_default = app13;
+
 // server/utils/reset-user-to-new.ts
 init_db2();
 async function resetUserToNew(userId) {
@@ -94317,9 +94616,25 @@ async function resetUserToNew(userId) {
 
 // server/routes/test.ts
 init_db2();
+init_dates();
 init_schema2();
-var app13 = new Hono2();
-app13.post("/api/test/reset-to-new-user", async (c) => {
+var SAMPLE_VOTD_SCHEDULE_ID = "votd_dev_sample";
+var SAMPLE_VOTD_FEATURED_ID = "votd_fi_dev_sample";
+var SAMPLE_FEATURED_SPACE_ID = "fi_dev_sample_space";
+var SAMPLE_FEATURED_THREAD_ID = "fi_dev_sample_thread";
+var SAMPLE_FEATURED_RECALL_ID = "fi_dev_sample_recall";
+var SAMPLE_FEATURED_CHALLENGE_ID = "fi_dev_sample_challenge";
+var SAMPLE_FEATURED_CHURCH_ID = "fi_dev_sample_church";
+var SAMPLE_FEATURED_CAROUSEL_IDS = [
+  SAMPLE_FEATURED_SPACE_ID,
+  SAMPLE_FEATURED_THREAD_ID,
+  SAMPLE_FEATURED_RECALL_ID,
+  SAMPLE_FEATURED_CHALLENGE_ID,
+  SAMPLE_FEATURED_CHURCH_ID
+];
+var ALL_SAMPLE_FEATURED_IDS = [SAMPLE_VOTD_FEATURED_ID, ...SAMPLE_FEATURED_CAROUSEL_IDS];
+var app14 = new Hono2();
+app14.post("/api/test/reset-to-new-user", async (c) => {
   if (process.env.NODE_ENV === "production") {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -94344,7 +94659,7 @@ app13.post("/api/test/reset-to-new-user", async (c) => {
     return c.json({ error: error.message || "Failed to reset user" }, 500);
   }
 });
-app13.post("/api/test/reset-featured", async (c) => {
+app14.post("/api/test/reset-featured", async (c) => {
   if (process.env.NODE_ENV === "production") {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
@@ -94366,44 +94681,256 @@ app13.post("/api/test/reset-featured", async (c) => {
     return c.json({ error: error.message || "Failed to reset featured items" }, 500);
   }
 });
-var test_default = app13;
+app14.post("/api/test/seed-sample-votd", async (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "Test endpoint not available in production" }, 403);
+  }
+  try {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
+    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1e3);
+    const reference = "John 3:16";
+    const translation = "NET";
+    const versePlain = "For this is the way God loved the world: He gave his one and only Son that everyone who believes in him should not perish but have eternal life.";
+    await db.delete(UserFeaturedItems).where(eq(UserFeaturedItems.featuredItemId, SAMPLE_VOTD_FEATURED_ID));
+    await db.delete(FeaturedItems).where(eq(FeaturedItems.id, SAMPLE_VOTD_FEATURED_ID));
+    await db.delete(VotdSchedule).where(eq(VotdSchedule.id, SAMPLE_VOTD_SCHEDULE_ID));
+    const timestamp2 = now();
+    const metadata = {
+      reference,
+      translation,
+      verseText: `<p>${versePlain}</p>`,
+      book: "John",
+      chapter: 3,
+      verse: 16,
+      verseEnd: null
+    };
+    await db.insert(VotdSchedule).values({
+      id: SAMPLE_VOTD_SCHEDULE_ID,
+      reference,
+      translation,
+      verseText: metadata.verseText,
+      book: metadata.book,
+      chapter: metadata.chapter,
+      verse: metadata.verse,
+      verseEnd: null,
+      scheduledDate: todayStr,
+      isPublished: true,
+      featuredItemId: SAMPLE_VOTD_FEATURED_ID,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    });
+    await db.insert(FeaturedItems).values({
+      id: SAMPLE_VOTD_FEATURED_ID,
+      contentType: "votd",
+      title: reference,
+      description: versePlain.length > 280 ? `${versePlain.slice(0, 280)}\u2026` : versePlain,
+      refId: SAMPLE_VOTD_SCHEDULE_ID,
+      shareToken: null,
+      color: null,
+      isActive: true,
+      startsAt: todayStart,
+      endsAt: tomorrowStart,
+      metadata: JSON.stringify(metadata),
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    });
+    console.log(`\u2705 Seeded sample VOTD (${SAMPLE_VOTD_FEATURED_ID}) active ${todayStr} UTC`);
+    return c.json({
+      success: true,
+      featuredItemId: SAMPLE_VOTD_FEATURED_ID,
+      featuredItemIds: [SAMPLE_VOTD_FEATURED_ID],
+      message: "Sample Verse of the Day is active for today (UTC). Refresh the dashboard. If it still does not show: POST /api/test/reset-featured (clears server dismissals) and remove localStorage key dismissed_featured_votd_fi_dev_sample if present."
+    });
+  } catch (error) {
+    console.error("Seed sample VOTD error:", error);
+    return c.json({ error: error.message || "Failed to seed sample VOTD" }, 500);
+  }
+});
+app14.post("/api/test/seed-sample-featured", async (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "Test endpoint not available in production" }, 403);
+  }
+  try {
+    const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
+    const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1e3);
+    const reference = "John 3:16";
+    const translation = "NET";
+    const versePlain = "For this is the way God loved the world: He gave his one and only Son that everyone who believes in him should not perish but have eternal life.";
+    await db.delete(UserFeaturedItems).where(inArray(UserFeaturedItems.featuredItemId, [...ALL_SAMPLE_FEATURED_IDS]));
+    await db.delete(FeaturedItems).where(inArray(FeaturedItems.id, [...ALL_SAMPLE_FEATURED_IDS]));
+    await db.delete(VotdSchedule).where(eq(VotdSchedule.id, SAMPLE_VOTD_SCHEDULE_ID));
+    const t0 = now().getTime();
+    const ts2 = (offsetMs) => new Date(t0 + offsetMs);
+    const metadata = {
+      reference,
+      translation,
+      verseText: `<p>${versePlain}</p>`,
+      book: "John",
+      chapter: 3,
+      verse: 16,
+      verseEnd: null
+    };
+    const timestamp2 = now();
+    await db.insert(VotdSchedule).values({
+      id: SAMPLE_VOTD_SCHEDULE_ID,
+      reference,
+      translation,
+      verseText: metadata.verseText,
+      book: metadata.book,
+      chapter: metadata.chapter,
+      verse: metadata.verse,
+      verseEnd: null,
+      scheduledDate: todayStr,
+      isPublished: true,
+      featuredItemId: SAMPLE_VOTD_FEATURED_ID,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    });
+    await db.insert(FeaturedItems).values([
+      {
+        id: SAMPLE_FEATURED_SPACE_ID,
+        contentType: "space",
+        title: "Sample featured space",
+        description: "Dev-only card \u2014 join link is not a real space (UI testing).",
+        refId: null,
+        shareToken: "dev_sample_space_join",
+        color: "blue",
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: null,
+        createdAt: ts2(-5e4),
+        updatedAt: ts2(-5e4)
+      },
+      {
+        id: SAMPLE_FEATURED_THREAD_ID,
+        contentType: "thread",
+        title: "Sample shared thread",
+        description: "Dev-only card \u2014 share link is not a real thread (UI testing).",
+        refId: null,
+        shareToken: "dev_sample_thread_share",
+        color: "purple",
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: null,
+        createdAt: ts2(-4e4),
+        updatedAt: ts2(-4e4)
+      },
+      {
+        id: SAMPLE_FEATURED_RECALL_ID,
+        contentType: "recall",
+        title: "Sample recall card",
+        description: "Tap Review now to exercise the recall featured layout.",
+        refId: null,
+        shareToken: null,
+        color: null,
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: null,
+        createdAt: ts2(-3e4),
+        updatedAt: ts2(-3e4)
+      },
+      {
+        id: SAMPLE_FEATURED_CHALLENGE_ID,
+        contentType: "challenge",
+        title: "Sample challenge card",
+        description: "Dev-only challenge promo line for carousel styling.",
+        refId: null,
+        shareToken: null,
+        color: null,
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: null,
+        createdAt: ts2(-2e4),
+        updatedAt: ts2(-2e4)
+      },
+      {
+        id: SAMPLE_FEATURED_CHURCH_ID,
+        contentType: "church",
+        title: "Sample church card",
+        description: "Dev-only church featured row.",
+        refId: null,
+        shareToken: null,
+        color: null,
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: null,
+        createdAt: ts2(-1e4),
+        updatedAt: ts2(-1e4)
+      },
+      {
+        id: SAMPLE_VOTD_FEATURED_ID,
+        contentType: "votd",
+        title: reference,
+        description: versePlain.length > 280 ? `${versePlain.slice(0, 280)}\u2026` : versePlain,
+        refId: SAMPLE_VOTD_SCHEDULE_ID,
+        shareToken: null,
+        color: null,
+        isActive: true,
+        startsAt: todayStart,
+        endsAt: tomorrowStart,
+        metadata: JSON.stringify(metadata),
+        createdAt: ts2(0),
+        updatedAt: ts2(0)
+      }
+    ]);
+    console.log(`\u2705 Seeded sample featured carousel (${ALL_SAMPLE_FEATURED_IDS.length} items) active ${todayStr} UTC`);
+    return c.json({
+      success: true,
+      featuredItemIds: [...ALL_SAMPLE_FEATURED_IDS],
+      dismissLocalStorageKeys: [...ALL_SAMPLE_FEATURED_IDS].map((id) => `dismissed_featured_${id}`),
+      message: "Sample featured carousel is active for today (UTC). Clear dismissLocalStorageKeys in localStorage (or use the snippet in docs), then reload. Use POST /api/test/reset-featured if cards stay hidden server-side."
+    });
+  } catch (error) {
+    console.error("Seed sample featured error:", error);
+    return c.json({ error: error.message || "Failed to seed sample featured items" }, 500);
+  }
+});
+var test_default = app14;
 
 // server/app.ts
-var app14 = new Hono2();
-app14.use("/api/*", requestId());
-app14.use("/api/*", cors());
-app14.use("/api/*", clerkAuth);
-app14.use("/api/*", async (c, next) => {
+var app15 = new Hono2();
+app15.use("/api/*", requestId());
+app15.use("/api/*", cors());
+app15.use("/api/*", clerkAuth);
+app15.use("/api/*", async (c, next) => {
   await next();
   if (c.req.method === "GET" && !c.res.headers.has("Cache-Control")) {
     c.res.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=60");
   }
 });
-app14.route("/", health_default);
-app14.route("/", navigation_default);
-app14.route("/", debug_default);
-app14.route("/", about_default);
-app14.route("/", og_default);
-app14.route("/", stats_default);
-app14.route("/", search_default);
-app14.route("/", content_default);
-app14.route("/", threads_default);
-app14.route("/", notes_default);
-app14.route("/", spaces_default);
-app14.route("/", user_default);
-app14.route("/", tags_scripture_default);
-app14.route("/", shared_default);
-app14.route("/", billing_default);
-app14.route("/", resource_default);
-app14.route("/", inbox_default);
-app14.route("/", webflow_default);
-app14.route("/", webhooks_default);
-app14.route("/", sync_default);
-app14.route("/", migrations_default);
-app14.route("/", admin_default);
-app14.route("/", featured_default);
-app14.route("/", test_default);
-var app_default = app14;
+app15.route("/", health_default);
+app15.route("/", navigation_default);
+app15.route("/", debug_default);
+app15.route("/", about_default);
+app15.route("/", og_default);
+app15.route("/", stats_default);
+app15.route("/", search_default);
+app15.route("/", content_default);
+app15.route("/", threads_default);
+app15.route("/", notes_default);
+app15.route("/", spaces_default);
+app15.route("/", user_default);
+app15.route("/", tags_scripture_default);
+app15.route("/", shared_default);
+app15.route("/", billing_default);
+app15.route("/", resource_default);
+app15.route("/", inbox_default);
+app15.route("/", webflow_default);
+app15.route("/", webhooks_default);
+app15.route("/", sync_default);
+app15.route("/", migrations_default);
+app15.route("/", admin_default);
+app15.route("/", featured_default);
+app15.route("/", votd_default);
+app15.route("/", test_default);
+var app_default = app15;
 
 // server/netlify.ts
 var honoHandler = handle(app_default);

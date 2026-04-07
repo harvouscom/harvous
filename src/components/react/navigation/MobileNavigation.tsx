@@ -103,9 +103,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const effectiveSelectedSpaceId = routeSelectedSpaceId ?? (isThreadOrNoteRoute && currentSpace?.id ? currentSpace.id : null) ?? selectedSpaceId;
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const isSheetOpenRef = useRef(false);
+  isSheetOpenRef.current = isSheetOpen;
   const [isSpacePanelOpen, setIsSpacePanelOpen] = useState(false);
   const [isShowingExistingSpaces, setIsShowingExistingSpaces] = useState(false);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
+  /** Pointer already handled bar toggle; skip following click (avoids open→close on touch). */
+  const barSheetTogglePointerRef = useRef(false);
   // Use initialPath from server to ensure SSR and client initial render match
   const [currentItemId, setCurrentItemId] = useState(initialPath);
   const { navigationHistory, removeFromNavigationHistory } = useNavigation();
@@ -1070,20 +1074,39 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     return persistentThreads.filter((t) => !closedItemIds.has(t.id));
   }, [persistentThreads, closedItemIds]);
 
-  const openSheet = () => {
-    preloadSafeNavigate();
-    setIsSheetOpen(true);
-    // If there are no threads to show, auto-open the space picker panel.
-    // This helps first-run / "only spaces exist" states.
-    setIsSpacePanelOpen(displayThreads.length === 0);
-  };
-
   const closeSheet = useCallback(() => {
     setIsSheetOpen(false);
     setIsSpacePanelOpen(false);
     // Exit close mode for all items when dropdown closes
     setItemsInCloseMode(new Set());
   }, []);
+
+  const openSheet = useCallback(() => {
+    preloadSafeNavigate();
+    setIsSheetOpen(true);
+    // If there are no threads to show, auto-open the space picker panel.
+    // This helps first-run / "only spaces exist" states.
+    setIsSpacePanelOpen(displayThreads.length === 0);
+  }, [displayThreads.length]);
+
+  /** Bar sort control: open or close sheet (pointer + click for keyboard; dedupe via barSheetTogglePointerRef). */
+  const toggleSheetFromBar = useCallback(() => {
+    if (isSheetOpenRef.current) closeSheet();
+    else openSheet();
+  }, [closeSheet, openSheet]);
+
+  const handleSheetInteractOutside = useCallback(
+    (e: { preventDefault: () => void; target: EventTarget | null }) => {
+      const t = e.target;
+      if (t instanceof Element && t.closest('.space-switcher-anchor__toggle')) {
+        e.preventDefault();
+        return;
+      }
+      e.preventDefault();
+      closeSheet();
+    },
+    [closeSheet]
+  );
 
   const handleItemClick = (itemId?: string) => {
     closeSheet();
@@ -1502,21 +1525,31 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               hideDropdownIcon={true}
             />
           </div>
-          {/* Toggle button - always opens bottom sheet */}
+          {/* Toggle button - opens bottom sheet; tap again while open closes it */}
           <button
             type="button"
             className="space-btn__badge-wrapper space-switcher-anchor__toggle"
             aria-label="Switch space"
+            aria-expanded={isSheetOpen}
             style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
+            onPointerUp={(e) => {
+              if (e.pointerType === 'mouse' && e.button !== 0) return;
               e.stopPropagation();
-              openSheet();
+              barSheetTogglePointerRef.current = true;
+              toggleSheetFromBar();
+              // Reset if no synthetic click follows (e.g. some touch paths); click handler clears sooner when it does.
+              window.setTimeout(() => {
+                barSheetTogglePointerRef.current = false;
+              }, 400);
             }}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              openSheet();
+              if (barSheetTogglePointerRef.current) {
+                barSheetTogglePointerRef.current = false;
+                return;
+              }
+              toggleSheetFromBar();
             }}
           >
             <span className="space-btn__toggle-icon" aria-hidden="true">
@@ -1542,8 +1575,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               border: 'none',
               borderTop: 'none',
             }}
-            onPointerDownOutside={(e) => e.preventDefault()}
-            onInteractOutside={(e) => e.preventDefault()}
+            onPointerDownOutside={handleSheetInteractOutside}
+            onInteractOutside={handleSheetInteractOutside}
             onOpenAutoFocus={(e) => {
               // Radix will aria-hide the background; ensure focus moves into the sheet to avoid warnings.
               e.preventDefault();

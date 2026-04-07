@@ -131,6 +131,8 @@ export function updateCachedProfileData(updates: Partial<CachedProfileData>): vo
         churchName: updates.churchName ?? null,
         churchCity: updates.churchCity ?? null,
         churchState: updates.churchState ?? null,
+        defaultTranslation: updates.defaultTranslation ?? 'NET',
+        hasLockPinSet: updates.hasLockPinSet,
       };
       setCachedProfileData(newData);
     }

@@ -14,10 +14,15 @@ import plusSvg from '@fortawesome/fontawesome-free/svgs/solid/plus.svg?raw';
 import bullhornSvg from '@fortawesome/fontawesome-free/svgs/solid/bullhorn.svg?raw';
 import chevronDownSvg from '@fortawesome/fontawesome-free/svgs/solid/chevron-down.svg?raw';
 import chevronUpSvg from '@fortawesome/fontawesome-free/svgs/solid/chevron-up.svg?raw';
+import chevronLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/chevron-left.svg?raw';
+import chevronRightSvg from '@fortawesome/fontawesome-free/svgs/solid/chevron-right.svg?raw';
+import caretLeftSvg from '@fortawesome/fontawesome-free/svgs/solid/caret-left.svg?raw';
+import caretRightSvg from '@fortawesome/fontawesome-free/svgs/solid/caret-right.svg?raw';
 import sortSvg from '@fortawesome/fontawesome-free/svgs/solid/sort.svg?raw';
 import lockSvg from '@fortawesome/fontawesome-free/svgs/solid/lock.svg?raw';
 import unlockSvg from '@fortawesome/fontawesome-free/svgs/solid/unlock.svg?raw';
 import rightFromBracketSvg from '@fortawesome/fontawesome-free/svgs/solid/right-from-bracket.svg?raw';
+import bookmarkSvg from '@fortawesome/fontawesome-free/svgs/solid/bookmark.svg?raw';
 
 function withCurrentColor(svg: string): string {
   return svg.includes('fill="currentColor"') ? svg : svg.replace(/<path /, '<path fill="currentColor" ');
@@ -46,6 +51,7 @@ const icons = {
   paste: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M160 0c-23.7 0-44.8 14.9-52.9 37.3L48 112 48 96c0-26.5-21.5-48-48-48S0 69.5 0 96l0 384c0 26.5 21.5 48 48 48l224 0c26.5 0 48-21.5 48-48l0-16 16 0c26.5 0 48-21.5 48-48l0-256c0-26.5-21.5-48-48-48l-64 0 0-16c0-35.3-28.7-64-64-64zM96 48c0-8.8 7.2-16 16-16s16 7.2 16 16l0 16-32 0 0-16zm64 64l192 0c8.8 0 16 7.2 16 16l0 256c0 8.8-7.2 16-16 16l-192 0c-8.8 0-16-7.2-16-16l0-256c0-8.8 7.2-16 16-16z"/></svg>`,
   
   // Note type icons
+  bookmark: withCurrentColor(bookmarkSvg),
   scroll: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" fill="currentColor"><path d="M0 80l0 48c0 17.7 14.3 32 32 32l16 0 48 0 0-80c0-26.5-21.5-48-48-48S0 53.5 0 80zM112 32c10 13.4 16 30 16 48l0 304c0 35.3 28.7 64 64 64s64-28.7 64-64l0-5.3c0-32.4 26.3-58.7 58.7-58.7L480 320l0-192c0-53-43-96-96-96L112 32zM464 480c61.9 0 112-50.1 112-112c0-8.8-7.2-16-16-16l-245.3 0c-14.7 0-26.7 11.9-26.7 26.7l0 5.3c0 53-43 96-96 96l176 0 96 0z"/></svg>`,
   'file-image': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" fill="currentColor"><path d="M64 0C28.7 0 0 28.7 0 64L0 448c0 35.3 28.7 64 64 64l256 0c35.3 0 64-28.7 64-64l0-288-128 0c-17.7 0-32-14.3-32-32L224 0 64 0zM256 0l0 128 128 0L256 0zM64 256a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm152 32c5.3 0 10.2 2.6 13.2 6.9l88 128c3.4 4.9 3.7 11.3 1 16.5s-8.2 8.6-14.2 8.6l-88 0-40 0-48 0-48 0c-5.8 0-11.1-3.1-13.9-8.1s-2.8-11.2 .2-16.1l48-80c2.9-4.8 8.1-7.8 13.7-7.8s10.8 2.9 13.7 7.8l12.8 21.4 48.3-70.2c3-4.3 7.9-6.9 13.2-6.9z"/></svg>`,
   newspaper: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="currentColor"><path d="M96 96c0-35.3 28.7-64 64-64l288 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L80 480c-44.2 0-80-35.8-80-80L0 128c0-17.7 14.3-32 32-32s32 14.3 32 32l0 272c0 8.8 7.2 16 16 16s16-7.2 16-16L96 96zm64 24l0 80c0 13.3 10.7 24 24 24l112 0c13.3 0 24-10.7 24-24l0-80c0-13.3-10.7-24-24-24L184 96c-13.3 0-24 10.7-24 24zm208-8c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l48 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-48 0c-8.8 0-16 7.2-16 16zM160 304c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16zm0 96c0 8.8 7.2 16 16 16l256 0c8.8 0 16-7.2 16-16s-7.2-16-16-16l-256 0c-8.8 0-16 7.2-16 16z"/></svg>`,
@@ -71,6 +77,10 @@ const icons = {
   'file-pdf': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" fill="currentColor"><path d="M64 0C28.7 0 0 28.7 0 64V448c0 35.3 28.7 64 64 64H320c35.3 0 64-28.7 64-64V160H256c-17.7 0-32-14.3-32-32V0H64zM256 0V128H384L256 0zM64 224H88c30.9 0 56 25.1 56 56s-25.1 56-56 56H80v32c0 8.8-7.2 16-16 16s-16-7.2-16-16V320 240c0-8.8 7.2-16 16-16zm24 80c13.3 0 24-10.7 24-24s-10.7-24-24-24H80v48h8zm72-64c0-8.8 7.2-16 16-16h24c26.5 0 48 21.5 48 48v64c0 26.5-21.5 48-48 48H176c-8.8 0-16-7.2-16-16V240zm32 112h8c8.8 0 16-7.2 16-16V272c0-8.8-7.2-16-16-16h-8v96zm96-128h48c8.8 0 16 7.2 16 16s-7.2 16-16 16H304v32h32c8.8 0 16 7.2 16 16s-7.2 16-16 16H304v48c0 8.8-7.2 16-16 16s-16-7.2-16-16V304 240c0-8.8 7.2-16 16-16z"/></svg>`,
   'chevron-down': withCurrentColor(chevronDownSvg),
   'chevron-up': withCurrentColor(chevronUpSvg),
+  'chevron-left': withCurrentColor(chevronLeftSvg),
+  'chevron-right': withCurrentColor(chevronRightSvg),
+  'caret-left': withCurrentColor(caretLeftSvg),
+  'caret-right': withCurrentColor(caretRightSvg),
   'angle-down': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor"><path d="M137.4 374.6c12.5 12.5 32.8 12.5 45.3 0l128-128c9.2-9.2 11.9-22.9 6.9-34.9s-16.6-19.8-29.6-19.8L32 192c-12.9 0-24.6 7.8-29.6 19.8s-2.2 25.7 6.9 34.9l128 128z"/></svg>`,
   'angle-up': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512" fill="currentColor"><path d="M182.6 137.4c-12.5-12.5-32.8-12.5-45.3 0l-128 128c-9.2 9.2-11.9 22.9-6.9 34.9s16.6 19.8 29.6 19.8H288c12.9 0 24.6-7.8 29.6-19.8s2.2-25.7-6.9-34.9l-128-128z"/></svg>`,
   

@@ -173,3 +173,7 @@ Users see different messages in the UI based on which tab they're viewing:
 - `db/config.ts` - Database schema (UserInboxItems table)
 - `.github/workflows/auto-archive.yml` - Scheduled workflow (runs both jobs)
 
+## See also
+
+- **[VOTD_PUBLISH_SETUP.md](./VOTD_PUBLISH_SETUP.md)** — Daily **Verse of the Day** publish (`POST /api/admin/votd/publish-daily`), `VOTD_CRON_SECRET`, and GitHub workflow `.github/workflows/votd-publish-daily.yml`.
+

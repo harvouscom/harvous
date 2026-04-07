@@ -53,6 +53,7 @@ import '@fontsource/reddit-sans/600.css';
 import '@fontsource/reddit-sans/700.css';
 import '@fontsource/reddit-mono/500.css';
 import '@fontsource/reddit-mono/600.css';
+import '@fontsource/literata/400.css';
 
 // Global styles — global.css already @imports: colors, spacing, typography, buttons,
 // navigation, cards, forms, panels, animations, layout, utilities.

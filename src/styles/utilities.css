@@ -362,7 +362,7 @@
    Typography
    ========================================================================== */
 .font-sans { font-family: var(--font-sans); }
-.font-serif { font-family: serif; }
+.font-serif { font-family: var(--font-serif); }
 .font-mono { font-family: monospace; }
 
 .font-thin { font-weight: 100; }

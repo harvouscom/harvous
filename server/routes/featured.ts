@@ -1,9 +1,16 @@
 import { Hono } from 'hono';
-import { and, db, desc, eq, first, gt, inArray, isNull, lte, notExists, or } from '../db';
-import { now } from '../db/dates';
+import { and, db, desc, eq, first, gt, inArray, isNotNull, isNull, lte, ne, notExists, or } from '../db';
+import { now, nowISO } from '../db/dates';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import { FeaturedItems, Members, Spaces, Threads, UserFeaturedItems } from '../db/schema';
+import { FeaturedItems, Members, Notes, ScriptureMetadata, Spaces, Threads, UserFeaturedItems, UserMetadata } from '../db/schema';
+import { generateNoteId, generateShareToken } from '@/utils/ids';
+import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
+import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { fetchVerseText } from '../utils/fetch-verse-text';
+import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
+import { awardCreationBonusXP } from '../utils/xp-system';
+import { getCurrentSeason } from '@/utils/season-helpers';
 
 const app = new Hono();
 
@@ -27,6 +34,7 @@ app.get('/api/featured/items', async (c) => {
         refId: FeaturedItems.refId,
         shareToken: FeaturedItems.shareToken,
         color: FeaturedItems.color,
+        metadata: FeaturedItems.metadata,
         createdAt: FeaturedItems.createdAt,
       })
       .from(FeaturedItems)
@@ -130,6 +138,7 @@ app.get('/api/featured/items', async (c) => {
         refId: i.refId ?? null,
         shareToken: i.shareToken ?? null,
         color: i.color ?? null,
+        metadata: i.metadata ? (() => { try { return JSON.parse(i.metadata!); } catch { return null; } })() : null,
       })),
     );
   } catch (err) {
@@ -173,6 +182,7 @@ app.post('/api/featured/erase', requireAuth, async (c) => {
 });
 
 // Record a dismissal for a featured item.
+// VOTD items always get 'completed' status (they never appear in My Inbox).
 app.post('/api/featured/dismiss', requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const body = (await c.req.json().catch(() => ({}))) as { featuredItemId?: string };
@@ -181,7 +191,14 @@ app.post('/api/featured/dismiss', requireAuth, async (c) => {
     return c.json({ error: 'featuredItemId is required' }, 400);
   }
 
+  // Check if this is a VOTD item — those are always completed, never dismissed
+  const featuredItem = first(
+    await db.select({ contentType: FeaturedItems.contentType }).from(FeaturedItems).where(eq(FeaturedItems.id, featuredItemId)).limit(1),
+  );
+  const isVotd = featuredItem?.contentType === 'votd';
+
   const timestamp = now();
+  const status = isVotd ? 'completed' : 'dismissed';
 
   await db
     .insert(UserFeaturedItems)
@@ -189,17 +206,17 @@ app.post('/api/featured/dismiss', requireAuth, async (c) => {
       id: crypto.randomUUID(),
       userId: auth.userId,
       featuredItemId,
-      status: 'dismissed',
-      dismissedAt: timestamp,
-      completedAt: null,
+      status,
+      dismissedAt: isVotd ? null : timestamp,
+      completedAt: isVotd ? timestamp : null,
       createdAt: timestamp,
     })
     .onConflictDoUpdate({
       target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
       set: {
-        status: 'dismissed',
-        dismissedAt: timestamp,
-        completedAt: null,
+        status,
+        dismissedAt: isVotd ? null : timestamp,
+        completedAt: isVotd ? timestamp : null,
       },
     });
 
@@ -207,6 +224,7 @@ app.post('/api/featured/dismiss', requireAuth, async (c) => {
 });
 
 // List dismissed featured items for the current user (for "My Inbox").
+// VOTD items are explicitly excluded — they never appear in My Inbox.
 app.get('/api/featured/dismissed', requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
   const rows = await db
@@ -225,7 +243,13 @@ app.get('/api/featured/dismissed', requireAuth, async (c) => {
     })
     .from(UserFeaturedItems)
     .innerJoin(FeaturedItems, eq(UserFeaturedItems.featuredItemId, FeaturedItems.id))
-    .where(and(eq(UserFeaturedItems.userId, auth.userId), eq(UserFeaturedItems.status, 'dismissed')))
+    .where(
+      and(
+        eq(UserFeaturedItems.userId, auth.userId),
+        eq(UserFeaturedItems.status, 'dismissed'),
+        ne(FeaturedItems.contentType, 'votd'),
+      ),
+    )
     .orderBy(desc(UserFeaturedItems.dismissedAt));
 
   return c.json(
@@ -304,6 +328,7 @@ app.post('/api/admin/featured', async (c) => {
     startsAt?: string | null;
     endsAt?: string | null;
     isActive?: boolean;
+    metadata?: Record<string, unknown> | null;
   };
 
   const contentType = body.contentType?.trim() ?? '';
@@ -312,7 +337,7 @@ app.post('/api/admin/featured', async (c) => {
     return c.json({ error: 'contentType and title are required' }, 400);
   }
 
-  const allowed = new Set(['space', 'thread', 'recall', 'challenge', 'church']);
+  const allowed = new Set(['space', 'thread', 'recall', 'challenge', 'church', 'votd']);
   if (!allowed.has(contentType)) {
     return c.json({ error: `Invalid contentType: ${contentType}` }, 400);
   }
@@ -333,6 +358,7 @@ app.post('/api/admin/featured', async (c) => {
   const timestamp = now();
   const startsAt = body.startsAt ? new Date(body.startsAt) : null;
   const endsAt = body.endsAt ? new Date(body.endsAt) : null;
+  const metadataStr = body.metadata ? JSON.stringify(body.metadata) : null;
 
   const inserted = first(
     await db
@@ -348,6 +374,7 @@ app.post('/api/admin/featured', async (c) => {
         isActive: body.isActive ?? true,
         startsAt,
         endsAt,
+        metadata: metadataStr,
         createdAt: timestamp,
         updatedAt: timestamp,
       })
@@ -383,6 +410,155 @@ app.patch('/api/admin/featured/:id', async (c) => {
   const updated = first(await db.update(FeaturedItems).set(set as any).where(eq(FeaturedItems.id, id)).returning());
   if (!updated) return c.json({ error: 'Not found' }, 404);
   return c.json(updated);
+});
+
+// VOTD quick-add: creates a scripture note from a VOTD featured item.
+app.post('/api/featured/votd/quick-add', requireAuth, async (c) => {
+  const auth = getAuthenticatedAuth(c);
+  const body = (await c.req.json().catch(() => ({}))) as { featuredItemId?: string };
+  const featuredItemId = body.featuredItemId?.trim() ?? '';
+  if (!featuredItemId) {
+    return c.json({ error: 'featuredItemId is required' }, 400);
+  }
+
+  // Load the featured item
+  const featuredItem = first(
+    await db.select().from(FeaturedItems).where(eq(FeaturedItems.id, featuredItemId)).limit(1),
+  );
+  if (!featuredItem || featuredItem.contentType !== 'votd') {
+    return c.json({ error: 'VOTD featured item not found' }, 404);
+  }
+
+  let metadata: { reference?: string; translation?: string; verseText?: string; book?: string; chapter?: number; verse?: number; verseEnd?: number } = {};
+  try {
+    if (featuredItem.metadata) metadata = JSON.parse(featuredItem.metadata);
+  } catch {}
+
+  const reference = metadata.reference || featuredItem.title;
+  const catalogTranslation = metadata.translation || 'NET';
+  const catalogVerseHtml = metadata.verseText || featuredItem.description || '';
+
+  await ensureUnorganizedThread(auth.userId);
+
+  let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+  if (!userMetadata) {
+    const existingNotes = await db.select({ simpleNoteId: Notes.simpleNoteId })
+      .from(Notes)
+      .where(and(eq(Notes.userId, auth.userId), isNotNull(Notes.simpleNoteId)))
+      .orderBy(desc(Notes.simpleNoteId))
+      .limit(1);
+    const highestExistingId = existingNotes.length > 0 ? (existingNotes[0].simpleNoteId || 0) : 0;
+    const season = getCurrentSeason();
+    await db.insert(UserMetadata).values({
+      id: `user_metadata_${auth.userId}`,
+      userId: auth.userId,
+      highestSimpleNoteId: highestExistingId,
+      userColor: 'blue',
+      currentSeason: season,
+      createdAt: nowISO(),
+    });
+    userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1));
+  }
+
+  const preferredTranslation =
+    (userMetadata?.defaultTranslation && userMetadata.defaultTranslation.trim()) || catalogTranslation;
+
+  let noteContentHtml = catalogVerseHtml;
+  let scriptureTranslationStored = catalogTranslation;
+  let scriptureOriginalStored = catalogVerseHtml;
+  if (preferredTranslation !== catalogTranslation || !catalogVerseHtml.trim()) {
+    try {
+      const refForFetch = reference.replace(/,\s+/g, ',');
+      const fetched = await fetchVerseText(refForFetch, preferredTranslation);
+      if (fetched.trim().length > 0) {
+        noteContentHtml = fetched;
+        scriptureTranslationStored = preferredTranslation;
+        scriptureOriginalStored = fetched;
+      }
+    } catch {
+      /* keep catalog */
+    }
+  }
+
+  const effectiveHighest = await getEffectiveHighestSimpleNoteId(auth.userId);
+  const nextSimpleNoteId = effectiveHighest + 1;
+  const timestamp = nowISO();
+  const shareToken = generateShareToken();
+
+  const newNote = first(
+    await db.insert(Notes).values({
+      id: generateNoteId(),
+      content: noteContentHtml,
+      title: reference,
+      threadId: 'thread_unorganized',
+      spaceId: null,
+      simpleNoteId: nextSimpleNoteId,
+      noteType: 'scripture',
+      userId: auth.userId,
+      isPublic: true,
+      shareToken,
+      shareTokenCreatedAt: timestamp,
+      contentEncrypted: false,
+      createdAt: timestamp,
+      lastVisited: timestamp,
+    }).returning(),
+  );
+
+  if (!newNote) return c.json({ error: 'Failed to create note' }, 500);
+
+  await db.update(UserMetadata)
+    .set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() })
+    .where(eq(UserMetadata.userId, auth.userId));
+
+  await db.update(Threads).set({ updatedAt: nowISO() })
+    .where(and(eq(Threads.id, 'thread_unorganized'), eq(Threads.userId, auth.userId)));
+
+  // Create ScriptureMetadata
+  try {
+    const normalizedReference = normalizeScriptureReference(reference);
+    const parsed = parseScriptureReference(normalizedReference);
+    if (parsed) {
+      const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+      const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
+      await db.insert(ScriptureMetadata).values({
+        id: `scripture_${newNote.id}_${Date.now()}`,
+        noteId: newNote.id,
+        reference: normalizedReference,
+        book: parsed.book,
+        chapter: parsed.chapter,
+        verse: verseStart,
+        verseEnd: verseEnd || null,
+        translation: scriptureTranslationStored,
+        originalText: scriptureOriginalStored,
+        createdAt: nowISO(),
+      });
+    }
+  } catch (err) {
+    console.error('[votd/quick-add] ScriptureMetadata error (non-critical):', err);
+  }
+
+  // Award XP (non-critical)
+  try { await awardCreationBonusXP(auth.userId, 'note'); } catch {}
+
+  // Mark VOTD as completed so it disappears from the carousel
+  const completedAt = now();
+  await db
+    .insert(UserFeaturedItems)
+    .values({
+      id: crypto.randomUUID(),
+      userId: auth.userId,
+      featuredItemId,
+      status: 'completed',
+      dismissedAt: null,
+      completedAt,
+      createdAt: completedAt,
+    })
+    .onConflictDoUpdate({
+      target: [UserFeaturedItems.userId, UserFeaturedItems.featuredItemId],
+      set: { status: 'completed', completedAt },
+    });
+
+  return c.json({ success: true, noteId: newNote.id });
 });
 
 // Back-compat shim: old featured-space endpoint (soft-deprecated).

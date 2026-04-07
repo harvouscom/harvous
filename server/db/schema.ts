@@ -378,7 +378,7 @@ export const FeaturedItems = pgTable(
   'FeaturedItems',
   {
     id: text('id').primaryKey(),
-    contentType: text('contentType').notNull(), // 'space' | 'thread' | 'recall' | 'challenge' | 'church'
+    contentType: text('contentType').notNull(), // 'space' | 'thread' | 'recall' | 'challenge' | 'church' | 'votd'
     title: text('title').notNull(),
     description: text('description'),
     refId: text('refId'),
@@ -387,12 +387,38 @@ export const FeaturedItems = pgTable(
     isActive: boolean('isActive').notNull().default(true),
     startsAt: ts('startsAt'),
     endsAt: ts('endsAt'),
+    metadata: text('metadata'), // JSON string for type-specific data (e.g. VOTD: { reference, translation, verseText, book, chapter, verse, verseEnd })
     createdAt: ts('createdAt').notNull(),
     updatedAt: ts('updatedAt'),
   },
   (table) => [
     index('FeaturedItems_isActiveIndex').on(table.isActive),
     index('FeaturedItems_createdAtIndex').on(table.createdAt),
+  ],
+);
+
+// ─── VotdSchedule (curated verse pool for Verse of the Day) ─────────────────────
+
+export const VotdSchedule = pgTable(
+  'VotdSchedule',
+  {
+    id: text('id').primaryKey(),
+    reference: text('reference').notNull(), // e.g. "Romans 8:28"
+    translation: text('translation').notNull().default('NET'),
+    verseText: text('verseText'), // pre-fetched verse text HTML
+    book: text('book'),
+    chapter: integer('chapter'),
+    verse: integer('verse'),
+    verseEnd: integer('verseEnd'),
+    scheduledDate: text('scheduledDate'), // ISO date string 'YYYY-MM-DD', null = unscheduled pool entry
+    isPublished: boolean('isPublished').notNull().default(false),
+    featuredItemId: text('featuredItemId'), // set once published to FeaturedItems
+    createdAt: ts('createdAt').notNull(),
+    updatedAt: ts('updatedAt'),
+  },
+  (table) => [
+    index('VotdSchedule_scheduledDateIndex').on(table.scheduledDate),
+    index('VotdSchedule_isPublishedIndex').on(table.isPublished),
   ],
 );
 

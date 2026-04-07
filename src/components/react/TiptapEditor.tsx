@@ -195,6 +195,51 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
   return { start: pillStart, end: pillEnd };
 }
 
+/** Move caret after a leading scripture pill (e.g. VOTD → Create note); end-of-doc can still resolve inside the mark. */
+function placeCursorAfterLeadingScripturePill(editor: any): void {
+  try {
+    const { doc } = editor.state;
+    if (doc.textContent.trim().length === 0) {
+      editor.commands.setTextSelection(1);
+      return;
+    }
+    const maxPos = doc.content.size;
+    editor.commands.setTextSelection(maxPos);
+    let $from = editor.state.selection.$from;
+    let inPill = $from.marks().some((m: any) => m.type.name === 'scripturePill');
+    if (!inPill) {
+      return;
+    }
+    const probePos = Math.min(Math.max(1, $from.pos), maxPos - 1);
+    const boundaries = findPillBoundaries(doc, probePos);
+    if (!boundaries) {
+      return;
+    }
+    let pos = boundaries.end;
+    while (pos <= maxPos) {
+      try {
+        const marks = doc.resolve(pos).marks();
+        const stillIn = marks.some((m: any) => m.type.name === 'scripturePill');
+        if (!stillIn) {
+          editor.commands.setTextSelection(pos);
+          return;
+        }
+      } catch {
+        editor.commands.setTextSelection(pos);
+        return;
+      }
+      pos += 1;
+    }
+    editor.commands.setTextSelection(maxPos);
+  } catch {
+    try {
+      editor.commands.setTextSelection(editor.state.doc.content.size);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 // Helper: find pill boundaries by iterating the paragraph's child nodes directly
 // This avoids all the inclusive:false mark resolution issues at boundaries
 function findAdjacentPillBoundaries(
@@ -2550,10 +2595,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     ],
     content: content || '',
     onCreate: ({ editor }) => {
-      // Notify parent when editor is ready
       if (onEditorReady) {
         onEditorReady(editor);
       }
+      queueMicrotask(() => {
+        try {
+          if (!isEditorValid(editor)) return;
+          if (editor.getHTML().includes('scripture-pill')) {
+            placeCursorAfterLeadingScripturePill(editor);
+          }
+        } catch {
+          /* ignore */
+        }
+      });
     },
     onUpdate: ({ editor }) => {
       const htmlContent = editor.getHTML();
@@ -3220,51 +3274,56 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   }, [editor, id]);
 
   // Update content from props, but only if it's different and editor is not focused
-  // This preserves marks that are already in the editor
+  // Exception: new-note panel can hydrate prefill from localStorage after the editor mounts empty;
+  // onEditorReady may already have focused, so we must still setContent when editor.isEmpty.
   useEffect(() => {
     if (!editor || !content) return;
-    
-    // Check if editor is still valid
+
     if (!isEditorValid(editor)) return;
-    
-    // Only update if editor is not focused (to avoid interrupting user typing)
-    if (!editor.isFocused) {
-      const currentContent = editor.getHTML();
-      // Only update if content actually changed (prevents unnecessary updates that clear marks)
-      if (currentContent !== content) {
-        // Use setContent with emitUpdate: false to prevent triggering detection
-        // This preserves marks that are in the HTML content
-        editor.commands.setContent(content, { emitUpdate: false });
-        
-        // Move cursor to end of content to avoid getting stuck on scripture pills
-        const cursorTimeout = setTimeout(() => {
-          if (isEditorValid(editor) && !editor.isFocused) {
-            try {
-              const doc = editor.state.doc;
-              const endPos = doc.content.size;
-              editor.commands.setTextSelection(endPos);
-            } catch (e) {
-              // Ignore if setting selection fails
-            }
-          }
-        }, 100);
-        
-        // Convert any note-link spans to scripture-pill marks if they reference scripture notes
-        // Scripture detection now happens on save only, not on content load
-        const conversionTimeout = setTimeout(async () => {
-          if (isEditorValid(editor) && !editor.isFocused) {
-            // Convert note-links to scripture pills
-            await convertNoteLinksToScripturePills(editor);
-          }
-        }, 500);
-        
-        return () => {
-          clearTimeout(cursorTimeout);
-          clearTimeout(conversionTimeout);
-        };
-      }
+
+    const currentContent = editor.getHTML();
+    if (currentContent === content) return;
+
+    const isNewNoteEditor = id === 'new-note-content';
+    const shouldForceHydratePrefill =
+      isNewNoteEditor && editor.isEmpty && content.trim().length > 0;
+
+    if (editor.isFocused && !shouldForceHydratePrefill) {
+      return;
     }
-  }, [editor, content]);
+
+    editor.commands.setContent(content, { emitUpdate: false });
+
+    const needsCursorAfterScripturePill =
+      isNewNoteEditor && content.includes('scripture-pill');
+
+    const cursorTimeout = setTimeout(() => {
+      if (!isEditorValid(editor)) return;
+      try {
+        if (needsCursorAfterScripturePill) {
+          placeCursorAfterLeadingScripturePill(editor);
+          editor.commands.focus();
+        } else if (!editor.isFocused) {
+          const doc = editor.state.doc;
+          const endPos = doc.content.size;
+          editor.commands.setTextSelection(endPos);
+        }
+      } catch {
+        /* ignore */
+      }
+    }, 100);
+
+    const conversionTimeout = setTimeout(async () => {
+      if (isEditorValid(editor)) {
+        await convertNoteLinksToScripturePills(editor);
+      }
+    }, 500);
+
+    return () => {
+      clearTimeout(cursorTimeout);
+      clearTimeout(conversionTimeout);
+    };
+  }, [editor, content, id]);
 
   // Ensure editor is focused and editable
   useEffect(() => {

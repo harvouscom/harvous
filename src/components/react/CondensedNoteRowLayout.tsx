@@ -67,11 +67,7 @@ export function condensedNoteRowIcon(options: {
   const nt = options.noteType ?? 'default';
   if (nt === 'scripture') return <Icon name="scroll" size={size} style={styleOnPaperOrMesh} />;
   if (nt === 'resource') return <Icon name="newspaper" size={size} style={styleOnPaperOrMesh} />;
-  return (
-    <svg className="block max-w-none size-full" fill="currentColor" viewBox="0 0 24 24" style={styleOnPaperOrMesh}>
-      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
-    </svg>
-  );
+  return <Icon name="bookmark" size={size} style={styleOnPaperOrMesh} />;
 }
 
 export interface CondensedNoteRowLayoutProps {

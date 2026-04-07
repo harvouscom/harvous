@@ -58,6 +58,8 @@ export interface UserProfile {
   displayName: string;
   userColor: string;
   church: string | null;
+  /** Preferred Bible translation (e.g. ESV, NET); from UserMetadata via get-profile */
+  defaultTranslation?: string;
 }
 
 export interface XPData {
@@ -77,9 +79,20 @@ export function useProfile() {
     queryKey: ['profile'],
     enabled: isLoaded && isSignedIn,
     queryFn: () =>
-      api.get<Omit<UserProfile, 'displayName'> & { displayName?: string; emailVerified?: boolean; churchName?: string | null; churchCity?: string | null; churchState?: string | null; hasLockPinSet?: boolean }>('/api/user/get-profile')
+      api.get<
+        Omit<UserProfile, 'displayName' | 'defaultTranslation'> & {
+          displayName?: string;
+          emailVerified?: boolean;
+          churchName?: string | null;
+          churchCity?: string | null;
+          churchState?: string | null;
+          hasLockPinSet?: boolean;
+          defaultTranslation?: string;
+        }
+      >('/api/user/get-profile')
         .then(data => {
           if (data.userColor) setCachedUserColor(data.userColor);
+          const defaultTranslation = data.defaultTranslation ?? 'NET';
           updateCachedProfileData({
             firstName: data.firstName ?? '',
             lastName: data.lastName ?? '',
@@ -89,10 +102,12 @@ export function useProfile() {
             churchName: data.churchName ?? null,
             churchCity: data.churchCity ?? null,
             churchState: data.churchState ?? null,
-            hasLockPinSet: data.hasLockPinSet
+            hasLockPinSet: data.hasLockPinSet,
+            defaultTranslation,
           });
           const profile = {
             ...data,
+            defaultTranslation,
             displayName: (data.displayName
               ?? `${data.firstName ?? ''} ${(data.lastName ?? '').charAt(0)}`.trim()
               ) || 'User',

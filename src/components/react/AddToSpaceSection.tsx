@@ -4,7 +4,6 @@ import SearchInput from './SearchInput';
 import FindSearchInput from './FindSearchInput';
 import RecentSearches from './RecentSearches';
 import ActionButton from './ActionButton';
-import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import {
   useSearch,
@@ -19,7 +18,6 @@ import {
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
-import { CONDENSED_NOTE_ICON_PX, CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
 import {
   CondensedNoteRowLayout,
   condensedNoteRowIcon,
@@ -196,21 +194,6 @@ const ThreadItem: React.FC<{
     }
   };
 
-  const threadRowIcon =
-    item.isPublic === true ? (
-      <Icon
-        name="user-group"
-        size={CONDENSED_NOTE_ICON_PX}
-        style={{ color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY }}
-      />
-    ) : (
-      <Icon
-        name="user"
-        size={CONDENSED_NOTE_ICON_PX}
-        style={{ color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY }}
-      />
-    );
-
   return (
     <div
       className="group"
@@ -247,7 +230,7 @@ const ThreadItem: React.FC<{
       >
         <CondensedNoteRowLayout
           accentBarStyle={getSolidThreadAccentBarStyle(threadAccentColor)}
-          icon={threadRowIcon}
+          icon={condensedNoteRowIcon({ itemType: 'thread' })}
           boxShadow="0px 2px 8px 0px rgba(120, 118, 111, 0.1)"
           style={{ cursor: 'pointer' }}
         >
@@ -268,6 +251,18 @@ const ThreadItem: React.FC<{
               >
                 {item.title}
               </div>
+              <span
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  fontWeight: 'normal',
+                  color: 'var(--color-stone-grey)',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {item.isPublic === true ? 'Shared' : 'Private'}
+              </span>
               {item.count !== undefined && item.count !== null && item.count > 0 && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>
                   <span className="badge-number">{formatBadgeCount(item.count)}</span>

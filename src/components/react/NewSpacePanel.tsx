@@ -10,7 +10,6 @@ import {
   getCondensedNoteMeshGradient,
   getSolidThreadAccentBarStyle,
 } from './CondensedNoteRowLayout';
-import { CONDENSED_NOTE_ICON_PX, CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
 import { captureException } from '@/utils/posthog';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -650,13 +649,6 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
   // Render compact thread item (same row metrics as EditSpacePanel / AddToSpaceSection)
   const renderCompactThreadItem = (thread: Thread) => {
     const threadAccentColor = thread.color ? `var(--color-${thread.color})` : "var(--color-purple)";
-    const iconStyle = { color: 'var(--color-deep-grey)', opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY } as const;
-    const threadRowIcon =
-      thread.isPublic === true ? (
-        <Icon name="user-group" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
-      ) : (
-        <Icon name="user" size={CONDENSED_NOTE_ICON_PX} style={iconStyle} />
-      );
 
     return (
       <div
@@ -679,7 +671,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
       >
         <CondensedNoteRowLayout
           accentBarStyle={getSolidThreadAccentBarStyle(threadAccentColor)}
-          icon={threadRowIcon}
+          icon={condensedNoteRowIcon({ itemType: 'thread' })}
           style={{ cursor: 'pointer' }}
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', flex: 1, minWidth: 0 }}>
@@ -699,6 +691,18 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
               >
                 {thread.title || 'Untitled Thread'}
               </div>
+              <span
+                style={{
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '12px',
+                  fontWeight: 'normal',
+                  color: 'var(--color-stone-grey)',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {thread.isPublic === true ? 'Shared' : 'Private'}
+              </span>
               {((thread.count !== undefined && thread.count !== null && thread.count > 0) ||
                 (thread.noteCount !== undefined && thread.noteCount !== null && thread.noteCount > 0)) && (
                 <div className="badge-count" style={{ flexShrink: 0 }}>

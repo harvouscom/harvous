@@ -3,6 +3,7 @@ import SquareButton from './SquareButton';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { generateAccentMeshGradient } from '@/utils/colors';
 import Icon from './Icon';
+import { FeaturedCardActionsDock } from './FeaturedCardActionsDock';
 
 type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
 
@@ -102,45 +103,36 @@ function InboxFeaturedCard({
   };
 
   return (
-    <div className="featured-card" role="region" aria-label={item.title}>
-      <div className="featured-card__info">
-        <div
-          className="featured-card__accent"
-          style={accentStyle}
-          aria-hidden="true"
-        >
-          {getIconForContentType(item.contentType)}
-        </div>
-        <div className="featured-card__text">
-          <div className="featured-card__title">{item.title}</div>
-          {item.description ? (
-            <div className="featured-card__description">{item.description}</div>
-          ) : null}
+    <div className="featured-card-shell">
+      <div className="featured-card" role="region" aria-label={item.title}>
+        <div className="featured-card__info">
+          <div className="featured-card__accent" style={accentStyle} aria-hidden="true">
+            {getIconForContentType(item.contentType)}
+          </div>
+          <div className="featured-card__text">
+            <div className="featured-card__title">{item.title}</div>
+            {item.description ? <div className="featured-card__description">{item.description}</div> : null}
+          </div>
         </div>
       </div>
 
-      <div className="featured-card__actions">
-        <button
-          type="button"
-          className="space-btn-lg featured-card__join"
-          onClick={handlePrimary}
-        >
-          <div className="space-btn-lg__content">
-            <span className="space-btn-lg__label">{CTA[item.contentType]}</span>
-          </div>
+      <FeaturedCardActionsDock
+        animateEntrance={false}
+        trailing={
+          <button
+            type="button"
+            className="action-strip__item featured-card__strip-item--muted"
+            aria-label="Erase from inbox"
+            onClick={handleErase}
+          >
+            <span className="action-strip__label">Erase</span>
+          </button>
+        }
+      >
+        <button type="button" className="action-strip__item featured-card__strip-item--primary" onClick={handlePrimary}>
+          <span className="action-strip__label">{CTA[item.contentType]}</span>
         </button>
-
-        <button
-          type="button"
-          className="space-btn-lg featured-card__dismiss-btn"
-          aria-label="Erase from inbox"
-          onClick={handleErase}
-        >
-          <div className="space-btn-lg__content">
-            <span className="space-btn-lg__label">Erase</span>
-          </div>
-        </button>
-      </div>
+      </FeaturedCardActionsDock>
     </div>
   );
 }
@@ -193,7 +185,7 @@ export default function MyInboxPanel({ onClose, inBottomSheet = false }: MyInbox
 
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
-      <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ position: 'relative', gap: 0 }}>
+      <div className="flex-fill flex-stack" style={{ position: 'relative', gap: 0 }}>
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">

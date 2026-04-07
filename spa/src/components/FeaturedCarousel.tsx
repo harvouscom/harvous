@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FeaturedItem } from '../hooks/queries/useFeaturedItems';
+import Icon from '@/components/react/Icon';
 import FeaturedCard, { readDismissedFeaturedItem } from './FeaturedCard';
 
 function clampIndex(index: number, len: number) {
@@ -22,6 +23,8 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
   }, [items]);
 
   const activeItem = localItems[activeIndex] ?? null;
+  const canGoPrev = localItems.length > 1 && activeIndex > 0;
+  const canGoNext = localItems.length > 1 && activeIndex < localItems.length - 1;
 
   const startXRef = useRef<number | null>(null);
 
@@ -47,7 +50,7 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
 
   return (
     <div
-      className="featured-carousel"
+      className={`featured-carousel${localItems.length <= 1 ? ' featured-carousel--single' : ''}`}
       onMouseDown={(e) => {
         if (e.button !== 0) return;
         handleSwipeStart(e.clientX, e.target);
@@ -67,6 +70,7 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
       aria-label="Featured items"
     >
       <FeaturedCard
+        key={activeItem.id}
         item={activeItem}
         onClose={() => {
           setLocalItems((prev) => {
@@ -78,21 +82,40 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
       />
 
       {localItems.length > 1 ? (
-        <div className="featured-carousel__dots" role="tablist" aria-label="Featured item positions">
-          {localItems.map((it, idx) => (
-            <button
-              key={it.id}
-              type="button"
-              className={`featured-carousel__dot${idx === activeIndex ? ' featured-carousel__dot--active' : ''}`}
-              onClick={() => setActiveIndex(idx)}
-              aria-label={`Show featured item ${idx + 1} of ${localItems.length}`}
-              aria-selected={idx === activeIndex}
-              role="tab"
-            />
-          ))}
+        <div className="featured-carousel__pager" role="navigation" aria-label="Featured carousel">
+          <button
+            type="button"
+            className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
+            aria-label="Previous featured item"
+            disabled={!canGoPrev}
+            onClick={goPrev}
+          >
+            <Icon name="caret-left" size={18} />
+          </button>
+          <div className="featured-carousel__dots" role="tablist" aria-label="Featured item positions">
+            {localItems.map((it, idx) => (
+              <button
+                key={it.id}
+                type="button"
+                className={`featured-carousel__dot${idx === activeIndex ? ' featured-carousel__dot--active' : ''}`}
+                onClick={() => setActiveIndex(idx)}
+                aria-label={`Show featured item ${idx + 1} of ${localItems.length}`}
+                aria-selected={idx === activeIndex}
+                role="tab"
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
+            aria-label="Next featured item"
+            disabled={!canGoNext}
+            onClick={goNext}
+          >
+            <Icon name="caret-right" size={18} />
+          </button>
         </div>
       ) : null}
     </div>
   );
 }
-

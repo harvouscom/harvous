@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import SquareButton from './SquareButton';
 import { TRANSLATIONS, TRANSLATION_ORDER } from '@/data/translations';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
@@ -14,6 +15,7 @@ export default function DefaultTranslationPanel({
   inBottomSheet = false,
   backIconDirection = "auto",
 }: DefaultTranslationPanelProps) {
+  const queryClient = useQueryClient();
   const [selectedTranslation, setSelectedTranslation] = useState<string>('NET');
   const [originalTranslation, setOriginalTranslation] = useState<string>('NET');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,6 +73,7 @@ export default function DefaultTranslationPanel({
 
         // Update profile cache
         updateCachedProfileData({ defaultTranslation: selectedTranslation });
+        void queryClient.invalidateQueries({ queryKey: ['profile'] });
 
         // Show success toast
         window.dispatchEvent(
