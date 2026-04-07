@@ -18,33 +18,23 @@ import { resetUserToNew } from '../utils/reset-user-to-new';
 import { db, eq, inArray } from '../db';
 import { now } from '../db/dates';
 import { FeaturedItems, UserFeaturedItems, VotdSchedule } from '../db/schema';
-
-/** Stable IDs so re-seeding replaces the same row (no duplicate sample cards). */
-const SAMPLE_VOTD_SCHEDULE_ID = 'votd_dev_sample';
-const SAMPLE_VOTD_FEATURED_ID = 'votd_fi_dev_sample';
-
-const SAMPLE_FEATURED_SPACE_ID = 'fi_dev_sample_space';
-const SAMPLE_FEATURED_THREAD_ID = 'fi_dev_sample_thread';
-const SAMPLE_FEATURED_RECALL_ID = 'fi_dev_sample_recall';
-const SAMPLE_FEATURED_CHALLENGE_ID = 'fi_dev_sample_challenge';
-const SAMPLE_FEATURED_CHURCH_ID = 'fi_dev_sample_church';
-
-/** All non-VOTD sample featured rows (VOTD uses its own id above). */
-const SAMPLE_FEATURED_CAROUSEL_IDS = [
-  SAMPLE_FEATURED_SPACE_ID,
-  SAMPLE_FEATURED_THREAD_ID,
-  SAMPLE_FEATURED_RECALL_ID,
+import {
+  ALL_SAMPLE_FEATURED_IDS,
+  isTestRoutesForbidden,
   SAMPLE_FEATURED_CHALLENGE_ID,
   SAMPLE_FEATURED_CHURCH_ID,
-] as const;
-
-const ALL_SAMPLE_FEATURED_IDS = [SAMPLE_VOTD_FEATURED_ID, ...SAMPLE_FEATURED_CAROUSEL_IDS] as const;
+  SAMPLE_FEATURED_RECALL_ID,
+  SAMPLE_FEATURED_SPACE_ID,
+  SAMPLE_FEATURED_THREAD_ID,
+  SAMPLE_VOTD_FEATURED_ID,
+  SAMPLE_VOTD_SCHEDULE_ID,
+} from '../constants/dev-featured-samples';
 
 const app = new Hono();
 
 /** POST /api/test/reset-to-new-user — dev only, auth bypassed; optional body: { userId } */
 app.post('/api/test/reset-to-new-user', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: 'Test endpoint not available in production' }, 403);
   }
 
@@ -74,7 +64,7 @@ app.post('/api/test/reset-to-new-user', async (c) => {
 
 /** POST /api/test/reset-featured — dev only; clears UserFeaturedItems for the current user so featured cards reappear */
 app.post('/api/test/reset-featured', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: 'Test endpoint not available in production' }, 403);
   }
 
@@ -101,7 +91,7 @@ app.post('/api/test/reset-featured', async (c) => {
 
 /** POST /api/test/seed-sample-votd — dev only; idempotent sample VOTD for UI / quick-add testing */
 app.post('/api/test/seed-sample-votd', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: 'Test endpoint not available in production' }, 403);
   }
 
@@ -179,7 +169,7 @@ app.post('/api/test/seed-sample-votd', async (c) => {
 
 /** POST /api/test/seed-sample-featured — dev only; VOTD + all other featured card types for UI testing */
 app.post('/api/test/seed-sample-featured', async (c) => {
-  if (process.env.NODE_ENV === 'production') {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: 'Test endpoint not available in production' }, 403);
   }
 

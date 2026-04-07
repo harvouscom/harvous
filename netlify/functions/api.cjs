@@ -57497,10 +57497,21 @@ async function resolveLiveToDevMapping(liveUserId, secretKey) {
     return null;
   }
 }
+function parseBearerSecret(authorizationHeader) {
+  const raw2 = authorizationHeader?.trim() ?? "";
+  const m2 = raw2.match(/^Bearer\s+(.+)$/i);
+  return m2?.[1]?.trim() ?? null;
+}
 async function clerkAuth(c, next) {
   const sessionToken = getSessionToken(c.req.header("Cookie"));
-  const bearerToken = c.req.header("Authorization")?.replace("Bearer ", "");
-  const token = sessionToken || bearerToken;
+  const authHeader = c.req.header("Authorization") ?? c.req.header("authorization");
+  const bearerSecret = parseBearerSecret(authHeader);
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
+  if (votdCronSecret && bearerSecret === votdCronSecret) {
+    c.set("auth", NULL_AUTH);
+    return next();
+  }
+  const token = sessionToken || bearerSecret;
   if (!token) {
     c.set("auth", NULL_AUTH);
     return next();
@@ -86454,10 +86465,12 @@ function isHarvousAdmin(c) {
   const userId = auth?.userId ?? null;
   const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
   if (userId && systemUserId && userId === systemUserId) return true;
-  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET;
+  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
   if (!expectedSecret) return false;
-  const authHeader = c.req.header("authorization") ?? "";
-  return authHeader === `Bearer ${expectedSecret}`;
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
+  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = m2?.[1]?.trim();
+  return provided === expectedSecret;
 }
 function requireHarvousAdmin(c) {
   if (!isHarvousAdmin(c)) {
@@ -94021,6 +94034,50 @@ init_dates();
 init_schema2();
 init_ids();
 init_unorganized_thread();
+
+// server/constants/dev-featured-samples.ts
+var SAMPLE_VOTD_SCHEDULE_ID = "votd_dev_sample";
+var SAMPLE_VOTD_FEATURED_ID = "votd_fi_dev_sample";
+var SAMPLE_FEATURED_SPACE_ID = "fi_dev_sample_space";
+var SAMPLE_FEATURED_THREAD_ID = "fi_dev_sample_thread";
+var SAMPLE_FEATURED_RECALL_ID = "fi_dev_sample_recall";
+var SAMPLE_FEATURED_CHALLENGE_ID = "fi_dev_sample_challenge";
+var SAMPLE_FEATURED_CHURCH_ID = "fi_dev_sample_church";
+var ALL_SAMPLE_FEATURED_IDS = [
+  SAMPLE_VOTD_FEATURED_ID,
+  SAMPLE_FEATURED_SPACE_ID,
+  SAMPLE_FEATURED_THREAD_ID,
+  SAMPLE_FEATURED_RECALL_ID,
+  SAMPLE_FEATURED_CHALLENGE_ID,
+  SAMPLE_FEATURED_CHURCH_ID
+];
+var DEV_SAMPLE_FEATURED_ITEM_IDS = [...ALL_SAMPLE_FEATURED_IDS];
+function shouldExcludeDevSampleFeaturedItems() {
+  if (process.env.HARVOUS_ALLOW_DEV_FEATURED_SAMPLES === "true") {
+    return false;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return true;
+  }
+  if (process.env.NETLIFY === "true") {
+    return true;
+  }
+  return false;
+}
+function isTestRoutesForbidden() {
+  if (process.env.HARVOUS_ALLOW_TEST_API_ROUTES === "true") {
+    return false;
+  }
+  if (process.env.NODE_ENV === "production") {
+    return true;
+  }
+  if (process.env.NETLIFY === "true") {
+    return true;
+  }
+  return false;
+}
+
+// server/routes/featured.ts
 var app12 = new Hono2();
 app12.get("/api/featured/items", async (c) => {
   try {
@@ -94030,6 +94087,23 @@ app12.get("/api/featured/items", async (c) => {
       return c.json([]);
     }
     const currentTime = now();
+    const baseFeaturedConditions = [
+      eq(FeaturedItems.isActive, true),
+      or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
+      or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
+      notExists(
+        db.select({ id: UserFeaturedItems.id }).from(UserFeaturedItems).where(
+          and(
+            eq(UserFeaturedItems.userId, auth.userId),
+            eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
+            inArray(UserFeaturedItems.status, ["dismissed", "completed"])
+          )
+        )
+      )
+    ];
+    if (shouldExcludeDevSampleFeaturedItems()) {
+      baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+    }
     let items = await db.select({
       id: FeaturedItems.id,
       contentType: FeaturedItems.contentType,
@@ -94040,22 +94114,7 @@ app12.get("/api/featured/items", async (c) => {
       color: FeaturedItems.color,
       metadata: FeaturedItems.metadata,
       createdAt: FeaturedItems.createdAt
-    }).from(FeaturedItems).where(
-      and(
-        eq(FeaturedItems.isActive, true),
-        or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
-        or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
-        notExists(
-          db.select({ id: UserFeaturedItems.id }).from(UserFeaturedItems).where(
-            and(
-              eq(UserFeaturedItems.userId, auth.userId),
-              eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
-              inArray(UserFeaturedItems.status, ["dismissed", "completed"])
-            )
-          )
-        )
-      )
-    ).orderBy(desc(FeaturedItems.createdAt));
+    }).from(FeaturedItems).where(and(...baseFeaturedConditions)).orderBy(desc(FeaturedItems.createdAt));
     const spaceItems = items.filter((i) => i.contentType === "space" && (i.shareToken || i.refId));
     if (spaceItems.length > 0) {
       const shareTokens = spaceItems.map((i) => i.shareToken).filter(Boolean);
@@ -94465,10 +94524,12 @@ init_dates();
 init_schema2();
 var app13 = new Hono2();
 function requireVotdAuth(c) {
-  const expectedSecret = process.env.VOTD_CRON_SECRET;
+  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
   if (expectedSecret) {
-    const authHeader = c.req.header("authorization") ?? "";
-    if (authHeader === `Bearer ${expectedSecret}`) return null;
+    const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
+    const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
+    const provided = m2?.[1]?.trim();
+    if (provided === expectedSecret) return null;
   }
   return requireHarvousAdmin(c);
 }
@@ -94618,24 +94679,9 @@ async function resetUserToNew(userId) {
 init_db2();
 init_dates();
 init_schema2();
-var SAMPLE_VOTD_SCHEDULE_ID = "votd_dev_sample";
-var SAMPLE_VOTD_FEATURED_ID = "votd_fi_dev_sample";
-var SAMPLE_FEATURED_SPACE_ID = "fi_dev_sample_space";
-var SAMPLE_FEATURED_THREAD_ID = "fi_dev_sample_thread";
-var SAMPLE_FEATURED_RECALL_ID = "fi_dev_sample_recall";
-var SAMPLE_FEATURED_CHALLENGE_ID = "fi_dev_sample_challenge";
-var SAMPLE_FEATURED_CHURCH_ID = "fi_dev_sample_church";
-var SAMPLE_FEATURED_CAROUSEL_IDS = [
-  SAMPLE_FEATURED_SPACE_ID,
-  SAMPLE_FEATURED_THREAD_ID,
-  SAMPLE_FEATURED_RECALL_ID,
-  SAMPLE_FEATURED_CHALLENGE_ID,
-  SAMPLE_FEATURED_CHURCH_ID
-];
-var ALL_SAMPLE_FEATURED_IDS = [SAMPLE_VOTD_FEATURED_ID, ...SAMPLE_FEATURED_CAROUSEL_IDS];
 var app14 = new Hono2();
 app14.post("/api/test/reset-to-new-user", async (c) => {
-  if (process.env.NODE_ENV === "production") {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
   try {
@@ -94660,7 +94706,7 @@ app14.post("/api/test/reset-to-new-user", async (c) => {
   }
 });
 app14.post("/api/test/reset-featured", async (c) => {
-  if (process.env.NODE_ENV === "production") {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
   try {
@@ -94682,7 +94728,7 @@ app14.post("/api/test/reset-featured", async (c) => {
   }
 });
 app14.post("/api/test/seed-sample-votd", async (c) => {
-  if (process.env.NODE_ENV === "production") {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
   try {
@@ -94748,7 +94794,7 @@ app14.post("/api/test/seed-sample-votd", async (c) => {
   }
 });
 app14.post("/api/test/seed-sample-featured", async (c) => {
-  if (process.env.NODE_ENV === "production") {
+  if (isTestRoutesForbidden()) {
     return c.json({ error: "Test endpoint not available in production" }, 403);
   }
   try {

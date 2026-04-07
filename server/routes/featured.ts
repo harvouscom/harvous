@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { and, db, desc, eq, first, gt, inArray, isNotNull, isNull, lte, ne, notExists, or } from '../db';
+import { and, db, desc, eq, first, gt, inArray, isNotNull, isNull, lte, ne, notExists, notInArray, or } from '../db';
 import { now, nowISO } from '../db/dates';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
@@ -11,6 +11,10 @@ import { fetchVerseText } from '../utils/fetch-verse-text';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
 import { awardCreationBonusXP } from '../utils/xp-system';
 import { getCurrentSeason } from '@/utils/season-helpers';
+import {
+  DEV_SAMPLE_FEATURED_ITEM_IDS,
+  shouldExcludeDevSampleFeaturedItems,
+} from '../constants/dev-featured-samples';
 
 const app = new Hono();
 
@@ -25,6 +29,27 @@ app.get('/api/featured/items', async (c) => {
 
     const currentTime = now();
 
+    const baseFeaturedConditions = [
+      eq(FeaturedItems.isActive, true),
+      or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
+      or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
+      notExists(
+        db
+          .select({ id: UserFeaturedItems.id })
+          .from(UserFeaturedItems)
+          .where(
+            and(
+              eq(UserFeaturedItems.userId, auth.userId),
+              eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
+              inArray(UserFeaturedItems.status, ['dismissed', 'completed']),
+            ),
+          ),
+      ),
+    ];
+    if (shouldExcludeDevSampleFeaturedItems()) {
+      baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+    }
+
     let items = await db
       .select({
         id: FeaturedItems.id,
@@ -38,25 +63,7 @@ app.get('/api/featured/items', async (c) => {
         createdAt: FeaturedItems.createdAt,
       })
       .from(FeaturedItems)
-      .where(
-        and(
-          eq(FeaturedItems.isActive, true),
-          or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
-          or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
-          notExists(
-            db
-              .select({ id: UserFeaturedItems.id })
-              .from(UserFeaturedItems)
-              .where(
-                and(
-                  eq(UserFeaturedItems.userId, auth.userId),
-                  eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
-                  inArray(UserFeaturedItems.status, ['dismissed', 'completed']),
-                ),
-              ),
-          ),
-        ),
-      )
+      .where(and(...baseFeaturedConditions))
       .orderBy(desc(FeaturedItems.createdAt));
 
     // For 'space' items, auto-complete any where the user is already an owner or member.
