@@ -114,6 +114,12 @@ const noteRoute = createRoute({
   }),
 });
 
+const adminVotdRoute = createRoute({
+  getParentRoute: () => appLayoutRoute,
+  path: '/admin/votd',
+  component: lazyRouteComponent(() => import('./pages/AdminVotdPage')),
+});
+
 // Public / unauthenticated routes (lazy — less common entry points)
 const joinSpaceRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -161,6 +167,7 @@ const routeTree = rootRoute.addChildren([
     spaceRoute,
     threadRoute,
     noteRoute,
+    adminVotdRoute,
   ]),
   upgradeRoute,
   joinSpaceRoute,

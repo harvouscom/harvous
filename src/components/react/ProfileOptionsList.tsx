@@ -13,6 +13,7 @@ import { formatBadgeCount } from '@/utils/badge-count';
  * - Email & Password (updates via API)
  * - My Subscription (uses Clerk billing)
  * - My Data (export/import/delete operations)
+ * - Verse of the Day (admin) (API)
  * 
  * Options that work offline:
  * - Get Support (no API calls)
@@ -23,6 +24,7 @@ export default function ProfileOptionsList() {
   // Default to online (false = not offline) and only go offline on the 'offline' event.
   const [isOffline, setIsOffline] = useState(false);
   const [inboxCount, setInboxCount] = useState<number | null>(null);
+  const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -34,6 +36,19 @@ export default function ProfileOptionsList() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/admin/check', { credentials: 'include' })
+      .then((res) => (res.ok ? res.json() : { isAdmin: false }))
+      .then((data: { isAdmin?: boolean }) => {
+        if (!cancelled && data?.isAdmin === true) setIsHarvousAdmin(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -158,6 +173,7 @@ export default function ProfileOptionsList() {
 
       {/* Billing & Data Management */}
       {renderOption('myData', 'My Data', true)}
+      {isHarvousAdmin ? renderOption('adminVotd', 'Verse of the Day schedule', true) : null}
     </div>
   );
 }

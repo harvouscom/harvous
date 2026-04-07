@@ -37,6 +37,7 @@ export {
   FeaturedItems,
   UserFeaturedItems,
   VotdSchedule,
+  VotdPublishHistory,
   MonthlyAnalytics,
 } from './schema';
 

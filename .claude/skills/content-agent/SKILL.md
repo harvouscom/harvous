@@ -14,6 +14,9 @@ $ARGUMENTS
 ## Step 2b: Content Creation Mode (if writing threads/notes)
 If the task involves writing thread/note content (not UI code), read `.claude/skills/content-agent/CONTENT_WRITING_GUIDE.md` before drafting anything. Authored packs: use `default` and `scripture` only; do not use standalone discussion-prompt notes or `resource` until those flows are explicitly ready.
 
+## Step 2c: Theological review (study copy)
+When drafting or editing **thread/note study copy** or other user-facing text that teaches or applies Scripture, run a **theologian pass** before treating the work as done (or when the user asks): read `.claude/skills/theologian-agent/SKILL.md`, apply its checklist and report template, and revise copy for any **must-fix** items. Reference mechanics (pills, translations, verse fetch) stay with **scripture-agent**.
+
 ## Step 3: Read Relevant Files
 Your owned files include:
 - `src/components/react/CardFullEditable.tsx` (~507 lines)

@@ -422,6 +422,27 @@ export const VotdSchedule = pgTable(
   ],
 );
 
+// ─── VotdPublishHistory (one automated/manual VOTD publish per UTC calendar day) ─
+
+export const VotdPublishHistory = pgTable(
+  'VotdPublishHistory',
+  {
+    id: text('id').primaryKey(),
+    reference: text('reference').notNull(),
+    translation: text('translation').notNull().default('NET'),
+    featuredItemId: text('featuredItemId').notNull(),
+    source: text('source').notNull(), // 'calendar' | 'pool' | 'override'
+    label: text('label'),
+    publishedDate: text('publishedDate').notNull(), // 'YYYY-MM-DD' UTC
+    year: integer('year').notNull(),
+    createdAt: ts('createdAt').notNull(),
+  },
+  (table) => [
+    uniqueIndex('VotdPublishHistory_publishedDate_unique').on(table.publishedDate),
+    index('VotdPublishHistory_year_ref').on(table.year, table.reference),
+  ],
+);
+
 // ─── UserFeaturedItems (per-user status for featured items) ─────────────────────
 
 export const UserFeaturedItems = pgTable(

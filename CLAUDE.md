@@ -15,6 +15,7 @@ This project uses a team of specialized agents as slash commands. Each agent own
 | `/editor-agent` | TipTap editor, marks, selection, floating UI |
 | `/scripture-agent` | Scripture pills, detection, translations |
 | `/content-agent` | Cards, inbox, recall/review |
+| `/theologian-agent` | Theological review of authored study content (pairs with content-agent) |
 | `/sharing-agent` | Share tokens, public access, import flow |
 | `/data-agent` | Supabase, API endpoints, offline sync |
 

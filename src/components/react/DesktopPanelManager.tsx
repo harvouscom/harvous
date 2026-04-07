@@ -53,6 +53,7 @@ const ReferralPanel = createLazyComponent(() => import('./ReferralPanel'), 'Refe
 const MyDataPanel = createLazyComponent(() => import('./MyDataPanel'), 'MyDataPanel');
 const MySharingPanel = createLazyComponent(() => import('./MySharingPanel'), 'MySharingPanel');
 const MyInboxPanel = createLazyComponent(() => import('./MyInboxPanel'), 'MyInboxPanel');
+const AdminVotdPanel = createLazyComponent(() => import('./AdminVotdPanel'), 'AdminVotdPanel');
 const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), 'GetSupportPanel');
 const LockPinPanel = createLazyComponent(() => import('./LockPinPanel'), 'LockPinPanel');
 const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'), 'AboutHarvousPanel');
@@ -123,6 +124,7 @@ type PanelType =
   | 'myPreferences'
   | 'mySharing'
   | 'myInbox'
+  | 'adminVotd'
   | 'editNameColor'
   | 'emailPassword'
   | 'referral'
@@ -187,6 +189,8 @@ type PanelAction =
   | { type: 'CLOSE_MY_SHARING' }
   | { type: 'OPEN_MY_INBOX' }
   | { type: 'CLOSE_MY_INBOX' }
+  | { type: 'OPEN_ADMIN_VOTD' }
+  | { type: 'CLOSE_ADMIN_VOTD' }
   | { type: 'OPEN_EDIT_NAME_COLOR' }
   | { type: 'CLOSE_EDIT_NAME_COLOR' }
   | { type: 'OPEN_EMAIL_PASSWORD' }
@@ -356,6 +360,17 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
       localStorage.setItem('showProfilePanel', '');
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_ADMIN_VOTD':
+      localStorage.setItem('showNewNotePanel', 'false');
+      localStorage.setItem('showNewThreadPanel', 'false');
+      localStorage.setItem('showNewResourcePanel', 'false');
+      localStorage.setItem('showProfilePanel', 'adminVotd');
+      return { activePanel: 'adminVotd', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_ADMIN_VOTD':
+      localStorage.setItem('showProfilePanel', '');
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_EDIT_NAME_COLOR':
       localStorage.setItem('showNewNotePanel', 'false');
       localStorage.setItem('showNewThreadPanel', 'false');
@@ -460,6 +475,7 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
           savedProfilePanel === 'myPreferences' ||
           savedProfilePanel === 'mySharing' ||
           savedProfilePanel === 'myInbox' ||
+          savedProfilePanel === 'adminVotd' ||
           savedProfilePanel === 'editNameColor' ||
           savedProfilePanel === 'emailPassword' ||
           savedProfilePanel === 'referral' ||
@@ -704,6 +720,7 @@ export default function DesktopPanelManager({
       else if (panelName === 'myPreferences') dispatch({ type: 'OPEN_MY_PREFERENCES' });
       else if (panelName === 'mySharing') dispatch({ type: 'OPEN_MY_SHARING' });
       else if (panelName === 'myInbox') dispatch({ type: 'OPEN_MY_INBOX' });
+      else if (panelName === 'adminVotd') dispatch({ type: 'OPEN_ADMIN_VOTD' });
       else if (panelName === 'editNameColor') dispatch({ type: 'OPEN_EDIT_NAME_COLOR' });
       else if (panelName === 'emailPassword') dispatch({ type: 'OPEN_EMAIL_PASSWORD' });
       else if (panelName === 'referral') dispatch({ type: 'OPEN_REFERRAL' });
@@ -892,6 +909,11 @@ export default function DesktopPanelManager({
 
   const handleCloseMyInbox = useCallback(() => {
     dispatch({ type: 'CLOSE_MY_INBOX' });
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+  }, []);
+
+  const handleCloseAdminVotd = useCallback(() => {
+    dispatch({ type: 'CLOSE_ADMIN_VOTD' });
     window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   }, []);
 
@@ -1226,6 +1248,16 @@ export default function DesktopPanelManager({
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
               <MyInboxPanel key="my-inbox" onClose={handleCloseMyInbox} inBottomSheet={false} />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {contentType === 'profile' && state.activePanel === 'adminVotd' && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block overflow-hidden">
+              <AdminVotdPanel key="admin-votd" onClose={handleCloseAdminVotd} inBottomSheet={false} />
             </div>
           </Suspense>
         </PanelErrorBoundary>

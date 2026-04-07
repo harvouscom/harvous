@@ -6,14 +6,15 @@ This guide explains how scheduled publishing works for the dashboard **Verse of 
 
 Do these once, in order.
 
-### Step 1 — Understand the three pieces
+### Step 1 — Understand the pieces
 
-
-| Piece                                            | Role                                                                                                             |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **Verse pool** (`VotdSchedule` in your database) | Holds verses waiting to be published. If this is empty, publish will return **404**.                             |
-| **Netlify**                                      | Hosts the API. It must know a **shared password** (`VOTD_CRON_SECRET`) so only your automation can call publish. |
-| **GitHub Actions**                               | Runs on a schedule and sends `POST …/publish-daily` with that same password in the `Authorization` header.       |
+| Piece | Role |
+| ----- | ---- |
+| **Automated pool** (`server/constants/votd-verses.ts` + calendar in `server/constants/votd-calendar.ts`) | Daily publish picks a **calendar/holiday** verse when the UTC date matches, otherwise a **random** verse from the curated pool (skipping references already used this calendar year in `VotdPublishHistory`). |
+| **Optional pins** (`VotdSchedule` with `scheduledDate`) | Harvous admin can **override** a specific UTC day via `POST /api/admin/votd/schedule` or the **[/admin/votd](/admin/votd)** editorial UI. Unpublished pins for “today” win over the automated pick. |
+| **Publish log** (`VotdPublishHistory`) | One row per UTC calendar day after a successful publish; idempotent `publish-daily` checks here first. |
+| **Netlify** | Hosts the API. `VOTD_CRON_SECRET` gates the cron `Authorization` header. |
+| **GitHub Actions** | Runs `POST …/publish-daily` on schedule with the Bearer secret. |
 
 
 You will create **one long random password**, store it in **two places** (Netlify + GitHub), and never paste it in chat or commit it to git.
@@ -55,9 +56,13 @@ GitHub will **never show** the value again after you save. That is normal.
 
 On GitHub, open `**.github/workflows/votd-publish-daily.yml**`. You should see a job that runs `curl` to `/api/admin/votd/publish-daily` with a Bearer token. If this file is missing, merge or push it from your project so `**main**` has it.
 
-### Step 6 — Add verses to the pool (or publish will 404)
+### Step 6 — Editorial preview (optional)
 
-The cron job does not invent verses. Someone with **Harvous admin** access must add rows to the schedule (e.g. `POST /api/admin/votd/schedule` with `reference`, optional `translation`, optional `scheduledDate`). Until at least one **unpublished** entry exists (or today’s slot is filled), `**publish-daily`** can return **404** with a message about no entries — that is expected, not an auth failure.
+Sign in as the **Harvous system user** and open **`/admin/votd`** to see the next 30 UTC days: calendar vs pool picks, **Refresh pick**, **Override** (pin a reference), or **Clear override**. This does not block the cron.
+
+### Step 6b — Legacy pool rows
+
+`POST /api/admin/votd/schedule` without `scheduledDate` still adds **unscheduled** `VotdSchedule` rows. **`publish-daily` no longer consumes that FIFO pool**; automation uses the code-based list + history. Use schedule rows for **dated overrides** only (or clear them).
 
 ### Step 7 — Test with curl from your computer
 
@@ -71,7 +76,7 @@ curl -sS -w "\nHTTP_CODE:%{http_code}\n" -X POST "https://app.harvous.com/api/ad
 
 - **HTTP 200** and JSON with `success` or `alreadyPublished` → Netlify side is correct.
 - **401** → secret mismatch, missing on Netlify, or deploy didn’t pick up the variable (repeat Steps 3–4).
-- **404** with a message about no pool entries → add schedule rows (Step 6).
+- **404** with a message about verse text / parse failure → check `BibleVerses` has NET text for that reference. (Empty automated pool should not happen; the curated list ships in the repo.)
 
 ### Step 8 — Run the GitHub Action manually
 

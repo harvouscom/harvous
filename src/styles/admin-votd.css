@@ -1,0 +1,167 @@
+/* Harvous admin — VOTD editorial schedule (profile panel + /admin/votd) */
+
+.admin-votd__intro {
+  font-size: 14px;
+  color: var(--color-deep-grey);
+  line-height: 1.45;
+  margin: 0 0 16px;
+  /* Match .featured-card inner horizontal rhythm (14px) + a little top air below panel header */
+  padding: 8px 14px 0;
+  box-sizing: border-box;
+}
+
+.admin-votd__muted {
+  color: var(--color-pebble-grey);
+  margin: 8px 0;
+}
+
+.admin-votd__error {
+  color: var(--color-error, #b42318);
+  margin: 8px 0;
+}
+
+/* One preview row: matches dashboard .featured-card-shell + VOTD surface */
+.admin-votd-day-shell {
+  margin-bottom: 12px;
+}
+
+.admin-votd-day-shell .featured-card-shell {
+  margin-bottom: 0;
+}
+
+.admin-votd-day__card-solo {
+  margin-bottom: 12px;
+  width: 100%;
+}
+
+.admin-votd-day-shell--holiday .featured-card,
+.admin-votd-day-shell--holiday.admin-votd-day__card-solo {
+  box-shadow:
+    0 1px 2px rgba(120, 118, 111, 0.12),
+    0 6px 18px rgba(120, 118, 111, 0.07),
+    inset 0 1px 0 0 rgba(196, 184, 168, 0.35);
+}
+
+.admin-votd-day-shell--today .featured-card,
+.admin-votd-day-shell--today.admin-votd-day__card-solo {
+  box-shadow:
+    0 0 0 2px var(--color-deep-grey),
+    0 6px 18px rgba(120, 118, 111, 0.07);
+}
+
+.admin-votd-day-shell--past .featured-card,
+.admin-votd-day-shell--past .featured-card-shell {
+  opacity: 0.72;
+}
+
+/* Date / source row inside white card (above verse row) */
+.admin-votd-day__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px 0;
+  box-sizing: border-box;
+}
+
+.admin-votd-day__date {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-deep-grey);
+  font-family: var(--font-sans);
+}
+
+.admin-votd-day__dow {
+  color: var(--color-stone-grey);
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.admin-votd-day__badge {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-deep-grey);
+  background: var(--color-fog-white);
+  padding: 2px 7px;
+  border-radius: 6px;
+  vertical-align: middle;
+}
+
+.admin-votd-day__source {
+  font-size: 11px;
+  color: var(--color-pebble-grey);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+  font-weight: 600;
+  font-family: var(--font-sans);
+}
+
+.admin-votd-day__verse-missing {
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--color-pebble-grey);
+  line-height: 1.68;
+}
+
+.admin-votd-day__override-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 14px 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-fog-white);
+  box-sizing: border-box;
+}
+
+.admin-votd-day__input {
+  flex: 1;
+  min-width: 160px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-fog-white);
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 15px;
+}
+
+/* Action dock: same chrome as dashboard VOTD, no entrance animation, no strip item transitions */
+.admin-votd__action-dock .action-strip__item {
+  transition: none;
+}
+
+.admin-votd__btn {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  border: 1px solid var(--color-deep-grey);
+  background: #fff;
+  color: var(--color-deep-grey);
+  cursor: pointer;
+}
+
+.admin-votd__btn:hover {
+  background: var(--color-fog-white);
+}
+
+.admin-votd__btn--primary {
+  background: var(--color-deep-grey);
+  color: #fff;
+  border-color: var(--color-deep-grey);
+}
+
+.admin-votd__btn--primary:hover {
+  filter: brightness(1.05);
+}
+
+.admin-votd__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -18140,10 +18140,11 @@ __export(schema_exports, {
   UserSeasonalXP: () => UserSeasonalXP,
   UserXP: () => UserXP,
   VerseTextCache: () => VerseTextCache,
+  VotdPublishHistory: () => VotdPublishHistory,
   VotdSchedule: () => VotdSchedule,
   WeeklyStreaks: () => WeeklyStreaks
 });
-var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, UserFeaturedItems, MonthlyAnalytics;
+var ts, Spaces, Threads, Notes, NoteThreads, Comments, Members, SpaceInvitations, UserMetadata, ClerkUserMapping, UserXP, UserSeasonalXP, UserLifetimeXP, WeeklyStreaks, Tags, NoteTags, ScriptureMetadata, NoteScriptureReferences, VerseTextCache, BibleTranslations, BibleVerses, ResourceMetadata, InboxItems, InboxItemNotes, UserInboxItems, FeaturedItems, VotdSchedule, VotdPublishHistory, UserFeaturedItems, MonthlyAnalytics;
 var init_schema2 = __esm({
   "server/db/schema.ts"() {
     "use strict";
@@ -18487,6 +18488,26 @@ var init_schema2 = __esm({
       (table) => [
         index("VotdSchedule_scheduledDateIndex").on(table.scheduledDate),
         index("VotdSchedule_isPublishedIndex").on(table.isPublished)
+      ]
+    );
+    VotdPublishHistory = pgTable(
+      "VotdPublishHistory",
+      {
+        id: text("id").primaryKey(),
+        reference: text("reference").notNull(),
+        translation: text("translation").notNull().default("NET"),
+        featuredItemId: text("featuredItemId").notNull(),
+        source: text("source").notNull(),
+        // 'calendar' | 'pool' | 'override'
+        label: text("label"),
+        publishedDate: text("publishedDate").notNull(),
+        // 'YYYY-MM-DD' UTC
+        year: integer("year").notNull(),
+        createdAt: ts("createdAt").notNull()
+      },
+      (table) => [
+        uniqueIndex("VotdPublishHistory_publishedDate_unique").on(table.publishedDate),
+        index("VotdPublishHistory_year_ref").on(table.year, table.reference)
       ]
     );
     UserFeaturedItems = pgTable(
@@ -94551,6 +94572,784 @@ var featured_default = app12;
 init_db2();
 init_dates();
 init_schema2();
+
+// src/utils/verse-plain-display.ts
+function stripLeadingVerseNumberFromPlainText(plain, verse, verseEnd) {
+  if (verse == null || plain.length === 0) return plain;
+  if (verseEnd != null && verseEnd !== verse) return plain;
+  const head = plain.trim();
+  const v2 = verse;
+  const re2 = new RegExp(`^(?:["'\u201C\u201D\u2018\u2019]\\s*)*${v2}(?:\\s+|["'\u201C\u201D\u2018\u2019]+|(?=[A-Za-z]))`);
+  const stripped = head.replace(re2, "").trim();
+  if (stripped.length === 0) return head;
+  if (stripped.length < head.length) return stripped;
+  return plain;
+}
+var LEADING_QUOTES = /^[\s"'“”‘’]+/u;
+var TRAILING_CLOSING_QUOTES = /[\s"\u201c\u201d]+$/u;
+function stripRedundantEdgeQuotesForVotdCard(plain) {
+  let s2 = plain.trim();
+  s2 = s2.replace(LEADING_QUOTES, "").replace(TRAILING_CLOSING_QUOTES, "").trim();
+  return s2;
+}
+
+// server/constants/votd-calendar.ts
+var VOTD_FIXED_DATES = [
+  {
+    month: 1,
+    day: 1,
+    verses: [
+      { reference: "Lamentations 3:22-23", label: "New Year's Day" },
+      { reference: "Isaiah 43:18-19", label: "New Year's Day" }
+    ]
+  },
+  {
+    month: 2,
+    day: 14,
+    verses: [{ reference: "1 Corinthians 13:4-7", label: "Valentine's Day" }]
+  },
+  {
+    month: 5,
+    day: 1,
+    verses: [{ reference: "Proverbs 31:28", label: "May Day" }]
+  },
+  {
+    month: 7,
+    day: 4,
+    verses: [{ reference: "Psalm 33:12", label: "Independence Day (US)" }]
+  },
+  {
+    month: 11,
+    day: 1,
+    verses: [{ reference: "Psalm 100:1-5", label: "All Saints / November" }]
+  },
+  {
+    month: 12,
+    day: 25,
+    verses: [
+      { reference: "Luke 2:10-11", label: "Christmas Day" },
+      { reference: "John 1:14", label: "Christmas Day" }
+    ]
+  },
+  {
+    month: 12,
+    day: 26,
+    verses: [{ reference: "Matthew 2:10-11", label: "Christmas week" }]
+  },
+  {
+    month: 12,
+    day: 31,
+    verses: [{ reference: "Psalm 90:12", label: "New Year's Eve" }]
+  }
+];
+var VOTD_THANKSGIVING_VERSES = [
+  { reference: "1 Thessalonians 5:16-18", label: "Thanksgiving" },
+  { reference: "Psalm 100:4-5", label: "Thanksgiving" },
+  { reference: "Philippians 4:6", label: "Thanksgiving" }
+];
+var VOTD_MOTHERS_DAY_VERSES = [
+  { reference: "Proverbs 31:25-26", label: "Mother's Day" },
+  { reference: "Isaiah 66:13", label: "Mother's Day" }
+];
+var VOTD_MEMORIAL_DAY_VERSES = [
+  { reference: "John 15:13", label: "Memorial Day (US)" },
+  { reference: "Psalm 116:15", label: "Memorial Day (US)" }
+];
+var VOTD_LABOR_DAY_VERSES = [
+  { reference: "Ecclesiastes 3:1", label: "Labor Day (US)" },
+  { reference: "Colossians 3:23-24", label: "Labor Day (US)" }
+];
+var VOTD_FATHERS_DAY_VERSES = [
+  { reference: "Proverbs 20:7", label: "Father's Day" },
+  { reference: "Psalm 128:3-4", label: "Father's Day" }
+];
+var VOTD_EASTER_RELATIVE = [
+  { offsetFromEaster: -46, verses: [{ reference: "Joel 2:12-13", label: "Ash Wednesday" }] },
+  { offsetFromEaster: -7, verses: [{ reference: "Matthew 21:9", label: "Palm Sunday" }] },
+  { offsetFromEaster: -3, verses: [{ reference: "Matthew 26:26-28", label: "Maundy Thursday" }] },
+  { offsetFromEaster: -2, verses: [{ reference: "John 13:34-35", label: "Good Friday eve" }] },
+  { offsetFromEaster: -1, verses: [{ reference: "Isaiah 53:5", label: "Good Friday" }] },
+  { offsetFromEaster: 0, verses: [{ reference: "Matthew 28:5-6", label: "Easter Sunday" }, { reference: "1 Corinthians 15:3-4", label: "Easter Sunday" }] },
+  { offsetFromEaster: 1, verses: [{ reference: "Luke 24:32", label: "Easter Monday" }] },
+  { offsetFromEaster: 39, verses: [{ reference: "Acts 1:8", label: "Ascension Day" }] },
+  { offsetFromEaster: 49, verses: [{ reference: "Acts 2:1-4", label: "Pentecost" }, { reference: "Acts 2:17-18", label: "Pentecost" }] }
+];
+var VOTD_ADVENT_VERSES = [
+  { reference: "Isaiah 9:2", label: "Advent" },
+  { reference: "Isaiah 11:1-2", label: "Advent" },
+  { reference: "Isaiah 40:3", label: "Advent" },
+  { reference: "Micah 5:2", label: "Advent" },
+  { reference: "Zechariah 9:9", label: "Advent" },
+  { reference: "Malachi 3:1", label: "Advent" },
+  { reference: "Luke 1:30-31", label: "Advent" },
+  { reference: "Luke 1:46-47", label: "Advent" },
+  { reference: "Matthew 1:21", label: "Advent" },
+  { reference: "John 1:9", label: "Advent" },
+  { reference: "Isaiah 7:14", label: "Advent" },
+  { reference: "Isaiah 60:1", label: "Advent" },
+  { reference: "Psalm 130:5-6", label: "Advent" },
+  { reference: "Romans 13:12", label: "Advent" },
+  { reference: "Isaiah 52:7", label: "Advent" },
+  { reference: "Isaiah 61:1", label: "Advent" },
+  { reference: "Luke 2:10", label: "Advent" },
+  { reference: "Isaiah 42:1", label: "Advent" },
+  { reference: "Isaiah 49:6", label: "Advent" },
+  { reference: "Isaiah 55:1", label: "Advent" },
+  { reference: "Psalm 72:1", label: "Advent" },
+  { reference: "Jeremiah 33:14-15", label: "Advent" },
+  { reference: "Zechariah 6:12", label: "Advent" },
+  { reference: "Haggai 2:9", label: "Advent" }
+];
+var VOTD_LENT_VERSES = [
+  { reference: "Psalm 51:1-2", label: "Lent" },
+  { reference: "Matthew 4:17", label: "Lent" },
+  { reference: "Joel 2:12", label: "Lent" },
+  { reference: "Isaiah 58:6-7", label: "Lent" },
+  { reference: "Romans 12:1", label: "Lent" },
+  { reference: "Psalm 139:23-24", label: "Lent" },
+  { reference: "Hosea 6:1", label: "Lent" },
+  { reference: "2 Corinthians 7:10", label: "Lent" },
+  { reference: "James 4:8-10", label: "Lent" },
+  { reference: "1 Peter 5:6", label: "Lent" }
+];
+
+// server/utils/votd-reference-bounds.ts
+function bookFromReference(reference) {
+  const p = parseScriptureReference(normalizeScriptureReference(reference.trim()));
+  return p?.book ?? null;
+}
+function clampReferenceToMaxVerseSpan(reference, maxVerses) {
+  const norm = normalizeScriptureReference(reference.trim());
+  const p = parseScriptureReference(norm);
+  if (!p) return null;
+  const ch = p.chapter;
+  if (typeof p.verse === "number") return p.reference;
+  const [a, b3] = p.verse;
+  const span = b3 - a + 1;
+  if (span <= maxVerses) return p.reference;
+  const end = a + maxVerses - 1;
+  return `${p.book} ${ch}:${a}-${end}`;
+}
+
+// server/utils/votd-calendar.ts
+function computeEasterSundayUtc(year) {
+  const a = year % 19;
+  const b3 = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b3 / 4);
+  const e = b3 % 4;
+  const f = Math.floor((b3 + 8) / 25);
+  const g2 = Math.floor((b3 - f + 1) / 3);
+  const h = (19 * a + b3 - d - g2 + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k2 = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k2) % 7;
+  const m2 = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m2 + 114) / 31);
+  const day = (h + l - 7 * m2 + 114) % 31 + 1;
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+}
+function utcYmd(d) {
+  return {
+    y: d.getUTCFullYear(),
+    m: d.getUTCMonth() + 1,
+    day: d.getUTCDate()
+  };
+}
+function ymdToUtcDate(y2, m2, day) {
+  return new Date(Date.UTC(y2, m2 - 1, day, 12, 0, 0));
+}
+function daysBetweenUtc(a, b3) {
+  const ms = 864e5;
+  const ua = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const ub = Date.UTC(b3.getUTCFullYear(), b3.getUTCMonth(), b3.getUTCDate());
+  return Math.round((ub - ua) / ms);
+}
+function thanksgivingDateUtc(year) {
+  const nov1 = ymdToUtcDate(year, 11, 1);
+  const dow = nov1.getUTCDay();
+  const firstThuOffset = (4 - dow + 7) % 7;
+  const firstThu = 1 + firstThuOffset;
+  const fourthThu = firstThu + 21;
+  return ymdToUtcDate(year, 11, fourthThu);
+}
+function mothersDayDateUtc(year) {
+  const may1 = ymdToUtcDate(year, 5, 1);
+  const dow = may1.getUTCDay();
+  const firstSunOffset = (7 - dow) % 7;
+  const secondSun = 1 + firstSunOffset + 7;
+  return ymdToUtcDate(year, 5, secondSun);
+}
+function fathersDayDateUtc(year) {
+  const jun1 = ymdToUtcDate(year, 6, 1);
+  const dow = jun1.getUTCDay();
+  const firstSunOffset = (7 - dow) % 7;
+  const thirdSun = 1 + firstSunOffset + 14;
+  return ymdToUtcDate(year, 6, thirdSun);
+}
+function laborDayDateUtc(year) {
+  const sep1 = ymdToUtcDate(year, 9, 1);
+  const dow = sep1.getUTCDay();
+  const daysUntilMon = (8 - dow) % 7;
+  return ymdToUtcDate(year, 9, 1 + daysUntilMon);
+}
+function memorialDayDateUtc(year) {
+  const may31 = ymdToUtcDate(year, 5, 31);
+  const dow = may31.getUTCDay();
+  const back = (dow + 6) % 7;
+  return ymdToUtcDate(year, 5, 31 - back);
+}
+function clampCal(v2) {
+  const ref = clampReferenceToMaxVerseSpan(v2.reference, 2) ?? v2.reference;
+  return { ...v2, reference: ref };
+}
+function pickFromVerses(verses, seed) {
+  const v2 = verses[Math.abs(seed) % verses.length];
+  return clampCal(v2);
+}
+function getCalendarVerseForDate(dateUtc) {
+  const { y: y2, m: m2, day } = utcYmd(dateUtc);
+  const easter = computeEasterSundayUtc(y2);
+  const d0 = dateUtc;
+  for (const block of VOTD_FIXED_DATES) {
+    if (block.month === m2 && block.day === day) {
+      const seed = y2 * 1e4 + m2 * 100 + day;
+      return pickFromVerses(block.verses, seed);
+    }
+  }
+  const tg = thanksgivingDateUtc(y2);
+  if (utcYmd(tg).m === m2 && utcYmd(tg).day === day) {
+    return pickFromVerses(VOTD_THANKSGIVING_VERSES, y2 + day);
+  }
+  const md = mothersDayDateUtc(y2);
+  if (utcYmd(md).m === m2 && utcYmd(md).day === day) {
+    return pickFromVerses(VOTD_MOTHERS_DAY_VERSES, y2);
+  }
+  const fd = fathersDayDateUtc(y2);
+  if (utcYmd(fd).m === m2 && utcYmd(fd).day === day) {
+    return pickFromVerses(VOTD_FATHERS_DAY_VERSES, y2);
+  }
+  const mem = memorialDayDateUtc(y2);
+  if (utcYmd(mem).m === m2 && utcYmd(mem).day === day) {
+    return pickFromVerses(VOTD_MEMORIAL_DAY_VERSES, y2);
+  }
+  const lb = laborDayDateUtc(y2);
+  if (utcYmd(lb).m === m2 && utcYmd(lb).day === day) {
+    return pickFromVerses(VOTD_LABOR_DAY_VERSES, y2);
+  }
+  const offset = daysBetweenUtc(easter, d0);
+  for (const row of VOTD_EASTER_RELATIVE) {
+    if (row.offsetFromEaster === offset) {
+      return pickFromVerses(row.verses, offset + y2);
+    }
+  }
+  if (m2 === 12 && day >= 1 && day <= 24) {
+    const idx = day - 1;
+    const verse = VOTD_ADVENT_VERSES[idx % VOTD_ADVENT_VERSES.length];
+    const c = clampCal(verse);
+    return {
+      reference: c.reference,
+      label: `Advent \u2014 Dec ${day}`
+    };
+  }
+  const ashWednesday = new Date(easter);
+  ashWednesday.setUTCDate(easter.getUTCDate() - 46);
+  const lentStart = new Date(ashWednesday);
+  lentStart.setUTCDate(ashWednesday.getUTCDate() + 1);
+  const palmSunday = new Date(easter);
+  palmSunday.setUTCDate(easter.getUTCDate() - 7);
+  const t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), d0.getUTCDate());
+  if (t >= Date.UTC(lentStart.getUTCFullYear(), lentStart.getUTCMonth(), lentStart.getUTCDate()) && t < Date.UTC(palmSunday.getUTCFullYear(), palmSunday.getUTCMonth(), palmSunday.getUTCDate())) {
+    const lentDays = daysBetweenUtc(lentStart, d0);
+    const verse = VOTD_LENT_VERSES[lentDays % VOTD_LENT_VERSES.length];
+    const c = clampCal(verse);
+    return {
+      reference: c.reference,
+      label: "Lent"
+    };
+  }
+  return null;
+}
+function isCalendarHolidayDate(dateUtc) {
+  return getCalendarVerseForDate(dateUtc) !== null;
+}
+
+// server/utils/votd-pool.ts
+init_db2();
+init_schema2();
+
+// server/constants/votd-verses.ts
+var PSALMS = [
+  "Psalm 1:1-3",
+  "Psalm 4:8",
+  "Psalm 8:3-4",
+  "Psalm 9:9-10",
+  "Psalm 16:8-11",
+  "Psalm 18:1-3",
+  "Psalm 19:1-4",
+  "Psalm 19:7-9",
+  "Psalm 20:7",
+  "Psalm 23:1-6",
+  "Psalm 27:1",
+  "Psalm 27:4",
+  "Psalm 27:13-14",
+  "Psalm 28:7",
+  "Psalm 30:4-5",
+  "Psalm 31:24",
+  "Psalm 32:8",
+  "Psalm 34:4-5",
+  "Psalm 34:8",
+  "Psalm 34:17-18",
+  "Psalm 37:4-5",
+  "Psalm 37:23-24",
+  "Psalm 40:1-3",
+  "Psalm 42:1-2",
+  "Psalm 42:11",
+  "Psalm 46:1-3",
+  "Psalm 46:10",
+  "Psalm 51:10-12",
+  "Psalm 56:3-4",
+  "Psalm 62:5-8",
+  "Psalm 63:1-4",
+  "Psalm 66:20",
+  "Psalm 68:5-6",
+  "Psalm 73:25-26",
+  "Psalm 84:10-12",
+  "Psalm 86:5",
+  "Psalm 89:1",
+  "Psalm 91:1-2",
+  "Psalm 91:14-16",
+  "Psalm 95:1-3",
+  "Psalm 96:1-3",
+  "Psalm 100:1-5",
+  "Psalm 103:1-5",
+  "Psalm 103:8-13",
+  "Psalm 107:1",
+  "Psalm 111:1-2",
+  "Psalm 116:1-2",
+  "Psalm 118:1",
+  "Psalm 118:24",
+  "Psalm 119:9-11",
+  "Psalm 119:105",
+  "Psalm 121:1-4",
+  "Psalm 121:7-8",
+  "Psalm 125:1-2",
+  "Psalm 126:3",
+  "Psalm 127:1-2",
+  "Psalm 130:5-6",
+  "Psalm 131:1-2",
+  "Psalm 133:1",
+  "Psalm 136:1",
+  "Psalm 138:7-8",
+  "Psalm 139:1-6",
+  "Psalm 139:23-24",
+  "Psalm 143:8",
+  "Psalm 145:8-9",
+  "Psalm 147:3",
+  "Psalm 150:1-2"
+];
+var PROVERBS_WISDOM = [
+  "Proverbs 1:7",
+  "Proverbs 2:6",
+  "Proverbs 3:5-6",
+  "Proverbs 3:9-10",
+  "Proverbs 3:11-12",
+  "Proverbs 4:23",
+  "Proverbs 10:12",
+  "Proverbs 11:25",
+  "Proverbs 12:18",
+  "Proverbs 14:30",
+  "Proverbs 15:1",
+  "Proverbs 15:23",
+  "Proverbs 16:3",
+  "Proverbs 16:9",
+  "Proverbs 16:24",
+  "Proverbs 17:17",
+  "Proverbs 18:10",
+  "Proverbs 18:21",
+  "Proverbs 19:21",
+  "Proverbs 20:7",
+  "Proverbs 22:1",
+  "Proverbs 22:6",
+  "Proverbs 27:17",
+  "Proverbs 28:13",
+  "Proverbs 29:25",
+  "Proverbs 31:8-9"
+];
+var ISAIAH_JEREMIAH = [
+  "Isaiah 1:18",
+  "Isaiah 6:8",
+  "Isaiah 9:6",
+  "Isaiah 12:2-3",
+  "Isaiah 26:3-4",
+  "Isaiah 30:18",
+  "Isaiah 40:28-31",
+  "Isaiah 41:10",
+  "Isaiah 43:1-3",
+  "Isaiah 43:18-19",
+  "Isaiah 46:4",
+  "Isaiah 53:4-5",
+  "Isaiah 55:6-7",
+  "Isaiah 58:11",
+  "Isaiah 61:1-3",
+  "Jeremiah 17:7-8",
+  "Jeremiah 29:11-13",
+  "Jeremiah 31:3",
+  "Jeremiah 32:27",
+  "Jeremiah 33:3"
+];
+var OTHER_OT = [
+  "Genesis 1:1",
+  "Genesis 28:15",
+  "Genesis 50:20",
+  "Deuteronomy 31:6",
+  "Deuteronomy 31:8",
+  "Joshua 1:9",
+  "Joshua 24:15",
+  "1 Samuel 12:24",
+  "2 Samuel 22:31",
+  "1 Kings 8:56",
+  "1 Chronicles 16:34",
+  "Nehemiah 8:10",
+  "Job 19:25-27",
+  "Job 23:10",
+  "Lamentations 3:22-23",
+  "Micah 6:8",
+  "Nahum 1:7",
+  "Habakkuk 3:17-19",
+  "Zechariah 4:6",
+  "Malachi 3:10"
+];
+var GOSPELS = [
+  "Matthew 5:3-10",
+  "Matthew 5:14-16",
+  "Matthew 6:25-26",
+  "Matthew 6:33-34",
+  "Matthew 7:7-8",
+  "Matthew 11:28-30",
+  "Matthew 18:20",
+  "Matthew 22:37-39",
+  "Matthew 28:18-20",
+  "Mark 10:27",
+  "Mark 12:30-31",
+  "Luke 1:37",
+  "Luke 6:31",
+  "Luke 6:35-36",
+  "Luke 11:9-10",
+  "Luke 12:32",
+  "Luke 18:27",
+  "John 1:1-5",
+  "John 1:12",
+  "John 3:16-17",
+  "John 4:24",
+  "John 6:35",
+  "John 8:12",
+  "John 10:10-11",
+  "John 11:25-26",
+  "John 13:34-35",
+  "John 14:1-3",
+  "John 14:6",
+  "John 14:27",
+  "John 15:4-5",
+  "John 15:12-13",
+  "John 16:33"
+];
+var ACTS_EPISTLES = [
+  "Acts 1:8",
+  "Acts 4:12",
+  "Acts 16:31",
+  "Acts 20:24",
+  "Romans 1:16-17",
+  "Romans 5:1-2",
+  "Romans 5:8",
+  "Romans 6:23",
+  "Romans 8:1",
+  "Romans 8:28",
+  "Romans 8:31-32",
+  "Romans 8:38-39",
+  "Romans 12:1-2",
+  "Romans 12:9-10",
+  "Romans 12:12",
+  "Romans 12:18",
+  "Romans 15:13",
+  "1 Corinthians 10:13",
+  "1 Corinthians 13:4-7",
+  "1 Corinthians 15:58",
+  "1 Corinthians 16:14",
+  "2 Corinthians 1:3-4",
+  "2 Corinthians 4:16-18",
+  "2 Corinthians 5:17",
+  "2 Corinthians 5:21",
+  "2 Corinthians 9:7",
+  "2 Corinthians 12:9",
+  "Galatians 2:20",
+  "Galatians 5:22-23",
+  "Galatians 6:9",
+  "Ephesians 2:8-9",
+  "Ephesians 3:20-21",
+  "Ephesians 4:2-3",
+  "Ephesians 4:32",
+  "Ephesians 6:10-11",
+  "Philippians 1:6",
+  "Philippians 2:3-4",
+  "Philippians 3:13-14",
+  "Philippians 4:4-7",
+  "Philippians 4:8",
+  "Philippians 4:13",
+  "Philippians 4:19",
+  "Colossians 3:12-14",
+  "Colossians 3:23-24",
+  "1 Thessalonians 5:16-18",
+  "2 Thessalonians 3:3",
+  "1 Timothy 4:12",
+  "2 Timothy 1:7",
+  "2 Timothy 3:16-17",
+  "Titus 3:5",
+  "Hebrews 4:16",
+  "Hebrews 10:23-25",
+  "Hebrews 11:1",
+  "Hebrews 12:1-2",
+  "Hebrews 13:5-6",
+  "James 1:2-4",
+  "James 1:5",
+  "James 1:12",
+  "James 4:7-8",
+  "James 4:10",
+  "1 Peter 1:3-5",
+  "1 Peter 2:9",
+  "1 Peter 3:8-9",
+  "1 Peter 5:7",
+  "1 Peter 5:10",
+  "2 Peter 1:3",
+  "1 John 1:9",
+  "1 John 3:1",
+  "1 John 4:7-8",
+  "1 John 4:18-19",
+  "Jude 1:24-25",
+  "Revelation 3:20",
+  "Revelation 21:4",
+  "Revelation 22:17"
+];
+var MORE_PSALMS_OT_NT = [
+  "Psalm 2:12",
+  "Psalm 5:11-12",
+  "Psalm 9:1-2",
+  "Psalm 13:5-6",
+  "Psalm 17:6-8",
+  "Psalm 18:30-32",
+  "Psalm 22:24",
+  "Psalm 25:4-5",
+  "Psalm 25:8-10",
+  "Psalm 29:11",
+  "Psalm 33:4-5",
+  "Psalm 33:20-22",
+  "Psalm 36:7-9",
+  "Psalm 37:3",
+  "Psalm 37:7",
+  "Psalm 40:5",
+  "Psalm 43:5",
+  "Psalm 48:14",
+  "Psalm 50:15",
+  "Psalm 54:4",
+  "Psalm 55:22",
+  "Psalm 57:7",
+  "Psalm 59:16",
+  "Psalm 61:1-3",
+  "Psalm 66:16-20",
+  "Psalm 67:5-7",
+  "Psalm 71:14",
+  "Psalm 72:18-19",
+  "Psalm 85:8",
+  "Psalm 86:15",
+  "Psalm 90:1-2",
+  "Psalm 92:1-2",
+  "Psalm 94:19",
+  "Psalm 97:11",
+  "Psalm 98:1",
+  "Psalm 102:17",
+  "Psalm 108:1",
+  "Psalm 113:3",
+  "Psalm 115:1",
+  "Psalm 119:30",
+  "Psalm 119:50",
+  "Psalm 119:114",
+  "Psalm 119:165",
+  "Psalm 124:8",
+  "Psalm 128:1-2",
+  "Psalm 130:1-4",
+  "Psalm 135:3",
+  "Psalm 138:3",
+  "Psalm 143:10",
+  "Psalm 144:15",
+  "Proverbs 8:17",
+  "Proverbs 9:10",
+  "Proverbs 13:20",
+  "Proverbs 14:26",
+  "Proverbs 15:33",
+  "Proverbs 16:20",
+  "Proverbs 17:22",
+  "Proverbs 21:21",
+  "Proverbs 24:16",
+  "Proverbs 30:5",
+  "Ecclesiastes 3:11",
+  "Ecclesiastes 12:13",
+  "Song of Solomon 2:4",
+  "Isaiah 35:4",
+  "Isaiah 42:1",
+  "Isaiah 44:22",
+  "Isaiah 49:15-16",
+  "Isaiah 54:10",
+  "Isaiah 55:8-9",
+  "Isaiah 57:15",
+  "Isaiah 60:1",
+  "Isaiah 64:8",
+  "Jeremiah 15:16",
+  "Jeremiah 31:25",
+  "Lamentations 3:25",
+  "Daniel 3:17-18",
+  "Daniel 12:3",
+  "Hosea 6:3",
+  "Joel 2:28-29",
+  "Jonah 2:9",
+  "Matthew 5:9",
+  "Matthew 5:43-45",
+  "Matthew 6:19-21",
+  "Matthew 7:12",
+  "Matthew 10:39",
+  "Matthew 12:50",
+  "Matthew 13:44",
+  "Matthew 19:26",
+  "Matthew 25:40",
+  "Mark 4:39-40",
+  "Mark 9:23",
+  "Luke 2:10-11",
+  "Luke 6:38",
+  "Luke 10:27",
+  "Luke 12:34",
+  "John 5:24",
+  "John 6:47",
+  "John 12:26",
+  "John 14:23",
+  "John 17:3",
+  "Romans 3:23-24",
+  "Romans 14:8",
+  "Romans 15:5",
+  "1 Corinthians 2:9",
+  "1 Corinthians 6:19-20",
+  "2 Corinthians 3:17",
+  "Ephesians 1:3-5",
+  "Ephesians 2:10",
+  "Ephesians 5:1-2",
+  "Philippians 2:5",
+  "Colossians 1:13-14",
+  "Colossians 2:6-7",
+  "1 Peter 5:6",
+  "1 John 5:14-15"
+];
+function dedupePool(refs3) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const r of refs3) {
+    const k2 = r.trim();
+    if (!k2 || seen.has(k2)) continue;
+    seen.add(k2);
+    out.push(k2);
+  }
+  return out;
+}
+var VOTD_GENERAL_POOL = dedupePool([
+  ...PSALMS,
+  ...PROVERBS_WISDOM,
+  ...ISAIAH_JEREMIAH,
+  ...OTHER_OT,
+  ...GOSPELS,
+  ...ACTS_EPISTLES,
+  ...MORE_PSALMS_OT_NT
+]);
+
+// server/utils/votd-pool.ts
+var VOTD_AUTOMATION_POOL = (() => {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const r of VOTD_GENERAL_POOL) {
+    const c = clampReferenceToMaxVerseSpan(r, 2) ?? normalizeScriptureReference(r.trim());
+    if (seen.has(c)) continue;
+    seen.add(c);
+    out.push(c);
+  }
+  return out;
+})();
+function dateStrToUtcNoon(dateStr) {
+  const [y2, m2, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y2, m2 - 1, d, 12, 0, 0));
+}
+function utcPreviousCalendarDay(dateStr) {
+  const [y2, m2, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y2, m2 - 1, d, 12, 0, 0));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+async function getPublishedBookOnDate(dateStr) {
+  const row = first(
+    await db.select({ reference: VotdPublishHistory.reference }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, dateStr))
+  );
+  if (!row) return null;
+  return bookFromReference(row.reference);
+}
+async function getUsedReferencesForYear(year) {
+  const rows = await db.select({ reference: VotdPublishHistory.reference }).from(VotdPublishHistory).where(eq(VotdPublishHistory.year, year));
+  return new Set(rows.map((r) => r.reference));
+}
+function randomInt(maxExclusive) {
+  if (maxExclusive <= 0) return 0;
+  const crypto5 = globalThis.crypto;
+  if (crypto5?.getRandomValues) {
+    const buf = new Uint32Array(1);
+    crypto5.getRandomValues(buf);
+    return buf[0] % maxExclusive;
+  }
+  return Math.floor(Math.random() * maxExclusive);
+}
+function diversifyByBook(candidates, avoidBook) {
+  if (!avoidBook) return candidates;
+  const filtered = candidates.filter((r) => bookFromReference(r) !== avoidBook);
+  return filtered.length > 0 ? filtered : candidates;
+}
+async function pickDailyVerseForPublish(dateStr) {
+  const d = dateStrToUtcNoon(dateStr);
+  const cal = getCalendarVerseForDate(d);
+  if (cal) {
+    return { reference: cal.reference, source: "calendar", label: cal.label };
+  }
+  const year = d.getUTCFullYear();
+  const used = await getUsedReferencesForYear(year);
+  let candidates = VOTD_AUTOMATION_POOL.filter((r) => !used.has(r));
+  if (candidates.length === 0) {
+    candidates = [...VOTD_AUTOMATION_POOL];
+  }
+  const yesterdayBook = await getPublishedBookOnDate(utcPreviousCalendarDay(dateStr));
+  candidates = diversifyByBook(candidates, yesterdayBook);
+  const ref = candidates[randomInt(candidates.length)];
+  return { reference: ref, source: "pool", label: null };
+}
+function pickPoolVerseForPreview(dateStr, usedRefs, avoidBook) {
+  let candidates = VOTD_AUTOMATION_POOL.filter((r) => !usedRefs.has(r));
+  if (candidates.length === 0) {
+    candidates = [...VOTD_AUTOMATION_POOL];
+  }
+  candidates = diversifyByBook(candidates, avoidBook);
+  let h = 0;
+  for (let i = 0; i < dateStr.length; i++) {
+    h = Math.imul(31, h) + dateStr.charCodeAt(i) | 0;
+  }
+  const idx = Math.abs(h) % candidates.length;
+  return candidates[idx];
+}
+
+// server/routes/votd.ts
 var app13 = new Hono2();
 function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
@@ -94560,6 +95359,86 @@ function requireVotdAuth(c) {
   const provided = m2?.[1]?.trim();
   if (expectedSecret && provided && provided === expectedSecret) return null;
   return requireHarvousAdmin(c);
+}
+function utcDateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+function dateStrToUtcNoon2(dateStr) {
+  const [y2, m2, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y2, m2 - 1, d, 12, 0, 0));
+}
+function plainExcerpt(html, max2 = 120) {
+  const t = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return t.length > max2 ? t.slice(0, max2) + "\u2026" : t;
+}
+function votdPreviewPlainFromHtml(html, reference) {
+  const parsed = parseScriptureReference(normalizeScriptureReference(reference));
+  const verseStart = parsed ? Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse : null;
+  const verseEnd = parsed ? Array.isArray(parsed.verse) ? parsed.verse[1] : null : null;
+  const collapsed = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const withoutLeadingNum = stripLeadingVerseNumberFromPlainText(collapsed, verseStart, verseEnd);
+  return stripRedundantEdgeQuotesForVotdCard(withoutLeadingNum);
+}
+async function publishVotdCore(params) {
+  const {
+    dateStr,
+    reference,
+    translation,
+    verseText,
+    book,
+    chapter,
+    verse,
+    verseEnd,
+    source,
+    label,
+    scheduleId
+  } = params;
+  const todayStart = /* @__PURE__ */ new Date(`${dateStr}T00:00:00.000Z`);
+  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1e3);
+  const excerpt = plainExcerpt(verseText, 280);
+  const metadata = {
+    reference,
+    translation,
+    verseText,
+    book,
+    chapter,
+    verse,
+    verseEnd
+  };
+  const timestamp2 = now();
+  const featuredItemId = `votd_fi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const historyId = `votd_hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const year = parseInt(dateStr.slice(0, 4), 10);
+  await db.insert(FeaturedItems).values({
+    id: featuredItemId,
+    contentType: "votd",
+    title: reference,
+    description: excerpt || null,
+    refId: scheduleId,
+    shareToken: null,
+    color: null,
+    isActive: true,
+    startsAt: todayStart,
+    endsAt: tomorrowStart,
+    metadata: JSON.stringify(metadata),
+    createdAt: timestamp2,
+    updatedAt: timestamp2
+  });
+  await db.insert(VotdPublishHistory).values({
+    id: historyId,
+    reference,
+    translation,
+    featuredItemId,
+    source,
+    label,
+    publishedDate: dateStr,
+    year,
+    createdAt: now()
+  });
+  if (scheduleId) {
+    await db.update(VotdSchedule).set({ isPublished: true, featuredItemId, scheduledDate: dateStr, updatedAt: nowISO() }).where(eq(VotdSchedule.id, scheduleId));
+  }
+  return { featuredItemId };
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = requireHarvousAdmin(c);
@@ -94612,9 +95491,7 @@ app13.delete("/api/admin/votd/schedule/:id", async (c) => {
   if (unauthorized) return unauthorized;
   const id = c.req.param("id")?.trim() ?? "";
   if (!id) return c.json({ error: "id is required" }, 400);
-  const entry = first(
-    await db.select().from(VotdSchedule).where(eq(VotdSchedule.id, id)).limit(1)
-  );
+  const entry = first(await db.select().from(VotdSchedule).where(eq(VotdSchedule.id, id)).limit(1));
   if (!entry) return c.json({ error: "Not found" }, 404);
   if (entry.isPublished) return c.json({ error: "Cannot delete a published VOTD entry" }, 409);
   await db.delete(VotdSchedule).where(eq(VotdSchedule.id, id));
@@ -94623,56 +95500,341 @@ app13.delete("/api/admin/votd/schedule/:id", async (c) => {
 app13.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = requireVotdAuth(c);
   if (unauthorized) return unauthorized;
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-  const alreadyPublished = first(
-    await db.select({ id: FeaturedItems.id }).from(FeaturedItems).innerJoin(VotdSchedule, eq(VotdSchedule.featuredItemId, FeaturedItems.id)).where(and(eq(FeaturedItems.contentType, "votd"), eq(VotdSchedule.scheduledDate, todayStr))).limit(1)
+  const todayStr = utcDateStr(/* @__PURE__ */ new Date());
+  const published = first(
+    await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, todayStr)).limit(1)
   );
-  if (alreadyPublished) {
-    return c.json({ success: true, alreadyPublished: true, featuredItemId: alreadyPublished.id });
+  if (published) {
+    return c.json({ success: true, alreadyPublished: true, featuredItemId: published.featuredItemId });
   }
-  let entry = first(
-    await db.select().from(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, todayStr), eq(VotdSchedule.isPublished, false))).limit(1)
+  let manual = first(
+    await db.select().from(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, todayStr), eq(VotdSchedule.isPublished, false))).orderBy(desc(VotdSchedule.createdAt)).limit(1)
   );
-  if (!entry) {
-    entry = first(
-      await db.select().from(VotdSchedule).where(and(isNull(VotdSchedule.scheduledDate), eq(VotdSchedule.isPublished, false))).orderBy(VotdSchedule.createdAt).limit(1)
-    );
+  let pick;
+  let scheduleId = null;
+  let verseText;
+  let translation = "NET";
+  let book;
+  let chapter;
+  let verse;
+  let verseEnd;
+  if (manual) {
+    scheduleId = manual.id;
+    pick = {
+      reference: manual.reference,
+      source: "override",
+      label: null
+    };
+    translation = manual.translation || "NET";
+    try {
+      verseText = manual.verseText || await fetchVerseText(manual.reference, translation);
+    } catch {
+      verseText = manual.verseText || "";
+    }
+    book = manual.book ?? "";
+    chapter = manual.chapter ?? null;
+    verse = manual.verse ?? null;
+    verseEnd = manual.verseEnd ?? null;
+  } else {
+    pick = await pickDailyVerseForPublish(todayStr);
+    const normalizedRef = normalizeScriptureReference(pick.reference);
+    const parsed = parseScriptureReference(normalizedRef);
+    if (!parsed) {
+      return c.json({ error: `Could not parse reference: "${pick.reference}"` }, 500);
+    }
+    const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    const vEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+    try {
+      verseText = await fetchVerseText(normalizedRef, translation);
+    } catch (e) {
+      console.error("[votd/publish-daily] fetchVerseText", e);
+      return c.json({ error: `Could not load verse text for ${pick.reference}` }, 500);
+    }
+    book = parsed.book;
+    chapter = parsed.chapter;
+    verse = verseStart;
+    verseEnd = vEnd ?? null;
+    pick = { ...pick, reference: normalizedRef };
   }
-  if (!entry) {
-    return c.json({ error: "No unpublished VOTD entries available. Add verses via POST /api/admin/votd/schedule." }, 404);
-  }
-  const todayStart = /* @__PURE__ */ new Date(`${todayStr}T00:00:00.000Z`);
-  const tomorrowStart = new Date(todayStart.getTime() + 24 * 60 * 60 * 1e3);
-  const plainText = (entry.verseText ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const excerpt = plainText.length > 280 ? plainText.slice(0, 280) + "\u2026" : plainText;
-  const metadata = {
-    reference: entry.reference,
-    translation: entry.translation,
-    verseText: entry.verseText ?? "",
-    book: entry.book ?? "",
-    chapter: entry.chapter ?? null,
-    verse: entry.verse ?? null,
-    verseEnd: entry.verseEnd ?? null
-  };
-  const timestamp2 = now();
-  const featuredItemId = `votd_fi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  await db.insert(FeaturedItems).values({
-    id: featuredItemId,
-    contentType: "votd",
-    title: entry.reference,
-    description: excerpt || null,
-    refId: entry.id,
-    shareToken: null,
-    color: null,
-    isActive: true,
-    startsAt: todayStart,
-    endsAt: tomorrowStart,
-    metadata: JSON.stringify(metadata),
-    createdAt: timestamp2,
-    updatedAt: timestamp2
+  const result = await publishVotdCore({
+    dateStr: todayStr,
+    reference: pick.reference,
+    translation,
+    verseText,
+    book,
+    chapter,
+    verse,
+    verseEnd,
+    source: pick.source,
+    label: pick.label,
+    scheduleId
   });
-  await db.update(VotdSchedule).set({ isPublished: true, featuredItemId, scheduledDate: todayStr, updatedAt: nowISO() }).where(eq(VotdSchedule.id, entry.id));
-  return c.json({ success: true, featuredItemId, reference: entry.reference, scheduledDate: todayStr });
+  return c.json({
+    success: true,
+    featuredItemId: result.featuredItemId,
+    reference: pick.reference,
+    scheduledDate: todayStr,
+    source: pick.source
+  });
+});
+app13.get("/api/admin/votd/preview", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const daysRaw = c.req.query("days");
+  const days = Math.min(90, Math.max(1, parseInt(daysRaw || "30", 10) || 30));
+  const start = /* @__PURE__ */ new Date();
+  start.setUTCHours(12, 0, 0, 0);
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + days - 1);
+  const dateMin = utcDateStr(start);
+  const dateMax = utcDateStr(end);
+  const histInRange = await db.select().from(VotdPublishHistory).where(
+    and(gte(VotdPublishHistory.publishedDate, dateMin), lte(VotdPublishHistory.publishedDate, dateMax))
+  );
+  const histByDate = new Map(histInRange.map((h) => [h.publishedDate, h]));
+  const pinsInRange = await db.select().from(VotdSchedule).where(
+    and(
+      eq(VotdSchedule.isPublished, false),
+      isNotNull(VotdSchedule.scheduledDate),
+      gte(VotdSchedule.scheduledDate, dateMin),
+      lte(VotdSchedule.scheduledDate, dateMax)
+    )
+  );
+  const pinByDate = /* @__PURE__ */ new Map();
+  const sortedPins = [...pinsInRange].sort(
+    (a, b3) => (b3.createdAt?.getTime?.() ?? 0) - (a.createdAt?.getTime?.() ?? 0)
+  );
+  for (const p of sortedPins) {
+    const sd = p.scheduledDate;
+    if (sd && !pinByDate.has(sd)) pinByDate.set(sd, p);
+  }
+  const yearsInRange = /* @__PURE__ */ new Set();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    yearsInRange.add(d.getUTCFullYear());
+  }
+  const yearList = [...yearsInRange];
+  const histForYears = yearList.length > 0 ? await db.select({ reference: VotdPublishHistory.reference, year: VotdPublishHistory.year }).from(VotdPublishHistory).where(inArray(VotdPublishHistory.year, yearList)) : [];
+  const usedByYear = /* @__PURE__ */ new Map();
+  for (const y2 of yearList) usedByYear.set(y2, /* @__PURE__ */ new Set());
+  for (const row of histForYears) {
+    usedByYear.get(row.year)?.add(row.reference);
+  }
+  const out = [];
+  const dow = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  let previousDayBook = await getPublishedBookOnDate(utcPreviousCalendarDay(dateMin));
+  for (let i = 0; i < days; i++) {
+    const d = new Date(start);
+    d.setUTCDate(start.getUTCDate() + i);
+    const dateStr = utcDateStr(d);
+    const hist = histByDate.get(dateStr);
+    if (hist) {
+      const translation2 = hist.translation || "NET";
+      let versePreview2 = "";
+      try {
+        const html = await fetchVerseText(hist.reference, translation2);
+        versePreview2 = votdPreviewPlainFromHtml(html, hist.reference);
+      } catch {
+        versePreview2 = "";
+      }
+      out.push({
+        date: dateStr,
+        dayOfWeek: dow[d.getUTCDay()],
+        reference: hist.reference,
+        translation: translation2,
+        source: "published",
+        label: hist.label,
+        isHoliday: hist.source === "calendar",
+        isOverridden: hist.source === "override",
+        isPublished: true,
+        versePreview: versePreview2
+      });
+      previousDayBook = bookFromReference(hist.reference);
+      continue;
+    }
+    const pin = pinByDate.get(dateStr);
+    if (pin) {
+      const translation2 = pin.translation || "NET";
+      let versePreview2 = "";
+      try {
+        const html = pin.verseText || await fetchVerseText(pin.reference, translation2);
+        versePreview2 = votdPreviewPlainFromHtml(html, pin.reference);
+      } catch {
+        versePreview2 = "";
+      }
+      out.push({
+        date: dateStr,
+        dayOfWeek: dow[d.getUTCDay()],
+        reference: pin.reference,
+        translation: translation2,
+        source: "override",
+        label: null,
+        isHoliday: isCalendarHolidayDate(d),
+        isOverridden: true,
+        isPublished: false,
+        versePreview: versePreview2
+      });
+      previousDayBook = bookFromReference(pin.reference);
+      continue;
+    }
+    const cal = getCalendarVerseForDate(d);
+    const year = d.getUTCFullYear();
+    const usedYear = usedByYear.get(year) ?? /* @__PURE__ */ new Set();
+    let reference;
+    let source;
+    let label;
+    if (cal) {
+      reference = cal.reference;
+      source = "calendar";
+      label = cal.label;
+    } else {
+      reference = pickPoolVerseForPreview(dateStr, usedYear, previousDayBook);
+      source = "pool";
+      label = null;
+    }
+    const translation = "NET";
+    let versePreview = "";
+    try {
+      const html = await fetchVerseText(reference, translation);
+      versePreview = votdPreviewPlainFromHtml(html, reference);
+    } catch {
+      versePreview = "";
+    }
+    out.push({
+      date: dateStr,
+      dayOfWeek: dow[d.getUTCDay()],
+      reference,
+      translation,
+      source,
+      label,
+      isHoliday: cal !== null,
+      isOverridden: false,
+      isPublished: false,
+      versePreview
+    });
+    previousDayBook = bookFromReference(reference);
+  }
+  return c.json({ days: out });
+});
+app13.post("/api/admin/votd/override", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const body = await c.req.json().catch(() => ({}));
+  const dateStr = body.date?.trim() ?? "";
+  const reference = body.reference?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  }
+  if (!reference) return c.json({ error: "reference is required" }, 400);
+  const normalizedRef = normalizeScriptureReference(reference);
+  const parsed = parseScriptureReference(normalizedRef);
+  if (!parsed) return c.json({ error: `Could not parse scripture reference: "${reference}"` }, 400);
+  await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+  const translation = "NET";
+  let verseText = "";
+  try {
+    verseText = await fetchVerseText(normalizedRef, translation);
+  } catch (err) {
+    console.error("[votd/override] fetchVerseText", err);
+  }
+  const timestamp2 = nowISO();
+  const id = `votd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const inserted = first(
+    await db.insert(VotdSchedule).values({
+      id,
+      reference: normalizedRef,
+      translation,
+      verseText: verseText || null,
+      book: parsed.book,
+      chapter: parsed.chapter,
+      verse: verseStart,
+      verseEnd: verseEnd || null,
+      scheduledDate: dateStr,
+      isPublished: false,
+      featuredItemId: null,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    }).returning()
+  );
+  return c.json(inserted ?? { success: true });
+});
+app13.post("/api/admin/votd/refresh", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const body = await c.req.json().catch(() => ({}));
+  const dateStr = body.date?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  }
+  const todayStr = utcDateStr(/* @__PURE__ */ new Date());
+  if (dateStr < todayStr) {
+    return c.json({ error: "Cannot refresh past dates" }, 400);
+  }
+  const hist = first(
+    await db.select().from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, dateStr)).limit(1)
+  );
+  if (hist) {
+    return c.json({ error: "Date already published; refresh not applicable" }, 409);
+  }
+  await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
+  const d = dateStrToUtcNoon2(dateStr);
+  const year = d.getUTCFullYear();
+  const usedRows = await db.select({ reference: VotdPublishHistory.reference }).from(VotdPublishHistory).where(eq(VotdPublishHistory.year, year));
+  const usedYear = new Set(usedRows.map((r) => r.reference));
+  const cal = getCalendarVerseForDate(d);
+  let reference;
+  if (cal) {
+    const pool = VOTD_AUTOMATION_POOL.filter((r) => r !== cal.reference);
+    reference = pool.length ? pool[Math.floor(Math.random() * pool.length)] : cal.reference;
+  } else {
+    const prevBook = await getPublishedBookOnDate(utcPreviousCalendarDay(dateStr));
+    reference = pickPoolVerseForPreview(`${dateStr}_refresh_${Date.now()}`, usedYear, prevBook);
+  }
+  const normalizedRef = normalizeScriptureReference(reference);
+  const parsed = parseScriptureReference(normalizedRef);
+  if (!parsed) return c.json({ error: "Invalid reference from refresh" }, 500);
+  const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+  const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+  const translation = "NET";
+  let verseText = "";
+  try {
+    verseText = await fetchVerseText(normalizedRef, translation);
+  } catch (err) {
+    console.error("[votd/refresh] fetchVerseText", err);
+  }
+  const timestamp2 = nowISO();
+  const id = `votd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const inserted = first(
+    await db.insert(VotdSchedule).values({
+      id,
+      reference: normalizedRef,
+      translation,
+      verseText: verseText || null,
+      book: parsed.book,
+      chapter: parsed.chapter,
+      verse: verseStart,
+      verseEnd: verseEnd || null,
+      scheduledDate: dateStr,
+      isPublished: false,
+      featuredItemId: null,
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    }).returning()
+  );
+  return c.json({ success: true, reference: normalizedRef, row: inserted });
+});
+app13.delete("/api/admin/votd/override/:date", async (c) => {
+  const unauthorized = requireHarvousAdmin(c);
+  if (unauthorized) return unauthorized;
+  const dateStr = c.req.param("date")?.trim() ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return c.json({ error: "date must be YYYY-MM-DD" }, 400);
+  }
+  await db.delete(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)));
+  return c.json({ success: true });
 });
 var votd_default = app13;
 

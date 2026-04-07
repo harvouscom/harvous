@@ -56,18 +56,17 @@ export function condensedNoteRowIcon(options: {
   iconSize?: number;
 }): React.ReactNode {
   const size = options.iconSize ?? CONDENSED_NOTE_ICON_PX;
-  const styleOnSolidAccent: React.CSSProperties = {
+  const accentBarIconStyle: React.CSSProperties = {
     color: 'var(--color-deep-grey)',
     opacity: CONDENSED_SOLID_ACCENT_ICON_OPACITY,
   };
-  const styleOnPaperOrMesh: React.CSSProperties = { color: 'var(--color-deep-grey)', opacity: 0.3 };
   if (options.itemType === 'thread') {
-    return <Icon name="layer-group" size={size} style={styleOnSolidAccent} />;
+    return <Icon name="layer-group" size={size} style={accentBarIconStyle} />;
   }
   const nt = options.noteType ?? 'default';
-  if (nt === 'scripture') return <Icon name="scroll" size={size} style={styleOnPaperOrMesh} />;
-  if (nt === 'resource') return <Icon name="newspaper" size={size} style={styleOnPaperOrMesh} />;
-  return <Icon name="bookmark" size={size} style={styleOnPaperOrMesh} />;
+  if (nt === 'scripture') return <Icon name="scroll" size={size} style={accentBarIconStyle} />;
+  if (nt === 'resource') return <Icon name="newspaper" size={size} style={accentBarIconStyle} />;
+  return <Icon name="bookmark" size={size} style={accentBarIconStyle} />;
 }
 
 export interface CondensedNoteRowLayoutProps {
