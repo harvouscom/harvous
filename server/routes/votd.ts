@@ -18,36 +18,17 @@ import { parseScriptureReference, normalizeScriptureReference } from '@/utils/sc
 
 const app = new Hono();
 
-function stripNonPrintable(s: string): string {
-  return s.replace(/[^\x21-\x7e]/g, '');
-}
-
 function requireVotdAuth(c: Parameters<typeof requireHarvousAdmin>[0]) {
   if (c.get('cronAuthed')) return null;
 
-  const raw = process.env.VOTD_CRON_SECRET ?? '';
-  const expectedSecret = stripNonPrintable(raw);
-  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '');
+  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
+  // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
   const m = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = stripNonPrintable(m?.[1] ?? '');
+  const provided = m?.[1]?.trim();
 
   if (expectedSecret && provided && provided === expectedSecret) return null;
-
-  const adminResult = requireHarvousAdmin(c);
-  if (!adminResult) return null;
-
-  return c.json({
-    error: 'Unauthorized',
-    _debug: {
-      cronAuthed: !!c.get('cronAuthed'),
-      envSet: !!raw,
-      envLen: expectedSecret.length,
-      providedLen: provided.length,
-      envFirst4: expectedSecret.slice(0, 4) || '(empty)',
-      providedFirst4: provided.slice(0, 4) || '(empty)',
-      match: expectedSecret === provided,
-    },
-  }, 401);
+  return requireHarvousAdmin(c);
 }
 
 // ─── POST /api/admin/votd/schedule ───────────────────────────────────────────

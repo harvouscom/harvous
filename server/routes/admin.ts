@@ -45,7 +45,7 @@ const app = new Hono();
 async function handleAggregateAnalytics(c: any) {
   try {
     const auth = getAuth(c);
-    const authHeader = c.req.header('authorization');
+    const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const isAuthenticated = !!auth?.userId;
     const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
@@ -91,7 +91,7 @@ const DEFAULT_RETENTION_DAYS = 30;
 app.post('/api/admin/backup-exports', async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
-    const authHeader = c.req.header('authorization');
+    const authHeader = c.req.header('authorization')?.split(',')[0]?.trim();
     const hasValidSecret = !!secret && authHeader === `Bearer ${secret}`;
     if (!hasValidSecret) {
       return c.json({ error: 'Unauthorized' }, 401);

@@ -15,7 +15,8 @@ export function isHarvousAdmin(c: Context): boolean {
 
   const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
   if (!expectedSecret) return false;
-  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').trim();
+  // Netlify's proxy can duplicate the Authorization header → "Bearer <tok>, Bearer <tok>"
+  const authHeader = (c.req.header('authorization') ?? c.req.header('Authorization') ?? '').split(',')[0].trim();
   const m = authHeader.match(/^Bearer\s+(.+)$/i);
   const provided = m?.[1]?.trim();
   return provided === expectedSecret;

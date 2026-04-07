@@ -57498,16 +57498,16 @@ async function resolveLiveToDevMapping(liveUserId, secretKey) {
   }
 }
 function parseBearerSecret(authorizationHeader) {
-  const raw2 = authorizationHeader?.trim() ?? "";
-  const m2 = raw2.match(/^Bearer\s+(.+)$/i);
+  const first2 = (authorizationHeader ?? "").split(",")[0].trim();
+  const m2 = first2.match(/^Bearer\s+(.+)$/i);
   return m2?.[1]?.trim() ?? null;
 }
 async function clerkAuth(c, next) {
   const sessionToken = getSessionToken(c.req.header("Cookie"));
   const authHeader = c.req.header("Authorization") ?? c.req.header("authorization");
   const bearerSecret = parseBearerSecret(authHeader);
-  const votdCronSecret = process.env.VOTD_CRON_SECRET?.replace(/\s+/g, "");
-  if (votdCronSecret && bearerSecret?.replace(/\s+/g, "") === votdCronSecret) {
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
+  if (votdCronSecret && bearerSecret === votdCronSecret) {
     c.set("auth", NULL_AUTH);
     c.set("cronAuthed", true);
     return next();
@@ -86468,7 +86468,7 @@ function isHarvousAdmin(c) {
   if (userId && systemUserId && userId === systemUserId) return true;
   const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
   if (!expectedSecret) return false;
-  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").trim();
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
   const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
   const provided = m2?.[1]?.trim();
   return provided === expectedSecret;
@@ -93438,7 +93438,7 @@ var app11 = new Hono2();
 async function handleAggregateAnalytics(c) {
   try {
     const auth = getAuth(c);
-    const authHeader = c.req.header("authorization");
+    const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
     const expectedToken = process.env.AUTO_ARCHIVE_SECRET_TOKEN;
     const isAuthenticated = !!auth?.userId;
     const hasValidToken = expectedToken && authHeader === `Bearer ${expectedToken}`;
@@ -93472,7 +93472,7 @@ var DEFAULT_RETENTION_DAYS = 30;
 app11.post("/api/admin/backup-exports", async (c) => {
   try {
     const secret = process.env.BACKUP_CRON_SECRET;
-    const authHeader = c.req.header("authorization");
+    const authHeader = c.req.header("authorization")?.split(",")[0]?.trim();
     const hasValidSecret = !!secret && authHeader === `Bearer ${secret}`;
     if (!hasValidSecret) {
       return c.json({ error: "Unauthorized" }, 401);
@@ -94552,31 +94552,14 @@ init_db2();
 init_dates();
 init_schema2();
 var app13 = new Hono2();
-function stripNonPrintable(s2) {
-  return s2.replace(/[^\x21-\x7e]/g, "");
-}
 function requireVotdAuth(c) {
   if (c.get("cronAuthed")) return null;
-  const raw2 = process.env.VOTD_CRON_SECRET ?? "";
-  const expectedSecret = stripNonPrintable(raw2);
-  const authHeader = c.req.header("authorization") ?? c.req.header("Authorization") ?? "";
+  const expectedSecret = process.env.VOTD_CRON_SECRET?.trim();
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
   const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = stripNonPrintable(m2?.[1] ?? "");
+  const provided = m2?.[1]?.trim();
   if (expectedSecret && provided && provided === expectedSecret) return null;
-  const adminResult = requireHarvousAdmin(c);
-  if (!adminResult) return null;
-  return c.json({
-    error: "Unauthorized",
-    _debug: {
-      cronAuthed: !!c.get("cronAuthed"),
-      envSet: !!raw2,
-      envLen: expectedSecret.length,
-      providedLen: provided.length,
-      envFirst4: expectedSecret.slice(0, 4) || "(empty)",
-      providedFirst4: provided.slice(0, 4) || "(empty)",
-      match: expectedSecret === provided
-    }
-  }, 401);
+  return requireHarvousAdmin(c);
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
   const unauthorized = requireHarvousAdmin(c);

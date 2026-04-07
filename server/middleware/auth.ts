@@ -87,8 +87,10 @@ async function resolveLiveToDevMapping(liveUserId: string, secretKey: string): P
  * Sets c.set('auth', { userId, has }) on every request.
  */
 function parseBearerSecret(authorizationHeader: string | undefined): string | null {
-  const raw = authorizationHeader?.trim() ?? '';
-  const m = raw.match(/^Bearer\s+(.+)$/i);
+  // Netlify's proxy can duplicate the Authorization header, producing
+  // "Bearer <token>, Bearer <token>".  Take only the first value.
+  const first = (authorizationHeader ?? '').split(',')[0].trim();
+  const m = first.match(/^Bearer\s+(.+)$/i);
   return m?.[1]?.trim() ?? null;
 }
 
@@ -98,8 +100,8 @@ export async function clerkAuth(c: Context, next: Next) {
   const bearerSecret = parseBearerSecret(authHeader);
 
   // VOTD cron (and similar): Bearer value is a shared secret, not a Clerk JWT — do not verifyToken.
-  const votdCronSecret = process.env.VOTD_CRON_SECRET?.replace(/\s+/g, '');
-  if (votdCronSecret && bearerSecret?.replace(/\s+/g, '') === votdCronSecret) {
+  const votdCronSecret = process.env.VOTD_CRON_SECRET?.trim();
+  if (votdCronSecret && bearerSecret === votdCronSecret) {
     c.set('auth', NULL_AUTH);
     c.set('cronAuthed', true);
     return next();
