@@ -2,10 +2,96 @@
 
 This guide explains how scheduled publishing works for the dashboard **Verse of the Day** (`FeaturedItems` with `contentType: 'votd'`) and how it interacts with user **default Bible translation**.
 
+## First-time setup from scratch
+
+Do these once, in order.
+
+### Step 1 — Understand the three pieces
+
+
+| Piece                                            | Role                                                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **Verse pool** (`VotdSchedule` in your database) | Holds verses waiting to be published. If this is empty, publish will return **404**.                             |
+| **Netlify**                                      | Hosts the API. It must know a **shared password** (`VOTD_CRON_SECRET`) so only your automation can call publish. |
+| **GitHub Actions**                               | Runs on a schedule and sends `POST …/publish-daily` with that same password in the `Authorization` header.       |
+
+
+You will create **one long random password**, store it in **two places** (Netlify + GitHub), and never paste it in chat or commit it to git.
+
+### Step 2 — Create the secret (password)
+
+On your Mac, in Terminal:
+
+```bash
+openssl rand -hex 32
+```
+
+Copy the whole line of letters and numbers. That value is your `**VOTD_CRON_SECRET**`. Save it in a password manager or a private note until both sites below are filled in.
+
+### Step 3 — Put the secret on Netlify
+
+1. Log in to [Netlify](https://app.netlify.com) and open the **site** that serves **[https://app.harvous.com](https://app.harvous.com)** (or whatever production URL users use).
+2. Go to **Site configuration** → **Environment variables** (or **Project configuration → Environment variables**).
+3. Click **Add a variable** (or **Add key**).
+4. **Key:** `VOTD_CRON_SECRET`
+  **Value:** paste the string from Step 2 (no quotes, no spaces before/after).
+5. Scope it to **Production** (and Deploy previews / Branch deploys too if you want the same API behavior there). **Local development (CLI) can stay empty** — it does not affect production cron.
+6. **Save**, then trigger a **new deploy** for the site (e.g. **Deploys → Trigger deploy → Clear cache and deploy site**, or push a small commit). New env vars apply only after a deploy.
+
+### Step 4 — Put the same secret on GitHub
+
+1. Open your app repo on GitHub (the one that contains `.github/workflows/votd-publish-daily.yml`).
+2. **Settings** → **Secrets and variables** → **Actions**.
+3. **New repository secret** (under **Repository secrets**, not Dependabot).
+4. **Name:** `VOTD_CRON_SECRET`
+  **Secret:** paste the **exact same** string as on Netlify.
+5. Save.
+
+GitHub will **never show** the value again after you save. That is normal.
+
+**Optional:** If your production URL is not `https://app.harvous.com`, add another repository secret `**VOTD_PUBLISH_SITE_URL`** with your real origin (no trailing slash), e.g. `https://app.harvous.com`.
+
+### Step 5 — Confirm the workflow file exists on `main`
+
+On GitHub, open `**.github/workflows/votd-publish-daily.yml**`. You should see a job that runs `curl` to `/api/admin/votd/publish-daily` with a Bearer token. If this file is missing, merge or push it from your project so `**main**` has it.
+
+### Step 6 — Add verses to the pool (or publish will 404)
+
+The cron job does not invent verses. Someone with **Harvous admin** access must add rows to the schedule (e.g. `POST /api/admin/votd/schedule` with `reference`, optional `translation`, optional `scheduledDate`). Until at least one **unpublished** entry exists (or today’s slot is filled), `**publish-daily`** can return **404** with a message about no entries — that is expected, not an auth failure.
+
+### Step 7 — Test with curl from your computer
+
+Before relying on GitHub, prove Netlify accepts the secret:
+
+```bash
+export VOTD_CRON_SECRET='paste-your-secret-here'
+curl -sS -w "\nHTTP_CODE:%{http_code}\n" -X POST "https://app.harvous.com/api/admin/votd/publish-daily" \
+  -H "Authorization: Bearer $VOTD_CRON_SECRET"
+```
+
+- **HTTP 200** and JSON with `success` or `alreadyPublished` → Netlify side is correct.
+- **401** → secret mismatch, missing on Netlify, or deploy didn’t pick up the variable (repeat Steps 3–4).
+- **404** with a message about no pool entries → add schedule rows (Step 6).
+
+### Step 8 — Run the GitHub Action manually
+
+1. GitHub repo → **Actions**.
+2. Click **Publish Verse of the Day** in the left list.
+3. **Run workflow** → branch `**main`** → **Run workflow**.
+4. Open the latest run → expand **Publish daily VOTD**.
+
+You should see `**Bearer auth: enabled (secret length …)`** with a positive length, then the response body and **HTTP 200**. If the step is **red**, read the error line (empty secret vs wrong HTTP code).
+
+### Step 9 — Schedule
+
+After manual runs work, the same workflow runs automatically at **00:15 UTC** each day (`cron: '15 0 * * *'`). “Today” for VOTD is **UTC calendar date**.
+
+---
+
 ## Overview
 
 1. Curated verses live in `VotdSchedule` (added via `POST /api/admin/votd/schedule`).
-2. Each UTC calendar day, a job calls **`POST /api/admin/votd/publish-daily`**, which picks the day’s verse and inserts an active `FeaturedItems` row (with reference + catalog translation + verse HTML in `metadata`).
+2. Each UTC calendar day, a job calls `**POST /api/admin/votd/publish-daily`**, which picks the day’s verse and inserts an active `FeaturedItems` row (with reference + catalog translation + verse HTML in `metadata`).
 3. **Users still see their own default translation** on the card and in notes created from VOTD: the SPA refetches verse text when the user’s default differs from the catalog, and `POST /api/featured/votd/quick-add` uses `UserMetadata.defaultTranslation` when creating a note.
 
 ## API Endpoint
@@ -19,7 +105,7 @@ POST /api/admin/votd/publish-daily
 
 ## Security
 
-When **`VOTD_CRON_SECRET`** is set in the Netlify environment (API / Functions), the publish endpoint accepts:
+When `**VOTD_CRON_SECRET`** is set in the Netlify environment (API / Functions), the publish endpoint accepts:
 
 ```http
 Authorization: Bearer <same value as VOTD_CRON_SECRET>
@@ -31,17 +117,19 @@ If `VOTD_CRON_SECRET` is **not** set, only a Harvous **admin browser session** c
 
 ## GitHub Actions (recommended)
 
-Workflow: [`.github/workflows/votd-publish-daily.yml`](../.github/workflows/votd-publish-daily.yml)
+Workflow: `[.github/workflows/votd-publish-daily.yml](../.github/workflows/votd-publish-daily.yml)`
 
 - Runs daily at **00:15 UTC** and supports **workflow_dispatch** for manual runs.
 - Uses the same URL fallback pattern as inbox auto-archive.
 
 ### Repository secrets
 
-| Secret | Required | Purpose |
-|--------|----------|---------|
-| `VOTD_CRON_SECRET` | **Yes** for production | Must match Netlify `VOTD_CRON_SECRET`. Sent as `Authorization: Bearer …`. |
-| `VOTD_PUBLISH_SITE_URL` | No | Defaults to `https://app.harvous.com` if unset. Use your production app origin if different. |
+
+| Secret                  | Required               | Purpose                                                                                      |
+| ----------------------- | ---------------------- | -------------------------------------------------------------------------------------------- |
+| `VOTD_CRON_SECRET`      | **Yes** for production | Must match Netlify `VOTD_CRON_SECRET`. Sent as `Authorization: Bearer …`.                    |
+| `VOTD_PUBLISH_SITE_URL` | No                     | Defaults to `https://app.harvous.com` if unset. Use your production app origin if different. |
+
 
 ### GitHub UI: “There’s no value after Save”
 
@@ -50,13 +138,13 @@ That is **normal**. GitHub **never shows** a secret again after you save it (onl
 ### Secret empty in CI (401) — common causes
 
 1. **Wrong tab:** Use **Settings → Secrets and variables → Actions → Repository secrets**. Secrets under **Dependabot** or **Codespaces** are **not** available to this workflow.
-2. **Environment secrets:** If you created `VOTD_CRON_SECRET` under **Settings → Environments → …**, the workflow must declare that environment (see commented `environment:` line in [`.github/workflows/votd-publish-daily.yml`](../.github/workflows/votd-publish-daily.yml)); otherwise `${{ secrets.VOTD_CRON_SECRET }}` is empty in the job.
+2. **Environment secrets:** If you created `VOTD_CRON_SECRET` under **Settings → Environments → …**, the workflow must declare that environment (see commented `environment:` line in `[.github/workflows/votd-publish-daily.yml](../.github/workflows/votd-publish-daily.yml)`); otherwise `${{ secrets.VOTD_CRON_SECRET }}` is empty in the job.
 3. **Wrong repository:** Secrets are per-repo. Confirm the workflow run is on **harvouscom/harvous** (or your canonical repo), not a fork without secrets.
 4. **Confirm the job sees a secret:** In the workflow log, look for `Bearer auth: enabled (secret length N chars)`. If the job fails immediately with “VOTD_CRON_SECRET is empty”, GitHub did not inject the secret — fix placement (1–3) and re-run.
 
 ### Netlify environment
 
-Set **`VOTD_CRON_SECRET`** to a long random string (same value stored in GitHub Secrets).
+Set `**VOTD_CRON_SECRET`** to a long random string (same value stored in GitHub Secrets).
 
 ### Manual test
 
@@ -80,8 +168,39 @@ curl -sS -X POST "$SITE_URL/api/admin/votd/publish-daily" \
 3. **Dashboard card:** Verse text and pill should reflect **ESV** (client calls `/api/scripture/fetch-verse` when defaults differ).
 4. **Add to my Harvous:** New note content and scripture metadata should use **ESV** (`UserMetadata.defaultTranslation` on the server).
 
+## Troubleshooting the GitHub workflow (ordered checklist)
+
+Work **top to bottom**. Use **Actions → Publish Verse of the Day → Run workflow** after each fix.
+
+1. **Confirm `main` has the current workflow**
+  On GitHub, open `[.github/workflows/votd-publish-daily.yml](../.github/workflows/votd-publish-daily.yml)`. You should see `set -euo pipefail`, `Bearer auth: enabled (secret length …)`, and a **red failed step** (not green) when HTTP ≠ 200. If the log only shows `Run echo "Calling VOTD publish…"` and stays green on 401, merge the latest workflow.
+2. **GitHub secret actually reaches the job**
+  In the run log, find `**Bearer auth: enabled (secret length N chars)`** with **N > 0**.  
+  - If the job errors with **empty secret**: add `**VOTD_CRON_SECRET`** under **Settings → Secrets and variables → Actions → Repository secrets** (not Dependabot/Codespaces). If the secret is under **Environments**, uncomment `**environment: …`** in the workflow to match that environment name.  
+  - **Empty value after Save** in the UI is normal; GitHub never shows it again.
+3. **Same string on Netlify and GitHub**
+  **Netlify → Environment variables → `VOTD_CRON_SECRET`** (Production / same contexts you use for live API) must equal the GitHub secret **byte-for-byte** (re-paste both from one password-manager entry if unsure).
+4. **Redeploy Netlify after changing env**
+  New variables apply to **new function deploys**. Trigger a deploy after saving `VOTD_CRON_SECRET`.
+5. **Correct URL**
+  Optional secret `**VOTD_PUBLISH_SITE_URL`** must be the origin that hits **this** Netlify site’s API (default `https://app.harvous.com`). Wrong site = wrong function env or 404.
+6. **Reproduce with curl (isolates GitHub vs Netlify)**
+  From your machine (same secret as Netlify/GitHub):
+
+  | HTTP    | Meaning                                                                                                        |
+  | ------- | -------------------------------------------------------------------------------------------------------------- |
+  | **200** | Auth OK. Body JSON: `success` / `alreadyPublished`, or business error in JSON.                                 |
+  | **401** | `VOTD_CRON_SECRET` missing on Netlify, mismatch, or deploy didn’t pick up env.                                 |
+  | **404** | Route/host wrong **or** JSON body says no pool entries (add verses via admin `POST /api/admin/votd/schedule`). |
+
+7. **Pool not empty**
+  **404** + message about no unpublished entries means `**VotdSchedule`** needs rows (admin schedule API). Cron only publishes what’s in the pool.
+8. **Netlify “Local development (CLI) empty”**
+  Does **not** affect production. Only **Production** (and whatever context serves `app.harvous.com`) must have the secret.
+
 ## Related code
 
 - `server/routes/votd.ts` — schedule pool, `publish-daily`
 - `server/routes/featured.ts` — `POST /api/featured/votd/quick-add`
 - `spa/src/components/FeaturedCard.tsx` — `VotdCard` display + fetch for user default
+
