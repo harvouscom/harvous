@@ -9,7 +9,7 @@ import { parseScriptureReference, normalizeScriptureReference } from '@/utils/sc
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { getEffectiveHighestSimpleNoteId } from '../utils/highest-simple-note-id';
-import { awardCreationBonusXP } from '../utils/xp-system';
+import { awardCreationBonusXP, awardVotdEngagementXP } from '../utils/xp-system';
 import { getCurrentSeason } from '@/utils/season-helpers';
 import {
   DEV_SAMPLE_FEATURED_ITEM_IDS,
@@ -192,7 +192,11 @@ app.post('/api/featured/erase', requireAuth, async (c) => {
 // VOTD items always get 'completed' status (they never appear in My Inbox).
 app.post('/api/featured/dismiss', requireAuth, async (c) => {
   const auth = getAuthenticatedAuth(c);
-  const body = (await c.req.json().catch(() => ({}))) as { featuredItemId?: string };
+  const body = (await c.req.json().catch(() => ({}))) as {
+    featuredItemId?: string;
+    /** When set on a VOTD item, user chose “Create note” (not Close-only). Awards VOTD engagement XP once per item. */
+    votdEngagement?: 'create_note';
+  };
   const featuredItemId = body.featuredItemId?.trim() ?? '';
   if (!featuredItemId) {
     return c.json({ error: 'featuredItemId is required' }, 400);
@@ -226,6 +230,10 @@ app.post('/api/featured/dismiss', requireAuth, async (c) => {
         completedAt: isVotd ? timestamp : null,
       },
     });
+
+  if (isVotd && body.votdEngagement === 'create_note') {
+    await awardVotdEngagementXP(auth.userId, featuredItemId, 'create_note');
+  }
 
   return c.json({ success: true });
 });
@@ -549,6 +557,11 @@ app.post('/api/featured/votd/quick-add', requireAuth, async (c) => {
 
   // Award XP (non-critical)
   try { await awardCreationBonusXP(auth.userId, 'note'); } catch {}
+  try {
+    await awardVotdEngagementXP(auth.userId, featuredItemId, 'quick_add');
+  } catch {
+    /* non-fatal */
+  }
 
   // Mark VOTD as completed so it disappears from the carousel
   const completedAt = now();

@@ -18,6 +18,8 @@ export const XP_VALUES = {
   SCRIPTURE_NOTE_CREATED: 3,
   NOTE_OPENED: 1,
   FIRST_NOTE_DAILY_BONUS: 5,
+  /** One-time per VOTD featured item when user engages (quick-add or create-note), not for close/dismiss-only */
+  VOTD_ENGAGED: 5,
 } as const;
 
 /** Cascading XP when a referred friend signs up (referrer’s 1st → 100, then −25 each, floor 25). */
@@ -72,6 +74,7 @@ export const ACTIVITY_TYPES = {
   NOTE_CREATED: 'note_created',
   NOTE_OPENED: 'note_opened',
   FIRST_NOTE_DAILY_BONUS: 'first_note_daily',
+  VOTD_ENGAGED: 'votd_engaged',
 } as const;
 
 /**
@@ -566,6 +569,24 @@ export async function awardCreationBonusXP(
   } catch (error) {
     console.error('Error awarding creation bonus XP:', error);
     return false;
+  }
+}
+
+/**
+ * Award XP for engaging with Verse of the Day (quick-add or create-note path).
+ * Close/dismiss-only does not call this. At most once per featured item per user.
+ */
+export async function awardVotdEngagementXP(
+  userId: string,
+  featuredItemId: string,
+  source: 'quick_add' | 'create_note',
+): Promise<void> {
+  try {
+    const already = await hasXPBeenAwarded(userId, ACTIVITY_TYPES.VOTD_ENGAGED, featuredItemId);
+    if (already) return;
+    await awardXP(userId, ACTIVITY_TYPES.VOTD_ENGAGED, XP_VALUES.VOTD_ENGAGED, featuredItemId, { source });
+  } catch (error) {
+    console.error('Error awarding VOTD engagement XP:', error);
   }
 }
 
@@ -1072,6 +1093,7 @@ export async function getXPBreakdown(userId: string): Promise<{
     noteCreated: number;
     noteOpened: number;
     firstNoteDailyBonus: number;
+    votdEngaged: number;
   };
 }> {
   try {
@@ -1092,6 +1114,7 @@ export async function getXPBreakdown(userId: string): Promise<{
       noteCreated: 0,
       noteOpened: 0,
       firstNoteDailyBonus: 0,
+      votdEngaged: 0,
     };
 
     xpRecords.forEach(record => {
@@ -1130,6 +1153,9 @@ export async function getXPBreakdown(userId: string): Promise<{
         case ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS:
           breakdown.firstNoteDailyBonus += record.xpAmount;
           break;
+        case ACTIVITY_TYPES.VOTD_ENGAGED:
+          breakdown.votdEngaged += record.xpAmount;
+          break;
       }
     });
 
@@ -1155,6 +1181,7 @@ export async function getXPBreakdown(userId: string): Promise<{
         noteCreated: 0,
         noteOpened: 0,
         firstNoteDailyBonus: 0,
+        votdEngaged: 0,
       },
     };
   }

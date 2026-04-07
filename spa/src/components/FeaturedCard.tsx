@@ -97,9 +97,20 @@ function votdPlainFromHtml(html: string, meta: VotdMetadata | null | undefined):
 }
 
 // Dismisses a VOTD card (marks complete server-side + fires local dismiss)
-function dismissVotd(item: FeaturedItem, onClose: () => void) {
+function dismissVotd(
+  item: FeaturedItem,
+  onClose: () => void,
+  options?: { votdEngagement?: 'create_note'; onServerAck?: () => void },
+) {
   writeDismissedFeaturedItem(item.id);
-  void api.post('/api/featured/dismiss', { featuredItemId: item.id }).catch(() => {});
+  const payload: { featuredItemId: string; votdEngagement?: 'create_note' } = { featuredItemId: item.id };
+  if (options?.votdEngagement) payload.votdEngagement = options.votdEngagement;
+  void api
+    .post('/api/featured/dismiss', payload)
+    .then(() => {
+      options?.onServerAck?.();
+    })
+    .catch(() => {});
   window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
   onClose();
 }
@@ -192,6 +203,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
       void queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey });
       void queryClient.invalidateQueries({ queryKey: navigationQueryKey });
       void queryClient.invalidateQueries({ queryKey: ['thread', 'thread_unorganized'] });
+      void queryClient.invalidateQueries({ queryKey: ['xp'] });
       window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
       setTimeout(() => onClose(), 900);
     } catch {
@@ -208,7 +220,12 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
       localStorage.setItem('newNoteContent', pillHtml);
       localStorage.removeItem('newNoteType');
     } catch {}
-    dismissVotd(item, onClose);
+    dismissVotd(item, onClose, {
+      votdEngagement: 'create_note',
+      onServerAck: () => {
+        void queryClient.invalidateQueries({ queryKey: ['xp'] });
+      },
+    });
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
   };
 
