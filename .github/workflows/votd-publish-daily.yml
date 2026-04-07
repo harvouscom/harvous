@@ -1,0 +1,26 @@
+name: Publish Verse of the Day
+
+on:
+  schedule:
+    # After midnight UTC so publish-daily's calendar day matches FeaturedItems window
+    - cron: '15 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  votd-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish daily VOTD
+        env:
+          SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://app.harvous.com' }}
+          SECRET_TOKEN: ${{ secrets.VOTD_CRON_SECRET }}
+        run: |
+          echo "Calling VOTD publish: $SITE_URL/api/admin/votd/publish-daily"
+          if [ -z "$SECRET_TOKEN" ]; then
+            response=$(curl -sS -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/votd/publish-daily")
+            echo "$response"
+          else
+            response=$(curl -sS -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/votd/publish-daily" \
+              -H "Authorization: Bearer $SECRET_TOKEN")
+            echo "$response"
+          fi
