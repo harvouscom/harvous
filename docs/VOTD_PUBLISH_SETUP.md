@@ -43,6 +43,17 @@ Workflow: [`.github/workflows/votd-publish-daily.yml`](../.github/workflows/votd
 | `VOTD_CRON_SECRET` | **Yes** for production | Must match Netlify `VOTD_CRON_SECRET`. Sent as `Authorization: Bearer …`. |
 | `VOTD_PUBLISH_SITE_URL` | No | Defaults to `https://app.harvous.com` if unset. Use your production app origin if different. |
 
+### GitHub UI: “There’s no value after Save”
+
+That is **normal**. GitHub **never shows** a secret again after you save it (only the name and last-updated time). An empty value field when you open the secret for editing does **not** mean it was cleared.
+
+### Secret empty in CI (401) — common causes
+
+1. **Wrong tab:** Use **Settings → Secrets and variables → Actions → Repository secrets**. Secrets under **Dependabot** or **Codespaces** are **not** available to this workflow.
+2. **Environment secrets:** If you created `VOTD_CRON_SECRET` under **Settings → Environments → …**, the workflow must declare that environment (see commented `environment:` line in [`.github/workflows/votd-publish-daily.yml`](../.github/workflows/votd-publish-daily.yml)); otherwise `${{ secrets.VOTD_CRON_SECRET }}` is empty in the job.
+3. **Wrong repository:** Secrets are per-repo. Confirm the workflow run is on **harvouscom/harvous** (or your canonical repo), not a fork without secrets.
+4. **Confirm the job sees a secret:** In the workflow log, look for `Bearer auth: enabled (secret length N chars)`. If the job fails immediately with “VOTD_CRON_SECRET is empty”, GitHub did not inject the secret — fix placement (1–3) and re-run.
+
 ### Netlify environment
 
 Set **`VOTD_CRON_SECRET`** to a long random string (same value stored in GitHub Secrets).

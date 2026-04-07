@@ -9,18 +9,37 @@ on:
 jobs:
   votd-publish:
     runs-on: ubuntu-latest
+    # If VOTD_CRON_SECRET lives under Settings → Environments → <name> (not Repository secrets),
+    # uncomment the next line and use that environment name (otherwise the secret is empty in CI):
+    # environment: production
     steps:
       - name: Publish daily VOTD
         env:
           SITE_URL: ${{ secrets.VOTD_PUBLISH_SITE_URL || 'https://app.harvous.com' }}
           SECRET_TOKEN: ${{ secrets.VOTD_CRON_SECRET }}
         run: |
-          echo "Calling VOTD publish: $SITE_URL/api/admin/votd/publish-daily"
+          set -euo pipefail
+          # Normalize line endings / stray newlines from secret managers
+          SECRET_TOKEN="$(printf '%s' "${SECRET_TOKEN:-}" | tr -d '\r\n')"
+
+          echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily"
           if [ -z "$SECRET_TOKEN" ]; then
-            response=$(curl -sS -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/votd/publish-daily")
-            echo "$response"
-          else
-            response=$(curl -sS -w "\n%{http_code}" -X POST "$SITE_URL/api/admin/votd/publish-daily" \
-              -H "Authorization: Bearer $SECRET_TOKEN")
-            echo "$response"
+            echo "::error::GitHub secret VOTD_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions (same value as Netlify VOTD_CRON_SECRET)."
+            exit 1
+          fi
+          echo "Bearer auth: enabled (secret length ${#SECRET_TOKEN} chars)"
+
+          response_file="$(mktemp)"
+          code="$(
+            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/votd/publish-daily" \
+              -H "Authorization: Bearer ${SECRET_TOKEN}"
+          )"
+          body="$(cat "$response_file")"
+          rm -f "$response_file"
+          echo "$body"
+          echo "$code"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::VOTD publish failed with HTTP $code (expected 200). Body above. On Netlify: set VOTD_CRON_SECRET for Production, redeploy functions, and match GitHub VOTD_CRON_SECRET exactly."
+            exit 1
           fi
