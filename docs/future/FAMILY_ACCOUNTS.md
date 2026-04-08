@@ -78,6 +78,32 @@ Once a family member transitions to the Adult Member role (or opts out entirely)
 
 Parents cannot push notes, threads, or inbox items directly into a child's personal account. Shared content lives in the **Family Space** (see below), which children can browse and read but that does not appear in their personal library unless they explicitly add it.
 
+### Parent notifications
+
+Parents receive **milestone-only** notifications for child accounts — not every note or activity. Notifiable milestones include:
+- Weekly/monthly streaks hit
+- XP level-ups
+- Family challenges completed
+- A child joining or leaving the family
+
+No notification is sent for routine note creation, thread creation, or daily activity. Parents who want a full picture can check in via the family dashboard.
+
+### Parental controls
+
+When a child account is in the family, parents can enforce the following restrictions:
+
+| Control | Behavior |
+|---|---|
+| **Block encrypted notes** | Child accounts cannot create lock-PIN encrypted notes — all content must remain visible to parents. |
+| **Block private spaces** | Child accounts cannot create or join personal spaces outside the Family Space without a parent first approving the membership. |
+| **Space join approval** | When a child is invited to any shared space, the invite is held pending parent approval before the child can access it. |
+
+These controls are configured per-child in family settings and default to **all enabled** for new child members.
+
+### Child account UI
+
+Accounts in the **child role automatically receive a simplified UI** — a cleaner interface with fewer advanced features surfaced (e.g., billing settings, advanced sharing options, encryption). This is not optional; it is tied to the child role designation. When a child transitions to Adult Member, the full UI is restored.
+
 ---
 
 ## Family Space
@@ -113,6 +139,9 @@ When a Parent/Guardian links to a church in their Harvous profile, **all child a
 - If both parents have church affiliations and they differ, children inherit the affiliation of the **primary Parent/Guardian** (the account that created the family or is designated primary).
 - This edge case should be surfaced clearly in family settings with a prompt to resolve it.
 
+**Church targeting of families:**
+Church admins can target **families as a unit** — content sent to families is delivered to the **Family Space** rather than to individual member inboxes. This keeps church-to-family content contained and browsable together rather than scattered across personal accounts. The `targetAudience` value for this would be `'family_spaces'`, and the inbox assignment job would fan out to all Family Space IDs whose owning family includes a member belonging to that church.
+
 ---
 
 ## Billing Model
@@ -129,6 +158,7 @@ Family plans are tiered flat-rate subscriptions managed by the Parent/Guardian w
 - If the family owner cancels or downgrades, all members revert to free-tier individual accounts. Children are notified via inbox.
 - Member count includes all roles: Parents, Children, and Adult Members.
 - Billing is managed through Clerk Billing (same as existing individual plans). A new `CLERK_FAMILY_SMALL_PLAN_ID` and `CLERK_FAMILY_LARGE_PLAN_ID` env var would be added.
+- **Plan stacking is not allowed.** Individual paid plans are only available to users who are not part of a family account. If an adult member wants an individual plan, they must leave the family first. This keeps billing clean and avoids ambiguous feature entitlements.
 
 ---
 
@@ -167,6 +197,36 @@ A user (especially a child) can belong to more than one family account simultane
 **Leaving a family:**
 - A child can leave a non-primary family at any time without affecting their primary family membership.
 - Leaving the primary family prompts the user to either designate a new primary or become fully independent.
+
+---
+
+## Family Challenges
+
+Parents/Guardians can create **Family Challenges** — structured scripture reading or study tasks assigned to all (or specific) family members.
+
+**Behavior:**
+- A challenge has a title, description, optional scripture reference, and a due date.
+- All family members see the challenge in the Family Space and in their personal inbox as a special challenge card.
+- Each member tracks their own completion; parents can see completion status per member.
+- Challenges are created by Parents/Guardians only — children and adult members can complete but not create.
+- Completed challenges award XP to the completing member and contribute to the family leaderboard.
+
+**Implementation note:** Challenges would likely reuse or extend the existing `challenge` content type already present in `InboxItems.contentType`. A `familyId` field on challenges would scope them to a family.
+
+---
+
+## Family XP & Leaderboard
+
+Every family gets a **family leaderboard** — a view inside the Family Space showing each member's XP earned within a given season or timeframe.
+
+**Behavior:**
+- Displays each family member's name, avatar, current XP (seasonal), and streak status.
+- Ordered by XP descending — friendly competition, not high-pressure.
+- Parents see all members; children see all members (including parents).
+- No family aggregate score — the leaderboard is per-member, not a combined total.
+- Family challenge completions show separately from personal XP on the leaderboard card.
+
+**Implementation note:** Leans on existing `UserSeasonalXP` and `WeeklyStreaks` tables. The leaderboard is a read-only query scoped to `FamilyMembers.familyId` — no new XP infrastructure needed.
 
 ---
 
@@ -222,14 +282,11 @@ Church-to-family inheritance would be handled in the inbox assignment job: when 
 
 ---
 
-## Open Questions & Future Considerations
+## Future Considerations
 
-- **Notification controls**: Should parents receive notifications when a child creates a note or reaches a milestone, or is passive visibility sufficient?
-- **Child content filters**: Should parents be able to restrict what content types a child can create (e.g., no lock-encrypted notes for children)?
-- **Family challenges**: Could a parent create a scripture reading challenge for the whole family, trackable through the Family Space?
-- **Age suggestion (not enforcement)**: Even without hard age gating, should Harvous suggest a child-appropriate UI skin for accounts designated as children?
-- **Church admin targeting**: Once the church layer is built, church admins should be able to target "families with children" or "youth members" specifically — the `FamilyMembers.role` field enables this.
-- **Family leaderboards / shared XP view**: Parents might enjoy a family XP summary — aggregate engagement across all family members.
-- **Granular child privacy toggle**: A future iteration might let parents grant specific children more privacy (e.g., a teenager's journal notes) — for now, it's all-or-nothing full visibility.
-- **Onboarding for child accounts**: A simplified signup flow for children (invited by a parent) that skips church affiliation, billing, and other adult-first setup steps.
-- **Family plan + individual plan coexistence**: Edge case where an adult member on the family plan also wants features gated behind an individual unlimited plan — may need a "family + individual top-up" model.
+These items are intentionally deferred — not part of the initial family accounts build but worth designing for later.
+
+- **Granular child privacy toggle**: A future iteration might let parents grant specific children more privacy (e.g., a teenager's journal notes). For v1, visibility is all-or-nothing — parents see everything until the child transitions to Adult Member.
+- **Onboarding for child accounts**: A simplified signup flow for children (invited by a parent) that skips church affiliation, billing, and adult-first setup steps. The auto-simplified UI helps, but a purpose-built onboarding path would be better.
+- **Church admin targeting by family role**: Once the church layer matures, church admins should be able to target "parents" or "children in family accounts" directly — not just families as a whole. `FamilyMembers.role` already enables this query.
+- **Family notification digest**: Rather than individual milestone pings, parents might prefer a weekly digest summarizing all family activity — notes written, XP earned, challenges completed.
