@@ -67,6 +67,32 @@ Today the app assumes **one active Clerk session** per browser profile. True “
 
 Any design should **avoid implying** multiple concurrent sessions unless the stack truly supports it (token storage, sync, offline identity).
 
+## Explored option: Remove search from nav chrome
+
+**Idea:** Remove the dedicated **search** control from both **desktop** and **mobile** nav. On **desktop**, the **profile** strip would span the full width of the bottom bar (it already uses `flex: 1` beside search today). On **mobile**, drop the third column so the **space / home “menu”** (`SpaceButton` + sheet toggle) **fills the remaining width** beside the avatar (`grid` becomes `auto 1fr` instead of `auto 1fr auto`).
+
+### What you gain
+
+- **Cleaner chrome:** Fewer competing 64px tiles; one clear “account” strip on desktop and a single dominant “where am I” control on mobile.
+- **Desktop:** Bottom row can read as **profile-only** (name pill full width), which pairs well with a future richer strip (Claude-like) without sharing space with search.
+- **Mobile:** The center column is already **`1fr`**; removing search gives that block the full middle lane—aligned with “menu fills remaining space.”
+
+### What you risk
+
+- **Discoverability:** Search is **high-intent**. Without a nav affordance, users who don’t know **`/search`** or bookmarks may think search is gone. Plan at least one alternate path: link from **profile / options**, **empty states**, or a **keyboard shortcut** / command palette if introduced later.
+- **Habit:** Users trained on corner search need a deliberate migration (no skeleton rule conflict—copy or a single release note may suffice).
+- **Parity:** Keep **`/search`** working and reachable so power users aren’t blocked.
+
+### Fit with current implementation
+
+- **Desktop:** [`NavigationColumn`](../../src/components/react/navigation/NavigationColumn.tsx) — remove the search `<a>`; keep **`nav-column-bottom__profile-slot`** as the sole growing region (and **`showProfile`** back control in that slot).
+- **Mobile:** [`MobileNavigation`](../../src/components/react/navigation/MobileNavigation.tsx) — remove the third **`mobile-nav__col`** search block; adjust **`.mobile-nav`** grid to **`auto 1fr`**. Touch targets and **`.space-switcher-anchor--mobile`** styles should be re-checked after the layout shift.
+
+### Recommendation
+
+- **Product:** Reasonable if search is **not** a top-tier action from the shell on mobile; less critical on desktop if search is mostly keyboard or deep-linked.
+- **Engineering:** **Low coupling**—search entry is mostly isolated to those components plus the **`/search`** route; the main cost is **UX assurance** (where search lives next), not a large refactor.
+
 ## Related docs
 
 - [`NAVIGATION_HIERARCHY_REDESIGN.md`](./NAVIGATION_HIERARCHY_REDESIGN.md) — broader nav IA.
@@ -78,7 +104,8 @@ Any design should **avoid implying** multiple concurrent sessions unless the sta
 
 - Should **desktop and mobile** show the **same** identity model (name + subtitle + avatar), or keep mobile denser?
 - Is **plan line** sourced from **Clerk metadata**, **Stripe**, or **`UserMetadata`** only?
-- Should **search** stay a third column on mobile if the strip grows vertically (two-line profile)?
+- If search is **removed from nav** (see [Explored option: Remove search from nav chrome](#explored-option-remove-search-from-nav-chrome)), where should **discoverability** live (profile list, shortcut, command palette)?
+- Should **search** stay a third column on mobile if the strip grows vertically (two-line profile)? (Partially superseded by the remove-search option above.)
 - **Offline:** which account fields are safe to show from cache when **`useProfile`** is stale?
 
 ---
