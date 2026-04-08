@@ -163,13 +163,13 @@ export default function NewTagPanel({
     return (
       <form onSubmit={handleSubmit} className="w-full flex-stack">
         {/* Text input field */}
-        <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+        <div className="search-input w-full">
           <input
             type="text"
             value={tagName}
             onChange={(e) => setTagName(e.target.value)}
             placeholder="Type here..."
-            className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+            className="search-input__field"
             disabled={isSubmitting}
             autoFocus={!isMobile}
           />
@@ -212,13 +212,13 @@ export default function NewTagPanel({
                 <div className="w-full">
                   
                   {/* Text input field */}
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                  <div className="search-input w-full">
                     <input
                       type="text"
                       value={tagName}
                       onChange={(e) => setTagName(e.target.value)}
                       placeholder="Type here..."
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      className="search-input__field"
                       disabled={isSubmitting}
                       autoFocus={!isMobile}
                     />

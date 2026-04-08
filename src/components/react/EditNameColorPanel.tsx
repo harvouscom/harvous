@@ -305,14 +305,16 @@ export default function EditNameColorPanel({
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
                 
                 {/* First Name Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="text"
-                    value={formData.firstName}
-                    onChange={(e) => handleInputChange('firstName', e.target.value)}
-                    placeholder={formData.firstName ? '' : 'First Name'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input w-full">
+                    <input 
+                      type="text"
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange('firstName', e.target.value)}
+                      placeholder={formData.firstName ? '' : 'First Name'}
+                      className="search-input__field" 
+                    />
+                  </div>
                   {validationErrors.firstName && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.firstName}
@@ -321,14 +323,16 @@ export default function EditNameColorPanel({
                 </div>
                 
                 {/* Last Name Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="text"
-                    value={formData.lastName}
-                    onChange={(e) => handleInputChange('lastName', e.target.value)}
-                    placeholder={formData.lastName ? '' : 'Last Name'}
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input w-full">
+                    <input 
+                      type="text"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange('lastName', e.target.value)}
+                      placeholder={formData.lastName ? '' : 'Last Name'}
+                      className="search-input__field" 
+                    />
+                  </div>
                   {validationErrors.lastName && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.lastName}

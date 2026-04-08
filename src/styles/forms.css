@@ -293,10 +293,10 @@
   width: 100%;
 }
 
-/* ThreadCombobox Create Thread row: opacity only on wrapper so it doesn't compound with span/svg */
+/* ThreadCombobox Create Thread row: opacity only on wrapper so it doesn't compound with span/svg (matches accent-bar icons, 0.8) */
 .thread-combobox-create-row-icon {
   color: var(--color-deep-grey) !important;
-  opacity: 0.3 !important;
+  opacity: 0.8 !important;
 }
 .thread-combobox-create-row-icon span,
 .thread-combobox-create-row-icon svg {
@@ -307,7 +307,7 @@
 
 /* When portaled into card-stack (e.g. mobile) */
 .card-stack__content .thread-combobox-create-row-icon {
-  opacity: 0.3 !important;
+  opacity: 0.8 !important;
 }
 .card-stack__content .thread-combobox-create-row-icon span,
 .card-stack__content .thread-combobox-create-row-icon svg {

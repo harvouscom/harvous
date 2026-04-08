@@ -418,7 +418,7 @@ export default function NewResourcePanel({
     <div className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative" style={{ maxHeight: '100%', width: '100%' }}>
       {/* URL Input - matches SearchInput pattern */}
       <div className="w-full shrink-0">
-        <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full" style={{ gridTemplateColumns: '1fr auto' }}>
+        <div className="search-input w-full" style={{ gridTemplateColumns: '1fr auto' }}>
           <input 
             ref={inputRef}
             type="text"
@@ -429,7 +429,6 @@ export default function NewResourcePanel({
             placeholder="Paste or enter URL..."
             tabIndex={1}
             className="search-input__field"
-            style={{ fontSize: '18px', fontWeight: 600 }}
           />
           
           {/* Clear button - same pattern as SearchInput */}

@@ -641,13 +641,13 @@ export default function MyChurchPanel({
                 
                 {/* Church Name Input - Full Width */}
                 <div className="w-full">
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                  <div className="search-input w-full">
                     <input 
                       type="text"
                       value={formData.churchName}
                       onChange={(e) => handleInputChange('churchName', e.target.value)}
                       placeholder="Name of church"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                      className="search-input__field placeholder:opacity-50" 
                     />
                   </div>
                   {validationErrors.churchName && (
@@ -661,13 +661,13 @@ export default function MyChurchPanel({
                 <div className="flex flex-wrap gap-3 items-start w-full">
                   {/* City Input - Flex grow with min-width */}
                   <div className="flex-1 min-w-[230px]">
-                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                    <div className="search-input w-full">
                       <input 
                         type="text"
                         value={formData.churchCity}
                         onChange={(e) => handleInputChange('churchCity', e.target.value)}
                         placeholder="City"
-                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                        className="search-input__field placeholder:opacity-50" 
                       />
                     </div>
                     {validationErrors.churchCity && (
@@ -679,13 +679,13 @@ export default function MyChurchPanel({
                   
                   {/* State/Province/Region Input - Flex grow with min-width */}
                   <div className="flex-1 min-w-[230px]">
-                    <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                    <div className="search-input w-full">
                       <input 
                         type="text"
                         value={formData.churchState}
                         onChange={(e) => handleInputChange('churchState', e.target.value)}
                         placeholder="State/Province/Region"
-                        className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] placeholder:opacity-50 w-full" 
+                        className="search-input__field placeholder:opacity-50" 
                       />
                     </div>
                     {validationErrors.churchState && (

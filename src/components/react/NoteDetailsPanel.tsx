@@ -612,12 +612,11 @@ export default function NoteDetailsPanel({
           background-color: var(--color-purple);
         }
         
-        /* Fix close icon hover for tags - scale on hover */
+        /* Fix close icon hover for tags - scale on hover (stacking: panels.css z-index 1) */
         .note-details-panel .tag-item .tag-close-icon {
           display: flex;
           align-items: center;
           justify-content: center;
-          z-index: 50;
         }
         
         .note-details-panel .tag-item .tag-close-icon:hover {

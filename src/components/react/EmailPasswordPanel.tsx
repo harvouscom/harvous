@@ -198,14 +198,16 @@ export default function EmailPasswordPanel({
                 </div>
                 
                 {/* New Email Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="email"
-                    value={formData.newEmail}
-                    onChange={(e) => handleInputChange('newEmail', e.target.value)}
-                    placeholder="New Email Address"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input w-full">
+                    <input 
+                      type="email"
+                      value={formData.newEmail}
+                      onChange={(e) => handleInputChange('newEmail', e.target.value)}
+                      placeholder="New Email Address"
+                      className="search-input__field" 
+                    />
+                  </div>
                   {validationErrors.newEmail && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.newEmail}
@@ -215,13 +217,13 @@ export default function EmailPasswordPanel({
                 
                 {/* Current Password Input */}
                 <div className="w-full">
-                  <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
+                  <div className="search-input w-full">
                     <input 
                       type="password"
                       value={formData.currentPassword}
                       onChange={(e) => handleInputChange('currentPassword', e.target.value)}
                       placeholder="Current Password"
-                      className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
+                      className="search-input__field" 
                     />
                   </div>
                   <div className="text-[var(--color-stone-grey)] text-sm mt-1 text-center">
@@ -235,14 +237,16 @@ export default function EmailPasswordPanel({
                 </div>
                 
                 {/* New Password Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="password"
-                    value={formData.newPassword}
-                    onChange={(e) => handleInputChange('newPassword', e.target.value)}
-                    placeholder="New Password"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input w-full">
+                    <input 
+                      type="password"
+                      value={formData.newPassword}
+                      onChange={(e) => handleInputChange('newPassword', e.target.value)}
+                      placeholder="New Password"
+                      className="search-input__field" 
+                    />
+                  </div>
                   {validationErrors.newPassword && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.newPassword}
@@ -251,14 +255,16 @@ export default function EmailPasswordPanel({
                 </div>
                 
                 {/* Confirm Password Input */}
-                <div className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full">
-                  <input 
-                    type="password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-                    placeholder="Confirm New Password"
-                    className="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full" 
-                  />
+                <div className="w-full">
+                  <div className="search-input w-full">
+                    <input 
+                      type="password"
+                      value={formData.confirmPassword}
+                      onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
+                      placeholder="Confirm New Password"
+                      className="search-input__field" 
+                    />
+                  </div>
                   {validationErrors.confirmPassword && (
                     <div className="text-red-500 text-sm mt-1 text-center">
                       {validationErrors.confirmPassword}

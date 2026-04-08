@@ -75,7 +75,6 @@ export async function generateAutoTags(
 
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === 'god') continue;
-      if (keyword.name.includes(' ')) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some(existing => isTagOverlapping(keyword.name, existing.keyword));
         if (isOverlapping) continue;

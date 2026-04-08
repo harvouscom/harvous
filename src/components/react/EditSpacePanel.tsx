@@ -1411,8 +1411,8 @@ export default function EditSpacePanel({
                       formDataRef={formDataRef}
                       onSave={saveTitleChange}
                       emptyPlaceholder="Space Title"
-                      className="search-input rounded-3xl py-5 px-4 min-h-[64px] w-full"
-                      inputClassName="outline-none bg-transparent text-[18px] font-semibold text-[var(--color-deep-grey)] text-center placeholder:text-[var(--color-pebble-grey)] w-full"
+                      className="search-input w-full"
+                      inputClassName="search-input__field"
                       validationError={validationErrors.title}
                       onClearValidation={() => {
                         if (!validationErrors.title) return;

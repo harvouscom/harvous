@@ -177,15 +177,17 @@ function DebouncedEntityTitleInputInner({
   };
 
   return (
-    <div className={className}>
-      <input
-        type="text"
-        value={value}
-        onChange={handleChange}
-        placeholder={value ? '' : emptyPlaceholder}
-        className={inputClassName}
-        aria-invalid={!!validationError}
-      />
+    <div className="w-full">
+      <div className={className}>
+        <input
+          type="text"
+          value={value}
+          onChange={handleChange}
+          placeholder={value ? '' : emptyPlaceholder}
+          className={inputClassName}
+          aria-invalid={!!validationError}
+        />
+      </div>
       {validationError ? (
         <div className="text-red-500 text-sm mt-1 text-center">{validationError}</div>
       ) : null}

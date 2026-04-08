@@ -236,10 +236,12 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     if (finalNoteType !== 'resource' && !contentEncrypted) {
       (async () => {
         try {
-          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.8);
+          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
           if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
-        } catch {}
-      })().catch(() => {});
+        } catch (err) {
+          console.error('[auto-tag] Failed to auto-tag new note:', newNote.id, err);
+        }
+      })().catch((err) => console.error('[auto-tag] Unhandled:', newNote.id, err));
     }
 
     // Scripture metadata
@@ -411,15 +413,19 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
       await db.update(Threads).set({ updatedAt: nowISO() }).where(and(eq(Threads.id, nt.threadId), eq(Threads.userId, auth.userId)));
     }
 
-    // Re-tag (fire-and-forget)
+    // Re-tag (fire-and-forget) — generate first, only remove+apply if successful
     if (!isEncrypted) {
       (async () => {
         try {
-          await removeAutoTags(noteId);
-          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId, 0.8);
-          if (r.suggestions.length > 0) await applyAutoTags(noteId, r.suggestions, auth.userId);
-        } catch {}
-      })().catch(() => {});
+          const r = await generateAutoTags(capitalizedTitle || '', capitalizedContent, auth.userId);
+          if (r.suggestions.length > 0) {
+            await removeAutoTags(noteId);
+            await applyAutoTags(noteId, r.suggestions, auth.userId);
+          }
+        } catch (err) {
+          console.error('[auto-tag] Failed to re-tag note:', noteId, err);
+        }
+      })().catch((err) => console.error('[auto-tag] Unhandled re-tag:', noteId, err));
     }
 
     // Update resource image
