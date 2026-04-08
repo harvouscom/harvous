@@ -1569,6 +1569,7 @@ export default function ThreadNotesList({
               resourceTitle={note.noteType === 'resource' ? (note.resourceTitle || null) : undefined}
               resourceDescription={note.noteType === 'resource' ? (note.resourceDescription || null) : undefined}
               resourceImage={note.noteType === 'resource' ? (note.resourceImage || null) : undefined}
+              noteId={note.id}
               isPendingSync={note.syncStatus === 'pending'}
               contentEncrypted={note.contentEncrypted === true}
               threadColors={note.threadColors ?? (threadColor ? [{ color: threadColor, frequency: 1 }] : undefined)}

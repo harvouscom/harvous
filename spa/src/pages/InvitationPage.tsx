@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CardStack from '../components/CardStack';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../lib/api';
 import { useAcceptInvitation } from '../hooks/mutations/useAcceptInvitation';
 import { navigationQueryKey } from '../hooks/queries/useNavigation';
@@ -171,14 +172,15 @@ export default function InvitationPage() {
                 </a>
               </div>
             ) : invitation ? (
-              <>
+              <SubtleContentMount>
+                <>
                 {/* Inviter info (above CardStack) */}
                 <div className="shared-page__creator">
                   <p>{inviterDisplayName} invited you to join this space on Harvous</p>
                 </div>
 
                 {/* CardStack with invitation */}
-                <div className="shared-page__card-container shared-page__slide-up" style={{ animationDelay: '50ms' }}>
+                <div className="shared-page__card-container">
                   <CardStack
                     title={invitation.spaceTitle}
                     headerBgColor={`var(--color-${spaceColor})`}
@@ -260,6 +262,7 @@ export default function InvitationPage() {
                   <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
                 </div>
               </>
+              </SubtleContentMount>
             ) : null}
           </div>
         </div>

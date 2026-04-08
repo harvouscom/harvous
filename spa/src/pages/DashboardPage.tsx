@@ -12,6 +12,7 @@ import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useFeaturedItems } from '../hooks/queries/useFeaturedItems';
 import FeaturedCarousel from '../components/FeaturedCarousel';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 
 type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -30,7 +31,7 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<DashboardFilter>('all');
   const authReady = isLoaded && isSignedIn;
   const { isSuccess: profileSuccess } = useProfile();
-  const { data: featuredItems } = useFeaturedItems({ enabled: authReady });
+  const { data: featuredItems, isFetched: featuredFetched } = useFeaturedItems({ enabled: authReady });
 
   const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30, {
     enabled: authReady,
@@ -47,7 +48,11 @@ export default function DashboardPage() {
     void refetchContent();
   }, [profileSuccess, cachedItems.length, refetchContent]);
 
-  const isInitialLoading = cachedItems.length === 0 && isFetching;
+  // One coordinated exit from loading: wait for first featured fetch too, so the carousel
+  // doesn’t mount after tabs/list (second layout shift / “double load”).
+  const listAwaitingFirstPage = cachedItems.length === 0 && isFetching;
+  const featuredAwaitingFirstFetch = authReady && !featuredFetched;
+  const isInitialLoading = listAwaitingFirstPage || featuredAwaitingFirstFetch;
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
@@ -97,23 +102,25 @@ export default function DashboardPage() {
   return (
     <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
       {featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
-      <TabNav
-        tabs={tabs}
-        onTabChange={(id) => setFilter(id as DashboardFilter)}
-        className="dashboard-tab-nav content-tabs"
-      />
-      <OrganizedContentList
-        initialItems={cachedItems as any}
-        filter={filter}
-        userId={user?.id}
-        dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
-        onNavigate={(href) => navigate({ to: href as any })}
-        parentIsLoading={isInitialLoading}
-        initialHasMoreFromParent={initialHasMoreFromParent}
-        onNotePrefetch={prefetchNote}
-      />
-      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
-      <div data-cta-spacer className="create-note-cta-spacer" />
+      <SubtleContentMount key={user?.id ?? 'home'} variant="fade">
+        <TabNav
+          tabs={tabs}
+          onTabChange={(id) => setFilter(id as DashboardFilter)}
+          className="dashboard-tab-nav content-tabs"
+        />
+        <OrganizedContentList
+          initialItems={cachedItems as any}
+          filter={filter}
+          userId={user?.id}
+          dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
+          onNavigate={(href) => navigate({ to: href as any })}
+          parentIsLoading={isInitialLoading}
+          initialHasMoreFromParent={initialHasMoreFromParent}
+          onNotePrefetch={prefetchNote}
+        />
+        {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+        <div data-cta-spacer className="create-note-cta-spacer" />
+      </SubtleContentMount>
       {isMobile && <CreateNoteButton />}
     </CardStack>
   );

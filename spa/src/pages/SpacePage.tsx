@@ -19,6 +19,7 @@ import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
 import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -199,52 +200,54 @@ export default function SpacePage() {
         />
       ) : undefined}
     >
-      <TabNav
-        tabs={tabs}
-        onTabChange={handleSpaceTabChange}
-        className="content-tabs"
-      />
-      {filter === 'search' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <FindSearchInput
-            placeholder="Search this space…"
-            initialQuery={scopedSearchQuery}
-            onBeforeSearchNavigate={prefetchSpaceSearch}
-            onSubmitSearch={setScopedSearchQuery}
-            onClearSearch={() => setScopedSearchQuery('')}
-            recentSearchRecordScope={{ type: 'space', id: spaceId }}
-          />
-          {!scopedSearchQuery.trim() && (
-            <RecentSearches
-              storageScope={{ type: 'space', id: spaceId }}
-              onPrefetchSearch={prefetchSpaceSearch}
-              onSelectRecentTerm={(term) => {
-                prefetchSpaceSearch(term);
-                setScopedSearchQuery(term);
-              }}
-            />
-          )}
-          <SearchResultsList
-            query={scopedSearchQuery}
-            scope={{ spaceId }}
-            recentSearchCountSync={{ type: 'space', id: spaceId }}
-          />
-        </div>
-      ) : (
-        <SpaceContentList
-          initialItems={initialItems}
-          spaceId={spaceId}
-          filter={filter}
-          spaceIsShared={space?.isPublic}
-          isOwner={space?.ownerId === user?.id}
-          currentUserId={user?.id ?? null}
-          parentIsLoading={parentIsLoading}
-          onPrefetchNote={prefetchNote}
-          onNotesLoaded={onNotesLoaded}
+      <SubtleContentMount key={spaceId} variant="fade">
+        <TabNav
+          tabs={tabs}
+          onTabChange={handleSpaceTabChange}
+          className="content-tabs"
         />
-      )}
-      {/* Spacer so the last item can scroll above the floating "Create a note" button */}
-      <div data-cta-spacer className="create-note-cta-spacer" />
+        {filter === 'search' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <FindSearchInput
+              placeholder="Search this space…"
+              initialQuery={scopedSearchQuery}
+              onBeforeSearchNavigate={prefetchSpaceSearch}
+              onSubmitSearch={setScopedSearchQuery}
+              onClearSearch={() => setScopedSearchQuery('')}
+              recentSearchRecordScope={{ type: 'space', id: spaceId }}
+            />
+            {!scopedSearchQuery.trim() && (
+              <RecentSearches
+                storageScope={{ type: 'space', id: spaceId }}
+                onPrefetchSearch={prefetchSpaceSearch}
+                onSelectRecentTerm={(term) => {
+                  prefetchSpaceSearch(term);
+                  setScopedSearchQuery(term);
+                }}
+              />
+            )}
+            <SearchResultsList
+              query={scopedSearchQuery}
+              scope={{ spaceId }}
+              recentSearchCountSync={{ type: 'space', id: spaceId }}
+            />
+          </div>
+        ) : (
+          <SpaceContentList
+            initialItems={initialItems}
+            spaceId={spaceId}
+            filter={filter}
+            spaceIsShared={space?.isPublic}
+            isOwner={space?.ownerId === user?.id}
+            currentUserId={user?.id ?? null}
+            parentIsLoading={parentIsLoading}
+            onPrefetchNote={prefetchNote}
+            onNotesLoaded={onNotesLoaded}
+          />
+        )}
+        {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+        <div data-cta-spacer className="create-note-cta-spacer" />
+      </SubtleContentMount>
       {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}
     </CardStack>
   );

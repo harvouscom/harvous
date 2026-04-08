@@ -2470,6 +2470,42 @@ async function detectAndCreateScriptureNotes(editor: any, parentThreadId?: strin
   }
 }
 
+/**
+ * Formatting toolbar button row. Browsers often skip CSS @keyframes that start on the same
+ * frame the element mounts; we paint a prep state first, then arm after one rAF (prep already
+ * separates commits — a second rAF was stacking delay on cold first paint vs warm title↔body focus).
+ */
+function TiptapToolbarTrack({
+  placement,
+  children,
+}: {
+  placement: 'top' | 'bottom';
+  children: React.ReactNode;
+}) {
+  const [enterArmed, setEnterArmed] = useState(false);
+
+  useLayoutEffect(() => {
+    setEnterArmed(false);
+    const raf1 = requestAnimationFrame(() => {
+      setEnterArmed(true);
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+    };
+  }, [placement]);
+
+  const prepClass =
+    placement === 'top' ? 'tiptap-toolbar__track--enter-prep-top' : 'tiptap-toolbar__track--enter-prep-bottom';
+  const runClass =
+    placement === 'top' ? 'tiptap-toolbar__track--enter-from-top' : 'tiptap-toolbar__track--enter-from-bottom';
+
+  return (
+    <div className={`tiptap-toolbar__track flex items-center w-full min-w-0 ${enterArmed ? runClass : prepClass}`}>
+      {children}
+    </div>
+  );
+}
+
 // Detect mobile device for different handling
 // On mobile, we don't want to interfere with native keyboard behavior (e.g., double-space-to-period)
 const isMobileDevice = (): boolean => {
@@ -2497,6 +2533,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isEditorFocused, setIsEditorFocused] = useState(false);
+  /** Bump when the editor gains focus from an unfocused state so the toolbar remounts and the enter animation can run. */
+  const [toolbarEnterEpoch, setToolbarEnterEpoch] = useState(0);
+  const editorWasFocusedForToolbarRef = useRef(false);
   const [activeStates, setActiveStates] = useState({
     bold: false,
     italic: false,
@@ -3876,7 +3915,11 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           });
         }
       }
-      
+
+      if (!editorWasFocusedForToolbarRef.current) {
+        setToolbarEnterEpoch((n) => n + 1);
+      }
+      editorWasFocusedForToolbarRef.current = true;
       setIsEditorFocused(true);
     };
 
@@ -3897,6 +3940,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Small delay to allow focus to return to editor if needed
       setTimeout(() => {
         if (isEditorValid(editor) && !editor.isFocused) {
+          editorWasFocusedForToolbarRef.current = false;
           setIsEditorFocused(false);
         }
       }, 100);
@@ -3910,9 +3954,13 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
     editor.on('selectionUpdate', handleSelectionUpdate);
 
-    // Set initial focus state
-    if (isEditorValid(editor)) {
-      setIsEditorFocused(editor.isFocused);
+    // Set initial focus state (mount with caret already in editor — still show toolbar + animation)
+    if (isEditorValid(editor) && editor.isFocused) {
+      editorWasFocusedForToolbarRef.current = true;
+      setToolbarEnterEpoch((n) => n + 1);
+      setIsEditorFocused(true);
+    } else if (isEditorValid(editor)) {
+      setIsEditorFocused(false);
     }
 
     return () => {
@@ -4181,7 +4229,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       {/* Toolbar above or below scroll area; below keeps it visible above keyboard on mobile */}
       {!minimalToolbar && isEditorFocused && !toolbarAtBottom && (
         <div
-          className="tiptap-toolbar flex items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+          className="tiptap-toolbar p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
             position: 'sticky',
             top: 0,
@@ -4190,6 +4238,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             backgroundColor: 'var(--color-snow-white)',
           }}
         >
+          <div className="tiptap-toolbar__hscroll">
+          <TiptapToolbarTrack key={toolbarEnterEpoch} placement="top">
           <ToolbarButton
             onClick={() => {
               if (!editor) {
@@ -4287,6 +4337,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           >
             <Icon name="eraser" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
+          </TiptapToolbarTrack>
+          </div>
         </div>
       )}
       {/* Scroll area with top/bottom fade mask; toolbar is outside so not faded */}
@@ -4486,7 +4538,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       </div>
       {!minimalToolbar && isEditorFocused && toolbarAtBottom && (
         <div
-          className="tiptap-toolbar tiptap-toolbar--bottom flex items-center p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
+          className="tiptap-toolbar tiptap-toolbar--bottom p-1 border border-[var(--color-fog-white)] rounded-xl bg-[var(--color-snow-white)] shrink-0"
           style={{
             position: 'sticky',
             bottom: 0,
@@ -4495,6 +4547,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             backgroundColor: 'var(--color-snow-white)',
           }}
         >
+          <div className="tiptap-toolbar__hscroll">
+          <TiptapToolbarTrack key={toolbarEnterEpoch} placement="bottom">
           <ToolbarButton
             onClick={() => {
               if (!editor) return;
@@ -4572,6 +4626,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           >
             <Icon name="eraser" size={20} style={{ fill: 'currentColor' }} />
           </ToolbarButton>
+          </TiptapToolbarTrack>
+          </div>
         </div>
       )}
     </div>

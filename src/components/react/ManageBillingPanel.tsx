@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SafeSubscriptionDetailsButton from './SafeSubscriptionDetailsButton';
 import SquareButton from './SquareButton';
 import { getCachedPanelData, setCachedPanelData, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
+import SubtleContentMount from './SubtleContentMount';
 
 interface ManageBillingPanelProps {
   onClose?: () => void;
@@ -391,93 +392,100 @@ export default function ManageBillingPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`} style={{ gap: '12px' }}>
-                
-                {/* Subscription Status Display */}
-                {!isLoading && subscriptionInfo && (
-                  <div className="w-full">
-                    <div
-                      className="font-sans text-center px-4 pt-3 pb-2"
-                      style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance', marginBottom: 12 }}
-                    >
-                      {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
-                    </div>
-                    <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
-                      <div
-                        className="bg-white rounded-xl p-3 flex-row"
-                        style={{
-                          gap: '0.75rem',
-                          border: '1px solid',
-                          borderColor: 'var(--color-fog-white)'
-                        }}
-                      >
-                        <div className="min-w-0 flex-1 text-left">
-                          <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
-                            Unlimited notes
-                          </span>
-                          <span className="block text-xs mt-1" style={{ color: 'var(--color-pebble-grey)' }}>
-                            {subscriptionInfo.currentCount.toLocaleString()} notes in your library
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                {isLoading ? (
+                  <div className="w-full p-8 text-center">
+                    <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
+                      Loading…
+                    </p>
                   </div>
-                )}
-
-                {/* Upgrade to Unlimited Button - Only show for free plan users */}
-                {!isLoading && subscriptionInfo && !subscriptionInfo.hasUnlimited && (
-                  <a
-                    href="/upgrade"
-                    className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
-                    style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', textDecoration: 'none', display: 'block', margin: 0 }}
-                  >
-                    <div className="panel__list-item">
-                      <div className="panel__list-item-text">
-                        <span className="panel__list-item-label">
-                          Upgrade to Unlimited
-                        </span>
-                      </div>
-                      <div className="panel__list-item-icon">
-                        <div className="panel__list-item-icon-wrapper">
-                          <div className="panel__external-icon">
-                            <svg viewBox="0 0 320 512">
-                              <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                            </svg>
-                          </div>
+                ) : (
+                  <SubtleContentMount>
+                    {/* Subscription Status Display */}
+                    {subscriptionInfo ? (
+                      <div className="w-full">
+                        <div
+                          className="font-sans text-center px-4 pt-3 pb-2"
+                          style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance', marginBottom: 12 }}
+                        >
+                          {subscriptionInfo.hasUnlimited ? "You're on the Unlimited plan" : "You're on the free plan"}
                         </div>
-                      </div>
-                    </div>
-                  </a>
-                )}
-
-                {/* Manage Payment Method & Billing Button - Only show for unlimited plan users */}
-                {/* SafeSubscriptionDetailsButton handles Clerk context availability check */}
-                {!isLoading && subscriptionInfo && subscriptionInfo.hasUnlimited && (
-                  <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
-                    <button
-                      type="button"
-                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
-                      style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
-                    >
-                      <div className="panel__list-item">
-                        <div className="panel__list-item-text">
-                          <span className="panel__list-item-label">
-                            Manage Billing
-                          </span>
-                        </div>
-                        <div className="panel__list-item-icon">
-                          <div className="panel__list-item-icon-wrapper">
-                            <div className="panel__external-icon">
-                              <svg viewBox="0 0 320 512">
-                                <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
-                              </svg>
+                        <div className="flex-stack" style={{ gap: 12, marginBottom: 12 }}>
+                          <div
+                            className="bg-white rounded-xl p-3 flex-row"
+                            style={{
+                              gap: '0.75rem',
+                              border: '1px solid',
+                              borderColor: 'var(--color-fog-white)'
+                            }}
+                          >
+                            <div className="min-w-0 flex-1 text-left">
+                              <span className="text-base font-semibold" style={{ color: 'var(--color-deep-grey)' }}>
+                                Unlimited notes
+                              </span>
+                              <span className="block text-xs mt-1" style={{ color: 'var(--color-pebble-grey)' }}>
+                                {subscriptionInfo.currentCount.toLocaleString()} notes in your library
+                              </span>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </button>
-                  </SafeSubscriptionDetailsButton>
-                )}
+                    ) : null}
 
+                    {/* Upgrade to Unlimited Button - Only show for free plan users */}
+                    {subscriptionInfo && !subscriptionInfo.hasUnlimited ? (
+                      <a
+                        href="/upgrade"
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                        style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', textDecoration: 'none', display: 'block', margin: 0 }}
+                      >
+                        <div className="panel__list-item">
+                          <div className="panel__list-item-text">
+                            <span className="panel__list-item-label">
+                              Upgrade to Unlimited
+                            </span>
+                          </div>
+                          <div className="panel__list-item-icon">
+                            <div className="panel__list-item-icon-wrapper">
+                              <div className="panel__external-icon">
+                                <svg viewBox="0 0 320 512">
+                                  <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </a>
+                    ) : null}
+
+                    {/* Manage Payment Method & Billing Button - Only show for unlimited plan users */}
+                    {subscriptionInfo && subscriptionInfo.hasUnlimited ? (
+                      <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
+                        <button
+                          type="button"
+                          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                          style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
+                        >
+                          <div className="panel__list-item">
+                            <div className="panel__list-item-text">
+                              <span className="panel__list-item-label">
+                                Manage Billing
+                              </span>
+                            </div>
+                            <div className="panel__list-item-icon">
+                              <div className="panel__list-item-icon-wrapper">
+                                <div className="panel__external-icon">
+                                  <svg viewBox="0 0 320 512">
+                                    <path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/>
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      </SafeSubscriptionDetailsButton>
+                    ) : null}
+                  </SubtleContentMount>
+                )}
               </div>
             </div>
           </div>

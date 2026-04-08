@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../lib/api';
 import { APIError } from '../lib/api';
 import { useAddSharedNote } from '../hooks/mutations/useAddSharedNote';
@@ -175,7 +176,8 @@ export default function SharedNotePage() {
                 </a>
               </div>
             ) : (
-              <>
+              <SubtleContentMount>
+                <>
                 {/* Creator info (above card) */}
                 <div className="shared-page__creator">
                   <p>
@@ -186,7 +188,7 @@ export default function SharedNotePage() {
                 </div>
 
                 {/* Card container */}
-                <div className="shared-page__card-container shared-page__slide-up" style={{ animationDelay: '50ms' }}>
+                <div className="shared-page__card-container">
                   <CardFullEditable
                     title={note.title ?? ''}
                     content={note.content ?? ''}
@@ -247,6 +249,7 @@ export default function SharedNotePage() {
                   <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
                 </div>
               </>
+              </SubtleContentMount>
             )}
           </div>
         </div>

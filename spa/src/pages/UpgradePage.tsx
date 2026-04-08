@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast as sonnerToast } from 'sonner';
 import UpgradePageContent, { type LimitsInfo } from '../../../src/components/react/UpgradePageContent';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api } from '../lib/api';
 
 interface UpgradeData {
@@ -53,12 +54,14 @@ export default function UpgradePage() {
               {isLoading ? (
                 <div className="page-loading" />
               ) : (
-                <UpgradePageContent
-                  initialHasUnlimited={data?.hasUnlimited ?? false}
-                  limitsInfo={data?.limitsInfo ?? null}
-                  publishableKey={null}
-                  unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
-                />
+                <SubtleContentMount>
+                  <UpgradePageContent
+                    initialHasUnlimited={data?.hasUnlimited ?? false}
+                    limitsInfo={data?.limitsInfo ?? null}
+                    publishableKey={null}
+                    unlimitedPlanId={import.meta.env.VITE_CLERK_UNLIMITED_PLAN_ID ?? ''}
+                  />
+                </SubtleContentMount>
               )}
             </div>
           </div>

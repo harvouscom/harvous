@@ -52,20 +52,21 @@ export function useNewNoteForm(options: UseNewNoteFormOptions = {}): UseNewNoteF
   
   // Consume state from context
   const context = useNewNotePanelContext();
-  
+  const { setInitialNoteType, setAddToSpace } = context;
+
   // Handle initialNoteType prop - set it in context when provided
   useEffect(() => {
     if (initialNoteType) {
-      context.setInitialNoteType(initialNoteType);
+      setInitialNoteType(initialNoteType);
     }
-  }, [initialNoteType, context]);
+  }, [initialNoteType, setInitialNoteType]);
 
   // Initialize space checkbox when currentSpace is provided
   useEffect(() => {
     if (currentSpace && currentSpace.id) {
-      context.setAddToSpace(true);
+      setAddToSpace(true);
     }
-  }, [currentSpace, context]);
+  }, [currentSpace, setAddToSpace]);
 
   return {
     // State

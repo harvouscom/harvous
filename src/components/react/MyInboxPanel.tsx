@@ -4,6 +4,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { generateAccentMeshGradient } from '@/utils/colors';
 import Icon from './Icon';
 import { FeaturedCardActionsDock } from './FeaturedCardActionsDock';
+import SubtleContentMount from './SubtleContentMount';
 
 type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
 
@@ -195,40 +196,40 @@ export default function MyInboxPanel({ onClose, inBottomSheet = false }: MyInbox
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              {error && (
-                <div
-                  className="w-full p-4 rounded-xl mb-3"
-                  style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}
-                >
-                  <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>
-                    {error}
-                  </p>
-                </div>
-              )}
-
               {isLoading ? (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
                     Loading…
                   </p>
                 </div>
-              ) : null}
-
-              {isEmpty ? (
-                <div className="w-full p-8 text-center">
-                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Your inbox is empty
-                  </p>
-                </div>
-              ) : null}
-
-              {!isLoading && !error && items.length > 0 ? (
-                <div className="flex-stack w-full" style={{ gap: '0.75rem' }}>
-                  {items.map((it) => (
-                    <InboxFeaturedCard key={it.id} item={it} onErase={handleErase} />
-                  ))}
-                </div>
-              ) : null}
+              ) : (
+                <SubtleContentMount>
+                  {error ? (
+                    <div
+                      className="w-full p-4 rounded-xl mb-3"
+                      style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}
+                    >
+                      <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>
+                        {error}
+                      </p>
+                    </div>
+                  ) : null}
+                  {isEmpty ? (
+                    <div className="w-full p-8 text-center">
+                      <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
+                        Your inbox is empty
+                      </p>
+                    </div>
+                  ) : null}
+                  {!error && items.length > 0 ? (
+                    <div className="flex-stack w-full" style={{ gap: '0.75rem' }}>
+                      {items.map((it) => (
+                        <InboxFeaturedCard key={it.id} item={it} onErase={handleErase} />
+                      ))}
+                    </div>
+                  ) : null}
+                </SubtleContentMount>
+              )}
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
 import CardFullEditable from '../../../src/components/react/CardFullEditable';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { useUpdateNote } from '../hooks/mutations/useUpdateNote';
 import { useProcessScriptureRefs } from '../hooks/mutations/useProcessScriptureRefs';
@@ -263,21 +264,23 @@ export default function NotePage() {
       } : {})}
       style={{ display: 'contents' }}
     >
-      <CardFullEditable
-        title={note.title || 'Untitled Note'}
-        content={note.content ?? ''}
-        date={formattedDate}
-        noteId={noteId}
-        noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
-        version={note.version}
-        resourceTitle={note.resourceTitle ?? undefined}
-        resourceDescription={note.resourceDescription ?? undefined}
-        resourceImage={note.resourceImage ?? undefined}
-        resourceUrl={note.resourceUrl ?? undefined}
-        contentEncrypted={note.contentEncrypted ?? false}
-        isEditable={isEditable}
-        className="h-full flex-1 min-h-0"
-      />
+      <SubtleContentMount key={noteId} variant="fade">
+        <CardFullEditable
+          title={note.title || 'Untitled Note'}
+          content={note.content ?? ''}
+          date={formattedDate}
+          noteId={noteId}
+          noteType={(note.noteType || 'default') as 'default' | 'scripture' | 'resource'}
+          version={note.version}
+          resourceTitle={note.resourceTitle ?? undefined}
+          resourceDescription={note.resourceDescription ?? undefined}
+          resourceImage={note.resourceImage ?? undefined}
+          resourceUrl={note.resourceUrl ?? undefined}
+          contentEncrypted={note.contentEncrypted ?? false}
+          isEditable={isEditable}
+          className="h-full flex-1 min-h-0"
+        />
+      </SubtleContentMount>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl } from '@/utils/url-helpers';
 import { toast } from '@/utils/toast';
 import { getCachedPanelData, setCachedPanelData, invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
+import SubtleContentMount from './SubtleContentMount';
 
 type SharingFilter = 'all' | 'threads' | 'notes' | 'spaces';
 
@@ -216,118 +217,128 @@ export default function MySharingPanel({
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-              {!isLoading && !error && !isEmpty && (
-                <TabNav
-                  tabs={sharingTabs}
-                  onTabChange={(tabId) => setActiveFilter(tabId as SharingFilter)}
-                />
-              )}
-
-              {error && (
-                <div className="w-full p-4 rounded-xl mb-3" style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}>
-                  <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>{error}</p>
-                </div>
-              )}
-
-              {isEmpty && !isLoading && (
-                <div className="w-full p-8 text-center">
-                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Turn on sharing from a note, a thread, or a space to see them here
-                  </p>
-                </div>
-              )}
-
-              {!isLoading && !error && activeFilter === 'spaces' && spacesCount === 0 && (
-                <div className="w-full p-8 text-center">
-                  <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
-                    Spaces you create and invite people to will appear here.
-                  </p>
-                </div>
-              )}
-
-              {!isLoading && !isEmpty && hasItemsForFilter && (
-                <div className="flex-stack w-full" style={{ gap: '0.5rem' }}>
-                  <ul className="flex-stack list-none p-0 m-0" role="list" style={{ gap: '0.5rem' }}>
-                    {showThreads && threads.map((thread) => (
-                      <li key={thread.id}>
-                        <CondensedThreadItem
-                          title={thread.title}
-                          color={thread.color ?? undefined}
-                          isPublic={true}
-                          icon="layer-group"
-                          action={
-                            <ActionButton
-                              variant="Remove"
-                              onClick={() => handleDisableThread(thread)}
-                              disabled={disablingId === thread.id}
-                              aria-label={`Make private: ${thread.title}`}
-                              className="w-8 h-8"
-                            />
-                          }
-                        />
-                      </li>
-                    ))}
-                    {showNotes && notes.map((note) => (
-                      <li key={note.id}>
-                        <CondensedNoteItem
-                          title={note.title}
-                          noteType="default"
-                          itemType="note"
-                          action={
-                            <ActionButton
-                              variant="Remove"
-                              onClick={() => handleDisableNote(note)}
-                              disabled={disablingId === note.id}
-                              aria-label={`Make private: ${note.title}`}
-                              className="w-8 h-8"
-                            />
-                          }
-                        />
-                      </li>
-                    ))}
-                    {showSpaces && ownedSpaces.map((space) => (
-                      <li key={`owned-${space.id}`}>
-                        <CondensedThreadItem
-                          title={space.title}
-                          color={space.color ?? undefined}
-                          icon="cube"
-                          action={
-                            <div className="flex-row" style={{ gap: '0.25rem' }}>
-                              {space.shareUrl && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopySpaceLink(space)}
-                                  className="text-sm font-semibold px-2 py-1 rounded-lg"
-                                  style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
-                                  aria-label={`Copy invite link: ${space.title}`}
-                                >
-                                  Copy link
-                                </button>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenSpace(space.id)}
-                                className="text-sm font-semibold px-2 py-1 rounded-lg"
-                                style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
-                                aria-label={`Open: ${space.title}`}
-                              >
-                                Open
-                              </button>
-                            </div>
-                          }
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {!isLoading && !isEmpty && !hasItemsForFilter && !(activeFilter === 'spaces' && spacesCount === 0) && (
+              {isLoading ? (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
-                    No {activeFilter === 'threads' ? 'threads' : activeFilter === 'notes' ? 'notes' : 'shared spaces'} yet
+                    Loading…
                   </p>
                 </div>
+              ) : (
+                <SubtleContentMount>
+                  {!error && !isEmpty && (
+                    <TabNav
+                      tabs={sharingTabs}
+                      onTabChange={(tabId) => setActiveFilter(tabId as SharingFilter)}
+                    />
+                  )}
+
+                  {error ? (
+                    <div className="w-full p-4 rounded-xl mb-3" style={{ backgroundColor: 'var(--color-paper)', border: '1px solid var(--color-pebble-grey)' }}>
+                      <p className="text-sm font-sans" style={{ color: 'var(--color-deep-grey)' }}>{error}</p>
+                    </div>
+                  ) : null}
+
+                  {isEmpty ? (
+                    <div className="w-full p-8 text-center">
+                      <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
+                        Turn on sharing from a note, a thread, or a space to see them here
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {!error && activeFilter === 'spaces' && spacesCount === 0 ? (
+                    <div className="w-full p-8 text-center">
+                      <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px', textWrap: 'balance' }}>
+                        Spaces you create and invite people to will appear here.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {!isEmpty && hasItemsForFilter ? (
+                    <div className="flex-stack w-full" style={{ gap: '0.5rem' }}>
+                      <ul className="flex-stack list-none p-0 m-0" role="list" style={{ gap: '0.5rem' }}>
+                        {showThreads && threads.map((thread) => (
+                          <li key={thread.id}>
+                            <CondensedThreadItem
+                              title={thread.title}
+                              color={thread.color ?? undefined}
+                              isPublic={true}
+                              icon="layer-group"
+                              action={
+                                <ActionButton
+                                  variant="Remove"
+                                  onClick={() => handleDisableThread(thread)}
+                                  disabled={disablingId === thread.id}
+                                  aria-label={`Make private: ${thread.title}`}
+                                  className="w-8 h-8"
+                                />
+                              }
+                            />
+                          </li>
+                        ))}
+                        {showNotes && notes.map((note) => (
+                          <li key={note.id}>
+                            <CondensedNoteItem
+                              title={note.title}
+                              noteType="default"
+                              itemType="note"
+                              action={
+                                <ActionButton
+                                  variant="Remove"
+                                  onClick={() => handleDisableNote(note)}
+                                  disabled={disablingId === note.id}
+                                  aria-label={`Make private: ${note.title}`}
+                                  className="w-8 h-8"
+                                />
+                              }
+                            />
+                          </li>
+                        ))}
+                        {showSpaces && ownedSpaces.map((space) => (
+                          <li key={`owned-${space.id}`}>
+                            <CondensedThreadItem
+                              title={space.title}
+                              color={space.color ?? undefined}
+                              icon="cube"
+                              action={
+                                <div className="flex-row" style={{ gap: '0.25rem' }}>
+                                  {space.shareUrl && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopySpaceLink(space)}
+                                      className="text-sm font-semibold px-2 py-1 rounded-lg"
+                                      style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
+                                      aria-label={`Copy invite link: ${space.title}`}
+                                    >
+                                      Copy link
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSpace(space.id)}
+                                    className="text-sm font-semibold px-2 py-1 rounded-lg"
+                                    style={{ color: 'var(--color-bold-blue)', backgroundColor: 'transparent' }}
+                                    aria-label={`Open: ${space.title}`}
+                                  >
+                                    Open
+                                  </button>
+                                </div>
+                              }
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
+                  {!isEmpty && !hasItemsForFilter && !(activeFilter === 'spaces' && spacesCount === 0) ? (
+                    <div className="w-full p-8 text-center">
+                      <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
+                        No {activeFilter === 'threads' ? 'threads' : activeFilter === 'notes' ? 'notes' : 'shared spaces'} yet
+                      </p>
+                    </div>
+                  ) : null}
+                </SubtleContentMount>
               )}
             </div>
           </div>

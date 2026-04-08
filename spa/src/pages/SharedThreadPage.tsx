@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import CardNote from '../../../src/components/react/CardNote';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import CardStack from '../components/CardStack';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../lib/api';
 import { useAddSharedThread } from '../hooks/mutations/useAddSharedThread';
 import { getThreadGradientCSS } from '../../../src/utils/colors';
@@ -229,7 +230,8 @@ export default function SharedThreadPage() {
                 </a>
               </div>
             ) : (
-              <>
+              <SubtleContentMount>
+                <>
                 {/* Creator info (above CardStack) */}
                 <div className="shared-page__creator">
                   <p>
@@ -240,7 +242,7 @@ export default function SharedThreadPage() {
                 </div>
 
                 {/* CardStack with notes and CTA */}
-                <div className="shared-page__card-container shared-page__slide-up" style={{ animationDelay: '50ms' }}>
+                <div className="shared-page__card-container">
                   <CardStack
                     title={thread.title}
                     headerBgColor={`var(--color-${threadColor})`}
@@ -324,6 +326,7 @@ export default function SharedThreadPage() {
                   <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
                 </div>
               </>
+              </SubtleContentMount>
             )}
           </div>
         </div>

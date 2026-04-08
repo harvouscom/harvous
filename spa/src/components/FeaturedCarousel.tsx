@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FeaturedItem } from '../hooks/queries/useFeaturedItems';
 import Icon from '@/components/react/Icon';
 import FeaturedCard, { readDismissedFeaturedItem } from './FeaturedCard';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 
 function clampIndex(index: number, len: number) {
   if (len <= 0) return 0;
@@ -49,73 +50,77 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
   if (!activeItem) return null;
 
   return (
-    <div
-      className={`featured-carousel${localItems.length <= 1 ? ' featured-carousel--single' : ''}`}
-      onMouseDown={(e) => {
-        if (e.button !== 0) return;
-        handleSwipeStart(e.clientX, e.target);
-      }}
-      onMouseUp={(e) => handleSwipeEnd(e.clientX)}
-      onMouseLeave={() => { startXRef.current = null; }}
-      onTouchStart={(e) => {
-        if (e.touches.length === 1) {
-          handleSwipeStart(e.touches[0].clientX, e.target);
-        }
-      }}
-      onTouchEnd={(e) => {
-        if (e.changedTouches.length === 1) {
-          handleSwipeEnd(e.changedTouches[0].clientX);
-        }
-      }}
-      aria-label="Featured items"
-    >
-      <FeaturedCard
-        key={activeItem.id}
-        item={activeItem}
-        onClose={() => {
-          setLocalItems((prev) => {
-            const next = prev.filter((x) => x.id !== activeItem.id);
-            setActiveIndex((idx) => clampIndex(idx, next.length));
-            return next;
-          });
-        }}
-      />
+    <SubtleContentMount>
+      <div
+        className={`featured-carousel${localItems.length <= 1 ? ' featured-carousel--single' : ''}`}
+        onMouseDown={(e) => {
+            if (e.button !== 0) return;
+            handleSwipeStart(e.clientX, e.target);
+          }}
+          onMouseUp={(e) => handleSwipeEnd(e.clientX)}
+          onMouseLeave={() => {
+            startXRef.current = null;
+          }}
+          onTouchStart={(e) => {
+            if (e.touches.length === 1) {
+              handleSwipeStart(e.touches[0].clientX, e.target);
+            }
+          }}
+          onTouchEnd={(e) => {
+            if (e.changedTouches.length === 1) {
+              handleSwipeEnd(e.changedTouches[0].clientX);
+            }
+          }}
+          aria-label="Featured items"
+        >
+          <FeaturedCard
+            key={activeItem.id}
+            item={activeItem}
+            onClose={() => {
+              setLocalItems((prev) => {
+                const next = prev.filter((x) => x.id !== activeItem.id);
+                setActiveIndex((idx) => clampIndex(idx, next.length));
+                return next;
+              });
+            }}
+          />
 
-      {localItems.length > 1 ? (
-        <div className="featured-carousel__pager" role="navigation" aria-label="Featured carousel">
-          <button
-            type="button"
-            className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
-            aria-label="Previous featured item"
-            disabled={!canGoPrev}
-            onClick={goPrev}
-          >
-            <Icon name="caret-left" size={18} />
-          </button>
-          <div className="featured-carousel__dots" role="tablist" aria-label="Featured item positions">
-            {localItems.map((it, idx) => (
+          {localItems.length > 1 ? (
+            <div className="featured-carousel__pager" role="navigation" aria-label="Featured carousel">
               <button
-                key={it.id}
                 type="button"
-                className={`featured-carousel__dot${idx === activeIndex ? ' featured-carousel__dot--active' : ''}`}
-                onClick={() => setActiveIndex(idx)}
-                aria-label={`Show featured item ${idx + 1} of ${localItems.length}`}
-                aria-selected={idx === activeIndex}
-                role="tab"
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
-            aria-label="Next featured item"
-            disabled={!canGoNext}
-            onClick={goNext}
-          >
-            <Icon name="caret-right" size={18} />
-          </button>
-        </div>
-      ) : null}
-    </div>
+                className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
+                aria-label="Previous featured item"
+                disabled={!canGoPrev}
+                onClick={goPrev}
+              >
+                <Icon name="caret-left" size={18} />
+              </button>
+              <div className="featured-carousel__dots" role="tablist" aria-label="Featured item positions">
+                {localItems.map((it, idx) => (
+                  <button
+                    key={it.id}
+                    type="button"
+                    className={`featured-carousel__dot${idx === activeIndex ? ' featured-carousel__dot--active' : ''}`}
+                    onClick={() => setActiveIndex(idx)}
+                    aria-label={`Show featured item ${idx + 1} of ${localItems.length}`}
+                    aria-selected={idx === activeIndex}
+                    role="tab"
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="action-strip__item featured-carousel__pager-btn featured-card__strip-item--muted"
+                aria-label="Next featured item"
+                disabled={!canGoNext}
+                onClick={goNext}
+              >
+                <Icon name="caret-right" size={18} />
+              </button>
+            </div>
+          ) : null}
+      </div>
+    </SubtleContentMount>
   );
 }

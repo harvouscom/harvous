@@ -154,12 +154,23 @@
   user-select: all;
 }
 
-/* Tiptap Toolbar container - solid background for sticky so content doesn't show through */
+/* Tiptap Toolbar container - solid background for sticky so content doesn't show through.
+   Do not clip overflow-y on this outer box: the inner .tiptap-toolbar__track animates with
+   translateY and would be fully clipped (animation looks like an instant pop-in). Horizontal
+   scroll lives on .tiptap-toolbar__hscroll instead. */
 .tiptap-toolbar {
   border-radius: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   background: var(--color-snow-white) !important;
+}
+
+.tiptap-toolbar__hscroll {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Override all conflicting CSS for toolbar buttons */
@@ -314,5 +325,72 @@
     black calc(100% - 48px),
     transparent 100%
   );
+}
+
+/* Prep frame: no animation yet (armed on next frames via React) — avoids “instant pop” when
+   browsers skip @keyframes applied on the same commit as mount. */
+.tiptap-toolbar__track--enter-prep-top {
+  opacity: 0;
+  transform: translateY(-14px);
+}
+
+.tiptap-toolbar__track--enter-prep-bottom {
+  opacity: 0;
+  transform: translateY(18px);
+}
+
+/* Toolbar enter: animate inner track only — transform on sticky breaks positioning */
+@keyframes tiptap-toolbar-enter-from-top {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tiptap-toolbar-enter-from-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  35% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tiptap-toolbar__track--enter-from-top {
+  will-change: transform, opacity;
+  animation: tiptap-toolbar-enter-from-top 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0s both;
+}
+
+.tiptap-toolbar__track--enter-from-bottom {
+  will-change: transform, opacity;
+  animation: tiptap-toolbar-enter-from-bottom 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tiptap-toolbar__track--enter-prep-top,
+  .tiptap-toolbar__track--enter-prep-bottom {
+    opacity: 1;
+    transform: none;
+  }
+
+  .tiptap-toolbar__track--enter-from-top,
+  .tiptap-toolbar__track--enter-from-bottom {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    will-change: auto;
+  }
 }
 

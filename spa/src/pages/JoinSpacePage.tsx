@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@clerk/clerk-react';
 import { useQueryClient } from '@tanstack/react-query';
 import CardStack from '../components/CardStack';
+import SubtleContentMount from '@/components/react/SubtleContentMount';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { api } from '../lib/api';
 import { useJoinSpace } from '../hooks/mutations/useJoinSpace';
@@ -166,7 +167,8 @@ export default function JoinSpacePage() {
                 </a>
               </div>
             ) : (
-              <>
+              <SubtleContentMount>
+                <>
                 {/* Owner info (above CardStack) */}
                 <div className="shared-page__creator">
                   <p>
@@ -177,7 +179,7 @@ export default function JoinSpacePage() {
                 </div>
 
                 {/* CardStack with space content */}
-                <div className="shared-page__card-container shared-page__slide-up" style={{ animationDelay: '50ms' }}>
+                <div className="shared-page__card-container">
                   <CardStack
                     title={space.title}
                     headerBgColor={`var(--color-${spaceColor})`}
@@ -299,6 +301,7 @@ export default function JoinSpacePage() {
                   <a href="https://harvous.com" target="_blank" rel="noopener noreferrer">Learn more on harvous.com</a>
                 </div>
               </>
+              </SubtleContentMount>
             )}
           </div>
         </div>

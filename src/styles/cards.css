@@ -369,6 +369,74 @@
   outline-offset: 2px;
 }
 
+/* Subtle mount: grid height expand + fade/slide (dashboard featured, shared pages, panels, etc.) */
+@keyframes subtle-content-mount-expand {
+  from {
+    grid-template-rows: 0fr;
+  }
+  to {
+    grid-template-rows: 1fr;
+  }
+}
+
+@keyframes subtle-content-mount-fade-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.subtle-content-mount,
+.featured-carousel-entrance {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  animation: subtle-content-mount-expand 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.subtle-content-mount__inner,
+.featured-carousel-entrance__inner {
+  min-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  animation: subtle-content-mount-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.06s forwards;
+}
+
+.subtle-content-mount__inner--scroll-safe {
+  overflow: visible !important;
+}
+
+/* Main column / flex scroll: grid 0fr→1fr yields zero height — fade inner only */
+.subtle-content-mount--fade {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  animation: none;
+  grid-template-rows: unset;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subtle-content-mount,
+  .featured-carousel-entrance {
+    animation: none;
+    grid-template-rows: 1fr;
+  }
+
+  .subtle-content-mount__inner,
+  .featured-carousel-entrance__inner {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    overflow: visible;
+  }
+}
+
 .featured-carousel {
   display: flex;
   flex-direction: column;
