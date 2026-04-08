@@ -44,6 +44,13 @@ function buildBibleChaptersMap(): Map<string, Map<number, { startVerse: number; 
     });
   }
 
+  // Alias: bible-chapters.json uses "Song of Solomon" but the canonical name in
+  // bible-study-keywords.ts is "Song of Songs" — add an alias so both resolve correctly
+  const songOfSolomon = map.get('Song of Solomon');
+  if (songOfSolomon && !map.has('Song of Songs')) {
+    map.set('Song of Songs', songOfSolomon);
+  }
+
   BIBLE_CHAPTERS_MAP = map;
   return map;
 }

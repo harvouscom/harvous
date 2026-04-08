@@ -46,67 +46,49 @@ function extractScriptureTranslationFromNoteContent(content: string | null | und
  * Find (or create) the "Unorganized" thread for a user.
  */
 async function findUnorganizedThread(userId: string) {
+  const selectFields = {
+    id: Threads.id,
+    title: Threads.title,
+    subtitle: Threads.subtitle,
+    color: Threads.color,
+    spaceId: Threads.spaceId,
+    isPublic: Threads.isPublic,
+    isPinned: Threads.isPinned,
+    createdAt: Threads.createdAt,
+    updatedAt: Threads.updatedAt,
+  };
+
   try {
-    const unorganizedThread = first(await db.select({
-      id: Threads.id,
-      title: Threads.title,
-      subtitle: Threads.subtitle,
-      color: Threads.color,
-      spaceId: Threads.spaceId,
-      isPublic: Threads.isPublic,
-      isPinned: Threads.isPinned,
-      createdAt: Threads.createdAt,
-      updatedAt: Threads.updatedAt,
-    })
-    .from(Threads)
-    .where(and(
-      eq(Threads.userId, userId),
-      eq(Threads.id, "thread_unorganized")
-    ))
-    .limit(1));
-
-    if (unorganizedThread) {
-      return unorganizedThread;
-    }
-
-    // If not found, create it
-    try {
-      const newUnorganizedThread = first(await db.insert(Threads).values({
-        id: "thread_unorganized",
-        title: "Unorganized",
-        subtitle: "Notes that haven't been organized into threads yet",
-        spaceId: null,
-        userId: userId,
-        isPublic: true,
-        isPinned: false,
-        color: null,
-        createdAt: nowISO(),
-        updatedAt: nowISO(),
-      }).returning())!;
-
-      return newUnorganizedThread;
-    } catch (createError: any) {
-      // If creation failed due to UNIQUE on id, another user already has the single global row
-      if (createError.code === '23505' || createError.message?.includes('unique constraint')) {
-        const existingThread = first(await db.select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          color: Threads.color,
-          spaceId: Threads.spaceId,
-          isPublic: Threads.isPublic,
-          isPinned: Threads.isPinned,
-          createdAt: Threads.createdAt,
-          updatedAt: Threads.updatedAt,
-        })
+    // thread_unorganized is a global sentinel — look it up without userId filter
+    // so any user finds the existing row rather than trying to re-create it
+    const existing = first(
+      await db.select(selectFields)
         .from(Threads)
         .where(eq(Threads.id, "thread_unorganized"))
-        .limit(1));
+        .limit(1)
+    );
+    if (existing) return existing;
 
-        return existingThread ?? undefined;
-      }
-      throw createError;
-    }
+    // Row doesn't exist yet — insert, silently ignoring a concurrent insert race
+    await db.insert(Threads).values({
+      id: "thread_unorganized",
+      title: "Unorganized",
+      subtitle: "Notes that haven't been organized into threads yet",
+      spaceId: null,
+      userId: userId,
+      isPublic: true,
+      isPinned: false,
+      color: null,
+      createdAt: nowISO(),
+      updatedAt: nowISO(),
+    }).onConflictDoNothing();
+
+    return first(
+      await db.select(selectFields)
+        .from(Threads)
+        .where(eq(Threads.id, "thread_unorganized"))
+        .limit(1)
+    ) ?? null;
   } catch (error) {
     console.error("Error finding/creating unorganized thread:", error);
     return null;
