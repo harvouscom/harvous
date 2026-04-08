@@ -76,7 +76,11 @@ export default function SpaceContentList({
   onPrefetchNote,
   onNotesLoaded,
 }: SpaceContentListProps) {
-  const noteHref = (noteId: string) => `${idToUrl(noteId)}?space=${encodeURIComponent(spaceId)}`;
+  const noteHref = (noteId: string, threadId?: string | null) => {
+    const path = idToUrl(noteId, threadId || undefined);
+    const sep = path.includes('?') ? '&' : '?';
+    return `${path}${sep}space=${encodeURIComponent(spaceId)}`;
+  };
   const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
   const handleSelectSpace = () => setSelectedSpaceId(spaceId);
   // Sort initial items by lastVisited on mount
@@ -1190,7 +1194,7 @@ export default function SpaceContentList({
             <CondensedNoteItem
               title={item.title || "Untitled Note"}
               noteType={item.noteType || 'default'}
-              href={noteHref(item.id)}
+              href={noteHref(item.id, item.threadId)}
               onClick={handleSelectSpace}
               onMouseEnter={() => onPrefetchNote?.(item.id)}
               onFocus={() => onPrefetchNote?.(item.id)}
@@ -1201,7 +1205,7 @@ export default function SpaceContentList({
             />
           ) : (
             <a
-              href={noteHref(item.id)}
+              href={noteHref(item.id, item.threadId)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
               onClick={handleSelectSpace}
               onMouseEnter={() => onPrefetchNote?.(item.id)}

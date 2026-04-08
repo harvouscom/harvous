@@ -32,6 +32,7 @@ interface SquareButtonProps {
   spaceRole?: 'owner' | 'member' | null;
   contentOwnerId?: string;
   userId?: string;
+  linkedFromNoteId?: string | null;
   disabled?: boolean;
 }
 
@@ -51,7 +52,8 @@ export default function SquareButton({
   noteSimpleId,
   spaceRole,
   contentOwnerId,
-  userId
+  userId,
+  linkedFromNoteId
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,7 +99,7 @@ export default function SquareButton({
         },
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId);
+      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId, undefined, linkedFromNoteId);
       return options.map(option => {
         let icon;
         switch (option.action) {

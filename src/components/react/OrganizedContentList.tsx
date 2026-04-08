@@ -1552,9 +1552,10 @@ export default function OrganizedContentList({
   }, []);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
-    const href = item.type === 'thread'
-      ? idToUrl(item.threadId || item.id)
-      : idToUrl(item.noteId || item.id);
+    const href =
+      item.type === 'thread'
+        ? idToUrl(item.threadId || item.id)
+        : idToUrl(item.noteId || item.id, item.threadId || undefined);
 
     const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
 

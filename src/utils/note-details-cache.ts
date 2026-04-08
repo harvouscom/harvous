@@ -11,6 +11,7 @@ export interface CachedNoteDetailsData {
   comments: unknown[];
   tags: unknown[];
   referencingNotes: unknown[];
+  linkedFromNotes?: unknown[];
   note: {
     createdAt?: string | null;
     simpleNoteId?: number | null;
@@ -18,6 +19,7 @@ export interface CachedNoteDetailsData {
     addedBy?: string | null;
     noteType?: string | null;
     userId?: string | null;
+    linkedFromNoteId?: string | null;
   } | null;
 }
 

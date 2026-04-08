@@ -121,9 +121,9 @@ export default function NotePage() {
   }, [note, noteId, isLoading, processScriptureMutation]);
 
   // Parent thread: prefer ?thread= (multi-note membership) over API order (threads[0]).
+  // When the API returns no threads (e.g. rare member edge) but the URL has ?thread=, keep that context.
   const parentThread = useMemo(() => {
     const threads = note?.threads ?? [];
-    if (!threads.length) return undefined;
     let threadId: string | null = null;
     if (typeof window !== 'undefined') {
       try {
@@ -132,8 +132,20 @@ export default function NotePage() {
       } catch { /* ignore */ }
     }
     if (!threadId) threadId = noteThreadFromUrlRef.current;
-    const match = threadId && threads.find((th) => th.id === threadId);
-    return match ?? threads[0];
+    if (threads.length) {
+      const match = threadId && threads.find((th) => th.id === threadId);
+      return match ?? threads[0];
+    }
+    if (threadId) {
+      const isUnorganized = threadId === 'thread_unorganized';
+      return {
+        id: threadId,
+        title: isUnorganized ? 'Unorganized' : 'Thread',
+        color: null,
+        backgroundGradient: isUnorganized ? 'var(--color-paper)' : 'var(--color-gradient-gray)',
+      };
+    }
+    return undefined;
   }, [note?.threads, noteId]);
   const parentThreadId = parentThread?.id ?? undefined;
 

@@ -151,11 +151,17 @@ export default function AppLayout() {
     if (!isNoteEarly) return null;
     const fromUrl = threadFromSearch;
     const threads = currentNote?.threads;
+    const isAnotherUsersNote = !!(
+      currentNote?.userId &&
+      user?.id &&
+      currentNote.userId !== user.id
+    );
     if (threads?.length) {
       if (fromUrl && threads.some((th) => th.id === fromUrl)) return fromUrl;
       return threads[0]?.id ?? null;
     }
     if (fromUrl) return fromUrl;
+    if (isAnotherUsersNote) return null;
     return getCachedNoteParentThreadId(noteIdForHook);
   })();
   const { data: parentThreadPrefetch } = useThread(noteParentThreadId ?? '');
@@ -427,7 +433,13 @@ export default function AppLayout() {
     const base = activeThreadFromNav;
     if (base) {
       if (isThread && currentThread?.backgroundGradient) {
-        return { ...base, backgroundGradient: currentThread.backgroundGradient, title: currentThread.title, noteCount: currentThread.noteCount };
+        return {
+          ...base,
+          backgroundGradient: currentThread.backgroundGradient,
+          title: currentThread.title,
+          noteCount: currentThread.noteCount,
+          userId: currentThread.userId ?? (base as { userId?: string }).userId,
+        };
       }
       const noteParent = resolvedNoteParentThread;
       if (isNote && noteParent) {
@@ -443,9 +455,10 @@ export default function AppLayout() {
           title: useParentTitle ? noteParent.title! : base.title,
           noteCount: parentWithCount.count ?? base.noteCount,
           spaceId: parentWithCount.spaceId ?? base.spaceId,
+          userId: parentThreadData?.userId ?? (base as { userId?: string }).userId ?? user?.id,
         };
       }
-      return base;
+      return { ...base, userId: (base as { userId?: string }).userId ?? user?.id };
     }
     // Member view-only: thread not in nav; build from page data so mobile nav shows current thread
     if (isThread && currentThread?.id) {
@@ -455,6 +468,7 @@ export default function AppLayout() {
         noteCount: currentThread.noteCount ?? 0,
         backgroundGradient: currentThread.backgroundGradient ?? 'var(--color-paper)',
         spaceId: currentThread.spaceId ?? null,
+        userId: currentThread.userId,
       };
     }
     // For note pages: prefer parentThreadData (from useThread, has correct data once loaded)
@@ -471,6 +485,7 @@ export default function AppLayout() {
         noteCount: withCount.count ?? withCount.noteCount ?? 0,
         backgroundGradient: parentData.backgroundGradient || 'var(--color-paper)',
         spaceId: (parentData as { spaceId?: string | null }).spaceId ?? null,
+        userId: parentThreadData?.userId,
       };
     }
     return null;
@@ -498,6 +513,7 @@ export default function AppLayout() {
 
   // Note-specific data for ActionStrip
   const noteType = isNote ? (currentNote?.noteType ?? 'default') : undefined;
+  const noteLinkedFromNoteId = isNote ? (currentNote?.linkedFromNoteId ?? null) : null;
   const noteCurrentThreadId = noteParentThreadId ?? undefined;
   const noteSimpleId = isNote ? (currentNote?.simpleNoteId ?? null) : null;
   const noteCreatedAt = isNote ? (currentNote?.createdAt ?? undefined) : undefined;
@@ -574,7 +590,8 @@ export default function AppLayout() {
     spaceRole,
     contentOwnerId,
     user?.id ?? null,
-    spaceIsShared
+    spaceIsShared,
+    noteLinkedFromNoteId
   );
   const showActionStrip = shouldShowActionStripMenu(
     contentType,
@@ -719,6 +736,7 @@ export default function AppLayout() {
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
             search={search}
+            viewerUserId={user?.id ?? null}
           />
         </section>
 
@@ -767,6 +785,7 @@ export default function AppLayout() {
                   spaceIsShared={spaceIsShared}
                   contentOwnerId={contentOwnerId}
                   userId={user?.id}
+                  linkedFromNoteId={noteLinkedFromNoteId}
                 />
               </div>
             )}
@@ -805,6 +824,7 @@ export default function AppLayout() {
             search={search}
             initialPath={pathname}
             onNavigate={(href) => router.navigate({ to: href as any })}
+            viewerUserId={user?.id ?? null}
           />
         </div>
 
@@ -852,6 +872,7 @@ export default function AppLayout() {
                   spaceIsShared={spaceIsShared}
                   contentOwnerId={contentOwnerId}
                   userId={user?.id}
+                  linkedFromNoteId={noteLinkedFromNoteId}
                 />
               </div>
             )}

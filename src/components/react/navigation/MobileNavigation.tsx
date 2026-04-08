@@ -48,6 +48,7 @@ interface Thread {
   noteCount: number;
   backgroundGradient: string;
   spaceId?: string | null;
+  userId?: string | null;
 }
 
 interface MobileNavigationProps {
@@ -66,6 +67,7 @@ interface MobileNavigationProps {
   initialPath?: string;
   /** Optional SPA navigation handler for client-side routing */
   onNavigate?: (href: string) => void;
+  viewerUserId?: string | null;
 }
 
 const MobileNavigation: React.FC<MobileNavigationProps> = ({
@@ -80,6 +82,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   search: searchProp = '',
   initialPath = '',
   onNavigate,
+  viewerUserId = null,
 }) => {
   const navigate = onNavigate || safeNavigateSync;
   const selectedSpaceId = useSelectedSpaceId();
@@ -1366,8 +1369,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       })()) ??
     effectiveSelectedSpaceId;
   const mismatchKey = mismatchThreadId && spaceForMismatch ? `${mismatchThreadId}|${spaceForMismatch}` : null;
+  const mismatchThreadOwnerId = (updatedCurrentThread || currentThread)?.userId ?? null;
+  const suppressMismatchForNonOwner =
+    !!viewerUserId && !!mismatchThreadOwnerId && mismatchThreadOwnerId !== viewerUserId;
   const baseSpaceMismatchPrompt =
-    !!spaceForMismatch && isThreadPage && !!(updatedCurrentThread || currentThread)?.id && threadSpaceId !== spaceForMismatch;
+    !!spaceForMismatch &&
+    isThreadPage &&
+    !!mismatchThreadId &&
+    mismatchThreadId !== 'thread_unorganized' &&
+    threadSpaceId !== spaceForMismatch &&
+    !suppressMismatchForNonOwner;
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch =

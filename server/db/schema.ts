@@ -76,8 +76,13 @@ export const Notes = pgTable(
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),
     contentEncrypted: boolean('contentEncrypted').notNull().default(false),
+    /** Note created from highlighted text in this source note (same user only). */
+    linkedFromNoteId: text('linkedFromNoteId'),
   },
-  (table) => [index('Notes_userIdIndex').on(table.userId)],
+  (table) => [
+    index('Notes_userIdIndex').on(table.userId),
+    index('Notes_linkedFromNoteIdIndex').on(table.linkedFromNoteId),
+  ],
 );
 
 // ─── NoteThreads (junction table) ──────────────────────────────────────────────

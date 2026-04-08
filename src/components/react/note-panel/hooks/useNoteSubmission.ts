@@ -292,6 +292,9 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         payload.resourceUrl = normalizedResourceUrl;
         if (resourceMetadata) payload.resourceMetadata = resourceMetadata;
       }
+      if (currentNoteType === 'default' && sourceNoteId) {
+        payload.linkedFromNoteId = sourceNoteId;
+      }
 
       // OFFLINE-AWARE: Mutually exclusive paths — offline saves to IndexedDB only,
       // online goes to server only. No dual-path to avoid duplicates.
@@ -317,6 +320,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
           resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
           resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+          ...(currentNoteType === 'default' && sourceNoteId ? { linkedFromNoteId: sourceNoteId } : {}),
         });
 
         if (offlineResult.success && offlineResult.noteId) {
@@ -393,6 +397,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               scriptureVersion: currentNoteType === 'scripture' ? currentScriptureVersion : undefined,
               resourceUrl: currentNoteType === 'resource' ? normalizedResourceUrl : undefined,
               resourceMetadata: currentNoteType === 'resource' ? resourceMetadata : undefined,
+              ...(currentNoteType === 'default' && sourceNoteId ? { linkedFromNoteId: sourceNoteId } : {}),
             });
 
             if (offlineResult.success && offlineResult.noteId) {

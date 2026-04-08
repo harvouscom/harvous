@@ -78,6 +78,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     let resourceMetadataStr: string | null;
     let spaceId: string | null;
     let contentEncrypted: boolean;
+    let linkedFromNoteIdRaw: string | null = null;
 
     if (contentType.includes('application/json')) {
       const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
@@ -92,6 +93,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       resourceMetadataStr = typeof meta === 'string' ? meta : (meta != null ? JSON.stringify(meta) : null);
       spaceId = (body.spaceId as string) ?? null;
       contentEncrypted = body.contentEncrypted === true || body.contentEncrypted === 'true';
+      const lfn = body.linkedFromNoteId;
+      linkedFromNoteIdRaw = typeof lfn === 'string' && lfn.trim() ? lfn.trim() : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get('content') as string;
@@ -104,6 +107,8 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       resourceMetadataStr = formData.get('resourceMetadata') as string | null;
       spaceId = formData.get('spaceId') as string | null;
       contentEncrypted = formData.get('contentEncrypted') === 'true';
+      const lfnForm = formData.get('linkedFromNoteId') as string | null;
+      linkedFromNoteIdRaw = lfnForm && lfnForm.trim() ? lfnForm.trim() : null;
     }
 
     let prefetchedResourceMetadata: { title?: string; description?: string; image?: string; articleContent?: string; siteName?: string } | null = null;
@@ -115,6 +120,18 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
     const noteTypeValidation = validateNoteType(noteType);
     if (!noteTypeValidation.isValid) return c.json({ error: noteTypeValidation.error, code: noteTypeValidation.code }, 400);
     const finalNoteType = noteType && noteTypeValidation.isValid ? noteType : 'default';
+
+    let resolvedLinkedFromNoteId: string | null = null;
+    if (linkedFromNoteIdRaw) {
+      if (finalNoteType !== 'default') {
+        return c.json({ error: 'linkedFromNoteId is only allowed for default notes', code: 'INVALID_LINKED_FROM' }, 400);
+      }
+      const sourceForLink = first(await db.select().from(Notes).where(and(eq(Notes.id, linkedFromNoteIdRaw), eq(Notes.userId, auth.userId))).limit(1));
+      if (!sourceForLink) {
+        return c.json({ error: 'Source note not found', code: 'INVALID_LINKED_FROM' }, 400);
+      }
+      resolvedLinkedFromNoteId = linkedFromNoteIdRaw;
+    }
 
     const contentRequired = finalNoteType !== 'resource';
     const contentValidation = validateContent(content, contentRequired);
@@ -196,6 +213,7 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       contentEncrypted,
       createdAt: now,
       lastVisited: now,
+      linkedFromNoteId: resolvedLinkedFromNoteId,
     }).returning())!;
 
     await db.update(UserMetadata)
@@ -472,6 +490,8 @@ route.delete('/api/notes/delete', requireAuth, rateLimit('write'), async (c) => 
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
 
+    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
+
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
@@ -617,6 +637,8 @@ route.post('/api/notes/cleanup-upgrade-note', requireAuth, rateLimit('write'), a
 
     const noteCreatedAt = existingNote.createdAt;
 
+    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
+
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
@@ -659,6 +681,7 @@ route.delete('/api/notes/delete-all-unorganized', requireAuth, rateLimit('write'
     const noteIds = unorgNotes.map(n => n.id);
 
     if (noteIds.length > 0) {
+      await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(and(eq(Notes.userId, auth.userId), inArray(Notes.linkedFromNoteId, noteIds)));
       for (const note of unorgNotes) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.id));
         await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, note.id), eq(NoteScriptureReferences.scriptureNoteId, note.id)));
@@ -915,9 +938,40 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
             accessibleSpaceIds.add(t.spaceId);
           } catch {}
         }
-        const memberThreads = memberSpaceThreads.filter(t => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.title !== 'Unorganized');
+        const memberThreads = memberSpaceThreads.filter(
+          t => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.id !== 'thread_unorganized',
+        );
         allThreads = [...memberThreads, ...allThreads];
       } catch {}
+    }
+
+    // Member view: NoteThreads→space thread rows can be missing while note.spaceId + Notes.threadId still point at the space thread.
+    if (isMemberView && allThreads.length === 0 && note.spaceId && note.threadId && note.threadId !== 'thread_unorganized') {
+      try {
+        await requireSpaceAccess(note.spaceId, auth.userId);
+        const fallbackThread = first(
+          await db
+            .select({
+              id: Threads.id,
+              title: Threads.title,
+              subtitle: Threads.subtitle,
+              color: Threads.color,
+              spaceId: Threads.spaceId,
+              isPublic: Threads.isPublic,
+              isPinned: Threads.isPinned,
+              createdAt: Threads.createdAt,
+              updatedAt: Threads.updatedAt,
+            })
+            .from(Threads)
+            .where(and(eq(Threads.id, note.threadId), eq(Threads.spaceId, note.spaceId)))
+            .limit(1),
+        );
+        if (fallbackThread) {
+          allThreads = [fallbackThread];
+        }
+      } catch {
+        /* ignore */
+      }
     }
 
     // Format threads with counts and backgroundGradient for nav/NotePage
@@ -1004,6 +1058,38 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       } catch { referencingNotes = []; }
     }
 
+    let linkedFromNotes: any[] = [];
+    const linkedFromId = note.linkedFromNoteId;
+    if (linkedFromId && note.noteType === 'default' && !isMemberView && note.userId === auth.userId) {
+      try {
+        const src = first(await db.select({
+          id: Notes.id, title: Notes.title, content: Notes.content, simpleNoteId: Notes.simpleNoteId, noteType: Notes.noteType, createdAt: Notes.createdAt, updatedAt: Notes.updatedAt,
+        })
+          .from(Notes)
+          .where(and(eq(Notes.id, linkedFromId), eq(Notes.userId, note.userId)))
+          .limit(1));
+        if (src) {
+          let lfResourceTitle: string | null = null, lfResourceDescription: string | null = null, lfResourceImage: string | null = null;
+          if (src.noteType === 'resource') {
+            try {
+              const rm = first(await db.select({ sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage })
+                .from(ResourceMetadata).where(eq(ResourceMetadata.noteId, src.id)).limit(1));
+              lfResourceTitle = rm?.sourceTitle || null;
+              lfResourceDescription = rm?.sourceDescription || null;
+              lfResourceImage = rm?.sourceImage || null;
+            } catch { /* ignore */ }
+          }
+          linkedFromNotes = [{
+            ...src,
+            noteType: src.noteType || 'default',
+            resourceTitle: lfResourceTitle,
+            resourceDescription: lfResourceDescription,
+            resourceImage: lfResourceImage,
+          }];
+        }
+      } catch { linkedFromNotes = []; }
+    }
+
     return c.json({
       success: true,
       note: { ...note, simpleNoteId: note.simpleNoteId ?? null, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || 'default', addedBy: note.addedBy || 'user', version, resourceTitle, resourceDescription, resourceImage },
@@ -1012,6 +1098,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       comments: comments.map(c => ({ id: c.id, content: c.content, createdAt: c.createdAt, updatedAt: c.updatedAt })),
       tags: noteTags.map(t => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
       referencingNotes,
+      linkedFromNotes,
     });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/notes/[id]/details', action: 'get_note_details' });

@@ -50,6 +50,7 @@ export interface NoteDetail {
   threads: { id: string; title: string; color: string | null; backgroundGradient?: string }[];
   tags: { id: string; name: string }[];
   spaces?: { id: string; title: string }[];
+  linkedFromNoteId?: string | null;
 }
 
 interface NoteDetailResponse {
@@ -80,6 +81,16 @@ export function getCachedNoteParentThread(noteId: string): CachedThread | null {
 
 function setCachedNoteParentThread(noteId: string, thread: CachedThread) {
   try { localStorage.setItem(`harvous-note-thread-data-${noteId}`, JSON.stringify(thread)); } catch { /* ignore */ }
+}
+
+/** Clears per-note parent-thread localStorage when API returns no threads (avoids stale thread_unorganized for member/shared notes). */
+export function clearNoteParentThreadLocalCache(noteId: string) {
+  try {
+    localStorage.removeItem(`harvous-note-thread-${noteId}`);
+    localStorage.removeItem(`harvous-note-thread-data-${noteId}`);
+  } catch {
+    /* ignore */
+  }
 }
 
 const NOTE_STALE_TIME = 10_000;
@@ -229,6 +240,8 @@ export function getNoteQueryOptions(noteId: string) {
           backgroundGradient: parentThread.backgroundGradient ?? 'var(--color-gradient-gray)',
           spaceId: threadWithCount.spaceId ?? null,
         });
+      } else {
+        clearNoteParentThreadLocalCache(noteId);
       }
       setCachedNoteDetail(noteId, note);
       return note;

@@ -18207,9 +18207,14 @@ var init_schema2 = __esm({
         order: integer("order").notNull().default(0),
         shareToken: text("shareToken"),
         shareTokenCreatedAt: ts("shareTokenCreatedAt"),
-        contentEncrypted: boolean("contentEncrypted").notNull().default(false)
+        contentEncrypted: boolean("contentEncrypted").notNull().default(false),
+        /** Note created from highlighted text in this source note (same user only). */
+        linkedFromNoteId: text("linkedFromNoteId")
       },
-      (table) => [index("Notes_userIdIndex").on(table.userId)]
+      (table) => [
+        index("Notes_userIdIndex").on(table.userId),
+        index("Notes_linkedFromNoteIdIndex").on(table.linkedFromNoteId)
+      ]
     );
     NoteThreads = pgTable("NoteThreads", {
       id: text("id").primaryKey(),
@@ -68191,7 +68196,9 @@ var XP_VALUES = {
   NOTE_CREATED: 10,
   SCRIPTURE_NOTE_CREATED: 3,
   NOTE_OPENED: 1,
-  FIRST_NOTE_DAILY_BONUS: 5
+  FIRST_NOTE_DAILY_BONUS: 5,
+  /** One-time per VOTD featured item when user engages (quick-add or create-note), not for close/dismiss-only */
+  VOTD_ENGAGED: 5
 };
 var REFERRAL_XP_FIRST = 100;
 var REFERRAL_XP_DECREMENT = 25;
@@ -68235,7 +68242,8 @@ var ACTIVITY_TYPES = {
   THREAD_CREATED: "thread_created",
   NOTE_CREATED: "note_created",
   NOTE_OPENED: "note_opened",
-  FIRST_NOTE_DAILY_BONUS: "first_note_daily"
+  FIRST_NOTE_DAILY_BONUS: "first_note_daily",
+  VOTD_ENGAGED: "votd_engaged"
 };
 function checkContentLength(content, type) {
   const minLength = type === "note" ? MIN_CONTENT_LENGTHS.NOTE : MIN_CONTENT_LENGTHS.THREAD;
@@ -68511,6 +68519,15 @@ async function awardCreationBonusXP(userId, itemType) {
     return false;
   }
 }
+async function awardVotdEngagementXP(userId, featuredItemId, source) {
+  try {
+    const already = await hasXPBeenAwarded(userId, ACTIVITY_TYPES.VOTD_ENGAGED, featuredItemId);
+    if (already) return;
+    await awardXP(userId, ACTIVITY_TYPES.VOTD_ENGAGED, XP_VALUES.VOTD_ENGAGED, featuredItemId, { source });
+  } catch (error) {
+    console.error("Error awarding VOTD engagement XP:", error);
+  }
+}
 async function awardChurchAddedXP(userId) {
   try {
     const existing = await db.select().from(UserXP).where(and(
@@ -68716,7 +68733,8 @@ async function getXPBreakdown(userId) {
       threadCreated: 0,
       noteCreated: 0,
       noteOpened: 0,
-      firstNoteDailyBonus: 0
+      firstNoteDailyBonus: 0,
+      votdEngaged: 0
     };
     xpRecords.forEach((record) => {
       switch (record.activityType) {
@@ -68754,6 +68772,9 @@ async function getXPBreakdown(userId) {
         case ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS:
           breakdown.firstNoteDailyBonus += record.xpAmount;
           break;
+        case ACTIVITY_TYPES.VOTD_ENGAGED:
+          breakdown.votdEngaged += record.xpAmount;
+          break;
       }
     });
     const totalXP = Object.values(breakdown).reduce((sum2, value) => sum2 + value, 0);
@@ -68776,9 +68797,23 @@ async function getXPBreakdown(userId) {
         threadCreated: 0,
         noteCreated: 0,
         noteOpened: 0,
-        firstNoteDailyBonus: 0
+        firstNoteDailyBonus: 0,
+        votdEngaged: 0
       }
     };
+  }
+}
+async function hasXPBeenAwarded(userId, activityType, relatedId) {
+  try {
+    const existingXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, activityType),
+      eq(UserXP.relatedId, relatedId)
+    )).limit(1);
+    return existingXP.length > 0;
+  } catch (error) {
+    console.error("Error checking if XP has been awarded:", error);
+    return false;
   }
 }
 async function cleanupDuplicateXP(userId) {
@@ -68886,7 +68921,6 @@ async function generateAutoTags(noteTitle, noteContent, userId, confidenceThresh
     let highConfidence = 0;
     for (const { keyword, confidence } of foundKeywords) {
       if (keyword.name.toLowerCase() === "god") continue;
-      if (keyword.name.includes(" ")) continue;
       if (confidence >= confidenceThreshold) {
         const isOverlapping = suggestions.some((existing) => isTagOverlapping(keyword.name, existing.keyword));
         if (isOverlapping) continue;
@@ -85307,6 +85341,7 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     let resourceMetadataStr;
     let spaceId;
     let contentEncrypted;
+    let linkedFromNoteIdRaw = null;
     if (contentType.includes("application/json")) {
       const body = await c.req.json().catch(() => ({}));
       content = body.content ?? "";
@@ -85320,6 +85355,8 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       resourceMetadataStr = typeof meta === "string" ? meta : meta != null ? JSON.stringify(meta) : null;
       spaceId = body.spaceId ?? null;
       contentEncrypted = body.contentEncrypted === true || body.contentEncrypted === "true";
+      const lfn = body.linkedFromNoteId;
+      linkedFromNoteIdRaw = typeof lfn === "string" && lfn.trim() ? lfn.trim() : null;
     } else {
       const formData = await c.req.formData();
       content = formData.get("content");
@@ -85332,6 +85369,8 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       resourceMetadataStr = formData.get("resourceMetadata");
       spaceId = formData.get("spaceId");
       contentEncrypted = formData.get("contentEncrypted") === "true";
+      const lfnForm = formData.get("linkedFromNoteId");
+      linkedFromNoteIdRaw = lfnForm && lfnForm.trim() ? lfnForm.trim() : null;
     }
     let prefetchedResourceMetadata = null;
     if (resourceMetadataStr) {
@@ -85343,6 +85382,17 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     const noteTypeValidation = validateNoteType(noteType);
     if (!noteTypeValidation.isValid) return c.json({ error: noteTypeValidation.error, code: noteTypeValidation.code }, 400);
     const finalNoteType = noteType && noteTypeValidation.isValid ? noteType : "default";
+    let resolvedLinkedFromNoteId = null;
+    if (linkedFromNoteIdRaw) {
+      if (finalNoteType !== "default") {
+        return c.json({ error: "linkedFromNoteId is only allowed for default notes", code: "INVALID_LINKED_FROM" }, 400);
+      }
+      const sourceForLink = first(await db.select().from(Notes).where(and(eq(Notes.id, linkedFromNoteIdRaw), eq(Notes.userId, auth.userId))).limit(1));
+      if (!sourceForLink) {
+        return c.json({ error: "Source note not found", code: "INVALID_LINKED_FROM" }, 400);
+      }
+      resolvedLinkedFromNoteId = linkedFromNoteIdRaw;
+    }
     const contentRequired = finalNoteType !== "resource";
     const contentValidation = validateContent(content, contentRequired);
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
@@ -85405,7 +85455,8 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       shareTokenCreatedAt: shouldAutoShare ? now2 : null,
       contentEncrypted,
       createdAt: now2,
-      lastVisited: now2
+      lastVisited: now2,
+      linkedFromNoteId: resolvedLinkedFromNoteId
     }).returning());
     await db.update(UserMetadata).set({ highestSimpleNoteId: nextSimpleNoteId, updatedAt: nowISO() }).where(eq(UserMetadata.userId, auth.userId));
     let noteStaysInUnorganized = true;
@@ -85435,12 +85486,12 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
     if (finalNoteType !== "resource" && !contentEncrypted) {
       (async () => {
         try {
-          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId, 0.8);
+          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
           if (r.suggestions.length > 0) await applyAutoTags(newNote.id, r.suggestions, auth.userId);
-        } catch {
+        } catch (err) {
+          console.error("[auto-tag] Failed to auto-tag new note:", newNote.id, err);
         }
-      })().catch(() => {
-      });
+      })().catch((err) => console.error("[auto-tag] Unhandled:", newNote.id, err));
     }
     if (finalNoteType === "scripture" && scriptureReference) {
       try {
@@ -85591,13 +85642,15 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     if (!isEncrypted) {
       (async () => {
         try {
-          await removeAutoTags(noteId);
-          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId, 0.8);
-          if (r.suggestions.length > 0) await applyAutoTags(noteId, r.suggestions, auth.userId);
-        } catch {
+          const r = await generateAutoTags(capitalizedTitle || "", capitalizedContent, auth.userId);
+          if (r.suggestions.length > 0) {
+            await removeAutoTags(noteId);
+            await applyAutoTags(noteId, r.suggestions, auth.userId);
+          }
+        } catch (err) {
+          console.error("[auto-tag] Failed to re-tag note:", noteId, err);
         }
-      })().catch(() => {
-      });
+      })().catch((err) => console.error("[auto-tag] Unhandled re-tag:", noteId, err));
     }
     if (existingNote.noteType === "resource" && resourceImage !== void 0) {
       try {
@@ -85633,6 +85686,7 @@ route10.delete("/api/notes/delete", requireAuth, rateLimit("write"), async (c) =
     if (!existingNote) return c.json({ error: "Note not found or access denied" }, 404);
     const threadId = existingNote.threadId;
     const noteCreatedAt = existingNote.createdAt;
+    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
@@ -85766,6 +85820,7 @@ route10.post("/api/notes/cleanup-upgrade-note", requireAuth, rateLimit("write"),
     if (!existingNote) return c.json({ error: "Note not found or access denied" }, 404);
     if (existingNote.simpleNoteId !== simpleNoteId) return c.json({ error: "Simple note ID mismatch" }, 400);
     const noteCreatedAt = existingNote.createdAt;
+    await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
     await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
     await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
     await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
@@ -85797,6 +85852,7 @@ route10.delete("/api/notes/delete-all-unorganized", requireAuth, rateLimit("writ
     const unorgNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes).where(and(eq(Notes.userId, auth.userId), eq(Notes.threadId, "thread_unorganized")));
     const noteIds = unorgNotes.map((n) => n.id);
     if (noteIds.length > 0) {
+      await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(and(eq(Notes.userId, auth.userId), inArray(Notes.linkedFromNoteId, noteIds)));
       for (const note of unorgNotes) {
         await db.delete(NoteThreads).where(eq(NoteThreads.noteId, note.id));
         await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, note.id), eq(NoteScriptureReferences.scriptureNoteId, note.id)));
@@ -86006,8 +86062,32 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
           } catch {
           }
         }
-        const memberThreads = memberSpaceThreads.filter((t) => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.title !== "Unorganized");
+        const memberThreads = memberSpaceThreads.filter(
+          (t) => t.spaceId && accessibleSpaceIds.has(t.spaceId) && t.id !== "thread_unorganized"
+        );
         allThreads = [...memberThreads, ...allThreads];
+      } catch {
+      }
+    }
+    if (isMemberView && allThreads.length === 0 && note.spaceId && note.threadId && note.threadId !== "thread_unorganized") {
+      try {
+        await requireSpaceAccess(note.spaceId, auth.userId);
+        const fallbackThread = first(
+          await db.select({
+            id: Threads.id,
+            title: Threads.title,
+            subtitle: Threads.subtitle,
+            color: Threads.color,
+            spaceId: Threads.spaceId,
+            isPublic: Threads.isPublic,
+            isPinned: Threads.isPinned,
+            createdAt: Threads.createdAt,
+            updatedAt: Threads.updatedAt
+          }).from(Threads).where(and(eq(Threads.id, note.threadId), eq(Threads.spaceId, note.spaceId))).limit(1)
+        );
+        if (fallbackThread) {
+          allThreads = [fallbackThread];
+        }
       } catch {
       }
     }
@@ -86067,6 +86147,42 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
         referencingNotes = [];
       }
     }
+    let linkedFromNotes = [];
+    const linkedFromId = note.linkedFromNoteId;
+    if (linkedFromId && note.noteType === "default" && !isMemberView && note.userId === auth.userId) {
+      try {
+        const src = first(await db.select({
+          id: Notes.id,
+          title: Notes.title,
+          content: Notes.content,
+          simpleNoteId: Notes.simpleNoteId,
+          noteType: Notes.noteType,
+          createdAt: Notes.createdAt,
+          updatedAt: Notes.updatedAt
+        }).from(Notes).where(and(eq(Notes.id, linkedFromId), eq(Notes.userId, note.userId))).limit(1));
+        if (src) {
+          let lfResourceTitle = null, lfResourceDescription = null, lfResourceImage = null;
+          if (src.noteType === "resource") {
+            try {
+              const rm = first(await db.select({ sourceTitle: ResourceMetadata.sourceTitle, sourceDescription: ResourceMetadata.sourceDescription, sourceImage: ResourceMetadata.sourceImage }).from(ResourceMetadata).where(eq(ResourceMetadata.noteId, src.id)).limit(1));
+              lfResourceTitle = rm?.sourceTitle || null;
+              lfResourceDescription = rm?.sourceDescription || null;
+              lfResourceImage = rm?.sourceImage || null;
+            } catch {
+            }
+          }
+          linkedFromNotes = [{
+            ...src,
+            noteType: src.noteType || "default",
+            resourceTitle: lfResourceTitle,
+            resourceDescription: lfResourceDescription,
+            resourceImage: lfResourceImage
+          }];
+        }
+      } catch {
+        linkedFromNotes = [];
+      }
+    }
     return c.json({
       success: true,
       note: { ...note, simpleNoteId: note.simpleNoteId ?? null, contentEncrypted: note.contentEncrypted || false, noteType: note.noteType || "default", addedBy: note.addedBy || "user", version: version2, resourceTitle, resourceDescription, resourceImage },
@@ -86074,7 +86190,8 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       allUserThreads: selectableUserThreads.map((t) => ({ id: t.id, title: t.title, color: t.color, isPublic: t.isPublic, createdAt: t.createdAt, updatedAt: t.updatedAt })),
       comments: comments.map((c2) => ({ id: c2.id, content: c2.content, createdAt: c2.createdAt, updatedAt: c2.updatedAt })),
       tags: noteTags.map((t) => ({ id: t.id, name: t.name, color: t.color, category: t.category, isSystem: t.isSystem, isAutoGenerated: t.isAutoGenerated, confidence: t.confidence })),
-      referencingNotes
+      referencingNotes,
+      linkedFromNotes
     });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/notes/[id]/details", action: "get_note_details" });
@@ -91926,6 +92043,16 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       } catch {
       }
     }
+    let resolvedLinkedFromNoteId = null;
+    const rawLinkedFrom = typeof data.linkedFromNoteId === "string" && data.linkedFromNoteId.trim() ? data.linkedFromNoteId.trim() : null;
+    if (rawLinkedFrom) {
+      if (noteType !== "default") {
+        return { success: false, error: "linkedFromNoteId is only allowed for default notes" };
+      }
+      const sourceNote = first(await db.select().from(Notes).where(and(eq(Notes.id, rawLinkedFrom), eq(Notes.userId, userId))).limit(1));
+      if (!sourceNote) return { success: false, error: "Invalid linkedFromNoteId" };
+      resolvedLinkedFromNoteId = rawLinkedFrom;
+    }
     const now2 = nowISO();
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith("local_") ? generateNoteId() : entityId,
@@ -91943,7 +92070,8 @@ async function processNoteMutation(userId, operation, entityId, data, clientMuta
       createdAt: now2,
       updatedAt: now2,
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : now2,
-      contentEncrypted: data.contentEncrypted || false
+      contentEncrypted: data.contentEncrypted || false,
+      linkedFromNoteId: resolvedLinkedFromNoteId
     }).returning());
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
     await db.update(UserMetadata).set({ highestSimpleNoteId: newHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
@@ -92159,7 +92287,8 @@ app9.get("/api/sync/bootstrap", requireAuth, async (c) => {
         lastVisited: Notes.lastVisited,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
-        contentEncrypted: Notes.contentEncrypted
+        contentEncrypted: Notes.contentEncrypted,
+        linkedFromNoteId: Notes.linkedFromNoteId
       }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1e3),
       db.select({
         id: NoteThreads.id,
@@ -92302,7 +92431,8 @@ app9.get("/api/sync/changes", requireAuth, async (c) => {
         lastVisited: Notes.lastVisited,
         createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt,
-        contentEncrypted: Notes.contentEncrypted
+        contentEncrypted: Notes.contentEncrypted,
+        linkedFromNoteId: Notes.linkedFromNoteId
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
       db.select({
         id: NoteThreads.id,
@@ -93868,6 +93998,69 @@ app11.post("/api/admin/spaces/:spaceId/threads", async (c) => {
     return c.json({ error: error.message || "Error creating thread" }, 500);
   }
 });
+app11.post("/api/admin/spaces/:spaceId/members", async (c) => {
+  const gate = requireHarvousAdmin(c);
+  if (gate) return gate;
+  try {
+    const systemUserId = getHarvousSystemUserId();
+    const spaceId = c.req.param("spaceId");
+    if (!spaceId) return c.json({ error: "Space ID is required" }, 400);
+    const body = await c.req.json().catch(() => ({}));
+    const userId = typeof body.userId === "string" ? body.userId.trim() : "";
+    if (!userId) return c.json({ error: "userId is required" }, 400);
+    const space = first(
+      await db.select().from(Spaces).where(and(eq(Spaces.id, spaceId), eq(Spaces.userId, systemUserId))).limit(1)
+    );
+    if (!space) {
+      return c.json({ error: "Space not found or not owned by Harvous system user" }, 404);
+    }
+    if (space.userId === userId) {
+      return c.json({ error: "User is already the space owner" }, 400);
+    }
+    const existing = first(
+      await db.select().from(Members).where(and(eq(Members.spaceId, spaceId), eq(Members.userId, userId))).limit(1)
+    );
+    if (existing) {
+      return c.json({ success: true, alreadyMember: true, spaceId, userId });
+    }
+    const memberCheck = await canAddMemberToSpaceByOwnerId(spaceId, systemUserId);
+    if (!memberCheck.allowed) {
+      return c.json({ error: memberCheck.reason, code: "MEMBER_LIMIT_EXCEEDED" }, 403);
+    }
+    const sharedCheck = await canOwnerAddOneMoreSharedSpace(systemUserId, spaceId);
+    if (!sharedCheck.allowed) {
+      return c.json({ error: sharedCheck.reason, code: "SHARED_SPACE_LIMIT_EXCEEDED" }, 403);
+    }
+    const granteeTier = await getTierForUserId(userId);
+    const granteeLimits = getTierLimits(granteeTier);
+    if (granteeLimits.joinableSpaces !== Infinity) {
+      const membershipCount = await getSpaceMembershipCount(userId);
+      if (membershipCount >= granteeLimits.joinableSpaces) {
+        return c.json(
+          {
+            error: `That user is at their limit of ${granteeLimits.joinableSpaces} joined spaces for their plan.`,
+            code: "JOIN_LIMIT_EXCEEDED"
+          },
+          403
+        );
+      }
+    }
+    const now2 = nowISO();
+    const member = first(
+      await db.insert(Members).values({
+        id: `member_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
+        spaceId,
+        userId,
+        role: "member",
+        joinedAt: now2,
+        createdAt: now2
+      }).returning()
+    );
+    return c.json({ success: true, spaceId, userId, member });
+  } catch (error) {
+    return c.json({ error: error.message || "Error adding member" }, 500);
+  }
+});
 app11.post("/api/admin/threads/:threadId/notes", async (c) => {
   const gate = requireHarvousAdmin(c);
   if (gate) return gate;
@@ -94286,6 +94479,9 @@ app12.post("/api/featured/dismiss", requireAuth, async (c) => {
       completedAt: isVotd ? timestamp2 : null
     }
   });
+  if (isVotd && body.votdEngagement === "create_note") {
+    await awardVotdEngagementXP(auth.userId, featuredItemId, "create_note");
+  }
   return c.json({ success: true });
 });
 app12.get("/api/featured/dismissed", requireAuth, async (c) => {
@@ -94512,6 +94708,10 @@ app12.post("/api/featured/votd/quick-add", requireAuth, async (c) => {
   }
   try {
     await awardCreationBonusXP(auth.userId, "note");
+  } catch {
+  }
+  try {
+    await awardVotdEngagementXP(auth.userId, featuredItemId, "quick_add");
   } catch {
   }
   const completedAt = now();

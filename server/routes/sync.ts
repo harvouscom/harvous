@@ -190,6 +190,17 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       }
     }
 
+    let resolvedLinkedFromNoteId: string | null = null;
+    const rawLinkedFrom = typeof data.linkedFromNoteId === 'string' && data.linkedFromNoteId.trim() ? data.linkedFromNoteId.trim() : null;
+    if (rawLinkedFrom) {
+      if (noteType !== 'default') {
+        return { success: false, error: 'linkedFromNoteId is only allowed for default notes' };
+      }
+      const sourceNote = first(await db.select().from(Notes).where(and(eq(Notes.id, rawLinkedFrom), eq(Notes.userId, userId))).limit(1));
+      if (!sourceNote) return { success: false, error: 'Invalid linkedFromNoteId' };
+      resolvedLinkedFromNoteId = rawLinkedFrom;
+    }
+
     const now = nowISO();
     const newNote = first(await db.insert(Notes).values({
       id: entityId.startsWith('local_') ? generateNoteId() : entityId,
@@ -208,6 +219,7 @@ async function processNoteMutation(userId: string, operation: string, entityId: 
       updatedAt: now,
       lastVisited: data.lastVisited ? new Date(data.lastVisited) : now,
       contentEncrypted: data.contentEncrypted || false,
+      linkedFromNoteId: resolvedLinkedFromNoteId,
     }).returning())!;
 
     const newHighest = Math.max(assignedSimpleNoteId, effectiveHighest);
@@ -411,6 +423,7 @@ app.get('/api/sync/bootstrap', requireAuth, async (c) => {
         addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
+        linkedFromNoteId: Notes.linkedFromNoteId,
       }).from(Notes).where(eq(Notes.userId, auth.userId)).limit(1000),
 
       db.select({
@@ -531,6 +544,7 @@ app.get('/api/sync/changes', requireAuth, async (c) => {
         addedBy: Notes.addedBy, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
         order: Notes.order, lastVisited: Notes.lastVisited, createdAt: Notes.createdAt,
         updatedAt: Notes.updatedAt, contentEncrypted: Notes.contentEncrypted,
+        linkedFromNoteId: Notes.linkedFromNoteId,
       }).from(Notes).where(and(eq(Notes.userId, auth.userId), or(gt(Notes.updatedAt, sinceDate), gt(Notes.createdAt, sinceDate), gt(Notes.lastVisited, sinceDate)))),
 
       db.select({

@@ -89,6 +89,8 @@ export default function NoteDetailsPanel({
   const [noteAddedBy, setNoteAddedBy] = useState<string | null>(null);
   const [noteType, setNoteType] = useState<string>('default');
   const [localReferencingNotes, setLocalReferencingNotes] = useState<ReferencingNote[]>([]);
+  const [localLinkedFromNotes, setLocalLinkedFromNotes] = useState<ReferencingNote[]>([]);
+  const [linkedFromNoteId, setLinkedFromNoteId] = useState<string | null>(null);
   const [showNewThreadPanel, setShowNewThreadPanel] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [noteUserId, setNoteUserId] = useState<string | null>(null);
@@ -99,8 +101,9 @@ export default function NoteDetailsPanel({
 
   const currentUserId = usePersistedUserId();
 
-  // Check if this is a scripture note (to show the Notes tab)
+  // Scripture: Notes tab lists backlinks. Default + linkedFromNoteId: tab shows source note.
   const isScriptureNote = noteType === 'scripture';
+  const showNotesTab = isScriptureNote || (noteType === 'default' && !!linkedFromNoteId);
   const isUnorganizedThread = (thread: Thread) =>
     thread.id === 'thread_unorganized' || thread.title?.trim().toLowerCase() === 'unorganized';
   const visibleThreads = localThreads.filter((thread) => !isUnorganizedThread(thread));
@@ -128,6 +131,8 @@ export default function NoteDetailsPanel({
     if (!noteId) return;
 
     setIsInitialLoad(true);
+    setLinkedFromNoteId(null);
+    setLocalLinkedFromNotes([]);
     const cached = getCachedNoteDetails(noteId);
 
     if (cached) {
@@ -136,6 +141,7 @@ export default function NoteDetailsPanel({
       setLocalComments((cached.comments as Comment[]) || []);
       setLocalTags((cached.tags as Tag[]) || []);
       setLocalReferencingNotes((cached.referencingNotes as ReferencingNote[]) || []);
+      setLocalLinkedFromNotes((cached.linkedFromNotes as ReferencingNote[]) || []);
       if (cached.note) {
         setNoteCreatedAt(cached.note.createdAt ? new Date(cached.note.createdAt) : null);
         setNoteSimpleId(cached.note.simpleNoteId ?? null);
@@ -143,7 +149,9 @@ export default function NoteDetailsPanel({
         setNoteAddedBy(cached.note.addedBy || 'user');
         setNoteType(cached.note.noteType || 'default');
         setNoteUserId(cached.note.userId ?? null);
+        setLinkedFromNoteId(cached.note.linkedFromNoteId ?? null);
         if (cached.note.noteType === 'scripture' && !initialTab) setActiveTab('notes');
+        if (cached.note.noteType === 'default' && cached.note.linkedFromNoteId && !initialTab) setActiveTab('notes');
       }
       setIsLoading(false);
       fetchNoteDetails(false, true);
@@ -195,24 +203,31 @@ export default function NoteDetailsPanel({
           setNoteAddedBy(data.note.addedBy || 'user');
           setNoteType(data.note.noteType || 'default');
           setNoteUserId(data.note.userId ?? null);
+          setLinkedFromNoteId(data.note.linkedFromNoteId ?? null);
           if (!preserveTab && isInitialLoad && data.note.noteType === 'scripture' && !initialTab) {
+            setActiveTab('notes');
+          }
+          if (!preserveTab && isInitialLoad && data.note.noteType === 'default' && data.note.linkedFromNoteId && !initialTab) {
             setActiveTab('notes');
           }
         }
         setLocalReferencingNotes(data.referencingNotes || []);
+        setLocalLinkedFromNotes(data.linkedFromNotes || []);
         setCachedNoteDetails(noteId, {
           threads: data.threads || [],
           allUserThreads: data.allUserThreads || [],
           comments: data.comments || [],
           tags: data.tags || [],
           referencingNotes: data.referencingNotes || [],
+          linkedFromNotes: data.linkedFromNotes || [],
           note: data.note ? {
             createdAt: data.note.createdAt,
             simpleNoteId: data.note.simpleNoteId,
             version: data.note.version,
             addedBy: data.note.addedBy,
             noteType: data.note.noteType,
-            userId: data.note.userId
+            userId: data.note.userId,
+            linkedFromNoteId: data.note.linkedFromNoteId ?? null,
           } : null
         });
       }
@@ -687,8 +702,8 @@ export default function NoteDetailsPanel({
                     <div className="tab-nav-container">
                       {/* Tab Navigation */}
                       <div className="tab-nav">
-                        {/* Notes tab - first for scripture notes */}
-                        {isScriptureNote && (
+                        {/* Notes tab: scripture backlinks or linked-from source */}
+                        {showNotesTab && (
                           <button
                             type="button"
                             className={`tab-btn ${activeTab === 'notes' ? 'tab-btn--active' : 'tab-btn--inactive'}`}
@@ -698,7 +713,9 @@ export default function NoteDetailsPanel({
                           >
                             <span className="tab-btn__label">Notes</span>
                             <div className="badge-count">
-                              <span className="badge-number">{formatBadgeCount(localReferencingNotes.length)}</span>
+                              <span className="badge-number">
+                                {formatBadgeCount(isScriptureNote ? localReferencingNotes.length : localLinkedFromNotes.length)}
+                              </span>
                             </div>
                           </button>
                         )}
@@ -885,30 +902,56 @@ export default function NoteDetailsPanel({
                         )}
                       </div>
                     )}
-                    {activeTab === 'notes' && isScriptureNote && (
+                    {activeTab === 'notes' && showNotesTab && (
                       <div className="tab-content__section">
-                        {localReferencingNotes.length === 0 ? (
-                          <div className="panel__empty-state">No notes reference this scripture yet</div>
+                        {isScriptureNote ? (
+                          localReferencingNotes.length === 0 ? (
+                            <div className="panel__empty-state">No notes reference this scripture yet</div>
+                          ) : (
+                            <div className="panel__item-list">
+                              {localReferencingNotes.map((refNote: ReferencingNote) => (
+                                <a
+                                  key={refNote.id}
+                                  href={idToUrl(refNote.id)}
+                                  className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+                                  style={{ touchAction: 'manipulation' }}
+                                >
+                                  <CardNote
+                                    title={refNote.noteType === 'resource' && refNote.resourceTitle ? refNote.resourceTitle : (refNote.title || `Note N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`)}
+                                    content={refNote.noteType === 'resource' && refNote.resourceDescription ? refNote.resourceDescription : refNote.content}
+                                    noteType={(refNote.noteType === 'scripture' || refNote.noteType === 'resource') ? refNote.noteType : 'default'}
+                                    resourceTitle={refNote.noteType === 'resource' ? (refNote.resourceTitle || null) : undefined}
+                                    resourceDescription={refNote.noteType === 'resource' ? (refNote.resourceDescription || null) : undefined}
+                                    resourceImage={refNote.noteType === 'resource' ? (refNote.resourceImage || null) : undefined}
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )
                         ) : (
-                          <div className="panel__item-list">
-                            {localReferencingNotes.map((refNote: ReferencingNote) => (
-                              <a
-                                key={refNote.id}
-                                href={idToUrl(refNote.id)}
-                                className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-                                style={{ touchAction: 'manipulation' }}
-                              >
-                                <CardNote
-                                  title={refNote.noteType === 'resource' && refNote.resourceTitle ? refNote.resourceTitle : (refNote.title || `Note N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`)}
-                                  content={refNote.noteType === 'resource' && refNote.resourceDescription ? refNote.resourceDescription : refNote.content}
-                                  noteType={(refNote.noteType === 'scripture' || refNote.noteType === 'resource') ? refNote.noteType : 'default'}
-                                  resourceTitle={refNote.noteType === 'resource' ? (refNote.resourceTitle || null) : undefined}
-                                  resourceDescription={refNote.noteType === 'resource' ? (refNote.resourceDescription || null) : undefined}
-                                  resourceImage={refNote.noteType === 'resource' ? (refNote.resourceImage || null) : undefined}
-                                />
-                              </a>
-                            ))}
-                          </div>
+                          localLinkedFromNotes.length === 0 ? (
+                            <div className="panel__empty-state">Original note is no longer available</div>
+                          ) : (
+                            <div className="panel__item-list">
+                              {localLinkedFromNotes.map((refNote: ReferencingNote) => (
+                                <a
+                                  key={refNote.id}
+                                  href={idToUrl(refNote.id)}
+                                  className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+                                  style={{ touchAction: 'manipulation' }}
+                                >
+                                  <CardNote
+                                    title={refNote.noteType === 'resource' && refNote.resourceTitle ? refNote.resourceTitle : (refNote.title || `Note N${refNote.simpleNoteId?.toString().padStart(3, '0') || 'N/A'}`)}
+                                    content={refNote.noteType === 'resource' && refNote.resourceDescription ? refNote.resourceDescription : refNote.content}
+                                    noteType={(refNote.noteType === 'scripture' || refNote.noteType === 'resource') ? refNote.noteType : 'default'}
+                                    resourceTitle={refNote.noteType === 'resource' ? (refNote.resourceTitle || null) : undefined}
+                                    resourceDescription={refNote.noteType === 'resource' ? (refNote.resourceDescription || null) : undefined}
+                                    resourceImage={refNote.noteType === 'resource' ? (refNote.resourceImage || null) : undefined}
+                                  />
+                                </a>
+                              ))}
+                            </div>
+                          )
                         )}
                       </div>
                     )}

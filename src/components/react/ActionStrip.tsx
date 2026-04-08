@@ -56,6 +56,7 @@ interface ActionStripProps {
   spaceIsShared?: boolean;
   contentOwnerId?: string | null;
   userId?: string | null;
+  linkedFromNoteId?: string | null;
 }
 
 export default function ActionStrip({
@@ -71,7 +72,8 @@ export default function ActionStrip({
   spaceRole,
   spaceIsShared,
   contentOwnerId,
-  userId: userIdProp
+  userId: userIdProp,
+  linkedFromNoteId
 }: ActionStripProps) {
   const userId = usePersistedUserId();
   const effectiveUserId = userIdProp ?? userId;
@@ -91,7 +93,8 @@ export default function ActionStrip({
     spaceRole,
     contentOwnerId,
     effectiveUserId,
-    spaceIsShared
+    spaceIsShared,
+    linkedFromNoteId
   );
   const showStrip = shouldShowActionStripMenu(
     contentType,

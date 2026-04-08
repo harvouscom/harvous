@@ -352,6 +352,7 @@ export async function createNoteOffline(userId: string, data: {
   isPublic?: boolean;
   isFeatured?: boolean;
   order?: number;
+  linkedFromNoteId?: string | null;
 }): Promise<string> {
   if (!isOfflineModeEnabled()) {
     throw new Error('Offline mode is disabled. Please enable the offline-mode-enabled feature flag.');
@@ -439,6 +440,7 @@ export async function createNoteOffline(userId: string, data: {
     isFeatured: data.isFeatured || false,
     order: data.order || 0,
     lastVisited: new Date(), // Set so new offline items appear at top (matches server-side behavior)
+    linkedFromNoteId: data.linkedFromNoteId ?? null,
     syncStatus: 'pending',
     lastModified: now,
     createdAt: new Date(),
@@ -505,6 +507,7 @@ export async function createNoteOffline(userId: string, data: {
       order: data.order,
       // Include lastVisited so server stores it (fixes order reset on sync)
       lastVisited: new Date().toISOString(),
+      ...(data.linkedFromNoteId ? { linkedFromNoteId: data.linkedFromNoteId } : {}),
     },
   });
 
@@ -750,6 +753,7 @@ export async function createNoteOfflineWithRetry(
     scriptureVersion?: string;
     resourceUrl?: string;
     resourceMetadata?: any;
+    linkedFromNoteId?: string | null;
   },
   options: { retries?: number; retryDelay?: number } = {}
 ): Promise<OfflineOperationResult> {

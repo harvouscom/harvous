@@ -48,6 +48,7 @@ interface ActiveThread {
   noteCount: number;
   backgroundGradient: string;
   spaceId?: string | null;
+  userId?: string | null;
 }
 
 interface CurrentSpace {
@@ -66,6 +67,7 @@ interface NavigationColumnProps {
   userColor?: string;
   pathname?: string;
   search?: string;
+  viewerUserId?: string | null;
 }
 
 const NavigationColumn: React.FC<NavigationColumnProps> = ({
@@ -79,7 +81,8 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   initials = "DJ",
   userColor = "blue",
   pathname = '/',
-  search = ''
+  search = '',
+  viewerUserId = null,
 }) => {
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
   const [dismissedMismatchKey, setDismissedMismatchKey] = useState<string | null>(null);
@@ -214,8 +217,16 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   const mismatchKey = currentThreadForMismatch?.id && selectedSpaceForMismatch
     ? `${currentThreadForMismatch.id}|${selectedSpaceForMismatch}`
     : null;
+  const threadOwnerId = currentThreadForMismatch?.userId ?? null;
+  const suppressMismatchForNonOwner =
+    !!viewerUserId && !!threadOwnerId && threadOwnerId !== viewerUserId;
   const baseSpaceMismatchPrompt =
-    !!selectedSpaceForMismatch && isThreadPage && currentThreadForMismatch?.id && threadSpaceId !== selectedSpaceForMismatch;
+    !!selectedSpaceForMismatch &&
+    isThreadPage &&
+    !!currentThreadForMismatch?.id &&
+    currentThreadForMismatch.id !== 'thread_unorganized' &&
+    threadSpaceId !== selectedSpaceForMismatch &&
+    !suppressMismatchForNonOwner;
   const showSpaceMismatchPrompt = baseSpaceMismatchPrompt && mismatchKey !== dismissedMismatchKey;
 
   const selectedSpaceTitleForMismatch = selectedSpaceForMismatch

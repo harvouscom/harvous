@@ -51,6 +51,7 @@ export interface OfflineNote extends BaseOfflineEntity {
   isFeatured: boolean;
   order: number;
   lastVisited: Date | null;
+  linkedFromNoteId?: string | null;
 }
 
 // Offline NoteThread junction entity

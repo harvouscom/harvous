@@ -67,7 +67,7 @@ export function shouldShowActionStripMenu(
  * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean) {
+export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean, linkedFromNoteId?: string | null) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -93,8 +93,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
     case "note":
       const options = [];
 
-      // Add "Notes" option for scripture notes only
-      if (noteType === 'scripture') {
+      // Notes tab: scripture (backlinks) or default note created from highlighted text in another note
+      if (noteType === 'scripture' || (noteType === 'default' && linkedFromNoteId)) {
         options.push({ action: "openNoteDetailsNotes", label: "Notes" });
       }
 

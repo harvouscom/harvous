@@ -15,6 +15,8 @@ type ActiveThread = {
   noteCount: number;
   backgroundGradient: string;
   spaceId?: string | null;
+  /** Thread owner (space member view); used to hide add-to-space prompt for others' threads. */
+  userId?: string | null;
 } | null;
 
 type CurrentSpace = { id: string } | null;
@@ -31,6 +33,8 @@ export interface NavigationIslandProps {
   userColor?: string;
   pathname?: string;
   search?: string;
+  /** Signed-in user id — for space-mismatch banner ownership checks. */
+  viewerUserId?: string | null;
 }
 
 class NavigationErrorBoundary extends React.Component<
