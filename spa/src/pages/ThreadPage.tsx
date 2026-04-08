@@ -9,11 +9,9 @@ import ThreadCardStackHeader from '../../../src/components/react/ThreadCardStack
 import TabNav from '../../../src/components/react/TabNav';
 import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
-import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
-import { useIsMobile } from '../hooks/useIsMobile';
 import {
   getStoredThreadContentTab,
   setStoredThreadContentTab,
@@ -161,8 +159,6 @@ export default function ThreadPage() {
     : (thread?.color ?? navThread?.color ?? 'paper');
 
   const headerBgColor = `var(--color-${resolvedColor})`;
-  const isMobile = useIsMobile();
-
   // Always use ThreadCardStackHeader for non-unorganized so the header never shifts.
   // Nav data (navThread) provides title/color immediately; thread detail updates when loaded.
   return (
@@ -226,7 +222,6 @@ export default function ThreadPage() {
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />
       </SubtleContentMount>
-      {isMobile && <CreateNoteButton />}
     </CardStack>
   );
 }

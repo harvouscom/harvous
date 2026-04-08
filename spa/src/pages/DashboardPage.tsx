@@ -4,12 +4,10 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
 import TabNav from '../../../src/components/react/TabNav';
-import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
-import { useIsMobile } from '../hooks/useIsMobile';
 import { useFeaturedItems } from '../hooks/queries/useFeaturedItems';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
@@ -97,7 +95,6 @@ export default function DashboardPage() {
   }, [queryClient]);
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
-  const isMobile = useIsMobile();
 
   return (
     <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
@@ -121,7 +118,6 @@ export default function DashboardPage() {
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />
       </SubtleContentMount>
-      {isMobile && <CreateNoteButton />}
     </CardStack>
   );
 }

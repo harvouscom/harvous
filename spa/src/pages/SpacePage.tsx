@@ -17,12 +17,9 @@ import SpaceCardStackHeader from '../../../src/components/react/SpaceCardStackHe
 import TabNav from '../../../src/components/react/TabNav';
 import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
-import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
-import { useIsMobile } from '../hooks/useIsMobile';
-
 type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources' | 'search';
 
 const TABS: Array<{ id: SpaceFilter; label: string }> = [
@@ -154,8 +151,6 @@ export default function SpacePage() {
   }, [spaceId, space]);
 
   const headerBgColor = `var(--color-${resolvedSpaceColor})`;
-  const isMobile = useIsMobile();
-
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
   if (isLoading) {
@@ -248,7 +243,6 @@ export default function SpacePage() {
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />
       </SubtleContentMount>
-      {isMobile && <CreateNoteButton addToSpaceSpaceId={spaceId} />}
     </CardStack>
   );
 }
