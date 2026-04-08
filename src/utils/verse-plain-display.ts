@@ -4,6 +4,27 @@
  */
 
 /**
+ * Strip HTML for VOTD card plain text. Preserves line breaks from &lt;br&gt; and paragraph
+ * boundaries so the card can use white-space: pre-wrap and avoid a one-line→wrapped jump.
+ */
+export function stripHtmlPreservingBreaksForVotd(html: string): string {
+  if (!html) return '';
+  let s = html
+    .replace(/\r\n/g, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<p[^>]*>/gi, '');
+  s = s.replace(/<[^>]+>/g, ' ');
+  s = s.replace(/[^\S\n]+/g, ' ');
+  s = s
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
+/**
  * After HTML→plain, drop a leading verse number that matches the reference's start verse.
  * Only applies to a single verse (no range). Safe no-op when verse is unknown or text unchanged.
  */

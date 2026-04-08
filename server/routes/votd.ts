@@ -19,7 +19,11 @@ import { requireHarvousAdmin } from '../utils/harvous-admin';
 import { FeaturedItems, VotdSchedule, VotdPublishHistory } from '../db/schema';
 import { fetchVerseText } from '../utils/fetch-verse-text';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
-import { stripLeadingVerseNumberFromPlainText, stripRedundantEdgeQuotesForVotdCard } from '@/utils/verse-plain-display';
+import {
+  stripLeadingVerseNumberFromPlainText,
+  stripRedundantEdgeQuotesForVotdCard,
+  stripHtmlPreservingBreaksForVotd,
+} from '@/utils/verse-plain-display';
 import { getCalendarVerseForDate, isCalendarHolidayDate } from '../utils/votd-calendar';
 import {
   pickDailyVerseForPublish,
@@ -64,7 +68,7 @@ function votdPreviewPlainFromHtml(html: string, reference: string): string {
   const parsed = parseScriptureReference(normalizeScriptureReference(reference));
   const verseStart = parsed ? (Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse) : null;
   const verseEnd = parsed ? (Array.isArray(parsed.verse) ? parsed.verse[1] : null) : null;
-  const collapsed = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const collapsed = stripHtmlPreservingBreaksForVotd(html);
   const withoutLeadingNum = stripLeadingVerseNumberFromPlainText(collapsed, verseStart, verseEnd);
   return stripRedundantEdgeQuotesForVotdCard(withoutLeadingNum);
 }

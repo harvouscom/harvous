@@ -10,6 +10,7 @@ import { generateAccentMeshGradient, getThreadIconOnAccentCSS } from '../../../s
 import {
   stripLeadingVerseNumberFromPlainText,
   stripRedundantEdgeQuotesForVotdCard,
+  stripHtmlPreservingBreaksForVotd,
 } from '@/utils/verse-plain-display';
 import Icon from '@/components/react/Icon';
 import { FeaturedCardActionsDock } from '@/components/react/FeaturedCardActionsDock';
@@ -81,13 +82,8 @@ const CTA: Record<FeaturedItem['contentType'], string> = {
   votd: 'Add to my Harvous',
 };
 
-// Strip HTML tags for plain text display
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
 function votdPlainFromHtml(html: string, meta: VotdMetadata | null | undefined): string {
-  const plain = stripHtml(html);
+  const plain = stripHtmlPreservingBreaksForVotd(html);
   const withoutVerseNum = stripLeadingVerseNumberFromPlainText(
     plain,
     meta?.verse ?? undefined,
