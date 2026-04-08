@@ -4,21 +4,31 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import OrganizedContentList from '../../../src/components/react/OrganizedContentList';
 import TabNav from '../../../src/components/react/TabNav';
+import FindSearchInput from '../../../src/components/react/FindSearchInput';
+import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
+import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
 import { useFeaturedItems } from '../hooks/queries/useFeaturedItems';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
+import { addRecentSearchTerm } from '@/utils/recent-search-storage';
+import {
+  getStoredDashboardContentTab,
+  setStoredDashboardContentTab,
+  type DashboardContentTabId,
+} from '@/utils/content-tab-storage';
 
-type DashboardFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
+type DashboardContentFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
-const TABS: Array<{ id: DashboardFilter; label: string }> = [
-  { id: 'all',       label: 'All' },
-  { id: 'threads',   label: 'Threads' },
-  { id: 'notes',     label: 'Notes' },
+const TABS: Array<{ id: DashboardContentTabId; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'threads', label: 'Threads' },
+  { id: 'notes', label: 'Notes' },
   { id: 'scripture', label: 'Scripture' },
+  { id: 'search', label: 'Search' },
 ];
 
 export default function DashboardPage() {
@@ -26,14 +36,26 @@ export default function DashboardPage() {
   const { isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<DashboardFilter>('all');
+  const [filter, setFilter] = useState<DashboardContentTabId>(() => getStoredDashboardContentTab() ?? 'all');
+  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
   const authReady = isLoaded && isSignedIn;
   const { isSuccess: profileSuccess } = useProfile();
-  const { data: featuredItems, isFetched: featuredFetched } = useFeaturedItems({ enabled: authReady });
+  const { data: featuredItems } = useFeaturedItems({ enabled: authReady });
 
-  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(filter, 30, {
-    enabled: authReady,
-  });
+  const lastListFilterRef = useRef<Exclude<DashboardContentTabId, 'search'>>('all');
+  if (filter !== 'search') {
+    lastListFilterRef.current = filter;
+  }
+
+  const listFilterForQuery = lastListFilterRef.current as DashboardContentFilter;
+
+  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(
+    listFilterForQuery,
+    30,
+    {
+      enabled: authReady && filter !== 'search',
+    },
+  );
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
@@ -46,11 +68,10 @@ export default function DashboardPage() {
     void refetchContent();
   }, [profileSuccess, cachedItems.length, refetchContent]);
 
-  // One coordinated exit from loading: wait for first featured fetch too, so the carousel
-  // doesn’t mount after tabs/list (second layout shift / “double load”).
-  const listAwaitingFirstPage = cachedItems.length === 0 && isFetching;
-  const featuredAwaitingFirstFetch = authReady && !featuredFetched;
-  const isInitialLoading = listAwaitingFirstPage || featuredAwaitingFirstFetch;
+  // List loading tracks dashboard content only. Featured carousel loads independently so the
+  // home list is not blocked by `/api/featured/items` (avoids an extra wait on empty states).
+  const listAwaitingFirstPage = filter !== 'search' && cachedItems.length === 0 && isFetching;
+  const isInitialLoading = listAwaitingFirstPage;
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
@@ -89,32 +110,77 @@ export default function DashboardPage() {
     }
   }, [cachedItems, queryClient]);
 
+  const prefetchSearch = useCallback(
+    (term: string) => {
+      if (!term.trim()) return;
+      queryClient.prefetchQuery({
+        queryKey: searchQueryKey(term),
+        queryFn: () => fetchSearchResults(term),
+      });
+    },
+    [queryClient],
+  );
+
   // Prefetch full note details on hover/touch as a backup
   const prefetchNote = useCallback((noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   }, [queryClient]);
 
+  const handleTabChange = useCallback((id: string) => {
+    const next = id as DashboardContentTabId;
+    setFilter(next);
+    setStoredDashboardContentTab(next);
+  }, []);
+
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
+
+  const contentListFilter: DashboardContentFilter =
+    filter === 'search' ? 'all' : (filter as DashboardContentFilter);
 
   return (
     <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
-      {featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
+      {filter !== 'search' && featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
       <SubtleContentMount key={user?.id ?? 'home'} variant="fade">
         <TabNav
           tabs={tabs}
-          onTabChange={(id) => setFilter(id as DashboardFilter)}
+          onTabChange={handleTabChange}
           className="dashboard-tab-nav content-tabs"
         />
-        <OrganizedContentList
-          initialItems={cachedItems as any}
-          filter={filter}
-          userId={user?.id}
-          dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
-          onNavigate={(href) => navigate({ to: href as any })}
-          parentIsLoading={isInitialLoading}
-          initialHasMoreFromParent={initialHasMoreFromParent}
-          onNotePrefetch={prefetchNote}
-        />
+        {filter === 'search' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <FindSearchInput
+              placeholder="Search my Harvous…"
+              initialQuery={scopedSearchQuery}
+              onBeforeSearchNavigate={prefetchSearch}
+              onSubmitSearch={(term) => {
+                addRecentSearchTerm(null, term);
+                setScopedSearchQuery(term);
+              }}
+              onClearSearch={() => setScopedSearchQuery('')}
+            />
+            {!scopedSearchQuery.trim() && (
+              <RecentSearches
+                onPrefetchSearch={prefetchSearch}
+                onSelectRecentTerm={(term) => {
+                  prefetchSearch(term);
+                  setScopedSearchQuery(term);
+                }}
+              />
+            )}
+            <SearchResultsList query={scopedSearchQuery} recentSearchCountSync={null} />
+          </div>
+        ) : (
+          <OrganizedContentList
+            initialItems={cachedItems as any}
+            filter={contentListFilter}
+            userId={user?.id}
+            dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
+            onNavigate={(href) => navigate({ to: href as any })}
+            parentIsLoading={isInitialLoading}
+            initialHasMoreFromParent={initialHasMoreFromParent}
+            onNotePrefetch={prefetchNote}
+          />
+        )}
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}
         <div data-cta-spacer className="create-note-cta-spacer" />
       </SubtleContentMount>

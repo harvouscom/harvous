@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { formatBadgeCount } from '@/utils/badge-count';
+import {
+  useFeaturedDismissed,
+  featuredDismissedQueryPrefix,
+} from '../../../spa/src/hooks/queries/useFeaturedDismissed';
 
 /**
  * ProfileOptionsList - React component that renders profile options
@@ -19,11 +25,14 @@ import { formatBadgeCount } from '@/utils/badge-count';
  * - Get Support (no API calls)
  */
 export default function ProfileOptionsList() {
+  const { user } = useUser();
+  const queryClient = useQueryClient();
+  const { data: dismissedItems } = useFeaturedDismissed({ enabled: !!user?.id });
+  const inboxCount = dismissedItems?.length ?? null;
   // Use browser offline event only — navigator.onLine is unreliable in PWAs
   // (service workers can intercept requests making the browser think it's offline).
   // Default to online (false = not offline) and only go offline on the 'offline' event.
   const [isOffline, setIsOffline] = useState(false);
-  const [inboxCount, setInboxCount] = useState<number | null>(null);
   const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
 
   useEffect(() => {
@@ -41,58 +50,34 @@ export default function ProfileOptionsList() {
 
   useEffect(() => {
     let cancelled = false;
+    setIsHarvousAdmin(false);
+    if (!user?.id) return () => { cancelled = true; };
     fetch('/api/admin/check', { credentials: 'include' })
       .then((res) => (res.ok ? res.json() : { isAdmin: false }))
       .then((data: { isAdmin?: boolean }) => {
-        if (!cancelled && data?.isAdmin === true) setIsHarvousAdmin(true);
+        if (!cancelled) setIsHarvousAdmin(data?.isAdmin === true);
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
-  // Fetch dismissed featured item count for the "My Inbox" badge.
+  // Keep badge in sync when featured cards move in/out of the inbox (shared React Query cache).
   useEffect(() => {
-    let cancelled = false;
-    fetch('/api/featured/dismissed', { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data: unknown) => {
-        if (!cancelled && Array.isArray(data)) setInboxCount(data.length);
-      })
-      .catch(() => { /* non-fatal */ });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Refresh badge when user closes My Inbox panel (they may have acted on items).
-  useEffect(() => {
-    const refresh = (event: Event) => {
-      const panelName = (event as CustomEvent).detail?.panelName;
-      if (panelName !== 'myInbox') return;
-      fetch('/api/featured/dismissed', { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : []))
-        .then((data: unknown) => {
-          if (Array.isArray(data)) setInboxCount(data.length);
-        })
-        .catch(() => { /* non-fatal */ });
+    const onDismiss = () => {
+      void queryClient.invalidateQueries({ queryKey: [...featuredDismissedQueryPrefix] });
     };
-    window.addEventListener('openProfilePanel', refresh);
-    return () => window.removeEventListener('openProfilePanel', refresh);
-  }, []);
-
-  // Increment badge immediately when a card is dismissed into the inbox.
-  useEffect(() => {
-    const onDismiss = () => setInboxCount((prev) => (prev ?? 0) + 1);
+    const onErase = () => {
+      void queryClient.invalidateQueries({ queryKey: [...featuredDismissedQueryPrefix] });
+    };
     window.addEventListener('featuredItemDismissed', onDismiss);
-    return () => window.removeEventListener('featuredItemDismissed', onDismiss);
-  }, []);
-
-  // Decrement badge immediately when a user erases an inbox item.
-  useEffect(() => {
-    const onErase = () => setInboxCount((prev) => Math.max(0, (prev ?? 1) - 1));
     window.addEventListener('featuredItemErased', onErase);
-    return () => window.removeEventListener('featuredItemErased', onErase);
-  }, []);
+    return () => {
+      window.removeEventListener('featuredItemDismissed', onDismiss);
+      window.removeEventListener('featuredItemErased', onErase);
+    };
+  }, [queryClient]);
 
   const handleOptionClick = (panelName: string, requiresOnline: boolean) => {
     if (requiresOnline && isOffline) {

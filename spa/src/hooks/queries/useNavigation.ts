@@ -1,5 +1,8 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, APIError } from '../../lib/api';
+import { APIError } from '../../lib/api';
+import { HARVOUS_NAV_CACHE_KEY } from '@/utils/user-cache-keys';
+import { readClerkUserIdForProfileCache } from './useProfile';
 
 export interface NavThread {
   id: string;
@@ -29,27 +32,49 @@ export interface NavigationData {
   inboxCount: number;
 }
 
-export const navigationQueryKey = ['navigation'] as const;
+/** Prefix for invalidating all per-user navigation queries. */
+export const navigationQueryKeyPrefix = ['navigation'] as const;
 
-/** SessionStorage key for nav snapshot (must clear on thread delete to avoid ghost threads). */
-export const NAV_SESSION_CACHE_KEY = 'harvous-nav-cache';
+export function getNavigationQueryKey(userId: string) {
+  return ['navigation', userId] as const;
+}
+
+/** SessionStorage key for nav snapshot (must clear on thread delete / sign-out). */
+export const NAV_SESSION_CACHE_KEY = HARVOUS_NAV_CACHE_KEY;
 
 function getCachedNav(): NavigationData | undefined {
   try {
     const raw = sessionStorage.getItem(NAV_SESSION_CACHE_KEY);
     return raw ? JSON.parse(raw) : undefined;
-  } catch { return undefined; }
+  } catch {
+    return undefined;
+  }
 }
 
 function setCachedNav(data: NavigationData) {
-    try { sessionStorage.setItem(NAV_SESSION_CACHE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
+  try {
+    sessionStorage.setItem(NAV_SESSION_CACHE_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore */
+  }
+}
+
+function hasSessionCookieHint(): boolean {
+  if (typeof document === 'undefined') return false;
+  return /(?:^|;\s*)__client_uat=[1-9]/.test(document.cookie);
 }
 
 export function useNavigation(options?: { enabled?: boolean }) {
-  const cached = getCachedNav();
+  const { userId, isLoaded, isSignedIn } = useAuth();
+  const sessionHint = hasSessionCookieHint();
+  const effectiveUserId =
+    userId ?? (sessionHint ? readClerkUserIdForProfileCache() : undefined);
+  const cachedForSession =
+    effectiveUserId && sessionHint ? getCachedNav() : undefined;
+
   const query = useQuery({
-    queryKey: navigationQueryKey,
-    enabled: options?.enabled !== false,
+    queryKey: userId ? getNavigationQueryKey(userId) : ['navigation', effectiveUserId ?? ''],
+    enabled: (options?.enabled !== false) && isLoaded && isSignedIn && !!userId,
     queryFn: async () => {
       const res = await fetch('/api/navigation/data', { credentials: 'include' });
       if (!res.ok) {
@@ -61,8 +86,9 @@ export function useNavigation(options?: { enabled?: boolean }) {
       return data;
     },
     staleTime: 30_000,
-    initialData: cached,
-    initialDataUpdatedAt: cached ? Date.now() - 15_000 : undefined,
+    placeholderData: cachedForSession,
+    initialData: cachedForSession,
+    initialDataUpdatedAt: cachedForSession ? Date.now() - 15_000 : undefined,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(500 * 2 ** attemptIndex, 2000),
   });
@@ -71,11 +97,11 @@ export function useNavigation(options?: { enabled?: boolean }) {
   // data, still surface last session's nav so thread routes don't flash "Thread" / paper.
   return {
     ...query,
-    data: query.data ?? cached,
+    data: query.data ?? cachedForSession,
   };
 }
 
 export function useRefreshNavigation() {
   const queryClient = useQueryClient();
-  return () => queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+  return () => queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
 }

@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 const API_BASE =
@@ -51,23 +52,27 @@ type PreviewResponse = { days: VotdPreviewDay[] };
 const PREVIEW_KEY = ['votd-preview'] as const;
 
 export function useHarvousAdminCheck() {
+  const { userId, isLoaded, isSignedIn } = useAuth();
   return useQuery({
-    queryKey: ['harvous-admin-check'],
+    queryKey: ['harvous-admin-check', userId],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/admin/check`, { credentials: 'include' });
       if (!res.ok) throw new Error('Unauthorized');
       return res.json() as Promise<{ isAdmin: boolean }>;
     },
+    enabled: isLoaded && isSignedIn && !!userId,
     retry: false,
   });
 }
 
 export function useVotdPreviewForAdmin(days = 30) {
+  const { userId, isLoaded, isSignedIn } = useAuth();
   const admin = useHarvousAdminCheck();
   const preview = useQuery({
-    queryKey: [...PREVIEW_KEY, days],
+    queryKey: [...PREVIEW_KEY, days, userId],
     queryFn: () => votdApi.get<PreviewResponse>('/api/admin/votd/preview', { days }),
-    enabled: admin.isSuccess && admin.data?.isAdmin === true,
+    enabled:
+      isLoaded && isSignedIn && !!userId && admin.isSuccess && admin.data?.isAdmin === true,
     staleTime: 30_000,
   });
   return { admin, preview };

@@ -2,7 +2,8 @@ import { setPwaPromptLastDismissed } from '@/utils/pwa-prompt';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { extractIdFromPath } from '@/utils/url-helpers';
 import { ClerkProvider, useAuth, useUser } from '@clerk/clerk-react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { clearUserClientCaches } from '@/utils/clear-user-client-caches';
 import { RouterProvider } from '@tanstack/react-router';
 import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -198,6 +199,17 @@ function ToastSetup() {
     };
   }, []);
 
+  return null;
+}
+
+/** When Clerk reports signed-out, drop session caches and RQ user data so the next login never shows the previous account. */
+function AuthSignedOutCacheCleanup() {
+  const { isLoaded, isSignedIn } = useAuth();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!isLoaded || isSignedIn) return;
+    clearUserClientCaches(queryClient);
+  }, [isLoaded, isSignedIn, queryClient]);
   return null;
 }
 
@@ -638,6 +650,7 @@ export default function App() {
   return (
     <ClerkProvider publishableKey={clerkPublishableKey}>
       <QueryClientProvider client={queryClient}>
+        <AuthSignedOutCacheCleanup />
         <QueryClient401Redirect />
         <IosPwaSheetOverlayInset />
         <WebHapticsSetup />

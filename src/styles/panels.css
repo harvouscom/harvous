@@ -340,6 +340,14 @@
   }
 }
 
+/* My Inbox list: flex child must shrink so featured cards don’t overflow panel width on mobile */
+.my-inbox-panel__list {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 /* ==========================================================================
    Panel Sections
    ========================================================================== */

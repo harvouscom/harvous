@@ -6,6 +6,7 @@ export type NavAvatarProfileSlice = {
   firstName?: string | null;
   lastName?: string | null;
   email?: string;
+  displayName?: string | null;
 };
 
 export type NavAvatarUserSlice = {
@@ -45,4 +46,42 @@ export function getNavAvatarInitials(
   if (fromEmail) return fromEmail;
 
   return 'U';
+}
+
+/**
+ * Matches server `generateDisplayName` (user-cache): "First L" so nav does not flash
+ * full name from Clerk and then switch to abbreviated when profile loads.
+ */
+export function formatNavDisplayFromNames(first?: string | null, last?: string | null): string | null {
+  const f = (first ?? '').trim();
+  const l = (last ?? '').trim();
+  if (!f && !l) return null;
+  const out = `${f} ${l.charAt(0)}`.trim();
+  return out || null;
+}
+
+/** Label for desktop nav profile strip — stable "First L" whenever names exist; then fallbacks. */
+export function getNavDisplayName(
+  user: NavAvatarUserSlice | null | undefined,
+  profile: NavAvatarProfileSlice | null | undefined,
+): string {
+  const fromProfileNames = formatNavDisplayFromNames(profile?.firstName, profile?.lastName);
+  if (fromProfileNames) return fromProfileNames;
+
+  const fromClerkNames = formatNavDisplayFromNames(user?.firstName, user?.lastName);
+  if (fromClerkNames) return fromClerkNames;
+
+  const fromProfileDisplay = profile?.displayName?.trim();
+  if (fromProfileDisplay) return fromProfileDisplay;
+
+  const u = user?.username?.trim();
+  if (u) return u;
+
+  const email = user?.primaryEmailAddress?.emailAddress ?? profile?.email;
+  if (email) {
+    const local = email.split('@')[0]?.trim();
+    if (local) return local;
+  }
+
+  return 'User';
 }

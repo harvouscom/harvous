@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import SpaceButton from './SpaceButton';
 import PersistentNavigation from './PersistentNavigation';
-import Avatar from './Avatar';
 import SquareButton from '../SquareButton';
+import { getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import ButtonSmall from '../ButtonSmall';
 import Icon from '../Icon';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
@@ -64,6 +64,7 @@ interface NavigationColumnProps {
   currentId?: string;
   showProfile?: boolean;
   initials?: string;
+  userDisplayName?: string;
   userColor?: string;
   pathname?: string;
   search?: string;
@@ -79,6 +80,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
   currentId = null,
   showProfile = false,
   initials = "DJ",
+  userDisplayName = 'User',
   userColor = "blue",
   pathname = '/',
   search = '',
@@ -135,10 +137,15 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     initials: initials,
     userColor: userColor,
   });
+  const [optimisticDisplayName, setOptimisticDisplayName] = useState<string | null>(null);
+  const effectiveUserDisplayName = optimisticDisplayName ?? userDisplayName;
   // Sync avatar when parent passes updated profile (e.g. useProfile() resolve after sign-in)
   useEffect(() => {
     setProfileData({ initials, userColor });
   }, [initials, userColor]);
+  useEffect(() => {
+    setOptimisticDisplayName(null);
+  }, [userDisplayName]);
   // Initialize currentItemId from pathname prop (works on both server and client)
   const [currentItemId, setCurrentItemId] = useState(() => {
     return extractIdFromPath(pathname) || '';
@@ -516,6 +523,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
           initials: newInitials,
           userColor: selectedColor
         });
+        setOptimisticDisplayName(`${firstName} ${lastName}`.trim());
       }
     };
   
@@ -1270,39 +1278,44 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
         {/* Bottom gradient overlay (desktop) - indicates more content below */}
         <div className="nav-column-bottom-gradient" aria-hidden="true" />
 
-        {/* Bottom Section with Search and Avatar/Back Button - stays pinned */}
+        {/* Bottom Section: profile name (fills width) + search fixed on the right */}
         <div className="nav-column-bottom">
-          <div className="nav-flex-grow">
-            <a href="/search" aria-label="Search" className="nav-link">
-              <div
-                className="space-button nav-search-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pr-0 w-full"
-                style={{ backgroundImage: 'var(--color-gradient-gray)' }}
+          <div className="nav-column-bottom__profile-slot">
+            {showProfile ? (
+              <a href="/" aria-label="Go to dashboard" className="nav-column-bottom__profile-back">
+                <SquareButton variant="Back" />
+              </a>
+            ) : (
+              <a
+                href="/profile"
+                aria-label={`Profile: ${effectiveUserDisplayName}`}
+                className="nav-column-bottom__profile-link"
               >
-                <div className="flex items-center justify-start gap-3 relative w-full h-full transition-transform duration-125 min-w-0">
-                  <div className="flex items-center justify-center relative shrink-0">
-                    <Icon name="magnifying-glass" size={20} style={{ color: 'var(--color-pebble-grey)' }} />
-                  </div>
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <span
-                      className="font-sans text-[18px] font-semibold whitespace-nowrap overflow-hidden text-ellipsis block"
-                      style={{ color: 'var(--color-pebble-grey)' }}
-                    >
-                      Search
-                    </span>
-                  </div>
+                <div
+                  className="nav-column-bottom__profile-pill"
+                  style={{ background: `var(--color-${profileData.userColor})` }}
+                >
+                  <span
+                    className="nav-column-bottom__profile-name font-sans text-[18px] font-semibold"
+                    style={{ color: getThreadTextColorCSS(profileData.userColor as ThreadColor) }}
+                  >
+                    {effectiveUserDisplayName}
+                  </span>
                 </div>
-              </div>
-            </a>
+              </a>
+            )}
           </div>
-          {showProfile ? (
-            <a href="/" aria-label="Go to dashboard" className="nav-link--shrink">
-              <SquareButton variant="Back" />
-            </a>
-          ) : (
-            <a href="/profile" aria-label="Go to profile" className="nav-link--shrink">
-              <Avatar initials={profileData.initials} color={profileData.userColor} />
-            </a>
-          )}
+          <a
+            href="/search"
+            aria-label="Search"
+            className="mobile-nav__search-btn nav-column-bottom__search-link"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+              <svg viewBox="0 0 512 512" aria-hidden="true">
+                <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z" />
+              </svg>
+            </div>
+          </a>
         </div>
         </div>
       </div>

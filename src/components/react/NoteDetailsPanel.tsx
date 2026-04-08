@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import AddToSection from './AddToSection';
@@ -74,6 +75,7 @@ export default function NoteDetailsPanel({
   inBottomSheet = false,
   initialTab
 }: NoteDetailsPanelProps) {
+  const { user } = useUser();
   const [activeTab, setActiveTab] = useState(initialTab || 'threads');
   const [localThreads, setLocalThreads] = useState<Thread[]>(threads);
   const [localAllUserThreads, setLocalAllUserThreads] = useState<Thread[]>(allUserThreads);
@@ -110,6 +112,8 @@ export default function NoteDetailsPanel({
 
   useEffect(() => {
     let cancelled = false;
+    setIsHarvousAdmin(false);
+    if (!user?.id) return () => { cancelled = true; };
     fetch('/api/admin/check', { credentials: 'include' })
       .then((res) => {
         if (!res.ok) return { isAdmin: false };
@@ -124,7 +128,7 @@ export default function NoteDetailsPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   // Fetch data when component mounts; use cache to avoid loading when we have recent data
   useEffect(() => {

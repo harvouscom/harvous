@@ -6,7 +6,7 @@ import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { api, APIError } from '../lib/api';
 import { useAcceptInvitation } from '../hooks/mutations/useAcceptInvitation';
-import { navigationQueryKey } from '../hooks/queries/useNavigation';
+import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
 import { idToUrl } from '../../../src/utils/url-helpers';
 
 interface InvitationResponse {
@@ -84,7 +84,7 @@ export default function InvitationPage() {
         try {
           sessionStorage.setItem('harvous_show_pwa_prompt_from_join', '1');
         } catch (_) {}
-        await queryClient.refetchQueries({ queryKey: navigationQueryKey });
+        await queryClient.refetchQueries({ queryKey: navigationQueryKeyPrefix });
         const path = result.redirectUrl || idToUrl(result.space.id);
         navigate({ to: path as any });
       }

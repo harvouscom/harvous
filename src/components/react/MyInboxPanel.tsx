@@ -1,23 +1,20 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
+import { useAuth } from '@clerk/clerk-react';
+import { useQueryClient } from '@tanstack/react-query';
 import SquareButton from './SquareButton';
 import { safeNavigate } from '@/utils/safe-navigate';
-import { generateAccentMeshGradient } from '@/utils/colors';
+import { generateAccentMeshGradient, getThreadIconOnAccentCSS } from '@/utils/colors';
 import Icon from './Icon';
 import { FeaturedCardActionsDock } from './FeaturedCardActionsDock';
 import SubtleContentMount from './SubtleContentMount';
+import {
+  useFeaturedDismissed,
+  getFeaturedDismissedQueryKey,
+  writeCachedDismissed,
+  type DismissedFeaturedItem,
+} from '../../../spa/src/hooks/queries/useFeaturedDismissed';
 
-type FeaturedContentType = 'space' | 'thread' | 'recall' | 'challenge' | 'church';
-
-interface DismissedFeaturedItem {
-  id: string;
-  contentType: FeaturedContentType;
-  title: string;
-  description: string | null;
-  refId: string | null;
-  shareToken: string | null;
-  color: string | null;
-  dismissedAt: string | null;
-}
+type FeaturedContentType = DismissedFeaturedItem['contentType'];
 
 interface MyInboxPanelProps {
   onClose?: () => void;
@@ -73,10 +70,15 @@ function InboxFeaturedCard({
 }) {
   const accentGradient = useMemo(() => generateAccentMeshGradient(item.id), [item.id]);
 
-  const accentStyle =
-    (item.contentType === 'space' || item.contentType === 'thread') && item.color
-      ? { backgroundColor: `var(--color-${item.color})` }
-      : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined };
+  const accentSurfaceStyle = useMemo(
+    () => ({
+      ...((item.contentType === 'space' || item.contentType === 'thread') && item.color
+        ? { backgroundColor: `var(--color-${item.color})` }
+        : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined }),
+      ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(item.color ?? undefined),
+    }),
+    [item.contentType, item.color, accentGradient],
+  );
 
   const handlePrimary = () => {
     if (item.contentType === 'space' && item.shareToken) {
@@ -107,7 +109,7 @@ function InboxFeaturedCard({
     <div className="featured-card-shell">
       <div className="featured-card" role="region" aria-label={item.title}>
         <div className="featured-card__info">
-          <div className="featured-card__accent" style={accentStyle} aria-hidden="true">
+          <div className="featured-card__accent" style={accentSurfaceStyle} aria-hidden="true">
             {getIconForContentType(item.contentType)}
           </div>
           <div className="featured-card__text">
@@ -139,49 +141,30 @@ function InboxFeaturedCard({
 }
 
 export default function MyInboxPanel({ onClose, inBottomSheet = false }: MyInboxPanelProps) {
-  const [items, setItems] = useState<DismissedFeaturedItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { userId } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: items = [], isPending, error: queryError } = useFeaturedDismissed();
+  const error = queryError instanceof Error ? queryError.message : queryError ? String(queryError) : null;
 
   const handleClose = () => {
     if (onClose) onClose();
     else window.dispatchEvent(new CustomEvent('closeProfilePanel'));
   };
 
-  const fetchItems = useCallback(async (backgroundRefetch = false) => {
-    if (!backgroundRefetch) setIsLoading(true);
-    setError(null);
-    try {
-      const res = await fetch('/api/featured/dismissed', { credentials: 'include', cache: 'no-store' });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as any)?.error || 'Failed to load inbox');
-      setItems(Array.isArray(data) ? (data as DismissedFeaturedItem[]) : []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load inbox');
-      setItems([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const handleErase = useCallback(
+    (id: string) => {
+      if (!userId) return;
+      const key = getFeaturedDismissedQueryKey(userId);
+      queryClient.setQueryData<DismissedFeaturedItem[]>(key, (prev) => {
+        const next = (prev ?? []).filter((it) => it.id !== id);
+        writeCachedDismissed(userId, next);
+        return next;
+      });
+    },
+    [queryClient, userId],
+  );
 
-  useEffect(() => {
-    fetchItems(false);
-  }, [fetchItems]);
-
-  useEffect(() => {
-    const handlePanelOpened = (event: CustomEvent) => {
-      if (event.detail?.panelName === 'myInbox') {
-        fetchItems(true);
-      }
-    };
-    window.addEventListener('openProfilePanel', handlePanelOpened as EventListener);
-    return () => window.removeEventListener('openProfilePanel', handlePanelOpened as EventListener);
-  }, [fetchItems]);
-
-  const handleErase = (id: string) => {
-    setItems((prev) => prev.filter((it) => it.id !== id));
-  };
-
+  const isLoading = isPending;
   const isEmpty = !isLoading && !error && items.length === 0;
 
   return (
@@ -222,7 +205,7 @@ export default function MyInboxPanel({ onClose, inBottomSheet = false }: MyInbox
                     </div>
                   ) : null}
                   {!error && items.length > 0 ? (
-                    <div className="flex-stack w-full" style={{ gap: '0.75rem' }}>
+                    <div className="flex-stack w-full my-inbox-panel__list" style={{ gap: '0.75rem' }}>
                       {items.map((it) => (
                         <InboxFeaturedCard key={it.id} item={it} onErase={handleErase} />
                       ))}

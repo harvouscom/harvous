@@ -47,6 +47,25 @@ export function getThreadTextColorCSS(color: ThreadColor | string | null | undef
   return "var(--color-deep-grey)";
 }
 
+/**
+ * Icon on thread-color tiles (same treatment as `.card-thread__icon` / featured accent):
+ * deep grey is always the primary mix; thread token adds a light hue.
+ * Yellow uses more grey (74%) for contrast on the lightest pastel.
+ * All hues use sRGB mixing so every color follows one path (OKLCH can skew warm grey + pastel oddly).
+ */
+export function getThreadIconOnAccentCSS(color: ThreadColor | string | null | undefined): string {
+  if (!color) return "var(--color-deep-grey)";
+  const c = String(color).toLowerCase();
+  if (c === "paper") return "var(--color-deep-grey)";
+  const hueVar = getThreadColorCSS(c as ThreadColor);
+  if (hueVar === "var(--color-paper)") return "var(--color-deep-grey)";
+
+  const greyPct = c === "yellow" ? 74 : 70;
+  const huePct = 100 - greyPct;
+
+  return `color-mix(in srgb, var(--color-deep-grey) ${greyPct}%, ${hueVar} ${huePct}%)`;
+}
+
 // Convert thread color name to gradient for SpaceButton
 export function getThreadGradientCSS(color: ThreadColor | string | null | undefined): string {
   const baseColor = getThreadColorCSS(color);

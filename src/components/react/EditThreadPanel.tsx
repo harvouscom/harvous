@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadGradientCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import ActionButton from './ActionButton';
@@ -61,6 +62,7 @@ export default function EditThreadPanel({
   onClose,
   inBottomSheet = false
 }: EditThreadPanelProps) {
+  const { user } = useUser();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -264,6 +266,8 @@ export default function EditThreadPanel({
   // Admin check (server-gated) so we can conditionally show admin controls.
   useEffect(() => {
     let cancelled = false;
+    setIsHarvousAdmin(false);
+    if (!user?.id) return () => { cancelled = true; };
     fetch('/api/admin/check', { credentials: 'include' })
       .then((res) => {
         if (!res.ok) return { isAdmin: false };
@@ -279,7 +283,7 @@ export default function EditThreadPanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   // If admin + shared thread has token, load current featured state.
   useEffect(() => {

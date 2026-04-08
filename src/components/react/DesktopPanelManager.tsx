@@ -65,6 +65,7 @@ function preloadPanelChunks() {
   // Prioritize EditThreadPanel and EditSpacePanel (often opened from thread/space pages) without waiting for idle
   import('./EditThreadPanel').catch(() => {});
   import('./EditSpacePanel').catch(() => {});
+  import('./MyInboxPanel').catch(() => {});
 
   const schedule = typeof requestIdleCallback !== 'undefined' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
   schedule(() => {

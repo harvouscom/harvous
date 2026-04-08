@@ -7,8 +7,9 @@ import SubtleContentMount from '@/components/react/SubtleContentMount';
 import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
 import { api } from '../lib/api';
 import { useJoinSpace } from '../hooks/mutations/useJoinSpace';
-import { navigationQueryKey } from '../hooks/queries/useNavigation';
+import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
 import { idToUrl } from '../../../src/utils/url-helpers';
+import { getThreadIconOnAccentCSS } from '../../../src/utils/colors';
 
 interface SpacePreview {
   id: string;
@@ -110,7 +111,7 @@ export default function JoinSpacePage() {
             },
           },
         }));
-        await queryClient.refetchQueries({ queryKey: navigationQueryKey });
+        await queryClient.refetchQueries({ queryKey: navigationQueryKeyPrefix });
         const path = result.redirectUrl || idToUrl(result.spaceId);
         navigate({ to: path as any });
       }
@@ -211,7 +212,14 @@ export default function JoinSpacePage() {
                                   style={{ backgroundColor: `var(--color-${thread.color || 'blue'})` }}
                                 />
                                 <div className="condensed-thread-item__content">
-                                  <div className="condensed-thread-item__icon">
+                                  <div
+                                    className="condensed-thread-item__icon thread-accent-icon"
+                                    style={{
+                                      ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(
+                                        thread.color || 'blue',
+                                      ),
+                                    }}
+                                  >
                                     <svg fill="currentColor" viewBox="0 0 576 512">
                                       <path d="M264.5 5.2c14.9-6.9 32.1-6.9 47 0l218.6 101c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 149.8C37.4 145.8 32 137.3 32 128s5.4-17.9 13.9-21.8L264.5 5.2zM476.9 209.6l53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 277.8C37.4 273.8 32 265.3 32 256s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0l152-70.2zm-152 198.2l152-70.2 53.2 24.6c8.5 3.9 13.9 12.4 13.9 21.8s-5.4 17.9-13.9 21.8l-218.6 101c-14.9 6.9-32.1 6.9-47 0L45.9 405.8C37.4 401.8 32 393.3 32 384s5.4-17.9 13.9-21.8l53.2-24.6 152 70.2c23.4 10.8 50.4 10.8 73.8 0z"/>
                                     </svg>

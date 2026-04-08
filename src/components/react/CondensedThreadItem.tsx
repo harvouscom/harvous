@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatBadgeCount } from '@/utils/badge-count';
+import { getThreadIconOnAccentCSS } from '@/utils/colors';
 
 export interface CondensedThreadItemProps {
   title: string;
@@ -91,17 +92,18 @@ export default function CondensedThreadItem({
         }}
       >
         {/* Layer-group, cube, bookmark, square-check, user-check (joined), user-group (shared), or single-user (private) icon */}
-        <div style={{ position: 'relative', flexShrink: 0, width: '1.25rem', height: '1.25rem' }}>
+        <div
+          className="thread-accent-icon"
+          style={{
+            position: 'relative',
+            flexShrink: 0,
+            width: '1.25rem',
+            height: '1.25rem',
+            ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(color ?? undefined),
+          }}
+        >
           {icon === 'user-check' ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 640 512"
               aria-hidden="true"
@@ -110,14 +112,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : icon === 'bookmark' ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 384 512"
               aria-hidden="true"
@@ -126,14 +120,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : icon === 'square-check' ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 448 512"
               aria-hidden="true"
@@ -142,14 +128,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : icon === 'layer-group' ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 576 512"
             >
@@ -157,14 +135,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : icon === 'cube' ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 512 512"
               aria-hidden="true"
@@ -173,14 +143,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : isPublic ? (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 640 640"
             >
@@ -188,14 +150,6 @@ export default function CondensedThreadItem({
             </svg>
           ) : (
             <svg
-              style={{
-                display: 'block',
-                maxWidth: 'none',
-                width: '100%',
-                height: '100%',
-                color: 'var(--color-deep-grey)',
-                opacity: 0.8
-              }}
               fill="currentColor"
               viewBox="0 0 24 24"
             >

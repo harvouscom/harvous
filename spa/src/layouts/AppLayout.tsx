@@ -10,7 +10,7 @@ import SyncManagerIsland from '../../../src/components/react/SyncManagerIsland';
 import { useQueryClient } from '@tanstack/react-query';
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { getNavAvatarInitials } from '@/utils/nav-avatar-initials';
+import { getNavAvatarInitials, getNavDisplayName } from '@/utils/nav-avatar-initials';
 import NavigationIsland from '../../../src/components/react/navigation/NavigationIsland';
 import { NavigationProvider } from '../../../src/components/react/navigation/NavigationContext';
 import MobileNavigation from '../../../src/components/react/navigation/MobileNavigation';
@@ -25,10 +25,12 @@ import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/use
 import {
   useNavigation,
   useRefreshNavigation,
-  navigationQueryKey,
+  getNavigationQueryKey,
+  navigationQueryKeyPrefix,
   NAV_SESSION_CACHE_KEY,
   type NavigationData,
 } from '../hooks/queries/useNavigation';
+import { prefetchFeaturedDismissed } from '../hooks/queries/useFeaturedDismissed';
 import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearNoteParentThreadCacheByThreadId } from '../hooks/queries/useNote';
 import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
@@ -110,11 +112,23 @@ export default function AppLayout() {
 
   const { data: profile } = useProfile();
   const navAvatarInitials = useMemo(() => getNavAvatarInitials(user ?? undefined, profile), [user, profile]);
+  const navDisplayName = useMemo(() => {
+    const name = getNavDisplayName(user ?? undefined, profile);
+    // SessionStorage-backed profile (placeholderData) usually supplies the name before Clerk hydrates.
+    if (name !== 'User') return name;
+    if (!isLoaded) return '\u00A0';
+    return name;
+  }, [isLoaded, user, profile]);
   const { data: nav } = useNavigation({
     enabled: isLoaded && isSignedIn,
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+    void prefetchFeaturedDismissed(queryClient, user.id);
+  }, [isLoaded, isSignedIn, user?.id, queryClient]);
   const recordThreadVisit = useRecordThreadVisit();
   const recordNoteVisit = useRecordNoteVisit();
   // Once we show the app shell, keep it mounted through Clerk init transitions (avoids double fade-in).
@@ -261,7 +275,7 @@ export default function AppLayout() {
     const userChanged = prev != null && prev !== user.id;
     if (userChanged) {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
-      queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+      queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     }
   }, [isLoaded, isSignedIn, user?.id, queryClient]);
@@ -329,10 +343,12 @@ export default function AppLayout() {
         } catch {
           // ignore
         }
-        queryClient.setQueryData(navigationQueryKey, (old: NavigationData | undefined) => {
-          if (!old) return old;
-          return { ...old, threads: old.threads.filter((t) => t.id !== threadId) };
-        });
+        if (user?.id) {
+          queryClient.setQueryData(getNavigationQueryKey(user.id), (old: NavigationData | undefined) => {
+            if (!old) return old;
+            return { ...old, threads: old.threads.filter((t) => t.id !== threadId) };
+          });
+        }
         queryClient.removeQueries({ queryKey: ['thread', threadId] });
         // Clear SPA session caches so back-navigation doesn't flash deleted thread or broken note links
         clearCachedThreadPrefetch(threadId);
@@ -355,7 +371,7 @@ export default function AppLayout() {
       window.removeEventListener('noteCreated', refresh);
       window.removeEventListener('noteDeleted', refresh);
     };
-  }, [queryClient, refreshNavigation]);
+  }, [queryClient, refreshNavigation, user?.id]);
 
   // Derive nav state from current route (before early return so hook order is stable)
   // URL slugs can be bare (e.g. /thread/abc123) or prefixed (e.g. /thread/thread_onboarding_xxx); normalize so we don't double-prefix
@@ -729,6 +745,7 @@ export default function AppLayout() {
             currentId={currentId}
             showProfile={false}
             initials={navAvatarInitials}
+            userDisplayName={navDisplayName}
             userColor={profile?.userColor ?? getCachedUserColor() ?? 'blue'}
             pathname={pathname}
             search={search}

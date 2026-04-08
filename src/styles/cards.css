@@ -86,6 +86,9 @@
 .featured-card-shell {
   position: relative;
   width: 100%;
+  max-width: 100%;
+  /* Allow shrinking inside flex parents (panel lists); else max-content action strip forces overflow */
+  min-width: 0;
   margin: 0 0 4px;
   /* Reserve vertical space for the dock; surface overlaps top 1.5rem of dock */
   padding-bottom: calc(2.75rem + 1.5rem);
@@ -106,6 +109,8 @@
   padding-top: 1.5rem;
   padding-bottom: 0;
   box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   background-color: #ebe8e0;
   border-bottom-left-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
@@ -179,6 +184,32 @@
   gap: 0.25rem;
 }
 
+/* List contexts (e.g. My Inbox): mobile strip uses width:max-content — constrain to dock so cards don’t overflow panel */
+.featured-card__dock .action-strip--mobile {
+  overflow-x: hidden;
+}
+
+.featured-card__dock .action-strip--mobile .action-strip__inner.featured-card__action-strip__inner {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.featured-card__dock .featured-card__action-strip__start {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.featured-card__dock .featured-card__action-strip__start .action-strip__item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.featured-card__dock .featured-card__action-strip__start .action-strip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* White card sheet; overlaps dock so cream strip reads as a separate bottom layer (all featured types) */
 .featured-card {
   position: relative;
@@ -187,6 +218,8 @@
   border-radius: 20px;
   overflow: clip;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-bottom: -1.5rem;
   box-shadow:
     0 1px 2px rgba(120, 118, 111, 0.12),
@@ -201,6 +234,10 @@
   align-items: center;
   gap: 12px;
   padding: 12px 14px 10px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 /* Small rounded square in space color */
@@ -216,17 +253,34 @@
   & svg {
     width: 20px;
     height: 20px;
-    color: var(--color-deep-grey);
+    color: var(--thread-accent-icon-color, var(--color-deep-grey));
     opacity: 0.8;
   }
 }
 
+/* Set `--thread-accent-icon-color` via getThreadIconOnAccentCSS (same as featured / card-thread). */
+.thread-accent-icon {
+  color: var(--thread-accent-icon-color, var(--color-deep-grey));
+  opacity: 0.8;
+
+  & svg {
+    display: block;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    color: inherit;
+    opacity: 1;
+  }
+}
+
 .featured-card__text {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 1px;
+  overflow: hidden;
 }
 
 
@@ -335,8 +389,11 @@
   color: var(--color-stone-grey);
   line-height: 1.3;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* nowrap made min-content width = full string — grid/flex couldn’t shrink narrow panels */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  word-break: break-word;
 }
 
 /* Primary CTA: match former featured-card__join emphasis */
@@ -399,14 +456,20 @@
 .subtle-content-mount__inner,
 .featured-carousel-entrance__inner {
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   opacity: 0;
   transform: translateY(-6px);
   animation: subtle-content-mount-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.06s forwards;
 }
 
+/* After fade: release vertical overflow for nested scroll areas; keep horizontal containment (visible broke panel width) */
 .subtle-content-mount__inner--scroll-safe {
-  overflow: visible !important;
+  overflow-x: clip;
+  overflow-y: visible;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Main column / flex scroll: grid 0fr→1fr yields zero height — fade inner only */
@@ -433,7 +496,10 @@
     animation: none;
     opacity: 1;
     transform: none;
-    overflow: visible;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 }
 
@@ -763,9 +829,24 @@
     max-width: none;
     width: 100%;
     height: 100%;
-    color: var(--color-deep-grey);
+    color: var(--thread-accent-icon-color, var(--color-deep-grey));
     /* Same as .featured-card__accent svg — icon sits on thread color strip */
     opacity: 0.8;
+  }
+}
+
+/* Browsers without color-mix: keep neutral grey icon (inline --thread-accent-icon-color may be invalid) */
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .featured-card__accent svg,
+  .card-thread__icon svg,
+  .thread-accent-icon {
+    color: var(--color-deep-grey);
+    opacity: 0.8;
+  }
+
+  .thread-accent-icon svg {
+    color: inherit;
+    opacity: 1;
   }
 }
 

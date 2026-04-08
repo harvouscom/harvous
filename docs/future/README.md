@@ -98,6 +98,7 @@ These were designed here and are now live. The stub files in this folder point t
 
 ### User Experience
 
+- **`NAV_PROFILE_AND_ACCOUNT_SWITCHER.md`** - Nav profile + search (desktop & mobile): current implementation, Claude-style richer account strip, plan/subtitle/actions, and account-switching directions (Clerk, orgs, family accounts)
 - **`APP_LAYOUT_APPEARANCE_CUSTOMIZATION.md`** - App layout appearance customization
   - Themes: named presets (Default, Warm, Cool, Glass, Sepia) bundling background + appearance + tone
   - Customizable background (presets + optional custom color) as theme overrides

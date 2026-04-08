@@ -3,10 +3,10 @@ import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { featuredItemsQueryKey, type FeaturedItem, type VotdMetadata } from '../hooks/queries/useFeaturedItems';
-import { navigationQueryKey } from '../hooks/queries/useNavigation';
+import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getCachedProfileData } from '@/utils/profile-cache';
-import { generateAccentMeshGradient } from '../../../src/utils/colors';
+import { generateAccentMeshGradient, getThreadIconOnAccentCSS } from '../../../src/utils/colors';
 import {
   stripLeadingVerseNumberFromPlainText,
   stripRedundantEdgeQuotesForVotdCard,
@@ -201,7 +201,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
       writeDismissedFeaturedItem(item.id);
       void queryClient.invalidateQueries({ queryKey: ['dashboard', 'content'] });
       void queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: navigationQueryKey });
+      void queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
       void queryClient.invalidateQueries({ queryKey: ['thread', 'thread_unorganized'] });
       void queryClient.invalidateQueries({ queryKey: ['xp'] });
       window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
@@ -315,10 +315,15 @@ export default function FeaturedCard({ item, onClose }: { item: FeaturedItem; on
 
   const accentGradient = useMemo(() => generateAccentMeshGradient(item.id), [item.id]);
 
-  const accentStyle =
-    (item.contentType === 'space' || item.contentType === 'thread') && item.color
-      ? { backgroundColor: `var(--color-${item.color})` }
-      : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined };
+  const accentSurfaceStyle = useMemo(
+    () => ({
+      ...((item.contentType === 'space' || item.contentType === 'thread') && item.color
+        ? { backgroundColor: `var(--color-${item.color})` }
+        : { backgroundColor: 'var(--color-light-paper)', backgroundImage: accentGradient ?? undefined }),
+      ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(item.color ?? undefined),
+    }),
+    [item.contentType, item.color, accentGradient],
+  );
 
   const handlePrimary = () => {
     if (item.contentType === 'space') {
@@ -352,7 +357,7 @@ export default function FeaturedCard({ item, onClose }: { item: FeaturedItem; on
     <div className="featured-card-shell">
       <div className="featured-card" role="region" aria-label="Featured item">
         <div className="featured-card__info">
-          <div className="featured-card__accent" style={accentStyle} aria-hidden="true">
+          <div className="featured-card__accent" style={accentSurfaceStyle} aria-hidden="true">
             {getIconForContentType(item.contentType)}
           </div>
           <div className="featured-card__text">

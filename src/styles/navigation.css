@@ -35,6 +35,27 @@
   }
 }
 
+/* Mobile top bar avatar: 64×64 squircle + inset; bottom padding matches .space-btn__content (SpaceButton) */
+.avatar.avatar--nav-compact {
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  /* Optical vertical centering with inset shadow (same as space-btn__content / mobile-nav__search-btn > div) */
+  padding-bottom: 2px;
+  border-radius: 24px;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+
+  &:active {
+    box-shadow:
+      0px -1px 0px 0px rgba(120, 118, 111, 0.2) inset,
+      0px 1px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  }
+
+  & .avatar__initials {
+    font-size: 18px;
+  }
+}
+
 .avatar__initials {
   font-family: var(--font-sans) !important;
   font-weight: 700 !important;
@@ -410,10 +431,60 @@
   min-width: 0;
 }
 
-/* Desktop nav Search button content (not rendered via SpaceButton component) */
-.nav-search-button > div {
+/* Desktop nav bottom: profile strip (flex) + 64px search on the right */
+.nav-column-bottom__profile-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.nav-column-bottom__profile-link {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-column-bottom__profile-pill {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 64px;
+  /* Match SpaceButton text inset: 16 (pl-4) + 8 (space-btn__content); + optical bottom like space-btn__content */
+  padding: 0 24px;
   padding-bottom: 2px;
+  border-radius: 24px;
   box-sizing: border-box;
+  box-shadow: 0px -3px 0px 0px rgba(120, 118, 111, 0.2) inset;
+  overflow: hidden;
+}
+
+.nav-column-bottom__profile-name {
+  display: block;
+  width: 100%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-column-bottom__profile-back {
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-column-bottom__search-link {
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ==========================================================================

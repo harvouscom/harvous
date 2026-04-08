@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '@/utils/toast';
-import { clearCachedProfileData, updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
+import { clearUserClientStorageCaches } from '@/utils/clear-user-client-caches';
+import { updateCachedProfileData, getCachedProfileData } from '@/utils/profile-cache';
 import { clearSessionBackup } from '@/utils/clerk-session-backup';
 
 // Import panel components
@@ -85,11 +86,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       const userId = typeof window !== 'undefined' && (window as any).Clerk?.user?.id;
       await clearSessionBackup(userId || undefined);
 
-      // Clear local storage before sign-out
-      sessionStorage.removeItem('userProfileData');
-
-      // Clear unified profile cache
-      clearCachedProfileData();
+      // Clear SPA session + profile bootstrap caches (same keys as AuthSignedOutCacheCleanup)
+      clearUserClientStorageCaches();
 
       // Use Clerk's built-in signOut with redirectUrl when available. On profile, Clerk
       // may not be loaded (no Clerk component), so fallback: redirect to sign-in with

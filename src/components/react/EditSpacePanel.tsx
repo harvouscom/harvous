@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useUser } from '@clerk/clerk-react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -73,6 +74,7 @@ export default function EditSpacePanel({
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
+  const { user } = useUser();
   const userId = usePersistedUserId();
   const cachedMembers = getCachedPanelData<SpaceMembersCache>(getSpaceMembersCacheKey(spaceId));
   const hasKnownOwnership = initialIsOwner !== undefined || !!cachedMembers;
@@ -376,6 +378,8 @@ export default function EditSpacePanel({
   // Admin check (server-gated) so we can conditionally show admin controls.
   useEffect(() => {
     let cancelled = false;
+    setIsHarvousAdmin(false);
+    if (!user?.id) return () => { cancelled = true; };
     fetch('/api/admin/check', { credentials: 'include' })
       .then((res) => {
         if (!res.ok) return { isAdmin: false };
@@ -391,7 +395,7 @@ export default function EditSpacePanel({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.id]);
 
   // If admin + shared space has token, load current featured state.
   useEffect(() => {

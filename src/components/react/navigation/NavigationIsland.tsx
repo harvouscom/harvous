@@ -30,6 +30,8 @@ export interface NavigationIslandProps {
   currentId?: string;
   showProfile?: boolean;
   initials?: string;
+  /** Desktop nav profile strip label (display name / username). */
+  userDisplayName?: string;
   userColor?: string;
   pathname?: string;
   search?: string;
