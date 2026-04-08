@@ -31,7 +31,7 @@ function AdminVotdScheduleBody({
   return (
     <>
       <p className="admin-votd__intro">
-        Editorial preview (UTC dates). Cron publishes automatically at 00:15 UTC — no approval required. Override or
+        Editorial preview (UTC dates). Cron publishes automatically at 11:00 UTC (≈ 5 AM Central) — no approval required. Override or
         refresh any future day as needed.
       </p>
 

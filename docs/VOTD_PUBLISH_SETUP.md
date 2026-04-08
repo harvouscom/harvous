@@ -89,7 +89,7 @@ You should see `**Bearer auth: enabled (secret length …)`** with a positive le
 
 ### Step 9 — Schedule
 
-After manual runs work, the same workflow runs automatically at **00:15 UTC** each day (`cron: '15 0 * * *'`). “Today” for VOTD is **UTC calendar date**.
+After manual runs work, the same workflow runs automatically at **11:00 UTC** each day (`cron: '0 11 * * *'`) — about **5:00 AM Central Standard Time** (6:00 AM during daylight saving). “Today” for VOTD is **UTC calendar date**.
 
 ---
 
@@ -124,7 +124,7 @@ If `VOTD_CRON_SECRET` is **not** set, only a Harvous **admin browser session** c
 
 Workflow: `[.github/workflows/votd-publish-daily.yml](../.github/workflows/votd-publish-daily.yml)`
 
-- Runs daily at **00:15 UTC** and supports **workflow_dispatch** for manual runs.
+- Runs daily at **11:00 UTC** (≈ 5 AM CST / 6 AM CDT) and supports **workflow_dispatch** for manual runs.
 - Uses the same URL fallback pattern as inbox auto-archive.
 
 ### Repository secrets

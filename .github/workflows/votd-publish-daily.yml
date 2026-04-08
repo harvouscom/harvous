@@ -2,8 +2,8 @@ name: Publish Verse of the Day
 
 on:
   schedule:
-    # After midnight UTC so publish-daily's calendar day matches FeaturedItems window
-    - cron: '15 0 * * *'
+    # 11:00 UTC ≈ 5:00 AM CST (6:00 AM CDT). Same UTC calendar day as publish-daily / FeaturedItems.
+    - cron: '0 11 * * *'
   workflow_dispatch:
 
 jobs:
