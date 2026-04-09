@@ -244,39 +244,30 @@ app.delete('/api/admin/votd/schedule/:id', async (c) => {
 });
 
 // ─── POST /api/admin/votd/publish-daily ──────────────────────────────────────
-app.post('/api/admin/votd/publish-daily', async (c) => {
-  const unauthorized = requireVotdAuth(c);
-  if (unauthorized) return unauthorized;
 
-  const target = c.req.query('target');
-  let todayStr: string;
-  if (target === 'next') {
-    if (!c.get('cronAuthed')) {
-      return c.json({ error: 'target=next requires VOTD cron bearer auth' }, 403);
-    }
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() + 1);
-    todayStr = utcDateStr(d);
-  } else {
-    todayStr = utcDateStr(new Date());
-  }
-
+/** Pick a verse and publish it for the given UTC date string. Idempotent. */
+async function publishForDate(dateStr: string): Promise<{
+  alreadyPublished: boolean;
+  featuredItemId: string;
+  reference?: string;
+  source?: string;
+}> {
   const published = first(
     await db
       .select({ featuredItemId: VotdPublishHistory.featuredItemId })
       .from(VotdPublishHistory)
-      .where(eq(VotdPublishHistory.publishedDate, todayStr))
+      .where(eq(VotdPublishHistory.publishedDate, dateStr))
       .limit(1),
   );
   if (published) {
-    return c.json({ success: true, alreadyPublished: true, featuredItemId: published.featuredItemId });
+    return { alreadyPublished: true, featuredItemId: published.featuredItemId };
   }
 
-  let manual = first(
+  const manual = first(
     await db
       .select()
       .from(VotdSchedule)
-      .where(and(eq(VotdSchedule.scheduledDate, todayStr), eq(VotdSchedule.isPublished, false)))
+      .where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false)))
       .orderBy(desc(VotdSchedule.createdAt))
       .limit(1),
   );
@@ -292,11 +283,7 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
 
   if (manual) {
     scheduleId = manual.id;
-    pick = {
-      reference: manual.reference,
-      source: 'override',
-      label: null,
-    };
+    pick = { reference: manual.reference, source: 'override', label: null };
     translation = manual.translation || 'NET';
     try {
       verseText = manual.verseText || (await fetchVerseText(manual.reference, translation));
@@ -308,20 +295,13 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
     verse = manual.verse ?? null;
     verseEnd = manual.verseEnd ?? null;
   } else {
-    pick = await pickDailyVerseForPublish(todayStr);
+    pick = await pickDailyVerseForPublish(dateStr);
     const normalizedRef = normalizeScriptureReference(pick.reference);
     const parsed = parseScriptureReference(normalizedRef);
-    if (!parsed) {
-      return c.json({ error: `Could not parse reference: "${pick.reference}"` }, 500);
-    }
+    if (!parsed) throw new Error(`Could not parse reference: "${pick.reference}"`);
     const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
     const vEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : undefined;
-    try {
-      verseText = await fetchVerseText(normalizedRef, translation);
-    } catch (e) {
-      console.error('[votd/publish-daily] fetchVerseText', e);
-      return c.json({ error: `Could not load verse text for ${pick.reference}` }, 500);
-    }
+    verseText = await fetchVerseText(normalizedRef, translation);
     book = parsed.book;
     chapter = parsed.chapter;
     verse = verseStart;
@@ -330,7 +310,7 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
   }
 
   const result = await publishVotdCore({
-    dateStr: todayStr,
+    dateStr,
     reference: pick.reference,
     translation,
     verseText,
@@ -343,12 +323,52 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
     scheduleId,
   });
 
+  return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick.reference, source: pick.source };
+}
+
+app.post('/api/admin/votd/publish-daily', async (c) => {
+  const unauthorized = requireVotdAuth(c);
+  if (unauthorized) return unauthorized;
+
+  const target = c.req.query('target');
+  let todayStr: string;
+  if (target === 'next') {
+    if (!c.get('cronAuthed')) {
+      return c.json({ error: 'target=next requires VOTD cron bearer auth' }, 403);
+    }
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 1);
+    todayStr = utcDateStr(d);
+  } else {
+    todayStr = utcDateStr(new Date());
+    // Backfill yesterday if it was missed (cron catch-up runs only, not manual admin sessions).
+    // This recovers from scheduling gaps, e.g. when the cron schedule itself changes mid-day.
+    if (c.get('cronAuthed')) {
+      const yesterdayStr = utcPreviousCalendarDay(todayStr);
+      publishForDate(yesterdayStr).catch((e) => {
+        console.error('[votd/publish-daily] yesterday backfill failed:', yesterdayStr, e);
+      });
+    }
+  }
+
+  let result: Awaited<ReturnType<typeof publishForDate>>;
+  try {
+    result = await publishForDate(todayStr);
+  } catch (e) {
+    console.error('[votd/publish-daily] publishForDate', e);
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+
+  if (result.alreadyPublished) {
+    return c.json({ success: true, alreadyPublished: true, featuredItemId: result.featuredItemId });
+  }
+
   return c.json({
     success: true,
     featuredItemId: result.featuredItemId,
-    reference: pick.reference,
+    reference: result.reference,
     scheduledDate: todayStr,
-    source: pick.source,
+    source: result.source,
   });
 });
 
