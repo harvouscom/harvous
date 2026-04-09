@@ -11,6 +11,8 @@ import { Toaster, toast as sonnerToast } from 'sonner';
 import { WebHaptics } from 'web-haptics';
 import { router } from './router';
 import { APIError } from './lib/api';
+import SpotlightSearch from './components/SpotlightSearch';
+import KeyboardShortcutsInit from '../../src/components/react/KeyboardShortcutsInit';
 import {
   getMobileChipBottomInsetPx,
   HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
@@ -658,6 +660,8 @@ export default function App() {
         <ToastSetup />
         <UserIdSync />
         <SpaToaster />
+        <KeyboardShortcutsInit />
+        <SpotlightSearch />
         <RouterProvider router={router} />
       </QueryClientProvider>
     </ClerkProvider>

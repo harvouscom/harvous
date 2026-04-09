@@ -1,0 +1,339 @@
+/* ── Spotlight Search Modal ── */
+
+/* Overlay — desktop: centered; mobile: bottom-anchored */
+.spotlight-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000025;
+  background: rgba(0, 0, 0, 0.4);
+  animation: modalOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: max(12px, env(safe-area-inset-top, 12px))
+           max(12px, env(safe-area-inset-right, 12px))
+           max(12px, env(safe-area-inset-bottom, 12px))
+           max(12px, env(safe-area-inset-left, 12px));
+}
+
+@media (max-width: 1159px) {
+  .spotlight-overlay {
+    align-items: flex-end;
+  }
+}
+
+.spotlight-overlay--closing {
+  animation: modalOverlayFadeOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Wrapper — stacks strip behind card */
+.spotlight-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: spotlightSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.spotlight-overlay--closing .spotlight-wrapper {
+  animation: spotlightSlideOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* Action strip layer — peeks out from below the card */
+.spotlight-strip {
+  position: relative;
+  z-index: 1;
+  background: var(--color-paper, #ece9e1);
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  margin-top: -20px; /* tucks top portion behind the card's bottom edge */
+  padding-top: 20px; /* pushes content below the overlap */
+}
+
+.spotlight-strip .action-strip__item {
+  opacity: 0.6;
+  font-size: 12px;
+}
+
+.spotlight-strip kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-stone-grey);
+}
+
+/* Container — same off-white as .card-stack__inner (main column scroll surface) */
+.spotlight-container {
+  position: relative;
+  z-index: 2;
+  background: var(--color-snow-white);
+  border-radius: 20px;
+  /* Tighter than a heavy “floating” stack so less dumps onto .spotlight-strip below */
+  box-shadow:
+    0px 2px 8px 0px rgba(0, 0, 0, 0.06),
+    0px 10px 22px 0px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  font-family: var(--font-sans);
+}
+
+/* Cmdk root is focusable (tabindex=-1) while arrowing the list; hide browser ring */
+.spotlight-container [cmdk-root],
+.spotlight-container [cmdk-root]:focus,
+.spotlight-container [cmdk-root]:focus-visible {
+  outline: none;
+}
+
+/* Input area — matches .search-input pattern */
+.spotlight-input-wrapper {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  min-height: 52px;
+  border-radius: 16px;
+  background: var(--color-gradient-gray);
+  box-shadow: var(--shadow-small);
+  margin: 12px 12px 8px;
+}
+
+/* Icon | input (fills) | chip (right, content-width) */
+.spotlight-input-wrapper--has-scope {
+  grid-template-columns: auto 1fr auto;
+}
+
+.spotlight-input-wrapper svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  fill: var(--color-pebble-grey);
+}
+
+.spotlight-container [cmdk-input] {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 16px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--color-deep-grey);
+  caret-color: var(--color-bold-blue);
+  min-width: 0;
+}
+
+.spotlight-container [cmdk-input]::placeholder {
+  color: var(--color-pebble-grey);
+  font-weight: 600;
+}
+
+/* Scope chip — scripture-pill-like; fill from --spotlight-scope-accent (thread/space token) */
+.spotlight-scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px 3px 10px;
+  border-radius: 12px;
+  background-color: var(--spotlight-scope-accent, var(--color-paper));
+  box-shadow: inset 0 -3px 0 0 oklch(var(--lch-stone-grey) / 0.28);
+  border: none;
+  color: var(--color-deep-grey);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.spotlight-scope__dismiss {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.spotlight-scope__dismiss:hover {
+  background: color-mix(in srgb, var(--color-deep-grey) 14%, var(--spotlight-scope-accent) 86%);
+}
+
+.spotlight-scope__dismiss svg {
+  width: 10px;
+  height: 10px;
+  fill: currentColor;
+}
+
+/* List */
+.spotlight-container [cmdk-list] {
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 8px;
+}
+
+/* Group heading — matches SearchResultsList count label */
+.spotlight-container [cmdk-group-heading] {
+  padding: 4px 4px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-pebble-grey);
+  font-family: var(--font-sans);
+  text-align: center;
+}
+
+/* Items — CondensedNoteRowLayout handles internal structure; we just wrap for selection + spacing */
+.spotlight-container [cmdk-item] {
+  display: block;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  outline: none;
+}
+
+.spotlight-container [cmdk-item]:focus,
+.spotlight-container [cmdk-item]:focus-visible {
+  outline: none;
+}
+
+/* Row surface stays white; interaction = depth only (no paper tint, no scale) */
+.spotlight-container .spotlight-result-row {
+  background-color: var(--color-white) !important;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  transition:
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease !important;
+}
+
+.spotlight-container [cmdk-item]:hover:not([data-selected="true"]) .spotlight-result-row {
+  box-shadow:
+    var(--shadow-small),
+    0 4px 14px oklch(var(--lch-deep-grey) / 0.09),
+    0 1px 3px oklch(var(--lch-deep-grey) / 0.06);
+}
+
+.spotlight-container [cmdk-item][data-selected="true"] .spotlight-result-row {
+  border-color: oklch(86% 0.014 85);
+  box-shadow:
+    var(--shadow-small),
+    0 10px 28px oklch(var(--lch-deep-grey) / 0.12),
+    0 2px 6px oklch(var(--lch-deep-grey) / 0.06);
+}
+
+.spotlight-container [cmdk-item]:active:not([data-selected="true"]) .spotlight-result-row {
+  box-shadow:
+    var(--shadow-small),
+    0 2px 8px oklch(var(--lch-deep-grey) / 0.08);
+}
+
+.spotlight-container [cmdk-item][data-selected="true"]:active .spotlight-result-row {
+  border-color: oklch(86% 0.014 85);
+  box-shadow:
+    var(--shadow-small),
+    0 6px 16px oklch(var(--lch-deep-grey) / 0.1);
+}
+
+/* Remove button — btn-action variant, shown on hover/select */
+.spotlight-item__remove {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  translate: 0 -50%;
+  width: 2rem !important;
+  height: 2rem !important;
+  opacity: 0;
+  transition: opacity 0.15s !important;
+  z-index: 1;
+}
+
+.spotlight-container [cmdk-item]:hover .spotlight-item__remove,
+.spotlight-container [cmdk-item][data-selected="true"] .spotlight-item__remove {
+  opacity: 1;
+}
+
+.spotlight-item__remove .btn-action__icon svg {
+  fill: var(--color-pebble-grey);
+}
+
+/* Empty / loading states */
+.spotlight-container [cmdk-empty],
+.spotlight-container [cmdk-loading] {
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--color-pebble-grey);
+}
+
+
+/* Keyframes */
+@keyframes spotlightSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes spotlightSlideOut {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+}
+
+@keyframes modalOverlayFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Mobile adjustments */
+@media (max-width: 1159px) {
+  .spotlight-container {
+    border-radius: 16px;
+  }
+
+  .spotlight-container [cmdk-list] {
+    max-height: min(45dvh, 360px);
+  }
+
+
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-container,
+  .spotlight-overlay,
+  .spotlight-overlay--closing .spotlight-container {
+    animation-duration: 0.01ms !important;
+  }
+
+  .spotlight-container .spotlight-result-row {
+    transition-duration: 0.01ms !important;
+  }
+}

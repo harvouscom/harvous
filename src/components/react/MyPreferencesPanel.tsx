@@ -3,8 +3,9 @@ import SquareButton from './SquareButton';
 import DefaultTranslationPanel from './DefaultTranslationPanel';
 import MyChurchPanel from './MyChurchPanel';
 import LockPinPanel from './LockPinPanel';
+import { getKeyboardShortcutsReference } from '@/utils/keyboard-shortcuts';
 
-type PreferenceView = 'list' | 'bibleTranslation' | 'myChurch' | 'lockPin';
+type PreferenceView = 'list' | 'bibleTranslation' | 'myChurch' | 'lockPin' | 'keyboardShortcuts';
 
 interface MyPreferencesPanelProps {
   onClose?: () => void;
@@ -41,6 +42,58 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
         inBottomSheet={inBottomSheet}
         backIconDirection="left"
       />
+    );
+  }
+
+  if (view === 'keyboardShortcuts') {
+    const shortcutRows = getKeyboardShortcutsReference();
+    return (
+      <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
+        <div className="flex-fill flex-stack" style={{ gap: 0 }}>
+          <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
+            <div className="panel__header">
+              <div className="panel__title">
+                <p>Keyboard shortcuts</p>
+              </div>
+            </div>
+
+            <div className="panel__body">
+              <div className="panel__content keyboard-shortcuts-panel">
+                <ul className="keyboard-shortcuts-panel__list">
+                  {shortcutRows.map((row) => (
+                    <li key={row.action} className="keyboard-shortcuts-panel__item">
+                      <div className="keyboard-shortcuts-panel__item-main">
+                        <span className="keyboard-shortcuts-panel__action">{row.action}</span>
+                        <span
+                          className="keyboard-shortcuts-panel__chord"
+                          aria-label={row.keyParts.join(' + ')}
+                        >
+                          {row.keyParts.map((part, i) => (
+                            <React.Fragment key={`${row.action}-${i}-${part}`}>
+                              {i > 0 ? (
+                                <span className="keyboard-shortcuts-panel__chord-sep">+</span>
+                              ) : null}
+                              <kbd>{part}</kbd>
+                            </React.Fragment>
+                          ))}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="panel__footer--buttons">
+          <SquareButton
+            variant="Back"
+            onClick={() => setView('list')}
+            inBottomSheet={inBottomSheet}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -105,6 +158,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                 {renderOption('Preferred Bible', () => setView('bibleTranslation'))}
                 {renderOption('My Church', () => setView('myChurch'))}
                 {renderOption('Lock PIN', () => setView('lockPin'))}
+                {renderOption('Keyboard shortcuts', () => setView('keyboardShortcuts'))}
               </div>
             </div>
           </div>

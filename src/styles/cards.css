@@ -488,6 +488,14 @@
   grid-template-rows: unset;
 }
 
+/* Stretch inner to match column height so CardFullEditable / flex chains get a definite height */
+.subtle-content-mount--fade > .subtle-content-mount__inner {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .subtle-content-mount,
   .featured-carousel-entrance {

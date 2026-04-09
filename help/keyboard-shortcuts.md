@@ -10,36 +10,35 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Create New Note
 
-**Shortcut**: `Cmd/Ctrl + N`
+**Shortcut**: `Cmd/Ctrl + Alt + N` (⌥ Option on Mac, Alt on Windows)
 
 - Opens the NewNotePanel to create a new note
-- **Context-aware**: Only works when app is focused (browser "New Window" works when address bar is focused)
-- Works from anywhere in the app when the app has focus
+- **Context-aware**: Only works when app content is focused
+- Uses **Alt** so **Cmd/Ctrl + N** stays free for the browser (New Window)
 
 ### Create New Thread
 
-**Shortcut**: `Cmd/Ctrl + Shift + N`
+**Shortcut**: `Cmd/Ctrl + Alt + Shift + N`
 
 - Opens the NewThreadPanel to create a new thread
-- **Note**: Changed from `Cmd/Ctrl + T` to avoid conflict with browser's "New Tab"
-- Works from anywhere in the app
+- Uses **Alt** so **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** aren’t taken by Harvous
 
 ## Navigation
 
-### Go to Dashboard
+### Home
 
-**Shortcut**: `Cmd/Ctrl + D`
+**Shortcut**: `Cmd/Ctrl + Shift + H`
 
-- Navigates to the dashboard page
+- Navigates to the app home (root / dashboard route)
 - Quick way to return to your main workspace
 
 ### Navigate Back
 
-**Shortcut**: `Cmd/Ctrl + [` or `Backspace`
+**Shortcut**: `Cmd/Ctrl + Left Arrow`
 
-- Goes back in browser history
-- Or navigates to dashboard if no history
-- Useful for quick navigation
+- Closes the top overlay or panel first (Spotlight, slide-out panels, etc.)
+- If nothing app-owned is open, moves up the content hierarchy on note, thread, and space routes (note → previous note in thread if applicable, else thread → space if in context, else home)
+- On other routes (e.g. search, profile), uses browser history, or home if there is no history
 
 ### Find / Search
 
@@ -65,7 +64,7 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Open Details Panel
 
-**Shortcut**: `Cmd/Ctrl + I`
+**Shortcut**: `Cmd/Ctrl + D`
 
 - Opens the appropriate details panel based on current context:
   - **Note page**: Opens NoteDetailsPanel
@@ -92,14 +91,12 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Mac
 
-- Uses `Cmd` (⌘) key
-- All shortcuts use the Command key
+- Uses `Cmd` (⌘) for most shortcuts; new note/thread also use `⌥` (Option / Alt)
 - Works with standard Mac keyboard shortcuts
 
 ### Windows/Linux
 
-- Uses `Ctrl` key
-- All shortcuts use the Control key
+- Uses `Ctrl` for most shortcuts; new note/thread also use `Alt`
 - Works with standard Windows/Linux keyboard shortcuts
 
 The system automatically detects your platform and uses the appropriate modifier key.
@@ -122,29 +119,29 @@ The system intelligently detects the current page context:
 - **Thread pages**: URLs starting with `/thread_` or other non-standard routes
 - **Space pages**: URLs starting with `/space_`
 
-This allows context-aware shortcuts like `Cmd/Ctrl + I` to open the correct panel based on what you're viewing.
+This allows context-aware shortcuts like `Cmd/Ctrl + D` to open the correct panel based on what you're viewing.
 
 ### App Focus Detection
 
 The system also detects whether the app is focused (vs. browser chrome like the address bar):
 
-- **App focused**: When you're interacting with the app content, shortcuts like `Cmd/Ctrl + N` create a new note
-- **Browser chrome focused**: When the address bar or browser UI is focused, browser shortcuts work normally (e.g., `Cmd/Ctrl + N` opens a new browser window)
+- **App focused**: **Cmd/Ctrl + Alt + N** creates a new note; Harvous does not bind plain **Cmd/Ctrl + N**
+- **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s normal shortcuts
 
-This context-aware behavior follows the pattern used by Notion and Obsidian, allowing both browser and app shortcuts to work appropriately.
+**Alt/Option** keeps browser **New Window** and **Incognito** shortcuts available.
 
 ## Usage Examples
 
 ### Creating a New Note
 
-1. Press `Cmd/Ctrl + N` from anywhere in the app (when app is focused)
+1. Press `Cmd/Ctrl + Alt + N` from anywhere in the app (when app is focused)
 2. The NewNotePanel opens
 3. Type your note content
 4. Press `Cmd/Ctrl + S` to save, or `Esc` to cancel
 
 ### Creating a New Thread
 
-1. Press `Cmd/Ctrl + Shift + N` from anywhere in the app
+1. Press `Cmd/Ctrl + Alt + Shift + N` from anywhere in the app
 2. The NewThreadPanel opens
 3. Enter thread details
 4. Press `Cmd/Ctrl + S` to save, or `Esc` to cancel
@@ -153,7 +150,7 @@ This context-aware behavior follows the pattern used by Notion and Obsidian, all
 
 1. Press `Cmd/Ctrl + F` to go to the Find page
 2. If already on the Find page, `Cmd/Ctrl + F` focuses the search input
-3. Press `Cmd/Ctrl + D` to return to the dashboard
+3. Press `Cmd/Ctrl + Shift + H` to return to home
 
 ### Editing a Note
 
@@ -164,8 +161,8 @@ This context-aware behavior follows the pattern used by Notion and Obsidian, all
 
 ### Opening Details Panel
 
-1. While viewing a note, press `Cmd/Ctrl + I` to open NoteDetailsPanel
-2. While viewing a thread, press `Cmd/Ctrl + I` to open EditThreadPanel
+1. While viewing a note, press `Cmd/Ctrl + D` to open NoteDetailsPanel
+2. While viewing a thread, press `Cmd/Ctrl + D` to open EditThreadPanel
 
 ## Best Practices
 
@@ -177,7 +174,7 @@ This context-aware behavior follows the pattern used by Notion and Obsidian, all
 ### Context-Aware Usage
 
 - Use shortcuts that match your current context
-- `Cmd/Ctrl + I` opens different panels based on what you're viewing
+- `Cmd/Ctrl + D` opens different panels based on what you're viewing
 - `Cmd/Ctrl + E` only works when viewing a note
 
 ### Escape to Cancel
@@ -216,13 +213,13 @@ This is normal - shortcuts are re-initialized after View Transitions. If they do
 
 | Shortcut | Action | Context |
 |----------|--------|---------|
-| `Cmd/Ctrl + N` | Create New Note | App focused |
-| `Cmd/Ctrl + Shift + N` | Create New Thread | Anywhere |
+| `Cmd/Ctrl + Alt + N` | Create New Note | App focused |
+| `Cmd/Ctrl + Alt + Shift + N` | Create New Thread | Anywhere |
 | `Cmd/Ctrl + F` | Find / Search | Anywhere |
-| `Cmd/Ctrl + D` | Go to Dashboard | Anywhere |
-| `Cmd/Ctrl + [` or `Backspace` | Navigate Back | Anywhere |
+| `Cmd/Ctrl + Shift + H` | Home | Anywhere |
+| `Cmd/Ctrl + Left Arrow` | Back | Anywhere |
 | `Esc` | Close Panel | Panel open |
-| `Cmd/Ctrl + I` | Open Details Panel | Note/Thread page |
+| `Cmd/Ctrl + D` | Open Details Panel | Note/Thread page |
 | `Cmd/Ctrl + E` | Edit Note | Note page |
 | `Cmd/Ctrl + S` | Save | Editing/Panel open |
 

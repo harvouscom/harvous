@@ -1967,7 +1967,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
       {/* Search (Column 3: auto) */}
       <div className="mobile-nav__col">
-        <div className="nav-link" style={{ cursor: 'pointer' }} onClick={() => navigate('/search')}>
+        <div className="nav-link" style={{ cursor: 'pointer' }} onClick={() => window.dispatchEvent(new CustomEvent('openSpotlightSearch'))}>
           <button className="mobile-nav__search-btn" style={{ touchAction: 'manipulation' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
               <svg viewBox="0 0 512 512">

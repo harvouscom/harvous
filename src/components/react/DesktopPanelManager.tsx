@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useCallback, useState, lazy, Suspense } from 'react';
+import React, { useReducer, useEffect, useCallback, useState, useRef, lazy, Suspense } from 'react';
 import PanelErrorBoundary from './PanelErrorBoundary';
 import ButtonSmall from './ButtonSmall';
 import OfflineModeInfoPanel from './OfflineModeInfoPanel';
@@ -974,6 +974,121 @@ export default function DesktopPanelManager({
 
   // Determine if any panel is open
   const isAnyPanelOpen = state.activePanel !== null;
+
+  const panelStateRef = useRef(state);
+  panelStateRef.current = state;
+
+  // One layer at a time for Cmd/Ctrl+Left Arrow (breadcrumb back) — see keyboard-shortcuts.ts
+  useEffect(() => {
+    const onBreadcrumbDismissTopLayer = (e: Event) => {
+      const ce = e as CustomEvent<{ handled?: boolean }>;
+      if (!ce.detail) return;
+      const panel = panelStateRef.current.activePanel;
+      if (!panel) {
+        return;
+      }
+      ce.detail.handled = true;
+      switch (panel) {
+        case 'newNote':
+          window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+          break;
+        case 'newThread':
+          window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+          break;
+        case 'newResource':
+          window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
+          break;
+        case 'noteDetails':
+          window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
+          break;
+        case 'editThread':
+          window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
+          break;
+        case 'editSpace':
+          window.dispatchEvent(new CustomEvent('closeEditSpacePanel'));
+          break;
+        case 'addToSpace':
+          window.dispatchEvent(new CustomEvent('closeAddToSpacePanel'));
+          break;
+        case 'editSpacePeople':
+          window.dispatchEvent(new CustomEvent('closeEditSpacePeoplePanel'));
+          break;
+        case 'inboxPreview':
+          window.dispatchEvent(new CustomEvent('closeInboxPreview'));
+          break;
+        case 'noteShare':
+          window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+          break;
+        case 'pinEntry':
+          window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
+          break;
+        case 'offlineHelp':
+          dispatch({ type: 'CLOSE_OFFLINE_HELP' });
+          window.dispatchEvent(new CustomEvent('closeOfflineHelpPanel'));
+          break;
+        case 'mySpaces':
+          dispatch({ type: 'CLOSE_MY_SPACES' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'myAchievements':
+          dispatch({ type: 'CLOSE_MY_ACHIEVEMENTS' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'myChurch':
+          dispatch({ type: 'CLOSE_MY_CHURCH' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'myPreferences':
+          dispatch({ type: 'CLOSE_MY_PREFERENCES' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'mySharing':
+          dispatch({ type: 'CLOSE_MY_SHARING' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'myInbox':
+          dispatch({ type: 'CLOSE_MY_INBOX' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'adminVotd':
+          dispatch({ type: 'CLOSE_ADMIN_VOTD' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'editNameColor':
+          dispatch({ type: 'CLOSE_EDIT_NAME_COLOR' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'emailPassword':
+          dispatch({ type: 'CLOSE_EMAIL_PASSWORD' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'referral':
+          dispatch({ type: 'CLOSE_REFERRAL' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'myData':
+          dispatch({ type: 'CLOSE_MY_DATA' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'getSupport':
+          dispatch({ type: 'CLOSE_GET_SUPPORT' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'lockPin':
+          dispatch({ type: 'CLOSE_LOCK_PIN' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        case 'aboutHarvous':
+          dispatch({ type: 'CLOSE_ABOUT_HARVOUS' });
+          window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+          break;
+        default:
+          ce.detail.handled = false;
+      }
+    };
+    window.addEventListener('breadcrumbDismissTopLayer', onBreadcrumbDismissTopLayer);
+    return () => window.removeEventListener('breadcrumbDismissTopLayer', onBreadcrumbDismissTopLayer);
+  }, [dispatch]);
 
   return (
     <div className="flex-stack h-full w-full" style={{ maxHeight: '100%', width: '100%', gap: 0, alignItems: 'stretch' }}>

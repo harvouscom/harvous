@@ -55,7 +55,7 @@ Solutions to common problems and issues in Harvous.
 
 **Solutions:**
 1. **Check your connection**: Make sure you're connected to the internet
-2. **Try keyboard shortcut**: Use `Cmd/Ctrl + N` for notes, `Cmd/Ctrl + Shift + N` for threads
+2. **Try keyboard shortcut**: Use `Cmd/Ctrl + Alt + N` for notes, `Cmd/Ctrl + Alt + Shift + N` for threads
 3. **Refresh the page**: A refresh can fix temporary issues
 4. **Check for errors**: Look for error messages or validation issues
 5. **Try a different browser**: Sometimes browser-specific issues occur

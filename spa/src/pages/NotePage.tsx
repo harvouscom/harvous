@@ -252,7 +252,8 @@ export default function NotePage() {
     : '';
 
   return (
-    // Wrapper div provides data attributes that CardFullEditable reads from the DOM
+    // Wrapper div provides data attributes that CardFullEditable reads from the DOM.
+    // Must be a real box (not display:contents) so `.main-column__scroll > *` fills the scroll column.
     <div
       data-note-id={noteId}
       {...(parentThreadId ? {
@@ -262,7 +263,6 @@ export default function NotePage() {
         'data-parent-thread-count': String((parentThread as { count?: number }).count ?? 0),
         'data-parent-thread-space-id': (parentThread as { spaceId?: string | null }).spaceId ?? '',
       } : {})}
-      style={{ display: 'contents' }}
     >
       <SubtleContentMount key={noteId} variant="fade">
         <CardFullEditable

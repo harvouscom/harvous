@@ -1660,3 +1660,75 @@ form.new-note-panel {
   gap: var(--space-3);
 }
 
+/* Keyboard shortcuts (My Preferences) — roomier inset; matches header horizontal gutters (1.5rem) */
+.panel__content.keyboard-shortcuts-panel {
+  box-sizing: border-box;
+  padding: 24px !important;
+}
+
+.keyboard-shortcuts-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem; /* 20px — roomier rows than default 12px panel gaps */
+}
+
+.keyboard-shortcuts-panel__item {
+  margin: 0;
+  padding: 0;
+}
+
+.keyboard-shortcuts-panel__item-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.keyboard-shortcuts-panel__action {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-deep-grey);
+  line-height: 1.3;
+  min-width: 0;
+}
+
+/* Match Spotlight action strip key styling (see .spotlight-strip kbd in spotlight.css) */
+.keyboard-shortcuts-panel__chord {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.keyboard-shortcuts-panel__chord kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-stone-grey);
+  border: none;
+  box-shadow: none;
+}
+
+.keyboard-shortcuts-panel__chord-sep {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-stone-grey);
+  opacity: 0.75;
+  user-select: none;
+}

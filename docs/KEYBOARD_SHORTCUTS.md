@@ -12,8 +12,8 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + N** | Create New Note | Opens the NewNotePanel to create a new note<br>**Context-aware**: Only works when app is focused (browser "New Window" works when address bar is focused) |
-| **Cmd/Ctrl + Shift + N** | Create New Thread | Opens the NewThreadPanel to create a new thread<br>**Note**: Changed from Cmd/Ctrl + T to avoid conflict with browser's "New Tab" |
+| **Cmd/Ctrl + Alt + N** | Create New Note | Opens the NewNotePanel to create a new note (⌥ = Option on Mac, Alt on Windows)<br>**Context-aware**: Only when app content is focused — avoids taking **Cmd/Ctrl + N** (browser New Window) |
+| **Cmd/Ctrl + Alt + Shift + N** | Create New Thread | Opens the NewThreadPanel — avoids **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** conflicts |
 | **Cmd/Ctrl + F** | Find | Navigates to the Find page, or focuses the Find input if already on the Find page |
 | **Esc** | Close Panel | Closes any currently open panel (NewNotePanel, NewThreadPanel, NoteDetailsPanel, EditThreadPanel) |
 
@@ -21,21 +21,21 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + D** | Go to Dashboard | Navigates to the dashboard page |
-| **Cmd/Ctrl + [`** or **Backspace** | Navigate Back | Goes back in browser history, or navigates to dashboard if no history |
+| **Cmd/Ctrl + Shift + H** | Home | Navigates to the app root (home / dashboard route) |
+| **Cmd/Ctrl + Left Arrow** | Back | Closes the top overlay or panel first, then moves up the app hierarchy (note → thread → space → home), or browser history on other routes |
 
 ### Context-Aware Shortcuts
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + I** | Open Details Panel | Opens the appropriate details panel based on current context:<br>- **Note page**: Opens NoteDetailsPanel<br>- **Thread page**: Opens EditThreadPanel |
+| **Cmd/Ctrl + D** | Open Details Panel | Opens the appropriate details panel based on current context:<br>- **Note page**: Opens NoteDetailsPanel<br>- **Thread page**: Opens EditThreadPanel |
 | **Cmd/Ctrl + E** | Edit Note | Enters edit mode for the current note (only works when viewing a note) |
 | **Cmd/Ctrl + S** | Save | Saves the current note/thread when editing or when a panel is open<br>**Note**: Cmd/Ctrl + Enter is not used for saving because it's used by the editor to start a new line |
 
 ## Platform Support
 
-- **Mac**: Uses `Cmd` (⌘) key
-- **Windows/Linux**: Uses `Ctrl` key
+- **Mac**: Uses `Cmd` (⌘) for most shortcuts; new note and new thread also use `⌥` (Option / Alt)
+- **Windows/Linux**: Uses `Ctrl` for most shortcuts; new note and new thread also use `Alt`
 - The system automatically detects the platform and uses the appropriate modifier key
 
 ## Smart Input Detection
@@ -55,16 +55,16 @@ The system intelligently detects the current page context:
 - **Thread pages**: URLs starting with `/thread_` or other non-standard routes
 - **Space pages**: URLs starting with `/space_`
 
-This allows context-aware shortcuts like **Cmd/Ctrl + I** to open the correct panel based on what you're viewing.
+This allows context-aware shortcuts like **Cmd/Ctrl + D** to open the correct panel based on what you're viewing.
 
 ### App Focus Detection
 
 The system also detects whether the app is focused (vs. browser chrome like the address bar):
 
-- **App focused**: When you're interacting with the app content, shortcuts like `Cmd/Ctrl + N` create a new note
-- **Browser chrome focused**: When the address bar or browser UI is focused, browser shortcuts work normally (e.g., `Cmd/Ctrl + N` opens a new browser window)
+- **App focused**: When you're interacting with the app content, **Cmd/Ctrl + Alt + N** opens a new note (Harvous does not use plain **Cmd/Ctrl + N** so the browser can keep New Window)
+- **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s shortcuts as usual
 
-This context-aware behavior follows the pattern used by Notion and Obsidian, allowing both browser and app shortcuts to work appropriately.
+**Alt/Option** is required for new note and new thread so **Cmd/Ctrl + N** and **Cmd/Ctrl + Shift + N** stay available for the browser.
 
 ## Technical Implementation
 
@@ -85,7 +85,7 @@ Checks if the user is currently typing in an input field. Returns `true` if the 
 Checks if the appropriate modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux).
 
 #### `isAppFocused()`
-Checks if the app is currently focused (not browser chrome like address bar). This allows context-aware shortcuts like `Cmd/Ctrl + N` to only override browser behavior when the app is focused.
+Checks if the app is currently focused (not browser chrome like address bar). Used for **Cmd/Ctrl + Alt + N** (new note) so it doesn’t fire when focus is outside the app.
 
 #### `getPageContext()`
 Detects the current page context (note, thread, or space) based on the URL pathname.
@@ -124,13 +124,13 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 ## Usage Examples
 
 ### Creating a New Note
-1. Press **Cmd/Ctrl + N** from anywhere in the app (when app is focused)
+1. Press **Cmd/Ctrl + Alt + N** from anywhere in the app (when app is focused)
 2. The NewNotePanel opens
 3. Type your note content
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
 
 ### Creating a New Thread
-1. Press **Cmd/Ctrl + Shift + N** from anywhere in the app
+1. Press **Cmd/Ctrl + Alt + Shift + N** from anywhere in the app
 2. The NewThreadPanel opens
 3. Enter thread details
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
@@ -138,7 +138,7 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 ### Quick Navigation
 1. Press **Cmd/Ctrl + F** to go to the Find page
 2. If already on the Find page, **Cmd/Ctrl + F** focuses the search input
-3. Press **Cmd/Ctrl + D** to return to the dashboard
+3. Press **Cmd/Ctrl + Shift + H** to return to home
 
 ### Editing a Note
 1. Navigate to a note page
@@ -147,13 +147,13 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
 
 ### Opening Details Panel
-1. While viewing a note, press **Cmd/Ctrl + I** to open NoteDetailsPanel
-2. While viewing a thread, press **Cmd/Ctrl + I** to open EditThreadPanel
+1. While viewing a note, press **Cmd/Ctrl + D** to open NoteDetailsPanel
+2. While viewing a thread, press **Cmd/Ctrl + D** to open EditThreadPanel
 
 ## Best Practices
 
 1. **Don't interfere with typing**: All shortcuts are automatically disabled when typing in inputs
-2. **Context-aware**: Use shortcuts that match your current context (e.g., Cmd+I opens different panels based on what you're viewing)
+2. **Context-aware**: Use shortcuts that match your current context (e.g., Cmd+D opens different panels based on what you're viewing)
 3. **Escape to cancel**: Press **Esc** to quickly close any open panel
 4. **Save frequently**: Use **Cmd/Ctrl + S** to save your work when editing
 
