@@ -302,7 +302,15 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     }
     return;
   }
-  
+
+  // Esc — dismiss top overlay/panel (before isTypingInInput so Spotlight/desktop panels close even when focus is in the editor; same layer stack as Mod+←)
+  if (key === 'escape' || code === 'Escape') {
+    if (tryDismissBreadcrumbLayer()) {
+      event.preventDefault();
+    }
+    return;
+  }
+
   // Don't handle shortcuts when typing in inputs
   if (isTypingInInput()) {
     return;
@@ -321,19 +329,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   if (modifier && event.altKey && key === 'n' && event.shiftKey) {
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
-    return;
-  }
-  
-  // Esc - Close any open panel
-  if (key === 'Escape' || code === 'Escape') {
-    if (isPanelOpen()) {
-      event.preventDefault();
-      // Dispatch close events for all panels
-      window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
-      window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
-      window.dispatchEvent(new CustomEvent('closeNoteDetailsPanel'));
-      window.dispatchEvent(new CustomEvent('closeEditThreadPanel'));
-    }
     return;
   }
   
