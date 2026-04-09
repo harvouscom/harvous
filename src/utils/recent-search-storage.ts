@@ -19,19 +19,40 @@ export function recentSearchesUpdatedEvent(scope: RecentSearchStorageScope): str
   return `recent-searches-updated:${scope.type}:${scope.id}`;
 }
 
-/** Append a term (MRU, max 10). Dispatches the matching update event. */
-export function addRecentSearchTerm(scope: RecentSearchStorageScope, term: string): void {
+function entryTerm(s: { term?: string } | string): string {
+  return typeof s === 'string' ? s : (s.term ?? '');
+}
+
+function entryCount(s: { term?: string; count?: number } | string): number {
+  if (typeof s === 'string') return 0;
+  return typeof s.count === 'number' ? s.count : 0;
+}
+
+export type AddRecentSearchOptions = {
+  /** When set, stored as the result-count badge (e.g. number of FTS hits). */
+  resultCount?: number;
+};
+
+/**
+ * Append a term (MRU, max 10). Dispatches the matching update event.
+ * Preserves an existing `count` for the same term unless `resultCount` is passed.
+ */
+export function addRecentSearchTerm(
+  scope: RecentSearchStorageScope,
+  term: string,
+  options?: AddRecentSearchOptions,
+): void {
   if (typeof window === 'undefined') return;
   const trimmed = term.trim();
   if (!trimmed) return;
 
   const key = recentSearchStorageKey(scope);
-  const recentSearches = JSON.parse(localStorage.getItem(key) || '[]');
-  const newSearchItem = { term: trimmed, count: 0 };
-  const filtered = recentSearches.filter((s: { term?: string } | string) => {
-    const t = typeof s === 'string' ? s : s.term;
-    return t !== trimmed;
-  });
+  const recentSearches = JSON.parse(localStorage.getItem(key) || '[]') as Array<{ term?: string; count?: number } | string>;
+  const prev = recentSearches.find((s) => entryTerm(s) === trimmed);
+  const count =
+    options && options.resultCount !== undefined ? options.resultCount : prev ? entryCount(prev) : 0;
+  const newSearchItem = { term: trimmed, count };
+  const filtered = recentSearches.filter((s) => entryTerm(s) !== trimmed);
   const newSearches = [newSearchItem, ...filtered].slice(0, 10);
   localStorage.setItem(key, JSON.stringify(newSearches));
   window.dispatchEvent(new CustomEvent(recentSearchesUpdatedEvent(scope)));

@@ -244,6 +244,15 @@ export default function SpotlightSearch() {
   const { data, isLoading } = useSearch(debouncedQuery, scopeInfo?.scope);
   const results: SearchResult[] = data?.results ?? [];
 
+  // Record completed searches in global recents (result count for badge), like /search + AddToSpaceSection FTS sync
+  useEffect(() => {
+    if (!isOpen) return;
+    const trimmed = debouncedQuery.trim();
+    if (trimmed.length < 2) return;
+    if (isLoading) return;
+    addRecentSearchTerm(null, trimmed, { resultCount: results.length });
+  }, [isOpen, debouncedQuery, isLoading, results.length]);
+
   // Refresh recent searches
   const refreshRecents = useCallback(() => {
     setRecentSearches(getRecentSearches());
