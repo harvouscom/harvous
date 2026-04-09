@@ -26,12 +26,23 @@ export interface FeaturedItem {
 
 export const featuredItemsQueryKey = ['featured-items'] as const;
 
+function browserIanaTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
 export function useFeaturedItems(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: featuredItemsQueryKey,
     enabled: options?.enabled !== false,
     queryFn: async () => {
-      const res = await fetch('/api/featured/items', { credentials: 'include' });
+      const res = await fetch('/api/featured/items', {
+        credentials: 'include',
+        headers: { 'X-Votd-Timezone': browserIanaTimeZone() },
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new APIError(res.status, (body as { error?: string })?.error ?? `HTTP ${res.status}`);

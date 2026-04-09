@@ -89,7 +89,7 @@ You should see `**Bearer auth: enabled (secret length …)`** with a positive le
 
 ### Step 9 — Schedule
 
-After manual runs work, the same workflow runs automatically at **11:00 UTC** each day (`cron: '0 11 * * *'`) — about **5:00 AM Central Standard Time** (6:00 AM during daylight saving). “Today” for VOTD is **UTC calendar date**.
+After manual runs work, the workflow runs on **two UTC schedules** (see `[.github/workflows/votd-publish-daily.yml](../.github/workflows/votd-publish-daily.yml)`): **23:55 UTC** publishes **tomorrow’s** verse early (`?target=next`, cron bearer only) so the `FeaturedItems` row exists before the next midnight — avoiding a gap after the previous day’s `endsAt`. **00:05 UTC** runs an idempotent **catch-up** for the current UTC day if the early run failed. “Today” for VOTD is still **UTC calendar date** for `startsAt` / `endsAt`.
 
 ---
 
@@ -105,8 +105,10 @@ After manual runs work, the same workflow runs automatically at **11:00 UTC** ea
 POST /api/admin/votd/publish-daily
 ```
 
-- **Calendar day:** Server uses UTC (`YYYY-MM-DD`) for “today” and for the featured item’s `startsAt` / `endsAt` window (see `server/routes/votd.ts`).
+- **Calendar day (editorial):** `publish-daily` still records `publishedDate` as the UTC `YYYY-MM-DD` used for picking the verse (see `server/routes/votd.ts`).
+- **Dashboard display:** `GET /api/featured/items` matches VOTD to the user’s **local** calendar date: the client sends `X-Votd-Timezone` (IANA, e.g. `America/Chicago`), and the API returns the `VotdPublishHistory` row whose `publishedDate` equals that date in the user’s zone. Other featured types still use `startsAt` / `endsAt`.
 - **Idempotent:** If a VOTD was already published for today, the response includes `alreadyPublished: true`.
+- **Early publish:** `POST …/publish-daily?target=next` with `Authorization: Bearer <VOTD_CRON_SECRET>` publishes the **next** UTC calendar day (used by the 23:55 workflow). Admin/browser sessions cannot use `target=next`.
 
 ## Security
 

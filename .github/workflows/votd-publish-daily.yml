@@ -2,8 +2,11 @@ name: Publish Verse of the Day
 
 on:
   schedule:
-    # 11:00 UTC ≈ 5:00 AM CST (6:00 AM CDT). Same UTC calendar day as publish-daily / FeaturedItems.
-    - cron: '0 11 * * *'
+    # 23:55 UTC: insert tomorrow's FeaturedItems row before UTC midnight so when yesterday's
+    # VOTD hits endsAt (next midnight), today's row is already present (no gap until 11:00 publish).
+    - cron: '55 23 * * *'
+    # 00:05 UTC: idempotent catch-up if the early run failed (publishes "today" if missing).
+    - cron: '5 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -22,7 +25,18 @@ jobs:
           # Normalize line endings / stray newlines from secret managers
           SECRET_TOKEN="$(printf '%s' "${SECRET_TOKEN:-}" | tr -d '\r\n')"
 
-          echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily"
+          HOUR="$(date -u +%H)"
+          MIN="$(date -u +%M)"
+          MIN=$((10#$MIN))
+          if [ "$HOUR" = "23" ] && [ "$MIN" -ge 50 ]; then
+            SUFFIX='?target=next'
+            echo "VOTD: early publish for next UTC calendar day (target=next)"
+          else
+            SUFFIX=''
+            echo "VOTD: publish for current UTC calendar day (catch-up or manual)"
+          fi
+
+          echo "Calling VOTD publish: ${SITE_URL}/api/admin/votd/publish-daily${SUFFIX}"
           if [ -z "$SECRET_TOKEN" ]; then
             echo "::error::GitHub secret VOTD_CRON_SECRET is empty. Add it under Settings → Secrets and variables → Actions (same value as Netlify VOTD_CRON_SECRET)."
             exit 1
@@ -31,7 +45,7 @@ jobs:
 
           response_file="$(mktemp)"
           code="$(
-            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/votd/publish-daily" \
+            curl -sS -o "$response_file" -w '%{http_code}' -X POST "${SITE_URL}/api/admin/votd/publish-daily${SUFFIX}" \
               -H "Authorization: Bearer ${SECRET_TOKEN}"
           )"
           body="$(cat "$response_file")"

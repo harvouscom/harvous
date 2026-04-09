@@ -67579,6 +67579,10 @@ function buildBibleChaptersMap() {
       endVerse: chapter.endVerse
     });
   }
+  const songOfSolomon = map.get("Song of Solomon");
+  if (songOfSolomon && !map.has("Song of Songs")) {
+    map.set("Song of Songs", songOfSolomon);
+  }
   BIBLE_CHAPTERS_MAP = map;
   return map;
 }
@@ -70447,55 +70451,37 @@ function extractScriptureTranslationFromNoteContent(content) {
   return parsed.toUpperCase();
 }
 async function findUnorganizedThread(userId) {
+  const selectFields = {
+    id: Threads.id,
+    title: Threads.title,
+    subtitle: Threads.subtitle,
+    color: Threads.color,
+    spaceId: Threads.spaceId,
+    isPublic: Threads.isPublic,
+    isPinned: Threads.isPinned,
+    createdAt: Threads.createdAt,
+    updatedAt: Threads.updatedAt
+  };
   try {
-    const unorganizedThread = first(await db.select({
-      id: Threads.id,
-      title: Threads.title,
-      subtitle: Threads.subtitle,
-      color: Threads.color,
-      spaceId: Threads.spaceId,
-      isPublic: Threads.isPublic,
-      isPinned: Threads.isPinned,
-      createdAt: Threads.createdAt,
-      updatedAt: Threads.updatedAt
-    }).from(Threads).where(and(
-      eq(Threads.userId, userId),
-      eq(Threads.id, "thread_unorganized")
-    )).limit(1));
-    if (unorganizedThread) {
-      return unorganizedThread;
-    }
-    try {
-      const newUnorganizedThread = first(await db.insert(Threads).values({
-        id: "thread_unorganized",
-        title: "Unorganized",
-        subtitle: "Notes that haven't been organized into threads yet",
-        spaceId: null,
-        userId,
-        isPublic: true,
-        isPinned: false,
-        color: null,
-        createdAt: nowISO(),
-        updatedAt: nowISO()
-      }).returning());
-      return newUnorganizedThread;
-    } catch (createError2) {
-      if (createError2.code === "23505" || createError2.message?.includes("unique constraint")) {
-        const existingThread = first(await db.select({
-          id: Threads.id,
-          title: Threads.title,
-          subtitle: Threads.subtitle,
-          color: Threads.color,
-          spaceId: Threads.spaceId,
-          isPublic: Threads.isPublic,
-          isPinned: Threads.isPinned,
-          createdAt: Threads.createdAt,
-          updatedAt: Threads.updatedAt
-        }).from(Threads).where(eq(Threads.id, "thread_unorganized")).limit(1));
-        return existingThread ?? void 0;
-      }
-      throw createError2;
-    }
+    const existing = first(
+      await db.select(selectFields).from(Threads).where(eq(Threads.id, "thread_unorganized")).limit(1)
+    );
+    if (existing) return existing;
+    await db.insert(Threads).values({
+      id: "thread_unorganized",
+      title: "Unorganized",
+      subtitle: "Notes that haven't been organized into threads yet",
+      spaceId: null,
+      userId,
+      isPublic: true,
+      isPinned: false,
+      color: null,
+      createdAt: nowISO(),
+      updatedAt: nowISO()
+    }).onConflictDoNothing();
+    return first(
+      await db.select(selectFields).from(Threads).where(eq(Threads.id, "thread_unorganized")).limit(1)
+    ) ?? null;
   } catch (error) {
     console.error("Error finding/creating unorganized thread:", error);
     return null;
@@ -94318,6 +94304,36 @@ function isTestRoutesForbidden() {
   return false;
 }
 
+// server/utils/votd-local-date.ts
+var TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;
+function isValidIanaTimeZone(tz) {
+  if (!TZ_SAFE.test(tz) || tz.length > 120) return false;
+  try {
+    Intl.DateTimeFormat(void 0, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+function getLocalCalendarDateString(timeZone, date2) {
+  const zone = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date2);
+  }
+}
+
 // server/routes/featured.ts
 var app12 = new Hono2();
 app12.get("/api/featured/items", async (c) => {
@@ -94328,24 +94344,38 @@ app12.get("/api/featured/items", async (c) => {
       return c.json([]);
     }
     const currentTime = now();
-    const baseFeaturedConditions = [
-      eq(FeaturedItems.isActive, true),
-      or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
-      or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
-      notExists(
-        db.select({ id: UserFeaturedItems.id }).from(UserFeaturedItems).where(
-          and(
-            eq(UserFeaturedItems.userId, auth.userId),
-            eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
-            inArray(UserFeaturedItems.status, ["dismissed", "completed"])
-          )
+    const tzHeader = c.req.header("X-Votd-Timezone")?.trim() ?? "";
+    const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : "UTC";
+    const localCalendarDate = getLocalCalendarDateString(timeZone, currentTime);
+    const dismissedNotInUserFeed = notExists(
+      db.select({ id: UserFeaturedItems.id }).from(UserFeaturedItems).where(
+        and(
+          eq(UserFeaturedItems.userId, auth.userId),
+          eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
+          inArray(UserFeaturedItems.status, ["dismissed", "completed"])
         )
       )
+    );
+    const nonVotdConditions = [
+      eq(FeaturedItems.isActive, true),
+      ne(FeaturedItems.contentType, "votd"),
+      or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
+      or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
+      dismissedNotInUserFeed
     ];
     if (shouldExcludeDevSampleFeaturedItems(c)) {
-      baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+      nonVotdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
-    let items = await db.select({
+    const votdConditions = [
+      eq(FeaturedItems.isActive, true),
+      eq(FeaturedItems.contentType, "votd"),
+      eq(VotdPublishHistory.publishedDate, localCalendarDate),
+      dismissedNotInUserFeed
+    ];
+    if (shouldExcludeDevSampleFeaturedItems(c)) {
+      votdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+    }
+    const selectColumns = {
       id: FeaturedItems.id,
       contentType: FeaturedItems.contentType,
       title: FeaturedItems.title,
@@ -94355,7 +94385,14 @@ app12.get("/api/featured/items", async (c) => {
       color: FeaturedItems.color,
       metadata: FeaturedItems.metadata,
       createdAt: FeaturedItems.createdAt
-    }).from(FeaturedItems).where(and(...baseFeaturedConditions)).orderBy(desc(FeaturedItems.createdAt));
+    };
+    const [nonVotdRows, votdRows] = await Promise.all([
+      db.select(selectColumns).from(FeaturedItems).where(and(...nonVotdConditions)).orderBy(desc(FeaturedItems.createdAt)),
+      db.select(selectColumns).from(FeaturedItems).innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId)).where(and(...votdConditions)).orderBy(desc(FeaturedItems.createdAt))
+    ]);
+    let items = [...nonVotdRows, ...votdRows].sort(
+      (a, b3) => b3.createdAt.getTime() - a.createdAt.getTime()
+    );
     const spaceItems = items.filter((i) => i.contentType === "space" && (i.shareToken || i.refId));
     if (spaceItems.length > 0) {
       const shareTokens = spaceItems.map((i) => i.shareToken).filter(Boolean);
@@ -94774,6 +94811,15 @@ init_dates();
 init_schema2();
 
 // src/utils/verse-plain-display.ts
+function stripHtmlPreservingBreaksForVotd(html) {
+  if (!html) return "";
+  let s2 = html.replace(/\r\n/g, "\n").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<p[^>]*>/gi, "");
+  s2 = s2.replace(/<[^>]+>/g, " ");
+  s2 = s2.replace(/[^\S\n]+/g, " ");
+  s2 = s2.split("\n").map((line2) => line2.trim()).join("\n");
+  s2 = s2.replace(/\n{3,}/g, "\n\n");
+  return s2.trim();
+}
 function stripLeadingVerseNumberFromPlainText(plain, verse, verseEnd) {
   if (verse == null || plain.length === 0) return plain;
   if (verseEnd != null && verseEnd !== verse) return plain;
@@ -95575,7 +95621,7 @@ function votdPreviewPlainFromHtml(html, reference) {
   const parsed = parseScriptureReference(normalizeScriptureReference(reference));
   const verseStart = parsed ? Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse : null;
   const verseEnd = parsed ? Array.isArray(parsed.verse) ? parsed.verse[1] : null : null;
-  const collapsed = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const collapsed = stripHtmlPreservingBreaksForVotd(html);
   const withoutLeadingNum = stripLeadingVerseNumberFromPlainText(collapsed, verseStart, verseEnd);
   return stripRedundantEdgeQuotesForVotdCard(withoutLeadingNum);
 }
@@ -95700,7 +95746,18 @@ app13.delete("/api/admin/votd/schedule/:id", async (c) => {
 app13.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = requireVotdAuth(c);
   if (unauthorized) return unauthorized;
-  const todayStr = utcDateStr(/* @__PURE__ */ new Date());
+  const target = c.req.query("target");
+  let todayStr;
+  if (target === "next") {
+    if (!c.get("cronAuthed")) {
+      return c.json({ error: "target=next requires VOTD cron bearer auth" }, 403);
+    }
+    const d = /* @__PURE__ */ new Date();
+    d.setUTCDate(d.getUTCDate() + 1);
+    todayStr = utcDateStr(d);
+  } else {
+    todayStr = utcDateStr(/* @__PURE__ */ new Date());
+  }
   const published = first(
     await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, todayStr)).limit(1)
   );

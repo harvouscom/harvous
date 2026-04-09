@@ -5,7 +5,10 @@
  *   POST   /api/admin/votd/schedule       — Add a verse to the pool or pin a date (override)
  *   GET    /api/admin/votd/schedule       — List schedule entries
  *   DELETE /api/admin/votd/schedule/:id    — Remove an unpublished entry
- *   POST   /api/admin/votd/publish-daily  — Publish today's VOTD (cron + admin)
+ *   POST   /api/admin/votd/publish-daily  — Publish today's VOTD (cron + admin). Query `target=next`
+ *                                          (Bearer cron only) publishes tomorrow's UTC date early so the
+ *                                          FeaturedItems row exists before `startsAt` — avoids a gap after
+ *                                          midnight UTC when the previous day's `endsAt` passes.
  *   GET    /api/admin/votd/preview         — Editorial preview of upcoming days
  *   POST   /api/admin/votd/override        — Pin reference to a UTC date
  *   POST   /api/admin/votd/refresh         — Re-roll a future day (stores pin)
@@ -245,7 +248,18 @@ app.post('/api/admin/votd/publish-daily', async (c) => {
   const unauthorized = requireVotdAuth(c);
   if (unauthorized) return unauthorized;
 
-  const todayStr = utcDateStr(new Date());
+  const target = c.req.query('target');
+  let todayStr: string;
+  if (target === 'next') {
+    if (!c.get('cronAuthed')) {
+      return c.json({ error: 'target=next requires VOTD cron bearer auth' }, 403);
+    }
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + 1);
+    todayStr = utcDateStr(d);
+  } else {
+    todayStr = utcDateStr(new Date());
+  }
 
   const published = first(
     await db

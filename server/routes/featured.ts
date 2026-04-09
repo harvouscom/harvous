@@ -3,7 +3,17 @@ import { and, db, desc, eq, first, gt, inArray, isNotNull, isNull, lte, ne, notE
 import { now, nowISO } from '../db/dates';
 import { getAuth, getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { getHarvousSystemUserId, requireHarvousAdmin } from '../utils/harvous-admin';
-import { FeaturedItems, Members, Notes, ScriptureMetadata, Spaces, Threads, UserFeaturedItems, UserMetadata } from '../db/schema';
+import {
+  FeaturedItems,
+  Members,
+  Notes,
+  ScriptureMetadata,
+  Spaces,
+  Threads,
+  UserFeaturedItems,
+  UserMetadata,
+  VotdPublishHistory,
+} from '../db/schema';
 import { generateNoteId, generateShareToken } from '@/utils/ids';
 import { parseScriptureReference, normalizeScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
@@ -15,6 +25,7 @@ import {
   DEV_SAMPLE_FEATURED_ITEM_IDS,
   shouldExcludeDevSampleFeaturedItems,
 } from '../constants/dev-featured-samples';
+import { getLocalCalendarDateString, isValidIanaTimeZone } from '../utils/votd-local-date';
 
 const app = new Hono();
 
@@ -29,42 +40,73 @@ app.get('/api/featured/items', async (c) => {
 
     const currentTime = now();
 
-    const baseFeaturedConditions = [
+    const tzHeader = c.req.header('X-Votd-Timezone')?.trim() ?? '';
+    const timeZone = isValidIanaTimeZone(tzHeader) ? tzHeader : 'UTC';
+    const localCalendarDate = getLocalCalendarDateString(timeZone, currentTime);
+
+    const dismissedNotInUserFeed = notExists(
+      db
+        .select({ id: UserFeaturedItems.id })
+        .from(UserFeaturedItems)
+        .where(
+          and(
+            eq(UserFeaturedItems.userId, auth.userId),
+            eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
+            inArray(UserFeaturedItems.status, ['dismissed', 'completed']),
+          ),
+        ),
+    );
+
+    const nonVotdConditions = [
       eq(FeaturedItems.isActive, true),
+      ne(FeaturedItems.contentType, 'votd'),
       or(isNull(FeaturedItems.startsAt), lte(FeaturedItems.startsAt, currentTime)),
       or(isNull(FeaturedItems.endsAt), gt(FeaturedItems.endsAt, currentTime)),
-      notExists(
-        db
-          .select({ id: UserFeaturedItems.id })
-          .from(UserFeaturedItems)
-          .where(
-            and(
-              eq(UserFeaturedItems.userId, auth.userId),
-              eq(UserFeaturedItems.featuredItemId, FeaturedItems.id),
-              inArray(UserFeaturedItems.status, ['dismissed', 'completed']),
-            ),
-          ),
-      ),
+      dismissedNotInUserFeed,
     ];
     if (shouldExcludeDevSampleFeaturedItems(c)) {
-      baseFeaturedConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+      nonVotdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
 
-    let items = await db
-      .select({
-        id: FeaturedItems.id,
-        contentType: FeaturedItems.contentType,
-        title: FeaturedItems.title,
-        description: FeaturedItems.description,
-        refId: FeaturedItems.refId,
-        shareToken: FeaturedItems.shareToken,
-        color: FeaturedItems.color,
-        metadata: FeaturedItems.metadata,
-        createdAt: FeaturedItems.createdAt,
-      })
-      .from(FeaturedItems)
-      .where(and(...baseFeaturedConditions))
-      .orderBy(desc(FeaturedItems.createdAt));
+    const votdConditions = [
+      eq(FeaturedItems.isActive, true),
+      eq(FeaturedItems.contentType, 'votd'),
+      eq(VotdPublishHistory.publishedDate, localCalendarDate),
+      dismissedNotInUserFeed,
+    ];
+    if (shouldExcludeDevSampleFeaturedItems(c)) {
+      votdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+    }
+
+    const selectColumns = {
+      id: FeaturedItems.id,
+      contentType: FeaturedItems.contentType,
+      title: FeaturedItems.title,
+      description: FeaturedItems.description,
+      refId: FeaturedItems.refId,
+      shareToken: FeaturedItems.shareToken,
+      color: FeaturedItems.color,
+      metadata: FeaturedItems.metadata,
+      createdAt: FeaturedItems.createdAt,
+    };
+
+    const [nonVotdRows, votdRows] = await Promise.all([
+      db
+        .select(selectColumns)
+        .from(FeaturedItems)
+        .where(and(...nonVotdConditions))
+        .orderBy(desc(FeaturedItems.createdAt)),
+      db
+        .select(selectColumns)
+        .from(FeaturedItems)
+        .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
+        .where(and(...votdConditions))
+        .orderBy(desc(FeaturedItems.createdAt)),
+    ]);
+
+    let items = [...nonVotdRows, ...votdRows].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
 
     // For 'space' items, auto-complete any where the user is already an owner or member.
     const spaceItems = items.filter((i) => i.contentType === 'space' && (i.shareToken || i.refId));
@@ -136,6 +178,7 @@ app.get('/api/featured/items', async (c) => {
     }
 
     c.res.headers.set('Cache-Control', 'private, max-age=15, stale-while-revalidate=60');
+    c.res.headers.append('Vary', 'X-Votd-Timezone');
     return c.json(
       items.map((i) => ({
         id: i.id,
