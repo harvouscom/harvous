@@ -1296,7 +1296,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                   style={{ background: `var(--color-${profileData.userColor})` }}
                 >
                   <span
-                    className="nav-column-bottom__profile-name font-sans text-[18px] font-semibold"
+                    className="nav-column-bottom__profile-name"
                     style={{ color: getThreadTextColorCSS(profileData.userColor as ThreadColor) }}
                   >
                     {effectiveUserDisplayName}

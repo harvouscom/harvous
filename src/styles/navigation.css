@@ -463,6 +463,7 @@
   overflow: hidden;
 }
 
+/* Match .avatar__initials (mobile nav avatar) + SpaceButton label weight */
 .nav-column-bottom__profile-name {
   display: block;
   width: 100%;
@@ -470,6 +471,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  font-size: 18px;
+  font-style: normal;
+  line-height: 1.2;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .nav-column-bottom__profile-back {
