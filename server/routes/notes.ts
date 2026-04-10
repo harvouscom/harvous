@@ -29,7 +29,8 @@ import {
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
-import { generateNoteId, generateShareToken } from '@/utils/ids';
+import { generateNoteId, generateShareToken, generateTimestampId } from '@/utils/ids';
+import { getHarvousSystemUserId } from '../utils/harvous-admin';
 import { handleAPIError } from '@/utils/error-handling';
 import { validateContent, validateNoteType, validateThreadId, validateSpaceId, normalizeUrl, extractDomain, validateResourceUrl } from '@/utils/validation';
 import { rateLimit, rateLimitNoteCreate } from '@/utils/rate-limit';
@@ -880,8 +881,11 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
     try {
       const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
         .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
-        .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
-      // Include unorganized so note detail returns it when the note is in unorganized (nav shows "Unorganized" not "Thread").
+        .where(and(
+          eq(NoteThreads.noteId, noteId),
+          // thread_unorganized is a globally-unique row (single PK); include it regardless of which user created the row.
+          or(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized')),
+        ));
       allThreads = junctionThreads;
     } catch { allThreads = []; }
 
@@ -892,7 +896,10 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
         if (healed) {
           const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
             .from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id))
-            .where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
+            .where(and(
+              eq(NoteThreads.noteId, noteId),
+              or(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized')),
+            ));
           allThreads = junctionThreads;
           const refreshed = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
           if (refreshed) note = refreshed;
@@ -1185,7 +1192,23 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
     const { threadId } = await c.req.json();
     if (!threadId) return c.json({ success: false, error: 'Thread ID is required' }, 400);
 
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
+    // Find note owned by current user, or fall back to Harvous admin notes in user-owned threads
+    let note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
+    let isAdminNote = false;
+
+    if (!note) {
+      let systemUserId: string | null = null;
+      try { systemUserId = getHarvousSystemUserId(); } catch { /* env not set */ }
+      if (systemUserId) {
+        const adminNote = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, systemUserId))).limit(1));
+        if (adminNote) {
+          // Allow removal only when the thread being removed is owned by this user
+          const userThread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
+          if (userThread) { note = adminNote; isAdminNote = true; }
+        }
+      }
+    }
+
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
 
     const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
@@ -1193,15 +1216,33 @@ route.post('/api/notes/:id/remove-thread', requireAuth, rateLimit('write'), asyn
 
     try {
       await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)));
-      const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
-      if (remainingThreads.length === 0) {
-        await ensureUnorganizedThread(auth.userId);
-        await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, id));
-      } else if (note.threadId === threadId) {
-        // If removed thread was the primary, update to next remaining thread
-        await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
+
+      if (isAdminNote) {
+        // Admin note: check whether the user still has any of their own threads for this note
+        const remainingUserThreads = await db
+          .select({ threadId: NoteThreads.threadId })
+          .from(NoteThreads)
+          .innerJoin(Threads, eq(NoteThreads.threadId, Threads.id))
+          .where(and(eq(NoteThreads.noteId, id), eq(Threads.userId, auth.userId)));
+        if (remainingUserThreads.length === 0) {
+          // Move to unorganized via a junction row so details API returns it correctly
+          await ensureUnorganizedThread(auth.userId);
+          await db.insert(NoteThreads)
+            .values({ id: generateTimestampId('notethread'), noteId: id, threadId: 'thread_unorganized', createdAt: nowISO() })
+            .onConflictDoNothing();
+        }
+        // Do NOT update Notes.threadId — that's the system note's primary home
+      } else {
+        const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
+        if (remainingThreads.length === 0) {
+          await ensureUnorganizedThread(auth.userId);
+          await db.update(Notes).set({ threadId: 'thread_unorganized' }).where(eq(Notes.id, id));
+        } else if (note.threadId === threadId) {
+          // If removed thread was the primary, update to next remaining thread
+          await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
+        }
+        removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {});
       }
-      removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {});
     } catch (deleteError) {
       const standardError = handleAPIError(deleteError, { endpoint: '/api/notes/[id]/remove-thread', action: 'remove_note_from_thread' });
       return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
