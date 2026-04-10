@@ -283,15 +283,16 @@ export default function SpotlightSearch() {
     }, 150); // matches exit animation duration
   }, []);
 
-  // On mobile, pin the overlay to the visual viewport so the keyboard doesn't cover it
+  // On mobile, push the modal above the keyboard by adjusting overlay padding-bottom.
+  // The overlay stays inset:0 (full-screen dim); padding-bottom equal to keyboard
+  // height shifts the flex-end modal up so it sits above the keyboard.
   useEffect(() => {
     if (!isOpen || !isMobileDevice()) return;
     const update = () => {
       const vv = window.visualViewport;
       if (!vv || !overlayRef.current) return;
-      overlayRef.current.style.height = `${vv.height}px`;
-      overlayRef.current.style.top = `${vv.offsetTop}px`;
-      overlayRef.current.style.bottom = 'auto';
+      const keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
+      overlayRef.current.style.paddingBottom = `${Math.max(12, keyboardHeight + 12)}px`;
     };
     update();
     window.visualViewport?.addEventListener('resize', update);
@@ -300,9 +301,7 @@ export default function SpotlightSearch() {
       window.visualViewport?.removeEventListener('resize', update);
       window.visualViewport?.removeEventListener('scroll', update);
       if (overlayRef.current) {
-        overlayRef.current.style.height = '';
-        overlayRef.current.style.top = '';
-        overlayRef.current.style.bottom = '';
+        overlayRef.current.style.paddingBottom = '';
       }
     };
   }, [isOpen]);
