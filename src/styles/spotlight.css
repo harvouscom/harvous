@@ -323,11 +323,34 @@
   }
 }
 
-/* Hide keyboard-shortcut strip on touch devices (CSS failsafe for JS isMobileDevice guard) */
-@media (pointer: coarse) {
-  .spotlight-strip {
-    display: none;
-  }
+/* Mobile drawer variant — Vaul handles the overlay/backdrop */
+.spotlight-drawer-content {
+  background: var(--color-snow-white) !important;
+  z-index: 1000026 !important;
+}
+
+.spotlight-drawer-overlay {
+  z-index: 1000025 !important;
+}
+
+/* Drag handle bar */
+.spotlight-drawer-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: oklch(var(--lch-stone-grey) / 0.3);
+  margin: 10px auto 6px;
+  flex-shrink: 0;
+}
+
+/* Remove card shadow/radius inside drawer — the drawer itself is the container */
+.spotlight-container--drawer {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.spotlight-container--drawer [cmdk-list] {
+  max-height: 55dvh;
 }
 
 /* Reduced motion */

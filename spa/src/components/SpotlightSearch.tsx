@@ -1,6 +1,7 @@
 import { Command } from 'cmdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Drawer, DrawerContent } from '../../../src/components/ui/drawer';
 import { useSearch, type SearchResult, type SearchScope } from '@/hooks/useSearch';
 import {
   addRecentSearchTerm,
@@ -283,34 +284,11 @@ export default function SpotlightSearch() {
     }, 150); // matches exit animation duration
   }, []);
 
-  // On mobile, push the modal above the keyboard by adjusting overlay padding-bottom.
-  // The overlay stays inset:0 (full-screen dim); padding-bottom equal to keyboard
-  // height shifts the flex-end modal up so it sits above the keyboard.
+  // On desktop, focus the search input when the overlay opens.
+  // On mobile, Vaul's onOpenAutoFocus handles focus after the drawer animates in.
   useEffect(() => {
-    if (!isOpen || !isMobileDevice()) return;
-    const update = () => {
-      const vv = window.visualViewport;
-      if (!vv || !overlayRef.current) return;
-      const keyboardHeight = window.innerHeight - vv.height - vv.offsetTop;
-      overlayRef.current.style.paddingBottom = `${Math.max(12, keyboardHeight + 12)}px`;
-    };
-    update();
-    window.visualViewport?.addEventListener('resize', update);
-    window.visualViewport?.addEventListener('scroll', update);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', update);
-      window.visualViewport?.removeEventListener('scroll', update);
-      if (overlayRef.current) {
-        overlayRef.current.style.paddingBottom = '';
-      }
-    };
-  }, [isOpen]);
-
-  // Focus the input after open; delay on mobile so the viewport adjusts before keyboard opens
-  useEffect(() => {
-    if (!isOpen) return;
-    const delay = isMobileDevice() ? 100 : 0;
-    const timer = setTimeout(() => inputRef.current?.focus(), delay);
+    if (!isOpen || isMobileDevice()) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [isOpen]);
 
@@ -396,11 +374,136 @@ export default function SpotlightSearch() {
     [],
   );
 
-  if (!isOpen) return null;
-
   const showRecents = !query.trim() && recentSearches.length > 0;
   const showResults = !!debouncedQuery.trim();
 
+  /** Shared search UI — used inside both the mobile drawer and desktop overlay. */
+  const searchContent = (
+    <Command
+      shouldFilter={false}
+      label="Search"
+      value={commandListValue}
+      onValueChange={setCommandListValue}
+      disablePointerSelection
+    >
+      <div
+        className={`spotlight-input-wrapper${scopeInfo ? ' spotlight-input-wrapper--has-scope' : ''}`}
+      >
+        <SearchIcon />
+        <Command.Input
+          ref={inputRef}
+          value={query}
+          onValueChange={setQuery}
+          placeholder={scopeInfo ? 'Search here...' : 'Search my Harvous...'}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              close();
+            }
+          }}
+        />
+        {scopeInfo && (
+          <div
+            className="spotlight-scope"
+            style={{ '--spotlight-scope-accent': scopeAccentCss } as React.CSSProperties}
+          >
+            <span>In {scopeInfo.label}</span>
+            <button
+              type="button"
+              className="spotlight-scope__dismiss"
+              style={{ color: getThreadIconOnAccentCSS(scopeColorName) }}
+              onClick={() => setScopeInfo(null)}
+              aria-label="Search everywhere"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        )}
+      </div>
+      <Command.List>
+        {showResults && isLoading && (
+          <Command.Loading>
+            <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: '14px', color: 'var(--color-pebble-grey)' }}>
+              Searching...
+            </div>
+          </Command.Loading>
+        )}
+        {showResults && !isLoading && results.length === 0 && (
+          <Command.Empty>No results found</Command.Empty>
+        )}
+        {showResults && results.length > 0 && (
+          <Command.Group heading={`${results.length} result${results.length !== 1 ? 's' : ''}`}>
+            {results.map((result) => (
+              <Command.Item
+                key={result.id}
+                value={result.id}
+                onSelect={() => navigateToResult(result.id)}
+              >
+                <ResultItem result={result} />
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+        {showRecents && (
+          <Command.Group heading="Recent searches">
+            {recentSearches.map((search) => (
+              <Command.Item
+                key={search.term}
+                value={`recent:${search.term}`}
+                onSelect={() => selectRecentTerm(search.term)}
+              >
+                <RecentItem
+                  search={search}
+                  onRemove={() => { removeRecentSearch(search.term); refreshRecents(); }}
+                />
+              </Command.Item>
+            ))}
+          </Command.Group>
+        )}
+        {!showResults && !showRecents && (
+          <Command.Empty>Start typing to search</Command.Empty>
+        )}
+      </Command.List>
+    </Command>
+  );
+
+  // Mobile: use the Vaul drawer system — handles keyboard/viewport natively.
+  if (isMobileDevice()) {
+    return (
+      <Drawer.Root
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsOpen(false);
+            setIsClosing(false);
+            document.body.style.overflow = savedOverflow.current;
+          }
+        }}
+        shouldScaleBackground={false}
+        noBodyStyles={true}
+        fixed={true}
+      >
+        <DrawerContent
+          className="spotlight-drawer-content rounded-t-3xl p-0 border-0"
+          overlayClassName="spotlight-drawer-overlay"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          {/* Drag handle */}
+          <div className="spotlight-drawer-handle" />
+          <div className="spotlight-container spotlight-container--drawer">
+            {searchContent}
+          </div>
+        </DrawerContent>
+      </Drawer.Root>
+    );
+  }
+
+  // Desktop: custom centered overlay with enter/exit animation.
+  if (!isOpen) return null;
   return createPortal(
     <div
       ref={overlayRef}
@@ -411,131 +514,35 @@ export default function SpotlightSearch() {
       aria-label="Search"
     >
       <div className="spotlight-wrapper">
-        {/* Modal card — sits in front */}
         <div className="spotlight-container">
-          <Command
-            shouldFilter={false}
-            label="Search"
-            value={commandListValue}
-            onValueChange={setCommandListValue}
-            disablePointerSelection
-          >
-            <div
-              className={`spotlight-input-wrapper${scopeInfo ? ' spotlight-input-wrapper--has-scope' : ''}`}
-            >
-              <SearchIcon />
-              <Command.Input
-                ref={inputRef}
-                value={query}
-                onValueChange={setQuery}
-                placeholder={scopeInfo ? 'Search here...' : 'Search my Harvous...'}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    close();
-                  }
-                }}
-              />
-              {scopeInfo && (
-                <div
-                  className="spotlight-scope"
-                  style={
-                    {
-                      '--spotlight-scope-accent': scopeAccentCss,
-                    } as React.CSSProperties
-                  }
-                >
-                  <span>In {scopeInfo.label}</span>
-                  <button
-                    type="button"
-                    className="spotlight-scope__dismiss"
-                    style={{ color: getThreadIconOnAccentCSS(scopeColorName) }}
-                    onClick={() => setScopeInfo(null)}
-                    aria-label="Search everywhere"
-                  >
-                    <CloseIcon />
-                  </button>
-                </div>
-              )}
-            </div>
-            <Command.List>
-              {showResults && isLoading && (
-                <Command.Loading>
-                  <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: '14px', color: 'var(--color-pebble-grey)' }}>
-                    Searching...
-                  </div>
-                </Command.Loading>
-              )}
-              {showResults && !isLoading && results.length === 0 && (
-                <Command.Empty>No results found</Command.Empty>
-              )}
-              {showResults && results.length > 0 && (
-                <Command.Group heading={`${results.length} result${results.length !== 1 ? 's' : ''}`}>
-                  {results.map((result) => (
-                    <Command.Item
-                      key={result.id}
-                      value={result.id}
-                      onSelect={() => navigateToResult(result.id)}
-                    >
-                      <ResultItem result={result} />
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              )}
-              {showRecents && (
-                <Command.Group heading="Recent searches">
-                  {recentSearches.map((search) => (
-                    <Command.Item
-                      key={search.term}
-                      value={`recent:${search.term}`}
-                      onSelect={() => selectRecentTerm(search.term)}
-                    >
-                      <RecentItem
-                        search={search}
-                        onRemove={() => { removeRecentSearch(search.term); refreshRecents(); }}
-                      />
-                    </Command.Item>
-                  ))}
-                </Command.Group>
-              )}
-              {!showResults && !showRecents && (
-                <Command.Empty>
-                  Start typing to search
-                </Command.Empty>
-              )}
-            </Command.List>
-          </Command>
+          {searchContent}
         </div>
-
-        {/* Action strip — desktop only; mobile devices rarely use physical keyboard shortcuts */}
-        {!isMobileDevice() && (
-          <div className="spotlight-strip">
-            <div className="action-strip action-strip--mobile">
-              <div className="action-strip__inner">
-                <span className="action-strip__item">
-                  <span className="action-strip__label">
-                    <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
-                  </span>
+        <div className="spotlight-strip">
+          <div className="action-strip action-strip--mobile">
+            <div className="action-strip__inner">
+              <span className="action-strip__item">
+                <span className="action-strip__label">
+                  <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
                 </span>
-                <span className="action-strip__item">
-                  <span className="action-strip__label">
-                    <kbd>↑</kbd> <kbd>↓</kbd> to navigate
-                  </span>
+              </span>
+              <span className="action-strip__item">
+                <span className="action-strip__label">
+                  <kbd>↑</kbd> <kbd>↓</kbd> to navigate
                 </span>
-                <span className="action-strip__item">
-                  <span className="action-strip__label">
-                    <kbd>↵</kbd> to select
-                  </span>
+              </span>
+              <span className="action-strip__item">
+                <span className="action-strip__label">
+                  <kbd>↵</kbd> to select
                 </span>
-                <span className="action-strip__item">
-                  <span className="action-strip__label">
-                    <kbd>Esc</kbd> to close
-                  </span>
+              </span>
+              <span className="action-strip__item">
+                <span className="action-strip__label">
+                  <kbd>Esc</kbd> to close
                 </span>
-              </div>
+              </span>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>,
     document.body,
