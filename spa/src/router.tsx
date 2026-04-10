@@ -111,6 +111,7 @@ const noteRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     space: typeof search.space === 'string' ? search.space : undefined,
     thread: typeof search.thread === 'string' ? search.thread : undefined,
+    from: typeof search.from === 'string' ? search.from : undefined,
   }),
 });
 

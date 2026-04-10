@@ -74,6 +74,8 @@
 
 /* Container — same off-white as .card-stack__inner (main column scroll surface) */
 .spotlight-container {
+  /* Matches .recent-search-row + .spotlight-input-wrapper */
+  --spotlight-field-height: 52px;
   position: relative;
   z-index: 2;
   background: var(--color-snow-white);
@@ -100,7 +102,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  min-height: 52px;
+  min-height: var(--spotlight-field-height);
   border-radius: 16px;
   background: var(--color-gradient-gray);
   box-shadow: var(--shadow-small);
@@ -119,16 +121,18 @@
   fill: var(--color-pebble-grey);
 }
 
+/* Matches CondensedNoteItem primary title (16px / 700) */
 .spotlight-container [cmdk-input] {
   border: none;
   outline: none;
   background: transparent;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--font-sans);
   color: var(--color-deep-grey);
   caret-color: var(--color-bold-blue);
   min-width: 0;
+  line-height: 1.2;
 }
 
 .spotlight-container [cmdk-input]::placeholder {
@@ -216,6 +220,8 @@
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale) */
 .spotlight-container .spotlight-result-row {
+  height: var(--spotlight-field-height) !important;
+  min-height: var(--spotlight-field-height);
   background-color: var(--color-white) !important;
   box-sizing: border-box;
   border: 1px solid transparent;
@@ -252,26 +258,42 @@
     0 6px 16px oklch(var(--lch-deep-grey) / 0.1);
 }
 
-/* Remove button — btn-action variant, shown on hover/select */
-.spotlight-item__remove {
-  position: absolute;
-  right: 0.5rem;
-  top: 50%;
-  translate: 0 -50%;
-  width: 2rem !important;
-  height: 2rem !important;
-  opacity: 0;
-  transition: opacity 0.15s !important;
-  z-index: 1;
+/* Recent rows — chrome from .recent-search-row in navigation.css; cmdk selection ring */
+.spotlight-container .spotlight-recent-row {
+  min-height: var(--spotlight-field-height);
+  height: var(--spotlight-field-height);
+  border: 1px solid transparent;
+  transition:
+    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.2s ease !important;
 }
 
-.spotlight-container [cmdk-item]:hover .spotlight-item__remove,
-.spotlight-container [cmdk-item][data-selected="true"] .spotlight-item__remove {
-  opacity: 1;
+.spotlight-container [cmdk-item]:hover:not([data-selected="true"]) .spotlight-recent-row {
+  box-shadow:
+    var(--shadow-small),
+    0 4px 14px oklch(var(--lch-deep-grey) / 0.09),
+    0 1px 3px oklch(var(--lch-deep-grey) / 0.06);
 }
 
-.spotlight-item__remove .btn-action__icon svg {
-  fill: var(--color-pebble-grey);
+.spotlight-container [cmdk-item][data-selected="true"] .spotlight-recent-row {
+  border-color: oklch(86% 0.014 85);
+  box-shadow:
+    var(--shadow-small),
+    0 10px 28px oklch(var(--lch-deep-grey) / 0.12),
+    0 2px 6px oklch(var(--lch-deep-grey) / 0.06);
+}
+
+.spotlight-container [cmdk-item]:active:not([data-selected="true"]) .spotlight-recent-row {
+  box-shadow:
+    var(--shadow-small),
+    0 2px 8px oklch(var(--lch-deep-grey) / 0.08);
+}
+
+.spotlight-container [cmdk-item][data-selected="true"]:active .spotlight-recent-row {
+  border-color: oklch(86% 0.014 85);
+  box-shadow:
+    var(--shadow-small),
+    0 6px 16px oklch(var(--lch-deep-grey) / 0.1);
 }
 
 /* Empty / loading states */
@@ -353,6 +375,11 @@
   max-height: 55dvh;
 }
 
+.spotlight-container--drawer [cmdk-root] {
+  padding-bottom: env(safe-area-inset-bottom, 24px);
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .spotlight-container,
@@ -361,7 +388,8 @@
     animation-duration: 0.01ms !important;
   }
 
-  .spotlight-container .spotlight-result-row {
+  .spotlight-container .spotlight-result-row,
+  .spotlight-container .spotlight-recent-row {
     transition-duration: 0.01ms !important;
   }
 }

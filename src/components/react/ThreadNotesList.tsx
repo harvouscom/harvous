@@ -1650,7 +1650,6 @@ export default function ThreadNotesList({
             justifyContent: 'center',
             zIndex: 100,
             padding: '1rem',
-            backgroundColor: 'transparent',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}

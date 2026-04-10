@@ -570,7 +570,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             justifyContent: 'center',
             zIndex: 100,
             padding: '1rem',
-            backgroundColor: 'transparent',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}
@@ -635,7 +634,6 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             justifyContent: 'center',
             zIndex: 100,
             padding: '1rem',
-            backgroundColor: 'transparent',
             paddingTop: 'max(1rem, env(safe-area-inset-top))',
             paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
           }}

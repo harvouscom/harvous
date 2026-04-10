@@ -205,6 +205,7 @@
   }
 }
 
+/* Do not set inline backgroundColor on this overlay — it overrides modalOverlayFadeIn (dimmed backdrop). */
 .modal-overlay-enter {
   animation: modalOverlayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
   /* Must sit above all nav chrome (space-switcher: 1000002, sheet: 1000021) */

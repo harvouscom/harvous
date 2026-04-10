@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useUser } from '@clerk/clerk-react';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
@@ -592,35 +593,72 @@ export default function NoteDetailsPanel({
 
   return (
     <>
-      {/* Confirmation Dialog for Removing Last Thread */}
-      {showRemoveConfirm && (
-        <div className="modal-overlay">
-          <div className="modal-dialog">
-            <h3 className="modal-title">
-              Remove from Last Thread?
-            </h3>
-            <p className="modal-body">
-              This is the only thread this note belongs to. Removing it will move the note to the "Unorganized" thread. Are you sure you want to continue?
-            </p>
-            <div className="modal-footer">
-              <ButtonSmall
-                {...({ onClick: handleCancelRemove } as any)}
-                state="Secondary"
-                disabled={isMovingThread}
-              >
-                Cancel
-              </ButtonSmall>
-              <ButtonSmall
-                {...({ onClick: handleConfirmRemove } as any)}
-                state="Delete"
-                disabled={isMovingThread}
-              >
-                {isMovingThread ? 'Moving...' : 'Move to Unorganized'}
-              </ButtonSmall>
+      {/* Confirmation dialog — portal + modal-overlay-enter so backdrop/centering match other modals (not trapped in panel column) */}
+      {showRemoveConfirm &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            className="modal-overlay-enter"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="note-details-remove-last-thread-title"
+            style={{
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1rem',
+              paddingTop: 'max(1rem, env(safe-area-inset-top))',
+              paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+            }}
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isMovingThread) handleCancelRemove();
+            }}
+          >
+            <div
+              className="modal-content-enter"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                backgroundColor: 'white',
+                borderRadius: '0.75rem',
+                padding: '1.5rem',
+                maxWidth: '28rem',
+                width: '100%',
+                pointerEvents: 'auto',
+                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+              }}
+            >
+              <h3 className="modal-title" id="note-details-remove-last-thread-title">
+                Remove from Last Thread?
+              </h3>
+              <p className="modal-body">
+                This is the only thread this note belongs to. Removing it will move the note to the &quot;Unorganized&quot;
+                thread. Are you sure you want to continue?
+              </p>
+              <div className="modal-footer">
+                <ButtonSmall
+                  {...({ onClick: handleCancelRemove } as any)}
+                  state="Secondary"
+                  disabled={isMovingThread}
+                >
+                  Cancel
+                </ButtonSmall>
+                <ButtonSmall
+                  {...({ onClick: handleConfirmRemove } as any)}
+                  state="Delete"
+                  disabled={isMovingThread}
+                >
+                  {isMovingThread ? 'Moving...' : 'Move to Unorganized'}
+                </ButtonSmall>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
 
       <style>{`
         .card-thread-container {

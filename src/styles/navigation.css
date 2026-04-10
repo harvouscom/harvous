@@ -177,6 +177,43 @@
   height: 100%;
 }
 
+/* Recent search rows — RecentSearches (dashboard / find / …) + Spotlight; aligns with condensed note title + field height */
+.recent-search-row {
+  box-sizing: border-box;
+  min-height: 52px;
+  height: 52px;
+  align-items: center;
+}
+
+.recent-search-row .panel__list-item-label {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* Same as `.badge-number` in this file — label is 700 alongside; keep count at nav weight */
+.recent-search-row .badge-number {
+  font-size: 14px;
+  font-family: var(--font-sans);
+  font-weight: 600 !important;
+  color: var(--color-deep-grey);
+  line-height: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.recent-search-row .recent-search-close-icon {
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+.recent-search-row .recent-search-close-icon svg {
+  width: 16px !important;
+  height: 16px !important;
+}
+
 /* ==========================================================================
    Close Icon
    ========================================================================== */

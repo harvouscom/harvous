@@ -1,8 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Drawer, DrawerContent } from '../../../src/components/ui/drawer';
-import { useSearch, type SearchResult, type SearchScope } from '@/hooks/useSearch';
+import {
+  fetchSearchResults,
+  searchQueryKey,
+  useSearch,
+  type SearchResult,
+  type SearchScope,
+} from '@/hooks/useSearch';
 import {
   addRecentSearchTerm,
   recentSearchStorageKey,
@@ -19,6 +26,7 @@ import {
   getCondensedNoteMeshGradient,
   getSolidThreadAccentBarStyle,
 } from '../../../src/components/react/CondensedNoteRowLayout';
+import { formatBadgeCount } from '@/utils/badge-count';
 import { CONDENSED_NOTE_ICON_PX } from '@/utils/condensed-note-row';
 import { router } from '../router';
 import { isMobileDevice } from '@/utils/pwa-prompt';
@@ -169,59 +177,48 @@ function ResultItem({ result }: { result: SearchResult }) {
   );
 }
 
+/** Shared row chrome with [`RecentSearches`](src/components/react/RecentSearches.tsx) via `.recent-search-row`. */
 function RecentItem({
   search,
   onRemove,
+  onPrefetchSearch,
 }: {
   search: { term: string; count: number };
   onRemove: () => void;
+  onPrefetchSearch?: (term: string) => void;
 }) {
-  const accentBarStyle = getCondensedNoteAccentBarStyle(null);
-  const icon = (
-    <svg viewBox="0 0 512 512" aria-hidden="true" style={{ width: CONDENSED_NOTE_ICON_PX, height: CONDENSED_NOTE_ICON_PX, fill: 'var(--color-deep-grey)', opacity: 0.35 }}>
-      <path d="M256 0a256 256 0 1 1 0 512A256 256 0 1 1 256 0zM232 120V256c0 8 4 15.5 10.7 20l96 64c11 7.4 25.9 4.4 33.3-6.7s4.4-25.9-6.7-33.3L280 243.2V120c0-13.3-10.7-24-24-24s-24 10.7-24 24z" />
-    </svg>
-  );
-
   return (
-    <CondensedNoteRowLayout
-      className="relative spotlight-result-row"
-      accentBarStyle={accentBarStyle}
-      icon={icon}
-      paddingRight="2.5rem"
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontWeight: 700,
-            color: 'var(--color-deep-grey)',
-            fontSize: '16px',
-            lineHeight: 1.2,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {search.term}
-        </div>
-        {search.count > 0 && (
-          <span className="badge-count">
-            <span className="badge-number">{search.count}</span>
-          </span>
-        )}
-      </div>
-      <button
-        type="button"
-        className="btn-action spotlight-item__remove"
-        onClick={(e) => { e.stopPropagation(); onRemove(); }}
-        aria-label={`Remove "${search.term}" from recent searches`}
+    <div className="recent-search-item w-full">
+      <div
+        className="relative nav-item-container rounded-2xl px-4 flex flex-row items-center recent-search-row spotlight-recent-row"
+        style={{ background: 'var(--color-gradient-gray)', boxShadow: 'var(--shadow-small)' }}
       >
-        <span className="btn-action__icon">
-          <CloseIcon />
-        </span>
-      </button>
-    </CondensedNoteRowLayout>
+        <div
+          className="flex flex-row flex-fill items-center text-left min-w-0"
+          style={{ color: 'var(--color-deep-grey)' }}
+          onMouseEnter={() => onPrefetchSearch?.(search.term)}
+        >
+          <span className="panel__list-item-label text-truncate">{search.term}</span>
+          <span className="badge-count">
+            <span className="badge-number">{formatBadgeCount(search.count)}</span>
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onRemove();
+          }}
+          className="recent-search-close-icon flex-center shrink-0 cursor-pointer p-0 border-0 bg-transparent ml-auto"
+          aria-label="Remove from recent searches"
+        >
+          <svg className="fill-[var(--color-pebble-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
+          </svg>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -236,6 +233,19 @@ export default function SpotlightSearch() {
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const savedOverflow = useRef('');
+  const queryClient = useQueryClient();
+
+  const prefetchRecentSearch = useCallback(
+    (term: string) => {
+      const t = term.trim();
+      if (!t) return;
+      queryClient.prefetchQuery({
+        queryKey: searchQueryKey(t, scopeInfo?.scope),
+        queryFn: () => fetchSearchResults(t, scopeInfo?.scope),
+      });
+    },
+    [queryClient, scopeInfo?.scope],
+  );
 
   // Debounce query
   useEffect(() => {
@@ -445,7 +455,7 @@ export default function SpotlightSearch() {
           </Command.Group>
         )}
         {showRecents && (
-          <Command.Group heading="Recent searches">
+          <Command.Group>
             {recentSearches.map((search) => (
               <Command.Item
                 key={search.term}
@@ -455,13 +465,14 @@ export default function SpotlightSearch() {
                 <RecentItem
                   search={search}
                   onRemove={() => { removeRecentSearch(search.term); refreshRecents(); }}
+                  onPrefetchSearch={prefetchRecentSearch}
                 />
               </Command.Item>
             ))}
           </Command.Group>
         )}
         {!showResults && !showRecents && (
-          <Command.Empty>Start typing to search</Command.Empty>
+          <Command.Empty>Search to see recent searches</Command.Empty>
         )}
       </Command.List>
     </Command>

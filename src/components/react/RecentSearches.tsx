@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { formatBadgeCount } from '@/utils/badge-count';
 import {
   recentSearchStorageKey,
   recentSearchesUpdatedEvent,
@@ -108,13 +109,13 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({
         {recentSearches.map((search) => (
           <div key={search.term} className="recent-search-item">
             <div
-              className="relative nav-item-container rounded-3xl min-h-[64px] py-5 px-4 flex-row"
+              className="relative nav-item-container rounded-2xl px-4 flex flex-row items-center recent-search-row"
               style={{ background: 'var(--color-gradient-gray)', boxShadow: 'var(--shadow-small)' }}
             >
               <button
                 type="button"
-                className="flex-row flex-fill text-left cursor-pointer transition-[scale,shadow] duration-300"
-                style={{ color: 'var(--color-deep-grey)', minWidth: 0 }}
+                className="flex flex-row flex-fill items-center text-left cursor-pointer transition-[scale,shadow] duration-300 min-w-0"
+                style={{ color: 'var(--color-deep-grey)' }}
                 onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest('.recent-search-close-icon')) return;
@@ -128,8 +129,8 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({
                 <span className="panel__list-item-label text-truncate">
                   {search.term}
                 </span>
-                <span className="badge-count" style={{ background: 'rgba(120,118,111,0.1)' }}>
-                  {search.count}
+                <span className="badge-count">
+                  <span className="badge-number">{formatBadgeCount(search.count)}</span>
                 </span>
               </button>
               <button
@@ -139,10 +140,10 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({
                   e.preventDefault();
                   removeFromRecentSearches(search.term);
                 }}
-                className="recent-search-close-icon flex-center shrink-0 w-6 h-6 cursor-pointer p-0 border-0 bg-transparent ml-auto"
+                className="recent-search-close-icon flex-center shrink-0 cursor-pointer p-0 border-0 bg-transparent ml-auto"
                 aria-label="Remove from recent searches"
               >
-                <svg width="20" height="20" className="fill-[var(--color-pebble-grey)]" viewBox="0 0 384 512" aria-hidden="true">
+                <svg className="fill-[var(--color-pebble-grey)]" viewBox="0 0 384 512" aria-hidden="true">
                   <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
                 </svg>
               </button>

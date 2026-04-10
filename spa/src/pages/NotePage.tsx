@@ -11,7 +11,6 @@ import { useProcessScriptureRefs } from '../hooks/mutations/useProcessScriptureR
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
-import { idToUrl } from '@/utils/url-helpers';
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -70,29 +69,18 @@ export default function NotePage() {
         } catch { /* ignore */ }
       }
       if (!urlThread) urlThread = noteThreadFromUrlRef.current;
-      if (urlThread !== removedThreadId) return;
+      if (urlThread !== null && urlThread !== removedThreadId) return;
 
       const remaining = Array.isArray(d.remainingThreadIds) ? d.remainingThreadIds : [];
       const nextThread = remaining[0] ?? 'thread_unorganized';
 
-      let path = idToUrl(noteId, nextThread);
-      if (typeof window !== 'undefined') {
-        try {
-          const sp = new URLSearchParams(window.location.search);
-          const from = sp.get('from');
-          if (from?.startsWith('note_')) {
-            path = idToUrl(noteId, nextThread, from);
-          }
-          const space = sp.get('space');
-          if (space?.startsWith('space_')) {
-            const u = new URL(path, window.location.origin);
-            u.searchParams.set('space', space);
-            path = u.pathname + u.search;
-          }
-        } catch { /* ignore */ }
-      }
-
-      navigate({ to: path as any, replace: true });
+      const noteSlug = noteId.startsWith('note_') ? noteId.slice('note_'.length) : noteId;
+      navigate({
+        to: '/note/$noteId' as any,
+        params: { noteId: noteSlug } as any,
+        search: (prev: any) => ({ ...prev, thread: nextThread }),
+        replace: true,
+      });
       queryClient.invalidateQueries({ queryKey: ['note', noteId] });
     };
     window.addEventListener('noteRemovedFromThread', handler);
