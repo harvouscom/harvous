@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { useParams } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUser } from '@clerk/clerk-react';
 import { useNote } from '../hooks/queries/useNote';
@@ -11,6 +11,7 @@ import { useProcessScriptureRefs } from '../hooks/mutations/useProcessScriptureR
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
+import { idToUrl } from '@/utils/url-helpers';
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -20,6 +21,7 @@ export default function NotePage() {
   const { data: note, isLoading } = useNote(noteId);
   const { data: _nav } = useNavigation(); // kept warm for nav sidebar
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const updateNoteMutation = useUpdateNote();
   const processScriptureMutation = useProcessScriptureRefs();
 
@@ -49,10 +51,56 @@ export default function NotePage() {
     };
   }, [noteId, queryClient]);
 
-  // Capture ?thread= / ?space= from URL once per noteId so later logic (and async effects)
-  // don't lose context if the SPA strips the query string.
+  // After removing this note from the thread it was opened in, replace ?thread= with the next membership (or Unorganized).
   const noteThreadFromUrlRef = useRef<string | null>(null);
   const noteSpaceIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const d = (e as CustomEvent<{ noteId?: string; threadId?: string; remainingThreadIds?: string[]; skipNavigation?: boolean }>).detail;
+      if (d?.skipNavigation) return;
+      if (!d?.noteId || String(d.noteId) !== String(noteId)) return;
+      const removedThreadId = d.threadId;
+      if (!removedThreadId) return;
+
+      let urlThread: string | null = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const t = new URLSearchParams(window.location.search).get('thread');
+          if (t?.startsWith('thread_')) urlThread = t;
+        } catch { /* ignore */ }
+      }
+      if (!urlThread) urlThread = noteThreadFromUrlRef.current;
+      if (urlThread !== removedThreadId) return;
+
+      const remaining = Array.isArray(d.remainingThreadIds) ? d.remainingThreadIds : [];
+      const nextThread = remaining[0] ?? 'thread_unorganized';
+
+      let path = idToUrl(noteId, nextThread);
+      if (typeof window !== 'undefined') {
+        try {
+          const sp = new URLSearchParams(window.location.search);
+          const from = sp.get('from');
+          if (from?.startsWith('note_')) {
+            path = idToUrl(noteId, nextThread, from);
+          }
+          const space = sp.get('space');
+          if (space?.startsWith('space_')) {
+            const u = new URL(path, window.location.origin);
+            u.searchParams.set('space', space);
+            path = u.pathname + u.search;
+          }
+        } catch { /* ignore */ }
+      }
+
+      navigate({ to: path as any, replace: true });
+      queryClient.invalidateQueries({ queryKey: ['note', noteId] });
+    };
+    window.addEventListener('noteRemovedFromThread', handler);
+    return () => window.removeEventListener('noteRemovedFromThread', handler);
+  }, [noteId, navigate, queryClient]);
+
+  // Capture ?thread= / ?space= from URL once per noteId so later logic (and async effects)
+  // don't lose context if the SPA strips the query string.
   useEffect(() => {
     let capturedThread: string | null = null;
     let capturedSpace: string | null = null;

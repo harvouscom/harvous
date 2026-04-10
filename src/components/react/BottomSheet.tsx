@@ -232,8 +232,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   }, [isMobile, openBottomSheet]);
 
   // Handle closing the bottom sheet
-  const closeBottomSheet = useCallback(() => {
+  const closeBottomSheet = useCallback((skipPanelCloseEvent = false) => {
     setIsVisible(false);
+    // Swipe / Vaul dismiss closes the sheet without running NewNotePanel.closePanel(), so global
+    // listeners (e.g. NotePageAddButton) never receive closeNewNotePanel. Panel-initiated closes
+    // already dispatched the event before we get here — skip to avoid duplicate dispatch.
+    if (!skipPanelCloseEvent) {
+      const type = drawerTypeRef.current;
+      if (type === 'note') {
+        window.dispatchEvent(new CustomEvent('closeNewNotePanel'));
+      } else if (type === 'thread') {
+        window.dispatchEvent(new CustomEvent('closeNewThreadPanel'));
+      } else if (type === 'resource') {
+        window.dispatchEvent(new CustomEvent('closeNewResourcePanel'));
+      }
+    }
     if (onClose && typeof onClose === 'function') {
       onClose();
     }
@@ -329,7 +342,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     };
 
     const handleCloseBottomSheet = () => {
-      closeBottomSheet();
+      closeBottomSheet(true);
       // Clear panel-specific data when closing
       if (drawerType === 'inboxPreview') {
         setInboxPreviewData(null);

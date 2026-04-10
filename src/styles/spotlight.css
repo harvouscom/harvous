@@ -321,8 +321,13 @@
   .spotlight-container [cmdk-list] {
     max-height: min(45dvh, 360px);
   }
+}
 
-
+/* Hide keyboard-shortcut strip on touch devices (CSS failsafe for JS isMobileDevice guard) */
+@media (pointer: coarse) {
+  .spotlight-strip {
+    display: none;
+  }
 }
 
 /* Reduced motion */

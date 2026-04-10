@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import SquareButton from './SquareButton';
 import DefaultTranslationPanel from './DefaultTranslationPanel';
 import MyChurchPanel from './MyChurchPanel';
 import LockPinPanel from './LockPinPanel';
 import { getKeyboardShortcutsReference } from '@/utils/keyboard-shortcuts';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 
 type PreferenceView = 'list' | 'bibleTranslation' | 'myChurch' | 'lockPin' | 'keyboardShortcuts';
 
@@ -14,6 +15,13 @@ interface MyPreferencesPanelProps {
 
 export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: MyPreferencesPanelProps) {
   const [view, setView] = useState<PreferenceView>('list');
+  const hideKeyboardShortcuts = isMobileDevice();
+
+  useEffect(() => {
+    if (hideKeyboardShortcuts && view === 'keyboardShortcuts') {
+      setView('list');
+    }
+  }, [hideKeyboardShortcuts, view]);
 
   if (view === 'bibleTranslation') {
     return (
@@ -45,7 +53,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
     );
   }
 
-  if (view === 'keyboardShortcuts') {
+  if (view === 'keyboardShortcuts' && !hideKeyboardShortcuts) {
     const shortcutRows = getKeyboardShortcutsReference();
     return (
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
@@ -158,7 +166,8 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                 {renderOption('Preferred Bible', () => setView('bibleTranslation'))}
                 {renderOption('My Church', () => setView('myChurch'))}
                 {renderOption('Lock PIN', () => setView('lockPin'))}
-                {renderOption('Keyboard shortcuts', () => setView('keyboardShortcuts'))}
+                {!hideKeyboardShortcuts &&
+                  renderOption('Keyboard shortcuts', () => setView('keyboardShortcuts'))}
               </div>
             </div>
           </div>

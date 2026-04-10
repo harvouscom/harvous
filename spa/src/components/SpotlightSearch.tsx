@@ -20,6 +20,7 @@ import {
 } from '../../../src/components/react/CondensedNoteRowLayout';
 import { CONDENSED_NOTE_ICON_PX } from '@/utils/condensed-note-row';
 import { router } from '../router';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 import '../../../src/styles/spotlight.css';
 
 interface RecentSearch {
@@ -232,6 +233,7 @@ export default function SpotlightSearch() {
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [commandListValue, setCommandListValue] = useState(SPOTLIGHT_NO_LIST_SELECTION);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const savedOverflow = useRef('');
 
   // Debounce query
@@ -280,6 +282,38 @@ export default function SpotlightSearch() {
       document.body.style.overflow = savedOverflow.current;
     }, 150); // matches exit animation duration
   }, []);
+
+  // On mobile, pin the overlay to the visual viewport so the keyboard doesn't cover it
+  useEffect(() => {
+    if (!isOpen || !isMobileDevice()) return;
+    const update = () => {
+      const vv = window.visualViewport;
+      if (!vv || !overlayRef.current) return;
+      overlayRef.current.style.height = `${vv.height}px`;
+      overlayRef.current.style.top = `${vv.offsetTop}px`;
+      overlayRef.current.style.bottom = 'auto';
+    };
+    update();
+    window.visualViewport?.addEventListener('resize', update);
+    window.visualViewport?.addEventListener('scroll', update);
+    return () => {
+      window.visualViewport?.removeEventListener('resize', update);
+      window.visualViewport?.removeEventListener('scroll', update);
+      if (overlayRef.current) {
+        overlayRef.current.style.height = '';
+        overlayRef.current.style.top = '';
+        overlayRef.current.style.bottom = '';
+      }
+    };
+  }, [isOpen]);
+
+  // Focus the input after open; delay on mobile so the viewport adjusts before keyboard opens
+  useEffect(() => {
+    if (!isOpen) return;
+    const delay = isMobileDevice() ? 100 : 0;
+    const timer = setTimeout(() => inputRef.current?.focus(), delay);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
 
   // Listen for open/close events
   useEffect(() => {
@@ -392,10 +426,10 @@ export default function SpotlightSearch() {
             >
               <SearchIcon />
               <Command.Input
+                ref={inputRef}
                 value={query}
                 onValueChange={setQuery}
                 placeholder={scopeInfo ? 'Search here...' : 'Search my Harvous...'}
-                autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     e.preventDefault();
@@ -474,33 +508,35 @@ export default function SpotlightSearch() {
           </Command>
         </div>
 
-        {/* Action strip — peeks out from behind the card's bottom edge */}
-        <div className="spotlight-strip">
-          <div className="action-strip action-strip--mobile">
-            <div className="action-strip__inner">
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
+        {/* Action strip — desktop only; mobile devices rarely use physical keyboard shortcuts */}
+        {!isMobileDevice() && (
+          <div className="spotlight-strip">
+            <div className="action-strip action-strip--mobile">
+              <div className="action-strip__inner">
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>↑</kbd> <kbd>↓</kbd> to navigate
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>↑</kbd> <kbd>↓</kbd> to navigate
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>↵</kbd> to select
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>↵</kbd> to select
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>Esc</kbd> to close
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>Esc</kbd> to close
+                  </span>
                 </span>
-              </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>,
     document.body,
