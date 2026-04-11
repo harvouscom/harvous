@@ -70316,18 +70316,29 @@ var THREAD_COLORS = [
   // var(--color-green)
 ];
 var USER_AVATAR_COLORS = THREAD_COLORS.filter((c) => c !== "paper");
+var LEGACY_THREAD_COLOR_ALIASES = {
+  "blessed-blue": "blue",
+  "graceful-gold": "yellow",
+  "mindful-mint": "green",
+  "pleasant-peach": "orange",
+  "peaceful-pink": "pink",
+  "lovely-lavender": "purple",
+  paper: "paper"
+};
 function getThreadColorCSS(color) {
   if (!color) return "var(--color-paper)";
+  const key2 = String(color).toLowerCase();
+  const normalized = LEGACY_THREAD_COLOR_ALIASES[key2] ?? key2;
   const colorMap = {
-    "paper": "var(--color-paper)",
-    "blue": "var(--color-blue)",
-    "yellow": "var(--color-yellow)",
-    "green": "var(--color-green)",
-    "pink": "var(--color-pink)",
-    "orange": "var(--color-orange)",
-    "purple": "var(--color-purple)"
+    paper: "var(--color-paper)",
+    blue: "var(--color-blue)",
+    yellow: "var(--color-yellow)",
+    green: "var(--color-green)",
+    pink: "var(--color-pink)",
+    orange: "var(--color-orange)",
+    purple: "var(--color-purple)"
   };
-  return colorMap[color] || "var(--color-paper)";
+  return colorMap[normalized] || "var(--color-paper)";
 }
 function getThreadGradientCSS(color) {
   const baseColor = getThreadColorCSS(color);
@@ -73161,6 +73172,7 @@ route7.get("/api/search", requireAuth, async (c) => {
     const noteScopeFilters = threadIdParam ? [eq(Notes.threadId, threadIdParam)] : spaceIdParam ? [eq(Notes.spaceId, spaceIdParam)] : [];
     const threadScopeFilters = spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
     const useFTS = trimmedQuery.length >= 3;
+    const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : "";
     let notesRows = [];
     let threadsRows = [];
     if (searchNotes) {
@@ -73172,6 +73184,7 @@ route7.get("/api/search", requireAuth, async (c) => {
       )`;
       if (useFTS) {
         const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, ''))`;
         notesRows = await db.select({
           id: Notes.id,
           title: Notes.title,
@@ -73187,10 +73200,15 @@ route7.get("/api/search", requireAuth, async (c) => {
             eq(Notes.userId, userId),
             not(eq(Notes.contentEncrypted, true)),
             ...noteScopeFilters,
-            sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')) @@ ${tsQuery}`
+            or(
+              sql`${noteTsVector} @@ ${tsQuery}`,
+              like(Notes.title, ftsSubstringPattern),
+              like(Notes.content, ftsSubstringPattern),
+              sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`
+            )
           )
         ).orderBy(
-          sql`ts_rank(to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')), ${tsQuery}) DESC`,
+          sql`CASE WHEN ${noteTsVector} @@ ${tsQuery} THEN ts_rank(${noteTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
           desc(Notes.updatedAt)
         ).limit(limit);
       } else {
@@ -73222,6 +73240,7 @@ route7.get("/api/search", requireAuth, async (c) => {
     if (searchThreads) {
       if (useFTS) {
         const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        const threadTsVector = sql`to_tsvector('english', ${Threads.title})`;
         threadsRows = await db.select({
           id: Threads.id,
           title: Threads.title,
@@ -73234,10 +73253,14 @@ route7.get("/api/search", requireAuth, async (c) => {
           and(
             eq(Threads.userId, userId),
             ...threadScopeFilters,
-            sql`to_tsvector('english', ${Threads.title}) @@ ${tsQuery}`
+            or(
+              sql`${threadTsVector} @@ ${tsQuery}`,
+              like(Threads.title, ftsSubstringPattern),
+              sql`COALESCE(${Threads.subtitle}, '') ILIKE ${ftsSubstringPattern}`
+            )
           )
         ).orderBy(
-          sql`ts_rank(to_tsvector('english', ${Threads.title}), ${tsQuery}) DESC`,
+          sql`CASE WHEN ${threadTsVector} @@ ${tsQuery} THEN ts_rank(${threadTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
           desc(Threads.updatedAt)
         ).limit(limit);
       } else {

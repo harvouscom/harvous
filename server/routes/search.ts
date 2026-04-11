@@ -2,9 +2,10 @@
  * GET /api/search
  *
  * Search notes and threads by text query.
- * Uses Postgres full-text search (GIN indices) for fast, relevance-ranked results
- * with English stemming. Falls back to ILIKE for short queries (<3 chars) where
- * FTS stemming may lose precision.
+ * For queries with 3+ characters: combines Postgres full-text search (GIN indices,
+ * English stemming) with substring ILIKE so prefixes like "tab" match "tables"
+ * (FTS stems "tables" to "tabl", which plainto_tsquery("tab") does not match).
+ * Shorter queries use ILIKE only.
  *
  * Prerequisite: Run scripts/add-fts-indices.sql to create GIN indices.
  *
@@ -47,10 +48,11 @@ route.get('/api/search', requireAuth, async (c) => {
     const threadScopeFilters =
       spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
 
-    // Use full-text search for queries >= 3 chars, ILIKE for shorter ones.
-    // FTS provides stemming ("running" matches "run") and is indexed via GIN.
-    // Short queries like "Go" would get over-stemmed, so ILIKE is better there.
+    // Use FTS + substring ILIKE for queries >= 3 chars; ILIKE only for shorter ones.
+    // FTS provides stemming ("running" matches "run") and is indexed via GIN; ILIKE
+    // catches partial-word matches FTS stems can miss. Short queries like "Go" use ILIKE only.
     const useFTS = trimmedQuery.length >= 3;
+    const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : '';
 
     let notesRows: {
       id: string;
@@ -83,8 +85,8 @@ route.get('/api/search', requireAuth, async (c) => {
       )`;
 
       if (useFTS) {
-        // Postgres full-text search with ts_rank for relevance ordering
         const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        const noteTsVector = sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, ''))`;
         notesRows = await db
           .select({
             id: Notes.id,
@@ -103,11 +105,16 @@ route.get('/api/search', requireAuth, async (c) => {
               eq(Notes.userId, userId),
               not(eq(Notes.contentEncrypted, true)),
               ...noteScopeFilters,
-              sql`to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')) @@ ${tsQuery}`,
+              or(
+                sql`${noteTsVector} @@ ${tsQuery}`,
+                like(Notes.title, ftsSubstringPattern),
+                like(Notes.content, ftsSubstringPattern),
+                sql`COALESCE(${scriptureTranslationSql}, '') ILIKE ${ftsSubstringPattern}`,
+              ),
             ),
           )
           .orderBy(
-            sql`ts_rank(to_tsvector('english', COALESCE(${Notes.title}, '') || ' ' || ${Notes.content} || ' ' || COALESCE(${scriptureTranslationSql}, '')), ${tsQuery}) DESC`,
+            sql`CASE WHEN ${noteTsVector} @@ ${tsQuery} THEN ts_rank(${noteTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
             desc(Notes.updatedAt),
           )
           .limit(limit);
@@ -147,6 +154,7 @@ route.get('/api/search', requireAuth, async (c) => {
     if (searchThreads) {
       if (useFTS) {
         const tsQuery = sql`plainto_tsquery('english', ${trimmedQuery})`;
+        const threadTsVector = sql`to_tsvector('english', ${Threads.title})`;
         threadsRows = await db
           .select({
             id: Threads.id,
@@ -162,11 +170,15 @@ route.get('/api/search', requireAuth, async (c) => {
             and(
               eq(Threads.userId, userId),
               ...threadScopeFilters,
-              sql`to_tsvector('english', ${Threads.title}) @@ ${tsQuery}`,
+              or(
+                sql`${threadTsVector} @@ ${tsQuery}`,
+                like(Threads.title, ftsSubstringPattern),
+                sql`COALESCE(${Threads.subtitle}, '') ILIKE ${ftsSubstringPattern}`,
+              ),
             ),
           )
           .orderBy(
-            sql`ts_rank(to_tsvector('english', ${Threads.title}), ${tsQuery}) DESC`,
+            sql`CASE WHEN ${threadTsVector} @@ ${tsQuery} THEN ts_rank(${threadTsVector}, ${tsQuery}) ELSE -1::real END DESC`,
             desc(Threads.updatedAt),
           )
           .limit(limit);

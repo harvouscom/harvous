@@ -22,36 +22,43 @@ This document covers the Tiptap upgrade path, adding rich media embeds (images, 
 
 ### What we gained
 
-| Feature | Version | Value |
-|---------|---------|-------|
-| Reduced React re-renders | v3.0+ | `shouldRerenderOnTransaction` off by default — fewer unnecessary renders in our 4000+ line editor |
-| IME input fixes | v3.x | Better CJK input; fixes composition events in mark views |
-| Markdown support | v3.7+ | `@tiptap/markdown` package — enables note import/export |
-| Mark Views API | v3.x | Render marks as React components — future option for scripture pills |
-| ResizableNodeView | v3.10+ | Built-in resizable media with configurable handles, aspect ratio locking |
-| Text Direction (RTL) | v3.11+ | `setTextDirection()` command — enables Hebrew/Arabic study |
-| Position Mapping | v3.12+ | `MappablePosition` class — essential for real-time collaboration |
+
+| Feature                  | Version | Value                                                                                             |
+| ------------------------ | ------- | ------------------------------------------------------------------------------------------------- |
+| Reduced React re-renders | v3.0+   | `shouldRerenderOnTransaction` off by default — fewer unnecessary renders in our 4000+ line editor |
+| IME input fixes          | v3.x    | Better CJK input; fixes composition events in mark views                                          |
+| Markdown support         | v3.7+   | `@tiptap/markdown` package — enables note import/export                                           |
+| Mark Views API           | v3.x    | Render marks as React components — future option for scripture pills                              |
+| ResizableNodeView        | v3.10+  | Built-in resizable media with configurable handles, aspect ratio locking                          |
+| Text Direction (RTL)     | v3.11+  | `setTextDirection()` command — enables Hebrew/Arabic study                                        |
+| Position Mapping         | v3.12+  | `MappablePosition` class — essential for real-time collaboration                                  |
+
 
 ### Breaking changes handled
 
 **1. BubbleMenu: tippy.js → Floating UI**
+
 - Replaced TipTap's BubbleMenu entirely with a custom floating toolbar
 - Uses `createPortal` + `editor.on('selectionUpdate')` + `view.coordsAtPos()` — same pattern as the translation picker
 - More reliable than BubbleMenu plugin, no dependency on internal positioning library
 
 **2. ProseMirror imports**
+
 - Changed `prosemirror-state` imports to `@tiptap/pm/state` in all custom extensions
 - Files updated: `TiptapEditor.tsx`, `TiptapScripturePill.ts`, `TiptapBoldCustom.ts`, `TiptapHighlightCustom.ts`
 
 **3. `clearContent()` / `setContent()` emit behavior**
+
 - Audited all calls — both existing calls already used `{ emitUpdate: false }` — no changes needed
 
 **4. `mergeNestedSpanStyles` defaults to `true`**
+
 - Added `mergeNestedSpanStyles: false` to editor config to preserve scripture pill `data-*` attributes
 
 ### Our customizations were safe
 
 All four custom extensions use APIs that are stable across the v3.x range:
+
 - `Mark.create()` / `Extension.extend()` — unchanged signatures
 - ProseMirror direct API (`tr.setStoredMarks`, `state.doc.resolve`, `view.dispatch`) — ProseMirror hasn't changed these in years
 - `appendTransaction` plugin pattern — core ProseMirror, not Tiptap-specific
@@ -59,9 +66,9 @@ All four custom extensions use APIs that are stable across the v3.x range:
 
 ### Upgrade lessons learned
 
-- **Version mismatch was the root cause of BubbleMenu failures** — `@tiptap/core` drifted to 3.12.0 via transitive deps while `@tiptap/react` stayed at 3.6.5. Always pin all `@tiptap/*` packages to the same version.
+- **Version mismatch was the root cause of BubbleMenu failures** — `@tiptap/core` drifted to 3.12.0 via transitive deps while `@tiptap/react` stayed at 3.6.5. Always pin all `@tiptap/`* packages to the same version.
 - **Custom floating UI is more reliable than BubbleMenu** — The BubbleMenu plugin re-registers on every render if `shouldShow`/`appendTo` aren't memoized. A custom `createPortal` approach with `selectionUpdate` listener avoids this entirely.
-- **`@vitejs/plugin-react` must be pinned to 5.x** — 6.x pulls in Vite 8 which requires Node 22+. Pin to `~5.1.4`.
+- `**@vitejs/plugin-react` must be pinned to 5.x** — 6.x pulls in Vite 8 which requires Node 22+. Pin to `~5.1.4`.
 
 ---
 
@@ -178,6 +185,7 @@ The Tiptap upgrade directly enables future collaboration:
 ### What still needs to happen (separate effort)
 
 Per the [REALTIME_LIVEBLOCKS_PLAN.md](./REALTIME_LIVEBLOCKS_PLAN.md):
+
 1. Install Liveblocks (or Supabase Realtime + Yjs)
 2. Add auth endpoint for room access control
 3. Add presence indicators (who's editing)
@@ -187,7 +195,7 @@ Per the [REALTIME_LIVEBLOCKS_PLAN.md](./REALTIME_LIVEBLOCKS_PLAN.md):
 ### Custom extension considerations for collab
 
 - **ScripturePill `noteId` attribute:** When User A creates a pill with `noteId: "pending"`, User B shouldn't see/interact with it until the noteId resolves. May need a `visibility` attribute or filter pending pills from broadcast.
-- **`appendTransaction` stored marks plugin:** Runs locally on each client — safe for collab since stored marks are per-client state.
+- `**appendTransaction` stored marks plugin:** Runs locally on each client — safe for collab since stored marks are per-client state.
 - **NoteLink navigation:** `safeNavigate` uses Astro view transitions — needs testing in multiplayer (two users clicking different links simultaneously).
 
 ---
@@ -201,6 +209,7 @@ Create a Vitest test that spins up a headless Tiptap editor and validates core b
 **File:** `src/components/react/__tests__/tiptap-editor.test.ts`
 
 **Test cases:**
+
 1. **Pill creation:** Insert text "John 3:16", trigger detection → pill mark exists in doc
 2. **Pill mark isolation:** Move cursor past pill, insert text → new text has no pill mark
 3. **Pill backspace:** Place cursor inside pill, press backspace → entire pill removed
@@ -211,15 +220,15 @@ Create a Vitest test that spins up a headless Tiptap editor and validates core b
 
 ### Manual testing checklist (per-upgrade)
 
-- [ ] Scripture pill creation (desktop + mobile)
-- [ ] Pill click navigation
-- [ ] iOS double-space-to-period behavior
-- [ ] Paste from external sources (Google Docs, Word, web)
-- [ ] BubbleMenu positioning on text selection
-- [ ] All embed types render correctly
-- [ ] Embed resize works (images)
-- [ ] Embed deletion
-- [ ] Offline → online: embeds with pending uploads resume
+- Scripture pill creation (desktop + mobile)
+- Pill click navigation
+- iOS double-space-to-period behavior
+- Paste from external sources (Google Docs, Word, web)
+- BubbleMenu positioning on text selection
+- All embed types render correctly
+- Embed resize works (images)
+- Embed deletion
+- Offline → online: embeds with pending uploads resume
 
 ---
 
@@ -245,12 +254,15 @@ Create a Vitest test that spins up a headless Tiptap editor and validates core b
 
 ## Estimated effort
 
-| Phase | Effort | Risk |
-|-------|--------|------|
-| Tiptap upgrade | 1-2 days | Medium — breaking changes are well-documented |
-| Editor integration tests | 0.5 day | Low |
-| ImageEmbed + Supabase Storage | 2-3 days | Medium — new infra (storage bucket, upload endpoint) |
-| LinkEmbed | 1 day | Low — endpoint already exists |
-| VideoEmbed | 1 day | Low — no upload, just URL detection |
-| PDFEmbed | 1-2 days | Medium — thumbnail generation |
-| Collaboration | 2-3 weeks | High — see REALTIME_LIVEBLOCKS_PLAN.md |
+
+| Phase                         | Effort    | Risk                                                 |
+| ----------------------------- | --------- | ---------------------------------------------------- |
+| Tiptap upgrade                | 1-2 days  | Medium — breaking changes are well-documented        |
+| Editor integration tests      | 0.5 day   | Low                                                  |
+| ImageEmbed + Supabase Storage | 2-3 days  | Medium — new infra (storage bucket, upload endpoint) |
+| LinkEmbed                     | 1 day     | Low — endpoint already exists                        |
+| VideoEmbed                    | 1 day     | Low — no upload, just URL detection                  |
+| PDFEmbed                      | 1-2 days  | Medium — thumbnail generation                        |
+| Collaboration                 | 2-3 weeks | High — see REALTIME_LIVEBLOCKS_PLAN.md               |
+
+
