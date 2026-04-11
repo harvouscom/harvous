@@ -12,7 +12,7 @@ import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-help
 /**
  * Check if user is currently typing in an input field
  */
-function isTypingInInput(): boolean {
+export function isTypingInInput(): boolean {
   if (typeof document === 'undefined') return false;
   
   const activeElement = document.activeElement as HTMLElement | null;
