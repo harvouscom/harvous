@@ -122,40 +122,42 @@ async function publishVotdCore(params: {
   const historyId = `votd_hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const year = parseInt(dateStr.slice(0, 4), 10);
 
-  await db.insert(FeaturedItems).values({
-    id: featuredItemId,
-    contentType: 'votd',
-    title: reference,
-    description: excerpt || null,
-    refId: scheduleId,
-    shareToken: null,
-    color: null,
-    isActive: true,
-    startsAt: todayStart,
-    endsAt: tomorrowStart,
-    metadata: JSON.stringify(metadata),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
+  await db.transaction(async (tx) => {
+    await tx.insert(FeaturedItems).values({
+      id: featuredItemId,
+      contentType: 'votd',
+      title: reference,
+      description: excerpt || null,
+      refId: scheduleId,
+      shareToken: null,
+      color: null,
+      isActive: true,
+      startsAt: todayStart,
+      endsAt: tomorrowStart,
+      metadata: JSON.stringify(metadata),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
 
-  await db.insert(VotdPublishHistory).values({
-    id: historyId,
-    reference,
-    translation,
-    featuredItemId,
-    source,
-    label,
-    publishedDate: dateStr,
-    year,
-    createdAt: now(),
-  });
+    await tx.insert(VotdPublishHistory).values({
+      id: historyId,
+      reference,
+      translation,
+      featuredItemId,
+      source,
+      label,
+      publishedDate: dateStr,
+      year,
+      createdAt: now(),
+    });
 
-  if (scheduleId) {
-    await db
-      .update(VotdSchedule)
-      .set({ isPublished: true, featuredItemId, scheduledDate: dateStr, updatedAt: nowISO() })
-      .where(eq(VotdSchedule.id, scheduleId));
-  }
+    if (scheduleId) {
+      await tx
+        .update(VotdSchedule)
+        .set({ isPublished: true, featuredItemId, scheduledDate: dateStr, updatedAt: nowISO() })
+        .where(eq(VotdSchedule.id, scheduleId));
+    }
+  });
 
   return { featuredItemId };
 }

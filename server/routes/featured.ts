@@ -101,7 +101,8 @@ app.get('/api/featured/items', async (c) => {
         .from(FeaturedItems)
         .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
         .where(and(...votdConditions))
-        .orderBy(desc(FeaturedItems.createdAt)),
+        .orderBy(desc(FeaturedItems.createdAt))
+        .limit(1),
     ]);
 
     let items = [...nonVotdRows, ...votdRows].sort(
