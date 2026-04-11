@@ -3,6 +3,8 @@
  * Global key stays `harvous-recent-searches` for backward compatibility.
  */
 
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
+
 export type RecentSearchStorageScope =
   | null
   | { type: 'thread' | 'space'; id: string }
@@ -44,7 +46,7 @@ export function addRecentSearchTerm(
 ): void {
   if (typeof window === 'undefined') return;
   const trimmed = term.trim();
-  if (!trimmed) return;
+  if (!trimmed || trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
 
   const key = recentSearchStorageKey(scope);
   const recentSearches = JSON.parse(localStorage.getItem(key) || '[]') as Array<{ term?: string; count?: number } | string>;

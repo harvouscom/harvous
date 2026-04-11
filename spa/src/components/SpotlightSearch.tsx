@@ -15,6 +15,7 @@ import {
   recentSearchStorageKey,
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { idToUrl } from '@/utils/url-helpers';
 import { getThreadIconOnAccentCSS } from '@/utils/colors';
 import { useThread } from '../hooks/queries/useThread';
@@ -65,11 +66,16 @@ function getRecentSearches(): RecentSearch[] {
   try {
     const key = recentSearchStorageKey(null);
     const stored = JSON.parse(localStorage.getItem(key) || '[]');
-    return stored
-      .map((item: any) =>
-        typeof item === 'string' ? { term: item, count: 0 } : item,
-      )
-      .slice(0, 5);
+    const mapped = stored.map((item: any) =>
+      typeof item === 'string' ? { term: item, count: 0 } : item,
+    );
+    const filtered = mapped.filter(
+      (item: RecentSearch) => item.term.trim().length >= MIN_SEARCH_QUERY_LENGTH,
+    );
+    if (filtered.length !== mapped.length) {
+      localStorage.setItem(key, JSON.stringify(filtered));
+    }
+    return filtered.slice(0, 5);
   } catch {
     return [];
   }
@@ -156,7 +162,7 @@ export default function SpotlightSearch() {
   const prefetchRecentSearch = useCallback(
     (term: string) => {
       const t = term.trim();
-      if (!t) return;
+      if (!t || t.length < MIN_SEARCH_QUERY_LENGTH) return;
       queryClient.prefetchQuery({
         queryKey: searchQueryKey(t, scopeInfo?.scope),
         queryFn: () => fetchSearchResults(t, scopeInfo?.scope),
@@ -179,7 +185,7 @@ export default function SpotlightSearch() {
   useEffect(() => {
     if (!isOpen) return;
     const trimmed = debouncedQuery.trim();
-    if (trimmed.length < 2) return;
+    if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
     if (isLoading) return;
     addRecentSearchTerm(null, trimmed, { resultCount: results.length });
   }, [isOpen, debouncedQuery, isLoading, results.length]);
@@ -272,8 +278,9 @@ export default function SpotlightSearch() {
   // Navigate to a result
   const navigateToResult = useCallback(
     (id: string) => {
-      if (query.trim()) {
-        addRecentSearchTerm(null, query.trim());
+      const navTerm = query.trim();
+      if (navTerm.length >= MIN_SEARCH_QUERY_LENGTH) {
+        addRecentSearchTerm(null, navTerm);
       }
       close();
       router.navigate({ to: idToUrl(id) as any });
@@ -310,7 +317,9 @@ export default function SpotlightSearch() {
   );
 
   const showRecents = !query.trim() && recentSearches.length > 0;
-  const showResults = !!debouncedQuery.trim();
+  const debouncedTrim = debouncedQuery.trim();
+  const showResults = debouncedTrim.length >= MIN_SEARCH_QUERY_LENGTH;
+  const showTooShortHint = debouncedTrim.length > 0 && debouncedTrim.length < MIN_SEARCH_QUERY_LENGTH;
 
   /** Shared search UI — used inside both the mobile drawer and desktop overlay. */
   const searchContent = (
@@ -378,6 +387,11 @@ export default function SpotlightSearch() {
         )}
       </div>
       <Command.List>
+        {showTooShortHint && (
+          <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: '14px', color: 'var(--color-pebble-grey)' }}>
+            Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.
+          </div>
+        )}
         {showResults && isLoading && (
           <Command.Loading>
             <div style={{ padding: '32px 16px', textAlign: 'center', fontSize: '14px', color: 'var(--color-pebble-grey)' }}>

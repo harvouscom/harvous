@@ -4,6 +4,7 @@ import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 
 function getSearchQueryFromRouter(search: string | Record<string, unknown> | undefined): string {
   if (search == null) return '';
@@ -21,10 +22,11 @@ export default function FindPage() {
   const query = getSearchQueryFromRouter(locationSearch);
 
   const prefetchSearch = (term: string) => {
-    if (!term.trim()) return;
+    const t = term.trim();
+    if (!t || t.length < MIN_SEARCH_QUERY_LENGTH) return;
     queryClient.prefetchQuery({
-      queryKey: searchQueryKey(term),
-      queryFn: () => fetchSearchResults(term),
+      queryKey: searchQueryKey(t),
+      queryFn: () => fetchSearchResults(t),
     });
   };
 

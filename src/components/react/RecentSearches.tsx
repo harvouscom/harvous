@@ -6,6 +6,7 @@ import {
   recentSearchesUpdatedEvent,
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 
 interface RecentSearch {
   term: string;
@@ -43,13 +44,20 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({
 
     const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
     // Handle both old format (strings) and new format (objects)
-    const searches = stored.map((item: any) => {
-      if (typeof item === 'string') {
-        return { term: item, count: 0 };
-      }
-      return item;
-    }).slice(0, 5);
-    
+    const searches = stored
+      .map((item: any) => {
+        if (typeof item === 'string') {
+          return { term: item, count: 0 };
+        }
+        return item;
+      })
+      .filter((item: RecentSearch) => item.term.trim().length >= MIN_SEARCH_QUERY_LENGTH)
+      .slice(0, 5);
+
+    if (searches.length !== stored.length) {
+      localStorage.setItem(storageKey, JSON.stringify(searches));
+    }
+
     setRecentSearches(searches);
   }, [storageKey]);
 

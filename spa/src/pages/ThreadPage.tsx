@@ -13,6 +13,7 @@ import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useDebouncedSearchState } from '../hooks/useDebouncedSearchState';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import {
   getStoredThreadContentTab,
   setStoredThreadContentTab,
@@ -73,10 +74,11 @@ export default function ThreadPage() {
 
   const prefetchThreadSearch = useCallback(
     (term: string) => {
-      if (!term.trim()) return;
+      const t = term.trim();
+      if (!t || t.length < MIN_SEARCH_QUERY_LENGTH) return;
       queryClient.prefetchQuery({
-        queryKey: searchQueryKey(term, { threadId }),
-        queryFn: () => fetchSearchResults(term, { threadId }),
+        queryKey: searchQueryKey(t, { threadId }),
+        queryFn: () => fetchSearchResults(t, { threadId }),
       });
     },
     [queryClient, threadId],

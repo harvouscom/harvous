@@ -5,7 +5,7 @@
  * For queries with 3+ characters: combines Postgres full-text search (GIN indices,
  * English stemming) with substring ILIKE so prefixes like "tab" match "tables"
  * (FTS stems "tables" to "tabl", which plainto_tsquery("tab") does not match).
- * Shorter queries use ILIKE only.
+ * Queries shorter than MIN_SEARCH_QUERY_LENGTH return no results (client also avoids fetching).
  *
  * Prerequisite: Run scripts/add-fts-indices.sql to create GIN indices.
  *
@@ -16,6 +16,7 @@ import { Hono } from 'hono';
 import { getAuthenticatedAuth, requireAuth } from '../middleware/auth';
 import { db, Notes, Threads, ScriptureMetadata, eq, and, or, like, desc, not, sql } from '../db';
 import { handleAPIError } from '@/utils/error-handling';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { getThreadColorsForNotesBatch } from '../utils/dashboard-data';
 
 const route = new Hono();
@@ -36,6 +37,9 @@ route.get('/api/search', requireAuth, async (c) => {
     }
 
     const trimmedQuery = query.trim();
+    if (trimmedQuery.length < MIN_SEARCH_QUERY_LENGTH) {
+      return c.json({ results: [], query, type, total: 0 });
+    }
     const searchNotes = type === 'all' || type === 'notes';
     // Thread-scoped search is notes-only (one thread). If both threadId and spaceId are sent, threadId wins for notes; threads are not searched.
     const searchThreads =
@@ -51,7 +55,7 @@ route.get('/api/search', requireAuth, async (c) => {
     // Use FTS + substring ILIKE for queries >= 3 chars; ILIKE only for shorter ones.
     // FTS provides stemming ("running" matches "run") and is indexed via GIN; ILIKE
     // catches partial-word matches FTS stems can miss. Short queries like "Go" use ILIKE only.
-    const useFTS = trimmedQuery.length >= 3;
+    const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : '';
 
     let notesRows: {

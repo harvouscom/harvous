@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { addRecentSearchTerm, type RecentSearchStorageScope } from '@/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 
 interface FindSearchInputProps {
   className?: string;
@@ -98,6 +99,10 @@ export default function FindSearchInput({
     const trimmedQuery = displayValue.trim();
     
     if (!trimmedQuery) {
+      return;
+    }
+
+    if (trimmedQuery.length < MIN_SEARCH_QUERY_LENGTH) {
       return;
     }
 

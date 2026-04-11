@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 
 export type SearchResultType = 'all' | 'notes' | 'threads';
 
@@ -62,7 +63,7 @@ export function useSearch(query: string, scope?: SearchScope, resultType: Search
   return useQuery({
     queryKey: searchQueryKey(trimmed, scope, resultType),
     queryFn: () => fetchSearchResults(trimmed, scope, resultType),
-    enabled: trimmed.length > 0,
+    enabled: trimmed.length >= MIN_SEARCH_QUERY_LENGTH,
     staleTime: 30_000,
   });
 }

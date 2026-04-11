@@ -73153,6 +73153,11 @@ var stats_default = route6;
 
 // server/routes/search.ts
 init_db2();
+
+// src/utils/search-query.ts
+var MIN_SEARCH_QUERY_LENGTH = 3;
+
+// server/routes/search.ts
 var route7 = new Hono2();
 route7.get("/api/search", requireAuth, async (c) => {
   try {
@@ -73167,11 +73172,14 @@ route7.get("/api/search", requireAuth, async (c) => {
       return c.json({ results: [] });
     }
     const trimmedQuery = query2.trim();
+    if (trimmedQuery.length < MIN_SEARCH_QUERY_LENGTH) {
+      return c.json({ results: [], query: query2, type, total: 0 });
+    }
     const searchNotes = type === "all" || type === "notes";
     const searchThreads = (type === "all" || type === "threads") && !threadIdParam;
     const noteScopeFilters = threadIdParam ? [eq(Notes.threadId, threadIdParam)] : spaceIdParam ? [eq(Notes.spaceId, spaceIdParam)] : [];
     const threadScopeFilters = spaceIdParam && !threadIdParam ? [eq(Threads.spaceId, spaceIdParam)] : [];
-    const useFTS = trimmedQuery.length >= 3;
+    const useFTS = trimmedQuery.length >= MIN_SEARCH_QUERY_LENGTH;
     const ftsSubstringPattern = useFTS ? `%${trimmedQuery}%` : "";
     let notesRows = [];
     let threadsRows = [];

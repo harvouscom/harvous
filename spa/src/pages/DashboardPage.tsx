@@ -16,6 +16,7 @@ import { useFeaturedItems } from '../hooks/queries/useFeaturedItems';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import { addRecentSearchTerm } from '@/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import {
   getStoredDashboardContentTab,
   setStoredDashboardContentTab,
@@ -107,10 +108,11 @@ export default function DashboardPage() {
 
   const prefetchSearch = useCallback(
     (term: string) => {
-      if (!term.trim()) return;
+      const t = term.trim();
+      if (!t || t.length < MIN_SEARCH_QUERY_LENGTH) return;
       queryClient.prefetchQuery({
-        queryKey: searchQueryKey(term),
-        queryFn: () => fetchSearchResults(term),
+        queryKey: searchQueryKey(t),
+        queryFn: () => fetchSearchResults(t),
       });
     },
     [queryClient],

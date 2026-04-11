@@ -16,6 +16,7 @@ import {
   addRecentSearchTerm,
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import {
   CondensedNoteRowLayout,
@@ -408,10 +409,11 @@ export default function AddToSpaceSection({
 
   const prefetchFts = useCallback(
     (term: string) => {
-      if (!term.trim() || !enableFullTextSearch) return;
+      const t = term.trim();
+      if (!t || t.length < MIN_SEARCH_QUERY_LENGTH || !enableFullTextSearch) return;
       queryClient.prefetchQuery({
-        queryKey: searchQueryKey(term, undefined, apiResultType),
-        queryFn: () => fetchSearchResults(term, undefined, apiResultType),
+        queryKey: searchQueryKey(t, undefined, apiResultType),
+        queryFn: () => fetchSearchResults(t, undefined, apiResultType),
       });
     },
     [queryClient, enableFullTextSearch, apiResultType],
@@ -472,7 +474,7 @@ export default function AddToSpaceSection({
   useEffect(() => {
     if (!enableFullTextSearch || !recentSearchRecordScope) return;
     const trimmed = ftsDebouncedQuery.trim();
-    if (trimmed.length < 2) return;
+    if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
     if (ftsLoading || ftsError) return;
     if (ftsData?.results === undefined) return;
     // Badge = items still addable in this picker (not raw FTS hit count).

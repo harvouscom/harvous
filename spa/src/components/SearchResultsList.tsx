@@ -5,6 +5,7 @@ import {
   addRecentSearchTerm,
   type RecentSearchStorageScope,
 } from '../../../src/utils/recent-search-storage';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { useSearch, type SearchResult, type SearchScope } from '@/hooks/useSearch';
 
 export type { SearchScope, SearchResult } from '@/hooks/useSearch';
@@ -30,7 +31,7 @@ export default function SearchResultsList({
 
   useEffect(() => {
     if (recentSearchCountSync === undefined) return;
-    if (trimmed.length < 2) return;
+    if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
     if (isLoading || isError) return;
     if (data?.results === undefined) return;
     addRecentSearchTerm(recentSearchCountSync, trimmed, { resultCount: data.results.length });
@@ -39,6 +40,16 @@ export default function SearchResultsList({
   const results: SearchResult[] = data?.results ?? [];
 
   if (!trimmed) return null;
+
+  if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) {
+    return (
+      <div style={{ padding: '32px 16px', textAlign: 'center', fontFamily: 'var(--font-sans)' }}>
+        <div style={{ color: 'var(--color-pebble-grey)', fontSize: '14px' }}>
+          Type at least {MIN_SEARCH_QUERY_LENGTH} characters to search.
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

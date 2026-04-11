@@ -21,6 +21,7 @@ import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
 import { useDebouncedSearchState } from '../hooks/useDebouncedSearchState';
+import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { prefetchThreadRouteIntent } from '../utils/prefetch-route-intent';
 type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources' | 'search';
 
@@ -62,10 +63,11 @@ export default function SpacePage() {
 
   const prefetchSpaceSearch = useCallback(
     (term: string) => {
-      if (!term.trim()) return;
+      const t = term.trim();
+      if (!t || t.length < MIN_SEARCH_QUERY_LENGTH) return;
       queryClient.prefetchQuery({
-        queryKey: searchQueryKey(term, { spaceId }),
-        queryFn: () => fetchSearchResults(term, { spaceId }),
+        queryKey: searchQueryKey(t, { spaceId }),
+        queryFn: () => fetchSearchResults(t, { spaceId }),
       });
     },
     [queryClient, spaceId],
