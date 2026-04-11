@@ -64,20 +64,20 @@ We write like we talk—with friends, not in boardrooms.
 - Use parentheses for asides (like this)
 - Keep sentences varied—some long, some short
 
-### 3. Humbly Confident
-We're passionate about the problem, uncertain about adoption.
+### 3. Clear and Warm
+We're clear about what this is, warm about who it's for.
 
-**Why it matters:** Humility is honest. We genuinely don't know if Harvous will help everyone—we just know it helps us.
+**Why it matters:** Clarity earns trust. We know exactly what Harvous does and doesn't do — and we say so plainly. Warmth opens the door. We speak like someone who's glad you're here, not like a tool asking to be adopted.
 
 **How it sounds:**
-- ✓ "Maybe just maybe it'll help others too"
+- ✓ "This is a memory tool for your Bible study. That's what it is."
 - ✗ "Join thousands who have transformed their Bible study"
 
 **In practice:**
-- Use qualifiers ("might," "could," "perhaps")
-- Express uncertainty about scale, confidence about problem
-- Celebrate small wins, not massive transformations
-- Share what we're learning, not what we've mastered
+- Say plainly what Harvous is (and what it isn't)
+- Use qualifiers only when genuinely uncertain, not as a default posture
+- Speak warmly — "I'm glad you're here" energy, not "maybe this will help" hedging
+- Celebrate the person, not the product
 
 ### 4. Practically Focused
 We talk about real benefits, not aspirational promises.
@@ -94,7 +94,22 @@ We talk about real benefits, not aspirational promises.
 - Avoid abstract benefits (transform, revolutionize, optimize)
 - Ground features in everyday scenarios
 
-### 5. Warmly Inclusive
+### 5. Opinionated About the Problem
+We have a clear point of view.
+
+**Why it matters:** Bible study tools that feel corporate, overwhelming, or cleverly packaged miss the point. We don't pretend otherwise. Knowing what we're not makes what we are more credible.
+
+**How it sounds:**
+- ✓ "This isn't a productivity app. It's a memory tool for your Bible study."
+- ✗ "Harvous integrates with your existing workflow to enhance scriptural engagement"
+
+**In practice:**
+- Take positions, gently but clearly
+- Know what you're not — and be willing to say so
+- Don't soften the pitch out of politeness; soften it out of honesty
+- A sharp "this is what it is" is more welcoming than a vague "this could be anything"
+
+### 6. Warmly Inclusive
 We welcome everyone while respecting everyone's unique journey.
 
 **Why it matters:** Bible study looks different for different people. Our tool should honor that diversity.
@@ -313,6 +328,20 @@ Add warmth through conversational asides.
 
 **Example:**
 "Your notes stay completely private (unless you choose to share with a study group). We think Bible study is personal—you should control who sees what you're learning."
+
+### Pattern 6: The Founder Close
+End key communications — about pages, launch emails, major announcements — with a personal sign-off. Not a button. A person.
+
+**Structure:**
+1. Simple, warm close
+2. Genuine invitation to respond
+3. Real name (and email when appropriate)
+
+**Example:**
+"That's what we're building. If you're trying to do something similar, I'd love to hear from you.
+— Derek"
+
+**Why it works:** The 37signals move. Jason Fried puts his email in the copy. It signals: there's a real person here who cares, and they're reachable. That's the energy.
 
 ---
 
@@ -567,7 +596,7 @@ Before publishing any content, verify:
 - [ ] Would the founder say this?
 - [ ] Is it positive (no "don't," "never," "can't")?
 - [ ] Did I avoid "insights" and use simpler words?
-- [ ] Is it humble about impact, confident about problem?
+- [ ] Is it clear about what this is, warm about who it's for?
 - [ ] Does it start with personal experience?
 - [ ] Are benefits practical, not aspirational?
 - [ ] Is it inclusive of different journeys?
@@ -589,6 +618,10 @@ Before publishing any content, verify:
 - Grow
 - Connect
 - Discover
+- Plainly
+- Honest
+- Here
+- Free (as in: clear of clutter)
 
 ### Words We Avoid
 - Revolutionary
