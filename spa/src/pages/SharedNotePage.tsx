@@ -176,7 +176,7 @@ export default function SharedNotePage() {
                 </a>
               </div>
             ) : (
-              <SubtleContentMount>
+              <SubtleContentMount variant="fade">
                 <>
                 {/* Creator info (above card) */}
                 <div className="shared-page__creator">

@@ -230,7 +230,7 @@ export default function SharedThreadPage() {
                 </a>
               </div>
             ) : (
-              <SubtleContentMount>
+              <SubtleContentMount variant="fade">
                 <>
                 {/* Creator info (above CardStack) */}
                 <div className="shared-page__creator">
@@ -248,43 +248,41 @@ export default function SharedThreadPage() {
                     headerBgColor={`var(--color-${threadColor})`}
                     centerTitle={true}
                   >
-                    {/* Notes list (scrollable) */}
-                    <div className="shared-page__notes-scroll">
-                      {notes.length === 0 ? (
-                        <div className="shared-page__notes-empty">
-                          <p>No notes yet. Start adding thoughts as you read.</p>
-                        </div>
-                      ) : (
-                        <div className="shared-page__notes">
-                          {notes.map((note, index) => (
-                            <div
-                              key={note.id}
-                              className="shared-page__note-item card-enter"
-                              style={{ animationDelay: `${150 + index * 50}ms` }}
-                            >
-                              {note.noteType === 'scripture' ? (
-                                <CondensedNoteItem
-                                  title={note.title || 'Untitled Note'}
-                                  noteType="scripture"
-                                  href="#"
-                                  noteId={note.id}
-                                  scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
-                                />
-                              ) : (
-                                <CardNote
-                                  title={note.title || 'Untitled Note'}
-                                  content={note.content || ''}
-                                  noteType={note.noteType}
-                                  noteId={note.id}
-                                />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {/* Notes list — card-stack__inner-content is the scroll container */}
+                    {notes.length === 0 ? (
+                      <div className="shared-page__notes-empty">
+                        <p>No notes yet. Start adding thoughts as you read.</p>
+                      </div>
+                    ) : (
+                      <div className="shared-page__notes">
+                        {notes.map((note, index) => (
+                          <div
+                            key={note.id}
+                            className="shared-page__note-item card-enter"
+                            style={{ animationDelay: `${150 + index * 50}ms` }}
+                          >
+                            {note.noteType === 'scripture' ? (
+                              <CondensedNoteItem
+                                title={note.title || 'Untitled Note'}
+                                noteType="scripture"
+                                href="#"
+                                noteId={note.id}
+                                scriptureTranslation={note.scriptureTranslation ?? note.version ?? undefined}
+                              />
+                            ) : (
+                              <CardNote
+                                title={note.title || 'Untitled Note'}
+                                content={note.content || ''}
+                                noteType={note.noteType}
+                                noteId={note.id}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
-                    {/* CTA wrapper with toast */}
+                    {/* CTA — sticky at bottom of scroll area, margin-top: auto for short lists */}
                     <div className="shared-page__cta-wrapper">
                       <div className={`shared-page__toast shared-page__toast--${toastType}${toastVisible ? ' shared-page__toast--visible' : ''}`}>
                         <span>{toastMessage}</span>

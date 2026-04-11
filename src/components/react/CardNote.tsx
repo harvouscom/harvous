@@ -74,30 +74,30 @@ const CardNote: React.FC<CardNoteProps> = ({
   // Generate mesh gradient on client only to avoid hydration mismatch
   // Start with null to match server render, then generate after mount
   const [meshGradient, setMeshGradient] = useState<string | null>(null);
-  
+
   // For resource notes, prioritize metadata over regular props
-  const effectiveTitle = nt ==='resource' 
+  const effectiveTitle = nt ==='resource'
     ? (resourceTitle || title || "Untitled Resource")
     : (title || "Untitled Note");
-  const effectiveContent = nt ==='resource' 
+  const effectiveContent = nt ==='resource'
     ? (resourceDescription || content || "")
     : (content || "");
-  const effectiveImageUrl = nt ==='resource' 
+  const effectiveImageUrl = nt ==='resource'
     ? (resourceImage || imageUrl)
     : imageUrl;
-  
+
   // Use scripture references from props (from junction table) - only for default notes when collapsible is enabled
   const scriptureReferences = (nt ==='default' && showScriptureRefsCollapsible && propScriptureReferences.length > 0)
     ? propScriptureReferences
     : [];
-  
+
   // For resource notes with images, automatically use withImage variant
   const effectiveVariant = (nt ==='resource' && effectiveImageUrl) ? "withImage" : variant;
-  
+
   // Generate mesh gradient on client only (after hydration) to avoid mismatch
   React.useEffect(() => {
     if (typeof window === 'undefined') return; // Only run on client
-    
+
     // Generate mesh gradient from thread colors (only if no image present)
     if (!effectiveImageUrl && threadColors && threadColors.length > 0 && noteId) {
       const gradient = generateThreadMeshGradient(threadColors, noteId);

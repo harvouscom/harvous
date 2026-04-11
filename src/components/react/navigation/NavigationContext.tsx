@@ -416,10 +416,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (!hasExplicitOpenedInSpaceIds) return getItemOpenedInSpaceIds(existingItem);
           const newScopes = getItemOpenedInSpaceIds(item);
           const existingScopes = getItemOpenedInSpaceIds(existingItem);
-          const existingHasSpace = existingScopes.some(s => s !== null);
-          const newHasSpace = newScopes.some(s => s !== null);
-          if (existingHasSpace && !newHasSpace) return existingScopes;
-          return newScopes;
+          return mergeOpenedInSpaceIds(existingScopes, newScopes);
         })(),
         openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
         firstAccessed: preservedFirstAccessed,

@@ -22,6 +22,7 @@
   #invitation-content .auth-page__container {
     height: 100%;
     max-height: 100vh;
+    min-height: 0;
   }
 
   #shared-note-content .auth-page__form-section,
@@ -65,6 +66,7 @@
   #invitation-content .auth-page__container {
     height: 100%;
     max-height: 100vh;
+    min-height: 0;
   }
 
   #shared-note-content .auth-page__form-section.shared-page__content-section,
@@ -151,8 +153,6 @@
 @media (max-width: 1159px) {
   .shared-page__card-container {
     min-height: 0;
-    overflow: hidden;
-    max-height: calc(100vh - 120px);
   }
 }
 
@@ -160,7 +160,6 @@
 @media (min-width: 1160px) {
   .shared-page__card-container {
     min-height: 0;
-    overflow: hidden;
   }
 }
 
@@ -220,7 +219,6 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 
 .shared-page__card-container .card-stack__inner {
@@ -228,7 +226,6 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 
 .shared-page__card-container .card-stack__inner-content {
@@ -236,29 +233,11 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
 }
 
-/* Scrollable notes container */
-.shared-page__notes-scroll {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Mobile: add padding-bottom to account for fixed button */
-@media (max-width: 1159px) {
-  .shared-page__notes-scroll {
-    padding-bottom: 72px;
-  }
-}
-
-@media (min-width: 1160px) {
-  .shared-page__notes-scroll {
-    max-height: none;
-  }
-}
+/* card-stack__inner-content is the scroll container for shared thread/space pages.
+   The base CSS already has overflow-y: auto and padding: 12px on it.
+   We just need to ensure it participates in the flex height chain. */
 
 /* Notes inside CardStack */
 .shared-page__notes {
@@ -369,29 +348,13 @@
   color: var(--color-red);
 }
 
-/* CTA Button wrapper — relative positioning for toast */
-/* Mobile: fixed button at bottom of viewport */
-@media (max-width: 1159px) {
-  .shared-page__cta-wrapper {
-    position: fixed;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    max-width: 480px;
-    padding: 0 12px;
-    z-index: 100;
-    margin-top: 0;
-  }
-}
-
-/* Desktop: keep button inside card/CardStack */
-@media (min-width: 1160px) {
-  .shared-page__cta-wrapper {
-    position: relative;
-    flex-shrink: 0;
-    margin-top: 12px;
-  }
+/* CTA Button wrapper — sticky at bottom of its scroll container */
+.shared-page__cta-wrapper {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+  padding: 12px;
+  flex-shrink: 0;
 }
 
 /* CTA Button */
