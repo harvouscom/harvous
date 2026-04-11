@@ -16,18 +16,11 @@ import {
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
 import { idToUrl } from '@/utils/url-helpers';
-import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
+import { getThreadIconOnAccentCSS } from '@/utils/colors';
 import { useThread } from '../hooks/queries/useThread';
 import { useSpace } from '../hooks/queries/useSpace';
-import {
-  CondensedNoteRowLayout,
-  condensedNoteRowIcon,
-  getCondensedNoteAccentBarStyle,
-  getCondensedNoteMeshGradient,
-  getSolidThreadAccentBarStyle,
-} from '../../../src/components/react/CondensedNoteRowLayout';
+import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import { formatBadgeCount } from '@/utils/badge-count';
-import { CONDENSED_NOTE_ICON_PX } from '@/utils/condensed-note-row';
 import { router } from '../router';
 import { isMobileDevice } from '@/utils/pwa-prompt';
 import '../../../src/styles/spotlight.css';
@@ -96,86 +89,11 @@ function removeRecentSearch(term: string) {
   }
 }
 
-const SearchIcon = () => (
-  <svg viewBox="0 0 512 512" aria-hidden="true" style={{ width: 18, height: 18, fill: 'var(--color-pebble-grey)' }}>
-    <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z" />
-  </svg>
-);
-
 const CloseIcon = () => (
   <svg viewBox="0 0 384 512" aria-hidden="true">
     <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
   </svg>
 );
-
-/** Inline text chip for contextual metadata next to a result title. */
-function ContextChip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontFamily: 'var(--font-sans)',
-        fontSize: '12px',
-        fontWeight: 500,
-        color: 'var(--color-stone-grey)',
-        flexShrink: 0,
-        whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function ResultItem({ result }: { result: SearchResult }) {
-  const isThread = result.type === 'thread';
-  const isScripture = result.noteType === 'scripture';
-
-  const accentBarStyle = isThread
-    ? getSolidThreadAccentBarStyle(getThreadColorCSS(result.color))
-    : getCondensedNoteAccentBarStyle(getCondensedNoteMeshGradient(result.threadColors, result.id));
-
-  const icon = condensedNoteRowIcon({
-    itemType: isThread ? 'thread' : 'note',
-    noteType: (result.noteType as 'default' | 'scripture' | 'resource') ?? 'default',
-    iconSize: CONDENSED_NOTE_ICON_PX,
-  });
-
-  // Context chips: shown inline to the right of title
-  const chips: React.ReactNode[] = [];
-  if (isScripture && result.scriptureTranslation) {
-    chips.push(<ContextChip key="translation">{result.scriptureTranslation}</ContextChip>);
-  }
-  if (!isThread && result.threadTitle) {
-    chips.push(<ContextChip key="thread">{result.threadTitle}</ContextChip>);
-  }
-
-  return (
-    <CondensedNoteRowLayout
-      className="relative spotlight-result-row"
-      accentBarStyle={accentBarStyle}
-      icon={icon}
-      paddingRight="0.75rem"
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0, overflow: 'hidden' }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontWeight: 700,
-            color: 'var(--color-deep-grey)',
-            fontSize: '16px',
-            lineHeight: 1.2,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {result.title || (isThread ? 'Untitled thread' : 'Untitled')}
-        </div>
-        {chips}
-      </div>
-    </CondensedNoteRowLayout>
-  );
-}
 
 /** Shared row chrome with [`RecentSearches`](src/components/react/RecentSearches.tsx) via `.recent-search-row`. */
 function RecentItem({
@@ -378,6 +296,13 @@ export default function SpotlightSearch() {
     [close],
   );
 
+  /** Match FindSearchInput clear — instant empty + reset list highlight (shared `.search-input` / `.search-input__clear`). */
+  const clearQuery = useCallback(() => {
+    setQuery('');
+    setDebouncedQuery('');
+    setCommandListValue(SPOTLIGHT_NO_LIST_SELECTION);
+  }, []);
+
   // Detect if Mac for keyboard hints
   const isMac = useMemo(
     () => typeof navigator !== 'undefined' && /Mac/.test(navigator.platform),
@@ -396,15 +321,18 @@ export default function SpotlightSearch() {
       onValueChange={setCommandListValue}
       disablePointerSelection
     >
-      <div
-        className={`spotlight-input-wrapper${scopeInfo ? ' spotlight-input-wrapper--has-scope' : ''}`}
-      >
-        <SearchIcon />
+      <div className="search-input spotlight-search-input w-full">
+        <svg width="16" height="16" className="search-input__icon" viewBox="0 0 512 512" aria-hidden="true">
+          <path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z" />
+        </svg>
         <Command.Input
           ref={inputRef}
+          className="search-input__field"
           value={query}
           onValueChange={setQuery}
           placeholder={scopeInfo ? 'Search here...' : 'Search my Harvous...'}
+          role="searchbox"
+          aria-label="Find"
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.preventDefault();
@@ -412,21 +340,40 @@ export default function SpotlightSearch() {
             }
           }}
         />
-        {scopeInfo && (
-          <div
-            className="spotlight-scope"
-            style={{ '--spotlight-scope-accent': scopeAccentCss } as React.CSSProperties}
-          >
-            <span>In {scopeInfo.label}</span>
-            <button
-              type="button"
-              className="spotlight-scope__dismiss"
-              style={{ color: getThreadIconOnAccentCSS(scopeColorName) }}
-              onClick={() => setScopeInfo(null)}
-              aria-label="Search everywhere"
-            >
-              <CloseIcon />
-            </button>
+        {(query.trim() || scopeInfo) && (
+          <div className="spotlight-input-trailing">
+            {!!query.trim() && (
+              <button
+                type="button"
+                className="search-input__clear"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearQuery();
+                }}
+                aria-label="Clear find"
+              >
+                <svg width="16" height="16" viewBox="0 0 384 512" aria-hidden="true">
+                  <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
+                </svg>
+              </button>
+            )}
+            {scopeInfo && (
+              <div
+                className="spotlight-scope"
+                style={{ '--spotlight-scope-accent': scopeAccentCss } as React.CSSProperties}
+              >
+                <span>In {scopeInfo.label}</span>
+                <button
+                  type="button"
+                  className="spotlight-scope__dismiss"
+                  style={{ color: getThreadIconOnAccentCSS(scopeColorName) }}
+                  onClick={() => setScopeInfo(null)}
+                  aria-label="Search everywhere"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -449,7 +396,7 @@ export default function SpotlightSearch() {
                 value={result.id}
                 onSelect={() => navigateToResult(result.id)}
               >
-                <ResultItem result={result} />
+                <SearchResultRow result={result} className="relative spotlight-result-row" />
               </Command.Item>
             ))}
           </Command.Group>

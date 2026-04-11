@@ -347,7 +347,11 @@ export default function ActionStrip({
       return;
     }
     if (action === 'shareNote') {
-      window.dispatchEvent(new CustomEvent('openNoteSharePanel', { detail: { contentId, contentType } }));
+      window.dispatchEvent(new CustomEvent('openNoteSharePanel', { detail: { contentId, contentType: 'note' } }));
+      return;
+    }
+    if (action === 'shareThread') {
+      window.dispatchEvent(new CustomEvent('openNoteSharePanel', { detail: { contentId, contentType: 'thread' } }));
       return;
     }
     if (action === 'lockNote') {

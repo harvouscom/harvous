@@ -17,6 +17,7 @@ import {
   SECTION_LABELS,
   type SectionKey
 } from '@/utils/last-visited-sections';
+import { useListKeyboardRoving } from '@/hooks/useListKeyboardRoving';
 
 interface SpaceItem {
   id: string;
@@ -59,6 +60,8 @@ interface SpaceContentListProps {
   onPrefetchNote?: (noteId: string) => void;
   /** Optional callback when notes are loaded from the API; used to seed the note detail cache so opening a note shows content immediately. */
   onNotesLoaded?: (notes: { id: string; title?: string | null; content?: string | null; [key: string]: any }[]) => void;
+  /** Prefetch thread route data on hover (SPA React Query). */
+  onThreadIntent?: (threadId: string) => void;
 }
 
 function stripHtml(html: string): string {
@@ -75,6 +78,7 @@ export default function SpaceContentList({
   parentIsLoading = false,
   onPrefetchNote,
   onNotesLoaded,
+  onThreadIntent,
 }: SpaceContentListProps) {
   const noteHref = (noteId: string, threadId?: string | null) => {
     const path = idToUrl(noteId, threadId || undefined);
@@ -116,6 +120,8 @@ export default function SpaceContentList({
   const itemsRef = useRef<SpaceItem[]>(initialSortedItems);
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
+  const listKeyboardRef = useRef<HTMLDivElement>(null);
+  useListKeyboardRoving(listKeyboardRef);
   const hasRefreshedOnMountRef = useRef(false); // Track if mount refresh happened
   const [hasResolvedFirstLoad, setHasResolvedFirstLoad] = useState(false); // Avoid empty-state flash: show loading until first fetch completes
   // Track optimistically added items that haven't been confirmed by API yet
@@ -1124,7 +1130,7 @@ export default function SpaceContentList({
   if (filteredItems.length === 0) {
     const isLoadingEmpty = parentIsLoading || !hasResolvedFirstLoad;
     return (
-      <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
+      <div ref={listKeyboardRef} className="flex flex-col" style={{ paddingBottom: '12px' }}>
         {isLoadingEmpty ? (
           <div style={{ minHeight: '48px' }} aria-hidden="true" />
         ) : (
@@ -1167,6 +1173,7 @@ export default function SpaceContentList({
     return (
       <div
         key={item.id}
+        data-keyboard-row
         className={`content-item ${item.itemType}-item mb-3 card-enter`}
         style={{ animationDelay: `${index * 50}ms` }}
       >
@@ -1176,6 +1183,8 @@ export default function SpaceContentList({
               href={threadHref(item.id)}
               className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
               onClick={handleSelectSpace}
+              onPointerEnter={onThreadIntent ? () => onThreadIntent(item.id) : undefined}
+              onFocus={onThreadIntent ? () => onThreadIntent(item.id) : undefined}
             >
               <CardThread
                 thread={{
@@ -1262,7 +1271,7 @@ export default function SpaceContentList({
 
   let runningIndex = 0;
   return (
-    <div className="flex flex-col" style={{ paddingBottom: '12px' }}>
+    <div ref={listKeyboardRef} className="flex flex-col" style={{ paddingBottom: '12px' }}>
       {SECTION_ORDER.flatMap((sectionKey) => {
         const itemsInSection = bySection.get(sectionKey)!;
         if (itemsInSection.length === 0) return [];

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Icon from '../Icon';
@@ -7,6 +8,7 @@ import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/ur
 import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { prefetchSpaceRouteIntent, prefetchThreadRouteIntent } from '../../../../spa/src/utils/prefetch-route-intent';
 
 interface ActiveThreadProp {
   id: string;
@@ -25,6 +27,7 @@ interface PersistentNavigationProps {
 const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
 
 const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwitcherClick, activeThread: activeThreadProp }) => {
+  const queryClient = useQueryClient();
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
   const selectedSpaceId = useSelectedSpaceId();
@@ -584,12 +587,17 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           <div
             key={item.id}
             data-navigation-item={item.id}
+            data-persistent-nav-active={isActive ? 'true' : undefined}
             className={`nav-item-container ${isSpaceItem ? 'nav-item-container--space' : ''}`}
           >
             <div className="nav-item-wrapper">
               <a
                 href={validHref}
                 className="nav-link"
+                onPointerEnter={() => {
+                  if (item.id.startsWith('thread_')) prefetchThreadRouteIntent(queryClient, item.id);
+                  else if (item.id.startsWith('space_')) prefetchSpaceRouteIntent(queryClient, item.id);
+                }}
                 onClick={(e) => {
                   if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                   const noteIdFromPath = extractIdFromPath(window.location.pathname);

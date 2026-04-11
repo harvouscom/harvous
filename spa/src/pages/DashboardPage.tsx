@@ -8,6 +8,7 @@ import FindSearchInput from '../../../src/components/react/FindSearchInput';
 import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
+import { useDebouncedSearchState } from '../hooks/useDebouncedSearchState';
 import { useDashboardContent } from '../hooks/queries/useDashboard';
 import { useProfile } from '../hooks/queries/useProfile';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
@@ -20,6 +21,7 @@ import {
   setStoredDashboardContentTab,
   type DashboardContentTabId,
 } from '@/utils/content-tab-storage';
+import { prefetchThreadRouteIntent } from '../utils/prefetch-route-intent';
 
 type DashboardContentFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -37,9 +39,10 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DashboardContentTabId>(() => getStoredDashboardContentTab() ?? 'all');
-  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
+  const { input: searchInput, setInput: setSearchInput, debounced: debouncedSearch, clear: clearSearch, applyImmediate: applySearchImmediate } =
+    useDebouncedSearchState();
   const authReady = isLoaded && isSignedIn;
-  const { isSuccess: profileSuccess } = useProfile();
+  useProfile();
   const { data: featuredItems } = useFeaturedItems({ enabled: authReady });
 
   const lastListFilterRef = useRef<Exclude<DashboardContentTabId, 'search'>>('all');
@@ -49,7 +52,7 @@ export default function DashboardPage() {
 
   const listFilterForQuery = lastListFilterRef.current as DashboardContentFilter;
 
-  const { data: cachedContent, dataUpdatedAt, isFetching, refetch: refetchContent } = useDashboardContent(
+  const { data: cachedContent, dataUpdatedAt, isFetching } = useDashboardContent(
     listFilterForQuery,
     30,
     {
@@ -59,14 +62,6 @@ export default function DashboardPage() {
   const cachedItems = cachedContent?.pages.flatMap(p => p.items) ?? [];
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
-
-  // One-time refetch after first content load when profile succeeded, so we pick up scripture refs if the first response didn't have them (e.g. cross-instance timing).
-  const didRefetchForScriptureRef = useRef(false);
-  useEffect(() => {
-    if (!profileSuccess || !cachedItems.length || didRefetchForScriptureRef.current) return;
-    didRefetchForScriptureRef.current = true;
-    void refetchContent();
-  }, [profileSuccess, cachedItems.length, refetchContent]);
 
   // List loading tracks dashboard content only. Featured carousel loads independently so the
   // home list is not blocked by `/api/featured/items` (avoids an extra wait on empty states).
@@ -121,10 +116,19 @@ export default function DashboardPage() {
     [queryClient],
   );
 
+  useEffect(() => {
+    clearSearch();
+  }, [user?.id, clearSearch]);
+
   // Prefetch full note details on hover/touch as a backup
   const prefetchNote = useCallback((noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   }, [queryClient]);
+
+  const onThreadIntent = useCallback(
+    (threadId: string) => prefetchThreadRouteIntent(queryClient, threadId),
+    [queryClient],
+  );
 
   const handleTabChange = useCallback((id: string) => {
     const next = id as DashboardContentTabId;
@@ -150,24 +154,24 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <FindSearchInput
               placeholder="Search my Harvous…"
-              initialQuery={scopedSearchQuery}
+              value={searchInput}
+              onValueChange={setSearchInput}
               onBeforeSearchNavigate={prefetchSearch}
               onSubmitSearch={(term) => {
                 addRecentSearchTerm(null, term);
-                setScopedSearchQuery(term);
               }}
-              onClearSearch={() => setScopedSearchQuery('')}
+              onClearSearch={clearSearch}
             />
-            {!scopedSearchQuery.trim() && (
+            {!searchInput.trim() && (
               <RecentSearches
                 onPrefetchSearch={prefetchSearch}
                 onSelectRecentTerm={(term) => {
                   prefetchSearch(term);
-                  setScopedSearchQuery(term);
+                  applySearchImmediate(term);
                 }}
               />
             )}
-            <SearchResultsList query={scopedSearchQuery} recentSearchCountSync={null} />
+            <SearchResultsList query={debouncedSearch} recentSearchCountSync={null} />
           </div>
         ) : (
           <OrganizedContentList
@@ -179,6 +183,7 @@ export default function DashboardPage() {
             parentIsLoading={isInitialLoading}
             initialHasMoreFromParent={initialHasMoreFromParent}
             onNotePrefetch={prefetchNote}
+            onThreadIntent={onThreadIntent}
           />
         )}
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}

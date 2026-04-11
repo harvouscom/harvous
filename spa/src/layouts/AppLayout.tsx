@@ -124,6 +124,14 @@ export default function AppLayout() {
   });
   const queryClient = useQueryClient();
   const refreshNavigation = useRefreshNavigation();
+  const navRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedRefreshNavigation = useCallback(() => {
+    if (navRefreshTimerRef.current) clearTimeout(navRefreshTimerRef.current);
+    navRefreshTimerRef.current = setTimeout(() => {
+      navRefreshTimerRef.current = null;
+      refreshNavigation();
+    }, 150);
+  }, [refreshNavigation]);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn || !user?.id) return;
@@ -282,7 +290,22 @@ export default function AppLayout() {
 
   // Invalidate navigation cache when spaces/threads are created, updated, or deleted
   useEffect(() => {
-    const refresh = () => refreshNavigation();
+    const refresh = () => debouncedRefreshNavigation();
+
+    const handleNoteCreated = (e: Event) => {
+      const detail = (e as CustomEvent<{ threadId?: string; actualThreadId?: string }>).detail;
+      const threadId = detail?.threadId ?? detail?.actualThreadId;
+      if (user?.id && threadId) {
+        queryClient.setQueryData(getNavigationQueryKey(user.id), (old: NavigationData | undefined) => {
+          if (!old) return old;
+          const threads = old.threads.map((t) =>
+            t.id === threadId ? { ...t, noteCount: (t.noteCount ?? 0) + 1 } : t,
+          );
+          return { ...old, threads };
+        });
+      }
+      debouncedRefreshNavigation();
+    };
 
     const handleSpaceDeleted = (e: Event) => {
       const deletedId = (e as CustomEvent).detail?.spaceId;
@@ -302,7 +325,7 @@ export default function AppLayout() {
         clearCachedSpaceBootstrap(deletedId);
         queryClient.removeQueries({ queryKey: ['space', deletedId] });
       }
-      refreshNavigation();
+      debouncedRefreshNavigation();
     };
 
     const handleThreadUpdated = (e: Event) => {
@@ -310,7 +333,7 @@ export default function AppLayout() {
       if (threadId) {
         queryClient.invalidateQueries({ queryKey: ['thread', threadId] });
       }
-      refreshNavigation();
+      debouncedRefreshNavigation();
     };
 
     const handleSpaceUpdated = (e: Event) => {
@@ -318,7 +341,7 @@ export default function AppLayout() {
       if (spaceId) {
         queryClient.invalidateQueries({ queryKey: ['space', spaceId] });
       }
-      refreshNavigation();
+      debouncedRefreshNavigation();
     };
 
     window.addEventListener('spaceCreated', refresh);
@@ -354,24 +377,25 @@ export default function AppLayout() {
         clearCachedThreadPrefetch(threadId);
         clearNoteParentThreadCacheByThreadId(threadId);
       }
-      refreshNavigation();
+      debouncedRefreshNavigation();
     };
 
     window.addEventListener('spaceDeleted', handleSpaceDeleted);
     window.addEventListener('threadDeleted', handleThreadDeleted);
-    window.addEventListener('noteCreated', refresh);
+    window.addEventListener('noteCreated', handleNoteCreated);
     window.addEventListener('noteDeleted', refresh);
     return () => {
+      if (navRefreshTimerRef.current) clearTimeout(navRefreshTimerRef.current);
       window.removeEventListener('spaceCreated', refresh);
       window.removeEventListener('threadCreated', refresh);
       window.removeEventListener('threadUpdated', handleThreadUpdated);
       window.removeEventListener('spaceUpdated', handleSpaceUpdated);
       window.removeEventListener('spaceDeleted', handleSpaceDeleted);
       window.removeEventListener('threadDeleted', handleThreadDeleted);
-      window.removeEventListener('noteCreated', refresh);
+      window.removeEventListener('noteCreated', handleNoteCreated);
       window.removeEventListener('noteDeleted', refresh);
     };
-  }, [queryClient, refreshNavigation, user?.id]);
+  }, [queryClient, debouncedRefreshNavigation, user?.id]);
 
   // Derive nav state from current route (before early return so hook order is stable)
   // URL slugs can be bare (e.g. /thread/abc123) or prefixed (e.g. /thread/thread_onboarding_xxx); normalize so we don't double-prefix

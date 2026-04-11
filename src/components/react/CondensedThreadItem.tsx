@@ -1,11 +1,14 @@
 import React from 'react';
 import { formatBadgeCount } from '@/utils/badge-count';
-import { getThreadIconOnAccentCSS } from '@/utils/colors';
+import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
+import { CONDENSED_NOTE_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
 
 export interface CondensedThreadItemProps {
   title: string;
-  /** Accent bar color, e.g. 'purple' -> var(--color-purple). Defaults to paper. */
+  /** Thread color token (e.g. 'purple') for icon tint mix and accent bar when no accentColor. Same as CardThread `thread.color`. */
   color?: string;
+  /** Raw accent for the bar (e.g. gradient CSS); when set without `color`, icon uses neutral grey like CardThread. */
+  accentColor?: string;
   /** When true, show user-group icon; otherwise single user icon. */
   isPublic?: boolean;
   /** Override icon: 'layer-group' stacked-layers; 'cube' cube (spaces); 'bookmark' notes; 'square-check' checkbox; 'user-check' space joined (member). */
@@ -14,33 +17,50 @@ export interface CondensedThreadItemProps {
   count?: number;
   /** Optional right-side action (e.g. remove button). */
   action?: React.ReactNode;
+  /** When set, the main row (icon, title, badge) opens the item; action stays independent. */
+  onOpen?: () => void;
   className?: string;
 }
 
 /**
  * Condensed thread row matching AddToSpaceSection ThreadItem layout:
  * accent bar, user/group icon, title, optional action on the right.
+ * Row height matches CondensedNoteItem / CondensedNoteRowLayout.
  */
 export default function CondensedThreadItem({
   title,
   color,
+  accentColor,
   isPublic = false,
   icon,
   count,
   action,
+  onOpen,
   className = ''
 }: CondensedThreadItemProps) {
-  const threadAccentColor = color ? `var(--color-${color})` : 'var(--color-light-paper)';
+  // Match CardThread: bar uses accentColor or color token or purple; icon uses color-mix from color token, or grey when only accentColor.
+  // Use getThreadColorCSS so Webflow names (e.g. lovely-lavender) resolve to real --color-* vars, not invalid var(--color-lovely-lavender).
+  const threadAccentColor = accentColor || (color ? getThreadColorCSS(color) : 'var(--color-purple)');
+  const iconTintColor = color ?? (!accentColor ? 'purple' : undefined);
+
   // Show badge when count is provided; for spaces (cube or user-check) always show even when 0
   const showBadge = count != null && (count > 0 || icon === 'cube' || icon === 'user-check');
 
+  const openKeyDown = (e: React.KeyboardEvent) => {
+    if (!onOpen) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen();
+    }
+  };
+
   return (
     <div
-      className={`block ${className}`.trim()}
+      className={`block ${onOpen ? 'transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]' : ''} ${className}`.trim()}
       style={{
         position: 'relative',
         borderRadius: '0.75rem',
-        height: '48px',
+        height: `${CONDENSED_NOTE_ROW_HEIGHT_PX}px`,
         width: '100%',
         textAlign: 'left',
         backgroundColor: 'white',
@@ -91,6 +111,21 @@ export default function CondensedThreadItem({
           zIndex: 20
         }}
       >
+        {/* Main hit target: icon + title + badge (action is a sibling so remove stays separate) */}
+        <div
+          role={onOpen ? 'link' : undefined}
+          tabIndex={onOpen ? 0 : undefined}
+          onClick={onOpen ? () => onOpen() : undefined}
+          onKeyDown={onOpen ? openKeyDown : undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1.5rem',
+            flex: 1,
+            minWidth: 0,
+            cursor: onOpen ? 'pointer' : undefined,
+          }}
+        >
         {/* Layer-group, cube, bookmark, square-check, user-check (joined), user-group (shared), or single-user (private) icon */}
         <div
           className="thread-accent-icon"
@@ -99,7 +134,7 @@ export default function CondensedThreadItem({
             flexShrink: 0,
             width: '1.25rem',
             height: '1.25rem',
-            ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(color ?? undefined),
+            ['--thread-accent-icon-color' as string]: getThreadIconOnAccentCSS(iconTintColor),
           }}
         >
           {icon === 'user-check' ? (
@@ -181,6 +216,7 @@ export default function CondensedThreadItem({
             <span className="badge-number">{formatBadgeCount(count)}</span>
           </div>
         )}
+        </div>
         {action != null && <div style={{ flexShrink: 0 }}>{action}</div>}
       </div>
     </div>

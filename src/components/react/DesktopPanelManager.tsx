@@ -541,7 +541,11 @@ export default function DesktopPanelManager({
   const [state, dispatch] = useReducer(panelReducer, { activePanel: null, panelKey: 0 });
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
-  const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
+  const [sharePanelData, setSharePanelData] = useState<
+    | { kind: 'note'; noteId: string; noteTitle?: string }
+    | { kind: 'thread'; threadId: string; threadTitle?: string }
+    | null
+  >(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
   const [requestedNoteId, setRequestedNoteId] = useState<string | null>(null);
@@ -734,10 +738,13 @@ export default function DesktopPanelManager({
     };
 
     const handleOpenNoteSharePanel = (event: CustomEvent) => {
-      const { contentId } = event.detail || {};
+      const { contentId, contentType: ct } = event.detail || {};
       if (contentId) {
-        // Fetch note title for display
-        setNoteShareData({ noteId: contentId, noteTitle: undefined });
+        if (ct === 'thread') {
+          setSharePanelData({ kind: 'thread', threadId: contentId, threadTitle: undefined });
+        } else {
+          setSharePanelData({ kind: 'note', noteId: contentId, noteTitle: undefined });
+        }
         dispatch({ type: 'OPEN_NOTE_SHARE' });
         window.dispatchEvent(new CustomEvent('closeMoreMenu'));
       }
@@ -745,7 +752,7 @@ export default function DesktopPanelManager({
 
     const handleCloseNoteSharePanel = () => {
       dispatch({ type: 'CLOSE_NOTE_SHARE' });
-      setNoteShareData(null);
+      setSharePanelData(null);
     };
 
     const handleOpenPinEntryPanel = (event: CustomEvent) => {
@@ -801,6 +808,7 @@ export default function DesktopPanelManager({
       setRequestedSpaceId(null);
       setRequestedNoteId(null);
       setAddToSpaceSpaceId(null);
+      setSharePanelData(null);
       dispatch({ type: 'CLOSE_ALL' });
     };
     window.addEventListener('closeAllPanels', handleCloseAllPanels);
@@ -1229,14 +1237,21 @@ export default function DesktopPanelManager({
       )}
 
       {/* Note Share Panel - Desktop Only */}
-      {state.activePanel === 'noteShare' && noteShareData && (
+      {state.activePanel === 'noteShare' && sharePanelData && (
         <PanelErrorBoundary>
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
               <NoteSharePanel
-                key={`note-share-${state.panelKey}`}
-                noteId={noteShareData.noteId}
-                noteTitle={currentNote?.title || noteShareData.noteTitle}
+                key={`note-share-${state.panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
+                {...(sharePanelData.kind === 'note'
+                  ? {
+                      noteId: sharePanelData.noteId,
+                      noteTitle: currentNote?.title || sharePanelData.noteTitle,
+                    }
+                  : {
+                      threadId: sharePanelData.threadId,
+                      threadTitle: currentThread?.title || sharePanelData.threadTitle,
+                    })}
                 onClose={handleCloseNoteShare}
                 inBottomSheet={false}
               />

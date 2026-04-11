@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import OverlappingNotes from './OverlappingNotes';
 import { getRelativeTime } from '@/utils/date-formatting';
-import { getThreadIconOnAccentCSS } from '@/utils/colors';
+import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
 
 interface Thread {
   id: string;
@@ -37,8 +37,7 @@ export default function CardThread({ thread, className = "" }: CardThreadProps) 
     icon
   } = thread;
 
-  // Convert color to CSS variable format
-  const threadAccentColor = accentColor || (color ? `var(--color-${color})` : "var(--color-purple)");
+  const threadAccentColor = accentColor || (color ? getThreadColorCSS(color) : "var(--color-purple)");
   const iconTintColor = color ?? (!accentColor ? 'purple' : undefined);
 
   // Format the timestamp properly - prioritize time over note count (subtitle)

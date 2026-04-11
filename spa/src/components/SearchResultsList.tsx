@@ -1,11 +1,8 @@
 import { useEffect } from 'react';
-import CardNote from '../../../src/components/react/CardNote';
-import CardThread from '../../../src/components/react/CardThread';
-import CondensedNoteItem from '../../../src/components/react/CondensedNoteItem';
+import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import { idToUrl } from '../../../src/utils/url-helpers';
 import {
-  recentSearchStorageKey,
-  recentSearchesUpdatedEvent,
+  addRecentSearchTerm,
   type RecentSearchStorageScope,
 } from '../../../src/utils/recent-search-storage';
 import { useSearch, type SearchResult, type SearchScope } from '@/hooks/useSearch';
@@ -17,7 +14,7 @@ export interface SearchResultsListProps {
   query: string;
   scope?: SearchScope;
   /**
-   * Sync result counts into the matching recent-search list.
+   * When set, records completed searches (MRU + result count) for the matching scope.
    * `null` = global Find (`harvous-recent-searches`). Omit to disable.
    */
   recentSearchCountSync?: RecentSearchStorageScope;
@@ -32,21 +29,12 @@ export default function SearchResultsList({
   const { data, isLoading, isError, error } = useSearch(trimmed, scope);
 
   useEffect(() => {
-    if (recentSearchCountSync === undefined || !trimmed || !data?.results) return;
-    try {
-      const key = recentSearchStorageKey(recentSearchCountSync);
-      const stored = JSON.parse(localStorage.getItem(key) || '[]');
-      const updated = stored.map((s: { term?: string } | string) => {
-        const term = typeof s === 'string' ? s : s.term;
-        if (term === trimmed) return { term, count: data.results.length };
-        return s;
-      });
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent(recentSearchesUpdatedEvent(recentSearchCountSync)));
-    } catch {
-      /* ignore */
-    }
-  }, [recentSearchCountSync, trimmed, data?.results]);
+    if (recentSearchCountSync === undefined) return;
+    if (trimmed.length < 2) return;
+    if (isLoading || isError) return;
+    if (data?.results === undefined) return;
+    addRecentSearchTerm(recentSearchCountSync, trimmed, { resultCount: data.results.length });
+  }, [recentSearchCountSync, trimmed, isLoading, isError, data?.results]);
 
   const results: SearchResult[] = data?.results ?? [];
 
@@ -114,52 +102,16 @@ export default function SearchResultsList({
       >
         {results.length} result{results.length !== 1 ? 's' : ''}
       </div>
-      {results.map((result) =>
-        result.type === 'thread' ? (
-          <a
-            key={result.id}
-            href={idToUrl(result.id)}
-            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-            style={{ textDecoration: 'none' }}
-          >
-            <CardThread
-              thread={{
-                id: result.id,
-                title: result.title || 'Untitled',
-                subtitle: result.subtitle ?? undefined,
-                color: result.color ?? undefined,
-                accentColor: result.color ? `var(--color-${result.color})` : undefined,
-                lastUpdated: result.lastUpdated ?? undefined,
-              }}
-            />
-          </a>
-        ) : result.noteType === 'scripture' ? (
-          <CondensedNoteItem
-            key={result.id}
-            title={result.title || 'Untitled'}
-            noteType="scripture"
-            noteId={result.id}
-            scriptureTranslation={result.scriptureTranslation ?? result.version ?? undefined}
-            href={idToUrl(result.id)}
-            threadColors={result.threadColors}
-          />
-        ) : (
-          <a
-            key={result.id}
-            href={idToUrl(result.id)}
-            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-            style={{ textDecoration: 'none' }}
-          >
-            <CardNote
-              title={result.title || 'Untitled'}
-              content={result.content ?? undefined}
-              noteType={(result.noteType as 'default' | 'scripture' | 'resource') || 'default'}
-              noteId={result.id}
-              threadColors={result.threadColors}
-            />
-          </a>
-        ),
-      )}
+      {results.map((result) => (
+        <a
+          key={result.id}
+          href={idToUrl(result.id)}
+          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+          style={{ textDecoration: 'none' }}
+        >
+          <SearchResultRow result={result} />
+        </a>
+      ))}
     </div>
   );
 }

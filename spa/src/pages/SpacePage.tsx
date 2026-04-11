@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useUser } from '@clerk/clerk-react';
-import { useSpaceBootstrap } from '../hooks/queries/useSpace';
+import { useSpaceBootstrap, getCachedSpaceBootstrap } from '../hooks/queries/useSpace';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getThreadQueryOptions } from '../hooks/queries/useThread';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
@@ -20,6 +20,8 @@ import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
+import { useDebouncedSearchState } from '../hooks/useDebouncedSearchState';
+import { prefetchThreadRouteIntent } from '../utils/prefetch-route-intent';
 type SpaceFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources' | 'search';
 
 const TABS: Array<{ id: SpaceFilter; label: string }> = [
@@ -42,7 +44,8 @@ export default function SpacePage() {
   const space = bootstrap?.space;
   const spaceItems = bootstrap?.items;
   const [filter, setFilter] = useState<SpaceFilter>(() => getStoredSpaceContentTab(spaceId) ?? 'all');
-  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
+  const { input: searchInput, setInput: setSearchInput, debounced: debouncedSearch, clear: clearSearch, applyImmediate: applySearchImmediate } =
+    useDebouncedSearchState();
   const [prevSpaceId, setPrevSpaceId] = useState(spaceId);
   if (spaceId !== prevSpaceId) {
     setPrevSpaceId(spaceId);
@@ -68,6 +71,10 @@ export default function SpacePage() {
     [queryClient, spaceId],
   );
 
+  useEffect(() => {
+    clearSearch();
+  }, [spaceId, clearSearch]);
+
   // Prefetch thread details for threads in this space that aren't in nav (e.g. joined space)
   // so the thread page header shows title/color immediately when the user clicks a thread.
   const PREFETCH_THREAD_LIMIT = 15;
@@ -86,6 +93,11 @@ export default function SpacePage() {
   const prefetchNote = (noteId: string) => {
     queryClient.prefetchQuery(getNoteQueryOptions(noteId));
   };
+
+  const onThreadIntent = useCallback(
+    (threadId: string) => prefetchThreadRouteIntent(queryClient, threadId),
+    [queryClient],
+  );
 
   // Build thread lookup from bootstrap items for seeding note cache with real thread context
   const spaceThreadLookup = useMemo(() => {
@@ -122,7 +134,8 @@ export default function SpacePage() {
   const resolvedSpaceColor = (space?.color ?? navSpace?.color ?? 'paper') as 'paper' | 'blue' | 'yellow' | 'orange' | 'pink' | 'purple' | 'green';
 
   const initialItems = spaceItems ?? [];
-  const parentIsLoading = initialItems.length === 0 && isFetching;
+  const hasBootstrapShellHint = !!navSpace || !!getCachedSpaceBootstrap(spaceId);
+  const parentIsLoading = initialItems.length === 0 && (isFetching || (isLoading && hasBootstrapShellHint));
   // Redirect when space no longer exists (e.g. deleted) so we don't render SpaceContentList for a 404 space
   useEffect(() => {
     if (isError) navigate({ to: '/', replace: true });
@@ -153,7 +166,8 @@ export default function SpacePage() {
   const headerBgColor = `var(--color-${resolvedSpaceColor})`;
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));
 
-  if (isLoading) {
+  // Full-page loading only when we have no nav hint and no session bootstrap (cold open / unknown id).
+  if (isLoading && !hasBootstrapShellHint) {
     return (
       <CardStack
         headerBgColor={headerBgColor}
@@ -183,17 +197,17 @@ export default function SpacePage() {
 
   return (
     <CardStack
-      title={space?.title ?? 'Space'}
+      title={resolvedSpaceTitle}
       headerBgColor={headerBgColor}
       isLoading={parentIsLoading}
-      header={space ? (
+      header={
         <SpaceCardStackHeader
-          initialTitle={space.title}
-          initialColor={(space.color ?? 'paper') as any}
+          initialTitle={resolvedSpaceTitle}
+          initialColor={resolvedSpaceColor as any}
           spaceId={spaceId}
           currentUserId={user?.id}
         />
-      ) : undefined}
+      }
     >
       <SubtleContentMount key={spaceId} variant="fade">
         <TabNav
@@ -205,24 +219,25 @@ export default function SpacePage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <FindSearchInput
               placeholder="Search this space…"
-              initialQuery={scopedSearchQuery}
+              value={searchInput}
+              onValueChange={setSearchInput}
               onBeforeSearchNavigate={prefetchSpaceSearch}
-              onSubmitSearch={setScopedSearchQuery}
-              onClearSearch={() => setScopedSearchQuery('')}
+              onSubmitSearch={() => {}}
+              onClearSearch={clearSearch}
               recentSearchRecordScope={{ type: 'space', id: spaceId }}
             />
-            {!scopedSearchQuery.trim() && (
+            {!searchInput.trim() && (
               <RecentSearches
                 storageScope={{ type: 'space', id: spaceId }}
                 onPrefetchSearch={prefetchSpaceSearch}
                 onSelectRecentTerm={(term) => {
                   prefetchSpaceSearch(term);
-                  setScopedSearchQuery(term);
+                  applySearchImmediate(term);
                 }}
               />
             )}
             <SearchResultsList
-              query={scopedSearchQuery}
+              query={debouncedSearch}
               scope={{ spaceId }}
               recentSearchCountSync={{ type: 'space', id: spaceId }}
             />
@@ -238,6 +253,7 @@ export default function SpacePage() {
             parentIsLoading={parentIsLoading}
             onPrefetchNote={prefetchNote}
             onNotesLoaded={onNotesLoaded}
+            onThreadIntent={onThreadIntent}
           />
         )}
         {/* Spacer so the last item can scroll above the floating "Create a note" button */}

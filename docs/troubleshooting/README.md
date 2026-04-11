@@ -12,6 +12,7 @@ This folder contains troubleshooting documentation for common issues encountered
 ### UI/Component Issues
 - **[Close Icon Troubleshooting](./CLOSE_ICON_TROUBLESHOOTING.md)** - Fixing close icon functionality in RecentSearches component
 - **[Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md)** - Debugging persistent navigation close functionality and thread duplication
+- **[Active space changes unexpectedly](./ACTIVE_SPACE_CHANGES_UNEXPECTEDLY.md)** - Why the space switcher can update without an explicit pick (URL `?space=`, mobile sync, storage); investigation checklist and fix directions
 - **[iOS PWA sheet / modal overlay vs status bar](./IOS_PWA_SHEET_OVERLAY_SAFE_AREA.md)** - Backdrop safe-area issues on installed PWA; `env()` unreliability, approaches tried, checklist
 
 ## Quick Reference

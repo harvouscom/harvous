@@ -109,8 +109,8 @@ export function clearCachedThreadPrefetch(threadId: string): void {
   }
 }
 
-/** Keep low so thread title/color edits (e.g. admin patches) show without long stale UI. */
-const THREAD_STALE_TIME = 0;
+/** Refetch sooner than this only when cache is invalidated (threadUpdated, mutations, etc.). */
+const THREAD_STALE_TIME = 20_000;
 
 export function getThreadQueryOptions(threadId: string) {
   const normalizedId = normalizeThreadId(threadId);

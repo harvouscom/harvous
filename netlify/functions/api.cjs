@@ -69990,7 +69990,18 @@ async function processScriptureReferencesInternal(noteId, userId, threadId, cont
 
 // server/utils/user-cache.ts
 var pendingInit = /* @__PURE__ */ new Map();
+var pendingOnboardingChain = /* @__PURE__ */ new Map();
 async function ensureOnboardingThreadIfMissing(userId) {
+  const prev = pendingOnboardingChain.get(userId) ?? Promise.resolve();
+  const next = prev.then(() => ensureOnboardingThreadBody(userId));
+  pendingOnboardingChain.set(userId, next);
+  return next.finally(() => {
+    if (pendingOnboardingChain.get(userId) === next) {
+      pendingOnboardingChain.delete(userId);
+    }
+  });
+}
+async function ensureOnboardingThreadBody(userId) {
   const onboardingThreadId = `thread_onboarding_${userId}`;
   const existing = first(await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).limit(1));
   if (existing) return;
@@ -74502,6 +74513,31 @@ var threads_default = route9;
 init_db2();
 init_dates();
 init_ids();
+
+// server/utils/harvous-admin.ts
+function getHarvousSystemUserId() {
+  const id = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
+  return id;
+}
+function isHarvousAdmin(c) {
+  const auth = getAuth(c);
+  const userId = auth?.userId ?? null;
+  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
+  if (userId && systemUserId && userId === systemUserId) return true;
+  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
+  if (!expectedSecret) return false;
+  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
+  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
+  const provided = m2?.[1]?.trim();
+  return provided === expectedSecret;
+}
+function requireHarvousAdmin(c) {
+  if (!isHarvousAdmin(c)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+  return null;
+}
 
 // src/utils/tiptap-helpers.ts
 function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
@@ -86004,7 +86040,11 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
     });
     let allThreads = [];
     try {
-      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
+      const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(
+        eq(NoteThreads.noteId, noteId),
+        // thread_unorganized is a globally-unique row (single PK); include it regardless of which user created the row.
+        or(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))
+      ));
       allThreads = junctionThreads;
     } catch {
       allThreads = [];
@@ -86013,7 +86053,10 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
       try {
         const healed = await healScriptureNoteThreadsFromParents(noteId, auth.userId);
         if (healed) {
-          const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, noteId), eq(Threads.userId, auth.userId)));
+          const junctionThreads = await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt }).from(Threads).innerJoin(NoteThreads, eq(NoteThreads.threadId, Threads.id)).where(and(
+            eq(NoteThreads.noteId, noteId),
+            or(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))
+          ));
           allThreads = junctionThreads;
           const refreshed = first(await db.select().from(Notes).where(eq(Notes.id, noteId)).limit(1));
           if (refreshed) note = refreshed;
@@ -86248,21 +86291,47 @@ route10.post("/api/notes/:id/remove-thread", requireAuth, rateLimit("write"), as
     const id = requireParam(c, "id");
     const { threadId } = await c.req.json();
     if (!threadId) return c.json({ success: false, error: "Thread ID is required" }, 400);
-    const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
+    let note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
+    let isAdminNote = false;
+    if (!note) {
+      let systemUserId = null;
+      try {
+        systemUserId = getHarvousSystemUserId();
+      } catch {
+      }
+      if (systemUserId) {
+        const adminNote = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, systemUserId))).limit(1));
+        if (adminNote) {
+          const userThread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId))).limit(1));
+          if (userThread) {
+            note = adminNote;
+            isAdminNote = true;
+          }
+        }
+      }
+    }
     if (!note) return c.json({ success: false, error: "Note not found" }, 404);
     const existingRelation = first(await db.select().from(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId))).limit(1));
     if (!existingRelation) return c.json({ success: false, error: "Note is not in this thread" }, 400);
     try {
       await db.delete(NoteThreads).where(and(eq(NoteThreads.noteId, id), eq(NoteThreads.threadId, threadId)));
-      const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
-      if (remainingThreads.length === 0) {
-        await ensureUnorganizedThread(auth.userId);
-        await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, id));
-      } else if (note.threadId === threadId) {
-        await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
+      if (isAdminNote) {
+        const remainingUserThreads = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).innerJoin(Threads, eq(NoteThreads.threadId, Threads.id)).where(and(eq(NoteThreads.noteId, id), eq(Threads.userId, auth.userId)));
+        if (remainingUserThreads.length === 0) {
+          await ensureUnorganizedThread(auth.userId);
+          await db.insert(NoteThreads).values({ id: generateTimestampId("notethread"), noteId: id, threadId: "thread_unorganized", createdAt: nowISO() }).onConflictDoNothing();
+        }
+      } else {
+        const remainingThreads = await db.select().from(NoteThreads).where(eq(NoteThreads.noteId, id));
+        if (remainingThreads.length === 0) {
+          await ensureUnorganizedThread(auth.userId);
+          await db.update(Notes).set({ threadId: "thread_unorganized" }).where(eq(Notes.id, id));
+        } else if (note.threadId === threadId) {
+          await db.update(Notes).set({ threadId: remainingThreads[0].threadId }).where(eq(Notes.id, id));
+        }
+        removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {
+        });
       }
-      removeScriptureNotesFromThread(id, threadId, auth.userId).catch(() => {
-      });
     } catch (deleteError) {
       const standardError = handleAPIError(deleteError, { endpoint: "/api/notes/[id]/remove-thread", action: "remove_note_from_thread" });
       return c.json({ success: false, error: standardError.message, code: standardError.code }, 500);
@@ -86577,31 +86646,6 @@ function idToUrl(id, threadContext, fromNoteId) {
     }
   }
   return url;
-}
-
-// server/utils/harvous-admin.ts
-function getHarvousSystemUserId() {
-  const id = process.env.HARVOUS_SYSTEM_USER_ID;
-  if (!id) throw new Error("Missing env HARVOUS_SYSTEM_USER_ID");
-  return id;
-}
-function isHarvousAdmin(c) {
-  const auth = getAuth(c);
-  const userId = auth?.userId ?? null;
-  const systemUserId = process.env.HARVOUS_SYSTEM_USER_ID;
-  if (userId && systemUserId && userId === systemUserId) return true;
-  const expectedSecret = process.env.HARVOUS_ADMIN_SECRET?.trim();
-  if (!expectedSecret) return false;
-  const authHeader = (c.req.header("authorization") ?? c.req.header("Authorization") ?? "").split(",")[0].trim();
-  const m2 = authHeader.match(/^Bearer\s+(.+)$/i);
-  const provided = m2?.[1]?.trim();
-  return provided === expectedSecret;
-}
-function requireHarvousAdmin(c) {
-  if (!isHarvousAdmin(c)) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-  return null;
 }
 
 // server/routes/spaces.ts
@@ -94388,7 +94432,7 @@ app12.get("/api/featured/items", async (c) => {
     };
     const [nonVotdRows, votdRows] = await Promise.all([
       db.select(selectColumns).from(FeaturedItems).where(and(...nonVotdConditions)).orderBy(desc(FeaturedItems.createdAt)),
-      db.select(selectColumns).from(FeaturedItems).innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId)).where(and(...votdConditions)).orderBy(desc(FeaturedItems.createdAt))
+      db.select(selectColumns).from(FeaturedItems).innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId)).where(and(...votdConditions)).orderBy(desc(FeaturedItems.createdAt)).limit(1)
     ]);
     let items = [...nonVotdRows, ...votdRows].sort(
       (a, b3) => b3.createdAt.getTime() - a.createdAt.getTime()
@@ -94438,6 +94482,7 @@ app12.get("/api/featured/items", async (c) => {
       }
     }
     c.res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
+    c.res.headers.append("Vary", "X-Votd-Timezone");
     return c.json(
       items.map((i) => ({
         id: i.id,
@@ -95655,35 +95700,37 @@ async function publishVotdCore(params) {
   const featuredItemId = `votd_fi_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const historyId = `votd_hist_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const year = parseInt(dateStr.slice(0, 4), 10);
-  await db.insert(FeaturedItems).values({
-    id: featuredItemId,
-    contentType: "votd",
-    title: reference,
-    description: excerpt || null,
-    refId: scheduleId,
-    shareToken: null,
-    color: null,
-    isActive: true,
-    startsAt: todayStart,
-    endsAt: tomorrowStart,
-    metadata: JSON.stringify(metadata),
-    createdAt: timestamp2,
-    updatedAt: timestamp2
+  await db.transaction(async (tx) => {
+    await tx.insert(FeaturedItems).values({
+      id: featuredItemId,
+      contentType: "votd",
+      title: reference,
+      description: excerpt || null,
+      refId: scheduleId,
+      shareToken: null,
+      color: null,
+      isActive: true,
+      startsAt: todayStart,
+      endsAt: tomorrowStart,
+      metadata: JSON.stringify(metadata),
+      createdAt: timestamp2,
+      updatedAt: timestamp2
+    });
+    await tx.insert(VotdPublishHistory).values({
+      id: historyId,
+      reference,
+      translation,
+      featuredItemId,
+      source,
+      label,
+      publishedDate: dateStr,
+      year,
+      createdAt: now()
+    });
+    if (scheduleId) {
+      await tx.update(VotdSchedule).set({ isPublished: true, featuredItemId, scheduledDate: dateStr, updatedAt: nowISO() }).where(eq(VotdSchedule.id, scheduleId));
+    }
   });
-  await db.insert(VotdPublishHistory).values({
-    id: historyId,
-    reference,
-    translation,
-    featuredItemId,
-    source,
-    label,
-    publishedDate: dateStr,
-    year,
-    createdAt: now()
-  });
-  if (scheduleId) {
-    await db.update(VotdSchedule).set({ isPublished: true, featuredItemId, scheduledDate: dateStr, updatedAt: nowISO() }).where(eq(VotdSchedule.id, scheduleId));
-  }
   return { featuredItemId };
 }
 app13.post("/api/admin/votd/schedule", async (c) => {
@@ -95743,6 +95790,66 @@ app13.delete("/api/admin/votd/schedule/:id", async (c) => {
   await db.delete(VotdSchedule).where(eq(VotdSchedule.id, id));
   return c.json({ success: true });
 });
+async function publishForDate(dateStr) {
+  const published = first(
+    await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, dateStr)).limit(1)
+  );
+  if (published) {
+    return { alreadyPublished: true, featuredItemId: published.featuredItemId };
+  }
+  const manual = first(
+    await db.select().from(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, dateStr), eq(VotdSchedule.isPublished, false))).orderBy(desc(VotdSchedule.createdAt)).limit(1)
+  );
+  let pick;
+  let scheduleId = null;
+  let verseText;
+  let translation = "NET";
+  let book;
+  let chapter;
+  let verse;
+  let verseEnd;
+  if (manual) {
+    scheduleId = manual.id;
+    pick = { reference: manual.reference, source: "override", label: null };
+    translation = manual.translation || "NET";
+    try {
+      verseText = manual.verseText || await fetchVerseText(manual.reference, translation);
+    } catch {
+      verseText = manual.verseText || "";
+    }
+    book = manual.book ?? "";
+    chapter = manual.chapter ?? null;
+    verse = manual.verse ?? null;
+    verseEnd = manual.verseEnd ?? null;
+  } else {
+    pick = await pickDailyVerseForPublish(dateStr);
+    const normalizedRef = normalizeScriptureReference(pick.reference);
+    const parsed = parseScriptureReference(normalizedRef);
+    if (!parsed) throw new Error(`Could not parse reference: "${pick.reference}"`);
+    const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+    const vEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+    verseText = await fetchVerseText(normalizedRef, translation);
+    book = parsed.book;
+    chapter = parsed.chapter;
+    verse = verseStart;
+    verseEnd = vEnd ?? null;
+    pick = { ...pick, reference: normalizedRef };
+  }
+  const result = await publishVotdCore({
+    dateStr,
+    reference: pick.reference,
+    translation,
+    verseText,
+    book,
+    chapter,
+    verse,
+    verseEnd,
+    source: pick.source,
+    label: pick.label,
+    scheduleId
+  });
+  return { alreadyPublished: false, featuredItemId: result.featuredItemId, reference: pick.reference, source: pick.source };
+}
 app13.post("/api/admin/votd/publish-daily", async (c) => {
   const unauthorized = requireVotdAuth(c);
   if (unauthorized) return unauthorized;
@@ -95757,81 +95864,29 @@ app13.post("/api/admin/votd/publish-daily", async (c) => {
     todayStr = utcDateStr(d);
   } else {
     todayStr = utcDateStr(/* @__PURE__ */ new Date());
-  }
-  const published = first(
-    await db.select({ featuredItemId: VotdPublishHistory.featuredItemId }).from(VotdPublishHistory).where(eq(VotdPublishHistory.publishedDate, todayStr)).limit(1)
-  );
-  if (published) {
-    return c.json({ success: true, alreadyPublished: true, featuredItemId: published.featuredItemId });
-  }
-  let manual = first(
-    await db.select().from(VotdSchedule).where(and(eq(VotdSchedule.scheduledDate, todayStr), eq(VotdSchedule.isPublished, false))).orderBy(desc(VotdSchedule.createdAt)).limit(1)
-  );
-  let pick;
-  let scheduleId = null;
-  let verseText;
-  let translation = "NET";
-  let book;
-  let chapter;
-  let verse;
-  let verseEnd;
-  if (manual) {
-    scheduleId = manual.id;
-    pick = {
-      reference: manual.reference,
-      source: "override",
-      label: null
-    };
-    translation = manual.translation || "NET";
-    try {
-      verseText = manual.verseText || await fetchVerseText(manual.reference, translation);
-    } catch {
-      verseText = manual.verseText || "";
+    if (c.get("cronAuthed")) {
+      const yesterdayStr = utcPreviousCalendarDay(todayStr);
+      publishForDate(yesterdayStr).catch((e) => {
+        console.error("[votd/publish-daily] yesterday backfill failed:", yesterdayStr, e);
+      });
     }
-    book = manual.book ?? "";
-    chapter = manual.chapter ?? null;
-    verse = manual.verse ?? null;
-    verseEnd = manual.verseEnd ?? null;
-  } else {
-    pick = await pickDailyVerseForPublish(todayStr);
-    const normalizedRef = normalizeScriptureReference(pick.reference);
-    const parsed = parseScriptureReference(normalizedRef);
-    if (!parsed) {
-      return c.json({ error: `Could not parse reference: "${pick.reference}"` }, 500);
-    }
-    const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-    const vEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
-    try {
-      verseText = await fetchVerseText(normalizedRef, translation);
-    } catch (e) {
-      console.error("[votd/publish-daily] fetchVerseText", e);
-      return c.json({ error: `Could not load verse text for ${pick.reference}` }, 500);
-    }
-    book = parsed.book;
-    chapter = parsed.chapter;
-    verse = verseStart;
-    verseEnd = vEnd ?? null;
-    pick = { ...pick, reference: normalizedRef };
   }
-  const result = await publishVotdCore({
-    dateStr: todayStr,
-    reference: pick.reference,
-    translation,
-    verseText,
-    book,
-    chapter,
-    verse,
-    verseEnd,
-    source: pick.source,
-    label: pick.label,
-    scheduleId
-  });
+  let result;
+  try {
+    result = await publishForDate(todayStr);
+  } catch (e) {
+    console.error("[votd/publish-daily] publishForDate", e);
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+  if (result.alreadyPublished) {
+    return c.json({ success: true, alreadyPublished: true, featuredItemId: result.featuredItemId });
+  }
   return c.json({
     success: true,
     featuredItemId: result.featuredItemId,
-    reference: pick.reference,
+    reference: result.reference,
     scheduledDate: todayStr,
-    source: pick.source
+    source: result.source
   });
 });
 app13.get("/api/admin/votd/preview", async (c) => {

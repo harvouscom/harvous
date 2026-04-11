@@ -4,19 +4,21 @@ import ButtonSmall from './ButtonSmall';
 import SquareButton from './SquareButton';
 import { safeFetch } from '@/utils/safe-fetch';
 
-interface NoteSharePanelProps {
-  noteId: string;
-  noteTitle?: string;
+export type NoteSharePanelProps = {
   onClose?: () => void;
   inBottomSheet?: boolean;
-}
+  noteTitle?: string;
+  threadTitle?: string;
+} & (
+  | { noteId: string; threadId?: never }
+  | { threadId: string; noteId?: never }
+);
 
-export default function NoteSharePanel({
-  noteId,
-  noteTitle = 'Note',
-  onClose,
-  inBottomSheet = false
-}: NoteSharePanelProps) {
+export default function NoteSharePanel(props: NoteSharePanelProps) {
+  const isThread = 'threadId' in props && props.threadId != null;
+  const entityId = isThread ? props.threadId : props.noteId;
+  const sharePath = `/api/${isThread ? 'threads' : 'notes'}/${entityId}/share`;
+  const { onClose, inBottomSheet = false } = props;
   const [isShared, setIsShared] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,14 +39,19 @@ export default function NoteSharePanel({
   }, [shareUrl]);
 
   const fetchShareStatus = async () => {
+    setIsLoading(true);
     setFetchError(false);
     try {
-      const response = await safeFetch(`/api/notes/${noteId}/share`, { retries: 1 });
+      const response = await safeFetch(sharePath, { retries: 1 });
       if (response && response.ok) {
         const data = await response.json();
         setIsShared(data.isPublic);
         setShareUrl(data.shareUrl);
-        setNoteType(data.noteType || 'default');
+        if (!isThread) {
+          setNoteType(data.noteType || 'default');
+        } else {
+          setNoteType(null);
+        }
       } else {
         setFetchError(true);
       }
@@ -60,7 +67,7 @@ export default function NoteSharePanel({
   useEffect(() => {
     setIsMounted(true);
     fetchShareStatus();
-  }, [noteId]);
+  }, [entityId]);
 
   const handleRetry = () => {
     setFetchError(false);
@@ -83,7 +90,7 @@ export default function NoteSharePanel({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/share`, {
+      const response = await fetch(sharePath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: enabled ? 'enable' : 'disable' })
@@ -96,7 +103,13 @@ export default function NoteSharePanel({
 
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: enabled ? 'Note is now shared' : 'Note is now private',
+            message: enabled
+              ? isThread
+                ? 'Thread is now shared'
+                : 'Note is now shared'
+              : isThread
+                ? 'Thread is now private'
+                : 'Note is now private',
             type: 'success'
           }
         }));
@@ -128,7 +141,7 @@ export default function NoteSharePanel({
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/notes/${noteId}/share`, {
+      const response = await fetch(sharePath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'refresh' })
@@ -197,9 +210,11 @@ export default function NoteSharePanel({
   if (!isMounted) return null;
 
   // Scripture notes are always shared and don't need visibility toggle or refresh button
-  const isScriptureNote = noteType === 'scripture';
+  const isScriptureNote = !isThread && noteType === 'scripture';
   const showVisibilityToggle = !isScriptureNote;
   const showSharingUI = isShared || isScriptureNote;
+  const privateLabel = isThread ? 'Only I can see this thread' : 'Only I can see this note';
+  const panelHeading = isThread ? 'Share Thread' : 'Share Note';
 
   return (
     <div className={`note-share-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
@@ -210,7 +225,7 @@ export default function NoteSharePanel({
           {/* Header section */}
           <div className="panel__header">
             <div className="panel__title">
-              <p>Share Note</p>
+              <p>{panelHeading}</p>
             </div>
           </div>
 
@@ -236,7 +251,7 @@ export default function NoteSharePanel({
                         />
                       </div>
                       <span className="note-share-panel__option-text">
-                        Only I can see this note
+                        {privateLabel}
                       </span>
                       {!isShared && (
                         <div className="note-share-panel__check-slot">

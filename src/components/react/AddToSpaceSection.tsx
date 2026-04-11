@@ -13,8 +13,7 @@ import {
   type SearchResultType,
 } from '@/hooks/useSearch';
 import {
-  recentSearchStorageKey,
-  recentSearchesUpdatedEvent,
+  addRecentSearchTerm,
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
@@ -473,21 +472,20 @@ export default function AddToSpaceSection({
   useEffect(() => {
     if (!enableFullTextSearch || !recentSearchRecordScope) return;
     const trimmed = ftsDebouncedQuery.trim();
-    if (!trimmed) return;
-    try {
-      const key = recentSearchStorageKey(recentSearchRecordScope);
-      const stored = JSON.parse(localStorage.getItem(key) || '[]');
-      const updated = stored.map((s: { term?: string } | string) => {
-        const term = typeof s === 'string' ? s : s.term;
-        if (term === trimmed) return { term, count: addableFtsResults.length };
-        return s;
-      });
-      localStorage.setItem(key, JSON.stringify(updated));
-      window.dispatchEvent(new CustomEvent(recentSearchesUpdatedEvent(recentSearchRecordScope)));
-    } catch {
-      /* ignore */
-    }
-  }, [enableFullTextSearch, recentSearchRecordScope, ftsDebouncedQuery, addableFtsResults.length]);
+    if (trimmed.length < 2) return;
+    if (ftsLoading || ftsError) return;
+    if (ftsData?.results === undefined) return;
+    // Badge = items still addable in this picker (not raw FTS hit count).
+    addRecentSearchTerm(recentSearchRecordScope, trimmed, { resultCount: addableFtsResults.length });
+  }, [
+    enableFullTextSearch,
+    recentSearchRecordScope,
+    ftsDebouncedQuery,
+    ftsLoading,
+    ftsError,
+    ftsData?.results,
+    addableFtsResults.length,
+  ]);
 
   // Combine notes and threads into unified items, filtered by space
   const availableItems = useMemo(() => {

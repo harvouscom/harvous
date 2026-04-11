@@ -569,6 +569,56 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     };
   }, []);
 
+  // Space switcher open: handled in keyboard-shortcuts.ts (openDesktopSpaceSwitcher).
+  // Plain Arrow Up/Down cycles all primary rows (scroll + footer "New Space"), including when focus is on <summary>.
+  useEffect(() => {
+    const getOrderedFocusables = (): HTMLElement[] => {
+      const detailsEl = spaceSwitcherDetailsRef.current;
+      if (!detailsEl?.open) return [];
+      // Whole <details>: footer lives outside __scroll but inside the panel; query from details so order is DOM order.
+      const nodes = detailsEl.querySelectorAll<HTMLElement>(
+        'a.space-switcher-dropdown__item, button.space-switcher-dropdown__item',
+      );
+      return Array.from(nodes).filter((el) => {
+        if (el.hasAttribute('disabled')) return false;
+        const style = window.getComputedStyle(el);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+      });
+    };
+
+    const onKeyDownCapture = (event: KeyboardEvent) => {
+      const detailsEl = spaceSwitcherDetailsRef.current;
+      if (!detailsEl?.open) return;
+      // Include <summary> focus: it is not inside .space-switcher-details__panel, so use details.contains.
+      if (!detailsEl.contains(event.target as Node)) return;
+      if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+      // Let Cmd/Ctrl+Option+↑/↓ reach global shortcuts (cycle open items / tabs); plain arrows move within the list.
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+
+      const items = getOrderedFocusables();
+      if (items.length === 0) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const active = document.activeElement as HTMLElement | null;
+      let idx = items.indexOf(active as HTMLElement);
+      if (idx < 0) {
+        idx = event.key === 'ArrowDown' ? -1 : items.length;
+      }
+      const delta = event.key === 'ArrowDown' ? 1 : -1;
+      const next = (idx + delta + items.length) % items.length;
+      const el = items[next];
+      el?.focus();
+      el?.scrollIntoView({ block: 'nearest' });
+    };
+
+    window.addEventListener('keydown', onKeyDownCapture, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDownCapture, true);
+    };
+  }, []);
+
   // Sync updatedActiveThread when activeThread prop changes
   // But don't overwrite if we recently updated via events (within 2 seconds)
   useEffect(() => {

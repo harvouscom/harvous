@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -121,6 +122,7 @@ function buildScripturePillHtml(metadata: VotdMetadata, translationForPill: stri
 
 function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const { userId } = useAuth();
   const { data: profile } = useProfile();
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
@@ -195,11 +197,14 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
       });
       setAdded(true);
       writeDismissedFeaturedItem(item.id);
-      void queryClient.invalidateQueries({ queryKey: ['dashboard', 'content'] });
-      void queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey });
-      void queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix });
-      void queryClient.invalidateQueries({ queryKey: ['thread', 'thread_unorganized'] });
-      void queryClient.invalidateQueries({ queryKey: ['xp'] });
+      // VOTD quick-add always inserts into thread_unorganized (see server/routes/featured.ts votd/quick-add).
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['dashboard', 'content'] }),
+        queryClient.invalidateQueries({ queryKey: featuredItemsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: navigationQueryKeyPrefix }),
+        queryClient.invalidateQueries({ queryKey: ['thread', 'thread_unorganized'] }),
+        ...(userId ? [queryClient.invalidateQueries({ queryKey: ['xp', userId] })] : []),
+      ]);
       window.dispatchEvent(new CustomEvent('featuredItemDismissed'));
       setTimeout(() => onClose(), 900);
     } catch {
@@ -219,7 +224,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
     dismissVotd(item, onClose, {
       votdEngagement: 'create_note',
       onServerAck: () => {
-        void queryClient.invalidateQueries({ queryKey: ['xp'] });
+        if (userId) void queryClient.invalidateQueries({ queryKey: ['xp', userId] });
       },
     });
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));

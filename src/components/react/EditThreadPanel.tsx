@@ -14,7 +14,6 @@ import { idToUrl } from '@/utils/url-helpers';
 import { updateThreadOffline } from '@/utils/offline-mutations';
 import { usePersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
-import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
 import UnsavedChangesDialog from './dialogs/UnsavedChangesDialog';
 import TabNav from './TabNav';
 import {
@@ -72,8 +71,7 @@ export default function EditThreadPanel({
   const userId = usePersistedUserId();
   const [formData, setFormData] = useState({
     title: initialTitle,
-    selectedColor: initialColor,
-    selectedType: 'Private'
+    selectedColor: initialColor
   });
   
   // Track initial values for unsaved changes detection
@@ -123,9 +121,7 @@ export default function EditThreadPanel({
 
   // Share settings state
   const [isShared, setIsShared] = useState(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
-  const [shareLoading, setShareLoading] = useState(false);
 
   const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
   const [adminFeaturedItem, setAdminFeaturedItem] = useState<AdminFeaturedItem | null>(null);
@@ -247,12 +243,7 @@ export default function EditThreadPanel({
           const data = await response.json();
           const isPublic = data.isPublic || false;
           setIsShared(isPublic);
-          setShareUrl(data.shareUrl || null);
           setShareToken(data.shareToken || null);
-          if (isPublic) {
-            setFormData(prev => ({ ...prev, selectedType: 'Shared' }));
-          }
-          // Update initial values
           setInitialValues(prev => ({ ...prev, isShared: isPublic }));
         }
       } catch (error) {
@@ -565,107 +556,6 @@ export default function EditThreadPanel({
       window.removeEventListener('noteRemovedFromThread', handleNoteRemovedFromThread as unknown as EventListener);
     };
   }, [threadId, currentThreadNoteIds, refreshReferencedScriptureNotes]);
-
-  // Handle share toggle
-  const handleShareToggle = async (enabled: boolean) => {
-    setShareLoading(true);
-    try {
-      const response = await fetch(`/api/threads/${threadId}/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: enabled ? 'enable' : 'disable' })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setIsShared(data.isPublic);
-        setShareUrl(data.shareUrl);
-        setShareToken(data.shareToken ?? null);
-        setFormData(prev => ({ ...prev, selectedType: data.isPublic ? 'Shared' : 'Private' }));
-
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: data.isPublic ? 'Thread is now shared' : 'Thread is now private',
-            type: 'success'
-          }
-        }));
-
-        // Dispatch event to refresh dashboard
-        // Include current title and color for immediate mobile updates
-        const currentTitle = formDataRef.current.title;
-        const currentColor = formDataRef.current.selectedColor;
-        window.dispatchEvent(new CustomEvent('threadUpdated', {
-          detail: { 
-            threadId,
-            title: currentTitle,
-            color: currentColor,
-            backgroundGradient: getThreadGradientCSS(currentColor)
-          }
-        }));
-      } else {
-        const error = await response.json();
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: error.error || 'Failed to update sharing settings',
-            type: 'error'
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('Error toggling share:', error);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Failed to update sharing settings',
-          type: 'error'
-        }
-      }));
-    } finally {
-      setShareLoading(false);
-    }
-  };
-
-  // Handle share link refresh
-  const handleShareRefresh = async () => {
-    setShareLoading(true);
-    try {
-      const response = await fetch(`/api/threads/${threadId}/share`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'refresh' })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setShareUrl(data.shareUrl);
-        setShareToken(data.shareToken ?? null);
-
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: 'Share link refreshed',
-            type: 'success'
-          }
-        }));
-      } else {
-        const error = await response.json();
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: error.error || 'Failed to refresh share link',
-            type: 'error'
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('Error refreshing share link:', error);
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Failed to refresh share link',
-          type: 'error'
-        }
-      }));
-    } finally {
-      setShareLoading(false);
-    }
-  };
 
   const handleToggleAdminFeature = async () => {
     if (!isHarvousAdmin) return;
@@ -1352,7 +1242,6 @@ export default function EditThreadPanel({
     return (
       formDataRef.current.title.trim() !== initialValues.title ||
       formData.selectedColor !== initialValues.color ||
-      isShared !== initialValues.isShared ||
       selectedItems.length > 0
     );
   };
@@ -1381,8 +1270,7 @@ export default function EditThreadPanel({
     // Reset to initial values
     const next = {
       title: initialValues.title,
-      selectedColor: initialValues.color,
-      selectedType: initialValues.isShared ? 'Shared' : 'Private',
+      selectedColor: initialValues.color
     };
     setFormData(next);
     formDataRef.current = { ...formDataRef.current, ...next };
@@ -1715,16 +1603,6 @@ export default function EditThreadPanel({
                     </button>
                   ))}
                 </div>
-
-                {/* Thread visibility dropdown */}
-                <ThreadVisibilityDropdown
-                  isShared={isShared}
-                  shareUrl={shareUrl}
-                  onToggle={handleShareToggle}
-                  onRefresh={handleShareRefresh}
-                  isLoading={shareLoading}
-                  isEditMode={true}
-                />
 
                 {isHarvousAdmin && isShared && shareToken ? (
                   <div className="edit-space-panel__admin-section">

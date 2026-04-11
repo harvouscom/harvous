@@ -382,10 +382,18 @@ export default function Menu({
       // Handle Share Note action
       try {
         window.dispatchEvent(new CustomEvent('openNoteSharePanel', {
-          detail: { contentId, contentType }
+          detail: { contentId, contentType: 'note' }
         }));
       } catch (error) {
         console.error('Error opening note share panel:', error);
+      }
+    } else if (action === 'shareThread') {
+      try {
+        window.dispatchEvent(new CustomEvent('openNoteSharePanel', {
+          detail: { contentId, contentType: 'thread' }
+        }));
+      } catch (error) {
+        console.error('Error opening thread share panel:', error);
       }
     } else if (action === 'lockNote') {
       // Handle Lock with PIN - trigger Lock button in note view

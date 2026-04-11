@@ -26,12 +26,27 @@ export interface CachedUserData {
 // concurrent requests wait for it to finish instead of seeing half-created state.
 const pendingInit = new Map<string, Promise<CachedUserData>>();
 
+// Serialize onboarding per user so concurrent callers never return while another request
+// has inserted the thread row but not yet notes/junction/scripture (load-more would miss refs).
+const pendingOnboardingChain = new Map<string, Promise<void>>();
+
 /**
  * If the user has no onboarding thread yet, create it (and notes + scripture).
  * Idempotent: no-op if thread_onboarding_${userId} already exists.
  * Exported so content route can run it before first page load to ensure scripture refs exist.
  */
 export async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
+  const prev = pendingOnboardingChain.get(userId) ?? Promise.resolve();
+  const next = prev.then(() => ensureOnboardingThreadBody(userId));
+  pendingOnboardingChain.set(userId, next);
+  return next.finally(() => {
+    if (pendingOnboardingChain.get(userId) === next) {
+      pendingOnboardingChain.delete(userId);
+    }
+  });
+}
+
+async function ensureOnboardingThreadBody(userId: string): Promise<void> {
   const onboardingThreadId = `thread_onboarding_${userId}`;
   const existing = first(await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).limit(1));
   if (existing) return;

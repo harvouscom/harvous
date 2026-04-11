@@ -10,7 +10,8 @@ const MAX_CACHED_SPACES = 5;
 
 export type SpaceBootstrapData = { space: SpaceDetail; items: SpaceContentItem[] };
 
-function getCachedSpaceBootstrap(spaceId: string): SpaceBootstrapData | undefined {
+/** SessionStorage bootstrap snapshot for SpacePage shell while React Query refetches. */
+export function getCachedSpaceBootstrap(spaceId: string): SpaceBootstrapData | undefined {
   try {
     const raw = sessionStorage.getItem(`${SPACE_BOOTSTRAP_CACHE_PREFIX}${spaceId}`);
     return raw ? JSON.parse(raw) : undefined;
@@ -206,6 +207,24 @@ function mapSpaceItemsResponse(data: SpaceItemsResponse): SpaceContentItem[] {
   return allItems;
 }
 
+/** For prefetch on hover (dashboard, nav) — matches `useSpaceBootstrap`. */
+export function getSpaceBootstrapQueryOptions(spaceId: string) {
+  const id = spaceId.startsWith('space_') ? spaceId : `space_${spaceId}`;
+  return {
+    queryKey: bootstrapQueryKey(id),
+    queryFn: async (): Promise<SpaceBootstrapData> => {
+      const data = await api.get<{ space: SpaceDetail; items: SpaceItemsResponse }>(`/api/spaces/${id}/bootstrap`);
+      const space = data.space;
+      const items = mapSpaceItemsResponse(data.items);
+      if (!space) throw new Error('Space not found');
+      const payload: SpaceBootstrapData = { space, items };
+      setCachedSpaceBootstrap(id, payload);
+      return payload;
+    },
+    staleTime: 30_000,
+  };
+}
+
 export function useSpaceItems(spaceId: string) {
   const queryClient = useQueryClient();
   return useQuery({
@@ -224,19 +243,10 @@ export function useSpaceItems(spaceId: string) {
 /** Single request for space + items; use on SpacePage for one round-trip. Populates cache for useSpace/useSpaceItems. */
 export function useSpaceBootstrap(spaceId: string) {
   const cachedBootstrap = spaceId ? getCachedSpaceBootstrap(spaceId) : undefined;
+  const opts = getSpaceBootstrapQueryOptions(spaceId);
   return useQuery({
-    queryKey: bootstrapQueryKey(spaceId),
-    queryFn: async () => {
-      const data = await api.get<{ space: SpaceDetail; items: SpaceItemsResponse }>(`/api/spaces/${spaceId}/bootstrap`);
-      const space = data.space;
-      const items = mapSpaceItemsResponse(data.items);
-      if (!space) throw new Error('Space not found');
-      const payload: SpaceBootstrapData = { space, items };
-      setCachedSpaceBootstrap(spaceId, payload);
-      return payload;
-    },
+    ...opts,
     enabled: !!spaceId,
-    staleTime: 30_000,
     initialData: cachedBootstrap,
     initialDataUpdatedAt: cachedBootstrap ? Date.now() - 15_000 : undefined,
   });

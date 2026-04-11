@@ -90,8 +90,15 @@ interface InboxItem {
   }>;
 }
 
+type SharePanelDrawerData =
+  | { kind: 'note'; noteId: string; noteTitle?: string }
+  | { kind: 'thread'; threadId: string; threadTitle?: string };
+
 // Helper function to get title for each drawer type
-const getDrawerTitle = (drawerType: DrawerType): string => {
+const getDrawerTitle = (drawerType: DrawerType, sharePanelData: SharePanelDrawerData | null = null): string => {
+  if (drawerType === 'noteShare' && sharePanelData) {
+    return sharePanelData.kind === 'thread' ? 'Share Thread' : 'Share Note';
+  }
   const titleMap: Record<DrawerType, string> = {
     'note': 'New Note',
     'thread': 'New Thread',
@@ -146,7 +153,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [inboxPreviewData, setInboxPreviewData] = useState<InboxItem | null>(null);
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteDetailsNote, setNoteDetailsNote] = useState<any | null>(null);
-  const [noteShareData, setNoteShareData] = useState<{ noteId: string; noteTitle?: string } | null>(null);
+  const [sharePanelData, setSharePanelData] = useState<SharePanelDrawerData | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -344,11 +351,14 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     const handleCloseBottomSheet = () => {
       closeBottomSheet(true);
       // Clear panel-specific data when closing
-      if (drawerType === 'inboxPreview') {
+      if (drawerTypeRef.current === 'inboxPreview') {
         setInboxPreviewData(null);
       }
-      if (drawerType === 'addToSpace') {
+      if (drawerTypeRef.current === 'addToSpace') {
         setAddToSpaceSpaceId(null);
+      }
+      if (drawerTypeRef.current === 'noteShare') {
+        setSharePanelData(null);
       }
     };
 
@@ -469,9 +479,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     // Listen for note share panel event
     const handleOpenNoteSharePanel = (event: CustomEvent) => {
       if (!isMobile) return;
-      const { contentId } = event.detail || {};
+      const { contentId, contentType: ct } = event.detail || {};
       if (contentId) {
-        setNoteShareData({ noteId: contentId, noteTitle: currentNote?.title });
+        if (ct === 'thread') {
+          setSharePanelData({ kind: 'thread', threadId: contentId, threadTitle: currentThread?.title });
+        } else {
+          setSharePanelData({ kind: 'note', noteId: contentId, noteTitle: currentNote?.title });
+        }
         openBottomSheet('noteShare');
       }
     };
@@ -530,7 +544,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleCloseBottomSheet);
     };
-  }, [openBottomSheet, closeBottomSheet, isMobile, currentNote]);
+  }, [openBottomSheet, closeBottomSheet, isMobile, currentNote, currentThread]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -803,15 +817,15 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       >
         {/* Accessibility: Radix Dialog requires Title and Description */}
         <Drawer.Title className="sr-only">
-          {getDrawerTitle(drawerType)}
+          {getDrawerTitle(drawerType, sharePanelData)}
         </Drawer.Title>
         <Drawer.Description className="sr-only">
-          {`${getDrawerTitle(drawerType)} panel`}
+          {`${getDrawerTitle(drawerType, sharePanelData)} panel`}
         </Drawer.Description>
 
         {/* Focus anchor: keeps focus out of aria-hidden background (used when not PIN sheet) */}
         <button ref={sheetFocusRef} type="button" className="sr-only">
-          {getDrawerTitle(drawerType)}
+          {getDrawerTitle(drawerType, sharePanelData)}
         </button>
         
         {/* Content - flex-1 so it fills the sheet (no h-full) and footer stays 16px from bottom */}
@@ -1168,13 +1182,20 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
             </div>
           )}
 
-          {/* Note Share Panel */}
-          {drawerType === 'noteShare' && noteShareData && (
+          {/* Note / Thread Share Panel */}
+          {drawerType === 'noteShare' && sharePanelData && (
             <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
               <NoteSharePanel
-                key={`mobile-note-share-${panelKey}`}
-                noteId={noteShareData.noteId}
-                noteTitle={currentNote?.title || noteShareData.noteTitle}
+                key={`mobile-note-share-${panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
+                {...(sharePanelData.kind === 'note'
+                  ? {
+                      noteId: sharePanelData.noteId,
+                      noteTitle: currentNote?.title || sharePanelData.noteTitle,
+                    }
+                  : {
+                      threadId: sharePanelData.threadId,
+                      threadTitle: currentThread?.title || sharePanelData.threadTitle,
+                    })}
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
                 }}

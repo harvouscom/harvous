@@ -21,8 +21,10 @@ interface CondensedNoteItemProps {
   threadColors?: Array<{ color: string; frequency: number }>;
   // Note ID for deterministic gradient variation
   noteId?: string;
-  /** Optional right-side action (e.g. "Turn off sharing" button). When set, row is non-link. */
+  /** Optional right-side action (e.g. "Turn off sharing" button). When set, row is non-link unless `onOpen` is also set. */
   action?: React.ReactNode;
+  /** With `action`, opens the note/thread when clicking the main row (title area); action control stays separate. */
+  onOpen?: () => void;
   /** 'thread' shows a list/thread icon and simple accent; 'note' uses noteType icon and gradient */
   itemType?: 'note' | 'thread';
   /** Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV') */
@@ -45,6 +47,7 @@ export default function CondensedNoteItem({
   threadColors,
   noteId,
   action,
+  onOpen,
   itemType = 'note',
   scriptureTranslation,
 }: CondensedNoteItemProps) {
@@ -58,48 +61,91 @@ export default function CondensedNoteItem({
     [meshGradient],
   );
 
+  const titleBlock = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-sans)',
+          fontWeight: 700,
+          color: 'var(--color-deep-grey)',
+          fontSize: '16px',
+          lineHeight: 1.2,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {title || (itemType === 'thread' ? 'Untitled thread' : 'Untitled Note')}
+      </div>
+      {scriptureTranslation && (
+        <span
+          style={{
+            fontFamily: 'var(--font-sans)',
+            fontSize: '12px',
+            fontWeight: 'normal',
+            color: 'var(--color-stone-grey)',
+            flexShrink: 0,
+          }}
+        >
+          {scriptureTranslation}
+        </span>
+      )}
+    </div>
+  );
+
+  const openKeyDown = (e: React.KeyboardEvent) => {
+    if (!onOpen) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen();
+    }
+  };
+
   const inner = (
     <CondensedNoteRowLayout
       accentBarStyle={accentBarStyle}
       icon={condensedNoteRowIcon({ itemType, noteType, iconSize: CONDENSED_NOTE_ICON_PX })}
       paddingRight={action ? '0.75rem' : '3rem'}
-      style={action == null ? { cursor: 'pointer' } : undefined}
+      style={
+        action == null
+          ? { cursor: 'pointer' }
+          : onOpen
+            ? { cursor: 'default' }
+            : undefined
+      }
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0 }}>
+      {action != null && onOpen ? (
         <div
+          role="link"
+          tabIndex={0}
+          onClick={() => onOpen()}
+          onKeyDown={openKeyDown}
           style={{
-            fontFamily: 'var(--font-sans)',
-            fontWeight: 700,
-            color: 'var(--color-deep-grey)',
-            fontSize: '16px',
-            lineHeight: 1.2,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            flex: 1,
+            minWidth: 0,
+            cursor: 'pointer',
           }}
         >
-          {title || (itemType === 'thread' ? 'Untitled thread' : 'Untitled Note')}
+          {titleBlock}
         </div>
-        {scriptureTranslation && (
-          <span
-            style={{
-              fontFamily: 'var(--font-sans)',
-              fontSize: '12px',
-              fontWeight: 'normal',
-              color: 'var(--color-stone-grey)',
-              flexShrink: 0,
-            }}
-          >
-            {scriptureTranslation}
-          </span>
-        )}
-      </div>
+      ) : (
+        titleBlock
+      )}
       {action != null && <div style={{ flexShrink: 0 }}>{action}</div>}
     </CondensedNoteRowLayout>
   );
 
   if (action != null) {
-    return <div className={`block ${className}`.trim()}>{inner}</div>;
+    return (
+      <div
+        className={`block ${onOpen ? 'transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]' : ''} ${className}`.trim()}
+      >
+        {inner}
+      </div>
+    );
   }
 
   return (

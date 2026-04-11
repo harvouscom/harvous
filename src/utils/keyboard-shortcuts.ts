@@ -6,6 +6,7 @@
  */
 
 import { getBackTarget, popNavStack } from './nav-stack';
+import { cycleTabNavStep, navigatePersistentNavStep } from './keyboard-navigation-helpers';
 import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-helpers';
 
 /**
@@ -122,6 +123,29 @@ function isPanelOpen(): boolean {
 function isSpotlightOpen(): boolean {
   if (typeof document === 'undefined') return false;
   return !!document.querySelector('.spotlight-overlay:not(.spotlight-overlay--closing)');
+}
+
+/** Open desktop space switcher (`<details class="space-switcher-details">`) and focus first row. */
+function openDesktopSpaceSwitcher(): void {
+  if (typeof document === 'undefined') return;
+  const details = document.querySelector<HTMLDetailsElement>('details.space-switcher-details');
+  if (!details) return;
+  details.open = true;
+  requestAnimationFrame(() => {
+    const first = details.querySelector<HTMLElement>(
+      '.space-switcher-dropdown__scroll a.space-switcher-dropdown__item, .space-switcher-dropdown__scroll button.space-switcher-dropdown__item',
+    );
+    first?.focus();
+  });
+}
+
+/** Close desktop space switcher if open. Used so Esc dismisses only this layer before other panels. */
+function tryCloseDesktopSpaceSwitcher(): boolean {
+  if (typeof document === 'undefined') return false;
+  const details = document.querySelector<HTMLDetailsElement>('details.space-switcher-details');
+  if (!details?.open) return false;
+  details.removeAttribute('open');
+  return true;
 }
 
 /**
@@ -284,7 +308,8 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
 
   // Cmd/Ctrl + S - Save current note/thread (when editing)
   // Handle BEFORE isTypingInInput() check so it works in editors
-  if (modifier && key === 's') {
+  // Cmd/Ctrl + Option + S is reserved for "open space switcher" (handled after isTypingInInput).
+  if (modifier && key === 's' && !event.altKey) {
     // Only prevent default if we're actually in an editing context
     // We'll check if there's an active editor or form
     const activeElement = document.activeElement as HTMLElement | null;
@@ -303,8 +328,13 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
 
-  // Esc — dismiss top overlay/panel (before isTypingInInput so Spotlight/desktop panels close even when focus is in the editor; same layer stack as Mod+←)
+  // Esc — space switcher first (only that layer), then other overlays/panels (before isTypingInInput)
   if (key === 'escape' || code === 'Escape') {
+    if (tryCloseDesktopSpaceSwitcher()) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     if (tryDismissBreadcrumbLayer()) {
       event.preventDefault();
     }
@@ -315,7 +345,50 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   if (isTypingInInput()) {
     return;
   }
-  
+
+  // Cmd/Ctrl + Option — persistent nav, tabs, space switcher (not when Spotlight is open)
+  // Use KeyS so Alt+letter layouts still match the physical S key; capture phase + stopImmediatePropagation
+  // so the browser does not also run its own shortcut (e.g. tab history or OS workspace switching).
+  if (modifier && event.altKey && !event.shiftKey) {
+    if (!isSpotlightOpen()) {
+      const isPhysicalS = key === 's' || code === 'KeyS';
+      if (isPhysicalS && !event.repeat) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openDesktopSpaceSwitcher();
+        return;
+      }
+      if (key === 'arrowup' || code === 'ArrowUp') {
+        if (navigatePersistentNavStep(-1)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+        return;
+      }
+      if (key === 'arrowdown' || code === 'ArrowDown') {
+        if (navigatePersistentNavStep(1)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+        return;
+      }
+      if (key === 'arrowleft' || code === 'ArrowLeft') {
+        if (cycleTabNavStep(-1)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+        return;
+      }
+      if (key === 'arrowright' || code === 'ArrowRight') {
+        if (cycleTabNavStep(1)) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+        return;
+      }
+    }
+  }
+
   // Cmd/Ctrl + Alt + N — New note (Alt avoids browser New Window on ⌘/Ctrl+N)
   if (modifier && event.altKey && key === 'n' && !event.shiftKey) {
     if (isAppFocused()) {
@@ -344,7 +417,8 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   }
 
   // Cmd/Ctrl + Left Arrow — close top overlay/panel first, else hierarchy up (note → thread → space → home), else history
-  if (modifier && (key === 'arrowleft' || code === 'ArrowLeft')) {
+  // (Cmd/Ctrl + Option + Left is used for content tab cycling; handled earlier.)
+  if (modifier && !event.altKey && (key === 'arrowleft' || code === 'ArrowLeft')) {
     event.preventDefault();
     if (tryDismissBreadcrumbLayer()) {
       return;
@@ -388,25 +462,25 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
 /**
  * Initialize keyboard shortcuts
  */
+const KEYDOWN_LISTENER_OPTIONS: AddEventListenerOptions = { capture: true };
+
 export function initKeyboardShortcuts(): void {
   if (typeof window === 'undefined') return;
-  
+
   // Remove existing listener if any (to prevent duplicates)
   const existingHandler = (window as any).__keyboardShortcutsHandler;
   if (existingHandler) {
-    window.removeEventListener('keydown', existingHandler);
+    window.removeEventListener('keydown', existingHandler, KEYDOWN_LISTENER_OPTIONS);
   }
-  
-  // Create new handler
+
   const handler = (event: KeyboardEvent) => {
     handleKeyboardShortcut(event);
   };
-  
-  // Store handler reference for cleanup
+
   (window as any).__keyboardShortcutsHandler = handler;
-  
-  // Add event listener
-  window.addEventListener('keydown', handler);
+
+  // Capture phase so we can preventDefault / stopImmediatePropagation before browser shortcuts
+  window.addEventListener('keydown', handler, KEYDOWN_LISTENER_OPTIONS);
 }
 
 /** Modifier label for display (preferences / help). */
@@ -433,6 +507,7 @@ export type KeyboardShortcutReferenceItem = {
 export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceItem[] {
   const mod = getKeyboardShortcutModifierLabel();
   const isMac = mod === '⌘';
+  const opt = isMac ? '⌥' : 'Alt';
 
   return [
     { action: 'Search', keyParts: [mod, 'K'] },
@@ -441,6 +516,10 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceItem[]
       action: 'Back',
       keyParts: isMac ? [mod, '←'] : ['Ctrl', '←'],
     },
+    { action: 'Cycle open items', keyParts: isMac ? [mod, opt, '↑ / ↓'] : ['Ctrl', 'Alt', '↑ / ↓'] },
+    { action: 'Switch tab', keyParts: isMac ? [mod, opt, '← / →'] : ['Ctrl', 'Alt', '← / →'] },
+    { action: 'Switch space', keyParts: isMac ? [mod, opt, 'S'] : ['Ctrl', 'Alt', 'S'] },
+    { action: 'Move in list', keyParts: ['↑', '↓'] },
     { action: 'New note', keyParts: isMac ? [mod, '⌥', 'N'] : ['Ctrl', 'Alt', 'N'] },
     { action: 'New thread', keyParts: isMac ? [mod, '⌥', '⇧', 'N'] : ['Ctrl', 'Alt', 'Shift', 'N'] },
     {
@@ -459,10 +538,10 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceItem[]
  */
 export function cleanupKeyboardShortcuts(): void {
   if (typeof window === 'undefined') return;
-  
+
   const handler = (window as any).__keyboardShortcutsHandler;
   if (handler) {
-    window.removeEventListener('keydown', handler);
+    window.removeEventListener('keydown', handler, KEYDOWN_LISTENER_OPTIONS);
     delete (window as any).__keyboardShortcutsHandler;
   }
 }

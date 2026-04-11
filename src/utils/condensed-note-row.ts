@@ -1,5 +1,5 @@
 /**
- * Shared compact row metrics (CondensedNoteItem, ThreadNotesList scripture rows, CardNote sidebar).
+ * Shared compact row metrics (CondensedNoteItem, CondensedThreadItem, ThreadNotesList scripture rows, CardNote sidebar).
  *
  * Accent-bar icons use 0.8 on thread color, mesh, and paper strips (matches `.featured-card__accent svg`).
  */

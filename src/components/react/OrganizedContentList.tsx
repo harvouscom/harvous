@@ -65,6 +65,8 @@ interface OrganizedContentListProps {
   initialHasMoreFromParent?: boolean;
   /** Called on pointer enter for note items — use to prefetch note data before click */
   onNotePrefetch?: (noteId: string) => void;
+  /** Called when user hovers/focuses a thread row — prefetch thread route data (SPA React Query) */
+  onThreadIntent?: (threadId: string) => void;
 }
 
 // Helper to normalize dates once at API boundary
@@ -147,6 +149,7 @@ export default function OrganizedContentList({
   parentIsLoading = false,
   initialHasMoreFromParent,
   onNotePrefetch,
+  onThreadIntent,
 }: OrganizedContentListProps) {
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
@@ -1619,6 +1622,22 @@ export default function OrganizedContentList({
             href={href}
             className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
             onClick={onNavigate ? (e) => { e.preventDefault(); onNavigate(href); } : undefined}
+            onPointerEnter={
+              onThreadIntent
+                ? () => {
+                    const tid = item.threadId || item.id;
+                    if (tid) onThreadIntent(tid);
+                  }
+                : undefined
+            }
+            onFocus={
+              onThreadIntent
+                ? () => {
+                    const tid = item.threadId || item.id;
+                    if (tid) onThreadIntent(tid);
+                  }
+                : undefined
+            }
           >
             <CardThread
               thread={{

@@ -1340,7 +1340,7 @@ html.ios-pwa .drawer-slide {
   margin: 0 auto;
   color: var(--color-deep-grey);
   font-family: var(--font-sans);
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.65;
   -webkit-user-select: text;
   user-select: text;
@@ -1425,7 +1425,7 @@ html.ios-pwa .drawer-slide {
   }
 
   .about-harvous-letter {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   .about-harvous-letter h1 {

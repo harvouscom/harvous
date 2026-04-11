@@ -9,6 +9,7 @@ import { normalizeDate } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
+import { useListKeyboardRoving } from '@/hooks/useListKeyboardRoving';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { deleteNoteOffline } from '@/utils/offline-mutations';
@@ -307,6 +308,7 @@ export default function ThreadNotesList({
   const totalCountForFilterRef = useRef<number>(0);
   const accumulatedFilteredCountRef = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  useListKeyboardRoving(containerRef);
   // Track the actual database offset (total notes fetched from API, not filtered)
   // This is critical because the API doesn't filter by type, so we need to track
   // how many notes we've actually fetched from the database
@@ -1506,6 +1508,7 @@ export default function ThreadNotesList({
 
     return (
       <div 
+        data-keyboard-row
         className={`content-item note-item card-enter ${isUnorganizedThread ? 'panel__item-list-item' : ''}`}
         style={{ animationDelay: `${index * 50}ms` }}
       >

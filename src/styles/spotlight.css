@@ -30,7 +30,7 @@
 .spotlight-wrapper {
   position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: 470px;
   max-height: 100%;
   display: flex;
   flex-direction: column;
@@ -41,15 +41,16 @@
   animation: spotlightSlideOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
-/* Action strip layer — peeks out from below the card */
+/* Action strip layer — peeks out from below the card (geometry matches `.mobile-action-strip-dock` / `.featured-card__dock`) */
 .spotlight-strip {
   position: relative;
   z-index: 1;
-  background: var(--color-paper, #ece9e1);
-  border-bottom-left-radius: 20px;
-  border-bottom-right-radius: 20px;
-  margin-top: -20px; /* tucks top portion behind the card's bottom edge */
-  padding-top: 20px; /* pushes content below the overlap */
+  background-color: #ebe8e0;
+  border-bottom-left-radius: 1.5rem;
+  border-bottom-right-radius: 1.5rem;
+  margin-top: -1.5rem; /* tucks top portion behind the card lip — same underlap as card-stack docks */
+  padding-top: 1.5rem;
+  box-sizing: border-box;
 }
 
 .spotlight-strip .action-strip__item {
@@ -72,20 +73,26 @@
   color: var(--color-stone-grey);
 }
 
-/* Container — same off-white as .card-stack__inner (main column scroll surface) */
+/* Container — aligns with `.card-stack` / `.card-stack__container` (24px outer radius) */
 .spotlight-container {
   /* Matches .recent-search-row + .spotlight-input-wrapper */
   --spotlight-field-height: 52px;
+  /* Spotlight list rows: same height as the search field + navigation.css `.recent-search-row` (roomier than thread lists) */
+  --spotlight-result-row-height: var(--spotlight-field-height);
   position: relative;
   z-index: 2;
   background: var(--color-snow-white);
-  border-radius: 20px;
+  border-radius: 1.5rem;
   /* Tighter than a heavy “floating” stack so less dumps onto .spotlight-strip below */
   box-shadow:
     0px 2px 8px 0px rgba(0, 0, 0, 0.06),
     0px 10px 22px 0px rgba(0, 0, 0, 0.05);
   overflow: hidden;
   font-family: var(--font-sans);
+  /* Horizontal inset for cmdk content — avoids width:100% + horizontal margin overflow on `.search-input` */
+  padding-left: 12px;
+  padding-right: 12px;
+  box-sizing: border-box;
 }
 
 /* Cmdk root is focusable (tabindex=-1) while arrowing the list; hide browser ring */
@@ -93,51 +100,25 @@
 .spotlight-container [cmdk-root]:focus,
 .spotlight-container [cmdk-root]:focus-visible {
   outline: none;
-}
-
-/* Input area — matches .search-input pattern */
-.spotlight-input-wrapper {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  min-height: var(--spotlight-field-height);
-  border-radius: 16px;
-  background: var(--color-gradient-gray);
-  box-shadow: var(--shadow-small);
-  margin: 12px 12px 8px;
-}
-
-/* Icon | input (fills) | chip (right, content-width) */
-.spotlight-input-wrapper--has-scope {
-  grid-template-columns: auto 1fr auto;
-}
-
-.spotlight-input-wrapper svg {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  fill: var(--color-pebble-grey);
-}
-
-/* Matches CondensedNoteItem primary title (16px / 700) */
-.spotlight-container [cmdk-input] {
-  border: none;
-  outline: none;
-  background: transparent;
-  font-size: 16px;
-  font-weight: 700;
-  font-family: var(--font-sans);
-  color: var(--color-deep-grey);
-  caret-color: var(--color-bold-blue);
   min-width: 0;
-  line-height: 1.2;
 }
 
-.spotlight-container [cmdk-input]::placeholder {
-  color: var(--color-pebble-grey);
-  font-weight: 600;
+/* Search field — same `.search-input` / `.search-input__field` as FindSearchInput (forms.css); vertical rhythm only */
+.spotlight-container .spotlight-search-input {
+  margin: 12px 0 8px;
+  min-width: 0;
+}
+
+.spotlight-input-trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.spotlight-container .search-input__field[cmdk-input] {
+  caret-color: var(--color-bold-blue);
 }
 
 /* Scope chip — scripture-pill-like; fill from --spotlight-scope-accent (thread/space token) */
@@ -185,13 +166,13 @@
   fill: currentColor;
 }
 
-/* List */
+/* List — vertical padding only; horizontal inset comes from `.spotlight-container` */
 .spotlight-container [cmdk-list] {
   max-height: min(50vh, 420px);
   overflow-y: auto;
   overscroll-behavior: contain;
   transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  padding: 8px;
+  padding: 8px 0;
 }
 
 /* Group heading — matches SearchResultsList count label */
@@ -220,8 +201,8 @@
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale) */
 .spotlight-container .spotlight-result-row {
-  height: var(--spotlight-field-height) !important;
-  min-height: var(--spotlight-field-height);
+  height: var(--spotlight-result-row-height) !important;
+  min-height: var(--spotlight-result-row-height);
   background-color: var(--color-white) !important;
   box-sizing: border-box;
   border: 1px solid transparent;
@@ -260,8 +241,9 @@
 
 /* Recent rows — chrome from .recent-search-row in navigation.css; cmdk selection ring */
 .spotlight-container .spotlight-recent-row {
-  min-height: var(--spotlight-field-height);
-  height: var(--spotlight-field-height);
+  min-height: var(--spotlight-result-row-height) !important;
+  height: var(--spotlight-result-row-height) !important;
+  box-sizing: border-box;
   border: 1px solid transparent;
   transition:
     box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
@@ -334,21 +316,19 @@
   to { opacity: 0; }
 }
 
-/* Mobile adjustments */
+/* Mobile — same 24px shell as `.card-stack` on narrow viewports (no smaller radius) */
 @media (max-width: 1159px) {
-  .spotlight-container {
-    border-radius: 16px;
-  }
-
   .spotlight-container [cmdk-list] {
     max-height: min(45dvh, 360px);
   }
 }
 
-/* Mobile drawer variant — Vaul handles the overlay/backdrop */
+/* Mobile drawer variant — Vaul handles the overlay/backdrop; top radius matches `.card-stack` / `rounded-t-3xl` (24px) */
 .spotlight-drawer-content {
   background: var(--color-snow-white) !important;
   z-index: 1000026 !important;
+  border-top-left-radius: 1.5rem;
+  border-top-right-radius: 1.5rem;
 }
 
 .spotlight-drawer-overlay {

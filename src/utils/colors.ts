@@ -22,21 +22,35 @@ function formatCssNumber(value: number, decimals: number): string {
   return value.toFixed(decimals);
 }
 
+/** Webflow / CMS long names → short tokens (same as sync-manager normalizeThreadColor). */
+const LEGACY_THREAD_COLOR_ALIASES: Record<string, ThreadColor | "paper"> = {
+  "blessed-blue": "blue",
+  "graceful-gold": "yellow",
+  "mindful-mint": "green",
+  "pleasant-peach": "orange",
+  "peaceful-pink": "pink",
+  "lovely-lavender": "purple",
+  paper: "paper"
+};
+
 // Convert thread color name to CSS variable
 export function getThreadColorCSS(color: ThreadColor | string | null | undefined): string {
   if (!color) return "var(--color-paper)"; // Paper color for null
-  
+
+  const key = String(color).toLowerCase();
+  const normalized = LEGACY_THREAD_COLOR_ALIASES[key] ?? key;
+
   const colorMap: Record<string, string> = {
-    "paper": "var(--color-paper)",
-    "blue": "var(--color-blue)",
-    "yellow": "var(--color-yellow)",
-    "green": "var(--color-green)",
-    "pink": "var(--color-pink)",
-    "orange": "var(--color-orange)",
-    "purple": "var(--color-purple)"
+    paper: "var(--color-paper)",
+    blue: "var(--color-blue)",
+    yellow: "var(--color-yellow)",
+    green: "var(--color-green)",
+    pink: "var(--color-pink)",
+    orange: "var(--color-orange)",
+    purple: "var(--color-purple)"
   };
-  
-  return colorMap[color] || "var(--color-paper)";
+
+  return colorMap[normalized] || "var(--color-paper)";
 }
 
 // Get appropriate text color for thread color backgrounds

@@ -12,6 +12,7 @@ import RecentSearches from '../../../src/components/react/RecentSearches';
 import CardStack from '../components/CardStack';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 import SearchResultsList, { fetchSearchResults, searchQueryKey } from '../components/SearchResultsList';
+import { useDebouncedSearchState } from '../hooks/useDebouncedSearchState';
 import {
   getStoredThreadContentTab,
   setStoredThreadContentTab,
@@ -54,7 +55,8 @@ export default function ThreadPage() {
   const [noteTypeFilter, setNoteTypeFilter] = useState<NoteTypeFilter>(
     () => getStoredThreadContentTab(threadId) ?? 'all',
   );
-  const [scopedSearchQuery, setScopedSearchQuery] = useState('');
+  const { input: searchInput, setInput: setSearchInput, debounced: debouncedSearch, clear: clearSearch, applyImmediate: applySearchImmediate } =
+    useDebouncedSearchState();
   const [prevThreadId, setPrevThreadId] = useState(threadId);
   if (threadId !== prevThreadId) {
     setPrevThreadId(threadId);
@@ -79,6 +81,11 @@ export default function ThreadPage() {
     },
     [queryClient, threadId],
   );
+
+  useEffect(() => {
+    clearSearch();
+  }, [threadId, clearSearch]);
+
   // TanStack Router may not include unvalidated search params in location.search;
   // fall back to window.location.search so ?space= is always picked up.
   let urlSpaceId = getSpaceIdFromSearch(search);
@@ -186,24 +193,25 @@ export default function ThreadPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <FindSearchInput
               placeholder="Search notes in this thread…"
-              initialQuery={scopedSearchQuery}
+              value={searchInput}
+              onValueChange={setSearchInput}
               onBeforeSearchNavigate={prefetchThreadSearch}
-              onSubmitSearch={setScopedSearchQuery}
-              onClearSearch={() => setScopedSearchQuery('')}
+              onSubmitSearch={() => {}}
+              onClearSearch={clearSearch}
               recentSearchRecordScope={{ type: 'thread', id: threadId }}
             />
-            {!scopedSearchQuery.trim() && (
+            {!searchInput.trim() && (
               <RecentSearches
                 storageScope={{ type: 'thread', id: threadId }}
                 onPrefetchSearch={prefetchThreadSearch}
                 onSelectRecentTerm={(term) => {
                   prefetchThreadSearch(term);
-                  setScopedSearchQuery(term);
+                  applySearchImmediate(term);
                 }}
               />
             )}
             <SearchResultsList
-              query={scopedSearchQuery}
+              query={debouncedSearch}
               scope={{ threadId }}
               recentSearchCountSync={{ type: 'thread', id: threadId }}
             />

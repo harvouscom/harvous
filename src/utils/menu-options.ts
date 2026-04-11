@@ -87,6 +87,7 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
       }
       return [
         { action: "editThread", label: "Edit Thread" },
+        { action: "shareThread", label: "Share" },
         { action: "eraseThread", label: "Erase Thread" },
         { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
       ];

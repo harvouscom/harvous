@@ -205,6 +205,16 @@ export default function MySharingPanel({
     safeNavigate(idToUrl(spaceId), { history: 'replace' });
   };
 
+  const openThread = (threadId: string) => {
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    safeNavigate(idToUrl(threadId));
+  };
+
+  const openNote = (noteId: string) => {
+    window.dispatchEvent(new CustomEvent('closeProfilePanel'));
+    safeNavigate(idToUrl(noteId));
+  };
+
   return (
     <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''}`}>
       <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ position: 'relative', gap: 0 }}>
@@ -264,6 +274,7 @@ export default function MySharingPanel({
                               color={thread.color ?? undefined}
                               isPublic={true}
                               icon="layer-group"
+                              onOpen={() => openThread(thread.id)}
                               action={
                                 <ActionButton
                                   variant="Remove"
@@ -282,6 +293,7 @@ export default function MySharingPanel({
                               title={note.title}
                               noteType="default"
                               itemType="note"
+                              onOpen={() => openNote(note.id)}
                               action={
                                 <ActionButton
                                   variant="Remove"
@@ -300,6 +312,7 @@ export default function MySharingPanel({
                               title={space.title}
                               color={space.color ?? undefined}
                               icon="cube"
+                              onOpen={() => handleOpenSpace(space.id)}
                               action={
                                 <div className="flex-row" style={{ gap: '0.25rem' }}>
                                   {space.shareUrl && (
