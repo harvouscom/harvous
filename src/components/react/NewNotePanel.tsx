@@ -10,6 +10,7 @@ import { debug } from '@/utils/logger';
 import { safeURL } from '@/utils/safe-url';
 import { usePersistedUserId } from '@/utils/user-id';
 import { getNextSimpleNoteIdPreview, getLocalNoteCount, cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from '@/utils/offline-mutations';
+import { clearVotdPendingCreateNoteFeaturedId } from '@/utils/featured-dismiss-local';
 
 // Import extracted hooks
 import {
@@ -624,6 +625,7 @@ export default function NewNotePanel({
 
   // Actually close the panel - resilient to errors so close always works
   const closePanel = () => {
+    clearVotdPendingCreateNoteFeaturedId();
     // Wrap each operation in try-catch to ensure close always completes
     try {
       form.clearLocalStorage();

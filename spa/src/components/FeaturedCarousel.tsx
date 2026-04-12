@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FeaturedItem } from '../hooks/queries/useFeaturedItems';
 import Icon from '@/components/react/Icon';
+import {
+  getVotdPendingCreateNoteFeaturedId,
+  VOTD_PENDING_CREATE_NOTE_CHANGED,
+} from '@/utils/featured-dismiss-local';
 import FeaturedCard, { readDismissedFeaturedItem } from './FeaturedCard';
 import SubtleContentMount from '@/components/react/SubtleContentMount';
 
@@ -11,17 +15,33 @@ function clampIndex(index: number, len: number) {
   return index;
 }
 
+function filterFeaturedForDisplay(items: FeaturedItem[]) {
+  const pendingVotd = getVotdPendingCreateNoteFeaturedId();
+  return items.filter((i) => {
+    if (readDismissedFeaturedItem(i.id)) return false;
+    if (pendingVotd && i.id === pendingVotd) return false;
+    return true;
+  });
+}
+
 export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
-  const initial = useMemo(() => items.filter((i) => !readDismissedFeaturedItem(i.id)), [items]);
+  const [pendingEpoch, setPendingEpoch] = useState(0);
+  const initial = useMemo(() => filterFeaturedForDisplay(items), [items]);
   const [localItems, setLocalItems] = useState<FeaturedItem[]>(initial);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  useEffect(() => {
+    const sync = () => setPendingEpoch((n) => n + 1);
+    window.addEventListener(VOTD_PENDING_CREATE_NOTE_CHANGED, sync);
+    return () => window.removeEventListener(VOTD_PENDING_CREATE_NOTE_CHANGED, sync);
+  }, []);
+
   // Keep localItems in sync with server list (server excludes dismissed; localStorage is extra safety).
   useEffect(() => {
-    const next = items.filter((i) => !readDismissedFeaturedItem(i.id));
+    const next = filterFeaturedForDisplay(items);
     setLocalItems(next);
     setActiveIndex((prev) => clampIndex(prev, next.length));
-  }, [items]);
+  }, [items, pendingEpoch]);
 
   const activeItem = localItems[activeIndex] ?? null;
   const canGoPrev = localItems.length > 1 && activeIndex > 0;

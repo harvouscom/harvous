@@ -3,6 +3,7 @@ import PanelErrorBoundary from './PanelErrorBoundary';
 import ButtonSmall from './ButtonSmall';
 import OfflineModeInfoPanel from './OfflineModeInfoPanel';
 import { prefetchSpacePanelData } from '@/utils/prefetch-space-panel';
+import { clearVotdPendingCreateNoteFeaturedId } from '@/utils/featured-dismiss-local';
 
 // Helper function to create lazy-loaded components with error handling
 const createLazyComponent = (importFn: () => Promise<any>, componentName: string) => {
@@ -805,6 +806,7 @@ export default function DesktopPanelManager({
 
     // Close all panels on SPA route change (dispatched by AppLayout on pathname change)
     const handleCloseAllPanels = () => {
+      clearVotdPendingCreateNoteFeaturedId();
       setRequestedSpaceId(null);
       setRequestedNoteId(null);
       setAddToSpaceSpaceId(null);

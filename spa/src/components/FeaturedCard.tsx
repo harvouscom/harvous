@@ -5,6 +5,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { featuredItemsQueryKey, type FeaturedItem, type VotdMetadata } from '../hooks/queries/useFeaturedItems';
 import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
+import {
+  setVotdPendingCreateNoteFeaturedId,
+  writeDismissedFeaturedItem,
+} from '@/utils/featured-dismiss-local';
 import { generateAccentMeshGradient, getThreadIconOnAccentCSS } from '../../../src/utils/colors';
 import {
   stripLeadingVerseNumberFromPlainText,
@@ -14,25 +18,7 @@ import {
 import Icon from '@/components/react/Icon';
 import { FeaturedCardActionsDock } from '@/components/react/FeaturedCardActionsDock';
 
-function dismissKey(featuredItemId: string) {
-  return `dismissed_featured_${featuredItemId}`;
-}
-
-export function readDismissedFeaturedItem(featuredItemId: string): boolean {
-  try {
-    return localStorage.getItem(dismissKey(featuredItemId)) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeDismissedFeaturedItem(featuredItemId: string) {
-  try {
-    localStorage.setItem(dismissKey(featuredItemId), '1');
-  } catch {
-    /* ignore */
-  }
-}
+export { readDismissedFeaturedItem } from '@/utils/featured-dismiss-local';
 
 function getIconForContentType(contentType: FeaturedItem['contentType']) {
   if (contentType === 'space') {
@@ -160,18 +146,13 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
   const handleCreateNote = () => {
     if (!metadata) return;
     const pillHtml = buildScripturePillHtml(metadata, displayTranslation);
-    // Pre-populate the new note panel with the scripture pill
+    // Pre-populate the new note panel with the scripture pill; defer server dismiss until note is saved.
     try {
       localStorage.removeItem('newNoteTitle');
       localStorage.setItem('newNoteContent', pillHtml);
       localStorage.removeItem('newNoteType');
     } catch {}
-    dismissVotd(item, onClose, {
-      votdEngagement: 'create_note',
-      onServerAck: () => {
-        if (userId) void queryClient.invalidateQueries({ queryKey: ['xp', userId] });
-      },
-    });
+    setVotdPendingCreateNoteFeaturedId(item.id);
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
   };
 

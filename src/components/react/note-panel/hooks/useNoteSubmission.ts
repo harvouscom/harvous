@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { idToUrl } from '@/utils/url-helpers';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { formatReferenceForAPI } from '@/utils/scripture-detector';
@@ -10,6 +11,7 @@ import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-c
 import { usePersistedUserId, getPersistedUserId } from '@/utils/user-id';
 import { isNetworkError } from '@/utils/network';
 import { wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
+import { completePendingVotdCreateNoteDismiss } from '@/utils/featured-dismiss-local';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
 
@@ -86,6 +88,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
   } = options;
 
   const userId = usePersistedUserId();
+  const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Ref-based mutex to prevent duplicate submissions (more reliable than state-based checks)
@@ -347,6 +350,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
             }
           }));
 
+          await completePendingVotdCreateNoteDismiss(queryClient, userId);
+
           // Reset form and close panel
           submitMutexRef.current = false;
           setIsSubmitting(false);
@@ -420,6 +425,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
                   isOffline: true
                 }
               }));
+
+              await completePendingVotdCreateNoteDismiss(queryClient, userId);
 
               submitMutexRef.current = false;
               setIsSubmitting(false);
@@ -762,6 +769,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
         
         if (result.note && result.note.id) {
+          await completePendingVotdCreateNoteDismiss(queryClient, userId);
+
           // ALWAYS navigate to the note, never to the thread
           let redirectUrl = idToUrl(result.note.id);
           // Add toast message if applicable
@@ -858,7 +867,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     scriptureVersion, addToSpace, currentSpace, getSelectedThread, threadOptions,
     addToNavigationHistory, sourceNoteId, resetForm, setSelectedThread, clearLocalStorage,
     loadNextNoteId, onClose, onSuccess, showToast,
-    setNoteType, setScriptureReference, setScriptureVersion, setContent
+    setNoteType, setScriptureReference, setScriptureVersion, setContent,
+    queryClient, userId,
   ]);
 
   // Handle save and close from dialog
@@ -966,6 +976,8 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
 
         if (result.note && result.note.id) {
+          await completePendingVotdCreateNoteDismiss(queryClient, userId);
+
           let redirectUrl = idToUrl(result.note.id);
           if (scriptureToastMessage) {
             const toastType = result.scriptureProcessingError ? 'warning' : 'info';
@@ -1003,7 +1015,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, resourceMetadata, showToast, addToSpace, currentSpace]);
+  }, [isSubmitting, noteType, title, scriptureReference, resourceUrl, content, getSelectedThread, scriptureVersion, resourceMetadata, showToast, addToSpace, currentSpace, queryClient, userId]);
 
   return {
     isSubmitting,

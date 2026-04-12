@@ -114,34 +114,55 @@ app.get('/api/featured/items', async (c) => {
 
     let votdRows = votdExactRows;
     if (votdRows.length === 0) {
-      const votdFallbackRows = await db
-        .select({
-          ...selectColumns,
-          votdPublishedDate: VotdPublishHistory.publishedDate,
-        })
-        .from(FeaturedItems)
-        .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
-        .where(and(...votdFallbackConditions))
-        .orderBy(desc(VotdPublishHistory.publishedDate), desc(FeaturedItems.createdAt))
-        .limit(1);
-      if (votdFallbackRows.length > 0) {
-        const row = votdFallbackRows[0]!;
-        console.log(
-          `[api/featured/items] VOTD fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${row.votdPublishedDate}`,
-        );
-        votdRows = [
-          {
-            id: row.id,
-            contentType: row.contentType,
-            title: row.title,
-            description: row.description,
-            refId: row.refId,
-            shareToken: row.shareToken,
-            color: row.color,
-            metadata: row.metadata,
-            createdAt: row.createdAt,
-          },
-        ];
+      // If a VOTD was published for this local calendar date, do not fall back to an older verse
+      // when the user has already completed/dismissed today's item (exact query empty).
+      const publishedTodayConditions = [
+        eq(FeaturedItems.isActive, true),
+        eq(FeaturedItems.contentType, 'votd'),
+        eq(VotdPublishHistory.publishedDate, localCalendarDate),
+      ];
+      if (shouldExcludeDevSampleFeaturedItems(c)) {
+        publishedTodayConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+      }
+      const hasPublishedVotdForLocalDate = first(
+        await db
+          .select({ id: FeaturedItems.id })
+          .from(FeaturedItems)
+          .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
+          .where(and(...publishedTodayConditions))
+          .limit(1),
+      );
+
+      if (!hasPublishedVotdForLocalDate) {
+        const votdFallbackRows = await db
+          .select({
+            ...selectColumns,
+            votdPublishedDate: VotdPublishHistory.publishedDate,
+          })
+          .from(FeaturedItems)
+          .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
+          .where(and(...votdFallbackConditions))
+          .orderBy(desc(VotdPublishHistory.publishedDate), desc(FeaturedItems.createdAt))
+          .limit(1);
+        if (votdFallbackRows.length > 0) {
+          const row = votdFallbackRows[0]!;
+          console.log(
+            `[api/featured/items] VOTD fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${row.votdPublishedDate}`,
+          );
+          votdRows = [
+            {
+              id: row.id,
+              contentType: row.contentType,
+              title: row.title,
+              description: row.description,
+              refId: row.refId,
+              shareToken: row.shareToken,
+              color: row.color,
+              metadata: row.metadata,
+              createdAt: row.createdAt,
+            },
+          ];
+        }
       }
     }
 
