@@ -146,7 +146,11 @@ export default function NewNotePanel({
     const timeouts: ReturnType<typeof setTimeout>[] = [];
     const handler = () => {
       const t = setTimeout(() => {
-        window.scrollTo(0, 0);
+        // Only nudge when Safari actually scrolled the window; avoid fighting
+        // visualViewport / bottom-sheet keyboard layout on every refocus.
+        if (window.scrollY > 0) {
+          window.scrollTo(0, 0);
+        }
       }, 100);
       timeouts.push(t);
     };

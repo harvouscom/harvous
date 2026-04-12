@@ -604,13 +604,21 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       const el = sheetContentElRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
-      const effectiveHeight = estimatedViewportHeight ?? viewport.height;
-      const keyboardOpen = effectiveHeight < window.innerHeight * 0.75;
+      const innerH = window.innerHeight;
+      // iOS pre-keyboard estimate (50ms): only use while visualViewport is still ~full height.
+      // Otherwise we force keyboard-open layout with a fake height after dismiss/refocus.
+      let effectiveHeight: number;
+      if (estimatedViewportHeight != null && viewport.height > innerH * 0.85) {
+        effectiveHeight = estimatedViewportHeight;
+      } else {
+        effectiveHeight = viewport.height;
+      }
+      const keyboardOpen = effectiveHeight < innerH * 0.75;
 
       if (keyboardOpen) {
         // Cancel any pending clear so overrides stay while keyboard is up
         if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
-        const keyboardHeight = window.innerHeight - effectiveHeight;
+        const keyboardHeight = innerH - effectiveHeight;
         const toolbarBottom = keyboardHeight + 12;
         const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
         el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
@@ -655,10 +663,30 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
         }
       }
     };
+
+    /** When keyboard is dismissed, vv.height returns near full; clear stale data-keyboard-open if resize lags. */
+    const onFocusOut = () => {
+      setTimeout(() => {
+        const currentEl = sheetContentElRef.current;
+        const vp = window.visualViewport;
+        if (!currentEl || !vp) return;
+        if (vp.height >= window.innerHeight * 0.92) {
+          if (clearTimer) {
+            clearTimeout(clearTimer);
+            clearTimer = null;
+          }
+          clearOverrides(currentEl);
+        }
+      }, 200);
+    };
+
     let focusEl: HTMLDivElement | null = null;
     const rafFocus = requestAnimationFrame(() => {
       focusEl = sheetContentElRef.current;
-      if (focusEl) focusEl.addEventListener('focusin', onFocusIn);
+      if (focusEl) {
+        focusEl.addEventListener('focusin', onFocusIn);
+        focusEl.addEventListener('focusout', onFocusOut);
+      }
     });
 
     return () => {
@@ -667,7 +695,10 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (clearTimer) clearTimeout(clearTimer);
       vv.removeEventListener('resize', resizeHandler);
       vv.removeEventListener('scroll', scrollHandler);
-      if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
+      if (focusEl) {
+        focusEl.removeEventListener('focusin', onFocusIn);
+        focusEl.removeEventListener('focusout', onFocusOut);
+      }
       const el = sheetContentElRef.current;
       if (el) clearOverrides(el);
     };

@@ -2692,39 +2692,71 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       // Mobile: detect scripture references after a space or newline is typed
       // Desktop uses the space keydown handler; mobile uses onUpdate to avoid
       // intercepting keydown events which breaks iOS double-space-to-period.
-      // We gate on the character before the cursor being a space/newline so
-      // pills are only created after the user finishes typing the reference.
+      // We gate scheduling on word boundaries (or pending translation) so plain
+      // typing does not constantly reset the debounce timer.
       if (isMobileDevice()) {
-        if (mobileScriptureDetectionTimer.current) {
-          clearTimeout(mobileScriptureDetectionTimer.current);
-        }
-        // Debounce to avoid running regex on every keystroke
-        mobileScriptureDetectionTimer.current = setTimeout(() => {
-          if (!editor || editor.isDestroyed) return;
-          try {
-            const { from, to } = editor.state.selection;
-            if (from !== to) return; // Skip if text is selected
-            if (from < 2) return; // Need at least 2 chars
-            const $from = editor.state.doc.resolve(from);
-            if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return; // Skip if inside pill
-
-            // Only trigger after a space or newline — same behavior as desktop
-            const charBefore = editor.state.doc.textBetween(from - 1, from);
-            if (charBefore !== ' ' && charBefore !== '\n') return;
-
-            const paragraphStart = $from.start($from.depth);
-            const textStart = Math.max(paragraphStart, from - 60);
-            const textBeforeCursor = editor.state.doc.textBetween(textStart, from);
-            if (textBeforeCursor.trim().length > 0) {
-              const references = detectScriptureReferences(textBeforeCursor);
-              if (references.length > 0) {
-                createPendingPillsForReferences(editor, references);
-              }
+        const { from: mobFrom, to: mobTo } = editor.state.selection;
+        if (mobFrom === mobTo && mobFrom >= 2) {
+          const charBeforeQuick =
+            mobFrom >= 1 ? editor.state.doc.textBetween(mobFrom - 1, mobFrom) : '';
+          const needsScripturePass =
+            pendingTranslationPill !== null ||
+            charBeforeQuick === ' ' ||
+            charBeforeQuick === '\n';
+          if (!needsScripturePass) {
+            if (mobileScriptureDetectionTimer.current) {
+              clearTimeout(mobileScriptureDetectionTimer.current);
+              mobileScriptureDetectionTimer.current = null;
             }
-          } catch (e) {
-            // Silently ignore errors
+          } else {
+            if (mobileScriptureDetectionTimer.current) {
+              clearTimeout(mobileScriptureDetectionTimer.current);
+            }
+            mobileScriptureDetectionTimer.current = setTimeout(() => {
+              if (!editor || editor.isDestroyed) return;
+              try {
+                const editorId = String(editor.view?.dom?.id || 'default');
+
+                // Step 1: Resolve pending translation (same order as desktop handleKeyDown)
+                resolvePendingTranslationPill(editor);
+
+                const { from, to } = editor.state.selection;
+                if (from !== to) return;
+                if (from < 2) return;
+                const $from = editor.state.doc.resolve(from);
+                if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
+
+                const charBefore = editor.state.doc.textBetween(from - 1, from);
+                if (charBefore !== ' ' && charBefore !== '\n') return;
+
+                const paragraphStart = $from.start($from.depth);
+                const textStart = Math.max(paragraphStart, from - 60);
+                const textBeforeCursor = editor.state.doc.textBetween(textStart, from);
+                if (textBeforeCursor.trim().length === 0) return;
+
+                const references = detectScriptureReferences(textBeforeCursor);
+                if (references.length === 0) return;
+
+                createPendingPillsForReferences(editor, references);
+
+                const lastRef = references[references.length - 1];
+                if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
+                const timeoutId = setTimeout(() => {
+                  if (pendingTranslationPill?.editorId === editorId) {
+                    resolvePendingTranslationPill(editor);
+                  }
+                }, 3000);
+                pendingTranslationPill = {
+                  reference: lastRef.reference,
+                  editorId,
+                  timeoutId,
+                };
+              } catch (e) {
+                // Silently ignore errors
+              }
+            }, 250);
           }
-        }, 250);
+        }
       }
 
       // Scroll cursor into view when content changes
