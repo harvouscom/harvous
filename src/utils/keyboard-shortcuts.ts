@@ -126,7 +126,7 @@ function isSpotlightOpen(): boolean {
 }
 
 /** Open desktop space switcher (`<details class="space-switcher-details">`) and focus first row. */
-function openDesktopSpaceSwitcher(): void {
+export function openDesktopSpaceSwitcher(): void {
   if (typeof document === 'undefined') return;
   const details = document.querySelector<HTMLDetailsElement>('details.space-switcher-details');
   if (!details) return;
@@ -344,6 +344,17 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   // Don't handle shortcuts when typing in inputs
   if (isTypingInInput()) {
     return;
+  }
+
+  // Enter on active-space nav link (cycle target): open space switcher instead of activating the link
+  if ((key === 'enter' || code === 'Enter') && !modifier && !event.altKey) {
+    const el = document.activeElement as HTMLElement | null;
+    if (el?.getAttribute('data-open-space-switcher-on-enter') === 'true') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openDesktopSpaceSwitcher();
+      return;
+    }
   }
 
   // Cmd/Ctrl + Option — persistent nav, tabs, space switcher (not when Spotlight is open)

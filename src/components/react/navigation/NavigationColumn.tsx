@@ -1154,6 +1154,9 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
               <a
                 href={topSpaceHref}
                 className="nav-link"
+                data-navigation-item={displaySelectedSpaceId ?? '__dashboard_home__'}
+                data-persistent-nav-active={topSpaceIsActive ? 'true' : undefined}
+                data-open-space-switcher-on-enter="true"
                 onClick={(e) => {
                   if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
                   const noteIdFromPath = extractIdFromPath(window.location.pathname);

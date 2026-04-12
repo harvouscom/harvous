@@ -22,11 +22,43 @@ function normalizePathSearch(href: string): { pathname: string; search: string }
   }
 }
 
-function findPersistentNavCurrentIndex(links: HTMLAnchorElement[]): number {
-  const root = document.querySelector('#persistent-navigation');
-  if (!root) return -1;
+/** Top “active space” link + persistent history links; drops persistent entries that duplicate the top href. */
+function getPersistentNavCycleLinks(): HTMLAnchorElement[] {
+  const top = document.querySelector<HTMLAnchorElement>('.nav-column-buttons .space-switcher-anchor > a.nav-link');
+  const persistent = Array.from(document.querySelectorAll<HTMLAnchorElement>('#persistent-navigation a.nav-link')).filter((a) => {
+    const href = a.getAttribute('href');
+    return href && href !== '#' && !href.startsWith('javascript:');
+  });
 
-  const activeWrap = root.querySelector('[data-persistent-nav-active="true"]');
+  if (!top) return persistent;
+
+  const out: HTMLAnchorElement[] = [top];
+  const topHref = top.getAttribute('href');
+  const nt = topHref ? normalizePathSearch(topHref) : null;
+
+  for (const a of persistent) {
+    const ah = a.getAttribute('href');
+    if (!ah || !nt) {
+      out.push(a);
+      continue;
+    }
+    const na = normalizePathSearch(ah);
+    if (na.pathname === nt.pathname && na.search === nt.search) continue;
+    out.push(a);
+  }
+  return out;
+}
+
+function isSameLocationAsHref(hrefAttr: string): boolean {
+  const { pathname, search } = normalizePathSearch(hrefAttr);
+  return pathname === window.location.pathname && search === window.location.search;
+}
+
+function findPersistentNavCurrentIndex(links: HTMLAnchorElement[]): number {
+  const activeWrap =
+    document.querySelector('#persistent-navigation [data-persistent-nav-active="true"]') ??
+    document.querySelector('.space-switcher-anchor > a.nav-link[data-persistent-nav-active="true"]');
+
   if (activeWrap) {
     const id = activeWrap.getAttribute('data-navigation-item');
     if (id) {
@@ -67,34 +99,36 @@ function findPersistentNavCurrentIndex(links: HTMLAnchorElement[]): number {
 }
 
 /**
- * Move to the previous/next opened item in #persistent-navigation (desktop sidebar).
+ * Move to the previous/next opened item in the desktop nav column: active space (top) + persistent strip.
  */
 export function navigatePersistentNavStep(direction: 1 | -1): boolean {
   if (typeof document === 'undefined') return false;
 
-  const root = document.querySelector('#persistent-navigation') as HTMLElement | null;
-  if (!root) return false;
+  const navButtons = document.querySelector('.nav-column-buttons');
+  if (!navButtons) return false;
 
-  const style = window.getComputedStyle(root);
-  if (style.display === 'none' || style.visibility === 'hidden' || root.offsetParent === null) {
+  const cs = window.getComputedStyle(navButtons);
+  if (cs.display === 'none' || cs.visibility === 'hidden' || navButtons.offsetParent === null) {
     return false;
   }
 
-  const links = Array.from(root.querySelectorAll<HTMLAnchorElement>('a.nav-link')).filter((a) => {
-    const href = a.getAttribute('href');
-    return href && href !== '#' && !href.startsWith('javascript:');
-  });
-
+  const links = getPersistentNavCycleLinks();
   if (links.length < 2) return false;
 
   let idx = findPersistentNavCurrentIndex(links);
   if (idx < 0) idx = 0;
 
   const nextIdx = (idx + direction + links.length) % links.length;
-  const href = links[nextIdx].getAttribute('href');
+  const nextLink = links[nextIdx];
+  const href = nextLink.getAttribute('href');
   if (!href) return false;
 
   const dest = href.startsWith('http') ? new URL(href).pathname + new URL(href).search + new URL(href).hash : href;
+  if (isSameLocationAsHref(dest)) {
+    nextLink.focus();
+    return true;
+  }
+
   appNavigate(dest);
   return true;
 }
