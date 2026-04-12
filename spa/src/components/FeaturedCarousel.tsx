@@ -50,7 +50,7 @@ export default function FeaturedCarousel({ items }: { items: FeaturedItem[] }) {
   if (!activeItem) return null;
 
   return (
-    <SubtleContentMount>
+    <SubtleContentMount variant="fade" className="featured-carousel-mount">
       <div
         className={`featured-carousel${localItems.length <= 1 ? ' featured-carousel--single' : ''}`}
         onMouseDown={(e) => {

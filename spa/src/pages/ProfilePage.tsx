@@ -16,12 +16,8 @@ function formatJoinDate(date: Date | null | undefined): string {
 
 export default function ProfilePageWrapper() {
   const { user } = useUser();
-  const { data: profile, isLoading: profileLoading } = useProfile();
-  const { data: xp } = useXP();
-  // Build initials display: "Derek J" format (first name + last initial)
-  const firstName = profile?.firstName ?? user?.firstName ?? '';
-  const lastName = profile?.lastName ?? user?.lastName ?? '';
-  const initials = `${firstName} ${lastName.charAt(0)}`.trim() || 'User';
+  const { data: profile } = useProfile();
+  const { data: xp, isPending: xpPending } = useXP();
   const userColor = profile?.userColor ?? 'blue';
   const joinDate = formatJoinDate(user?.createdAt);
   const seasonalXP = xp?.seasonalXP ?? 0;
@@ -40,12 +36,14 @@ export default function ProfilePageWrapper() {
           headerBgColor={`var(--color-${userColor})`}
           centerTitle
           id="profile-cardstack"
+          isLoading={xpPending}
           header={
             <ProfileCardStackHeader
               initialColor={userColor}
             />
           }
         >
+          {!xpPending && (
           <div>
             {/* Info cards: joined date + XP */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
@@ -110,6 +108,7 @@ export default function ProfilePageWrapper() {
               </div>
             </div>
           </div>
+          )}
           <div className="profile-logout-spacer" />
         </CardStack>
       </div>

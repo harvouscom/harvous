@@ -94545,6 +94545,32 @@ app12.get("/api/featured/items", async (c) => {
         }
       }
     }
+    const userMetaRow = first(
+      await db.select({ defaultTranslation: UserMetadata.defaultTranslation }).from(UserMetadata).where(eq(UserMetadata.userId, auth.userId)).limit(1)
+    );
+    const preferredTranslation = userMetaRow?.defaultTranslation?.trim() || "NET";
+    for (let idx = 0; idx < items.length; idx++) {
+      const row = items[idx];
+      if (row.contentType !== "votd" || !row.metadata) continue;
+      let meta;
+      try {
+        meta = JSON.parse(row.metadata);
+      } catch {
+        continue;
+      }
+      const catalogT = String(meta.translation ?? "NET").trim() || "NET";
+      const ref = typeof meta.reference === "string" ? meta.reference.trim() : "";
+      if (!ref || preferredTranslation === catalogT) continue;
+      try {
+        const html = await fetchVerseText(ref.replace(/,\s+/g, ","), preferredTranslation);
+        if (html && html.trim().length > 0) {
+          meta.verseText = html;
+          meta.translation = preferredTranslation;
+          items[idx] = { ...row, metadata: JSON.stringify(meta) };
+        }
+      } catch {
+      }
+    }
     c.res.headers.set("Cache-Control", "private, max-age=15, stale-while-revalidate=60");
     c.res.headers.append("Vary", "X-Votd-Timezone");
     return c.json(

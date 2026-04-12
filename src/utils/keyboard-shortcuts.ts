@@ -511,36 +511,56 @@ export type KeyboardShortcutReferenceItem = {
   keyParts: string[];
 };
 
+export type KeyboardShortcutReferenceGroup = {
+  heading: string;
+  items: KeyboardShortcutReferenceItem[];
+};
+
 /**
- * Human-readable list of app shortcuts (keep in sync with handleKeyboardShortcut and editor/panel handlers).
- * Order: navigate (search / home / back) → create → view & edit → dismiss.
+ * Grouped shortcuts for preferences / help UI (keep in sync with handleKeyboardShortcut and editor/panel handlers).
+ * Order: Add → Edit → Navigate.
  */
-export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceItem[] {
+export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[] {
   const mod = getKeyboardShortcutModifierLabel();
   const isMac = mod === '⌘';
   const opt = isMac ? '⌥' : 'Alt';
 
   return [
-    { action: 'Search', keyParts: [mod, 'K'] },
-    { action: 'Home', keyParts: isMac ? [mod, '⇧', 'H'] : ['Ctrl', 'Shift', 'H'] },
     {
-      action: 'Back',
-      keyParts: isMac ? [mod, '←'] : ['Ctrl', '←'],
+      heading: 'Add',
+      items: [
+        { action: 'New note', keyParts: isMac ? [mod, '⌥', 'N'] : ['Ctrl', 'Alt', 'N'] },
+        { action: 'New thread', keyParts: isMac ? [mod, '⌥', '⇧', 'N'] : ['Ctrl', 'Alt', 'Shift', 'N'] },
+        {
+          action: 'Create',
+          keyParts: isMac ? [mod, '↵'] : ['Ctrl', 'Enter'],
+        },
+      ],
     },
-    { action: 'Cycle open items', keyParts: isMac ? [mod, opt, '↑ / ↓'] : ['Ctrl', 'Alt', '↑ / ↓'] },
-    { action: 'Switch tab', keyParts: isMac ? [mod, opt, '← / →'] : ['Ctrl', 'Alt', '← / →'] },
-    { action: 'Switch space', keyParts: isMac ? [mod, opt, 'S'] : ['Ctrl', 'Alt', 'S'] },
-    { action: 'Move in list', keyParts: ['↑', '↓'] },
-    { action: 'New note', keyParts: isMac ? [mod, '⌥', 'N'] : ['Ctrl', 'Alt', 'N'] },
-    { action: 'New thread', keyParts: isMac ? [mod, '⌥', '⇧', 'N'] : ['Ctrl', 'Alt', 'Shift', 'N'] },
     {
-      action: 'Create',
-      keyParts: isMac ? [mod, '↵'] : ['Ctrl', 'Enter'],
+      heading: 'Edit',
+      items: [
+        { action: 'Details', keyParts: [mod, 'D'] },
+        { action: 'Edit note', keyParts: [mod, 'E'] },
+        { action: 'Save', keyParts: [mod, 'S'] },
+        { action: 'Dismiss', keyParts: ['Esc'] },
+      ],
     },
-    { action: 'Details', keyParts: [mod, 'D'] },
-    { action: 'Edit note', keyParts: [mod, 'E'] },
-    { action: 'Save', keyParts: [mod, 'S'] },
-    { action: 'Dismiss', keyParts: ['Esc'] },
+    {
+      heading: 'Navigate',
+      items: [
+        { action: 'Search', keyParts: [mod, 'K'] },
+        { action: 'Home', keyParts: isMac ? [mod, '⇧', 'H'] : ['Ctrl', 'Shift', 'H'] },
+        {
+          action: 'Back',
+          keyParts: isMac ? [mod, '←'] : ['Ctrl', '←'],
+        },
+        { action: 'Cycle open items', keyParts: isMac ? [mod, opt, '↑ / ↓'] : ['Ctrl', 'Alt', '↑ / ↓'] },
+        { action: 'Switch tab', keyParts: isMac ? [mod, opt, '← / →'] : ['Ctrl', 'Alt', '← / →'] },
+        { action: 'Switch space', keyParts: isMac ? [mod, opt, 'S'] : ['Ctrl', 'Alt', 'S'] },
+        { action: 'Move in list', keyParts: ['↑', '↓'] },
+      ],
+    },
   ];
 }
 

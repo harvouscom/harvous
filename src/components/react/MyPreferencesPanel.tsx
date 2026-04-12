@@ -54,7 +54,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
   }
 
   if (view === 'keyboardShortcuts' && !hideKeyboardShortcuts) {
-    const shortcutRows = getKeyboardShortcutsReference();
+    const shortcutGroups = getKeyboardShortcutsReference();
     return (
       <div className={`panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} relative`}>
         <div className="flex-fill flex-stack" style={{ gap: 0 }}>
@@ -67,28 +67,36 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
 
             <div className="panel__body">
               <div className="panel__content keyboard-shortcuts-panel">
-                <ul className="keyboard-shortcuts-panel__list">
-                  {shortcutRows.map((row) => (
-                    <li key={row.action} className="keyboard-shortcuts-panel__item">
-                      <div className="keyboard-shortcuts-panel__item-main">
-                        <span className="keyboard-shortcuts-panel__action">{row.action}</span>
-                        <span
-                          className="keyboard-shortcuts-panel__chord"
-                          aria-label={row.keyParts.join(' + ')}
-                        >
-                          {row.keyParts.map((part, i) => (
-                            <React.Fragment key={`${row.action}-${i}-${part}`}>
-                              {i > 0 ? (
-                                <span className="keyboard-shortcuts-panel__chord-sep">+</span>
-                              ) : null}
-                              <kbd>{part}</kbd>
-                            </React.Fragment>
-                          ))}
-                        </span>
-                      </div>
-                    </li>
+                <div className="keyboard-shortcuts-panel__groups">
+                  {shortcutGroups.map((group, groupIndex) => (
+                    <React.Fragment key={group.heading}>
+                      {groupIndex > 0 ? <div className="panel__divider" aria-hidden="true" /> : null}
+                      <p className="organized-content__section-header">{group.heading}</p>
+                      <ul className="keyboard-shortcuts-panel__list">
+                        {group.items.map((row) => (
+                          <li key={row.action} className="keyboard-shortcuts-panel__item">
+                            <div className="keyboard-shortcuts-panel__item-main">
+                              <span className="keyboard-shortcuts-panel__action">{row.action}</span>
+                              <span
+                                className="keyboard-shortcuts-panel__chord"
+                                aria-label={row.keyParts.join(' + ')}
+                              >
+                                {row.keyParts.map((part, i) => (
+                                  <React.Fragment key={`${row.action}-${i}-${part}`}>
+                                    {i > 0 ? (
+                                      <span className="keyboard-shortcuts-panel__chord-sep">+</span>
+                                    ) : null}
+                                    <kbd>{part}</kbd>
+                                  </React.Fragment>
+                                ))}
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </React.Fragment>
                   ))}
-                </ul>
+                </div>
               </div>
             </div>
           </div>

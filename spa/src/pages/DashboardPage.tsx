@@ -44,7 +44,7 @@ export default function DashboardPage() {
     useDebouncedSearchState();
   const authReady = isLoaded && isSignedIn;
   useProfile();
-  const { data: featuredItems } = useFeaturedItems({ enabled: authReady });
+  const { data: featuredItems, isPending: featuredPending } = useFeaturedItems({ enabled: authReady });
 
   const lastListFilterRef = useRef<Exclude<DashboardContentTabId, 'search'>>('all');
   if (filter !== 'search') {
@@ -64,10 +64,11 @@ export default function DashboardPage() {
   const lastPage = cachedContent?.pages?.length ? cachedContent.pages[cachedContent.pages.length - 1] : undefined;
   const initialHasMoreFromParent = lastPage?.hasMore;
 
-  // List loading tracks dashboard content only. Featured carousel loads independently so the
-  // home list is not blocked by `/api/featured/items` (avoids an extra wait on empty states).
+  // Initial load waits for both dashboard content and featured items so VOTD/carousel and list
+  // appear together (not list first then featured popping in).
   const listAwaitingFirstPage = filter !== 'search' && cachedItems.length === 0 && isFetching;
-  const isInitialLoading = listAwaitingFirstPage;
+  const featuredAwaitingFirstLoad = filter !== 'search' && featuredPending;
+  const isInitialLoading = listAwaitingFirstPage || featuredAwaitingFirstLoad;
 
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
@@ -145,52 +146,56 @@ export default function DashboardPage() {
 
   return (
     <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
-      {filter !== 'search' && featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
-      <SubtleContentMount key={user?.id ?? 'home'} variant="fade">
-        <TabNav
-          tabs={tabs}
-          onTabChange={handleTabChange}
-          className="dashboard-tab-nav content-tabs"
-        />
-        {filter === 'search' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <FindSearchInput
-              placeholder="Search my Harvous…"
-              value={searchInput}
-              onValueChange={setSearchInput}
-              onBeforeSearchNavigate={prefetchSearch}
-              onSubmitSearch={(term) => {
-                addRecentSearchTerm(null, term);
-              }}
-              onClearSearch={clearSearch}
+      {!isInitialLoading && (
+        <>
+          {filter !== 'search' && featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
+          <SubtleContentMount key={user?.id ?? 'home'} variant="fade">
+            <TabNav
+              tabs={tabs}
+              onTabChange={handleTabChange}
+              className="dashboard-tab-nav content-tabs"
             />
-            {!searchInput.trim() && (
-              <RecentSearches
-                onPrefetchSearch={prefetchSearch}
-                onSelectRecentTerm={(term) => {
-                  prefetchSearch(term);
-                  applySearchImmediate(term);
-                }}
+            {filter === 'search' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <FindSearchInput
+                  placeholder="Search my Harvous…"
+                  value={searchInput}
+                  onValueChange={setSearchInput}
+                  onBeforeSearchNavigate={prefetchSearch}
+                  onSubmitSearch={(term) => {
+                    addRecentSearchTerm(null, term);
+                  }}
+                  onClearSearch={clearSearch}
+                />
+                {!searchInput.trim() && (
+                  <RecentSearches
+                    onPrefetchSearch={prefetchSearch}
+                    onSelectRecentTerm={(term) => {
+                      prefetchSearch(term);
+                      applySearchImmediate(term);
+                    }}
+                  />
+                )}
+                <SearchResultsList query={debouncedSearch} recentSearchCountSync={null} />
+              </div>
+            ) : (
+              <OrganizedContentList
+                initialItems={cachedItems as any}
+                filter={contentListFilter}
+                userId={user?.id}
+                dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
+                onNavigate={(href) => navigate({ to: href as any })}
+                parentIsLoading={false}
+                initialHasMoreFromParent={initialHasMoreFromParent}
+                onNotePrefetch={prefetchNote}
+                onThreadIntent={onThreadIntent}
               />
             )}
-            <SearchResultsList query={debouncedSearch} recentSearchCountSync={null} />
-          </div>
-        ) : (
-          <OrganizedContentList
-            initialItems={cachedItems as any}
-            filter={contentListFilter}
-            userId={user?.id}
-            dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
-            onNavigate={(href) => navigate({ to: href as any })}
-            parentIsLoading={isInitialLoading}
-            initialHasMoreFromParent={initialHasMoreFromParent}
-            onNotePrefetch={prefetchNote}
-            onThreadIntent={onThreadIntent}
-          />
-        )}
-        {/* Spacer so the last item can scroll above the floating "Create a note" button */}
-        <div data-cta-spacer className="create-note-cta-spacer" />
-      </SubtleContentMount>
+            {/* Spacer so the last item can scroll above the floating "Create a note" button */}
+            <div data-cta-spacer className="create-note-cta-spacer" />
+          </SubtleContentMount>
+        </>
+      )}
     </CardStack>
   );
 }

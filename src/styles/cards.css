@@ -496,6 +496,21 @@
   flex-direction: column;
 }
 
+/*
+ * Dashboard featured strip: same fade-in as the tab+list block below, but the strip must stay
+ * intrinsic height. Two siblings with .subtle-content-mount--fade each had flex:1 1 auto, which
+ * split the scroll column and clipped the VOTD; overflow-y:visible then painted verse text over TabNav.
+ */
+.subtle-content-mount--fade.featured-carousel-mount {
+  flex: 0 0 auto;
+  min-height: unset;
+}
+
+.subtle-content-mount--fade.featured-carousel-mount > .subtle-content-mount__inner {
+  flex: 0 0 auto;
+  min-height: unset;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .subtle-content-mount,
   .featured-carousel-entrance {

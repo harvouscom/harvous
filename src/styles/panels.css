@@ -1666,13 +1666,34 @@ form.new-note-panel {
   padding: 24px !important;
 }
 
+.keyboard-shortcuts-panel__groups {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Override section-header defaults: left-align and consistent spacing around dividers */
+.keyboard-shortcuts-panel__groups .organized-content__section-header {
+  text-align: left;
+  margin-top: 1rem;
+  padding-bottom: 0.75rem;
+}
+
+.keyboard-shortcuts-panel__groups .organized-content__section-header:first-child {
+  margin-top: 0;
+}
+
+.keyboard-shortcuts-panel__groups .panel__divider {
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
 .keyboard-shortcuts-panel__list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem; /* 20px — roomier rows than default 12px panel gaps */
+  gap: 12px;
 }
 
 .keyboard-shortcuts-panel__item {

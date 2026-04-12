@@ -1,12 +1,10 @@
 import { useAuth } from '@clerk/clerk-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { featuredItemsQueryKey, type FeaturedItem, type VotdMetadata } from '../hooks/queries/useFeaturedItems';
 import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
-import { useProfile } from '../hooks/queries/useProfile';
-import { getCachedProfileData } from '@/utils/profile-cache';
 import { generateAccentMeshGradient, getThreadIconOnAccentCSS } from '../../../src/utils/colors';
 import {
   stripLeadingVerseNumberFromPlainText,
@@ -123,7 +121,6 @@ function buildScripturePillHtml(metadata: VotdMetadata, translationForPill: stri
 function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { userId } = useAuth();
-  const { data: profile } = useProfile();
   const [isAdding, setIsAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
@@ -132,61 +129,9 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
   const catalogVersePlain = metadata?.verseText
     ? votdPlainFromHtml(metadata.verseText, metadata)
     : stripRedundantEdgeQuotesForVotdCard(item.description ?? '');
-
-  const [displayVerse, setDisplayVerse] = useState(catalogVersePlain);
-  const [displayTranslation, setDisplayTranslation] = useState(catalogTranslation);
-
-  useEffect(() => {
-    const catalogT = metadata?.translation ?? 'NET';
-    const catalogV = metadata?.verseText
-      ? votdPlainFromHtml(metadata.verseText, metadata)
-      : stripRedundantEdgeQuotesForVotdCard(item.description ?? '');
-    // Prefer sessionStorage profile-cache first: DefaultTranslationPanel updates it on save but does not
-    // update React Query until refetch; useProfile can be stale for staleTime (5m) with wrong translation.
-    const fromSession = getCachedProfileData()?.defaultTranslation?.trim();
-    const fromProfile = profile?.defaultTranslation?.trim();
-    const effective = (fromSession || fromProfile || catalogT);
-
-    if (!metadata?.reference || effective === catalogT) {
-      setDisplayVerse(catalogV);
-      setDisplayTranslation(catalogT);
-      return;
-    }
-
-    let cancelled = false;
-    void api
-      .post<{ text?: string }>('/api/scripture/fetch-verse', {
-        reference: metadata.reference,
-        translation: effective,
-      })
-      .then((res) => {
-        if (cancelled) return;
-        if (res.text && res.text.trim()) {
-          setDisplayVerse(votdPlainFromHtml(res.text, metadata));
-          setDisplayTranslation(effective);
-        } else {
-          setDisplayVerse(catalogV);
-          setDisplayTranslation(catalogT);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDisplayVerse(catalogV);
-          setDisplayTranslation(catalogT);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    item.description,
-    item.id,
-    metadata?.reference,
-    metadata?.translation,
-    metadata?.verseText,
-    profile?.defaultTranslation,
-  ]);
+  // `/api/featured/items` resolves the user's preferred translation server-side (UserMetadata).
+  const displayVerse = catalogVersePlain;
+  const displayTranslation = catalogTranslation;
 
   const handleQuickAdd = async () => {
     if (isAdding) return;
