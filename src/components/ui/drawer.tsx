@@ -25,9 +25,8 @@ const DrawerOverlay = React.forwardRef<
 ))
 DrawerOverlay.displayName = "DrawerOverlay"
 
-/** Matches bottom `sheetVariants` in sheet.tsx; global.css handles z-index / shadow via `[data-side="bottom"]` + `.bottom-sheet-content`. */
-const bottomDrawerContentBase =
-  "fixed z-50 bg-background shadow-lg inset-x-0 bottom-0 p-0 outline-none"
+/** Bottom sheet shell: `[data-side="bottom"]` + `.drawer-content-bottom` in global.css (no Tailwind in SPA). */
+const drawerContentBottomClass = "drawer-content-bottom"
 
 export type DrawerContentProps = React.ComponentPropsWithoutRef<typeof Drawer.Content> & {
   onOverlayClick?: () => void
@@ -44,7 +43,7 @@ const DrawerContent = React.forwardRef<
     <Drawer.Content
       ref={ref}
       data-side="bottom"
-      className={cn(bottomDrawerContentBase, className)}
+      className={cn(drawerContentBottomClass, className)}
       {...props}
     >
       {children}

@@ -1678,6 +1678,15 @@ html.ios-pwa .sheet-overlay {
   box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08);
 }
 
+/* Vaul Drawer.Content — replaces Tailwind utilities (fixed z-50 bg-background …) that do not ship in the SPA */
+.drawer-content-bottom {
+  padding: 0;
+  outline: none;
+  background: var(--color-snow-white);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 .sheet-overlay[data-state="open"] {
   opacity: 1;
   pointer-events: auto;

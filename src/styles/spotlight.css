@@ -107,6 +107,47 @@
 .spotlight-container .spotlight-search-input {
   margin: 12px 0 8px;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Recent search rows in Spotlight (no Tailwind utilities) */
+.spotlight-recent-item {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.spotlight-recent-item__row {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 1rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  box-sizing: border-box;
+}
+
+.spotlight-recent-item__main {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  text-align: left;
+}
+
+.spotlight-recent-item__remove {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.spotlight-recent-item__remove svg {
+  fill: var(--color-pebble-grey);
 }
 
 .spotlight-input-trailing {
@@ -201,6 +242,7 @@
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale) */
 .spotlight-container .spotlight-result-row {
+  position: relative;
   height: var(--spotlight-result-row-height) !important;
   min-height: var(--spotlight-result-row-height);
   background-color: var(--color-white) !important;
@@ -323,8 +365,10 @@
   }
 }
 
-/* Mobile drawer variant — Vaul handles the overlay/backdrop; top radius matches `.card-stack` / `rounded-t-3xl` (24px) */
+/* Mobile drawer variant — Vaul handles the overlay/backdrop; top radius matches `.card-stack` (24px) */
 .spotlight-drawer-content {
+  padding: 0;
+  border: none;
   background: var(--color-snow-white) !important;
   z-index: 1000026 !important;
   border-top-left-radius: 1.5rem;
