@@ -13,6 +13,7 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 **Shortcut**: `Cmd/Ctrl + Alt + N` (⌥ Option on Mac, Alt on Windows)
 
 - Opens the NewNotePanel to create a new note
+- Works while the cursor is in the note editor (same global handling as Spotlight), so you don’t have to leave the editor first
 - **Context-aware**: Only works when app content is focused
 - Uses **Alt** so **Cmd/Ctrl + N** stays free for the browser (New Window)
 
@@ -21,6 +22,7 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 **Shortcut**: `Cmd/Ctrl + Alt + Shift + N`
 
 - Opens the NewThreadPanel to create a new thread
+- Works while the cursor is in the note editor
 - Uses **Alt** so **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** aren’t taken by Harvous
 
 ## Navigation

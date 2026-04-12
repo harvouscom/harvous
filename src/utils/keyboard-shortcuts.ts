@@ -47,38 +47,6 @@ function isModifierPressed(event: KeyboardEvent): boolean {
 }
 
 /**
- * Check if the app is focused (not browser chrome like address bar)
- * This allows browser shortcuts to work when browser chrome is focused,
- * but app shortcuts to work when app content is focused.
- */
-function isAppFocused(): boolean {
-  if (typeof document === 'undefined') return false;
-  
-  const activeElement = document.activeElement;
-  if (!activeElement) return true; // Assume app focused if no active element
-  
-  // If activeElement is body, app is focused
-  if (activeElement === document.body) return true;
-  
-  // Check if focus is in browser chrome (address bar, etc.)
-  // Browser chrome elements are typically outside the body or have specific tags
-  const tagName = activeElement.tagName.toLowerCase();
-  
-  // If it's an input/textarea but not in our app container, likely browser chrome
-  // Check if the element is within the body (our app is always in body)
-  if ((tagName === 'input' || tagName === 'textarea')) {
-    // If the element is not within body, it's likely browser chrome
-    if (!activeElement.closest('body')) {
-      return false;
-    }
-  }
-  
-  // Check if element is within the app (has a parent in body)
-  // All app content should be within body
-  return activeElement.closest('body') !== null;
-}
-
-/**
  * Get current page context from URL
  */
 function getPageContext(): { isNote: boolean; isThread: boolean; isSpace: boolean; path: string } {
@@ -277,13 +245,13 @@ function tryHierarchyNavigateBack(): boolean {
  * Handle keyboard shortcut events
  */
 function handleKeyboardShortcut(event: KeyboardEvent): void {
-  // Guard against undefined event.key (can happen in edge cases)
-  if (!event.key) {
+  // Guard against missing key info; `key` can be empty/Dead with Option/Alt held (use `code` for KeyN, etc.)
+  if (!event.key && !event.code) {
     return;
   }
-  
+
   const modifier = isModifierPressed(event);
-  const key = event.key.toLowerCase();
+  const key = event.key ? event.key.toLowerCase() : '';
   const code = event.code;
   
   // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
@@ -325,6 +293,25 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     if (tryDismissBreadcrumbLayer()) {
       event.preventDefault();
     }
+    return;
+  }
+
+  // Physical N (Option/Alt changes `key` on macOS; match KeyS pattern for space switcher)
+  const isPhysicalN = key === 'n' || code === 'KeyN';
+
+  // Cmd/Ctrl + Alt + Shift + N — New thread (before isTypingInInput so it works in editors; shift branch first)
+  if (modifier && event.altKey && isPhysicalN && event.shiftKey) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
+    return;
+  }
+
+  // Cmd/Ctrl + Alt + N — New note (Alt avoids browser New Window on ⌘/Ctrl+N)
+  if (modifier && event.altKey && isPhysicalN && !event.shiftKey) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.dispatchEvent(new CustomEvent('openNewNotePanel'));
     return;
   }
 
@@ -387,24 +374,6 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     }
   }
 
-  // Cmd/Ctrl + Alt + N — New note (Alt avoids browser New Window on ⌘/Ctrl+N)
-  if (modifier && event.altKey && key === 'n' && !event.shiftKey) {
-    if (isAppFocused()) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      window.dispatchEvent(new CustomEvent('openNewNotePanel'));
-    }
-    return;
-  }
-
-  // Cmd/Ctrl + Alt + Shift + N — New thread (avoids browser incognito / new-window chords)
-  if (modifier && event.altKey && key === 'n' && event.shiftKey) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
-    return;
-  }
-  
   // Note: Cmd/Ctrl + Enter is used for submitting forms in creation panels (NewNotePanel,
   // NewThreadPanel, NewSpacePanel). TiptapEditor dispatches 'submitPanelForm' event which
   // the panels listen for. Each panel also handles Cmd+Enter on its form element directly.

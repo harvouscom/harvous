@@ -85,9 +85,6 @@ Checks if the user is currently typing in an input field. Returns `true` if the 
 #### `isModifierPressed(event)`
 Checks if the appropriate modifier key is pressed (Cmd on Mac, Ctrl on Windows/Linux).
 
-#### `isAppFocused()`
-Checks if the app is currently focused (not browser chrome like address bar). Used for **Cmd/Ctrl + Alt + N** (new note) so it doesn’t fire when focus is outside the app.
-
 #### `getPageContext()`
 Detects the current page context (note, thread, or space) based on the URL pathname.
 
