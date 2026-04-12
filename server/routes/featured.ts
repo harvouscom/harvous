@@ -68,14 +68,21 @@ app.get('/api/featured/items', async (c) => {
       nonVotdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
 
-    const votdConditions = [
+    const votdExactConditions = [
       eq(FeaturedItems.isActive, true),
       eq(FeaturedItems.contentType, 'votd'),
       eq(VotdPublishHistory.publishedDate, localCalendarDate),
       dismissedNotInUserFeed,
     ];
+    const votdFallbackConditions = [
+      eq(FeaturedItems.isActive, true),
+      eq(FeaturedItems.contentType, 'votd'),
+      lte(VotdPublishHistory.publishedDate, localCalendarDate),
+      dismissedNotInUserFeed,
+    ];
     if (shouldExcludeDevSampleFeaturedItems(c)) {
-      votdConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+      votdExactConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
+      votdFallbackConditions.push(notInArray(FeaturedItems.id, DEV_SAMPLE_FEATURED_ITEM_IDS));
     }
 
     const selectColumns = {
@@ -90,7 +97,7 @@ app.get('/api/featured/items', async (c) => {
       createdAt: FeaturedItems.createdAt,
     };
 
-    const [nonVotdRows, votdRows] = await Promise.all([
+    const [nonVotdRows, votdExactRows] = await Promise.all([
       db
         .select(selectColumns)
         .from(FeaturedItems)
@@ -100,10 +107,43 @@ app.get('/api/featured/items', async (c) => {
         .select(selectColumns)
         .from(FeaturedItems)
         .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
-        .where(and(...votdConditions))
+        .where(and(...votdExactConditions))
         .orderBy(desc(FeaturedItems.createdAt))
         .limit(1),
     ]);
+
+    let votdRows = votdExactRows;
+    if (votdRows.length === 0) {
+      const votdFallbackRows = await db
+        .select({
+          ...selectColumns,
+          votdPublishedDate: VotdPublishHistory.publishedDate,
+        })
+        .from(FeaturedItems)
+        .innerJoin(VotdPublishHistory, eq(FeaturedItems.id, VotdPublishHistory.featuredItemId))
+        .where(and(...votdFallbackConditions))
+        .orderBy(desc(VotdPublishHistory.publishedDate), desc(FeaturedItems.createdAt))
+        .limit(1);
+      if (votdFallbackRows.length > 0) {
+        const row = votdFallbackRows[0]!;
+        console.log(
+          `[api/featured/items] VOTD fallback used: timezone=${timeZone} localDate=${localCalendarDate} publishedDate=${row.votdPublishedDate}`,
+        );
+        votdRows = [
+          {
+            id: row.id,
+            contentType: row.contentType,
+            title: row.title,
+            description: row.description,
+            refId: row.refId,
+            shareToken: row.shareToken,
+            color: row.color,
+            metadata: row.metadata,
+            createdAt: row.createdAt,
+          },
+        ];
+      }
+    }
 
     let items = [...nonVotdRows, ...votdRows].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),

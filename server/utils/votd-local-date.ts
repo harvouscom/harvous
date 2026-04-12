@@ -1,6 +1,9 @@
 /**
- * Verse of the Day is keyed by `VotdPublishHistory.publishedDate` (YYYY-MM-DD, editorial UTC date).
- * For display, we match that string to the user's local calendar date so the card stays until local midnight.
+ * `VotdPublishHistory.publishedDate` is stored as the editorial calendar day used when publishing
+ * (UTC `YYYY-MM-DD` from `publish-daily`). The client sends `X-Votd-Timezone`; the API first matches
+ * that string to the user's local calendar date, and if no row exists yet (`/api/featured/items`),
+ * falls back to the latest published verse with `publishedDate <=` that local date so the card does
+ * not vanish before the next publish lands.
  */
 
 const TZ_SAFE = /^[A-Za-z0-9_+/\-]+$/;

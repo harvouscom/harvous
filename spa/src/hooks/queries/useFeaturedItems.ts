@@ -49,6 +49,7 @@ export function useFeaturedItems(options?: { enabled?: boolean }) {
       }
       return (await res.json()) as FeaturedItem[];
     },
+    placeholderData: (previousData) => previousData,
     staleTime: 60_000,
     retry: 1,
   });
