@@ -468,6 +468,13 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     }
     return;
   }
+
+  // Cmd/Ctrl + Delete — open erase confirmation (note / space / thread; thread uses "erase thread" / keep notes)
+  if (modifier && (key === 'delete' || code === 'Delete')) {
+    event.preventDefault();
+    window.dispatchEvent(new CustomEvent('keyboardShortcutErase'));
+    return;
+  }
 }
 
 /**
@@ -544,6 +551,7 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[
         { action: 'Edit note', keyParts: [mod, 'E'] },
         { action: 'Save', keyParts: [mod, 'S'] },
         { action: 'Dismiss', keyParts: ['Esc'] },
+        { action: 'Erase', keyParts: [mod, isMac ? '⌦' : 'Del'] },
       ],
     },
     {

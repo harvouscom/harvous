@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { usePersistedUserId } from '@/utils/user-id';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -164,6 +164,9 @@ export default function ActionStrip({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [eraseDropdownOpen]);
+
+  /** Matches layout.css: desktop layout at min-width 1160px — only one ActionStrip should handle erase shortcut. */
+  const eraseShortcutRef = useRef<() => void>(() => {});
 
   const performErase = async (eraseAction?: string) => {
     if (!contentId || !contentType) return;
@@ -381,6 +384,40 @@ export default function ActionStrip({
     }
     dispatchAction(action);
   };
+
+  useEffect(() => {
+    eraseShortcutRef.current = () => {
+      if (!contentId || !showStrip) return;
+      const eraseOption = options.find(
+        (o) => o.action === 'eraseNote' || o.action === 'eraseSpace' || o.action === 'eraseThread',
+      );
+      if (!eraseOption) return;
+      handleClick(eraseOption.action);
+    };
+  });
+
+  const onKeyboardShortcutErase = useCallback(() => {
+    eraseShortcutRef.current();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(min-width: 1160px)');
+    const sync = () => {
+      window.removeEventListener('keyboardShortcutErase', onKeyboardShortcutErase);
+      const desktop = mq.matches;
+      const active = (variant === 'desktop' && desktop) || (variant === 'mobile' && !desktop);
+      if (active) {
+        window.addEventListener('keyboardShortcutErase', onKeyboardShortcutErase);
+      }
+    };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => {
+      mq.removeEventListener('change', sync);
+      window.removeEventListener('keyboardShortcutErase', onKeyboardShortcutErase);
+    };
+  }, [variant, onKeyboardShortcutErase]);
 
   const handleConfirm = async () => {
     if (!pendingAction) return;
