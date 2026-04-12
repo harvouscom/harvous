@@ -359,49 +359,36 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     if (!isSpotlightOpen()) {
       const isPhysicalS = key === 's' || code === 'KeyS';
       if (isPhysicalS && !event.repeat) {
-        if (shouldPassThroughToBrowser(event, 'mod-alt-s')) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         openDesktopSpaceSwitcher();
         return;
       }
       if (key === 'arrowup' || code === 'ArrowUp') {
-        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowup')) return;
         if (navigatePersistentNavStep(-1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else {
-          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowdown' || code === 'ArrowDown') {
-        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowdown')) return;
         if (navigatePersistentNavStep(1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else {
-          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowleft' || code === 'ArrowLeft') {
-        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowleft')) return;
         if (cycleTabNavStep(-1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else {
-          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowright' || code === 'ArrowRight') {
-        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowright')) return;
         if (cycleTabNavStep(1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
-        } else {
-          lastIntercepted = null;
         }
         return;
       }
