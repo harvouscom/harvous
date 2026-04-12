@@ -40,7 +40,13 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 - If nothing app-owned is open, moves up the content hierarchy on note, thread, and space routes (note → previous note in thread if applicable, else thread → space if in context, else home)
 - On other routes (e.g. search, profile), uses browser history, or home if there is no history
 
-### Find / Search
+### Search (Spotlight)
+
+**Shortcut**: `Cmd/Ctrl + K`
+
+- Opens the Spotlight overlay to search across Harvous (works from the editor and other surfaces)
+
+### Find / Search page
 
 **Shortcut**: `Cmd/Ctrl + F`
 
@@ -128,7 +134,7 @@ The system also detects whether the app is focused (vs. browser chrome like the 
 - **App focused**: **Cmd/Ctrl + Alt + N** creates a new note; Harvous does not bind plain **Cmd/Ctrl + N**
 - **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s normal shortcuts
 
-**Alt/Option** keeps browser **New Window** and **Incognito** shortcuts available.
+**Alt/Option** is required for new note and new thread so **Cmd/Ctrl + N** and **Cmd/Ctrl + Shift + N** stay available for the browser.
 
 ## Usage Examples
 
@@ -215,6 +221,7 @@ This is normal - shortcuts are re-initialized after View Transitions. If they do
 |----------|--------|---------|
 | `Cmd/Ctrl + Alt + N` | Create New Note | App focused |
 | `Cmd/Ctrl + Alt + Shift + N` | Create New Thread | Anywhere |
+| `Cmd/Ctrl + K` | Spotlight search | Anywhere |
 | `Cmd/Ctrl + F` | Find / Search | Anywhere |
 | `Cmd/Ctrl + Shift + H` | Home | Anywhere |
 | `Cmd/Ctrl + Left Arrow` | Back | Anywhere |

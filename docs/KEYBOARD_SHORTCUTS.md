@@ -14,6 +14,7 @@ The keyboard shortcuts system provides quick access to common actions throughout
 |----------|--------|-------------|
 | **Cmd/Ctrl + Alt + N** | Create New Note | Opens the NewNotePanel to create a new note (⌥ = Option on Mac, Alt on Windows)<br>**Context-aware**: Only when app content is focused — avoids taking **Cmd/Ctrl + N** (browser New Window) |
 | **Cmd/Ctrl + Alt + Shift + N** | Create New Thread | Opens the NewThreadPanel — avoids **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** conflicts |
+| **Cmd/Ctrl + K** | Spotlight search | Opens the Spotlight overlay |
 | **Cmd/Ctrl + F** | Find | Navigates to the Find page, or focuses the Find input if already on the Find page |
 | **Esc** | Close Panel | Closes any currently open panel (NewNotePanel, NewThreadPanel, NoteDetailsPanel, EditThreadPanel) |
 
@@ -71,7 +72,7 @@ The system also detects whether the app is focused (vs. browser chrome like the 
 ### File Structure
 
 - **Handler**: `src/utils/keyboard-shortcuts.ts` - Main keyboard shortcuts handler
-- **Initialization**: `src/layouts/Layout.astro` - Initializes shortcuts on page load and after View Transitions
+- **Initialization (production SPA)**: `spa/src/App.tsx` mounts `KeyboardShortcutsInit` (`src/components/react/KeyboardShortcutsInit.tsx`), which calls `initKeyboardShortcuts()` on load
 
 ### Key Functions
 
@@ -102,6 +103,7 @@ Navigates to a path using Astro's View Transitions if available, otherwise falls
 
 The keyboard shortcuts system uses CustomEvents to communicate with components:
 
+- `openSpotlightSearch` / `closeSpotlightSearch` - Spotlight overlay
 - `openNewNotePanel` - Opens the NewNotePanel
 - `closeNewNotePanel` - Closes the NewNotePanel
 - `openNewThreadPanel` - Opens the NewThreadPanel

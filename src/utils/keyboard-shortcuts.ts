@@ -274,19 +274,6 @@ function tryHierarchyNavigateBack(): boolean {
 }
 
 /**
- * Focus the search input on the search page
- */
-function focusSearchInput(): void {
-  if (typeof document === 'undefined') return;
-  
-  const searchInput = document.querySelector('input[name="q"], input[type="search"], input[role="searchbox"]') as HTMLInputElement;
-  if (searchInput) {
-    searchInput.focus();
-    searchInput.select();
-  }
-}
-
-/**
  * Handle keyboard shortcut events
  */
 function handleKeyboardShortcut(event: KeyboardEvent): void {
@@ -299,8 +286,8 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   const key = event.key.toLowerCase();
   const code = event.code;
   
-  // Cmd/Ctrl + K - Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
-  if (modifier && key === 'k') {
+  // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
+  if (modifier && key === 'k' && !event.altKey) {
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openSpotlightSearch'));
     return;
@@ -404,6 +391,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   if (modifier && event.altKey && key === 'n' && !event.shiftKey) {
     if (isAppFocused()) {
       event.preventDefault();
+      event.stopImmediatePropagation();
       window.dispatchEvent(new CustomEvent('openNewNotePanel'));
     }
     return;
@@ -412,6 +400,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   // Cmd/Ctrl + Alt + Shift + N — New thread (avoids browser incognito / new-window chords)
   if (modifier && event.altKey && key === 'n' && event.shiftKey) {
     event.preventDefault();
+    event.stopImmediatePropagation();
     window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
     return;
   }
@@ -445,7 +434,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
   
-  // Cmd/Ctrl + D — Details: note details or thread edit panel (context-aware). Avoids I vs l in the key legend.
+  // Cmd/Ctrl + D — Details: note details or thread edit panel (context-aware)
   if (modifier && key === 'd' && !event.shiftKey) {
     event.preventDefault();
     const context = getPageContext();
@@ -456,7 +445,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     }
     return;
   }
-  
+
   // Cmd/Ctrl + E - Edit current note (if viewing a note)
   if (modifier && key === 'e') {
     event.preventDefault();
