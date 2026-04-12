@@ -9,6 +9,28 @@ import { getBackTarget, popNavStack } from './nav-stack';
 import { cycleTabNavStep, navigatePersistentNavStep } from './keyboard-navigation-helpers';
 import { detectEntityTypeFromPath, extractIdFromPath, idToUrl } from './url-helpers';
 
+/** Second press of the same browser-conflicting shortcut within this window lets the browser handle it. */
+const PASSTHROUGH_WINDOW_MS = 600;
+
+let lastIntercepted: { shortcutId: string; time: number } | null = null;
+
+/**
+ * For shortcuts that shadow browser defaults: first press is for the app; a second press of the
+ * same shortcutId within the window passes through (no preventDefault). Use a stable id per chord
+ * (e.g. mod-arrowleft vs mod-alt-arrowleft) so physical key codes do not collide across modifiers.
+ * Key repeat never passes through so held keys keep app behavior.
+ */
+function shouldPassThroughToBrowser(event: KeyboardEvent, shortcutId: string): boolean {
+  if (event.repeat) return false;
+  const now = Date.now();
+  if (lastIntercepted && lastIntercepted.shortcutId === shortcutId && now - lastIntercepted.time < PASSTHROUGH_WINDOW_MS) {
+    lastIntercepted = null;
+    return true;
+  }
+  lastIntercepted = { shortcutId, time: now };
+  return false;
+}
+
 /**
  * Check if user is currently typing in an input field
  */
@@ -256,6 +278,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   
   // Cmd/Ctrl + K — Spotlight search (handle before isTypingInInput so it works in editors, like other apps)
   if (modifier && key === 'k' && !event.altKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-k')) return;
     event.preventDefault();
     window.dispatchEvent(new CustomEvent('openSpotlightSearch'));
     return;
@@ -276,6 +299,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     );
     
     if (isInEditor || isPanelOpen()) {
+      if (shouldPassThroughToBrowser(event, 'mod-s')) return;
       event.preventDefault();
       // Dispatch save event that components can listen to
       window.dispatchEvent(new CustomEvent('saveContent'));
@@ -335,36 +359,49 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     if (!isSpotlightOpen()) {
       const isPhysicalS = key === 's' || code === 'KeyS';
       if (isPhysicalS && !event.repeat) {
+        if (shouldPassThroughToBrowser(event, 'mod-alt-s')) return;
         event.preventDefault();
         event.stopImmediatePropagation();
         openDesktopSpaceSwitcher();
         return;
       }
       if (key === 'arrowup' || code === 'ArrowUp') {
+        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowup')) return;
         if (navigatePersistentNavStep(-1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
+        } else {
+          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowdown' || code === 'ArrowDown') {
+        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowdown')) return;
         if (navigatePersistentNavStep(1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
+        } else {
+          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowleft' || code === 'ArrowLeft') {
+        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowleft')) return;
         if (cycleTabNavStep(-1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
+        } else {
+          lastIntercepted = null;
         }
         return;
       }
       if (key === 'arrowright' || code === 'ArrowRight') {
+        if (shouldPassThroughToBrowser(event, 'mod-alt-arrowright')) return;
         if (cycleTabNavStep(1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
+        } else {
+          lastIntercepted = null;
         }
         return;
       }
@@ -385,6 +422,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   // Cmd/Ctrl + Left Arrow — close top overlay/panel first, else hierarchy up (note → thread → space → home), else history
   // (Cmd/Ctrl + Option + Left is used for content tab cycling; handled earlier.)
   if (modifier && !event.altKey && (key === 'arrowleft' || code === 'ArrowLeft')) {
+    if (shouldPassThroughToBrowser(event, 'mod-arrowleft')) return;
     event.preventDefault();
     if (tryDismissBreadcrumbLayer()) {
       return;
@@ -402,6 +440,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   
   // Cmd/Ctrl + D — Details: note details or thread edit panel (context-aware)
   if (modifier && key === 'd' && !event.shiftKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-d')) return;
     event.preventDefault();
     const context = getPageContext();
     if (context.isNote) {
@@ -414,6 +453,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
 
   // Cmd/Ctrl + E - Edit current note (if viewing a note)
   if (modifier && key === 'e') {
+    if (shouldPassThroughToBrowser(event, 'mod-e')) return;
     event.preventDefault();
     const context = getPageContext();
     if (context.isNote) {
@@ -532,6 +572,8 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[
  */
 export function cleanupKeyboardShortcuts(): void {
   if (typeof window === 'undefined') return;
+
+  lastIntercepted = null;
 
   const handler = (window as any).__keyboardShortcutsHandler;
   if (handler) {
