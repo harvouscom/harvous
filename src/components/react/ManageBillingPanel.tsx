@@ -391,7 +391,8 @@ export default function ManageBillingPanel({
             
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`} style={{ gap: '12px' }}>
+              <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll" style={{ gap: '12px' }}>
                 {isLoading ? (
                   <div className="w-full p-8 text-center">
                     <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
@@ -486,6 +487,7 @@ export default function ManageBillingPanel({
                     ) : null}
                   </SubtleContentMount>
                 )}
+                </div>
               </div>
             </div>
           </div>

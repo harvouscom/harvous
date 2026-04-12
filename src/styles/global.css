@@ -1875,7 +1875,7 @@ html.ios-pwa .sheet-overlay {
 }
 
 /* Match comfortable insets used on list-style panels (sheet + desktop column). */
-.panel__content.offline-help-panel__content {
+.panel__content.offline-help-panel__content .panel__content-scroll {
   padding-left: 1.25rem;
   padding-right: 1.25rem;
   padding-top: 1.125rem;

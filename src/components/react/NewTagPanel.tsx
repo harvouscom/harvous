@@ -209,6 +209,7 @@ export default function NewTagPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 <div className="w-full">
                   
                   {/* Text input field */}
@@ -236,6 +237,7 @@ export default function NewTagPanel({
                     </span>
                     <div className="btn-cta__shadow" />
                   </button>
+                </div>
                 </div>
               </div>
             </div>

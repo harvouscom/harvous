@@ -363,19 +363,22 @@ export default function PinEntryPanel({
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div
               className={`panel__content panel__content--pin-entry ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}
-              style={{
-                maxWidth: '100%',
-                minWidth: 0,
-                borderRadius: 24,
-                lineHeight: '1.6',
-                color: 'var(--color-stone-grey)',
-                paddingTop: 12,
-                paddingRight: 12,
-                paddingBottom: 0,
-                paddingLeft: 12,
-                gap: 0
-              }}
             >
+              <div
+                className="panel__content-scroll"
+                style={{
+                  maxWidth: '100%',
+                  minWidth: 0,
+                  borderRadius: 24,
+                  lineHeight: '1.6',
+                  color: 'var(--color-stone-grey)',
+                  paddingTop: 12,
+                  paddingRight: 12,
+                  paddingBottom: 0,
+                  paddingLeft: 12,
+                  gap: 0
+                }}
+              >
               <style dangerouslySetInnerHTML={{ __html: '.pin-digit-input:focus{border-color:var(--color-stone-grey)!important;box-shadow:0 0 0 2px var(--color-stone-grey)!important;outline:none!important}' }} />
               <div style={{ textAlign: 'center', marginTop: 0 }}>
                 <p style={{ fontSize: 14, color: 'var(--color-stone-grey)', margin: 0, marginTop: 12, fontStyle: 'normal', textWrap: 'balance' }}>{getSubtitle()}</p>
@@ -444,6 +447,7 @@ export default function PinEntryPanel({
               {step === 'unlocked' && error && (
                 <p style={{ textAlign: 'center', color: 'var(--color-error-red, #ef4444)', fontSize: 14, margin: '0.75rem 0 0' }}>{error}</p>
               )}
+              </div>
             </div>
           </div>
         </div>

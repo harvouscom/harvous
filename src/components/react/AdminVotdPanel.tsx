@@ -226,7 +226,9 @@ export default function AdminVotdPanel({
             </div>
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 <p className="admin-votd__muted">Checking access…</p>
+                </div>
               </div>
             </div>
           </div>
@@ -250,7 +252,9 @@ export default function AdminVotdPanel({
             </div>
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 <p className="admin-votd__muted">This area is only available to Harvous admins.</p>
+                </div>
               </div>
             </div>
           </div>
@@ -274,6 +278,7 @@ export default function AdminVotdPanel({
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
               <AdminVotdScheduleBody
                 days={preview.data?.days}
                 previewLoading={preview.isLoading}
@@ -282,6 +287,7 @@ export default function AdminVotdPanel({
                 refreshMutation={mutations.refreshMutation}
                 clearMutation={mutations.clearMutation}
               />
+              </div>
             </div>
           </div>
         </div>

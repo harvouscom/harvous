@@ -128,8 +128,9 @@ export default function DefaultTranslationPanel({
             </div>
           </div>
 
-          <div className="panel__body" style={{ overflow: 'auto' }}>
+          <div className="panel__body">
             <div className="panel__content">
+              <div className="panel__content-scroll">
               {/* Translation list */}
               <div className="flex flex-col gap-2 w-full">
                 {[...TRANSLATION_ORDER].sort((a, b) => {
@@ -214,6 +215,7 @@ export default function DefaultTranslationPanel({
                   More translations like NASB (New American Standard Bible), CSB (Christian Standard Bible), AMP
                   (Amplified Bible), and MSG (The Message) coming later.
                 </p>
+              </div>
               </div>
             </div>
           </div>

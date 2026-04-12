@@ -736,6 +736,7 @@ export default function NewThreadPanel({
             {/* Content area */}
             <div className="panel__body panel__body--bottom-sheet">
               <div className="panel__content panel__content--bottom-sheet flex-1 min-h-0">
+                <div className="panel__content-scroll">
                 
                 {/* Color selection */}
                 <div className="color-selection">
@@ -958,6 +959,7 @@ export default function NewThreadPanel({
                     </div>
                   </div>
                 </div> */}
+                </div>
               </div>
             </div>
           </div>

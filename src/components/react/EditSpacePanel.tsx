@@ -1404,6 +1404,7 @@ export default function EditSpacePanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 
                 {/* Space title and color: owner only; members only see tab nav below */}
                 {isOwner && (
@@ -1742,6 +1743,7 @@ export default function EditSpacePanel({
                     )}
                   </div>
                 )}
+                </div>
                 </div>
 
               </div>

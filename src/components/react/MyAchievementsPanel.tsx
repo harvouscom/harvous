@@ -94,7 +94,8 @@ export default function MyAchievementsPanel({
           
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
-            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`} style={{ gap: '1rem' }}>
+            <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll" style={{ gap: '1rem' }}>
               {(
                 <>
                   {/* XP Summary Cards */}
@@ -172,6 +173,7 @@ export default function MyAchievementsPanel({
                   </div>
                 </>
               )}
+              </div>
             </div>
 
           </div>

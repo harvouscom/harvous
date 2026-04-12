@@ -3,6 +3,10 @@
  * 
  * Semantic CSS classes for bottom sheet panels and card-like containers.
  * These panels share a common structure: header + scrollable content.
+ *
+ * Scroll model (matches CardStack: .card-stack__inner shell + .card-stack__inner-content scroll):
+ * - .panel__content — snow-white shell, border-radius, overflow: hidden (does not scroll)
+ * - .panel__content-scroll — padding, overflow-y: auto, flex: 1, min-height: 0
  */
 
 /* ==========================================================================
@@ -10,13 +14,13 @@
    ========================================================================== */
 
 .panel {
-  background-color: white;
+  background-color: var(--color-snow-white);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   overflow: clip;
-  padding-bottom: 0;  /* 12px bottom is on .panel__content only */
+  padding-bottom: 0;  /* bottom spacing comes from .panel__content-scroll */
   padding-top: 0;
   padding-left: 0;
   padding-right: 0;
@@ -294,50 +298,69 @@
     min-height: 0;
   }
 
-  /* New-space desktop: allow panel__content to scroll */
+  /* New-space desktop: shell + .panel__content-scroll fill height */
   &.panel__body--new-space-desktop {
     overflow: hidden;
   }
 }
 
+/* Shell: snow-white + radii + clip only (no scroll — matches .card-stack__inner) */
 .panel__content {
   background-color: var(--color-snow-white);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;  /* 12px */
-  align-items: stretch;  /* Allow children to take full width */
+  align-items: stretch;
   justify-content: flex-start;
-  overflow-x: clip;
-  overflow-y: auto;  /* Always allow vertical scrolling */
-  padding: 12px;
-  padding-bottom: 12px;
+  overflow: hidden;
+  padding: 0;
   position: relative;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
   width: 100%;
   flex: 1;
   min-height: 0;
-  
+  min-width: 0;
+}
+
+/* Scrollport: padding + vertical scroll (matches .card-stack__inner-content) */
+.panel__content-scroll {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;  /* 12px */
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px;
+  padding-bottom: 12px;
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+
   &::after {
     content: '';
     display: block;
     height: 0;
     flex-shrink: 0;
   }
-  
-  /* Panels that need no extra bottom spacing (e.g. referral uses own padding-bottom) */
-  &.panel__content--no-bottom-padding {
-    padding-bottom: 0;
-  }
-  &.panel__content--no-bottom-padding::after {
-    display: none;
-  }
+}
 
-  /* Pin entry panel: match InlinePinUnlock design (24px bottom, full radius) */
-  &.panel__content--pin-entry::after {
-    height: 24px;
-  }
+.panel__content.panel__content--no-bottom-padding .panel__content-scroll {
+  padding-bottom: 0;
+}
+
+.panel__content.panel__content--no-bottom-padding .panel__content-scroll::after {
+  display: none;
+}
+
+/* Pin entry panel: match InlinePinUnlock design (24px bottom) */
+.panel__content.panel__content--pin-entry .panel__content-scroll::after {
+  height: 24px;
 }
 
 /* My Inbox list: flex child must shrink so featured cards don’t overflow panel width on mobile */
@@ -581,8 +604,8 @@
   font-size: 0.75rem;  /* 12px */
 }
 
-/* Text footer inside content: no extra top/bottom padding so content's 12px bottom is the only bottom space */
-.panel__content .panel__footer {
+/* Text footer inside scroll: no extra top/bottom padding so content's 12px bottom is the only bottom space */
+.panel__content-scroll .panel__footer {
   padding-top: 0;
   padding-bottom: 0;
 }
@@ -1280,30 +1303,36 @@ html.ios-pwa .drawer-slide {
    About Harvous - Founder Letter (Paper Stack)
    ========================================================================== */
 
-/* Make the background around the paper feel like a desk with fade to transparent */
+/* Shell: gradient desk background; scroll happens on .panel__content-scroll (CardStack pattern) */
 .about-harvous-panel__content {
   background: linear-gradient(180deg, #f8f7f4 0%, #f3f2ec 70%, transparent 100%);
   padding: 0;
   box-shadow: none;
   min-height: 0;
   flex: 1;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 0;
-  
-  /* Remove the default ::after bottom padding */
-  &::after {
-    display: none;
-  }
+}
+
+.about-harvous-panel__content .panel__content-scroll {
+  padding: 0;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+}
+
+.about-harvous-panel__content .panel__content-scroll::after {
+  display: none;
 }
 
 .about-harvous-paper-stack {
   position: relative;
   width: 100%;
   margin-top: 0;
-  overflow-y: auto;
   overflow-x: clip;
+  overflow-y: visible;
   flex: 1;
   min-height: 0;
   padding: 0;
@@ -1666,7 +1695,7 @@ form.new-note-panel {
 }
 
 /* Keyboard shortcuts (My Preferences) — roomier inset; matches header horizontal gutters (1.5rem) */
-.panel__content.keyboard-shortcuts-panel {
+.keyboard-shortcuts-panel .panel__content-scroll {
   box-sizing: border-box;
   padding: 24px !important;
 }

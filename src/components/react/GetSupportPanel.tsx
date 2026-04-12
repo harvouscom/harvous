@@ -58,7 +58,7 @@ export default function GetSupportPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                
+                <div className="panel__content-scroll">
                 {/* Visit our help center button */}
                 <button
                   type="button"
@@ -138,6 +138,7 @@ export default function GetSupportPanel({
                 {/* Version text */}
                 <div className="panel__footer">
                   <p>Version {displayVersion}</p>
+                </div>
                 </div>
               </div>
             </div>

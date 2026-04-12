@@ -227,6 +227,7 @@ export default function MySharingPanel({
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
               {isLoading ? (
                 <div className="w-full p-8 text-center">
                   <p className="font-sans" style={{ color: 'var(--color-pebble-grey)', fontSize: '16px' }}>
@@ -353,6 +354,7 @@ export default function MySharingPanel({
                   ) : null}
                 </SubtleContentMount>
               )}
+              </div>
             </div>
           </div>
         </div>

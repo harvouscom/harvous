@@ -695,6 +695,7 @@ export default function NoteDetailsPanel({
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
               <div className="w-full form-layout--expand">
 
                 {/* Note Metadata - ID, Source, and Date */}
@@ -999,6 +1000,7 @@ export default function NoteDetailsPanel({
                     )}
                   </div>
                 )}
+              </div>
               </div>
             </div>
           </div>

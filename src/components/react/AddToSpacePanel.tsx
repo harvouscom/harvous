@@ -187,6 +187,7 @@ export default function AddToSpacePanel({
             </div>
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 {isLoadingItems ? (
                   <div className="text-center py-8 text-[var(--color-stone-grey)]">
                     Loading items...
@@ -204,6 +205,7 @@ export default function AddToSpacePanel({
                     itemsToShow="all"
                   />
                 )}
+                </div>
               </div>
             </div>
           </div>

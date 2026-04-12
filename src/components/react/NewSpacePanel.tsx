@@ -809,6 +809,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''} ${isDesktopPage ? 'panel__body--new-space-desktop' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}>
+                <div className="panel__content-scroll">
                 
                 {/* Color selection */}
                 <div className="color-selection">
@@ -933,6 +934,7 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
                 {isDesktopPage && <div style={{ height: 64, flexShrink: 0, pointerEvents: 'none' }} />}
 
+                </div>
               </div>
             </div>
 

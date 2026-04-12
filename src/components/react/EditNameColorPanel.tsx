@@ -303,7 +303,7 @@ export default function EditNameColorPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                
+                <div className="panel__content-scroll">
                 {/* First Name Input */}
                 <div className="w-full">
                   <div className="search-input w-full">
@@ -375,6 +375,7 @@ export default function EditNameColorPanel({
                       )}
                     </button>
                   ))}
+                </div>
                 </div>
               </div>
             </div>

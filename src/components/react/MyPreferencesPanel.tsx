@@ -71,6 +71,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
               <div
                 className={`panel__content keyboard-shortcuts-panel ${inBottomSheet ? 'panel__content--bottom-sheet' : ''} flex-1 min-h-0`}
               >
+                <div className="panel__content-scroll">
                 <div className="keyboard-shortcuts-panel__groups">
                   {shortcutGroups.map((group, groupIndex) => (
                     <React.Fragment key={group.heading}>
@@ -100,6 +101,7 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
                       </ul>
                     </React.Fragment>
                   ))}
+                </div>
                 </div>
               </div>
             </div>
@@ -174,12 +176,14 @@ export default function MyPreferencesPanel({ onClose, inBottomSheet = false }: M
 
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
               <div className="flex flex-col gap-2 w-full">
                 {renderOption('Preferred Bible', () => setView('bibleTranslation'))}
                 {renderOption('My Church', () => setView('myChurch'))}
                 {renderOption('Lock PIN', () => setView('lockPin'))}
                 {!hideKeyboardShortcuts &&
                   renderOption('Keyboard shortcuts', () => setView('keyboardShortcuts'))}
+              </div>
               </div>
             </div>
           </div>

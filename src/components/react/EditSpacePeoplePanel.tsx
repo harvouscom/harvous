@@ -205,6 +205,7 @@ export default function EditSpacePeoplePanel({
 
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+                <div className="panel__content-scroll">
                 <div className="space-people-list">
                   <div className="space-people-list__rows">
                     {members.map((member) => {
@@ -299,6 +300,7 @@ export default function EditSpacePeoplePanel({
                     </button>
                   </div>
                 )}
+                </div>
               </div>
             </div>
           </div>

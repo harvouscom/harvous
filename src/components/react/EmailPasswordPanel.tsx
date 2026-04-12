@@ -178,7 +178,7 @@ export default function EmailPasswordPanel({
             {/* Content area */}
             <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
               <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
-                
+                <div className="panel__content-scroll">
                 {/* Current Email Display */}
                 <div className="w-full py-5">
                   <div className="flex-center" style={{ gap: '0.5rem' }}>
@@ -270,6 +270,7 @@ export default function EmailPasswordPanel({
                       {validationErrors.confirmPassword}
                     </div>
                   )}
+                </div>
                 </div>
               </div>
             </div>

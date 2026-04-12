@@ -42,6 +42,7 @@ export default function OfflineModeInfoPanel({ pendingSyncCount, onClose, inBott
             <div
               className={`panel__content offline-help-panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}
             >
+              <div className="panel__content-scroll">
               <ul className="offline-help-dialog__list">
                 {BULLETS.map((text) => (
                   <li key={text} className="offline-help-dialog__bullet">
@@ -107,6 +108,7 @@ export default function OfflineModeInfoPanel({ pendingSyncCount, onClose, inBott
                   Refresh page
                 </span>
               </button>
+              </div>
             </div>
           </div>
         </div>

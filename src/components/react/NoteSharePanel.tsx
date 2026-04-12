@@ -232,6 +232,7 @@ export default function NoteSharePanel(props: NoteSharePanelProps) {
           {/* Content area */}
           <div className={`panel__body ${inBottomSheet ? 'panel__body--bottom-sheet' : ''}`}>
             <div className={`panel__content ${inBottomSheet ? 'panel__content--bottom-sheet' : ''}`}>
+              <div className="panel__content-scroll">
                 {/* Visibility Toggle Section - hidden for scripture notes or when fetch failed */}
                 {showVisibilityToggle && !fetchError && (
                 <div className="note-share-panel__visibility">
@@ -365,6 +366,7 @@ export default function NoteSharePanel(props: NoteSharePanelProps) {
                   </div>
                 ) : null}
               </div>
+              </div>
             </div>
           </div>
         </div>
@@ -380,11 +382,11 @@ export default function NoteSharePanel(props: NoteSharePanelProps) {
       </div>
 
       <style>{`
-        .note-share-panel .panel__content {
+        .note-share-panel .panel__content-scroll {
           padding-bottom: 12px;
           gap: 12px;
         }
-        .note-share-panel .panel__content::after {
+        .note-share-panel .panel__content-scroll::after {
           height: 0;
         }
 

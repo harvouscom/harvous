@@ -52,6 +52,7 @@ export default function AboutHarvousPanel({
             {/* Content area */}
             <div className="panel__body panel__body--bottom-sheet">
               <div className="panel__content panel__content--bottom-sheet about-harvous-panel__content">
+                <div className="panel__content-scroll">
                 <div className="about-harvous-paper-stack">
                   <div className="about-harvous-paper-stack__paper about-harvous-paper--drop-in">
                     {/* Letter content (markdown -> HTML) */}
@@ -66,6 +67,7 @@ export default function AboutHarvousPanel({
                       />
                     </div>
                   </div>
+                </div>
                 </div>
               </div>
             </div>
