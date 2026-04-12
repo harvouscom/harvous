@@ -1061,7 +1061,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
 
           {/* My Preferences Panel */}
           {drawerType === 'myPreferences' && (
-            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+            <div className="panel-container flex-fill flex-stack overflow-hidden" style={{ gap: 0 }}>
               <MyPreferencesPanel
                 onClose={() => {
                   window.dispatchEvent(new CustomEvent('closeProfilePanel'));

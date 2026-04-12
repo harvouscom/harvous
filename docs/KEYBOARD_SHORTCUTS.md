@@ -24,6 +24,9 @@ The keyboard shortcuts system provides quick access to common actions throughout
 |----------|--------|-------------|
 | **Cmd/Ctrl + Shift + H** | Home | Navigates to the app root (home / dashboard route) |
 | **Cmd/Ctrl + Left Arrow** | Back | Closes the top overlay or panel first, then moves up the app hierarchy (note → thread → space → home), or browser history on other routes |
+| **Cmd/Ctrl + Alt + [ / ]** | Cycle open items | Previous / next item in the desktop nav column (active space + persistent strip) when the strip is visible |
+| **Cmd/Ctrl + Alt + ← / →** | Switch tab | Cycle content tabs on Space/Thread pages (buttons with tab nav) |
+| **Cmd/Ctrl + Alt + S** | Switch space | Opens the desktop space switcher |
 
 ### Context-Aware Shortcuts
 

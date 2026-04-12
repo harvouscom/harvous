@@ -352,7 +352,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     }
   }
 
-  // Cmd/Ctrl + Option — persistent nav, tabs, space switcher (not when Spotlight is open)
+  // Cmd/Ctrl + Option — persistent nav (brackets cycle items; avoids ⌥↑/↓ vs browser tab shortcuts), tabs, space switcher (not when Spotlight is open)
   // Use KeyS so Alt+letter layouts still match the physical S key; capture phase + stopImmediatePropagation
   // so the browser does not also run its own shortcut (e.g. tab history or OS workspace switching).
   if (modifier && event.altKey && !event.shiftKey) {
@@ -364,14 +364,14 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
         openDesktopSpaceSwitcher();
         return;
       }
-      if (key === 'arrowup' || code === 'ArrowUp') {
+      if (code === 'BracketLeft') {
         if (navigatePersistentNavStep(-1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
         }
         return;
       }
-      if (key === 'arrowdown' || code === 'ArrowDown') {
+      if (code === 'BracketRight') {
         if (navigatePersistentNavStep(1)) {
           event.preventDefault();
           event.stopImmediatePropagation();
@@ -545,7 +545,7 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[
           action: 'Back',
           keyParts: isMac ? [mod, '←'] : ['Ctrl', '←'],
         },
-        { action: 'Cycle open items', keyParts: isMac ? [mod, opt, '↑ / ↓'] : ['Ctrl', 'Alt', '↑ / ↓'] },
+        { action: 'Cycle open items', keyParts: isMac ? [mod, opt, '[ / ]'] : ['Ctrl', 'Alt', '[ / ]'] },
         { action: 'Switch tab', keyParts: isMac ? [mod, opt, '← / →'] : ['Ctrl', 'Alt', '← / →'] },
         { action: 'Switch space', keyParts: isMac ? [mod, opt, 'S'] : ['Ctrl', 'Alt', 'S'] },
         { action: 'Move in list', keyParts: ['↑', '↓'] },

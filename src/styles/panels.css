@@ -1660,6 +1660,11 @@ form.new-note-panel {
   gap: var(--space-3);
 }
 
+/* Keyboard shortcuts (My Preferences): clip body so snow-white scrollport stays under header (same idea as .panel__body--new-space-desktop). */
+.panel__body.panel__body--keyboard-shortcuts {
+  overflow: hidden;
+}
+
 /* Keyboard shortcuts (My Preferences) — roomier inset; matches header horizontal gutters (1.5rem) */
 .panel__content.keyboard-shortcuts-panel {
   box-sizing: border-box;
@@ -1669,6 +1674,8 @@ form.new-note-panel {
 .keyboard-shortcuts-panel__groups {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
 }
 
 /* Override section-header defaults: left-align and consistent spacing around dividers */

@@ -42,6 +42,12 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 - If nothing app-owned is open, moves up the content hierarchy on note, thread, and space routes (note → previous note in thread if applicable, else thread → space if in context, else home)
 - On other routes (e.g. search, profile), uses browser history, or home if there is no history
 
+### Desktop nav column (when visible)
+
+- **Cycle open items**: `Cmd/Ctrl + Option + [` / `]` — previous / next opened item in the left nav (active space + persistent strip). Uses brackets instead of arrow keys so shortcuts are less likely to conflict with browser tab switching.
+- **Switch tab**: `Cmd/Ctrl + Option + Left Arrow` / `Right Arrow` — cycle content tabs on thread/space pages
+- **Switch space**: `Cmd/Ctrl + Option + S` — open the space switcher
+
 ### Search (Spotlight)
 
 **Shortcut**: `Cmd/Ctrl + K`
@@ -226,6 +232,9 @@ This is normal - shortcuts are re-initialized after View Transitions. If they do
 | `Cmd/Ctrl + F` | Find / Search | Anywhere |
 | `Cmd/Ctrl + Shift + H` | Home | Anywhere |
 | `Cmd/Ctrl + Left Arrow` | Back | Anywhere |
+| `Cmd/Ctrl + Alt + [ / ]` | Cycle open items | Desktop nav visible |
+| `Cmd/Ctrl + Alt + ← / →` | Switch tab | Thread/space with tabs |
+| `Cmd/Ctrl + Alt + S` | Switch space | Desktop |
 | `Esc` | Close Panel | Panel open |
 | `Cmd/Ctrl + D` | Open Details Panel | Note/Thread page |
 | `Cmd/Ctrl + E` | Edit Note | Note page |
