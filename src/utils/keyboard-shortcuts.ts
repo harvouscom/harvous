@@ -245,7 +245,7 @@ function tryHierarchyNavigateBack(): boolean {
  * Handle keyboard shortcut events
  */
 function handleKeyboardShortcut(event: KeyboardEvent): void {
-  // Guard against missing key info; `key` can be empty/Dead with Option/Alt held (use `code` for KeyN, etc.)
+  // Guard against missing key info; `key` can be empty/Dead with Option/Alt held (use `code` for physical keys)
   if (!event.key && !event.code) {
     return;
   }
@@ -296,22 +296,19 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
 
-  // Physical N (Option/Alt changes `key` on macOS; match KeyS pattern for space switcher)
-  const isPhysicalN = key === 'n' || code === 'KeyN';
-
-  // Cmd/Ctrl + Alt + Shift + N — New thread (before isTypingInInput so it works in editors; shift branch first)
-  if (modifier && event.altKey && isPhysicalN && event.shiftKey) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
-    return;
-  }
-
-  // Cmd/Ctrl + Alt + N — New note (Alt avoids browser New Window on ⌘/Ctrl+N)
-  if (modifier && event.altKey && isPhysicalN && !event.shiftKey) {
+  // Cmd/Ctrl + ' — New note (right hand: Quote key; beside ; on US QWERTY; left hand on modifier)
+  if (modifier && !event.shiftKey && !event.altKey && code === 'Quote') {
     event.preventDefault();
     event.stopImmediatePropagation();
     window.dispatchEvent(new CustomEvent('openNewNotePanel'));
+    return;
+  }
+
+  // Cmd/Ctrl + ; — New thread (right hand; adjacent to ' on US QWERTY)
+  if (modifier && !event.shiftKey && !event.altKey && code === 'Semicolon') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.dispatchEvent(new CustomEvent('openNewThreadPanel'));
     return;
   }
 
@@ -494,8 +491,8 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[
     {
       heading: 'Add',
       items: [
-        { action: 'New note', keyParts: isMac ? [mod, '⌥', 'N'] : ['Ctrl', 'Alt', 'N'] },
-        { action: 'New thread', keyParts: isMac ? [mod, '⌥', '⇧', 'N'] : ['Ctrl', 'Alt', 'Shift', 'N'] },
+        { action: 'New note', keyParts: [mod, "'"] },
+        { action: 'New thread', keyParts: [mod, ';'] },
         {
           action: 'Create',
           keyParts: isMac ? [mod, '↵'] : ['Ctrl', 'Enter'],

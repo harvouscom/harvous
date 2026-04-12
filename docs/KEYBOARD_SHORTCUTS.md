@@ -12,8 +12,8 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + Alt + N** | Create New Note | Opens the NewNotePanel to create a new note (⌥ = Option on Mac, Alt on Windows)<br>**Context-aware**: Only when app content is focused — avoids taking **Cmd/Ctrl + N** (browser New Window) |
-| **Cmd/Ctrl + Alt + Shift + N** | Create New Thread | Opens the NewThreadPanel — avoids **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** conflicts |
+| **Cmd/Ctrl + '** | Create New Note | Opens the NewNotePanel; **'** and **;** are adjacent on the right (US QWERTY), left hand on modifier |
+| **Cmd/Ctrl + ;** | Create New Thread | Opens the NewThreadPanel; same row as **'**, next to **Enter** |
 | **Cmd/Ctrl + K** | Spotlight search | Opens the Spotlight overlay |
 | **Cmd/Ctrl + F** | Find | Navigates to the Find page, or focuses the Find input if already on the Find page |
 | **Esc** | Close Panel | Closes any currently open panel (NewNotePanel, NewThreadPanel, NoteDetailsPanel, EditThreadPanel) |
@@ -35,8 +35,8 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 ## Platform Support
 
-- **Mac**: Uses `Cmd` (⌘) for most shortcuts; new note and new thread also use `⌥` (Option / Alt)
-- **Windows/Linux**: Uses `Ctrl` for most shortcuts; new note and new thread also use `Alt`
+- **Mac**: Uses `Cmd` (⌘) for most shortcuts, including new note (`⌘'`) and new thread (`⌘;`)
+- **Windows/Linux**: Uses `Ctrl` for most shortcuts, including new note (`Ctrl+'`) and new thread (`Ctrl+;`)
 - The system automatically detects the platform and uses the appropriate modifier key
 
 ## Smart Input Detection
@@ -62,10 +62,8 @@ This allows context-aware shortcuts like **Cmd/Ctrl + D** to open the correct pa
 
 The system also detects whether the app is focused (vs. browser chrome like the address bar):
 
-- **App focused**: When you're interacting with the app content, **Cmd/Ctrl + Alt + N** opens a new note (Harvous does not use plain **Cmd/Ctrl + N** so the browser can keep New Window)
+- **App focused**: When you're interacting with the app content, **Cmd/Ctrl + '** and **Cmd/Ctrl + ;** create a new note or thread (Harvous does not use **Cmd/Ctrl + N** for create)
 - **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s shortcuts as usual
-
-**Alt/Option** is required for new note and new thread so **Cmd/Ctrl + N** and **Cmd/Ctrl + Shift + N** stay available for the browser.
 
 ## Technical Implementation
 
@@ -123,13 +121,13 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 ## Usage Examples
 
 ### Creating a New Note
-1. Press **Cmd/Ctrl + Alt + N** from anywhere in the app (when app is focused)
+1. Press **Cmd/Ctrl + '** from the app (including from the note editor)
 2. The NewNotePanel opens
 3. Type your note content
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
 
 ### Creating a New Thread
-1. Press **Cmd/Ctrl + Alt + Shift + N** from anywhere in the app
+1. Press **Cmd/Ctrl + ;** from the app (including from the note editor)
 2. The NewThreadPanel opens
 3. Enter thread details
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel

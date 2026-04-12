@@ -10,20 +10,20 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Create New Note
 
-**Shortcut**: `Cmd/Ctrl + Alt + N` (⌥ Option on Mac, Alt on Windows)
+**Shortcut**: `Cmd/Ctrl + '` (apostrophe / single quote)
 
 - Opens the NewNotePanel to create a new note
+- **Two keys**: left hand on **Cmd** (Mac) or **Ctrl** (Windows/Linux), right hand on **'**—same row as **;**, next to **Enter** on US QWERTY
+- Avoids **Cmd/Ctrl + N/T/R/O**, which browsers reserve for new window, tab, reload, open, etc.
 - Works while the cursor is in the note editor (same global handling as Spotlight), so you don’t have to leave the editor first
-- **Context-aware**: Only works when app content is focused
-- Uses **Alt** so **Cmd/Ctrl + N** stays free for the browser (New Window)
 
 ### Create New Thread
 
-**Shortcut**: `Cmd/Ctrl + Alt + Shift + N`
+**Shortcut**: `Cmd/Ctrl + ;` (semicolon)
 
 - Opens the NewThreadPanel to create a new thread
+- **Right hand on ;**—immediately beside **'** on US QWERTY so both create shortcuts sit together
 - Works while the cursor is in the note editor
-- Uses **Alt** so **Cmd/Ctrl + Shift + N** (e.g. incognito in Chrome) and **Cmd/Ctrl + N** aren’t taken by Harvous
 
 ## Navigation
 
@@ -99,12 +99,12 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Mac
 
-- Uses `Cmd` (⌘) for most shortcuts; new note/thread also use `⌥` (Option / Alt)
+- Uses `Cmd` (⌘) for most shortcuts, including new note (`⌘'`) and new thread (`⌘;`)
 - Works with standard Mac keyboard shortcuts
 
 ### Windows/Linux
 
-- Uses `Ctrl` for most shortcuts; new note/thread also use `Alt`
+- Uses `Ctrl` for most shortcuts, including new note (`Ctrl+'`) and new thread (`Ctrl+;`)
 - Works with standard Windows/Linux keyboard shortcuts
 
 The system automatically detects your platform and uses the appropriate modifier key.
@@ -133,23 +133,21 @@ This allows context-aware shortcuts like `Cmd/Ctrl + D` to open the correct pane
 
 The system also detects whether the app is focused (vs. browser chrome like the address bar):
 
-- **App focused**: **Cmd/Ctrl + Alt + N** creates a new note; Harvous does not bind plain **Cmd/Ctrl + N**
+- **App focused**: `Cmd/Ctrl + '` and `Cmd/Ctrl + ;` create a new note or thread; Harvous does not use plain **Cmd/Ctrl + N** for create (browsers reserve that for a new window)
 - **Browser chrome focused**: When the address bar or browser UI is focused, use the browser’s normal shortcuts
-
-**Alt/Option** is required for new note and new thread so **Cmd/Ctrl + N** and **Cmd/Ctrl + Shift + N** stay available for the browser.
 
 ## Usage Examples
 
 ### Creating a New Note
 
-1. Press `Cmd/Ctrl + Alt + N` from anywhere in the app (when app is focused)
+1. Press `Cmd/Ctrl + '` from the app (including from the note editor)
 2. The NewNotePanel opens
 3. Type your note content
 4. Press `Cmd/Ctrl + S` to save, or `Esc` to cancel
 
 ### Creating a New Thread
 
-1. Press `Cmd/Ctrl + Alt + Shift + N` from anywhere in the app
+1. Press `Cmd/Ctrl + ;` from the app (including from the note editor)
 2. The NewThreadPanel opens
 3. Enter thread details
 4. Press `Cmd/Ctrl + S` to save, or `Esc` to cancel
@@ -176,8 +174,9 @@ The system also detects whether the app is focused (vs. browser chrome like the 
 
 ### Don't Interfere with Typing
 
-- All shortcuts are automatically disabled when typing in inputs
-- Click outside the input first if you need to use a shortcut
+- Most shortcuts are disabled when typing in inputs
+- **New note** (`Cmd/Ctrl + '`) and **new thread** (`Cmd/Ctrl + ;`) still work from the note editor (same as Spotlight)
+- For other shortcuts, click outside the input first if needed
 
 ### Context-Aware Usage
 
@@ -221,8 +220,8 @@ This is normal - shortcuts are re-initialized after View Transitions. If they do
 
 | Shortcut | Action | Context |
 |----------|--------|---------|
-| `Cmd/Ctrl + Alt + N` | Create New Note | App focused |
-| `Cmd/Ctrl + Alt + Shift + N` | Create New Thread | Anywhere |
+| **Cmd/Ctrl + '** | Create New Note | Anywhere in app |
+| `Cmd/Ctrl + ;` | Create New Thread | Anywhere in app |
 | `Cmd/Ctrl + K` | Spotlight search | Anywhere |
 | `Cmd/Ctrl + F` | Find / Search | Anywhere |
 | `Cmd/Ctrl + Shift + H` | Home | Anywhere |

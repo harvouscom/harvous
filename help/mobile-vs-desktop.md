@@ -142,7 +142,7 @@ Harvous works great on both mobile and desktop, but each platform offers a sligh
 
 ### Desktop Tips
 
-1. **Use keyboard shortcuts**: Work faster with `Cmd/Ctrl + Alt + N` (new note), etc.
+1. **Use keyboard shortcuts**: Work faster with **Cmd/Ctrl + '** (new note), **Cmd/Ctrl + ;** (new thread), etc.
 2. **Sidebar navigation**: Keep frequently used items in navigation
 3. **Multi-column view**: Take advantage of the additional column
 4. **Hover interactions**: Discover features by hovering

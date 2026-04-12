@@ -69,7 +69,7 @@ Advanced tips and strategies for getting the most out of Harvous.
 
 ### Use Keyboard Shortcuts
 
-- **Cmd/Ctrl + Alt + N**: Create new note quickly (Option/Alt + N)
+- **Cmd/Ctrl + '** / **+ ;**: Create new note / new thread—**right hand** on **'** and **;** (next to each other above **Enter** on US QWERTY), **left hand** on the modifier
 - **Cmd/Ctrl + F**: Search instantly
 - **Cmd/Ctrl + E**: Edit notes fast
 - **Esc**: Close panels quickly
