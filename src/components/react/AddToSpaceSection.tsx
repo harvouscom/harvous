@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import SearchInput from './SearchInput';
 import FindSearchInput from './FindSearchInput';
@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useSearch';
 import {
   addRecentSearchTerm,
+  RECENT_SEARCH_COMMIT_IDLE_MS,
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
 import { getTranslationAbbreviationDisplay } from '@/data/translations';
@@ -407,6 +408,10 @@ export default function AddToSpaceSection({
 
   const ftsLiveTrim = ftsLiveQuery.trim();
   const ftsDebouncePending = ftsLiveTrim.length > 0 && ftsDebouncedQuery !== ftsLiveTrim;
+  const ftsDebouncedRef = useRef(ftsDebouncedQuery);
+  ftsDebouncedRef.current = ftsDebouncedQuery;
+  const ftsLiveRef = useRef(ftsLiveQuery);
+  ftsLiveRef.current = ftsLiveQuery;
 
   const prefetchFts = useCallback(
     (term: string) => {
@@ -476,14 +481,24 @@ export default function AddToSpaceSection({
     if (!enableFullTextSearch || !recentSearchRecordScope) return;
     const trimmed = ftsDebouncedQuery.trim();
     if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
+    if (ftsLiveTrim !== trimmed) return;
     if (ftsLoading || ftsError) return;
     if (ftsData?.results === undefined) return;
-    // Badge = items still addable in this picker (not raw FTS hit count).
-    addRecentSearchTerm(recentSearchRecordScope, trimmed, { resultCount: addableFtsResults.length });
+    const resultCount = addableFtsResults.length;
+    const timer = window.setTimeout(() => {
+      const d = ftsDebouncedRef.current.trim();
+      const live = ftsLiveRef.current.trim();
+      if (d.length < MIN_SEARCH_QUERY_LENGTH) return;
+      if (live !== d) return;
+      if (d !== trimmed) return;
+      addRecentSearchTerm(recentSearchRecordScope, d, { resultCount });
+    }, RECENT_SEARCH_COMMIT_IDLE_MS);
+    return () => window.clearTimeout(timer);
   }, [
     enableFullTextSearch,
     recentSearchRecordScope,
     ftsDebouncedQuery,
+    ftsLiveTrim,
     ftsLoading,
     ftsError,
     ftsData?.results,

@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import { idToUrl } from '../../../src/utils/url-helpers';
 import {
   addRecentSearchTerm,
+  RECENT_SEARCH_COMMIT_IDLE_MS,
   type RecentSearchStorageScope,
 } from '../../../src/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
@@ -27,6 +28,8 @@ export default function SearchResultsList({
   recentSearchCountSync,
 }: SearchResultsListProps) {
   const trimmed = query.trim();
+  const trimmedRef = useRef(trimmed);
+  trimmedRef.current = trimmed;
   const { data, isLoading, isError, error } = useSearch(trimmed, scope);
 
   useEffect(() => {
@@ -34,7 +37,13 @@ export default function SearchResultsList({
     if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
     if (isLoading || isError) return;
     if (data?.results === undefined) return;
-    addRecentSearchTerm(recentSearchCountSync, trimmed, { resultCount: data.results.length });
+    const resultCount = data.results.length;
+    const committed = trimmed;
+    const timer = window.setTimeout(() => {
+      if (trimmedRef.current.trim() !== committed) return;
+      addRecentSearchTerm(recentSearchCountSync, committed, { resultCount });
+    }, RECENT_SEARCH_COMMIT_IDLE_MS);
+    return () => window.clearTimeout(timer);
   }, [recentSearchCountSync, trimmed, isLoading, isError, data?.results]);
 
   const results: SearchResult[] = data?.results ?? [];

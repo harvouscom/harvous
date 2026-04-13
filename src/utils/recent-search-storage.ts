@@ -5,6 +5,12 @@
 
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 
+/**
+ * After a debounced search completes, wait this long with no new query before
+ * recording the term in recents — avoids storing "ange", "angel" while the user is still typing "angels".
+ */
+export const RECENT_SEARCH_COMMIT_IDLE_MS = 650;
+
 export type RecentSearchStorageScope =
   | null
   | { type: 'thread' | 'space'; id: string }

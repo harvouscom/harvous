@@ -11,6 +11,7 @@ import {
 } from '@/hooks/useSearch';
 import {
   addRecentSearchTerm,
+  RECENT_SEARCH_COMMIT_IDLE_MS,
   recentSearchStorageKey,
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
@@ -23,6 +24,7 @@ import { useSpace } from '../hooks/queries/useSpace';
 import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { router } from '../router';
+import { isMobileDevice } from '@/utils/pwa-prompt';
 import '../../../src/styles/spotlight.css';
 
 interface RecentSearch {
@@ -158,6 +160,10 @@ export default function SpotlightSearch() {
   const [commandListValue, setCommandListValue] = useState(SPOTLIGHT_NO_LIST_SELECTION);
   const overlayRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const debouncedQueryRef = useRef(debouncedQuery);
+  const queryRef = useRef(query);
+  debouncedQueryRef.current = debouncedQuery;
+  queryRef.current = query;
   const savedOverflow = useRef('');
   const queryClient = useQueryClient();
 
@@ -183,14 +189,24 @@ export default function SpotlightSearch() {
   const { data, isLoading } = useSearch(debouncedQuery, scopeInfo?.scope);
   const results: SearchResult[] = data?.results ?? [];
 
-  // Record completed searches in global recents (result count for badge), like /search + AddToSpaceSection FTS sync
+  // Record completed searches in global recents only after the user pauses (avoids "ange"/"angel"/"angels").
   useEffect(() => {
     if (!isOpen) return;
     const trimmed = debouncedQuery.trim();
     if (trimmed.length < MIN_SEARCH_QUERY_LENGTH) return;
+    if (query.trim() !== trimmed) return;
     if (isLoading) return;
-    addRecentSearchTerm(null, trimmed, { resultCount: results.length });
-  }, [isOpen, debouncedQuery, isLoading, results.length]);
+    const resultCount = results.length;
+    const timer = window.setTimeout(() => {
+      const d = debouncedQueryRef.current.trim();
+      const q = queryRef.current.trim();
+      if (d.length < MIN_SEARCH_QUERY_LENGTH) return;
+      if (q !== d) return;
+      if (d !== trimmed) return;
+      addRecentSearchTerm(null, d, { resultCount });
+    }, RECENT_SEARCH_COMMIT_IDLE_MS);
+    return () => window.clearTimeout(timer);
+  }, [isOpen, debouncedQuery, query, isLoading, results.length]);
 
   // Refresh recent searches
   const refreshRecents = useCallback(() => {
@@ -459,32 +475,34 @@ export default function SpotlightSearch() {
         <div className="spotlight-container">
           {searchContent}
         </div>
-        <div className="spotlight-strip">
-          <div className="action-strip action-strip--mobile">
-            <div className="action-strip__inner">
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
+        {!isMobileDevice() && (
+          <div className="spotlight-strip">
+            <div className="action-strip action-strip--mobile">
+              <div className="action-strip__inner">
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>{isMac ? '⌘' : 'Ctrl'}</kbd> + <kbd>K</kbd> to open
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>↑</kbd> <kbd>↓</kbd> to navigate
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>↑</kbd> <kbd>↓</kbd> to navigate
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>↵</kbd> to select
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>↵</kbd> to select
+                  </span>
                 </span>
-              </span>
-              <span className="action-strip__item">
-                <span className="action-strip__label">
-                  <kbd>Esc</kbd> to close
+                <span className="action-strip__item">
+                  <span className="action-strip__label">
+                    <kbd>Esc</kbd> to close
+                  </span>
                 </span>
-              </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </div>,
     document.body,
