@@ -74,7 +74,7 @@ Harvous uses a modern rich text editor (Tiptap) with powerful formatting options
 ### Inline Editing
 
 1. **Click on any note** to open it
-2. **Click the edit button** or press `Cmd/Ctrl + E`
+2. **Click the edit button** or press `Cmd/Ctrl + Shift + E`
 3. **Make your changes** in the editor
 4. **Click "Save"** or press `Cmd/Ctrl + S` to save
 5. **Press `Esc`** to cancel editing

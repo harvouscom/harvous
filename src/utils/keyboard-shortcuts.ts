@@ -287,7 +287,7 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
   // Cmd/Ctrl + S - Save current note/thread (when editing)
   // Handle BEFORE isTypingInInput() check so it works in editors
   // Cmd/Ctrl + Option + S is reserved for "open space switcher" (handled after isTypingInInput).
-  if (modifier && key === 's' && !event.altKey) {
+  if (modifier && key === 's' && !event.altKey && !event.shiftKey) {
     // Only prevent default if we're actually in an editing context
     // We'll check if there's an active editor or form
     const activeElement = document.activeElement as HTMLElement | null;
@@ -425,9 +425,9 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
   
-  // Cmd/Ctrl + D — Details: note details or thread edit panel (context-aware)
-  if (modifier && key === 'd' && !event.shiftKey) {
-    if (shouldPassThroughToBrowser(event, 'mod-d')) return;
+  // Cmd/Ctrl + Shift + D — Details: note details or thread edit panel (context-aware)
+  if (modifier && event.shiftKey && key === 'd' && !event.altKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-shift-d')) return;
     event.preventDefault();
     const context = getPageContext();
     if (context.isNote) {
@@ -438,15 +438,53 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
     return;
   }
 
-  // Cmd/Ctrl + E - Edit current note (if viewing a note)
-  if (modifier && key === 'e') {
-    if (shouldPassThroughToBrowser(event, 'mod-e')) return;
+  // Cmd/Ctrl + Shift + S — Share (note or thread; same as Edit → Share)
+  if (modifier && event.shiftKey && key === 's' && !event.altKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-shift-s')) return;
     event.preventDefault();
-    const context = getPageContext();
-    if (context.isNote) {
-      // Trigger edit mode - this might need to be implemented based on how editing works
-      // For now, we'll dispatch an event that components can listen to
+    const path = window.location.pathname;
+    const entity = detectEntityTypeFromPath(path);
+    const id = extractIdFromPath(path);
+    if (entity === 'note' && id?.startsWith('note_')) {
+      window.dispatchEvent(
+        new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'note' } }),
+      );
+    } else if (entity === 'thread' && id?.startsWith('thread_')) {
+      window.dispatchEvent(
+        new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'thread' } }),
+      );
+    }
+    return;
+  }
+
+  // Cmd/Ctrl + Shift + L — Lock (note only; same as Edit → Lock / focus lock control)
+  if (modifier && event.shiftKey && key === 'l' && !event.altKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-shift-l')) return;
+    event.preventDefault();
+    const id = extractIdFromPath(window.location.pathname);
+    if (id?.startsWith('note_')) {
+      window.dispatchEvent(new CustomEvent('focusLockNote', { detail: { contentId: id } }));
+    }
+    return;
+  }
+
+  // Cmd/Ctrl + Shift + E — Edit (context-aware: note → edit mode, thread/space → edit panel)
+  if (modifier && event.shiftKey && key === 'e' && !event.altKey) {
+    if (shouldPassThroughToBrowser(event, 'mod-shift-e')) return;
+    event.preventDefault();
+    const path = window.location.pathname;
+    const entity = detectEntityTypeFromPath(path);
+    const id = extractIdFromPath(path);
+    if (entity === 'note' && id?.startsWith('note_')) {
       window.dispatchEvent(new CustomEvent('editNote'));
+    } else if (entity === 'thread' && id?.startsWith('thread_')) {
+      window.dispatchEvent(
+        new CustomEvent('openEditThreadPanel', { detail: { contentId: id, contentType: 'thread' } }),
+      );
+    } else if (entity === 'space' && id?.startsWith('space_')) {
+      window.dispatchEvent(
+        new CustomEvent('openEditSpacePanel', { detail: { contentId: id, contentType: 'space' } }),
+      );
     }
     return;
   }
@@ -529,8 +567,10 @@ export function getKeyboardShortcutsReference(): KeyboardShortcutReferenceGroup[
     {
       heading: 'Edit',
       items: [
-        { action: 'Details', keyParts: [mod, 'D'] },
-        { action: 'Edit note', keyParts: [mod, 'E'] },
+        { action: 'Details', keyParts: isMac ? [mod, '⇧', 'D'] : ['Ctrl', 'Shift', 'D'] },
+        { action: 'Share', keyParts: isMac ? [mod, '⇧', 'S'] : ['Ctrl', 'Shift', 'S'] },
+        { action: 'Lock', keyParts: isMac ? [mod, '⇧', 'L'] : ['Ctrl', 'Shift', 'L'] },
+        { action: 'Edit', keyParts: isMac ? [mod, '⇧', 'E'] : ['Ctrl', 'Shift', 'E'] },
         { action: 'Save', keyParts: [mod, 'S'] },
         { action: 'Dismiss', keyParts: ['Esc'] },
         { action: 'Erase', keyParts: [mod, isMac ? '⌦' : 'Del'] },

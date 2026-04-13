@@ -71,7 +71,7 @@ Advanced tips and strategies for getting the most out of Harvous.
 
 - **Cmd/Ctrl + '** / **+ ;**: Create new note / new thread—**right hand** on **'** and **;** (next to each other above **Enter** on US QWERTY), **left hand** on the modifier
 - **Cmd/Ctrl + F**: Search instantly
-- **Cmd/Ctrl + E**: Edit notes fast
+- **Cmd/Ctrl + Shift + E**: Edit note, thread, or space (context-aware)
 - **Esc**: Close panels quickly
 
 ### Leverage Search

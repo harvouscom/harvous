@@ -196,9 +196,9 @@ Solutions to common problems and issues in Harvous.
 - Browser interaction issues
 
 **Solutions:**
-1. **Click the edit button**: Or press `Cmd/Ctrl + E` to enter edit mode
+1. **Click the edit button**: Or press `Cmd/Ctrl + Shift + E` to enter edit mode
 2. **Refresh the page**: A refresh can fix loading issues
-3. **Try keyboard shortcut**: Use `Cmd/Ctrl + E` for edit mode
+3. **Try keyboard shortcut**: Use `Cmd/Ctrl + Shift + E` for edit mode
 4. **Check for errors**: Look for error messages
 5. **Try different browser**: Sometimes browser-specific issues occur
 

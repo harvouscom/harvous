@@ -78,20 +78,21 @@ Harvous provides keyboard shortcuts for common actions throughout the applicatio
 
 ### Open Details Panel
 
-**Shortcut**: `Cmd/Ctrl + D`
+**Shortcut**: `Cmd/Ctrl + Shift + D`
 
 - Opens the appropriate details panel based on current context:
   - **Note page**: Opens NoteDetailsPanel
   - **Thread page**: Opens EditThreadPanel
 - Context-aware shortcut that adapts to what you're viewing
 
-### Edit Note
+### Edit
 
-**Shortcut**: `Cmd/Ctrl + E`
+**Shortcut**: `Cmd/Ctrl + Shift + E`
 
-- Enters edit mode for the current note
-- **Only works when viewing a note**
-- Quick way to start editing without clicking buttons
+- **Note page**: Enters edit mode for the current note
+- **Thread page**: Opens the edit thread panel
+- **Space page**: Opens the edit space panel
+- Quick way to start editing without using the menu
 
 ### Save
 
@@ -133,7 +134,7 @@ The system intelligently detects the current page context:
 - **Thread pages**: URLs starting with `/thread_` or other non-standard routes
 - **Space pages**: URLs starting with `/space_`
 
-This allows context-aware shortcuts like `Cmd/Ctrl + D` to open the correct panel based on what you're viewing.
+This allows context-aware shortcuts like `Cmd/Ctrl + Shift + D` to open the correct panel based on what you're viewing.
 
 ### App Focus Detection
 
@@ -167,14 +168,14 @@ The system also detects whether the app is focused (vs. browser chrome like the 
 ### Editing a Note
 
 1. Navigate to a note page
-2. Press `Cmd/Ctrl + E` to enter edit mode
+2. Press `Cmd/Ctrl + Shift + E` to enter edit mode
 3. Make your changes
 4. Press `Cmd/Ctrl + S` to save, or `Esc` to cancel
 
 ### Opening Details Panel
 
-1. While viewing a note, press `Cmd/Ctrl + D` to open NoteDetailsPanel
-2. While viewing a thread, press `Cmd/Ctrl + D` to open EditThreadPanel
+1. While viewing a note, press `Cmd/Ctrl + Shift + D` to open NoteDetailsPanel
+2. While viewing a thread, press `Cmd/Ctrl + Shift + D` to open EditThreadPanel
 
 ## Best Practices
 
@@ -187,8 +188,8 @@ The system also detects whether the app is focused (vs. browser chrome like the 
 ### Context-Aware Usage
 
 - Use shortcuts that match your current context
-- `Cmd/Ctrl + D` opens different panels based on what you're viewing
-- `Cmd/Ctrl + E` only works when viewing a note
+- `Cmd/Ctrl + Shift + D` opens different panels based on what you're viewing
+- `Cmd/Ctrl + Shift + E` applies on note, thread, and space pages (see **Edit** above)
 
 ### Escape to Cancel
 
@@ -236,8 +237,8 @@ This is normal - shortcuts are re-initialized after View Transitions. If they do
 | `Cmd/Ctrl + Alt + ← / →` | Switch tab | Thread/space with tabs |
 | `Cmd/Ctrl + Alt + S` | Switch space | Desktop |
 | `Esc` | Close Panel | Panel open |
-| `Cmd/Ctrl + D` | Open Details Panel | Note/Thread page |
-| `Cmd/Ctrl + E` | Edit Note | Note page |
+| `Cmd/Ctrl + Shift + D` | Open Details Panel | Note/Thread page |
+| `Cmd/Ctrl + Shift + E` | Edit | Note / Thread / Space page |
 | `Cmd/Ctrl + S` | Save | Editing/Panel open |
 
 ## Related Guides

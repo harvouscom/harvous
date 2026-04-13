@@ -32,8 +32,8 @@ The keyboard shortcuts system provides quick access to common actions throughout
 
 | Shortcut | Action | Description |
 |----------|--------|-------------|
-| **Cmd/Ctrl + D** | Open Details Panel | Opens the appropriate details panel based on current context:<br>- **Note page**: Opens NoteDetailsPanel<br>- **Thread page**: Opens EditThreadPanel |
-| **Cmd/Ctrl + E** | Edit Note | Enters edit mode for the current note (only works when viewing a note) |
+| **Cmd/Ctrl + Shift + D** | Open Details Panel | Opens the appropriate details panel based on current context:<br>- **Note page**: Opens NoteDetailsPanel<br>- **Thread page**: Opens EditThreadPanel |
+| **Cmd/Ctrl + Shift + E** | Edit | **Note**: edit mode · **Thread**: edit thread panel · **Space**: edit space panel |
 | **Cmd/Ctrl + S** | Save | Saves the current note/thread when editing or when a panel is open<br>**Note**: Cmd/Ctrl + Enter is not used for saving because it's used by the editor to start a new line |
 
 ## Platform Support
@@ -59,7 +59,7 @@ The system intelligently detects the current page context:
 - **Thread pages**: URLs starting with `/thread_` or other non-standard routes
 - **Space pages**: URLs starting with `/space_`
 
-This allows context-aware shortcuts like **Cmd/Ctrl + D** to open the correct panel based on what you're viewing.
+This allows context-aware shortcuts like **Cmd/Ctrl + Shift + D** to open the correct panel based on what you're viewing.
 
 ### App Focus Detection
 
@@ -110,7 +110,8 @@ The keyboard shortcuts system uses CustomEvents to communicate with components:
 - `closeNoteDetailsPanel` - Closes the NoteDetailsPanel
 - `openEditThreadPanel` - Opens the EditThreadPanel
 - `closeEditThreadPanel` - Closes the EditThreadPanel
-- `editNote` - Triggers edit mode for the current note
+- `openEditSpacePanel` - Opens the EditSpacePanel (detail: `contentId`, `contentType`)
+- `editNote` - Triggers edit mode for the current note (shortcut on note pages)
 - `saveContent` - Triggers save action for the current content
 
 ### View Transitions Support
@@ -142,18 +143,18 @@ The keyboard shortcuts system is fully compatible with Astro's View Transitions:
 
 ### Editing a Note
 1. Navigate to a note page
-2. Press **Cmd/Ctrl + E** to enter edit mode
+2. Press **Cmd/Ctrl + Shift + E** to enter edit mode
 3. Make your changes
 4. Press **Cmd/Ctrl + S** to save, or **Esc** to cancel
 
 ### Opening Details Panel
-1. While viewing a note, press **Cmd/Ctrl + D** to open NoteDetailsPanel
-2. While viewing a thread, press **Cmd/Ctrl + D** to open EditThreadPanel
+1. While viewing a note, press **Cmd/Ctrl + Shift + D** to open NoteDetailsPanel
+2. While viewing a thread, press **Cmd/Ctrl + Shift + D** to open EditThreadPanel
 
 ## Best Practices
 
 1. **Don't interfere with typing**: All shortcuts are automatically disabled when typing in inputs
-2. **Context-aware**: Use shortcuts that match your current context (e.g., Cmd+D opens different panels based on what you're viewing)
+2. **Context-aware**: Use shortcuts that match your current context (e.g., Cmd/Ctrl + Shift + D opens different panels based on what you're viewing)
 3. **Escape to cancel**: Press **Esc** to quickly close any open panel
 4. **Save frequently**: Use **Cmd/Ctrl + S** to save your work when editing
 
