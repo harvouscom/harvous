@@ -637,28 +637,22 @@ async function processScriptureReferencesInternal(
           // Award XP (scripture notes get 3 XP and are exempt from rate/content checks)
           await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
 
-          // Auto-generate and apply tags based on note content
-          try {
-            // Generate auto-tag suggestions based on note content (80% confidence threshold)
-            const autoTagResult = await generateAutoTags(
-              capitalizedTitle || '',
-              capitalizedContent,
-              userId,
-              AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
-            );
-
-            // Apply the auto-generated tags if any were found
-            if (autoTagResult.suggestions.length > 0) {
-              await applyAutoTags(
-                scriptureNote.id,
-                autoTagResult.suggestions,
-                userId
+          // Auto-tag fire-and-forget (non-critical)
+          (async () => {
+            try {
+              const autoTagResult = await generateAutoTags(
+                capitalizedTitle || '',
+                capitalizedContent,
+                userId,
+                AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
               );
+              if (autoTagResult.suggestions.length > 0) {
+                await applyAutoTags(scriptureNote.id, autoTagResult.suggestions, userId);
+              }
+            } catch (err) {
+              console.error('Auto-tagging failed for scripture note (non-critical):', err);
             }
-          } catch (error: unknown) {
-            // Don't fail note creation if auto-tagging fails
-            console.error('Auto-tagging failed for scripture note (non-critical):', error);
-          }
+          })().catch(() => {});
 
           // Add new scripture note to every parent thread
           await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);

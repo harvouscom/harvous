@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { CONDENSED_NOTE_ICON_PX } from '@/utils/condensed-note-row';
 import {
   CondensedNoteRowLayout,
@@ -87,7 +88,7 @@ export default function CondensedNoteItem({
             flexShrink: 0,
           }}
         >
-          {scriptureTranslation}
+          {getTranslationAbbreviationDisplay(scriptureTranslation)}
         </span>
       )}
     </div>

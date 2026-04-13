@@ -13,6 +13,9 @@ npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supaba
 npm run db:check         # Pre-commit schema check (server/db/schema.ts)
 npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data then run e2e
+npm run bible:generate -- NASB     # Generate NASB.json (NASB 1995) via Claude (needs ANTHROPIC_API_KEY in .env); resumes from partial
+npm run bible:generate:all         # Generate NASB 1995 / CSB / AMP / MSG in sequence via Claude
+npx tsx server/scripts/seed-bible-verses.ts NASB   # Import server/data/bibles/NASB.json (NASB 1995) into Supabase BibleVerses
 ```
 
 **Clean new user (manual only):** The automatic dev-reset middleware was removed so production user data is never erased. To get "new user" state locally, call `POST /api/test/reset-to-new-user` (test route) when the API is running.

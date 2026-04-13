@@ -16,9 +16,14 @@ import {
   stripHtmlPreservingBreaksForVotd,
 } from '@/utils/verse-plain-display';
 import Icon from '@/components/react/Icon';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { FeaturedCardActionsDock } from '@/components/react/FeaturedCardActionsDock';
 
 export { readDismissedFeaturedItem } from '@/utils/featured-dismiss-local';
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
 
 function getIconForContentType(contentType: FeaturedItem['contentType']) {
   if (contentType === 'space') {
@@ -100,8 +105,9 @@ function dismissVotd(
 function buildScripturePillHtml(metadata: VotdMetadata, translationForPill: string): string {
   const ref = metadata.reference;
   const translation = translationForPill || metadata.translation || 'NET';
+  const label = getTranslationAbbreviationDisplay(translation);
   // NBSP after pill so a visible gap remains before typed text (normal space can collapse at block end)
-  return `<p><span data-scripture-reference="${ref}" data-note-id="pending" data-scripture-translation="${translation}" class="scripture-pill scripture-pill-clickable">${ref}</span>\u00A0</p>`;
+  return `<p><span data-scripture-reference="${escapeHtmlAttr(ref)}" data-note-id="pending" data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(label)}" class="scripture-pill scripture-pill-clickable">${ref}</span>\u00A0</p>`;
 }
 
 function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }) {
@@ -173,6 +179,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
                     className="scripture-pill"
                     data-scripture-reference={metadata.reference}
                     data-scripture-translation={displayTranslation}
+                    data-scripture-translation-label={getTranslationAbbreviationDisplay(displayTranslation)}
                   >
                     {metadata.reference}
                   </span>
@@ -195,7 +202,7 @@ function VotdCard({ item, onClose }: { item: FeaturedItem; onClose: () => void }
               <div className="featured-card__title">{item.title}</div>
               {metadata?.reference ? (
                 <div className="featured-card__description">
-                  {metadata.reference} · {displayTranslation}
+                  {metadata.reference} · {getTranslationAbbreviationDisplay(displayTranslation)}
                 </div>
               ) : item.description ? (
                 <div className="featured-card__description">{item.description}</div>

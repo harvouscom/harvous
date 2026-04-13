@@ -44,7 +44,14 @@
     "easter:patch-metadata": "tsx scripts/patch-easter-2026-metadata.ts",
     "easter:sync-notes": "tsx scripts/sync-easter-2026-notes.ts",
     "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts",
-    "harvous:grant-space-member": "tsx scripts/grant-harvous-space-member.ts"
+    "harvous:grant-space-member": "tsx scripts/grant-harvous-space-member.ts",
+    "bible:download": "node server/data/bibles/_download_api_bible.mjs",
+    "bible:download:new": "node server/data/bibles/_download_all_new_bibles.mjs",
+    "bible:list-api-bibles": "node server/data/bibles/_list_api_bibles.mjs",
+    "bible:generate": "node server/data/bibles/_generate_translation.mjs",
+    "bible:generate:all": "node server/data/bibles/_generate_all_new_bibles.mjs",
+    "bible:download:bolls": "node server/data/bibles/_download_bolls.mjs",
+    "bible:download:bolls:all": "node server/data/bibles/_download_all_bolls.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.1.0",
@@ -112,6 +119,7 @@
     "web-haptics": "^0.0.6"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@clerk/testing": "^1.13.35",
     "@playwright/test": "^1.58.2",
     "@testing-library/jest-dom": "^6.6.3",

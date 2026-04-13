@@ -1,5 +1,6 @@
-import { Mark } from '@tiptap/core';
+import { Mark, getMarkRange } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 
@@ -98,8 +99,10 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           if (!attributes.translation) {
             return {};
           }
+          const id = attributes.translation as string;
           return {
-            'data-scripture-translation': attributes.translation,
+            'data-scripture-translation': id,
+            'data-scripture-translation-label': getTranslationAbbreviationDisplay(id),
           };
         },
       },
@@ -206,6 +209,42 @@ export const ScripturePill = Mark.create<ScripturePillOptions>({
           }
 
           return null;
+        },
+      }),
+      // After every update, if the collapsed cursor landed inside a scripture pill (common with
+      // inclusive:false + last-in-block), move it to the position after the mark. Uses
+      // @tiptap/core getMarkRange — same helper as snapCursorOutsideScripturePill in TiptapEditor.
+      new Plugin({
+        key: new PluginKey('scripturePillSnapCursor'),
+        appendTransaction(_transactions, _oldState, newState) {
+          const sel = newState.selection;
+          if (!(sel instanceof TextSelection)) return null;
+          const markType = newState.schema.marks.scripturePill;
+          if (!markType) return null;
+
+          const $from = sel.$from;
+          const parent = $from.parent;
+          const offset = $from.parentOffset;
+
+          const after = parent.childAfter(offset);
+          const afterInPill = after.node?.marks.some((m: any) => m.type === markType) ?? false;
+          const before = parent.childBefore(offset);
+          const beforeInPill = before.node?.marks.some((m: any) => m.type === markType) ?? false;
+
+          if (!afterInPill && !beforeInPill) return null;
+          // Cursor right after pill with nothing following — visually inside the pill box.
+          // Can't fix here (inserting a paragraph would mark the note as changed); handled
+          // by CardFullEditable.handleEditorReady and snapCursorOutsideScripturePill instead.
+          if (beforeInPill && !afterInPill && sel.empty) return null;
+
+          // Cursor truly inside pill text — snap to end of mark range
+          const range = getMarkRange($from, markType) || (beforeInPill ? getMarkRange(newState.doc.resolve(Math.max(0, sel.from - 1)), markType) : null);
+          if (!range) return null;
+          if (sel.empty && sel.from === range.to) return null;
+          return newState.tr
+            .setSelection(TextSelection.create(newState.doc, range.to))
+            .setStoredMarks([])
+            .setMeta('addToHistory', false);
         },
       }),
       new Plugin({

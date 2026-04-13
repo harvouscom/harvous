@@ -18,7 +18,7 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited, sortByCreatedAtAsc } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc, sortByCreatedAtDesc } from "@/utils/sorting";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
@@ -583,7 +583,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
-        .orderBy(asc(Notes.createdAt), asc(Notes.id))
+        .orderBy(desc(Notes.createdAt), desc(Notes.id))
         .limit(fetchLimit);
 
       const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean);
@@ -620,7 +620,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-        .orderBy(asc(Notes.createdAt), asc(Notes.id))
+        .orderBy(desc(Notes.createdAt), desc(Notes.id))
         .limit(fetchLimit);
 
       const threadNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
@@ -643,7 +643,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       allNotes = Array.from(notesMap.values());
     }
 
-    const sortedAllNotes = sortByCreatedAtAsc(
+    const sortedAllNotes = sortByCreatedAtDesc(
       allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
     );
 
@@ -724,10 +724,10 @@ export async function getNotesForThreadForMember(
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
-      .orderBy(asc(Notes.createdAt), asc(Notes.id))
+      .orderBy(desc(Notes.createdAt), desc(Notes.id))
       .limit(fetchLimit);
 
-    const sortedAllNotes = sortByCreatedAtAsc(
+    const sortedAllNotes = sortByCreatedAtDesc(
       junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
     );
     const hasMore = sortedAllNotes.length > offset + limit;

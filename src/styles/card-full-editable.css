@@ -266,8 +266,17 @@
   user-select: none;
 }
 
-/* Translation abbreviation shown after the reference text */
-.card-full-editable__content-html .scripture-pill[data-scripture-translation]::after {
+/* Translation label (::after) — prefer registry abbreviation (e.g. NASB 1995) */
+.card-full-editable__content-html .scripture-pill[data-scripture-translation-label]::after {
+  content: attr(data-scripture-translation-label);
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 4px;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.card-full-editable__content-html .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   content: attr(data-scripture-translation);
   font-size: 10px;
   font-weight: 600;

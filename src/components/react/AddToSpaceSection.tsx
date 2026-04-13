@@ -16,6 +16,7 @@ import {
   addRecentSearchTerm,
   type RecentSearchStorageScope,
 } from '@/utils/recent-search-storage';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
 import {
@@ -126,7 +127,7 @@ const NoteItem: React.FC<{
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {item.version || item.scriptureTranslation}
+                  {getTranslationAbbreviationDisplay(String(item.version || item.scriptureTranslation || ''))}
                 </span>
               )}
             </div>

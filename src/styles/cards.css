@@ -379,7 +379,16 @@
   background: none;
 }
 
-.featured-card--votd .featured-card__verse-text .scripture-pill[data-scripture-translation]::after {
+.featured-card--votd .featured-card__verse-text .scripture-pill[data-scripture-translation-label]::after {
+  content: attr(data-scripture-translation-label);
+  font-size: 9px;
+  font-weight: 600;
+  margin-left: 3px;
+  letter-spacing: 0.02em;
+  color: inherit;
+}
+
+.featured-card--votd .featured-card__verse-text .scripture-pill[data-scripture-translation]:not([data-scripture-translation-label])::after {
   content: attr(data-scripture-translation);
   font-size: 9px;
   font-weight: 600;

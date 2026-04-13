@@ -219,7 +219,7 @@ export default function NewNotePanel({
           <option value="ESV">ESV</option>
           <option value="NIV">NIV</option>
           <option value="KJV">KJV</option>
-          <option value="NASB">NASB</option>
+          <option value="NASB">NASB 1995</option>
         </select>
       </div>
     </div>

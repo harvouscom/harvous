@@ -343,49 +343,27 @@ route.post('/api/notes/create', requireAuth, rateLimitNoteCreate(), async (c) =>
       }
     }
 
-    // Await scripture processing so scripture notes and junctions exist before client navigates
+    // Fire-and-forget scripture processing — note page reprocess-on-view is the safety net
     const actualThreadId = threadId && threadId !== 'thread_unorganized' ? threadId : 'thread_unorganized';
-    const latestNote = finalNoteType === 'resource'
-      ? first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1))
-      : null;
-    const contentToProcess = latestNote?.content || newNote.content;
-
-    let scriptureResults: any[] = [];
-    let processedContent: string | null = null;
-    let scriptureProcessingError = false;
+    const contentToProcess = newNote.content;
 
     if (!contentEncrypted) {
-      try {
-        console.log('[api/notes/create] Processing scripture references', {
-          noteId: newNote.id,
-          contentLength: contentToProcess?.length,
-          contentPreview: contentToProcess?.slice(0, 200),
-          translation: scriptureVersion || 'NET',
-        });
-        const scriptureResult = await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || 'NET');
-        scriptureResults = scriptureResult.results || [];
-        processedContent = scriptureResult.updatedContent || null;
-        console.log('[api/notes/create] Scripture processing complete', {
-          resultsCount: scriptureResults.length,
-          results: scriptureResults,
-          hasUpdatedContent: !!processedContent,
-        });
-      } catch (err: any) {
-        console.error('[api/notes/create] Scripture processing failed:', err?.message ?? err);
-        scriptureProcessingError = true;
-      }
-    }
-
-    // If scripture processing updated the content (with proper pill spans), use that
-    if (processedContent) {
-      newNote.content = processedContent;
+      (async () => {
+        try {
+          console.log('[api/notes/create] Background scripture processing start', { noteId: newNote.id });
+          await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || 'NET');
+          console.log('[api/notes/create] Background scripture processing complete', { noteId: newNote.id });
+        } catch (err: any) {
+          console.error('[api/notes/create] Background scripture processing failed:', err?.message ?? err);
+        }
+      })().catch((err) => console.error('[api/notes/create] Unhandled background scripture error:', newNote.id, err));
     }
 
     return c.json({
       success: 'Note created!',
       note: newNote,
-      scriptureResults,
-      scriptureProcessingError,
+      scriptureResults: [],
+      scriptureDeferred: true,
     });
   } catch (error: any) {
     console.error('[api/notes/create] Error:', error);

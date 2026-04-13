@@ -5,7 +5,7 @@ import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import { stripHtml } from '@/utils/html-stripper';
-import { normalizeDate } from '@/utils/sorting';
+import { normalizeDate, sortByCreatedAtDesc } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
@@ -16,6 +16,7 @@ import { deleteNoteOffline } from '@/utils/offline-mutations';
 import { getPersistedUserId } from '@/utils/user-id';
 import { getNotesForThreadLocal } from '@/utils/offline-read-layer';
 import { isNetworkError } from '@/utils/network';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { CONDENSED_NOTE_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
 import {
   CondensedNoteRowLayout,
@@ -223,27 +224,9 @@ function computeThreadNotesViewList(options: {
   return sortNotesByTime(uniqueNotes, options.threadId);
 }
 
-// Helper function to sort notes chronologically by createdAt (oldest first)
-function sortNotesChronologically(notes: Note[]): Note[] {
-  return [...notes].sort((a, b) => {
-    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? null : null;
-    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? null : null;
-
-    if (aTime !== null && bTime !== null) {
-      return aTime - bTime; // Ascending order (oldest first)
-    } else if (aTime !== null && bTime === null) {
-      return -1; // a has time, b doesn't - a comes first
-    } else if (aTime === null && bTime !== null) {
-      return 1; // b has time, a doesn't - b comes first
-    }
-    // Both have no time, use ID for deterministic sorting
-    return (a.id || '').localeCompare(b.id || '');
-  });
-}
-
-// Oldest first (createdAt) — matches server getNotesForThread / onboarding; better for study series.
+// Newest first (createdAt) — matches GET /api/threads/:id/notes and offline thread notes.
 function sortNotesByTime(notes: Note[], _threadId: string): Note[] {
-  return sortNotesChronologically(notes);
+  return sortByCreatedAtDesc(notes);
 }
 
 export default function ThreadNotesList({
@@ -1556,7 +1539,7 @@ export default function ThreadNotesList({
                           flexShrink: 0,
                         }}
                       >
-                        {note.version}
+                        {getTranslationAbbreviationDisplay(note.version)}
                       </span>
                     )}
                   </div>

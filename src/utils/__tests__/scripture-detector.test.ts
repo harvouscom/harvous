@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   detectScriptureReferences,
+  detectScriptureReferencesWithTranslation,
   detectScripture,
   parseScriptureReference,
   normalizeScriptureReference,
@@ -12,6 +13,8 @@ import {
   validateVerseNumber,
   validateVerseRange,
   normalizeChapterReference,
+  matchTrailingTranslationAbbreviation,
+  normalizeInlineTranslationAbbreviation,
   type ScriptureReference,
 } from '../scripture-detector';
 
@@ -349,6 +352,51 @@ describe('detectScriptureReferences', () => {
       const refs = detectScriptureReferences('John 3:16');
       expect(refs).toHaveLength(1);
     });
+  });
+});
+
+// ─── Unit: inline translation abbreviations ─────────────
+describe('normalizeInlineTranslationAbbreviation', () => {
+  it('maps NASB 1995 to NASB', () => {
+    expect(normalizeInlineTranslationAbbreviation('NASB 1995')).toBe('NASB');
+    expect(normalizeInlineTranslationAbbreviation('nasb  1995')).toBe('NASB');
+  });
+
+  it('uppercases single-token codes', () => {
+    expect(normalizeInlineTranslationAbbreviation('esv')).toBe('ESV');
+    expect(normalizeInlineTranslationAbbreviation('MSG')).toBe('MSG');
+  });
+});
+
+describe('matchTrailingTranslationAbbreviation', () => {
+  it('matches NASB 1995 with surrounding whitespace', () => {
+    const m = matchTrailingTranslationAbbreviation('  NASB 1995  ');
+    expect(m).not.toBeNull();
+    expect(m!.canonicalId).toBe('NASB');
+    expect(m!.consumed).toBe('  NASB 1995  ');
+  });
+
+  it('matches NASB alone', () => {
+    const m = matchTrailingTranslationAbbreviation(' NASB');
+    expect(m!.canonicalId).toBe('NASB');
+  });
+
+  it('returns null when extra words follow', () => {
+    expect(matchTrailingTranslationAbbreviation(' ESV more')).toBeNull();
+  });
+});
+
+describe('detectScriptureReferencesWithTranslation', () => {
+  it('parses trailing NASB 1995 as translation NASB', () => {
+    const refs = detectScriptureReferencesWithTranslation('John 3:16 NASB 1995');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].translation).toBe('NASB');
+  });
+
+  it('parses trailing ESV', () => {
+    const refs = detectScriptureReferencesWithTranslation('John 3:16 ESV');
+    expect(refs).toHaveLength(1);
+    expect(refs[0].translation).toBe('ESV');
   });
 });
 

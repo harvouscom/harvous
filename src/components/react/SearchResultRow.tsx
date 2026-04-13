@@ -1,6 +1,7 @@
 import React from 'react';
 import type { SearchResult } from '@/hooks/useSearch';
 import { getThreadColorCSS } from '@/utils/colors';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import {
   CondensedNoteRowLayout,
   condensedNoteRowIcon,
@@ -52,7 +53,9 @@ export default function SearchResultRow({ result, className = 'relative' }: Sear
 
   const chips: React.ReactNode[] = [];
   if (isScripture && result.scriptureTranslation) {
-    chips.push(<ContextChip key="translation">{result.scriptureTranslation}</ContextChip>);
+    chips.push(
+      <ContextChip key="translation">{getTranslationAbbreviationDisplay(result.scriptureTranslation)}</ContextChip>
+    );
   }
   if (!isThread && result.threadTitle) {
     chips.push(<ContextChip key="thread">{result.threadTitle}</ContextChip>);

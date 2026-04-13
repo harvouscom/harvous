@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import { TextSelection } from '@tiptap/pm/state';
 import ButtonSmall from './ButtonSmall';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
@@ -8,7 +9,8 @@ import { findFirstUnmarkedTextPosition, wrapTextWithNoteLink, stripNoteLinksToNo
 import { debug } from '@/utils/logger';
 import { safeRenderHtml } from '@/utils/content-renderer';
 import { getOrCreateScriptureNote } from '@/utils/scripture-note-utils';
-import { getTranslation } from '@/data/translations';
+import { getTranslation, getTranslationAbbreviationDisplay } from '@/data/translations';
+import { withScripturePillDisplayLabels } from '@/utils/scripture-pill-display';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { isNoteUnlocked, lockNote } from '@/utils/note-unlock-state';
 import { useIsOffline } from '@/hooks/useIsOffline';
@@ -292,6 +294,12 @@ export default function CardFullEditable({
   ]
     .filter(Boolean)
     .join(' ');
+
+  /** Injected before dangerouslySetInnerHTML so labels survive re-renders (DOM-only hydration flickers). */
+  const viewContentHtml = useMemo(
+    () => safeRenderHtml(withScripturePillDisplayLabels(displayContent ?? '')),
+    [displayContent],
+  );
 
   useEffect(() => {
     if (isContentEditing) {
@@ -843,15 +851,14 @@ export default function CardFullEditable({
       contentClickCoordsRef.current = null;
       const savedScroll = scrollPosition;
 
-      // Restore scroll first so posAtCoords sees the same viewport as the user
+      // Restore scroll first so posAtCoords matches the view the user clicked in
       const scrollEl = editor.view?.dom?.closest?.('.tiptap-content') as HTMLElement | null;
       if (scrollEl && savedScroll > 0) {
         scrollEl.scrollTop = savedScroll;
       }
 
-      // Wait for layout after scroll, then map content-relative coords to viewport and set cursor
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+        requestAnimationFrame(async () => {
           if (!editor || editor.isDestroyed || !editor.view?.docView) return;
           try {
             editor.commands.focus();
@@ -874,11 +881,31 @@ export default function CardFullEditable({
                 const isEmpty = doc.textContent.trim().length === 0;
                 editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
               }
-            } catch (e) {
-              // If setting selection fails, just focus
+            } catch {
+              const isEmpty = doc.textContent.trim().length === 0;
+              editor.commands.setTextSelection(isEmpty ? 1 : maxPos);
             }
-          } catch (e) {
-            // Ignore errors during focus
+            // If cursor landed at the trailing edge of a scripture pill
+            // (visually inside the pill's styled box because there's no content after it),
+            // insert an empty paragraph after the pill's block and move the cursor there.
+            try {
+              const sel = editor.state.selection;
+              const $pos = sel.$from;
+              const parent = $pos.parent;
+              const atEndOfParent = $pos.parentOffset === parent.content.size;
+              if (atEndOfParent && parent.lastChild?.marks.some((m: any) => m.type.name === 'scripturePill')) {
+                const endOfBlock = $pos.after($pos.depth);
+                const tr = editor.state.tr;
+                tr.insert(endOfBlock, editor.state.schema.nodes.paragraph.create());
+                tr.setSelection(TextSelection.create(tr.doc, endOfBlock + 1));
+                tr.setMeta('addToHistory', false);
+                editor.view.dispatch(tr);
+                // Don't mark this structural fix as a user change
+                setTimeout(() => setHasChanges(false), 0);
+              }
+            } catch { /* ignore */ }
+          } catch {
+            /* ignore */
           }
         });
       });
@@ -1501,7 +1528,7 @@ export default function CardFullEditable({
                   {effectiveContent && effectiveContent.trim() ? (
                     <div
                       className="card-full-editable__content-html card-image-link__content-text"
-                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(effectiveContent) }}
+                      dangerouslySetInnerHTML={{ __html: safeRenderHtml(withScripturePillDisplayLabels(effectiveContent)) }}
                     />
                   ) : (
                     <p style={{ color: 'var(--color-pebble-grey)', fontStyle: 'italic' }}>Click to add notes...</p>
@@ -1656,7 +1683,7 @@ export default function CardFullEditable({
                   flexShrink: 0,
                 }}
               >
-                {displayScriptureVersion}
+                {getTranslationAbbreviationDisplay(displayScriptureVersion)}
               </span>
             )}
             <div className="relative shrink-0 size-5" title="Note type switching disabled until designs are ready">
@@ -1712,7 +1739,7 @@ export default function CardFullEditable({
                     style={{ lineHeight: '1.6', minHeight: 0, paddingBottom: '96px', cursor: effectiveIsEditable ? 'text' : 'default' }}
                     onClick={handleContentClick}
                     onMouseOver={handleContentMouseOver}
-                    dangerouslySetInnerHTML={{ __html: safeRenderHtml(displayContent) }}
+                    dangerouslySetInnerHTML={{ __html: viewContentHtml }}
                   />
                 ) : (
                   <div 

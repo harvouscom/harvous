@@ -3,7 +3,12 @@
  * Wraps scripture references with NoteLink spans for clickable links
  */
 
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { detectScriptureReferences } from './scripture-detector';
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
 
 export interface ScriptureReference {
   reference: string;
@@ -232,7 +237,9 @@ export function highlightScriptureReferences(
       // regardless of how the original reference was formatted (italicized, bolded, etc.)
       // font-style: normal prevents inheritance of italic formatting from parent elements
       // white-space: normal ensures line breaks after pills are preserved
-      const translationAttr = translation ? ` data-scripture-translation="${translation}"` : '';
+      const translationAttr = translation
+        ? ` data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(getTranslationAbbreviationDisplay(translation))}"`
+        : '';
       const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
       
       // Preserve leading and trailing spaces outside the pill span

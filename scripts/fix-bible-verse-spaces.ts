@@ -28,7 +28,7 @@ const __dirname = dirname(__filename);
 
 const BIBLES_DIR = resolve(__dirname, '../server/data/bibles');
 
-const TRANSLATIONS = ['BSB', 'ESV', 'KJV', 'NET', 'NIV', 'NKJV', 'NLT'];
+const TRANSLATIONS = ['AMP', 'BSB', 'CSB', 'ESV', 'KJV', 'MSG', 'NASB', 'NET', 'NIV', 'NKJV', 'NLT'];
 
 /**
  * Manual fixes for confirmed all-lowercase fusions that the regex patterns can't safely detect.

@@ -4,9 +4,40 @@
 import { BIBLE_STUDY_KEYWORDS } from './bible-study-keywords';
 // @ts-ignore - JSON import with resolveJsonModule
 import bibleChaptersData from '../data/bible-chapters.json';
+import { TRANSLATION_ORDER } from '../data/translations';
 
-/** Valid Bible translation abbreviations for inline detection (e.g., "John 3:16 ESV") */
-const TRANSLATION_ABBREVIATIONS = ['KJV', 'NKJV', 'ESV', 'NIV', 'NLT', 'NET', 'BSB'];
+/**
+ * Regex alternation for inline translation suffix — NASB 1995 before NASB; then longest ids first
+ * (e.g. NKJV before KJV) so alternation matches correctly.
+ */
+function buildInlineTranslationAlternation(): string {
+  const sorted = [...TRANSLATION_ORDER].sort((a, b) => b.length - a.length || a.localeCompare(b));
+  const ids = sorted.map((id) => `(?:${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`);
+  return ['(?:NASB\\s+1995)', ...ids].join('|');
+}
+
+const INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
+
+/**
+ * Normalize a matched inline translation token to the canonical id stored on pills / API.
+ * e.g. "NASB 1995", "nasb  1995" → "NASB"
+ */
+export function normalizeInlineTranslationAbbreviation(raw: string): string {
+  const t = raw.trim().replace(/\s+/g, ' ');
+  if (/^NASB\s+1995$/i.test(t)) return 'NASB';
+  return t.toUpperCase();
+}
+
+/**
+ * Match optional leading whitespace + translation abbreviation when `text` is only that
+ * (e.g. text typed after a scripture pill). Returns canonical id and full consumed string for deletion.
+ */
+export function matchTrailingTranslationAbbreviation(text: string): { canonicalId: string; consumed: string } | null {
+  const re = new RegExp(`^\\s*(${INLINE_TRANSLATION_ALT})\\s*$`, 'i');
+  const m = text.match(re);
+  if (!m) return null;
+  return { canonicalId: normalizeInlineTranslationAbbreviation(m[1]), consumed: m[0] };
+}
 
 const DEBUG = false;
 
@@ -681,23 +712,16 @@ export const detectScriptureReferencesWithTranslation = (text: string): Scriptur
   const baseRefs = detectScriptureReferences(text);
   if (baseRefs.length === 0) return [];
 
-  const translationPattern = new RegExp(
-    `\\b(${TRANSLATION_ABBREVIATIONS.join('|')})\\b`,
-    'i'
-  );
-
   return baseRefs.map(ref => {
-    // Check if there's a translation abbreviation right after this reference in the text
     const refEndIndex = text.lastIndexOf(ref.reference);
     if (refEndIndex === -1) return ref;
 
     const afterRef = text.substring(refEndIndex + ref.reference.length);
-    // Match a single space followed by a translation abbreviation at end of string or before whitespace
-    const trailingMatch = afterRef.match(/^\s+(KJV|NKJV|ESV|NIV|NLT|NET|BSB)\s*$/i);
-    if (trailingMatch) {
+    const trailing = matchTrailingTranslationAbbreviation(afterRef);
+    if (trailing) {
       return {
         ...ref,
-        translation: trailingMatch[1].toUpperCase(),
+        translation: trailing.canonicalId,
       };
     }
     return ref;

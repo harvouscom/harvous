@@ -89,7 +89,7 @@ interface ScriptureCapture {
 ### 3. Web-Based Bible Reader Integration
 
 #### Built-in Bible Reader Features
-- **Multiple translations** (ESV, NIV, KJV, NASB, etc.)
+- **Multiple translations** (ESV, NIV, KJV, NASB 1995, etc.)
 - **Verse highlighting** and note-taking
 - **Cross-reference linking**
 - **Commentary integration**

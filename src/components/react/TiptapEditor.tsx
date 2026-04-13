@@ -7,14 +7,15 @@ import Heading from '@tiptap/extension-heading';
 import Placeholder from '@tiptap/extension-placeholder';
 import Underline from '@tiptap/extension-underline';
 import Superscript from '@tiptap/extension-superscript';
+import { getMarkRange } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { DOMSerializer } from '@tiptap/pm/model';
 import { NoteLink } from './TiptapNoteLink';
 import { ScripturePill } from './TiptapScripturePill';
 import { BoldCustom } from './TiptapBoldCustom';
 import { HighlightCustom } from './TiptapHighlightCustom';
-import { normalizeScriptureReference, detectScriptureReferences, detectScriptureReferencesWithTranslation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
-import { TRANSLATION_ORDER } from '@/data/translations';
+import { normalizeScriptureReference, detectScriptureReferences, matchTrailingTranslationAbbreviation, type ScriptureReference, type ScriptureReferenceWithTranslation } from '@/utils/scripture-detector';
+import { TRANSLATION_ORDER, TRANSLATIONS } from '@/data/translations';
 import { getCachedProfileData } from '@/utils/profile-cache';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
@@ -30,9 +31,6 @@ import Icon from './Icon';
 // Track pending pill creation to prevent duplicates from concurrent calls
 // This is a module-level Set to track references currently being processed
 const pendingPillCreations = new Set<string>();
-
-// Valid Bible translation abbreviations for inline override detection
-const VALID_TRANSLATIONS = ['KJV', 'NKJV', 'ESV', 'NIV', 'NLT', 'NET', 'BSB'];
 
 // Track a recently created pill that hasn't had its translation resolved yet.
 // On the next space/Enter, we check if the user typed a translation abbreviation after it.
@@ -195,8 +193,8 @@ function findPillBoundaries(doc: any, pos: number): { start: number; end: number
   return { start: pillStart, end: pillEnd };
 }
 
-/** Move caret after a leading scripture pill (e.g. VOTD → Create note); end-of-doc can still resolve inside the mark. */
-function placeCursorAfterLeadingScripturePill(editor: any): void {
+/** Move cursor after a leading scripture pill (e.g. VOTD → Create note); end-of-doc can still resolve inside the mark. */
+export function placeCursorAfterLeadingScripturePill(editor: any): void {
   try {
     const { doc } = editor.state;
     if (doc.textContent.trim().length === 0) {
@@ -237,6 +235,62 @@ function placeCursorAfterLeadingScripturePill(editor: any): void {
     } catch {
       /* ignore */
     }
+  }
+}
+
+/** If the cursor (collapsed or user-select:all range) is inside a scripture pill, move it after the pill. */
+export function snapCursorOutsideScripturePill(editor: any): void {
+  if (!editor || editor.isDestroyed || !editor.state) return;
+  try {
+    const { state } = editor;
+    const sel = state.selection;
+
+    const markType = state.schema.marks.scripturePill;
+    if (!markType) return;
+
+    const $from = sel.$from;
+    const parent = $from.parent;
+    const offset = $from.parentOffset;
+
+    const after = parent.childAfter(offset);
+    const afterInPill = after.node?.marks.some((m: any) => m.type === markType) ?? false;
+    const before = parent.childBefore(offset);
+    const beforeInPill = before.node?.marks.some((m: any) => m.type === markType) ?? false;
+
+    if (!afterInPill && !beforeInPill) return;
+
+    // Cursor right after pill AND nothing follows in the paragraph:
+    // visually the cursor is inside the pill's styled box.
+    // Insert an empty paragraph so the cursor has somewhere outside.
+    if (beforeInPill && !afterInPill) {
+      const atEndOfParent = offset === parent.content.size;
+      if (atEndOfParent) {
+        const endOfBlock = $from.after($from.depth);
+        const paragraphType = state.schema.nodes.paragraph;
+        if (!paragraphType) return;
+        const tr = state.tr;
+        tr.insert(endOfBlock, paragraphType.create());
+        tr.setSelection(TextSelection.create(tr.doc, endOfBlock + 1));
+        tr.setStoredMarks([]);
+        tr.setMeta('addToHistory', false);
+        editor.view.dispatch(tr);
+        return;
+      }
+      if (sel.empty) return;
+    }
+
+    const range = getMarkRange($from, markType)
+      || (beforeInPill ? getMarkRange(state.doc.resolve(Math.max(0, sel.from - 1)), markType) : null);
+    if (!range) return;
+    if (sel.empty && sel.from === range.to) return;
+
+    const tr = state.tr
+      .setSelection(TextSelection.create(state.doc, range.to))
+      .setStoredMarks([])
+      .setMeta('addToHistory', false);
+    editor.view.dispatch(tr);
+  } catch {
+    /* ignore */
   }
 }
 
@@ -740,6 +794,30 @@ function isReferenceWrapped(htmlContent: string, reference: string): boolean {
   return pattern.test(htmlContent);
 }
 
+/**
+ * Space, newline, or cursor at the start of a block (e.g. after Return splits a paragraph).
+ * ProseMirror does not insert \\n in the text node for paragraph breaks, so we must treat
+ * parentOffset === 0 as a boundary — same role as Space for creating a pill.
+ */
+function isScripturePillBoundaryCursor($from: any, doc: any): boolean {
+  if ($from.parentOffset > 0) {
+    const charBefore = doc.textBetween($from.pos - 1, $from.pos);
+    return charBefore === ' ' || charBefore === '\n' || charBefore === '\r';
+  }
+  // New paragraph/block after Enter: not document start (pos 1 = empty first block)
+  if ($from.parentOffset === 0 && $from.pos > 1) {
+    return true;
+  }
+  return false;
+}
+
+/** Up to 60 chars before cursor, may span blocks so "ref + Enter" still sees the reference. */
+function getTextBeforeCursorForScripture(editor: any): string {
+  const { from } = editor.state.selection;
+  const textStart = Math.max(0, from - 60);
+  return editor.state.doc.textBetween(textStart, from);
+}
+
 // Helper function to check/create scripture note and get noteId
 
 /**
@@ -789,17 +867,16 @@ function resolvePendingTranslationPill(editor: any): boolean {
       } catch (_) { /* cross-node boundary */ }
     }
 
-    // Match abbreviation: optional leading space, the abbreviation, optional trailing space
-    const abbrevMatch = textAfterPill.match(/^\s*(KJV|NKJV|ESV|NIV|NLT|NET|BSB)\s*$/i);
+    const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
     let resolvedTranslation: string;
     let consumedAbbrev = false;
 
-    if (abbrevMatch) {
-      resolvedTranslation = abbrevMatch[1].toUpperCase();
+    if (trailing) {
+      resolvedTranslation = trailing.canonicalId;
       consumedAbbrev = true;
       // Delete the abbreviation text from the doc
       const deleteFrom = pillTo;
-      const deleteTo = pillTo + abbrevMatch[0].length;
+      const deleteTo = pillTo + trailing.consumed.length;
       const tr = view.state.tr;
       tr.delete(deleteFrom, deleteTo);
       // Update the pill mark with the resolved translation
@@ -828,6 +905,95 @@ function resolvePendingTranslationPill(editor: any): boolean {
   } catch (e) {
     console.error('[TiptapEditor] Error resolving pending translation pill:', e);
     return false;
+  }
+}
+
+/**
+ * If text after the new pill is already a full translation abbreviation, consume it and set the mark.
+ * Does not apply the profile default (so the user can still type an abbrev after a lone "ref + space").
+ */
+function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
+  if (!pendingTranslationPill || !editor || editor.isDestroyed) return false;
+  const { reference, timeoutId } = pendingTranslationPill;
+  try {
+    const view = editor.view;
+    const doc = view.state.doc;
+    const markType = view.state.schema.marks.scripturePill;
+    if (!markType) return false;
+
+    let pillFrom = -1;
+    let pillTo = -1;
+    doc.descendants((node: any, pos: number) => {
+      if (pillFrom !== -1) return false;
+      if (!node.isText) return;
+      const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
+      if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(reference)) {
+        pillFrom = pos;
+        pillTo = pos + node.nodeSize;
+        return false;
+      }
+    });
+
+    if (pillFrom === -1) return false;
+
+    const cursorPos = view.state.selection.from;
+    const scanEnd = Math.min(cursorPos, doc.content.size);
+    let textAfterPill = '';
+    if (pillTo < scanEnd) {
+      try {
+        textAfterPill = doc.textBetween(pillTo, scanEnd);
+      } catch (_) {
+        /* cross-node boundary */
+      }
+    }
+
+    const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
+    if (!trailing) return false;
+
+    const deleteFrom = pillTo;
+    const deleteTo = pillTo + trailing.consumed.length;
+    const tr = view.state.tr;
+    tr.delete(deleteFrom, deleteTo);
+    tr.addMark(pillFrom, pillTo, markType.create({
+      reference,
+      noteId: 'pending',
+      translation: trailing.canonicalId,
+    }));
+    tr.setMeta('addToHistory', false);
+    tr.setStoredMarks([]);
+    view.dispatch(tr);
+
+    if (timeoutId) clearTimeout(timeoutId);
+    pendingTranslationPill = null;
+    return true;
+  } catch (e) {
+    console.error('[TiptapEditor] Error consuming translation abbrev after pill:', e);
+    return false;
+  }
+}
+
+function schedulePendingTranslationAfterPillCreation(
+  editor: any,
+  references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
+) {
+  if (!references.length) return;
+  const lastRef = references[references.length - 1];
+  const editorId = String(editor.view?.dom?.id || 'default');
+  if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
+  pendingTranslationPill = {
+    reference: lastRef.reference,
+    editorId,
+    timeoutId: null,
+  };
+  if (!tryConsumeTranslationAbbrevAfterPill(editor)) {
+    const timeoutId = setTimeout(() => {
+      if (pendingTranslationPill?.editorId === editorId) {
+        resolvePendingTranslationPill(editor);
+      }
+    }, 3000);
+    if (pendingTranslationPill) {
+      pendingTranslationPill.timeoutId = timeoutId;
+    }
   }
 }
 
@@ -2689,7 +2855,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Silently ignore errors (e.g., empty document, destroyed editor)
       }
 
-      // Mobile: detect scripture references after a space or newline is typed
+      // Mobile: detect scripture references after space, newline, or Return (new paragraph)
       // Desktop uses the space keydown handler; mobile uses onUpdate to avoid
       // intercepting keydown events which breaks iOS double-space-to-period.
       // We gate scheduling on word boundaries (or pending translation) so plain
@@ -2697,12 +2863,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (isMobileDevice()) {
         const { from: mobFrom, to: mobTo } = editor.state.selection;
         if (mobFrom === mobTo && mobFrom >= 2) {
-          const charBeforeQuick =
-            mobFrom >= 1 ? editor.state.doc.textBetween(mobFrom - 1, mobFrom) : '';
+          const $mobFrom = editor.state.doc.resolve(mobFrom);
           const needsScripturePass =
             pendingTranslationPill !== null ||
-            charBeforeQuick === ' ' ||
-            charBeforeQuick === '\n';
+            isScripturePillBoundaryCursor($mobFrom, editor.state.doc);
           if (!needsScripturePass) {
             if (mobileScriptureDetectionTimer.current) {
               clearTimeout(mobileScriptureDetectionTimer.current);
@@ -2715,8 +2879,6 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             mobileScriptureDetectionTimer.current = setTimeout(() => {
               if (!editor || editor.isDestroyed) return;
               try {
-                const editorId = String(editor.view?.dom?.id || 'default');
-
                 // Step 1: Resolve pending translation (same order as desktop handleKeyDown)
                 resolvePendingTranslationPill(editor);
 
@@ -2726,31 +2888,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                 const $from = editor.state.doc.resolve(from);
                 if ($from.marks().some((m: any) => m.type.name === 'scripturePill')) return;
 
-                const charBefore = editor.state.doc.textBetween(from - 1, from);
-                if (charBefore !== ' ' && charBefore !== '\n') return;
+                if (!isScripturePillBoundaryCursor($from, editor.state.doc)) return;
 
-                const paragraphStart = $from.start($from.depth);
-                const textStart = Math.max(paragraphStart, from - 60);
-                const textBeforeCursor = editor.state.doc.textBetween(textStart, from);
+                const textBeforeCursor = getTextBeforeCursorForScripture(editor);
                 if (textBeforeCursor.trim().length === 0) return;
 
                 const references = detectScriptureReferences(textBeforeCursor);
                 if (references.length === 0) return;
 
                 createPendingPillsForReferences(editor, references);
-
-                const lastRef = references[references.length - 1];
-                if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
-                const timeoutId = setTimeout(() => {
-                  if (pendingTranslationPill?.editorId === editorId) {
-                    resolvePendingTranslationPill(editor);
-                  }
-                }, 3000);
-                pendingTranslationPill = {
-                  reference: lastRef.reference,
-                  editorId,
-                  timeoutId,
-                };
+                schedulePendingTranslationAfterPillCreation(editor, references);
               } catch (e) {
                 // Silently ignore errors
               }
@@ -3014,6 +3161,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             // Only create pending pills for references that don't already have pills with noteIds
             if (referencesNeedingPills.length > 0) {
               createPendingPillsForReferences(editor, referencesNeedingPills);
+              schedulePendingTranslationAfterPillCreation(editor, referencesNeedingPills);
             }
 
             // If editing an existing note, immediately process scripture references
@@ -3062,6 +3210,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             console.error('[TiptapEditor] Error checking for existing pills after paste:', e);
             // Fallback: create pending pills for all references if check fails
             createPendingPillsForReferences(editor, references);
+            schedulePendingTranslationAfterPillCreation(editor, references);
           }
         }, 0);
 
@@ -3132,7 +3281,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         // Detect scripture references when space or Enter is pressed (desktop only)
         // On mobile, scripture detection happens in onUpdate to avoid interfering
         // with native keyboard behavior (e.g., iOS double-space-to-period)
-        if ((event.key === ' ' || event.key === 'Enter') && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+        const isSpaceOrEnterKey =
+          event.key === ' ' || event.key === 'Enter' || event.key === 'NumpadEnter';
+        if (isSpaceOrEnterKey && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
           // Step 1: Resolve any pending translation pill from a previous keypress
           // (Check if user typed a translation abbreviation like "ESV" after the last pill)
           const consumedAbbrev = resolvePendingTranslationPill(editor);
@@ -3145,17 +3296,16 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               view.dispatch(tr);
               return true;
             }
-            // For Enter, let the newline happen naturally
+            // For Enter / NumpadEnter, let the newline happen naturally
           }
 
           // Step 2: Detect new scripture references before cursor
           const doc = view.state.doc;
-          const $from2 = view.state.selection.$from;
-          const paragraphStart = $from2.start($from2.depth);
-          const textStart = Math.max(paragraphStart, view.state.selection.from - 60);
+          const cursorPos = view.state.selection.from;
+          const textStart = Math.max(0, cursorPos - 60);
+          const textBeforeCursor = doc.textBetween(textStart, cursorPos);
 
           try {
-            const textBeforeCursor = doc.textBetween(textStart, view.state.selection.from);
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
               if (references.length > 0) {
@@ -3168,31 +3318,20 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   tr.insertText(' ', view.state.selection.from);
                   tr.setStoredMarks([]);
                   view.dispatch(tr);
-                } else {
-                  // Enter key: Let the newline happen naturally, then create pills
-                  // Don't preventDefault — we want the line break to insert
+
+                  // Create pills without translation (deferred — will resolve on next space/Enter or timeout)
+                  createPendingPillsForReferences(editor, references);
+                  schedulePendingTranslationAfterPillCreation(editor, references);
+                  return true;
                 }
 
-                // Create pills without translation (deferred — will resolve on next space/Enter or timeout)
-                createPendingPillsForReferences(editor, references);
-
-                // Track the last created pill for deferred translation resolution
-                const lastRef = references[references.length - 1];
-                if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
-                const editorId = String(editor.view?.dom?.id || 'default');
-                const timeoutId = setTimeout(() => {
-                  // Fallback: apply default translation after 3 seconds if no further keypress
-                  if (pendingTranslationPill?.editorId === editorId) {
-                    resolvePendingTranslationPill(editor);
-                  }
-                }, 3000);
-                pendingTranslationPill = {
-                  reference: lastRef.reference,
-                  editorId,
-                  timeoutId,
-                };
-
-                if (event.key === ' ') return true;
+                // Enter / NumpadEnter: must not wrap text in a pill before ProseMirror runs splitBlock,
+                // or the paragraph break never inserts. Defer to a microtask so the newline runs first.
+                queueMicrotask(() => {
+                  if (!isEditorValid(editor)) return;
+                  createPendingPillsForReferences(editor, references);
+                  schedulePendingTranslationAfterPillCreation(editor, references);
+                });
               }
             }
           } catch (e) {
@@ -3379,6 +3518,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           const endPos = doc.content.size;
           editor.commands.setTextSelection(endPos);
         }
+        snapCursorOutsideScripturePill(editor);
       } catch {
         /* ignore */
       }
@@ -3986,7 +4126,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     };
     editor.on('selectionUpdate', handleSelectionUpdate);
 
-    // Set initial focus state (mount with caret already in editor — still show toolbar + animation)
+    // Set initial focus state (mount with cursor already in editor — still show toolbar + animation)
     if (isEditorValid(editor) && editor.isFocused) {
       editorWasFocusedForToolbarRef.current = true;
       setToolbarEnterEpoch((n) => n + 1);
@@ -4559,7 +4699,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
                   }}
                   type="button"
                 >
-                  {tid}
+                  {TRANSLATIONS[tid]?.abbreviation || tid}
                 </button>
               );
             })}

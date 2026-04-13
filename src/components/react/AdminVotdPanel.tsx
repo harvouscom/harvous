@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import SquareButton from './SquareButton';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import Icon from './Icon';
 import { FeaturedCardActionsDock } from './FeaturedCardActionsDock';
 import { useVotdPreviewForAdmin, useVotdPreviewMutations, type VotdPreviewDay } from '@/hooks/queries/useVotdPreview';
@@ -66,6 +67,7 @@ function AdminVotdScheduleBody({
                     className="scripture-pill"
                     data-scripture-reference={day.reference}
                     data-scripture-translation={translation}
+                    data-scripture-translation-label={getTranslationAbbreviationDisplay(translation)}
                   >
                     {day.reference}
                   </span>

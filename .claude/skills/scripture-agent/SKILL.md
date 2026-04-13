@@ -19,7 +19,7 @@ Your owned files:
 - `src/utils/scripture-highlighter.ts`
 - `server/utils/process-scripture-references.ts`
 - `server/utils/fetch-verse-text.ts`
-- `server/data/bibles/` (7 translation JSON files)
+- `server/data/bibles/` (translation JSON files; add via `_download_api_bible.mjs` + `seed-bible-verses.ts`)
 - `src/components/react/DefaultTranslationPanel.tsx`
 - `src/components/react/note-panel/ScriptureNoteForm.tsx`
 - `src/components/react/note-panel/hooks/useScriptureDetection.ts`
@@ -32,7 +32,7 @@ Before implementing, check if your changes affect:
 
 ## Step 5: Implement
 Key rules:
-- Always use local JSON in `server/data/bibles/` — no external bible API calls for the 7 supported translations
+- Always use local JSON in `server/data/bibles/` seeded into `BibleVerses` — no runtime external Bible API for user-facing verse text
 - `processScriptureReferences` must always be awaited at call sites — never fire-and-forget
 - Per-pill translation override: `data-scripture-translation` attribute on pill HTML, parsed server-side
 - On mobile: use `onUpdate` + debounce for detection, not space key interception

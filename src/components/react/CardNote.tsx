@@ -8,6 +8,7 @@ import {
   getCondensedNoteAccentBarStyle,
   getCondensedNoteMeshGradient,
 } from './CondensedNoteRowLayout';
+import { getTranslationAbbreviationDisplay } from '@/data/translations';
 import { CONDENSED_SOLID_ACCENT_ICON_OPACITY } from '@/utils/condensed-note-row';
 
 interface CardNoteProps {
@@ -371,7 +372,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                   color: 'var(--color-stone-grey)',
                                   flexShrink: 0,
                                 }}>
-                                  {ref.translation}
+                                  {getTranslationAbbreviationDisplay(ref.translation)}
                                 </span>
                               )}
                             </div>
@@ -639,7 +640,7 @@ const CardNote: React.FC<CardNoteProps> = ({
                                   color: 'var(--color-stone-grey)',
                                   flexShrink: 0,
                                 }}>
-                                  {ref.translation}
+                                  {getTranslationAbbreviationDisplay(ref.translation)}
                                 </span>
                               )}
                             </div>

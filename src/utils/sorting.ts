@@ -115,7 +115,7 @@ export function sortByLastVisited<T extends {
  * This ensures visited threads appear above unvisited threads.
  */
 /**
- * Oldest first by createdAt, then id — for curated / shared space lists and thread notes.
+ * Oldest first by createdAt, then id — for curated / shared space lists and chronological space views.
  */
 export function sortByCreatedAtAsc<T extends { createdAt?: Date | string | null; id?: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => {
@@ -126,6 +126,20 @@ export function sortByCreatedAtAsc<T extends { createdAt?: Date | string | null;
     const bId = b.id || '';
     if (aId < bId) return -1;
     if (aId > bId) return 1;
+    return 0;
+  });
+}
+
+/** Newest first by createdAt, then id descending — matches thread notes API ordering. */
+export function sortByCreatedAtDesc<T extends { createdAt?: Date | string | null; id?: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return bTime - aTime;
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return 1;
+    if (aId > bId) return -1;
     return 0;
   });
 }
