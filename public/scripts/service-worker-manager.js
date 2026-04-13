@@ -192,7 +192,37 @@
         });
       }
     };
-    
+
+    // Called from the SPA on client-side navigation so active users still fetch new sw.js
+    // (registration.update() otherwise only runs on visibility + hourly interval).
+    const runFetchAndActivateWorker = (registration) => {
+      if (!registration) return;
+      registrationRef = registration;
+      registration
+        .update()
+        .then(function () {
+          checkForUpdates(registration);
+        })
+        .catch(function (err) {
+          console.log('Service Worker update check failed:', err);
+        });
+    };
+
+    window.__harvousCheckServiceWorkerUpdate = function () {
+      if (registrationRef) {
+        runFetchAndActivateWorker(registrationRef);
+        return;
+      }
+      navigator.serviceWorker
+        .getRegistration()
+        .then(function (reg) {
+          if (reg) runFetchAndActivateWorker(reg);
+        })
+        .catch(function () {
+          /* ignore */
+        });
+    };
+
     // Register service worker asynchronously after page load to avoid blocking render
     const registerServiceWorker = () => {
       navigator.serviceWorker.register('/sw.js')

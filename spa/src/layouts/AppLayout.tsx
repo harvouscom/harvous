@@ -274,6 +274,18 @@ export default function AppLayout() {
     document.dispatchEvent(new Event('app:route-change'));
   }, [pathname]);
 
+  const lastServiceWorkerNavCheckRef = useRef(0);
+  const SW_UPDATE_CHECK_THROTTLE_MS = 90_000;
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const now = Date.now();
+    if (now - lastServiceWorkerNavCheckRef.current < SW_UPDATE_CHECK_THROTTLE_MS) return;
+    lastServiceWorkerNavCheckRef.current = now;
+    const check = window.__harvousCheckServiceWorkerUpdate;
+    if (typeof check === 'function') check();
+  }, [isLoaded, isSignedIn, pathname]);
+
   // Invalidate nav and dashboard when the signed-in user changes (account switch). Skip first Clerk load — cookie-auth queries already have the right data.
   const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
