@@ -303,7 +303,7 @@ html.ios-pwa .modal-overlay-enter {
   animation: contentFadeIn 0.15s ease-out both;
 }
 
-/* Route Transition — CSS-only, very snappy (no View Transitions API) */
+/* Route Transition — CSS-only (no View Transitions API). ~150ms: large viewport fade without feeling abrupt. */
 @keyframes routeFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -315,10 +315,10 @@ html.ios-pwa .modal-overlay-enter {
 }
 
 .route-fade-in {
-  animation: routeFadeIn 0.08s ease-out both;
+  animation: routeFadeIn 0.15s ease-out both;
 }
 
-/* Dropdown Animations */
+/* Dropdown Animations — not wired in TSX as of 2026; kept for future nav/dropdown patterns. Prefer ≤200ms for small surfaces. */
 @keyframes dropdownSlideDown {
   from {
     max-height: 64px;
@@ -355,7 +355,7 @@ html.ios-pwa .modal-overlay-enter {
 }
 
 .dropdown-enter {
-  animation: dropdownSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: dropdownSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
   background: white;
   /* Removed clip-path animation - was clipping rounded corners and shadows */
 }

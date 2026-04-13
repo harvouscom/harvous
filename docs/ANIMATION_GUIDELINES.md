@@ -436,15 +436,28 @@ transition={{ ease: [0.4, 0, 0.2, 1] }} // Custom cubic-bezier
 | **Deliberate** | 0.4s - 0.5s | Page transitions, large content |
 | **Stagger delay** | 30ms - 50ms | Between list items |
 
+### Scale duration with surface size (Emil Kowalski)
+
+Small controls (dropdowns, row buttons, icon hits) should feel **snappy—often ≤~200ms** for the main transition. Larger surfaces (modals, full-width panels, route-level fades) can use **longer** durations so the motion does not feel abrupt or “too light” for the weight of the UI. Harvous maps this roughly as:
+
+| Surface | Typical range | Examples |
+|--------|-----------------|----------|
+| **Small** | 0.125s - 0.2s | `space-button` scale/shadow (`duration-200`), nav chrome, form hovers |
+| **Medium** | 0.25s - 0.35s | Menus, modal content, inbox row enter |
+| **Large** | 0.35s - 0.5s+ | Card stacks, letter panels, deliberate list enters |
+
+Bottom sheets avoid CSS slide animations on open/close for iOS PWA reliability; overlay opacity and drag snap-back use short durations in `global.css`.
+
 ### Our Current Timings
 
 - **Menu enter**: 0.35s
 - **Menu exit**: 0.25s
 - **Modal overlay**: 0.25s
 - **Modal content**: 0.3s
-- **Bottom sheet**: 0.3s (up), 0.25s (down)
+- **Bottom sheet overlay**: ~0.15s open / ~0.2s close opacity; drag snap-back ~0.3s (no CSS slide on open—see `animations.css`)
 - **Card enter**: 0.4s
 - **Inbox item**: 0.35s
+- **Route content fade**: ~0.15s
 - **Stagger delay**: 50ms
 
 ---

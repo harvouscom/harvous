@@ -26,7 +26,7 @@ export default function SpaceSelector({
       <button
         type="button"
         onClick={onToggle}
-        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 pr-0 w-full"
         style={{ 
           backgroundImage: isSelected 
             ? (space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'))

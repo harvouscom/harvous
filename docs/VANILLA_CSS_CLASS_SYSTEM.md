@@ -274,7 +274,7 @@ Prefer CSS classes over inline styles:
 
 **Before (Utility Classes):**
 ```html
-<button class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
+<button class="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 pr-0 w-full" style="background-image: var(--color-gradient-gray);">
   <span class="font-sans font-semibold text-[18px] text-[var(--color-deep-grey)]">
     New Space
   </span>

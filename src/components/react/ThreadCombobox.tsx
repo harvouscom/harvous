@@ -754,7 +754,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
         <button
           type="button"
           onClick={() => setInternalOpen(!internalOpen)}
-          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full flex-between"
+          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 pr-0 w-full flex-between"
           style={{
             backgroundImage: getButtonBackground(),
             boxShadow: 'none'

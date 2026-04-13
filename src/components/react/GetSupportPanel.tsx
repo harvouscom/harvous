@@ -64,7 +64,7 @@ export default function GetSupportPanel({
                   type="button"
                   onClick={() => handleExternalLink(helpCenterUrl)}
                   disabled
-                  className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-300 pl-4 w-full opacity-50"
+                  className="space-button relative rounded-3xl h-[64px] cursor-not-allowed transition-[scale,shadow] duration-200 pl-4 w-full opacity-50"
                   style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
                 >
                   <div className="panel__list-item">
@@ -89,7 +89,7 @@ export default function GetSupportPanel({
                 <button
                   type="button"
                   onClick={() => handleEmailLink('Reach out to support')}
-                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
                   style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
                 >
                   <div className="panel__list-item">
@@ -114,7 +114,7 @@ export default function GetSupportPanel({
                 <button
                   type="button"
                   onClick={() => handleEmailLink('Submit feedback')}
-                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                  className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
                   style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px' }}
                 >
                   <div className="panel__list-item">

@@ -93,7 +93,7 @@ export default function OfflineModeInfoPanel({ pendingSyncCount, onClose, inBott
 
               <button
                 type="button"
-                className="offline-help-panel__refresh space-button relative h-[64px] w-full cursor-pointer rounded-3xl transition-[scale,shadow] duration-300 flex-center"
+                className="offline-help-panel__refresh space-button relative h-[64px] w-full cursor-pointer rounded-3xl transition-[scale,shadow] duration-200 flex-center"
                 style={{
                   backgroundImage: 'var(--color-gradient-gray)',
                   marginBottom: inBottomSheet ? '0.75rem' : undefined,

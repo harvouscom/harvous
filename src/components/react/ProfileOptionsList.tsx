@@ -105,7 +105,7 @@ export default function ProfileOptionsList() {
         }}
       >
         <div
-          className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+          className="space-button relative rounded-3xl h-[64px] transition-[scale,shadow] duration-200 pl-4 pr-0 w-full"
           style={{ backgroundImage: 'var(--color-gradient-gray)' }}
         >
           <div className="flex-between relative w-full h-full pl-2 pr-0 transition-transform duration-125 min-w-0">

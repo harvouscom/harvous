@@ -768,7 +768,7 @@ export default function NewThreadPanel({
                     <button
                       type="button"
                       onClick={() => setAddToSpace(!addToSpace)}
-                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 pr-0 w-full"
+                      className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 pr-0 w-full"
                       style={{ 
                         backgroundImage: addToSpace 
                           ? (currentSpace.backgroundGradient || getThreadGradientCSS(currentSpace.color || 'paper'))

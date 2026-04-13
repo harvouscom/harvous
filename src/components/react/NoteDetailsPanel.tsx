@@ -923,7 +923,7 @@ export default function NoteDetailsPanel({
                               type="button"
                               onClick={handleRegenerateTags}
                               disabled={isRegeneratingTags || isLoading}
-                              className="note-details-panel__admin-regen-btn space-button relative rounded-3xl h-[64px] w-full transition-[scale,shadow] duration-300"
+                              className="note-details-panel__admin-regen-btn space-button relative rounded-3xl h-[64px] w-full transition-[scale,shadow] duration-200"
                               style={{ backgroundImage: 'var(--color-gradient-gray)' }}
                             >
                               <div className="relative w-full h-full pl-4 pr-4 transition-transform duration-125 min-w-0 flex flex-row items-center justify-center gap-3">

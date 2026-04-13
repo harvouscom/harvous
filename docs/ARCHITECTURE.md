@@ -336,7 +336,7 @@ The SPA replaces Astro's View Transitions with a CSS animation system:
 
 - `AppLayout` tracks pathname changes via `useRouterState`
 - On route change, the `.route-fade-in` class is removed + re-added on content containers (forcing animation restart via `void el.offsetWidth` reflow)
-- CSS `@keyframes routeFadeIn` in `src/styles/animations.css`: 150ms fade-in + 4px translateY
+- CSS `@keyframes routeFadeIn` in `src/styles/animations.css`: ~150ms opacity fade-in (full-viewport content)
 - `document.dispatchEvent(new Event('astro:page-load'))` is fired on every route change so shared components that relied on Astro View Transition lifecycle events continue to work
 
 ### Data Fetching & Caching

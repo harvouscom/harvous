@@ -436,7 +436,7 @@ export default function ManageBillingPanel({
                     {subscriptionInfo && !subscriptionInfo.hasUnlimited ? (
                       <a
                         href="/upgrade"
-                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                        className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
                         style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', textDecoration: 'none', display: 'block', margin: 0 }}
                       >
                         <div className="panel__list-item">
@@ -463,7 +463,7 @@ export default function ManageBillingPanel({
                       <SafeSubscriptionDetailsButton publishableKey={publishableKey}>
                         <button
                           type="button"
-                          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-300 pl-4 w-full"
+                          className="space-button relative rounded-3xl h-[64px] cursor-pointer transition-[scale,shadow] duration-200 pl-4 w-full"
                           style={{ backgroundImage: 'var(--color-gradient-gray)', paddingRight: '8px', margin: 0 }}
                         >
                           <div className="panel__list-item">

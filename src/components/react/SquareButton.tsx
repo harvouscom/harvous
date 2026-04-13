@@ -324,7 +324,7 @@ export default function SquareButton({
   };
 
   const getButtonClasses = () => {
-    const baseClasses = "square-button relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-300";
+    const baseClasses = "square-button relative rounded-3xl w-[64px] h-[64px] cursor-pointer transition-[scale,shadow] duration-200";
     let variantClasses = "";
     
     if (variant === "Close") {

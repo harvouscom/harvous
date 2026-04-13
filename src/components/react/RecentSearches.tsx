@@ -122,7 +122,7 @@ const RecentSearches: React.FC<RecentSearchesProps> = ({
             >
               <button
                 type="button"
-                className="flex flex-row flex-fill items-center text-left cursor-pointer transition-[scale,shadow] duration-300 min-w-0"
+                className="flex flex-row flex-fill items-center text-left cursor-pointer transition-[scale,shadow] duration-200 min-w-0"
                 style={{ color: 'var(--color-deep-grey)' }}
                 onMouseEnter={() => onPrefetchSearch?.(search.term)}
                 onClick={(e) => {
