@@ -485,6 +485,7 @@
   overflow-y: visible;
   min-width: 0;
   max-width: 100%;
+  opacity: 1 !important;
   transform: none !important;
   animation: none !important;
 }
