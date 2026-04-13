@@ -477,12 +477,16 @@
   animation: subtle-content-mount-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) 0.06s forwards;
 }
 
-/* After fade: release vertical overflow for nested scroll areas; keep horizontal containment (visible broke panel width) */
+/* After fade: release vertical overflow for nested scroll areas; keep horizontal containment (visible broke panel width).
+   Clear transform/animation so no ancestor transform creates a containing block — fixes position:fixed toolbars and
+   scrollIntoView (e.g. CardFullEditable on note page) after the fade-up animation's forwards fill would leave translateY(0). */
 .subtle-content-mount__inner--scroll-safe {
   overflow-x: clip;
   overflow-y: visible;
   min-width: 0;
   max-width: 100%;
+  transform: none !important;
+  animation: none !important;
 }
 
 /* Main column / flex scroll: grid 0fr→1fr yields zero height — fade inner only */
