@@ -371,34 +371,61 @@ self.addEventListener('fetch', (event) => {
     const isIndexPage = url.pathname === '/';
     const isOnline = navigator.onLine;
 
-    // For index page when online: strict network-first to prevent stale lastVisited timestamps
-    // This ensures the list order is always fresh when returning after time away
+    // Index page when online: stale-while-revalidate — serve cached app shell immediately (avoids blank
+    // screen on lie-fi / slow network), then refresh cache in the background. List/data freshness is
+    // handled by the client (React Query), not by blocking on HTML.
     if (isIndexPage && isOnline) {
       event.respondWith(
-        fetch(event.request, { cache: 'no-cache' }).then(async (response) => {
-          // Cache for offline use
-          if (shouldCacheResponse(response)) {
-            const isSignIn = await isSignInPageResponse(response.clone());
-            if (!isSignIn) {
-              const timestamped = addCacheTimestamp(response);
-              const timestampedClone = timestamped.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                safeCachePut(cache, event.request, timestampedClone);
-              });
-            }
-          }
-          return response;
-        }).catch(async () => {
-          // Network failed - use cache as fallback
-          const cached = await caches.match(event.request);
+        caches.match(event.request).then(async (cached) => {
+          let cachedOk = null;
           if (cached) {
             const cachedIsSignIn = await isSignInPageResponse(cached);
             if (!cachedIsSignIn) {
-              return cached;
+              cachedOk = cached;
             }
           }
-          // Show error page
-          return new Response(`
+
+          if (cachedOk) {
+            fetch(event.request, { cache: 'no-cache' })
+              .then(async (response) => {
+                if (shouldCacheResponse(response)) {
+                  const isSignIn = await isSignInPageResponse(response.clone());
+                  if (!isSignIn) {
+                    const timestamped = addCacheTimestamp(response);
+                    const timestampedClone = timestamped.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                      safeCachePut(cache, event.request, timestampedClone);
+                    });
+                  }
+                }
+              })
+              .catch(() => {});
+            return cachedOk;
+          }
+
+          return fetch(event.request, { cache: 'no-cache' })
+            .then(async (response) => {
+              if (shouldCacheResponse(response)) {
+                const isSignIn = await isSignInPageResponse(response.clone());
+                if (!isSignIn) {
+                  const timestamped = addCacheTimestamp(response);
+                  const timestampedClone = timestamped.clone();
+                  caches.open(CACHE_NAME).then((cache) => {
+                    safeCachePut(cache, event.request, timestampedClone);
+                  });
+                }
+              }
+              return response;
+            })
+            .catch(async () => {
+              const cachedFallback = await caches.match(event.request);
+              if (cachedFallback) {
+                const cachedIsSignIn = await isSignInPageResponse(cachedFallback);
+                if (!cachedIsSignIn) {
+                  return cachedFallback;
+                }
+              }
+              return new Response(`
             <!DOCTYPE html>
             <html>
             <head>
@@ -446,9 +473,10 @@ self.addEventListener('fetch', (event) => {
             </body>
             </html>
           `, {
-            status: 503,
-            headers: { 'Content-Type': 'text/html' }
-          });
+                status: 503,
+                headers: { 'Content-Type': 'text/html' }
+              });
+            });
         })
       );
       return;

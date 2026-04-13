@@ -1,9 +1,11 @@
 /* ── Spotlight Search Modal ── */
 
-/* Overlay — desktop: centered; mobile: bottom-anchored */
+/* Overlay — desktop: centered; narrow viewports: top-aligned above keyboard */
 .spotlight-overlay {
   position: fixed;
   inset: 0;
+  /* Shrinks when keyboard opens on modern iOS/Android (dynamic viewport). */
+  height: 100dvh;
   z-index: 1000025;
   background: rgba(0, 0, 0, 0.4);
   animation: modalOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -18,7 +20,9 @@
 
 @media (max-width: 1159px) {
   .spotlight-overlay {
-    align-items: flex-end;
+    align-items: flex-start;
+    /* Below notch / status bar; dialog stays above the keyboard. */
+    padding-top: max(env(safe-area-inset-top, 12px), 16px);
   }
 }
 
@@ -133,21 +137,77 @@
   flex-direction: row;
   flex: 1 1 auto;
   align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   min-width: 0;
   text-align: left;
 }
 
-.spotlight-recent-item__remove {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+.spotlight-recent-item__main .panel__list-item-label {
+  flex: 1 1 0%;
+  min-width: 0;
 }
 
-.spotlight-recent-item__remove svg {
-  fill: var(--color-pebble-grey);
+/* Count pinned right (SpaceButton-style); close stacks on the badge like nav items with .close-icon */
+.spotlight-recent-item__badge-slot {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spotlight-recent-item__badge-slot .badge-count {
+  transition: opacity 0.2s ease-out;
+}
+
+.spotlight-container .spotlight-recent-item__badge-slot .close-icon {
+  left: 50%;
+  top: 50%;
+  right: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+}
+
+/* Hover/focus the badge slot only (not the full row) — same interaction model as `.nav-item__badge-slot` in navigation.css */
+.spotlight-recent-item__badge-slot:hover .badge-count,
+.spotlight-recent-item__badge-slot:focus-within .badge-count {
+  opacity: 0;
+}
+
+.spotlight-recent-item__badge-slot:hover .close-icon,
+.spotlight-recent-item__badge-slot:focus-within .close-icon {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Touch: no hover — show count + dismiss side by side (same hit targets as nav close) */
+@media (hover: none) {
+  .spotlight-recent-item__badge-slot {
+    width: auto;
+    min-width: 24px;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .spotlight-recent-item__badge-slot .badge-count {
+    opacity: 1 !important;
+  }
+
+  .spotlight-container .spotlight-recent-item__badge-slot .close-icon {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
 }
 
 .spotlight-input-trailing {
@@ -240,29 +300,31 @@
   outline: none;
 }
 
-/* Row surface stays white; interaction = depth only (no paper tint, no scale) */
+/* Row surface stays white; interaction = depth only (no paper tint, no scale).
+   Selection ring uses box-shadow (not border) so row inner height stays full
+   --spotlight-result-row-height — matches .recent-search-row content area. */
 .spotlight-container .spotlight-result-row {
   position: relative;
   height: var(--spotlight-result-row-height) !important;
   min-height: var(--spotlight-result-row-height);
   background-color: var(--color-white) !important;
   box-sizing: border-box;
-  border: 1px solid transparent;
-  transition:
-    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s ease !important;
+  border: none;
+  box-shadow: 0 0 0 1px transparent;
+  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .spotlight-container [cmdk-item]:hover:not([data-selected="true"]) .spotlight-result-row {
   box-shadow:
+    0 0 0 1px transparent,
     var(--shadow-small),
     0 4px 14px oklch(var(--lch-deep-grey) / 0.09),
     0 1px 3px oklch(var(--lch-deep-grey) / 0.06);
 }
 
 .spotlight-container [cmdk-item][data-selected="true"] .spotlight-result-row {
-  border-color: oklch(86% 0.014 85);
   box-shadow:
+    0 0 0 1px oklch(86% 0.014 85),
     var(--shadow-small),
     0 10px 28px oklch(var(--lch-deep-grey) / 0.12),
     0 2px 6px oklch(var(--lch-deep-grey) / 0.06);
@@ -270,13 +332,14 @@
 
 .spotlight-container [cmdk-item]:active:not([data-selected="true"]) .spotlight-result-row {
   box-shadow:
+    0 0 0 1px transparent,
     var(--shadow-small),
     0 2px 8px oklch(var(--lch-deep-grey) / 0.08);
 }
 
 .spotlight-container [cmdk-item][data-selected="true"]:active .spotlight-result-row {
-  border-color: oklch(86% 0.014 85);
   box-shadow:
+    0 0 0 1px oklch(86% 0.014 85),
     var(--shadow-small),
     0 6px 16px oklch(var(--lch-deep-grey) / 0.1);
 }
@@ -286,22 +349,23 @@
   min-height: var(--spotlight-result-row-height) !important;
   height: var(--spotlight-result-row-height) !important;
   box-sizing: border-box;
-  border: 1px solid transparent;
-  transition:
-    box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 0.2s ease !important;
+  border: none;
+  /* Default lift matches RecentSearches / RecentItem (was inline boxShadow; must live here so hover/selection rings stack) */
+  box-shadow: 0 0 0 1px transparent, var(--shadow-small);
+  transition: box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .spotlight-container [cmdk-item]:hover:not([data-selected="true"]) .spotlight-recent-row {
   box-shadow:
+    0 0 0 1px transparent,
     var(--shadow-small),
     0 4px 14px oklch(var(--lch-deep-grey) / 0.09),
     0 1px 3px oklch(var(--lch-deep-grey) / 0.06);
 }
 
 .spotlight-container [cmdk-item][data-selected="true"] .spotlight-recent-row {
-  border-color: oklch(86% 0.014 85);
   box-shadow:
+    0 0 0 1px oklch(86% 0.014 85),
     var(--shadow-small),
     0 10px 28px oklch(var(--lch-deep-grey) / 0.12),
     0 2px 6px oklch(var(--lch-deep-grey) / 0.06);
@@ -309,13 +373,14 @@
 
 .spotlight-container [cmdk-item]:active:not([data-selected="true"]) .spotlight-recent-row {
   box-shadow:
+    0 0 0 1px transparent,
     var(--shadow-small),
     0 2px 8px oklch(var(--lch-deep-grey) / 0.08);
 }
 
 .spotlight-container [cmdk-item][data-selected="true"]:active .spotlight-recent-row {
-  border-color: oklch(86% 0.014 85);
   box-shadow:
+    0 0 0 1px oklch(86% 0.014 85),
     var(--shadow-small),
     0 6px 16px oklch(var(--lch-deep-grey) / 0.1);
 }
@@ -363,39 +428,6 @@
   .spotlight-container [cmdk-list] {
     max-height: min(45dvh, 360px);
   }
-}
-
-/* Mobile drawer variant — shell matches `.mobile-nav__sheet` + `.mobile-nav__sheet-inner` (space switcher); Vaul overlay + [data-side="bottom"] from global.css */
-
-/* Remove card shadow/radius inside drawer — the sheet is the container */
-.spotlight-container--drawer {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-/* Inside mobile nav sheet: fill height and scroll the list like space switcher panels */
-.mobile-nav__sheet-inner > .spotlight-container--drawer {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.mobile-nav__sheet-inner > .spotlight-container--drawer [cmdk-root] {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: env(safe-area-inset-bottom, 24px);
-  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
-}
-
-.mobile-nav__sheet-inner > .spotlight-container--drawer [cmdk-list] {
-  flex: 1;
-  min-height: 0;
-  max-height: none;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Reduced motion */

@@ -70,6 +70,13 @@ export default function DashboardPage() {
   const featuredAwaitingFirstLoad = filter !== 'search' && featuredPending;
   const isInitialLoading = listAwaitingFirstPage || featuredAwaitingFirstLoad;
 
+  const hasEverLoadedRef = useRef(false);
+  if (!isInitialLoading) {
+    hasEverLoadedRef.current = true;
+  }
+  // Only block the whole page on the very first load; tab switches use inline list loading.
+  const showFullPageLoading = isInitialLoading && !hasEverLoadedRef.current;
+
   // Seed the note detail cache from dashboard content so notes open instantly (no empty flash).
   // Dashboard items include rawContent (full HTML) alongside the truncated preview.
   const seededRef = useRef<Set<string>>(new Set());
@@ -145,8 +152,8 @@ export default function DashboardPage() {
     filter === 'search' ? 'all' : (filter as DashboardContentFilter);
 
   return (
-    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={isInitialLoading}>
-      {!isInitialLoading && (
+    <CardStack title="My Home" headerBgColor="var(--color-paper)" centerTitle isLoading={showFullPageLoading}>
+      {!showFullPageLoading && (
         <>
           {filter !== 'search' && featuredItems?.length ? <FeaturedCarousel items={featuredItems} /> : null}
           <SubtleContentMount key={user?.id ?? 'home'} variant="fade">
@@ -185,7 +192,7 @@ export default function DashboardPage() {
                 userId={user?.id}
                 dataGeneratedAt={cachedItems.length > 0 ? dataUpdatedAt : undefined}
                 onNavigate={(href) => navigate({ to: href as any })}
-                parentIsLoading={false}
+                parentIsLoading={listAwaitingFirstPage}
                 initialHasMoreFromParent={initialHasMoreFromParent}
                 onNotePrefetch={prefetchNote}
                 onThreadIntent={onThreadIntent}

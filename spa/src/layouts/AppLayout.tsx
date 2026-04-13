@@ -49,6 +49,9 @@ function isOfflineInteractionAllowed(target: EventTarget | null): boolean {
   return false;
 }
 
+const HARVOUS_LAST_ROUTE_KEY = 'harvous-last-route';
+const HARVOUS_SESSION_ACTIVE_KEY = 'harvous-session-active';
+
 export default function AppLayout() {
   const isOffline = useIsOffline();
   const { isLoaded, isSignedIn, signOut } = useAuth();
@@ -213,6 +216,65 @@ export default function AppLayout() {
       /* ignore */
     }
   }, [isLoaded, isSignedIn, pathname]);
+
+  // PWA: persist last in-app route so standalone cold launch can restore (start_url is always "/").
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    if (pathname === '/' || pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) return;
+    if (
+      pathname.startsWith('/spaces/join/') ||
+      pathname.startsWith('/invitations/') ||
+      pathname.startsWith('/shared/')
+    ) {
+      return;
+    }
+    if (pathname === '/upgrade') return;
+    try {
+      localStorage.setItem(HARVOUS_LAST_ROUTE_KEY, pathname + (search || ''));
+    } catch {
+      /* ignore */
+    }
+  }, [isLoaded, isSignedIn, pathname, search]);
+
+  // PWA cold launch: restore last route once per process when opening from home screen (sessionStorage cleared).
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    const isStandalone =
+      window.matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)')
+        .matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const cold = !sessionStorage.getItem(HARVOUS_SESSION_ACTIVE_KEY);
+    try {
+      sessionStorage.setItem(HARVOUS_SESSION_ACTIVE_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+    if (!isStandalone) return;
+    if (!cold) return;
+    if (pathname !== '/') return;
+    try {
+      const pending = sessionStorage.getItem('harvous_pending_redirect');
+      if (pending && pending.startsWith('http')) return;
+    } catch {
+      /* ignore */
+    }
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(HARVOUS_LAST_ROUTE_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (!saved || saved === '/') return;
+    if (
+      saved.startsWith('/sign-in') ||
+      saved.startsWith('/sign-up') ||
+      saved.startsWith('/spaces/join/') ||
+      saved.startsWith('/invitations/') ||
+      saved.startsWith('/shared/')
+    ) {
+      return;
+    }
+    router.navigate({ to: saved as any });
+  }, [isLoaded, isSignedIn, pathname, router]);
 
   // Record lastVisited when entering a thread or note page (SPA never hits Astro SSR, so DB is never updated otherwise)
   const lastVisitRecordedPathRef = useRef<string | null>(null);

@@ -117,6 +117,17 @@ function initPWA() {
       isWarmedUp = false;
       warmUpApp();
       warmUpAPI();
+      // iOS WebKit: force compositor repaint when returning from background (avoids black flash)
+      try {
+        if (document.body) {
+          document.body.style.webkitTransform = 'translateZ(0)';
+          requestAnimationFrame(() => {
+            document.body.style.webkitTransform = '';
+          });
+        }
+      } catch (e) {
+        /* ignore */
+      }
     }
   });
   

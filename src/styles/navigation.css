@@ -120,16 +120,14 @@
   position: relative;
   width: 100%;
 
-  /* Has close icon = show close on container hover
-     (close icon is a sibling of the link, not a child of .badge-count) */
-  &:not(.nav-item-container--space):has(.close-icon) {
-    & .badge-number {
-      opacity: 1;
+  /* Close stacks on count/toggle in `.nav-item__badge-slot` (Spotlight-style): hover/focus the slot only, not the whole row */
+  &:not(.nav-item-container--space):has(.nav-item__badge-slot .close-icon) {
+    & .nav-item__badge-slot .badge-count,
+    & .nav-item__badge-slot .space-btn__toggle-icon {
       transition: opacity 0.2s ease-out;
     }
 
-    /* Keep the button in the DOM for consistent pointer events */
-    & .close-icon {
+    & .nav-item__badge-slot .close-icon {
       display: flex;
       opacity: 0;
       pointer-events: none;
@@ -137,15 +135,65 @@
       z-index: 2;
     }
 
-    &:hover {
-      & .badge-number {
-        opacity: 0;
-      }
+    & .nav-item__badge-slot:hover .badge-count,
+    & .nav-item__badge-slot:focus-within .badge-count {
+      opacity: 0;
+    }
 
-      & .close-icon {
-        opacity: 1;
-        pointer-events: auto;
-      }
+    & .nav-item__badge-slot:hover .space-btn__toggle-icon,
+    & .nav-item__badge-slot:focus-within .space-btn__toggle-icon {
+      opacity: 0;
+    }
+
+    & .nav-item__badge-slot:hover .close-icon,
+    & .nav-item__badge-slot:focus-within .close-icon {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}
+
+/* Slot stacks the dismiss control on the 24×24 badge/toggle (overrides global .close-icon anchoring to the row) */
+.nav-item__badge-slot {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-item-container:not(.nav-item-container--space) .nav-item__badge-slot .close-icon {
+  left: 50%;
+  top: 50%;
+  right: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+@media (hover: none) {
+  .nav-item-container:not(.nav-item-container--space):has(.nav-item__badge-slot .close-icon) {
+    & .nav-item__badge-slot {
+      width: auto;
+      min-width: 24px;
+      gap: 6px;
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+
+    & .nav-item__badge-slot .badge-count,
+    & .nav-item__badge-slot .space-btn__toggle-icon {
+      opacity: 1 !important;
+    }
+
+    & .nav-item__badge-slot .close-icon {
+      position: relative;
+      left: auto;
+      top: auto;
+      transform: none;
+      opacity: 1 !important;
+      pointer-events: auto !important;
     }
   }
 }

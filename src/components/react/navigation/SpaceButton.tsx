@@ -20,6 +20,8 @@ interface SpaceButtonProps {
   rightAccessory?: 'count' | 'spaceSwitcher' | 'none';
   onRightAccessoryClick?: (event: React.MouseEvent) => void;
   as?: 'button' | 'div';
+  /** Stacks `.close-icon` on the count/toggle (persistent nav); hover/focus on `.nav-item__badge-slot` only (see navigation.css). */
+  badgeClose?: { onClick: (e: React.MouseEvent<HTMLButtonElement>) => void; ariaLabel: string };
 }
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
@@ -38,6 +40,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   rightAccessory,
   onRightAccessoryClick,
   as = 'button',
+  badgeClose,
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
@@ -203,18 +206,44 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
               tabIndex={resolvedRightAccessory === 'spaceSwitcher' ? 0 : undefined}
               aria-label={resolvedRightAccessory === 'spaceSwitcher' ? 'Switch space' : undefined}
             >
-              {resolvedRightAccessory === 'spaceSwitcher' ? (
-                <span
-                  className="space-btn__toggle-icon"
-                  aria-hidden="true"
-                >
+              {badgeClose ? (
+                <div className="nav-item__badge-slot">
+                  {resolvedRightAccessory === 'spaceSwitcher' ? (
+                    <span className="space-btn__toggle-icon" aria-hidden="true">
+                      <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
+                    </span>
+                  ) : (
+                    <div className="badge-count">
+                      <span className="badge-number">{formatBadgeCount(count)}</span>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className="close-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      badgeClose.onClick(e);
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
+                    aria-label={badgeClose.ariaLabel}
+                    data-item-id={itemId}
+                  >
+                    <svg viewBox="0 0 384 512" aria-hidden="true">
+                      <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
+                    </svg>
+                  </button>
+                </div>
+              ) : resolvedRightAccessory === 'spaceSwitcher' ? (
+                <span className="space-btn__toggle-icon" aria-hidden="true">
                   <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
                 </span>
               ) : (
                 <div className="badge-count">
-                  <span className="badge-number">
-                    {formatBadgeCount(count)}
-                  </span>
+                  <span className="badge-number">{formatBadgeCount(count)}</span>
                 </div>
               )}
             </div>
@@ -342,32 +371,31 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
                 </span>
               </div>
               <div className="space-btn__badge-wrapper">
-                <div className="badge-count">
-                  <span className="badge-number">
-                    {formatBadgeCount(count)}
-                  </span>
+                <div className="nav-item__badge-slot">
+                  <div className="badge-count">
+                    <span className="badge-number">{formatBadgeCount(count)}</span>
+                  </div>
+                  {!isActive && (
+                    <button
+                      type="button"
+                      onClick={handleCloseClick}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
+                      className="close-icon"
+                      data-item-id={itemId}
+                      aria-label={`Close ${text || 'item'}`}
+                    >
+                      <svg viewBox="0 0 384 512" aria-hidden="true">
+                        <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
           </button>
-          {/* Close icon - only show for inactive items */}
-          {!isActive && (
-            <button
-              type="button"
-              onClick={handleCloseClick}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-              }}
-              className="close-icon"
-              data-item-id={itemId}
-              aria-label={`Close ${text || 'item'}`}
-            >
-              <svg viewBox="0 0 384 512" aria-hidden="true">
-                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z"/>
-              </svg>
-            </button>
-          )}
       </div>
     );
   }

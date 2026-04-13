@@ -9,7 +9,7 @@ import {
   getCondensedNoteMeshGradient,
   getSolidThreadAccentBarStyle,
 } from './CondensedNoteRowLayout';
-import { CONDENSED_NOTE_ICON_PX } from '@/utils/condensed-note-row';
+import { CONDENSED_NOTE_ICON_PX, CONDENSED_NOTE_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
 
 function ContextChip({ children }: { children: React.ReactNode }) {
   return (
@@ -32,12 +32,18 @@ export interface SearchResultRowProps {
   result: SearchResult;
   /** Merged onto CondensedNoteRowLayout (e.g. `relative spotlight-result-row` in Spotlight). */
   className?: string;
+  /** Defaults to thread-list condensed height; Spotlight passes 52 to match the search field. */
+  rowHeightPx?: number;
 }
 
 /**
  * Shared FTS hit row: same compact chrome as Spotlight / condensed lists (accent + title + chips).
  */
-export default function SearchResultRow({ result, className = 'relative' }: SearchResultRowProps) {
+export default function SearchResultRow({
+  result,
+  className = 'relative',
+  rowHeightPx = CONDENSED_NOTE_ROW_HEIGHT_PX,
+}: SearchResultRowProps) {
   const isThread = result.type === 'thread';
   const isScripture = result.noteType === 'scripture';
 
@@ -67,6 +73,7 @@ export default function SearchResultRow({ result, className = 'relative' }: Sear
       accentBarStyle={accentBarStyle}
       icon={icon}
       paddingRight="0.75rem"
+      rowHeightPx={rowHeightPx}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, minWidth: 0, overflow: 'hidden' }}>
         <div

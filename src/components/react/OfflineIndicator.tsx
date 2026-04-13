@@ -36,6 +36,10 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
   const [chipPosition, setChipPosition] = useState<{ anchored: boolean; top: number; left: number } | null>(null);
   const chipRef = useRef<HTMLButtonElement>(null);
   const prevPendingRef = useRef(0);
+  /** True after `offline` until we process the next `online` (offline recovery path). */
+  const wentOfflineRef = useRef(false);
+  /** Set on reconnect when there was pending work; cleared when we show "All items synced" or skip celebration. */
+  const celebrateWhenQueueEmptiesRef = useRef(false);
 
   const checkViewport = useCallback(() => {
     const width = window.innerWidth;
@@ -64,7 +68,10 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
+    const handleOffline = () => {
+      wentOfflineRef.current = true;
+      setIsOffline(true);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -92,7 +99,13 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
             .count();
         });
 
-        if (prevPendingRef.current > 0 && pendingCount === 0 && !isOffline) {
+        if (
+          celebrateWhenQueueEmptiesRef.current &&
+          prevPendingRef.current > 0 &&
+          pendingCount === 0 &&
+          navigator.onLine
+        ) {
+          celebrateWhenQueueEmptiesRef.current = false;
           setShowSyncSuccess(true);
           setTimeout(() => setShowSyncSuccess(false), 3000);
         }
@@ -123,8 +136,28 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
     checkSyncStatus();
     const interval = setInterval(checkSyncStatus, 5000);
 
-    const handleOnlineWithCheck = () => {
+    const handleOnlineWithCheck = async () => {
       setIsOffline(false);
+      if (wentOfflineRef.current) {
+        if (userId) {
+          try {
+            await ensureDatabaseOpen();
+            const pendingAtReconnect = await retryIndexedDBOperation(async () => {
+              return await offlineDB.syncQueue
+                .where('userId')
+                .equals(userId)
+                .filter(op => op.retryCount < 5)
+                .count();
+            });
+            celebrateWhenQueueEmptiesRef.current = pendingAtReconnect > 0;
+          } catch {
+            celebrateWhenQueueEmptiesRef.current = false;
+          }
+        } else {
+          celebrateWhenQueueEmptiesRef.current = false;
+        }
+        wentOfflineRef.current = false;
+      }
       checkSyncStatus();
     };
     window.addEventListener('online', handleOnlineWithCheck);

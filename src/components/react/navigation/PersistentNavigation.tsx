@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
-import Icon from '../Icon';
 import { debug } from '@/utils/logger';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
@@ -649,28 +648,17 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                   backgroundGradient={item.id === 'thread_unorganized' ? PAPER_GRADIENT : (item.backgroundGradient || "var(--color-paper)")}
                   isActive={isActive}
                   itemId={item.id}
+                  badgeClose={{
+                    onClick: () => {
+                      removeFromNavigationHistory(
+                        item.id,
+                        item.id.startsWith('thread_') ? { sameTitleAs: item.title } : undefined
+                      );
+                    },
+                    ariaLabel: `Close ${item.title || 'item'}`,
+                  }}
                 />
               </a>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                  removeFromNavigationHistory(
-                    item.id,
-                    item.id.startsWith('thread_') ? { sameTitleAs: item.title } : undefined
-                  );
-                }}
-                onMouseDown={(e) => {
-                  e.stopPropagation();
-                  e.preventDefault();
-                }}
-                className="close-icon"
-                data-item-id={item.id}
-                aria-label={`Close ${item.title || 'item'}`}
-              >
-                <Icon name="xmark" size={14} style={{ color: 'var(--color-deep-grey)' }} />
-              </button>
             </div>
           </div>
         );

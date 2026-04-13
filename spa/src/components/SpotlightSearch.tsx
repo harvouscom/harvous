@@ -2,7 +2,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Drawer, DrawerContent } from '../../../src/components/ui/drawer';
 import {
   fetchSearchResults,
   searchQueryKey,
@@ -16,6 +15,7 @@ import {
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
+import { SPOTLIGHT_CONDENSED_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
 import { idToUrl } from '@/utils/url-helpers';
 import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
 import { useThread } from '../hooks/queries/useThread';
@@ -23,7 +23,6 @@ import { useSpace } from '../hooks/queries/useSpace';
 import SearchResultRow from '../../../src/components/react/SearchResultRow';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { router } from '../router';
-import { isMobileDevice } from '@/utils/pwa-prompt';
 import '../../../src/styles/spotlight.css';
 
 interface RecentSearch {
@@ -101,7 +100,8 @@ const CloseIcon = () => (
   </svg>
 );
 
-/** Shared row chrome with [`RecentSearches`](src/components/react/RecentSearches.tsx) via `.recent-search-row`. */
+/** Shared row chrome with [`RecentSearches`](src/components/react/RecentSearches.tsx) via `.recent-search-row`.
+ * Count is pinned right like SpaceButton; close uses `.close-icon` and stacks on the badge (see `spotlight.css`). */
 function RecentItem({
   search,
   onRemove,
@@ -114,8 +114,8 @@ function RecentItem({
   return (
     <div className="spotlight-recent-item">
       <div
-        className="nav-item-container recent-search-row spotlight-recent-row spotlight-recent-item__row"
-        style={{ background: 'var(--color-gradient-gray)', boxShadow: 'var(--shadow-small)' }}
+        className="recent-search-row spotlight-recent-row spotlight-recent-item__row"
+        style={{ background: 'var(--color-gradient-gray)' }}
       >
         <div
           className="spotlight-recent-item__main flex-fill"
@@ -123,24 +123,26 @@ function RecentItem({
           onMouseEnter={() => onPrefetchSearch?.(search.term)}
         >
           <span className="panel__list-item-label text-truncate">{search.term}</span>
-          <span className="badge-count">
-            <span className="badge-number">{formatBadgeCount(search.count)}</span>
-          </span>
+          <div className="spotlight-recent-item__badge-slot">
+            <span className="badge-count">
+              <span className="badge-number">{formatBadgeCount(search.count)}</span>
+            </span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onRemove();
+              }}
+              className="close-icon recent-search-close-icon"
+              aria-label="Remove from recent searches"
+            >
+              <svg viewBox="0 0 384 512" aria-hidden="true">
+                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            onRemove();
-          }}
-          className="recent-search-close-icon spotlight-recent-item__remove"
-          aria-label="Remove from recent searches"
-        >
-          <svg viewBox="0 0 384 512" aria-hidden="true">
-            <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
-          </svg>
-        </button>
       </div>
     </div>
   );
@@ -218,17 +220,9 @@ export default function SpotlightSearch() {
     }, 150); // matches exit animation duration
   }, []);
 
-  /** Mobile Vaul drawer — sync body overflow when sheet closes (same pattern as MobileNavigation). */
-  const closeMobileDrawer = useCallback(() => {
-    setIsOpen(false);
-    setIsClosing(false);
-    document.body.style.overflow = savedOverflow.current;
-  }, []);
-
-  // On desktop, focus the search input when the overlay opens.
-  // On mobile, Vaul's onOpenAutoFocus handles focus after the drawer animates in.
+  // Focus the search input when the overlay opens (desktop + mobile dialog).
   useEffect(() => {
-    if (!isOpen || isMobileDevice()) return;
+    if (!isOpen) return;
     const timer = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [isOpen]);
@@ -328,7 +322,7 @@ export default function SpotlightSearch() {
   const showResults = debouncedTrim.length >= MIN_SEARCH_QUERY_LENGTH;
   const showTooShortHint = debouncedTrim.length > 0 && debouncedTrim.length < MIN_SEARCH_QUERY_LENGTH;
 
-  /** Shared search UI — used inside both the mobile drawer and desktop overlay. */
+  /** Shared search UI inside the spotlight overlay. */
   const searchContent = (
     <Command
       shouldFilter={false}
@@ -417,7 +411,11 @@ export default function SpotlightSearch() {
                 value={result.id}
                 onSelect={() => navigateToResult(result.id)}
               >
-                <SearchResultRow result={result} className="spotlight-result-row" />
+                <SearchResultRow
+                  result={result}
+                  className="spotlight-result-row"
+                  rowHeightPx={SPOTLIGHT_CONDENSED_ROW_HEIGHT_PX}
+                />
               </Command.Item>
             ))}
           </Command.Group>
@@ -446,44 +444,7 @@ export default function SpotlightSearch() {
     </Command>
   );
 
-  // Mobile: use the Vaul drawer system — handles keyboard/viewport natively.
-  if (isMobileDevice()) {
-    return (
-      <Drawer.Root
-        open={isOpen}
-        onOpenChange={(open) => {
-          if (!open) closeMobileDrawer();
-        }}
-        shouldScaleBackground={false}
-        noBodyStyles={true}
-        fixed={true}
-      >
-        <DrawerContent
-          className="mobile-nav__sheet"
-          onOverlayClick={closeMobileDrawer}
-          style={{
-            background: 'white',
-            padding: 0,
-            border: 'none',
-            borderTop: 'none',
-          }}
-          onOpenAutoFocus={(e) => {
-            e.preventDefault();
-            requestAnimationFrame(() => inputRef.current?.focus());
-          }}
-          onCloseAutoFocus={(e) => e.preventDefault()}
-        >
-          <div className="mobile-nav__sheet-inner">
-            <div className="spotlight-container spotlight-container--drawer">
-              {searchContent}
-            </div>
-          </div>
-        </DrawerContent>
-      </Drawer.Root>
-    );
-  }
-
-  // Desktop: custom centered overlay with enter/exit animation.
+  // Portal overlay — centered on wide viewports; top-aligned on narrow (above mobile keyboard).
   if (!isOpen) return null;
   return createPortal(
     <div
