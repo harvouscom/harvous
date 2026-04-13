@@ -59,7 +59,7 @@ interface TiptapEditorProps {
   sourceNoteId?: string; // ID of the note this editor is editing (for hyperlink creation)
   onEditorReady?: (editor: any) => void;
   onEditorInstanceReady?: (editor: any) => void; // Callback when editor instance is ready for direct access
-  /** When true (e.g. new-note bottom sheet), scroll selection into view above toolbar when keyboard is open. */
+  /** Legacy hint for layouts that host the editor in a bottom sheet; caret scroll uses `[data-keyboard-open]` + `toolbarAtBottom`. */
   inBottomSheet?: boolean;
 }
 
@@ -2747,15 +2747,31 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     return true;
   };
 
-  // When in bottom sheet with keyboard open, scroll selection into view above the fixed toolbar (scroll-margin-bottom in CSS)
+  // When keyboard layout is active (`data-keyboard-open` on an ancestor, e.g. sheet or CardFullEditable), scroll selection above the fixed toolbar (scroll-margin-bottom in CSS)
   const scrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
     if (!isEditorValid(editorInstance)) return;
-    const sheet = document.querySelector('.bottom-sheet-content[data-keyboard-open]');
-    if (!sheet) return;
+    const host = editorInstance.view.dom.closest('[data-keyboard-open]');
+    if (!host) return;
     const { from } = editorInstance.state.selection;
     const { node } = editorInstance.view.domAtPos(from);
-    if (node && typeof (node as HTMLElement).scrollIntoView === 'function') {
-      (node as HTMLElement).scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    const el =
+      node.nodeType === Node.TEXT_NODE
+        ? (node as Text).parentElement
+        : node instanceof HTMLElement
+          ? node
+          : null;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }
+  };
+
+  const scheduleScrollSelectionIntoViewAboveToolbar = (editorInstance: any) => {
+    const run = () => scrollSelectionIntoViewAboveToolbar(editorInstance);
+    setTimeout(run, 350);
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isIOS) {
+      setTimeout(run, 400);
+      setTimeout(run, 600);
     }
   };
 
@@ -4070,10 +4086,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const handleFocus = () => {
       // Check if editor is still valid
       if (!isEditorValid(editor)) return;
-      
-      if (inBottomSheet && toolbarAtBottom) {
-        // In sheet with bottom toolbar: after keyboard-open is set, scroll selection into view above toolbar
-        setTimeout(() => scrollSelectionIntoViewAboveToolbar(editor), 350);
+
+      if (toolbarAtBottom) {
+        scheduleScrollSelectionIntoViewAboveToolbar(editor);
       } else {
         // Prevent unwanted scroll jumps on mobile by maintaining scroll position
         const editorElement = editor.view.dom;
@@ -4122,7 +4137,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     editor.on('blur', handleBlur);
 
     const handleSelectionUpdate = () => {
-      if (inBottomSheet && toolbarAtBottom) scrollSelectionIntoViewAboveToolbar(editor);
+      if (toolbarAtBottom) scrollSelectionIntoViewAboveToolbar(editor);
     };
     editor.on('selectionUpdate', handleSelectionUpdate);
 
@@ -4142,7 +4157,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         editor.off('selectionUpdate', handleSelectionUpdate);
       }
     };
-  }, [editor, inBottomSheet, toolbarAtBottom]);
+  }, [editor, toolbarAtBottom]);
 
   // Update active states when editor changes
   useEffect(() => {

@@ -389,3 +389,13 @@
   padding-bottom: 56px;
 }
 
+/* Cap editor wrapper so flex chain matches NewNotePanel in sheet (no gap above fixed toolbar) */
+.card-full-editable[data-keyboard-open] .tiptap-editor-container {
+  max-height: var(--editor-scroll-max-height);
+}
+
+/* Keep caret/selection above fixed toolbar when scrolling into view */
+.card-full-editable[data-keyboard-open] .tiptap-content .ProseMirror {
+  scroll-margin-bottom: 60px;
+}
+

@@ -122,6 +122,7 @@ export default function CardFullEditable({
   useEffect(() => {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null;
     if (!vv) return;
+    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
     const clearOverrides = (element: HTMLDivElement | null) => {
       if (!element) return;
@@ -130,15 +131,22 @@ export default function CardFullEditable({
       element.removeAttribute('data-keyboard-open');
     };
 
-    const apply = () => {
+    const apply = (estimatedViewportHeight?: number) => {
       const el = cardRootRef.current;
       const viewport = window.visualViewport;
       if (!el || !viewport) return;
-      const keyboardOpen = viewport.height < window.innerHeight * 0.75;
+      const innerH = window.innerHeight;
+      let effectiveHeight: number;
+      if (estimatedViewportHeight != null && viewport.height > innerH * 0.85) {
+        effectiveHeight = estimatedViewportHeight;
+      } else {
+        effectiveHeight = viewport.height;
+      }
+      const keyboardOpen = effectiveHeight < innerH * 0.75;
 
       if (keyboardOpen) {
-        const toolbarBottom = (window.innerHeight - viewport.height) + 12;
-        const editorH = Math.max(120, viewport.height - RESERVE_EDITOR_PX);
+        const toolbarBottom = innerH - effectiveHeight + 12;
+        const editorH = Math.max(120, effectiveHeight - RESERVE_EDITOR_PX);
         el.style.setProperty('--toolbar-bottom', `${toolbarBottom}px`);
         el.style.setProperty('--editor-scroll-max-height', `${editorH}px`);
         el.setAttribute('data-keyboard-open', '');
@@ -149,12 +157,21 @@ export default function CardFullEditable({
 
     apply();
     const raf = requestAnimationFrame(() => apply());
-    vv.addEventListener('resize', apply);
-    vv.addEventListener('scroll', apply);
+    const onViewportChange = () => apply();
+    vv.addEventListener('resize', onViewportChange);
+    vv.addEventListener('scroll', onViewportChange);
 
     const onFocusIn = () => {
       setTimeout(apply, 100);
       setTimeout(apply, 300);
+      if (isIOS) {
+        setTimeout(apply, 400);
+        setTimeout(apply, 600);
+        const estimatedHeight = Math.round(window.innerHeight * 0.55);
+        if (estimatedHeight < window.innerHeight * 0.75) {
+          setTimeout(() => apply(estimatedHeight), 50);
+        }
+      }
     };
     let focusEl: HTMLDivElement | null = null;
     const rafFocus = requestAnimationFrame(() => {
@@ -165,8 +182,8 @@ export default function CardFullEditable({
     return () => {
       cancelAnimationFrame(raf);
       cancelAnimationFrame(rafFocus);
-      vv.removeEventListener('resize', apply);
-      vv.removeEventListener('scroll', apply);
+      vv.removeEventListener('resize', onViewportChange);
+      vv.removeEventListener('scroll', onViewportChange);
       if (focusEl) focusEl.removeEventListener('focusin', onFocusIn);
       clearOverrides(cardRootRef.current);
     };

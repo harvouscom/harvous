@@ -271,6 +271,15 @@
   scroll-padding: 0 !important;
 }
 
+/* When keyboard layout is active, restore bottom scroll-margin so caret stays above fixed toolbar (overrides :focus reset) */
+[data-keyboard-open] .tiptap-content .ProseMirror:focus {
+  scroll-margin-bottom: 60px !important;
+  scroll-margin-top: 0 !important;
+  scroll-margin-left: 0 !important;
+  scroll-margin-right: 0 !important;
+  scroll-padding: 0 !important;
+}
+
 /* Edit mode: bottom fade when not scrolled to bottom; top fade when scrolled down (mask stays fixed like bottom) */
 .tiptap-content.tiptap-content--bottom-fade {
   -webkit-mask-image: linear-gradient(
