@@ -115,9 +115,12 @@ export default function SearchResultsList({
       <div
         style={{
           fontSize: '12px',
-          color: 'var(--color-pebble-grey)',
+          fontWeight: 600,
+          color: 'var(--color-deep-grey)',
           fontFamily: 'var(--font-sans)',
           textAlign: 'center',
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale',
         }}
       >
         {results.length} result{results.length !== 1 ? 's' : ''}

@@ -4,6 +4,7 @@ import ButtonSmall from './ButtonSmall';
 import CardNote from './CardNote';
 import { getThreadTextColorCSS, THREAD_COLORS, type ThreadColor } from '@/utils/colors';
 import { stripHtml } from '@/utils/html-stripper';
+import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface InboxItemNote {
   id: string;
@@ -70,6 +71,7 @@ export default function InboxItemPreview({
   onAddToHarvous,
   onArchive
 }: InboxItemPreviewProps) {
+  const { portalTarget } = useDesktopMainModalPortal();
   const [isAdding, setIsAdding] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -261,5 +263,5 @@ export default function InboxItemPreview({
     </div>
   );
 
-  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : null;
+  return typeof document !== 'undefined' ? createPortal(modalContent, portalTarget) : null;
 }

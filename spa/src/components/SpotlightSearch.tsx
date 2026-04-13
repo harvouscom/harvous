@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import {
   fetchSearchResults,
   searchQueryKey,
@@ -16,13 +17,12 @@ import {
   recentSearchesUpdatedEvent,
 } from '@/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
-import { SPOTLIGHT_CONDENSED_ROW_HEIGHT_PX } from '@/utils/condensed-note-row';
 import { idToUrl } from '@/utils/url-helpers';
 import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
 import { useThread } from '../hooks/queries/useThread';
 import { useSpace } from '../hooks/queries/useSpace';
 import SearchResultRow from '../../../src/components/react/SearchResultRow';
-import { formatBadgeCount } from '@/utils/badge-count';
+import RecentSearchRow from '../../../src/components/react/RecentSearchRow';
 import { router } from '../router';
 import { isMobileDevice } from '@/utils/pwa-prompt';
 import '../../../src/styles/spotlight.css';
@@ -102,55 +102,8 @@ const CloseIcon = () => (
   </svg>
 );
 
-/** Shared row chrome with [`RecentSearches`](src/components/react/RecentSearches.tsx) via `.recent-search-row`.
- * Count is pinned right like SpaceButton; close uses `.close-icon` and stacks on the badge (see `spotlight.css`). */
-function RecentItem({
-  search,
-  onRemove,
-  onPrefetchSearch,
-}: {
-  search: { term: string; count: number };
-  onRemove: () => void;
-  onPrefetchSearch?: (term: string) => void;
-}) {
-  return (
-    <div className="spotlight-recent-item">
-      <div
-        className="recent-search-row spotlight-recent-row spotlight-recent-item__row"
-        style={{ background: 'var(--color-gradient-gray)' }}
-      >
-        <div
-          className="spotlight-recent-item__main flex-fill"
-          style={{ color: 'var(--color-deep-grey)' }}
-          onMouseEnter={() => onPrefetchSearch?.(search.term)}
-        >
-          <span className="panel__list-item-label text-truncate">{search.term}</span>
-          <div className="spotlight-recent-item__badge-slot">
-            <span className="badge-count">
-              <span className="badge-number">{formatBadgeCount(search.count)}</span>
-            </span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                onRemove();
-              }}
-              className="close-icon recent-search-close-icon"
-              aria-label="Remove from recent searches"
-            >
-              <svg viewBox="0 0 384 512" aria-hidden="true">
-                <path d="M342.6 150.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192 210.7 86.6 105.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L146.7 256 41.4 361.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192 301.3 297.4 406.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.3 256 342.6 150.6z" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function SpotlightSearch() {
+  const { portalTarget } = useDesktopMainModalPortal();
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [query, setQuery] = useState('');
@@ -166,6 +119,7 @@ export default function SpotlightSearch() {
   queryRef.current = query;
   const savedOverflow = useRef('');
   const queryClient = useQueryClient();
+  const showKeyboardStrip = !isMobileDevice();
 
   const prefetchRecentSearch = useCallback(
     (term: string) => {
@@ -233,7 +187,7 @@ export default function SpotlightSearch() {
       setIsOpen(false);
       setIsClosing(false);
       document.body.style.overflow = savedOverflow.current;
-    }, 150); // matches exit animation duration
+    }, 200); // matches .spotlight-overlay--closing .spotlight-wrapper exit animation
   }, []);
 
   // Focus the search input when the overlay opens (desktop + mobile dialog).
@@ -427,11 +381,7 @@ export default function SpotlightSearch() {
                 value={result.id}
                 onSelect={() => navigateToResult(result.id)}
               >
-                <SearchResultRow
-                  result={result}
-                  className="spotlight-result-row"
-                  rowHeightPx={SPOTLIGHT_CONDENSED_ROW_HEIGHT_PX}
-                />
+                <SearchResultRow result={result} className="spotlight-result-row" />
               </Command.Item>
             ))}
           </Command.Group>
@@ -444,10 +394,12 @@ export default function SpotlightSearch() {
                 value={`recent:${search.term}`}
                 onSelect={() => selectRecentTerm(search.term)}
               >
-                <RecentItem
-                  search={search}
+                <RecentSearchRow
+                  term={search.term}
+                  count={search.count}
                   onRemove={() => { removeRecentSearch(search.term); refreshRecents(); }}
                   onPrefetchSearch={prefetchRecentSearch}
+                  variant="overlay"
                 />
               </Command.Item>
             ))}
@@ -460,7 +412,7 @@ export default function SpotlightSearch() {
     </Command>
   );
 
-  // Portal overlay — centered on wide viewports; top-aligned on narrow (above mobile keyboard).
+  // Portal overlay — desktop: centered in main column; mobile: top-aligned above keyboard.
   if (!isOpen) return null;
   return createPortal(
     <div
@@ -471,11 +423,11 @@ export default function SpotlightSearch() {
       aria-modal="true"
       aria-label="Search"
     >
-      <div className="spotlight-wrapper">
+      <div className={`spotlight-wrapper${showKeyboardStrip ? ' spotlight-wrapper--with-strip' : ''}`}>
         <div className="spotlight-container">
           {searchContent}
         </div>
-        {!isMobileDevice() && (
+        {showKeyboardStrip && (
           <div className="spotlight-strip">
             <div className="action-strip action-strip--mobile">
               <div className="action-strip__inner">
@@ -505,6 +457,6 @@ export default function SpotlightSearch() {
         )}
       </div>
     </div>,
-    document.body,
+    portalTarget,
   );
 }

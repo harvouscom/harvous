@@ -647,9 +647,9 @@ html.ios-pwa .modal-overlay {
   top: var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
 }
 
-/* Centered modal overlay with padding */
+/* Centered modal overlay with padding — min 12px from viewport (matches spotlight / modal-overlay-enter) */
 .modal-overlay--centered {
-  padding: 1rem;
+  padding: max(12px, 1rem);
   z-index: 100;
 }
 
@@ -661,7 +661,7 @@ html.ios-pwa .modal-overlay {
   width: 100%;
   margin-left: 1rem;
   margin-right: 1rem;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--dialog-elevation-shadow);
 }
 
 /* Large modal dialog variant */
@@ -672,7 +672,7 @@ html.ios-pwa .modal-overlay {
   border-radius: 1.5rem;  /* 24px / rounded-3xl */
   padding: 0;
   margin: 0;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: var(--dialog-elevation-shadow);
   display: flex;
   flex-direction: column;
 }
@@ -739,7 +739,7 @@ html.ios-pwa .modal-overlay {
   }
 }
 
-/* Mobile only: dialogs as bottom sheets (flush bottom, slide up, dark overlay matches bottom sheet) */
+/* Mobile only: dialogs as bottom sheets (flush bottom; transparent overlay + shadow like bottom sheets) */
 @media (max-width: 1159px) {
   .modal-overlay-enter,
   .modal-overlay,
@@ -757,7 +757,10 @@ html.ios-pwa .modal-overlay {
     border-radius: 24px 24px 0 0 !important;
     max-height: 90vh !important;
     padding-bottom: max(1.5rem, env(safe-area-inset-bottom)) !important;
-    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08) !important;
+    box-shadow:
+      0 -12px 32px rgba(0, 0, 0, 0.1),
+      0 -24px 56px rgba(0, 0, 0, 0.08),
+      var(--dialog-elevation-shadow) !important;
   }
 
   .modal-dialog--lg {
@@ -975,6 +978,10 @@ html.ios-pwa .drawer-slide {
 
 .tab-btn .badge-number {
   font-size: 12px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .tab-btn__indicator {

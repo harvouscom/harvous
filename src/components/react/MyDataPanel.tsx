@@ -9,6 +9,7 @@ import { offlineDB } from '@/utils/offline-db';
 import { getSyncState } from '@/utils/sync-manager';
 import type { SyncState } from '@/utils/offline-db';
 import { clearNavigationCache } from '@/utils/navigation-cache';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface MyDataPanelProps {
   onClose?: () => void;
@@ -23,6 +24,7 @@ const ChevronIcon = () => (
 );
 
 export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPanelProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
   const [isMounted, setIsMounted] = useState(false);
   const userId = usePersistedUserId();
 
@@ -561,20 +563,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             // Close dialog if clicking on the overlay (but not the dialog content); don't close while deleting
             if (e.target === e.currentTarget && !isDeleting) {
@@ -616,7 +605,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             />
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
 
       {/* Clear Data Confirmation Dialog - Rendered via Portal */}
@@ -625,20 +614,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
           className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             // Close dialog if clicking on the overlay (but not the dialog content)
             if (e.target === e.currentTarget) {
@@ -679,7 +655,7 @@ export default function MyDataPanel({ onClose, inBottomSheet = false }: MyDataPa
             />
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
     </>
   );

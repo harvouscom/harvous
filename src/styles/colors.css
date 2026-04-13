@@ -121,6 +121,12 @@
   --shadow-primary: 0px 6px 0px 0px oklch(85% 0.02 90);
   --shadow-small: inset 0px -3px 0px oklch(var(--lch-stone-grey) / 0.2);
 
+  /* Floating dialogs / Spotlight — separation without dimmed scrim (transparent overlay + shadow) */
+  --dialog-elevation-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.07),
+    0 8px 28px rgba(0, 0, 0, 0.1),
+    0 20px 48px rgba(0, 0, 0, 0.08);
+
   /* Gradient - keeping as is since gradients work with oklch() */
   --color-gradient-gray: linear-gradient(126.64deg, oklch(100% 0 0 / 0.8) 11.71%, oklch(98% 0 0) 71.33%);
 

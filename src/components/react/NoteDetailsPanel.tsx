@@ -16,6 +16,7 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { usePersistedUserId } from '@/utils/user-id';
 import { getCachedNoteDetails, setCachedNoteDetails } from '@/utils/note-details-cache';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface Thread {
   id: string;
@@ -76,6 +77,7 @@ export default function NoteDetailsPanel({
   inBottomSheet = false,
   initialTab
 }: NoteDetailsPanelProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState(initialTab || 'threads');
   const [localThreads, setLocalThreads] = useState<Thread[]>(threads);
@@ -593,7 +595,7 @@ export default function NoteDetailsPanel({
 
   return (
     <>
-      {/* Confirmation dialog — portal + modal-overlay-enter so backdrop/centering match other modals (not trapped in panel column) */}
+      {/* Confirmation dialog — desktop: centered in main column; matches other modals */}
       {showRemoveConfirm &&
         typeof document !== 'undefined' &&
         createPortal(
@@ -602,19 +604,7 @@ export default function NoteDetailsPanel({
             role="dialog"
             aria-modal="true"
             aria-labelledby="note-details-remove-last-thread-title"
-            style={{
-              position: 'fixed',
-              top: 0,
-              right: 0,
-              bottom: 0,
-              left: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '1rem',
-              paddingTop: 'max(1rem, env(safe-area-inset-top))',
-              paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-            }}
+            style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
             onClick={(e) => {
               if (e.target === e.currentTarget && !isMovingThread) handleCancelRemove();
             }}
@@ -657,7 +647,7 @@ export default function NoteDetailsPanel({
               </div>
             </div>
           </div>,
-          document.body,
+          portalTarget,
         )}
 
       <style>{`

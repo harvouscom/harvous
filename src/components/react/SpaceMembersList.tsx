@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ConfirmDialog from './dialogs/ConfirmDialog';
+import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface Member {
   userId: string;
@@ -39,6 +40,7 @@ export default function SpaceMembersList({
   onClose,
   onMemberRemoved,
 }: SpaceMembersListProps) {
+  const { portalTarget } = useDesktopMainModalPortal();
   const [members, setMembers] = useState<Member[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -346,7 +348,7 @@ export default function SpaceMembersList({
         </div>
       </div>
     </div>,
-    document.body
+    portalTarget
       )}
       {showLeaveConfirmDialog && (
         <ConfirmDialog

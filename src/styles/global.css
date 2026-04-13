@@ -1625,14 +1625,13 @@ button .menu-item__label {
 /* ==========================================================================
    Sheet Overlay - Full Screen Coverage
    ========================================================================== */
-/* Sheet overlay: dims content behind the sheet. Starts below the iOS safe area
-   (status bar) so the dark backdrop never renders behind the status bar — prevents
+/* Transparent hit layer (no dimmed scrim — elevation is on [data-side="bottom"] / bottom-sheet content).
+   Starts below the iOS safe area (status bar) so nothing paints behind the status bar — prevents
    iOS WebKit compositing artifacts that persist after overlay dismiss.
    Must be above the mobile nav space-switcher (z-index: 1000002).
    - constant() then env(): legacy WebKit; avoid !important on top so JS/CSS vars can apply.
    - html.ios-pwa: --sheet-overlay-top from padding probe + heuristics (see sheet-overlay-inset.ts).
-   - html.ios-pwa + mobile: portaled overlay is transparent; dimmer is .layout-root-sheet-backdrop
-     inside #layout-root so the scrim cannot paint in the status bar band. */
+   - .layout-root-sheet-backdrop: legacy in-layout slot (kept transparent; was iOS PWA dimmer band). */
 .sheet-overlay {
   position: fixed !important;
   /* env() alone: valid everywhere. WebKit PWA then overrides with max(constant, env) + ios-pwa var. */
@@ -1642,7 +1641,7 @@ button .menu-item__label {
   bottom: 0 !important;
   left: 0 !important;
   z-index: 1000020 !important;
-  background-color: rgba(0, 0, 0, 0.4) !important;
+  background-color: transparent !important;
   -webkit-transform: translateZ(0);
 }
 
@@ -1651,13 +1650,7 @@ html.ios-pwa .sheet-overlay {
   top: var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
 }
 
-@media (max-width: 1159px) {
-  html.ios-pwa .sheet-overlay {
-    background-color: transparent !important;
-  }
-}
-
-/* In-layout dimmer for iOS PWA mobile: pairs with transparent .sheet-overlay (tap target stays on portal). */
+/* In-layout backdrop slot (transparent — no scrim; sheet shadow provides separation). */
 .layout-root-sheet-backdrop {
   display: none;
   position: fixed;
@@ -1667,7 +1660,7 @@ html.ios-pwa .sheet-overlay {
   top: var(--sheet-overlay-top, env(safe-area-inset-top, 0px));
   top: var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)));
   z-index: 1000019;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: transparent;
   pointer-events: none;
 }
 
@@ -1684,7 +1677,10 @@ html.ios-pwa .sheet-overlay {
   /* !important: prevent Vaul from pushing the drawer up when keyboard opens — we handle editor/toolbar positioning ourselves. */
   bottom: 0 !important;
   z-index: 1000021 !important;
-  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 -12px 32px rgba(0, 0, 0, 0.1),
+    0 -24px 56px rgba(0, 0, 0, 0.08),
+    var(--dialog-elevation-shadow);
 }
 
 /* Vaul Drawer.Content — replaces Tailwind utilities (fixed z-50 bg-background …) that do not ship in the SPA */

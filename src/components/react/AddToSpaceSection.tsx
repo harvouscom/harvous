@@ -814,7 +814,7 @@ export default function AddToSpaceSection({
                 </div>
               ) : (
                 <>
-                  <div className="text-[12px] text-[var(--color-stone-grey)] font-sans mb-1 px-1">
+                  <div className="text-[12px] font-semibold text-[var(--color-deep-grey)] font-sans mb-1 px-1">
                     {addableFtsResults.length} {addableFtsResults.length === 1 ? 'item' : 'items'} found
                   </div>
                   <div className="flex-stack" style={{ gap: '0.5rem' }}>

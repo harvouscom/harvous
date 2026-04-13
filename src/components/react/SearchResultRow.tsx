@@ -32,7 +32,7 @@ export interface SearchResultRowProps {
   result: SearchResult;
   /** Merged onto CondensedNoteRowLayout (e.g. `relative spotlight-result-row` in Spotlight). */
   className?: string;
-  /** Defaults to thread-list condensed height; Spotlight passes 52 to match the search field. */
+  /** Defaults to `CONDENSED_NOTE_ROW_HEIGHT_PX` (same as CondensedNoteItem / SearchResultsList). */
   rowHeightPx?: number;
 }
 

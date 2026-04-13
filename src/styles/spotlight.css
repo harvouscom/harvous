@@ -7,8 +7,7 @@
   /* Shrinks when keyboard opens on modern iOS/Android (dynamic viewport). */
   height: 100dvh;
   z-index: 1000025;
-  background: rgba(0, 0, 0, 0.4);
-  animation: modalOverlayFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -18,43 +17,121 @@
            max(12px, env(safe-area-inset-left, 12px));
 }
 
-@media (max-width: 1159px) {
+/* Desktop: full-viewport overlay + 3-column grid (nav | spotlight | panels) — same pattern as .modal-overlay-enter */
+@media (min-width: 1160px) {
   .spotlight-overlay {
-    align-items: flex-start;
-    /* Below notch / status bar; dialog stays above the keyboard. */
-    padding-top: max(env(safe-area-inset-top, 12px), 16px);
+    display: grid !important;
+    grid-template-columns: 310px 1fr 1fr;
+    gap: 1.5rem;
+    /* At least 12px from viewport edges; keep 1.5rem when larger */
+    padding: max(12px, 1.5rem) !important;
+    padding-top: max(12px, 1.5rem, env(safe-area-inset-top)) !important;
+    padding-bottom: max(12px, 1.5rem, env(safe-area-inset-bottom)) !important;
+    align-items: stretch !important;
+    justify-content: initial !important;
+  }
+
+  .spotlight-overlay::before,
+  .spotlight-overlay::after {
+    content: '';
+    display: block;
+  }
+
+  /* 12px breathing room inside the main column so the card never sits flush on the beige/panel edge */
+  .spotlight-overlay > .spotlight-wrapper {
+    align-self: center;
+    justify-self: center;
+    margin-bottom: 128px;
+    width: 100%;
+    max-width: min(28rem, calc(100% - 24px)) !important;
+    box-sizing: border-box;
   }
 }
 
-.spotlight-overlay--closing {
-  animation: modalOverlayFadeOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+@media (max-width: 1159px) {
+  .spotlight-overlay {
+    align-items: flex-start;
+    justify-content: center;
+    padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
+      max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+  }
+
+  .spotlight-overlay > .spotlight-wrapper {
+    width: 100%;
+    max-width: min(28rem, 100%);
+    min-width: 0;
+    min-height: 0;
+    flex-shrink: 1;
+    max-height: calc(
+      100dvh - max(12px, env(safe-area-inset-top, 0px)) - max(12px, env(safe-area-inset-bottom, 0px))
+    );
+  }
+
+  .spotlight-container [cmdk-list] {
+    max-height: min(45dvh, 360px);
+  }
 }
 
-/* Wrapper — stacks strip behind card */
+/* Wrapper — snow-white shell so the card reads solid to the lip (inner panel + transforms can’t leave a transparent band at the top). Cream strip paints over the bottom. */
 .spotlight-wrapper {
   position: relative;
   width: 100%;
-  max-width: 470px;
+  max-width: 28rem;
   max-height: 100%;
-  display: flex;
-  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  border-radius: 1.5rem;
+  background-color: var(--color-snow-white);
+  box-shadow: var(--dialog-elevation-shadow);
   animation: spotlightSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .spotlight-overlay--closing .spotlight-wrapper {
-  animation: spotlightSlideOut 0.15s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: spotlightSlideOut 0.2s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
-/* Action strip layer — peeks out from below the card (geometry matches `.mobile-action-strip-dock` / `.featured-card__dock`) */
+/* Reserve dock height; white panel overlaps top 1.5rem of cream (same as featured card + dock) */
+.spotlight-wrapper--with-strip {
+  padding-bottom: calc(2.75rem + 1.5rem);
+}
+
+/* Cream dock — absolute bottom like `.featured-card__dock` (avoids white seam / overflow clip vs negative margin on strip) */
 .spotlight-strip {
-  position: relative;
-  z-index: 1;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(2.75rem + 1.5rem);
+  padding-top: 1.5rem;
+  padding-bottom: 0;
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   background-color: #ebe8e0;
   border-bottom-left-radius: 1.5rem;
   border-bottom-right-radius: 1.5rem;
-  margin-top: -1.5rem; /* tucks top portion behind the card lip — same underlap as card-stack docks */
-  padding-top: 1.5rem;
-  box-sizing: border-box;
+  box-shadow: none;
+  pointer-events: auto;
+}
+
+.spotlight-strip .action-strip--mobile {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* Full-width row: edge to edge within strip padding — overrides global max-content / min-width:100% */
+.spotlight-strip .action-strip--mobile .action-strip__inner {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  justify-content: space-between;
+  gap: 0;
 }
 
 .spotlight-strip .action-strip__item {
@@ -78,20 +155,25 @@
 }
 
 /* Container — aligns with `.card-stack` / `.card-stack__container` (24px outer radius) */
+.spotlight-wrapper--with-strip .spotlight-container {
+  margin-bottom: -1.5rem;
+}
+
 .spotlight-container {
   /* Matches .recent-search-row + .spotlight-input-wrapper */
   --spotlight-field-height: 52px;
-  /* Spotlight list rows: same height as the search field + navigation.css `.recent-search-row` (roomier than thread lists) */
-  --spotlight-result-row-height: var(--spotlight-field-height);
+  /* FTS hits only — condensed (`CONDENSED_NOTE_ROW_HEIGHT_PX`); recent searches use --spotlight-recent-row-height */
+  --spotlight-result-row-height: 42px;
+  /* Recent search rows — same as search field / navigation.css `.recent-search-row` */
+  --spotlight-recent-row-height: var(--spotlight-field-height);
   position: relative;
-  z-index: 2;
+  z-index: 1;
   background: var(--color-snow-white);
   border-radius: 1.5rem;
-  /* Tighter than a heavy “floating” stack so less dumps onto .spotlight-strip below */
-  box-shadow:
-    0px 2px 8px 0px rgba(0, 0, 0, 0.06),
-    0px 10px 22px 0px rgba(0, 0, 0, 0.05);
+  /* Outer elevation is on `.spotlight-wrapper` (panel + strip) */
+  box-shadow: none;
   overflow: hidden;
+  overflow: clip;
   font-family: var(--font-sans);
   /* Horizontal inset for cmdk content — avoids width:100% + horizontal margin overflow on `.search-input` */
   padding-left: 12px;
@@ -163,7 +245,7 @@
   transition: opacity 0.2s ease-out;
 }
 
-.spotlight-container .spotlight-recent-item__badge-slot .close-icon {
+.spotlight-recent-item__badge-slot .close-icon {
   left: 50%;
   top: 50%;
   right: auto;
@@ -200,7 +282,7 @@
     opacity: 1 !important;
   }
 
-  .spotlight-container .spotlight-recent-item__badge-slot .close-icon {
+  .spotlight-recent-item__badge-slot .close-icon {
     position: relative;
     left: auto;
     top: auto;
@@ -276,14 +358,16 @@
   padding: 8px 0;
 }
 
-/* Group heading — matches SearchResultsList count label */
+/* Group heading — matches SearchResultsList count label; semibold + deep grey like `.badge-number` (navigation.css) */
 .spotlight-container [cmdk-group-heading] {
   padding: 4px 4px 8px;
   font-size: 12px;
-  font-weight: 400;
-  color: var(--color-pebble-grey);
+  font-weight: 600;
+  color: var(--color-deep-grey);
   font-family: var(--font-sans);
   text-align: center;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Items — CondensedNoteRowLayout handles internal structure; we just wrap for selection + spacing */
@@ -302,7 +386,7 @@
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale).
    Selection ring uses box-shadow (not border) so row inner height stays full
-   --spotlight-result-row-height — matches .recent-search-row content area. */
+   --spotlight-result-row-height — same as CondensedNoteRowLayout / Find SearchResultsList rows. */
 .spotlight-container .spotlight-result-row {
   position: relative;
   height: var(--spotlight-result-row-height) !important;
@@ -346,8 +430,8 @@
 
 /* Recent rows — chrome from .recent-search-row in navigation.css; cmdk selection ring */
 .spotlight-container .spotlight-recent-row {
-  min-height: var(--spotlight-result-row-height) !important;
-  height: var(--spotlight-result-row-height) !important;
+  min-height: var(--spotlight-recent-row-height) !important;
+  height: var(--spotlight-recent-row-height) !important;
   box-sizing: border-box;
   border: none;
   /* Default lift matches RecentSearches / RecentItem (was inline boxShadow; must live here so hover/selection rings stack) */
@@ -418,23 +502,10 @@
   }
 }
 
-@keyframes modalOverlayFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-/* Mobile — same 24px shell as `.card-stack` on narrow viewports (no smaller radius) */
-@media (max-width: 1159px) {
-  .spotlight-container [cmdk-list] {
-    max-height: min(45dvh, 360px);
-  }
-}
-
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .spotlight-container,
-  .spotlight-overlay,
-  .spotlight-overlay--closing .spotlight-container {
+  .spotlight-wrapper,
+  .spotlight-overlay--closing .spotlight-wrapper {
     animation-duration: 0.01ms !important;
   }
 

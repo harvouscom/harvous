@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import ButtonSmall from '../ButtonSmall';
 
 export interface SuggestedThreadDialogProps {
@@ -21,6 +22,8 @@ export default function SuggestedThreadDialog({
   onKeepUnorganized,
   onClose,
 }: SuggestedThreadDialogProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+
   // Prevent body scroll when dialog is open
   useEffect(() => {
     if (typeof document === 'undefined') {
@@ -49,20 +52,7 @@ export default function SuggestedThreadDialog({
   return createPortal(
     <div 
       className="modal-overlay-enter"
-      style={{
-        position: 'fixed',
-        top: 0,
-        right: 0,
-        bottom: 0,
-        left: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000025,
-        padding: '1rem',
-        paddingTop: 'max(1rem, env(safe-area-inset-top))',
-        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-      }}
+      style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
       onClick={(e) => {
         // Close dialog if clicking on the overlay (but not the dialog content)
         // Just close, don't submit - user can click buttons to submit
@@ -151,6 +141,6 @@ export default function SuggestedThreadDialog({
         </div>
       </div>
     </div>,
-    document.body
+    portalTarget
   );
 }

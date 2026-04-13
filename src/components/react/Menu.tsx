@@ -9,6 +9,7 @@ import { safeFetch } from '@/utils/safe-fetch';
 import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
 import { performThreadErase, threadEraseModeFromMenuAction, getThreadEraseConfirmCopy } from '@/utils/perform-thread-erase';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 export interface MenuOption {
   action: string;
@@ -154,6 +155,8 @@ export default function Menu({
   currentThreadId, // Add this prop
   onClose
 }: MenuProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+
   // Get userId at top level (not inside async functions) to comply with Rules of Hooks
   // Works online (from Clerk) and offline (from localStorage)
   const userId = usePersistedUserId();
@@ -804,26 +807,13 @@ export default function Menu({
         ))}
       </div>
 
-      {/* Confirmation Dialog - Rendered via Portal to ensure full viewport coverage */}
+      {/* Confirmation dialog — desktop: centered in main column; mobile: bottom sheet (panels.css) */}
       {showConfirmDialog && contentType && typeof document !== 'undefined' && createPortal(
         <div
           className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             if (e.target === e.currentTarget && !isThreadEraseBusy) {
               handleCancelErase();
@@ -888,7 +878,7 @@ export default function Menu({
             )}
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
 
       <style>{`

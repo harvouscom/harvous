@@ -10,6 +10,7 @@ import { idToUrl } from '@/utils/url-helpers';
 import { isNetworkError } from '@/utils/network';
 import { getMenuOptions, shouldShowActionStripMenu } from '@/utils/menu-options';
 import { performThreadErase, threadEraseModeFromMenuAction, getThreadEraseConfirmCopy } from '@/utils/perform-thread-erase';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import Icon from './Icon';
 
 export interface ActionStripItem {
@@ -75,6 +76,7 @@ export default function ActionStrip({
   userId: userIdProp,
   linkedFromNoteId,
 }: ActionStripProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
   const userId = usePersistedUserId();
   const effectiveUserId = userIdProp ?? userId;
   const [lockStateOverride, setLockStateOverride] = useState<boolean | null>(null);
@@ -593,17 +595,7 @@ export default function ActionStrip({
           className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             if (e.target === e.currentTarget && !isThreadEraseBusy) handleCancel();
           }}
@@ -654,7 +646,7 @@ export default function ActionStrip({
             )}
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
     </>
   );

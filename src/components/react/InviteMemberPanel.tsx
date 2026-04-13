@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from '@/utils/toast';
+import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface InviteMemberPanelProps {
   spaceId: string;
@@ -17,6 +18,7 @@ export default function InviteMemberPanel({
   onClose,
   onSuccess,
 }: InviteMemberPanelProps) {
+  const { portalTarget } = useDesktopMainModalPortal();
   const [method, setMethod] = useState<InviteMethod>('link');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
@@ -316,6 +318,6 @@ export default function InviteMemberPanel({
         </div>
       </div>
     </div>,
-    document.body
+    portalTarget
   );
 }

@@ -25,6 +25,7 @@ import {
   getCondensedNoteAccentBarStyle,
   getCondensedNoteMeshGradient,
 } from './CondensedNoteRowLayout';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 // ── Thread notes sessionStorage cache ──
 const THREAD_CACHE_PREFIX = 'harvous-thread-notes-';
@@ -242,6 +243,8 @@ export default function ThreadNotesList({
   onPrefetchNote,
   onNotesLoaded,
 }: ThreadNotesListProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+
   // Widen noteTypeFilter to string so TS doesn't narrow the default literal type
   // and flag comparisons with other union members (e.g. 'notes', 'resources') as always-false.
   const ntf = noteTypeFilter as string;
@@ -1612,26 +1615,13 @@ export default function ThreadNotesList({
         )}
       </div>
 
-      {/* Delete Confirmation Dialog - Rendered via Portal */}
+      {/* Delete confirmation — desktop: centered in main column */}
       {showDeleteConfirm && noteToDelete && typeof document !== 'undefined' && createPortal(
         <div
           className="modal-overlay-enter"
           role="dialog"
           aria-modal="true"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             // Close dialog if clicking on the overlay (but not the dialog content)
             if (e.target === e.currentTarget) {
@@ -1673,7 +1663,7 @@ export default function ThreadNotesList({
             />
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
     </>
   );

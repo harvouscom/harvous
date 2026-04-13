@@ -174,15 +174,6 @@
 }
 
 /* Modal Animations */
-@keyframes modalOverlayFadeIn {
-  from {
-    background-color: rgba(0, 0, 0, 0);
-  }
-  to {
-    background-color: rgba(0, 0, 0, 0.4);
-  }
-}
-
 @keyframes modalContentScaleIn {
   from {
     opacity: 0;
@@ -205,14 +196,13 @@
   }
 }
 
-/* Do not set inline backgroundColor on this overlay — it overrides modalOverlayFadeIn (dimmed backdrop). */
+/* Full-screen transparent hit layer (no dimmed backdrop — elevation is on .modal-dialog). */
 .modal-overlay-enter {
-  animation: modalOverlayFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  background: transparent;
   /* Must sit above all nav chrome (space-switcher: 1000002, sheet: 1000021) */
   z-index: 1000025 !important;
   -webkit-transform: translateZ(0);
-  /* Clip the dark backdrop below the iOS safe area so it never renders behind
-     the status bar — prevents WebKit compositing artifacts on overlay dismiss. */
+  /* Clip below the iOS safe area so nothing paints in the status bar band — avoids WebKit compositing artifacts on dismiss. */
   clip-path: inset(env(safe-area-inset-top, 0px) 0 0 0);
   clip-path: inset(max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px)) 0 0 0);
 }
@@ -222,6 +212,39 @@ html.ios-pwa .modal-overlay-enter {
   clip-path: inset(
     var(--sheet-overlay-top, max(constant(safe-area-inset-top, 0px), env(safe-area-inset-top, 0px))) 0 0 0
   );
+}
+
+/* Desktop: full-viewport overlay uses 3-column grid matching desktop-layout.
+   ::before = nav col, dialog card = main col, ::after = panels col.
+   Click anywhere outside the card (nav, panels, empty space) dismisses. */
+@media (min-width: 1160px) {
+  .modal-overlay-enter {
+    display: grid !important;
+    grid-template-columns: 310px 1fr 1fr;
+    gap: 1.5rem;
+    /* At least 12px from viewport edges; keep 1.5rem when larger (matches spotlight-overlay) */
+    padding: max(12px, 1.5rem) !important;
+    padding-top: max(12px, 1.5rem, env(safe-area-inset-top)) !important;
+    padding-bottom: max(12px, 1.5rem, env(safe-area-inset-bottom)) !important;
+    align-items: stretch !important;
+    justify-content: initial !important;
+  }
+
+  .modal-overlay-enter::before,
+  .modal-overlay-enter::after {
+    content: '';
+    display: block;
+  }
+
+  /* Dialog card: centered in main column, shifted 64px above center; 12px inset inside column */
+  .modal-overlay-enter > .modal-content-enter {
+    align-self: center;
+    justify-self: center;
+    margin-bottom: 128px;
+    width: 100%;
+    max-width: min(28rem, calc(100% - 24px)) !important;
+    box-sizing: border-box;
+  }
 }
 
 .modal-content-enter {

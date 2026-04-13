@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import SquareButton from './SquareButton';
 import ButtonSmall from './ButtonSmall';
 import { getCachedProfileData, updateCachedProfileData } from '@/utils/profile-cache';
+import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 interface MyChurchPanelProps {
   onClose?: () => void;
@@ -22,6 +23,8 @@ export default function MyChurchPanel({
   backIconDirection = "auto",
   initialChurchData
 }: MyChurchPanelProps) {
+  const { portalTarget, overlayUsesMainColumn } = useDesktopMainModalPortal();
+
   // Initialize form data from props if provided, otherwise empty
   const getInitialFormData = () => {
     if (initialChurchData) {
@@ -730,24 +733,11 @@ export default function MyChurchPanel({
         </div>
       </form>
 
-      {/* Unsaved Changes Dialog - Rendered via Portal to ensure full viewport coverage */}
+      {/* Unsaved changes — desktop: centered in main column */}
       {showUnsavedDialog && typeof document !== 'undefined' && createPortal(
         <div 
           className="modal-overlay-enter"
-          style={{
-            position: 'fixed',
-            top: 0,
-            right: 0,
-            bottom: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '1rem',
-            paddingTop: 'max(1rem, env(safe-area-inset-top))',
-            paddingBottom: 'max(1rem, env(safe-area-inset-bottom))'
-          }}
+          style={getModalOverlayBaseStyle(overlayUsesMainColumn)}
           onClick={(e) => {
             // Close dialog if clicking on the overlay (but not the dialog content)
             if (e.target === e.currentTarget) {
@@ -811,7 +801,7 @@ export default function MyChurchPanel({
             </div>
           </div>
         </div>,
-        document.body
+        portalTarget
       )}
     </div>
   );

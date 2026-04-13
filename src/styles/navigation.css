@@ -172,6 +172,11 @@
   transform: translate(-50%, -50%);
 }
 
+/* Keep centered in the 24×24 slot; global `.close-icon:hover` uses translateY-only and would shift the dismiss */
+.nav-item-container:not(.nav-item-container--space) .nav-item__badge-slot .close-icon:hover {
+  transform: translate(-50%, -50%);
+}
+
 @media (hover: none) {
   .nav-item-container:not(.nav-item-container--space):has(.nav-item__badge-slot .close-icon) {
     & .nav-item__badge-slot {
@@ -213,8 +218,8 @@
 
 .badge-number {
   font-size: 14px;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
   color: var(--color-deep-grey);
   line-height: 0;
   text-align: center;
@@ -223,6 +228,8 @@
   justify-content: center;
   width: 100%;
   height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Recent search rows — RecentSearches (dashboard / find / …) + Spotlight; aligns with condensed note title + field height */
@@ -239,11 +246,11 @@
   line-height: 1.2;
 }
 
-/* Same as `.badge-number` in this file — label is 700 alongside; keep count at nav weight */
+/* Matches `.badge-number` above — label is 700 alongside, count matches nav weight */
 .recent-search-row .badge-number {
   font-size: 14px;
-  font-family: var(--font-sans);
-  font-weight: 600 !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
   color: var(--color-deep-grey);
   line-height: 0;
   -webkit-font-smoothing: antialiased;
@@ -1105,6 +1112,10 @@ button.tab-nav__button .tab-nav__label,
 
 .tab-nav__button .badge-number {
   font-size: 12px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ==========================================================================

@@ -18,6 +18,7 @@ import {
   HARVOUS_TOASTER_MOBILE_BOTTOM_VAR,
 } from '@/utils/mobile-offline-chip-layout';
 import { subscribeSheetOverlayInset } from '@/utils/sheet-overlay-inset';
+import { useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 
 const PWA_INSTALL_INSTRUCTIONS_EVENT = 'showPwaInstallInstructions';
 
@@ -262,6 +263,7 @@ function UserIdSync() {
 }
 
 function PwaInstallInstructionsModal({ onClose }: { onClose: () => void }) {
+  const { portalTarget } = useDesktopMainModalPortal();
   return createPortal(
     <div
       className="pwa-install-modal-overlay"
@@ -303,7 +305,7 @@ function PwaInstallInstructionsModal({ onClose }: { onClose: () => void }) {
         </button>
       </div>
     </div>,
-    document.body
+    portalTarget
   );
 }
 
@@ -499,7 +501,7 @@ function SpaToaster() {
         .pwa-install-modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.5);
+          background: transparent;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -509,7 +511,7 @@ function SpaToaster() {
         .pwa-install-modal {
           background: var(--color-light-paper, #fff);
           border-radius: 24px;
-          box-shadow: 0px 7px 16px rgba(0,0,0,0.1), 0px 30px 30px rgba(0,0,0,0.09);
+          box-shadow: var(--dialog-elevation-shadow);
           max-width: 400px;
           width: 100%;
           padding: 24px;
