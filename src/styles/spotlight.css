@@ -365,43 +365,37 @@
   }
 }
 
-/* Mobile drawer variant — Vaul handles the overlay/backdrop; top radius matches `.card-stack` (24px) */
-.spotlight-drawer-content {
-  padding: 0;
-  border: none;
-  background: var(--color-snow-white) !important;
-  z-index: 1000026 !important;
-  border-top-left-radius: 1.5rem;
-  border-top-right-radius: 1.5rem;
-}
+/* Mobile drawer variant — shell matches `.mobile-nav__sheet` + `.mobile-nav__sheet-inner` (space switcher); Vaul overlay + [data-side="bottom"] from global.css */
 
-.spotlight-drawer-overlay {
-  z-index: 1000025 !important;
-}
-
-/* Drag handle bar */
-.spotlight-drawer-handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: oklch(var(--lch-stone-grey) / 0.3);
-  margin: 10px auto 6px;
-  flex-shrink: 0;
-}
-
-/* Remove card shadow/radius inside drawer — the drawer itself is the container */
+/* Remove card shadow/radius inside drawer — the sheet is the container */
 .spotlight-container--drawer {
   border-radius: 0;
   box-shadow: none;
 }
 
-.spotlight-container--drawer [cmdk-list] {
-  max-height: 55dvh;
+/* Inside mobile nav sheet: fill height and scroll the list like space switcher panels */
+.mobile-nav__sheet-inner > .spotlight-container--drawer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.spotlight-container--drawer [cmdk-root] {
+.mobile-nav__sheet-inner > .spotlight-container--drawer [cmdk-root] {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   padding-bottom: env(safe-area-inset-bottom, 24px);
   padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+}
+
+.mobile-nav__sheet-inner > .spotlight-container--drawer [cmdk-list] {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Reduced motion */

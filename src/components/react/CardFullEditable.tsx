@@ -120,6 +120,8 @@ export default function CardFullEditable({
   const effectiveEncrypted = lockStateOverride ?? contentEncrypted;
   const effectiveServerEncrypted = serverEncryptedOverride ?? contentEncrypted;
   const cardRootRef = useRef<HTMLDivElement>(null);
+  /** iOS: focus synchronously on tap so keyboard opens; Tiptap focus in onEditorReady is too late for user-gesture chain */
+  const keyboardProxyRef = useRef<HTMLTextAreaElement>(null);
 
   // Mobile keyboard: when keyboard opens (visualViewport shrinks), set CSS vars on card root so toolbar floats 12px above keyboard and editor scrolls (same as NewNotePanel in sheet)
   const RESERVE_EDITOR_PX = 130;
@@ -850,6 +852,15 @@ export default function CardFullEditable({
         }
       });
     } else {
+      const touchPrimary =
+        typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+      if (touchPrimary && keyboardProxyRef.current) {
+        try {
+          keyboardProxyRef.current.focus({ preventScroll: true });
+        } catch {
+          keyboardProxyRef.current.focus();
+        }
+      }
       setIsContentEditing(true);
       // Set flag to focus editor when it's ready
       shouldFocusEditorRef.current = true;
@@ -881,6 +892,7 @@ export default function CardFullEditable({
           if (!editor || editor.isDestroyed || !editor.view?.docView) return;
           try {
             editor.commands.focus();
+            keyboardProxyRef.current?.blur();
             const doc = editor.state.doc;
             const maxPos = doc.content.size;
             try {
@@ -934,6 +946,7 @@ export default function CardFullEditable({
   };
 
   const cancelEdit = () => {
+    keyboardProxyRef.current?.blur();
     setIsTitleEditing(false);
     setIsContentEditing(false);
     setEditTitle(displayTitle);
@@ -1384,6 +1397,19 @@ export default function CardFullEditable({
         data-card-full-editable
         {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
       >
+        <textarea
+          ref={keyboardProxyRef}
+          aria-hidden
+          tabIndex={-1}
+          defaultValue=""
+          onInput={(e) => {
+            e.currentTarget.value = '';
+          }}
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
+          className="card-full-editable__keyboard-proxy"
+        />
         <div className="card-image-link" style={{ gap: '1rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* Full-width image at top */}
           {resourceImage && !imageRemoved && (
@@ -1635,6 +1661,19 @@ export default function CardFullEditable({
         data-card-full-editable
         {...((isContentEditing || isTitleEditing) && { 'data-editing': 'true' })}
       >
+      <textarea
+        ref={keyboardProxyRef}
+        aria-hidden
+        tabIndex={-1}
+        defaultValue=""
+        onInput={(e) => {
+          e.currentTarget.value = '';
+        }}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        className="card-full-editable__keyboard-proxy"
+      />
       {/* Header with title, version (scripture only), and bookmark icon */}
       <div className="flex gap-3 items-center justify-center relative shrink-0 w-full px-3">
         <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">

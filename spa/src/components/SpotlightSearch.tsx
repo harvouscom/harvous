@@ -218,6 +218,13 @@ export default function SpotlightSearch() {
     }, 150); // matches exit animation duration
   }, []);
 
+  /** Mobile Vaul drawer — sync body overflow when sheet closes (same pattern as MobileNavigation). */
+  const closeMobileDrawer = useCallback(() => {
+    setIsOpen(false);
+    setIsClosing(false);
+    document.body.style.overflow = savedOverflow.current;
+  }, []);
+
   // On desktop, focus the search input when the overlay opens.
   // On mobile, Vaul's onOpenAutoFocus handles focus after the drawer animates in.
   useEffect(() => {
@@ -445,29 +452,31 @@ export default function SpotlightSearch() {
       <Drawer.Root
         open={isOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            setIsOpen(false);
-            setIsClosing(false);
-            document.body.style.overflow = savedOverflow.current;
-          }
+          if (!open) closeMobileDrawer();
         }}
         shouldScaleBackground={false}
         noBodyStyles={true}
         fixed={true}
       >
         <DrawerContent
-          className="spotlight-drawer-content"
-          overlayClassName="spotlight-drawer-overlay"
+          className="mobile-nav__sheet"
+          onOverlayClick={closeMobileDrawer}
+          style={{
+            background: 'white',
+            padding: 0,
+            border: 'none',
+            borderTop: 'none',
+          }}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             requestAnimationFrame(() => inputRef.current?.focus());
           }}
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          {/* Drag handle */}
-          <div className="spotlight-drawer-handle" />
-          <div className="spotlight-container spotlight-container--drawer">
-            {searchContent}
+          <div className="mobile-nav__sheet-inner">
+            <div className="spotlight-container spotlight-container--drawer">
+              {searchContent}
+            </div>
           </div>
         </DrawerContent>
       </Drawer.Root>

@@ -2928,10 +2928,12 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         try {
           const view = editor.view;
           if (!view || editor.isDestroyed) return;
+          const editorDom = view.dom;
+          // Keyboard-open layout: scroll-margin + selectionUpdate scroll handle caret; manual scroll fights CSS and causes a gap above the toolbar
+          if (editorDom.closest('[data-keyboard-open]')) return;
           const { from } = editor.state.selection;
           const coords = view.coordsAtPos(from);
           if (coords) {
-            const editorDom = view.dom;
             const scrollContainer = editorDom.closest('.tiptap-content') || editorDom.closest('.card-stack__inner');
             if (scrollContainer) {
               const scrollRect = scrollContainer.getBoundingClientRect();
