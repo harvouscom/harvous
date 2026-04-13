@@ -478,6 +478,48 @@ describe('offline-read-layer', () => {
       // No lastVisited: sortByLastVisited uses createdAt among unvisited (newest first)
       expect(result.notes.map((n) => n.id)).toEqual(['note-0', 'note-1', 'note-2']);
     });
+
+    it('should order onboarding thread oldest-first', async () => {
+      const threadId = `thread_onboarding_${testUserId}`;
+
+      for (let i = 0; i < 5; i++) {
+        const noteId = `note-${i}`;
+        await offlineDB.notes.add({
+          id: noteId,
+          userId: testUserId,
+          title: `Note ${i}`,
+          content: 'Content',
+          threadId: 'thread_unorganized',
+          spaceId: null,
+          simpleNoteId: i + 1,
+          noteType: 'default',
+          addedBy: 'user',
+          isPublic: false,
+          isFeatured: false,
+          order: 0,
+          lastVisited: null,
+          syncStatus: 'synced',
+          lastModified: Date.now() - i * 1000,
+          createdAt: new Date(Date.now() - i * 1000),
+          updatedAt: null,
+        });
+
+        await offlineDB.noteThreads.add({
+          id: `nt-onb-${i}`,
+          userId: testUserId,
+          noteId,
+          threadId,
+          syncStatus: 'synced',
+          lastModified: Date.now(),
+          createdAt: new Date(),
+          updatedAt: null,
+        });
+      }
+
+      const result = await getNotesForThreadLocal(testUserId, threadId, 3, 0);
+      // simpleNoteId 1..5 matches pack order (not createdAt — all notes could share one timestamp)
+      expect(result.notes.map((n) => n.id)).toEqual(['note-0', 'note-1', 'note-2']);
+    });
   });
 
   describe('getNotesForSpaceLocal', () => {

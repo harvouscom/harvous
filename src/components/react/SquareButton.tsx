@@ -53,7 +53,7 @@ export default function SquareButton({
   spaceRole,
   contentOwnerId,
   userId,
-  linkedFromNoteId
+  linkedFromNoteId,
 }: SquareButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,7 +99,20 @@ export default function SquareButton({
         },
       ];
     } else if (variant === "More" && contentType) {
-      const options = getMenuOptions(contentType, contentId, noteType, effectiveEncrypted, effectiveContentEncryptedServer, noteSimpleId, spaceRole, contentOwnerId, userId, undefined, linkedFromNoteId);
+      const options = getMenuOptions(
+        contentType,
+        contentId,
+        noteType,
+        effectiveEncrypted,
+        effectiveContentEncryptedServer,
+        noteSimpleId,
+        spaceRole,
+        contentOwnerId,
+        userId,
+        undefined,
+        linkedFromNoteId,
+        contentType === 'note' ? currentThreadId : undefined
+      );
       return options.map(option => {
         let icon;
         switch (option.action) {

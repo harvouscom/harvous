@@ -69,8 +69,8 @@ export function getLastVisitedSectionKey(
   return SECTION_KEYS.moreThan1Year;
 }
 
-/** True if threadId is the onboarding thread for a user. */
-function isOnboardingThread(threadId: string | null | undefined): boolean {
+/** True if threadId is the onboarding thread for a user (`thread_onboarding_${userId}`). */
+export function isOnboardingThread(threadId: string | null | undefined): boolean {
   return typeof threadId === 'string' && threadId.startsWith('thread_onboarding_');
 }
 

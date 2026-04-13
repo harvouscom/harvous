@@ -5,7 +5,8 @@ import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import { stripHtml } from '@/utils/html-stripper';
-import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
+import { normalizeDate, sortByLastVisited, sortOnboardingThreadNotes } from '@/utils/sorting';
+import { isOnboardingThread } from '@/utils/last-visited-sections';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
@@ -224,8 +225,11 @@ function computeThreadNotesViewList(options: {
   return sortNotesByTime(uniqueNotes, options.threadId);
 }
 
-// Same as non-chronological space notes: lastVisited → updatedAt → createdAt (see sortByLastVisited).
-function sortNotesByTime(notes: Note[], _threadId: string): Note[] {
+// Onboarding: pack order by simpleNoteId (seed uses one timestamp for all notes). Others: sortByLastVisited.
+function sortNotesByTime(notes: Note[], threadId: string): Note[] {
+  if (isOnboardingThread(threadId)) {
+    return sortOnboardingThreadNotes(notes);
+  }
   return sortByLastVisited(notes);
 }
 

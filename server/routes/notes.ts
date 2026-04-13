@@ -55,6 +55,10 @@ import { stripHtml } from '@/utils/html-stripper';
 
 const route = new Hono();
 
+function isOnboardingSystemNote(note: { threadId: string; addedBy: string | null }): boolean {
+  return note.threadId.startsWith('thread_onboarding_') && note.addedBy === 'system';
+}
+
 // ─── Title helpers ────────────────────────────────────────────────────────────
 const TITLE_HARD_LIMIT = 50;
 const truncateAndCapitalizeTitle = (title: string): string => {
@@ -385,6 +389,9 @@ route.put('/api/notes/update', requireAuth, rateLimit('write'), async (c) => {
 
     const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: 'Note not found' }, 404);
+    if (isOnboardingSystemNote(existingNote)) {
+      return c.json({ error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    }
 
     const isEncrypted = contentEncrypted === true;
     const capitalizedContent = isEncrypted ? content : (content.charAt(0).toUpperCase() + content.slice(1));
@@ -1102,6 +1109,9 @@ route.post('/api/notes/:id/update-content', requireAuth, rateLimit('write'), asy
 
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ success: false, error: 'Note not found' }, 404);
+    if (isOnboardingSystemNote(note)) {
+      return c.json({ success: false, error: 'This note is read-only.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
+    }
 
     const updateData: any = { content, updatedAt: nowISO() };
     if (typeof contentEncrypted === 'boolean') {
@@ -1324,10 +1334,26 @@ route.get('/api/notes/:noteId/share', requireAuth, async (c) => {
 
     const noteId = requireParam(c, 'noteId');
 
-    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted })
-      .from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    const note = first(
+      await db
+        .select({
+          id: Notes.id,
+          threadId: Notes.threadId,
+          addedBy: Notes.addedBy,
+          isPublic: Notes.isPublic,
+          shareToken: Notes.shareToken,
+          shareTokenCreatedAt: Notes.shareTokenCreatedAt,
+          userId: Notes.userId,
+          noteType: Notes.noteType,
+          contentEncrypted: Notes.contentEncrypted,
+        })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1)
+    );
     if (!note) return c.json({ error: 'Note not found' }, 404);
     if (note.userId !== auth.userId) return c.json({ error: 'You do not have permission to access this note' }, 403);
+    if (isOnboardingSystemNote(note)) return c.json({ error: 'This note cannot be shared.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
 
     let effectiveShareToken = note.shareToken;
     let effectiveShareTokenCreatedAt = note.shareTokenCreatedAt;
@@ -1369,10 +1395,24 @@ route.post('/api/notes/:noteId/share', requireAuth, rateLimit('write'), async (c
     const { action } = await c.req.json();
     if (!action || !['enable', 'disable', 'refresh'].includes(action)) return c.json({ error: 'Invalid action' }, 400);
 
-    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, userId: Notes.userId, contentEncrypted: Notes.contentEncrypted })
-      .from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    const note = first(
+      await db
+        .select({
+          id: Notes.id,
+          threadId: Notes.threadId,
+          addedBy: Notes.addedBy,
+          isPublic: Notes.isPublic,
+          shareToken: Notes.shareToken,
+          userId: Notes.userId,
+          contentEncrypted: Notes.contentEncrypted,
+        })
+        .from(Notes)
+        .where(eq(Notes.id, noteId))
+        .limit(1)
+    );
     if (!note) return c.json({ error: 'Note not found' }, 404);
     if (note.userId !== auth.userId) return c.json({ error: 'You do not have permission' }, 403);
+    if (isOnboardingSystemNote(note)) return c.json({ error: 'This note cannot be shared.', code: 'ONBOARDING_NOTE_READ_ONLY' }, 400);
 
     if (note.contentEncrypted && (action === 'enable' || action === 'refresh')) {
       return c.json({ error: 'Remove the lock first to share it.', code: 'ENCRYPTED_NOTE_CANNOT_SHARE' }, 400);

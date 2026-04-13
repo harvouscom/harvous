@@ -630,7 +630,8 @@ export default function AppLayout() {
     contentOwnerId,
     user?.id ?? null,
     spaceIsShared,
-    noteLinkedFromNoteId
+    noteLinkedFromNoteId,
+    noteCurrentThreadId ?? null
   );
   const showActionStrip = shouldShowActionStripMenu(
     contentType,

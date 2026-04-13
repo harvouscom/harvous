@@ -4,7 +4,9 @@
  * both have the same content without a runtime .md loader.
  */
 
-import { onboardingNotesGenerated } from './onboarding-notes.generated';
+import { onboardingNotesGenerated, ONBOARDING_PACK_VERSION } from './onboarding-notes.generated';
+
+export { ONBOARDING_PACK_VERSION };
 
 export interface OnboardingNote {
   title: string;

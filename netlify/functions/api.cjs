@@ -18283,6 +18283,8 @@ var init_schema2 = __esm({
       lockPinSalt: text("lockPinSalt"),
       lockPinHash: text("lockPinHash"),
       defaultTranslation: text("defaultTranslation").notNull().default("NET"),
+      /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
+      onboardingPackVersionApplied: integer("onboardingPackVersionApplied").notNull().default(0),
       createdAt: ts("createdAt").notNull(),
       updatedAt: ts("updatedAt")
     });
@@ -18613,6 +18615,10716 @@ var init_db2 = __esm({
   }
 });
 
+// src/utils/season-helpers.ts
+function getCurrentSeason() {
+  const now2 = /* @__PURE__ */ new Date();
+  const month = now2.getMonth() + 1;
+  const year = now2.getFullYear();
+  if (month >= 3 && month <= 5) return `spring-${year}`;
+  if (month >= 6 && month <= 8) return `summer-${year}`;
+  if (month >= 9 && month <= 11) return `fall-${year}`;
+  if (month === 12) return `winter-${year}`;
+  return `winter-${year - 1}`;
+}
+function getSeasonDisplayName(season) {
+  const currentSeason = season || getCurrentSeason();
+  const [seasonName, year] = currentSeason.split("-");
+  const capitalized = seasonName.charAt(0).toUpperCase() + seasonName.slice(1);
+  return `${capitalized} ${year}`;
+}
+var init_season_helpers = __esm({
+  "src/utils/season-helpers.ts"() {
+    "use strict";
+  }
+});
+
+// server/utils/highest-simple-note-id.ts
+async function getEffectiveHighestSimpleNoteId(userId) {
+  const [userMetadata, existingNotes] = await Promise.all([
+    db.select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1).then((rows) => first(rows)),
+    db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1)
+  ]);
+  const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
+  const maxFromNotes = existingNotes.length > 0 ? existingNotes[0].simpleNoteId ?? 0 : 0;
+  const effectiveHighest = Math.max(fromMetadata, maxFromNotes);
+  if (userMetadata && effectiveHighest > (userMetadata.highestSimpleNoteId ?? 0)) {
+    await db.update(UserMetadata).set({ highestSimpleNoteId: effectiveHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+  }
+  return effectiveHighest;
+}
+var init_highest_simple_note_id = __esm({
+  "server/utils/highest-simple-note-id.ts"() {
+    "use strict";
+    init_db2();
+    init_dates();
+  }
+});
+
+// src/utils/keyword-trie.ts
+function buildKeywordTrie(keywords) {
+  const root = { children: /* @__PURE__ */ new Map() };
+  for (const keyword of keywords) {
+    if (keyword.category !== "book" && keyword.category !== "character") continue;
+    const mainPhrase = keyword.name.toLowerCase().trim();
+    if (mainPhrase) insertPhrase(root, mainPhrase, keyword, false);
+    for (const syn of keyword.synonyms) {
+      const phrase = syn.toLowerCase().trim();
+      if (phrase) insertPhrase(root, phrase, keyword, true);
+    }
+  }
+  return { _root: root };
+}
+function insertPhrase(root, phrase, keyword, isSynonym) {
+  const words = phrase.split(/\s+/).filter(Boolean);
+  let node = root;
+  for (const word of words) {
+    let next = node.children.get(word);
+    if (!next) {
+      next = { children: /* @__PURE__ */ new Map() };
+      node.children.set(word, next);
+    }
+    node = next;
+  }
+  if (!node.matches) node.matches = [];
+  node.matches.push({ keyword, isSynonym });
+}
+function tokenize(text2) {
+  if (!text2 || !text2.trim()) return [];
+  return text2.toLowerCase().match(/\b[\w']+\b/g) ?? [];
+}
+function findWordBoundMatches(trie, title, content) {
+  const root = trie._root;
+  const result = /* @__PURE__ */ new Map();
+  function scanText(text2, inTitle) {
+    const words = tokenize(text2);
+    for (let i = 0; i < words.length; i++) {
+      for (let len = 1; len <= Math.min(MAX_PHRASE_WORDS, words.length - i); len++) {
+        const phraseWords = words.slice(i, i + len);
+        const stats = lookupPhrase(root, phraseWords);
+        if (!stats) continue;
+        for (const { keyword, isSynonym } of stats) {
+          const conf = isSynonym ? keyword.confidence * 0.8 : keyword.confidence;
+          const existing = result.get(keyword);
+          if (!existing) {
+            result.set(keyword, {
+              confidence: conf,
+              inTitle,
+              inContent: !inTitle,
+              frequency: 1
+            });
+          } else {
+            existing.frequency += 1;
+            if (inTitle) existing.inTitle = true;
+            else existing.inContent = true;
+            existing.confidence = Math.max(existing.confidence, conf);
+          }
+        }
+      }
+    }
+  }
+  if (title?.trim()) scanText(title.trim(), true);
+  if (content?.trim()) scanText(content.trim(), false);
+  return result;
+}
+function lookupPhrase(root, words) {
+  let node = root;
+  for (const word of words) {
+    node = node?.children.get(word);
+    if (!node) return null;
+  }
+  return node.matches ?? null;
+}
+var MAX_PHRASE_WORDS;
+var init_keyword_trie = __esm({
+  "src/utils/keyword-trie.ts"() {
+    "use strict";
+    MAX_PHRASE_WORDS = 5;
+  }
+});
+
+// src/utils/bible-study-keywords.ts
+function getKeywordTrie() {
+  if (!keywordTrie) keywordTrie = buildKeywordTrie(BIBLE_STUDY_KEYWORDS);
+  return keywordTrie;
+}
+function findKeywordsInTextWithPriority(fullText, title, content) {
+  const foundKeywords = [];
+  const titleLower = title.toLowerCase();
+  const contentLower = content.toLowerCase();
+  const trie = getKeywordTrie();
+  const wordBoundMatches = findWordBoundMatches(trie, title, content);
+  for (const [keyword, stats] of wordBoundMatches) {
+    const titleBoost = stats.inTitle ? 0.2 : 0;
+    const frequencyBoost = stats.frequency > 1 ? Math.min(0.5, (stats.frequency - 1) * 0.1) : 0;
+    foundKeywords.push({
+      keyword,
+      confidence: Math.min(1, stats.confidence + titleBoost + frequencyBoost)
+    });
+  }
+  for (const keyword of BIBLE_STUDY_KEYWORDS) {
+    if (keyword.category === "book" || keyword.category === "character") continue;
+    let found = false;
+    let confidence = keyword.confidence;
+    let foundInTitle = false;
+    let foundInContent = false;
+    let frequency = 0;
+    const keywordLower = keyword.name.toLowerCase();
+    if (titleLower?.includes(keywordLower)) {
+      foundInTitle = true;
+      found = true;
+      confidence = keyword.confidence;
+      frequency += titleLower.split(keywordLower).length - 1;
+    }
+    if (contentLower?.includes(keywordLower)) {
+      foundInContent = true;
+      found = true;
+      confidence = keyword.confidence;
+      frequency += contentLower.split(keywordLower).length - 1;
+    }
+    for (const synonym of keyword.synonyms) {
+      const synonymLower = synonym.toLowerCase();
+      if (titleLower?.includes(synonymLower)) {
+        foundInTitle = true;
+        found = true;
+        confidence = Math.max(confidence, keyword.confidence * 0.8);
+        frequency += titleLower.split(synonymLower).length - 1;
+      }
+      if (contentLower?.includes(synonymLower)) {
+        foundInContent = true;
+        found = true;
+        confidence = Math.max(confidence, keyword.confidence * 0.8);
+        frequency += contentLower.split(synonymLower).length - 1;
+      }
+    }
+    if (found) {
+      const titleBoost = foundInTitle ? 0.2 : 0;
+      const frequencyBoost = frequency > 1 ? Math.min(0.5, (frequency - 1) * 0.1) : 0;
+      foundKeywords.push({
+        keyword,
+        confidence: Math.min(1, confidence + titleBoost + frequencyBoost)
+      });
+    }
+  }
+  return foundKeywords.sort((a, b3) => b3.confidence - a.confidence);
+}
+var BIBLE_STUDY_KEYWORDS, keywordTrie;
+var init_bible_study_keywords = __esm({
+  "src/utils/bible-study-keywords.ts"() {
+    "use strict";
+    init_keyword_trie();
+    BIBLE_STUDY_KEYWORDS = [
+      // Biblical Books
+      { name: "Genesis", category: "book", synonyms: ["gen", "first book"], confidence: 0.9 },
+      { name: "Exodus", category: "book", synonyms: ["exo", "second book"], confidence: 0.9 },
+      { name: "Leviticus", category: "book", synonyms: ["lev", "third book"], confidence: 0.9 },
+      { name: "Numbers", category: "book", synonyms: ["num", "fourth book"], confidence: 0.9 },
+      { name: "Deuteronomy", category: "book", synonyms: ["deut", "fifth book"], confidence: 0.9 },
+      { name: "Joshua", category: "book", synonyms: ["josh"], confidence: 0.9 },
+      { name: "Judges", category: "book", synonyms: ["judg"], confidence: 0.9 },
+      { name: "Ruth", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "1 Samuel", category: "book", synonyms: ["1 sam", "first samuel"], confidence: 0.9 },
+      { name: "2 Samuel", category: "book", synonyms: ["2 sam", "second samuel"], confidence: 0.9 },
+      { name: "1 Kings", category: "book", synonyms: ["1 kgs", "first kings"], confidence: 0.9 },
+      { name: "2 Kings", category: "book", synonyms: ["2 kgs", "second kings"], confidence: 0.9 },
+      { name: "1 Chronicles", category: "book", synonyms: ["1 chron", "first chronicles"], confidence: 0.9 },
+      { name: "2 Chronicles", category: "book", synonyms: ["2 chron", "second chronicles"], confidence: 0.9 },
+      { name: "Ezra", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Nehemiah", category: "book", synonyms: ["neh"], confidence: 0.9 },
+      { name: "Esther", category: "book", synonyms: ["esth"], confidence: 0.9 },
+      { name: "Job", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Psalms", category: "book", synonyms: ["psalm", "ps"], confidence: 0.9 },
+      { name: "Proverbs", category: "book", synonyms: ["prov", "proverb"], confidence: 0.9 },
+      { name: "Ecclesiastes", category: "book", synonyms: ["eccl", "ecc"], confidence: 0.9 },
+      { name: "Song of Songs", category: "book", synonyms: ["song of solomon", "sos"], confidence: 0.9 },
+      { name: "Isaiah", category: "book", synonyms: ["isa"], confidence: 0.9 },
+      { name: "Jeremiah", category: "book", synonyms: ["jer"], confidence: 0.9 },
+      { name: "Lamentations", category: "book", synonyms: ["lam"], confidence: 0.9 },
+      { name: "Ezekiel", category: "book", synonyms: ["ezek"], confidence: 0.9 },
+      { name: "Daniel", category: "book", synonyms: ["dan"], confidence: 0.9 },
+      { name: "Hosea", category: "book", synonyms: ["hos"], confidence: 0.9 },
+      { name: "Joel", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Amos", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Obadiah", category: "book", synonyms: ["obad"], confidence: 0.9 },
+      { name: "Jonah", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Micah", category: "book", synonyms: ["mic"], confidence: 0.9 },
+      { name: "Nahum", category: "book", synonyms: ["nah"], confidence: 0.9 },
+      { name: "Habakkuk", category: "book", synonyms: ["hab"], confidence: 0.9 },
+      { name: "Zephaniah", category: "book", synonyms: ["zeph"], confidence: 0.9 },
+      { name: "Haggai", category: "book", synonyms: ["hag"], confidence: 0.9 },
+      { name: "Zechariah", category: "book", synonyms: ["zech"], confidence: 0.9 },
+      { name: "Malachi", category: "book", synonyms: ["mal"], confidence: 0.9 },
+      { name: "Matthew", category: "book", synonyms: ["matt", "mt"], confidence: 0.9 },
+      { name: "Mark", category: "book", synonyms: ["mk", "mr"], confidence: 0.9 },
+      { name: "Luke", category: "book", synonyms: ["lk"], confidence: 0.9 },
+      { name: "John", category: "book", synonyms: ["jn"], confidence: 0.9 },
+      { name: "Acts", category: "book", synonyms: ["acts of the apostles"], confidence: 0.9 },
+      { name: "Romans", category: "book", synonyms: ["rom"], confidence: 0.9 },
+      { name: "1 Corinthians", category: "book", synonyms: ["1 cor", "first corinthians"], confidence: 0.9 },
+      { name: "2 Corinthians", category: "book", synonyms: ["2 cor", "second corinthians"], confidence: 0.9 },
+      { name: "Galatians", category: "book", synonyms: ["gal"], confidence: 0.9 },
+      { name: "Ephesians", category: "book", synonyms: ["eph"], confidence: 0.9 },
+      { name: "Philippians", category: "book", synonyms: ["phil"], confidence: 0.9 },
+      { name: "Colossians", category: "book", synonyms: ["col"], confidence: 0.9 },
+      { name: "1 Thessalonians", category: "book", synonyms: ["1 thess", "first thessalonians"], confidence: 0.9 },
+      { name: "2 Thessalonians", category: "book", synonyms: ["2 thess", "second thessalonians"], confidence: 0.9 },
+      { name: "1 Timothy", category: "book", synonyms: ["1 tim", "first timothy"], confidence: 0.9 },
+      { name: "2 Timothy", category: "book", synonyms: ["2 tim", "second timothy"], confidence: 0.9 },
+      { name: "Titus", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Philemon", category: "book", synonyms: ["phlm"], confidence: 0.9 },
+      { name: "Hebrews", category: "book", synonyms: ["heb"], confidence: 0.9 },
+      { name: "James", category: "book", synonyms: ["jas"], confidence: 0.9 },
+      { name: "1 Peter", category: "book", synonyms: ["1 pet", "first peter"], confidence: 0.9 },
+      { name: "2 Peter", category: "book", synonyms: ["2 pet", "second peter"], confidence: 0.9 },
+      { name: "1 John", category: "book", synonyms: ["1 jn", "first john"], confidence: 0.9 },
+      { name: "2 John", category: "book", synonyms: ["2 jn", "second john"], confidence: 0.9 },
+      { name: "3 John", category: "book", synonyms: ["3 jn", "third john"], confidence: 0.9 },
+      { name: "Jude", category: "book", synonyms: [], confidence: 0.9 },
+      { name: "Revelation", category: "book", synonyms: ["rev", "apocalypse"], confidence: 0.9 },
+      // Biblical Characters
+      { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord", "savior", "messiah", "jesus's", "jesus'"], confidence: 0.95 },
+      { name: "God", category: "character", synonyms: ["lord", "father", "almighty", "creator", "god's"], confidence: 0.95 },
+      { name: "Holy Spirit", category: "character", synonyms: ["spirit", "holy ghost", "comforter"], confidence: 0.9 },
+      { name: "Moses", category: "character", synonyms: ["moses'", "moses's"], confidence: 0.9 },
+      { name: "Abraham", category: "character", synonyms: ["abram"], confidence: 0.9 },
+      { name: "David", category: "character", synonyms: ["david's"], confidence: 0.9 },
+      { name: "Paul", category: "character", synonyms: ["apostle paul", "saul", "paul's"], confidence: 0.9 },
+      { name: "Peter", category: "character", synonyms: ["simon peter", "simon", "peter's"], confidence: 0.9 },
+      { name: "John", category: "character", synonyms: ["apostle john", "john the apostle", "john's"], confidence: 0.9 },
+      { name: "Mary", category: "character", synonyms: ["virgin mary", "mary mother of jesus", "mary's"], confidence: 0.9 },
+      { name: "Noah", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Adam", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Eve", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Joseph", category: "character", synonyms: ["joseph son of jacob", "joseph of egypt"], confidence: 0.9 },
+      { name: "Jacob", category: "character", synonyms: ["israel"], confidence: 0.9 },
+      { name: "Isaac", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Sarah", category: "character", synonyms: ["sarah wife of abraham"], confidence: 0.9 },
+      { name: "Elijah", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Elisha", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Daniel", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Esther", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Ruth", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Samson", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Samuel", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Solomon", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Isaiah", category: "character", synonyms: ["prophet isaiah"], confidence: 0.9 },
+      { name: "Jeremiah", category: "character", synonyms: ["prophet jeremiah"], confidence: 0.9 },
+      { name: "Ezekiel", category: "character", synonyms: ["prophet ezekiel"], confidence: 0.9 },
+      { name: "Daniel", category: "character", synonyms: ["prophet daniel"], confidence: 0.9 },
+      { name: "Jonah", category: "character", synonyms: ["prophet jonah"], confidence: 0.9 },
+      { name: "John the Baptist", category: "character", synonyms: ["john baptist", "baptist"], confidence: 0.9 },
+      { name: "Mary Magdalene", category: "character", synonyms: ["magdalene"], confidence: 0.9 },
+      { name: "Thomas", category: "character", synonyms: ["doubting thomas"], confidence: 0.9 },
+      { name: "Judas", category: "character", synonyms: ["judas iscariot"], confidence: 0.9 },
+      { name: "Pilate", category: "character", synonyms: ["pontius pilate"], confidence: 0.9 },
+      { name: "James", category: "character", synonyms: ["james brother of jesus", "james the just"], confidence: 0.9 },
+      { name: "Stephen", category: "character", synonyms: ["stephen the martyr"], confidence: 0.9 },
+      { name: "Barnabas", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Timothy", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Nicodemus", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Martha", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Lazarus", category: "character", synonyms: [], confidence: 0.9 },
+      { name: "Aaron", category: "character", synonyms: [], confidence: 0.9 },
+      // Biblical Places
+      { name: "Jerusalem", category: "place", synonyms: ["holy city", "zion"], confidence: 0.9 },
+      { name: "Bethlehem", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Nazareth", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Galilee", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Capernaum", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Gethsemane", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Golgotha", category: "place", synonyms: ["calvary"], confidence: 0.9 },
+      { name: "Garden of Eden", category: "place", synonyms: ["eden"], confidence: 0.9 },
+      { name: "Mount Sinai", category: "place", synonyms: ["sinai"], confidence: 0.9 },
+      { name: "Red Sea", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Jordan River", category: "place", synonyms: ["jordan"], confidence: 0.9 },
+      { name: "Dead Sea", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Mount of Olives", category: "place", synonyms: ["olives"], confidence: 0.9 },
+      { name: "Temple", category: "place", synonyms: ["jerusalem temple", "holy temple"], confidence: 0.9 },
+      { name: "Rome", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Corinth", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Ephesus", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Philippi", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Thessalonica", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Antioch", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Egypt", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Babylon", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Samaria", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Damascus", category: "place", synonyms: [], confidence: 0.9 },
+      { name: "Athens", category: "place", synonyms: [], confidence: 0.9 },
+      // Spiritual Themes
+      { name: "Prayer", category: "spiritual", synonyms: ["praying", "intercession", "petition"], confidence: 0.8 },
+      { name: "Faith", category: "spiritual", synonyms: ["belief", "trust", "confidence"], confidence: 0.8 },
+      { name: "Love", category: "spiritual", synonyms: ["charity", "agape", "compassion"], confidence: 0.8 },
+      { name: "Hope", category: "spiritual", synonyms: ["expectation", "anticipation"], confidence: 0.8 },
+      { name: "Grace", category: "spiritual", synonyms: ["favor", "mercy", "unmerited favor"], confidence: 0.8 },
+      { name: "Mercy", category: "spiritual", synonyms: ["compassion", "forgiveness", "pity"], confidence: 0.8 },
+      { name: "Forgiveness", category: "spiritual", synonyms: ["pardon", "absolution", "reconciliation"], confidence: 0.8 },
+      { name: "Salvation", category: "spiritual", synonyms: ["redemption", "deliverance", "rescue"], confidence: 0.8 },
+      { name: "Repentance", category: "spiritual", synonyms: ["turning", "conversion", "change of heart"], confidence: 0.8 },
+      { name: "Worship", category: "spiritual", synonyms: ["praise", "adoration", "reverence"], confidence: 0.8 },
+      { name: "Praise", category: "spiritual", synonyms: ["worship", "glorify", "exalt"], confidence: 0.8 },
+      { name: "Thanksgiving", category: "spiritual", synonyms: ["gratitude", "thankfulness"], confidence: 0.8 },
+      { name: "Peace", category: "spiritual", synonyms: ["tranquility", "serenity", "shalom"], confidence: 0.8 },
+      { name: "Joy", category: "spiritual", synonyms: ["gladness", "happiness", "rejoicing"], confidence: 0.8 },
+      { name: "Patience", category: "spiritual", synonyms: ["endurance", "perseverance", "longsuffering"], confidence: 0.8 },
+      { name: "Kindness", category: "spiritual", synonyms: ["gentleness", "goodness", "compassion"], confidence: 0.8 },
+      { name: "Goodness", category: "spiritual", synonyms: ["virtue", "righteousness", "moral excellence"], confidence: 0.8 },
+      { name: "Faithfulness", category: "spiritual", synonyms: ["loyalty", "reliability", "steadfastness"], confidence: 0.8 },
+      { name: "Gentleness", category: "spiritual", synonyms: ["meekness", "humility", "mildness"], confidence: 0.8 },
+      { name: "Self-control", category: "spiritual", synonyms: ["temperance", "discipline", "restraint"], confidence: 0.8 },
+      // Biblical Themes
+      { name: "Covenant", category: "biblical", synonyms: ["agreement", "promise", "pact"], confidence: 0.8 },
+      { name: "Redemption", category: "biblical", synonyms: ["salvation", "deliverance", "ransom"], confidence: 0.8 },
+      { name: "Atonement", category: "biblical", synonyms: ["reconciliation", "propitiation"], confidence: 0.8 },
+      { name: "Resurrection", category: "biblical", synonyms: ["rising", "new life", "resurrected"], confidence: 0.8 },
+      { name: "Incarnation", category: "biblical", synonyms: ["god becoming man", "enfleshment"], confidence: 0.8 },
+      { name: "Trinity", category: "biblical", synonyms: ["godhead", "three in one"], confidence: 0.8 },
+      { name: "Kingdom of God", category: "biblical", synonyms: ["kingdom of heaven", "god's kingdom"], confidence: 0.8 },
+      { name: "Gospel", category: "biblical", synonyms: ["good news", "evangel"], confidence: 0.8 },
+      { name: "Discipleship", category: "biblical", synonyms: ["following christ", "being a disciple"], confidence: 0.8 },
+      { name: "Mission", category: "biblical", synonyms: ["evangelism", "witnessing", "sharing faith"], confidence: 0.8 },
+      { name: "Parables", category: "biblical", synonyms: ["stories", "teachings"], confidence: 0.8 },
+      { name: "Miracles", category: "biblical", synonyms: ["wonders", "signs"], confidence: 0.8 },
+      { name: "Prophecy", category: "biblical", synonyms: ["prophecies", "foretelling"], confidence: 0.8 },
+      { name: "Law", category: "biblical", synonyms: ["commandments", "statutes"], confidence: 0.8 },
+      { name: "Sacrifice", category: "biblical", synonyms: ["offering", "giving up"], confidence: 0.8 },
+      { name: "Temple", category: "biblical", synonyms: ["sanctuary", "holy place"], confidence: 0.8 },
+      { name: "Sabbath", category: "biblical", synonyms: ["rest", "day of rest"], confidence: 0.8 },
+      { name: "Baptism", category: "biblical", synonyms: ["immersion", "washing", "baptized", "baptize"], confidence: 0.8 },
+      { name: "Communion", category: "biblical", synonyms: ["lord's supper", "eucharist"], confidence: 0.8 },
+      { name: "Marriage", category: "biblical", synonyms: ["wedding", "union"], confidence: 0.8 },
+      { name: "Satan", category: "biblical", synonyms: ["devil", "evil one", "tempter"], confidence: 0.85 },
+      { name: "Angels", category: "biblical", synonyms: ["angel", "heavenly host", "messenger"], confidence: 0.85 },
+      { name: "Sin", category: "biblical", synonyms: ["sinful", "transgression", "iniquity"], confidence: 0.8 },
+      { name: "Judgment", category: "biblical", synonyms: ["judgement", "judge", "day of judgment"], confidence: 0.8 },
+      { name: "Heaven", category: "biblical", synonyms: ["eternal life", "paradise", "kingdom of heaven"], confidence: 0.8 },
+      { name: "Hell", category: "biblical", synonyms: ["gehenna", "eternal punishment"], confidence: 0.85 },
+      { name: "Righteousness", category: "biblical", synonyms: ["righteous", "righteousness"], confidence: 0.8 },
+      // Life Themes
+      { name: "Family", category: "life", synonyms: ["relatives", "household"], confidence: 0.7 },
+      { name: "Marriage", category: "life", synonyms: ["wedding", "union", "relationship"], confidence: 0.7 },
+      { name: "Parenting", category: "life", synonyms: ["childrearing", "raising children"], confidence: 0.7 },
+      { name: "Friendship", category: "life", synonyms: ["companionship", "fellowship"], confidence: 0.7 },
+      { name: "Work", category: "life", synonyms: ["labor", "employment", "vocation"], confidence: 0.7 },
+      { name: "Money", category: "life", synonyms: ["finances", "wealth", "prosperity"], confidence: 0.7 },
+      { name: "Health", category: "life", synonyms: ["wellness", "healing"], confidence: 0.7 },
+      { name: "Suffering", category: "life", synonyms: ["pain", "trial", "hardship"], confidence: 0.7 },
+      { name: "Death", category: "life", synonyms: ["dying", "mortality"], confidence: 0.7 },
+      { name: "Grief", category: "life", synonyms: ["mourning", "sorrow", "loss"], confidence: 0.7 },
+      { name: "Fear", category: "life", synonyms: ["anxiety", "worry", "concern"], confidence: 0.7 },
+      { name: "Anger", category: "life", synonyms: ["wrath", "rage", "fury"], confidence: 0.7 },
+      { name: "Pride", category: "life", synonyms: ["arrogance", "conceit", "vanity"], confidence: 0.7 },
+      { name: "Humility", category: "life", synonyms: ["meekness", "modesty"], confidence: 0.7 },
+      { name: "Wisdom", category: "life", synonyms: ["understanding", "insight"], confidence: 0.7 },
+      { name: "Knowledge", category: "life", synonyms: ["learning", "education"], confidence: 0.7 },
+      { name: "Truth", category: "life", synonyms: ["honesty", "veracity"], confidence: 0.7 },
+      { name: "Justice", category: "life", synonyms: ["righteousness", "fairness"], confidence: 0.7 },
+      { name: "Peace", category: "life", synonyms: ["harmony", "tranquility"], confidence: 0.7 },
+      { name: "Hope", category: "life", synonyms: ["optimism", "expectation"], confidence: 0.7 }
+    ];
+    keywordTrie = null;
+  }
+});
+
+// src/data/bible-chapters.json
+var bible_chapters_default;
+var init_bible_chapters = __esm({
+  "src/data/bible-chapters.json"() {
+    bible_chapters_default = [
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 67
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 55
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 57
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 43,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 44,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 45,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 46,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 47,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 48,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 49,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Genesis",
+        bookOrder: 1,
+        testament: "old",
+        chapter: 50,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Exodus",
+        bookOrder: 2,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 59
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 57
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 55
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Leviticus",
+        bookOrder: 3,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 54
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 89
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 45
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 65
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 54
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 56
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Numbers",
+        bookOrder: 4,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 68
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Deuteronomy",
+        bookOrder: 5,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 63
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 45
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Joshua",
+        bookOrder: 6,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 57
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 48
+      },
+      {
+        book: "Judges",
+        bookOrder: 7,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Ruth",
+        bookOrder: 8,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ruth",
+        bookOrder: 8,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ruth",
+        bookOrder: 8,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ruth",
+        bookOrder: 8,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 58
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Samuel",
+        bookOrder: 9,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "2 Samuel",
+        bookOrder: 10,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 53
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 66
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "1 Kings",
+        bookOrder: 11,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 53
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "2 Kings",
+        bookOrder: 12,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 54
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 55
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 81
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 Chronicles",
+        bookOrder: 13,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "2 Chronicles",
+        bookOrder: 14,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 70
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Ezra",
+        bookOrder: 15,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 73
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Nehemiah",
+        bookOrder: 16,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Esther",
+        bookOrder: 17,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 3
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Job",
+        bookOrder: 18,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 43,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 44,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 45,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 46,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 47,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 48,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 49,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 50,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 51,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 52,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 53,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 54,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 55,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 56,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 57,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 58,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 59,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 60,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 61,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 62,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 63,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 64,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 65,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 66,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 67,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 68,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 69,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 70,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 71,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 72,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 73,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 74,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 75,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 76,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 77,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 78,
+        startVerse: 1,
+        endVerse: 72
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 79,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 80,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 81,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 82,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 83,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 84,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 85,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 86,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 87,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 88,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 89,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 90,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 91,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 92,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 93,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 94,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 95,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 96,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 97,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 98,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 99,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 100,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 101,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 102,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 103,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 104,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 105,
+        startVerse: 1,
+        endVerse: 45
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 106,
+        startVerse: 1,
+        endVerse: 48
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 107,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 108,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 109,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 110,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 111,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 112,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 113,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 114,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 115,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 116,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 117,
+        startVerse: 1,
+        endVerse: 2
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 118,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 119,
+        startVerse: 1,
+        endVerse: 176
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 120,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 121,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 122,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 123,
+        startVerse: 1,
+        endVerse: 4
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 124,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 125,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 126,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 127,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 128,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 129,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 130,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 131,
+        startVerse: 1,
+        endVerse: 3
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 132,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 133,
+        startVerse: 1,
+        endVerse: 3
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 134,
+        startVerse: 1,
+        endVerse: 3
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 135,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 136,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 137,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 138,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 139,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 140,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 141,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 142,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 143,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 144,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 145,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 146,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 147,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 148,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 149,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Psalms",
+        bookOrder: 19,
+        testament: "old",
+        chapter: 150,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Proverbs",
+        bookOrder: 20,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Ecclesiastes",
+        bookOrder: 21,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Song of Solomon",
+        bookOrder: 22,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 43,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 44,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 45,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 46,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 47,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 48,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 49,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 50,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 51,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 52,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 53,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 54,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 55,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 56,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 57,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 58,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 59,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 60,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 61,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 62,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 63,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 64,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 65,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Isaiah",
+        bookOrder: 23,
+        testament: "old",
+        chapter: 66,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 43,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 44,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 45,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 46,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 47,
+        startVerse: 1,
+        endVerse: 7
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 48,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 49,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 50,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 51,
+        startVerse: 1,
+        endVerse: 64
+      },
+      {
+        book: "Jeremiah",
+        bookOrder: 24,
+        testament: "old",
+        chapter: 52,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Lamentations",
+        bookOrder: 25,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Lamentations",
+        bookOrder: 25,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Lamentations",
+        bookOrder: 25,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 66
+      },
+      {
+        book: "Lamentations",
+        bookOrder: 25,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Lamentations",
+        bookOrder: 25,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 63
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 29,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 30,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 31,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 32,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 33,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 34,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 35,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 36,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 37,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 38,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 39,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 40,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 41,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 42,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 43,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 44,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 45,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 46,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 47,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ezekiel",
+        bookOrder: 26,
+        testament: "old",
+        chapter: 48,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 45
+      },
+      {
+        book: "Daniel",
+        bookOrder: 27,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 5
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Hosea",
+        bookOrder: 28,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Joel",
+        bookOrder: 29,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Joel",
+        bookOrder: 29,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Joel",
+        bookOrder: 29,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Amos",
+        bookOrder: 30,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Obadiah",
+        bookOrder: 31,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Jonah",
+        bookOrder: 32,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Jonah",
+        bookOrder: 32,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Jonah",
+        bookOrder: 32,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Jonah",
+        bookOrder: 32,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Micah",
+        bookOrder: 33,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Nahum",
+        bookOrder: 34,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Nahum",
+        bookOrder: 34,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Nahum",
+        bookOrder: 34,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Habakkuk",
+        bookOrder: 35,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Habakkuk",
+        bookOrder: 35,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Habakkuk",
+        bookOrder: 35,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Zephaniah",
+        bookOrder: 36,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Zephaniah",
+        bookOrder: 36,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Zephaniah",
+        bookOrder: 36,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Haggai",
+        bookOrder: 37,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Haggai",
+        bookOrder: 37,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 9
+      },
+      {
+        book: "Zechariah",
+        bookOrder: 38,
+        testament: "old",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Malachi",
+        bookOrder: 39,
+        testament: "old",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Malachi",
+        bookOrder: 39,
+        testament: "old",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Malachi",
+        bookOrder: 39,
+        testament: "old",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Malachi",
+        bookOrder: 39,
+        testament: "old",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 6
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 48
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 58
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 46
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 75
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 66
+      },
+      {
+        book: "Matthew",
+        bookOrder: 40,
+        testament: "new",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 45
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 56
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 72
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Mark",
+        bookOrder: 41,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 80
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 49
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 56
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 62
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 54
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 59
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 48
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 71
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 56
+      },
+      {
+        book: "Luke",
+        bookOrder: 42,
+        testament: "new",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 53
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 51
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 54
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 71
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 53
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 59
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 57
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 50
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "John",
+        bookOrder: 43,
+        testament: "new",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 47
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 37
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 42
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 60
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 43
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 48
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 52
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 41
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 38
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 23,
+        startVerse: 1,
+        endVerse: 35
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 24,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 25,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 26,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 27,
+        startVerse: 1,
+        endVerse: 44
+      },
+      {
+        book: "Acts",
+        bookOrder: 44,
+        testament: "new",
+        chapter: 28,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 36
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Romans",
+        bookOrder: 45,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 34
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 58
+      },
+      {
+        book: "1 Corinthians",
+        bookOrder: 46,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Corinthians",
+        bookOrder: 47,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 31
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "Galatians",
+        bookOrder: 48,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 32
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 33
+      },
+      {
+        book: "Ephesians",
+        bookOrder: 49,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Philippians",
+        bookOrder: 50,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Philippians",
+        bookOrder: 50,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 30
+      },
+      {
+        book: "Philippians",
+        bookOrder: 50,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Philippians",
+        bookOrder: 50,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Colossians",
+        bookOrder: 51,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Colossians",
+        bookOrder: 51,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 23
+      },
+      {
+        book: "Colossians",
+        bookOrder: 51,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Colossians",
+        bookOrder: 51,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "1 Thessalonians",
+        bookOrder: 52,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "1 Thessalonians",
+        bookOrder: 52,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "1 Thessalonians",
+        bookOrder: 52,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "1 Thessalonians",
+        bookOrder: 52,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "1 Thessalonians",
+        bookOrder: 52,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "2 Thessalonians",
+        bookOrder: 53,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 12
+      },
+      {
+        book: "2 Thessalonians",
+        bookOrder: 53,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "2 Thessalonians",
+        bookOrder: 53,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Timothy",
+        bookOrder: 54,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Timothy",
+        bookOrder: 55,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "2 Timothy",
+        bookOrder: 55,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "2 Timothy",
+        bookOrder: 55,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "2 Timothy",
+        bookOrder: 55,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Titus",
+        bookOrder: 56,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Titus",
+        bookOrder: 56,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Titus",
+        bookOrder: 56,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Philemon",
+        bookOrder: 57,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 16
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 28
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 39
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 40
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Hebrews",
+        bookOrder: 58,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "James",
+        bookOrder: 59,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "James",
+        bookOrder: 59,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 26
+      },
+      {
+        book: "James",
+        bookOrder: 59,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "James",
+        bookOrder: 59,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "James",
+        bookOrder: 59,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "1 Peter",
+        bookOrder: 60,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Peter",
+        bookOrder: 60,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "1 Peter",
+        bookOrder: 60,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "1 Peter",
+        bookOrder: 60,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "1 Peter",
+        bookOrder: 60,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "2 Peter",
+        bookOrder: 61,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 Peter",
+        bookOrder: 61,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "2 Peter",
+        bookOrder: 61,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "1 John",
+        bookOrder: 62,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 10
+      },
+      {
+        book: "1 John",
+        bookOrder: 62,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "1 John",
+        bookOrder: 62,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "1 John",
+        bookOrder: 62,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "1 John",
+        bookOrder: 62,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "2 John",
+        bookOrder: 63,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "3 John",
+        bookOrder: 64,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Jude",
+        bookOrder: 65,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 25
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 1,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 2,
+        startVerse: 1,
+        endVerse: 29
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 3,
+        startVerse: 1,
+        endVerse: 22
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 4,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 5,
+        startVerse: 1,
+        endVerse: 14
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 6,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 7,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 8,
+        startVerse: 1,
+        endVerse: 13
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 9,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 10,
+        startVerse: 1,
+        endVerse: 11
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 11,
+        startVerse: 1,
+        endVerse: 19
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 12,
+        startVerse: 1,
+        endVerse: 17
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 13,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 14,
+        startVerse: 1,
+        endVerse: 20
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 15,
+        startVerse: 1,
+        endVerse: 8
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 16,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 17,
+        startVerse: 1,
+        endVerse: 18
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 18,
+        startVerse: 1,
+        endVerse: 24
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 19,
+        startVerse: 1,
+        endVerse: 21
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 20,
+        startVerse: 1,
+        endVerse: 15
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 21,
+        startVerse: 1,
+        endVerse: 27
+      },
+      {
+        book: "Revelation",
+        bookOrder: 66,
+        testament: "new",
+        chapter: 22,
+        startVerse: 1,
+        endVerse: 21
+      }
+    ];
+  }
+});
+
+// src/data/translations.ts
+var translations_exports = {};
+__export(translations_exports, {
+  TRANSLATIONS: () => TRANSLATIONS,
+  TRANSLATION_ORDER: () => TRANSLATION_ORDER,
+  getTranslation: () => getTranslation,
+  getTranslationAbbreviationDisplay: () => getTranslationAbbreviationDisplay
+});
+function getTranslation(id) {
+  return TRANSLATIONS[id];
+}
+function getTranslationAbbreviationDisplay(id) {
+  return getTranslation(id)?.abbreviation ?? id;
+}
+var TRANSLATIONS, TRANSLATION_ORDER;
+var init_translations = __esm({
+  "src/data/translations.ts"() {
+    "use strict";
+    TRANSLATIONS = {
+      KJV: {
+        id: "KJV",
+        name: "King James Version",
+        abbreviation: "KJV",
+        publisher: "Public Domain",
+        copyright: "The King James Version is in the public domain.",
+        website: "https://www.kingjamesbibleonline.org",
+        isPublicDomain: true,
+        sortOrder: 2
+      },
+      NKJV: {
+        id: "NKJV",
+        name: "New King James Version",
+        abbreviation: "NKJV",
+        publisher: "Thomas Nelson",
+        copyright: "Scripture quotations are from the New King James Version\xAE. Copyright \xA9 1982 by Thomas Nelson. All rights reserved.",
+        website: "https://www.thomasnelson.com/nkjv",
+        isPublicDomain: false,
+        sortOrder: 3
+      },
+      ESV: {
+        id: "ESV",
+        name: "English Standard Version",
+        abbreviation: "ESV",
+        publisher: "Crossway",
+        copyright: "Scripture quotations are from the ESV\xAE Bible (The Holy Bible, English Standard Version\xAE), copyright \xA9 2001 by Crossway, a publishing ministry of Good News Publishers. All rights reserved.",
+        website: "https://www.esv.org",
+        isPublicDomain: false,
+        sortOrder: 1
+      },
+      NIV: {
+        id: "NIV",
+        name: "New International Version",
+        abbreviation: "NIV",
+        publisher: "Biblica / Zondervan",
+        copyright: "Scripture quotations are from The Holy Bible, New International Version\xAE NIV\xAE. Copyright \xA9 1973, 1978, 1984, 2011 by Biblica, Inc.\u2122 All rights reserved worldwide.",
+        website: "https://www.thenivbible.com",
+        isPublicDomain: false,
+        sortOrder: 5
+      },
+      NLT: {
+        id: "NLT",
+        name: "New Living Translation",
+        abbreviation: "NLT",
+        publisher: "Tyndale House",
+        copyright: "Scripture quotations are from the Holy Bible, New Living Translation. Copyright \xA9 1996, 2004, 2015 by Tyndale House Foundation and Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.",
+        website: "https://www.tyndale.com/nlt",
+        isPublicDomain: false,
+        sortOrder: 6
+      },
+      NET: {
+        id: "NET",
+        name: "NET Bible",
+        abbreviation: "NET",
+        publisher: "Biblical Studies Press, L.L.C.",
+        copyright: "Scripture quotations are from the NET Bible\xAE copyright \xA91996, 2019 by Biblical Studies Press, L.L.C. http://netbible.com All rights reserved.",
+        website: "https://netbible.org",
+        isPublicDomain: false,
+        sortOrder: 4
+      },
+      BSB: {
+        id: "BSB",
+        name: "Berean Standard Bible",
+        abbreviation: "BSB",
+        publisher: "Bible Hub",
+        copyright: "The Berean Bible (Berean Standard Bible BSB) \xA9 2016, 2020 by Bible Hub and Berean.Bible. Free to use and share. All rights reserved.",
+        website: "https://berean.bible",
+        isPublicDomain: false,
+        sortOrder: 0
+      },
+      NASB: {
+        id: "NASB",
+        name: "New American Standard Bible (1995)",
+        abbreviation: "NASB 1995",
+        publisher: "The Lockman Foundation",
+        copyright: "Scripture quotations taken from the New American Standard Bible\xAE (NASB 1995), Copyright \xA9 1960, 1971, 1977, 1995 by The Lockman Foundation. Used by permission. All rights reserved.",
+        website: "https://www.lockman.org",
+        isPublicDomain: false,
+        sortOrder: 7
+      },
+      CSB: {
+        id: "CSB",
+        name: "Christian Standard Bible",
+        abbreviation: "CSB",
+        publisher: "Holman Bible Publishers",
+        copyright: "Christian Standard Bible\xAE, CSB\xAE Copyright \xA9 2017 by Holman Bible Publishers. Used by permission. All rights reserved.",
+        website: "https://csbible.com",
+        isPublicDomain: false,
+        sortOrder: 8
+      },
+      AMP: {
+        id: "AMP",
+        name: "Amplified Bible",
+        abbreviation: "AMP",
+        publisher: "The Lockman Foundation",
+        copyright: "Scripture quotations marked AMP are taken from the Amplified\xAE Bible, Copyright \xA9 2015 by The Lockman Foundation. Used by permission. All rights reserved.",
+        website: "https://www.lockman.org",
+        isPublicDomain: false,
+        sortOrder: 9
+      },
+      MSG: {
+        id: "MSG",
+        name: "The Message",
+        abbreviation: "MSG",
+        publisher: "NavPress",
+        copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright \xA9 1993, 2002, 2018 by Eugene H. Peterson. Used by permission of NavPress.",
+        website: "https://www.navpress.com",
+        isPublicDomain: false,
+        sortOrder: 10
+      }
+    };
+    TRANSLATION_ORDER = Object.values(TRANSLATIONS).sort((a, b3) => a.sortOrder - b3.sortOrder).map((t) => t.id);
+  }
+});
+
+// src/utils/scripture-detector.ts
+function buildInlineTranslationAlternation() {
+  const sorted = [...TRANSLATION_ORDER].sort((a, b3) => b3.length - a.length || a.localeCompare(b3));
+  const ids = sorted.map((id) => `(?:${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`);
+  return ["(?:NASB\\s+1995)", ...ids].join("|");
+}
+function buildBibleChaptersMap() {
+  if (BIBLE_CHAPTERS_MAP) {
+    return BIBLE_CHAPTERS_MAP;
+  }
+  const map = /* @__PURE__ */ new Map();
+  const data = bible_chapters_default;
+  for (const chapter of data) {
+    const bookName = chapter.book;
+    if (!map.has(bookName)) {
+      map.set(bookName, /* @__PURE__ */ new Map());
+    }
+    const bookMap = map.get(bookName);
+    bookMap.set(chapter.chapter, {
+      startVerse: chapter.startVerse,
+      endVerse: chapter.endVerse
+    });
+  }
+  const songOfSolomon = map.get("Song of Solomon");
+  if (songOfSolomon && !map.has("Song of Songs")) {
+    map.set("Song of Songs", songOfSolomon);
+  }
+  BIBLE_CHAPTERS_MAP = map;
+  return map;
+}
+function getChapterVerseRange(book, chapter) {
+  const map = buildBibleChaptersMap();
+  const bookMap = map.get(book);
+  if (!bookMap) {
+    return null;
+  }
+  const chapterData = bookMap.get(chapter);
+  if (!chapterData) {
+    return null;
+  }
+  return { start: chapterData.startVerse, end: chapterData.endVerse };
+}
+function validateVerseNumber(book, chapter, verse) {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return false;
+  }
+  return verse >= range.start && verse <= range.end;
+}
+function validateVerseRange(book, chapter, startVerse, endVerse) {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return false;
+  }
+  return startVerse >= range.start && startVerse <= range.end && endVerse >= range.start && endVerse <= range.end && startVerse <= endVerse;
+}
+function normalizeChapterReference(book, chapter) {
+  const range = getChapterVerseRange(book, chapter);
+  if (!range) {
+    return null;
+  }
+  return `${book} ${chapter}:${range.start}-${range.end}`;
+}
+function validateAndWarn(ref) {
+  const { book, chapter, verse } = ref;
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    const singleChapterRange = getChapterVerseRange(book, chapter);
+    if (singleChapterRange && end > singleChapterRange.end) {
+      return ref;
+    }
+  }
+  if (Array.isArray(verse)) {
+    const [start, end] = verse;
+    if (!validateVerseRange(book, chapter, start, end)) {
+      const range = getChapterVerseRange(book, chapter);
+      if (range) {
+        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+      } else {
+        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+      }
+    }
+  } else {
+    if (!validateVerseNumber(book, chapter, verse)) {
+      const range = getChapterVerseRange(book, chapter);
+      if (range) {
+        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
+      } else {
+        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
+      }
+    }
+  }
+  return ref;
+}
+function isValidScriptureContext(text2, matchIndex, matchLength) {
+  const before2 = text2.substring(Math.max(0, matchIndex - 30), matchIndex).trim();
+  const after2 = text2.substring(matchIndex + matchLength, matchIndex + matchLength + 30).trim();
+  const invalidAfterPattern = /\b(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\s+(ago|later|before|after)\b/i;
+  if (invalidAfterPattern.test(after2)) {
+    return false;
+  }
+  const falsePositivePattern = /^\s*(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\b/i;
+  if (falsePositivePattern.test(after2)) {
+    const refText = text2.substring(matchIndex, matchIndex + matchLength);
+    if (!refText.includes(":") && falsePositivePattern.test(after2)) {
+      return false;
+    }
+  }
+  const firstCharAfter = after2.charAt(0);
+  if (!firstCharAfter) {
+    return true;
+  }
+  const validAfterChars = /^[.,;:!?\s\n]/;
+  if (validAfterChars.test(firstCharAfter)) {
+    return true;
+  }
+  if (/^[a-z]/.test(after2)) {
+    const commonWordsAfter = /^(is|are|was|were|has|have|had|will|would|can|could|should|may|might)\b/i;
+    if (commonWordsAfter.test(after2)) {
+      return true;
+    }
+  }
+  const invalidBefore = /\b(about|around|over|under|near|from|to|at|in|on|for|with|by)\s+$/i;
+  if (invalidBefore.test(before2)) {
+    return false;
+  }
+  return true;
+}
+var INLINE_TRANSLATION_ALT, DEBUG, BIBLE_CHAPTERS_MAP, getBookNameVariations, normalizeText, parseReference, detectScriptureReferences, parseScriptureReference, detectScripture, getPrimaryReference, normalizeScriptureReference, parseVerseGroups;
+var init_scripture_detector = __esm({
+  "src/utils/scripture-detector.ts"() {
+    "use strict";
+    init_bible_study_keywords();
+    init_bible_chapters();
+    init_translations();
+    INLINE_TRANSLATION_ALT = buildInlineTranslationAlternation();
+    DEBUG = false;
+    BIBLE_CHAPTERS_MAP = null;
+    getBookNameVariations = () => {
+      const variations = [];
+      BIBLE_STUDY_KEYWORDS.filter((k2) => k2.category === "book").forEach((k2) => {
+        variations.push(k2.name);
+        variations.push(...k2.synonyms);
+      });
+      return variations;
+    };
+    normalizeText = (text2) => {
+      return text2.toLowerCase().replace(/[.,;:!?'"()\-–—]/g, "").replace(/\s+/g, " ").trim();
+    };
+    parseReference = (match3) => {
+      const patterns = [
+        // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
+        /^(.+?)\s+(\d+):((?:\d+(?:\s*[-–—]\s*\d+)?)(?:,\s*\d+(?:\s*[-–—]\s*\d+)?)*)$/,
+        // Single range: "Book 1:2-3" or "Book 1:2 - 3"
+        /^(.+?)\s+(\d+):(\d+)\s*[-–—]\s*(\d+)$/,
+        // Single verse: "Book 1:2"
+        /^(.+?)\s+(\d+):(\d+)$/
+      ];
+      const bookNames = getBookNameVariations();
+      const normalizedMatch = match3.trim();
+      for (const pattern of patterns) {
+        const matchResult = normalizedMatch.match(pattern);
+        if (!matchResult) continue;
+        let bookPart = matchResult[1].trim();
+        const chapter = parseInt(matchResult[2]);
+        for (const bookName of bookNames) {
+          const normalizedBookName = normalizeText(bookName);
+          const normalizedBookPart = normalizeText(bookPart);
+          if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
+            const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+              (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
+            )?.name || bookName;
+            if (matchResult.length === 4 && matchResult[3].includes(",")) {
+              const verseGroups = matchResult[3].trim();
+              const allVerses = [];
+              verseGroups.split(",").forEach((group) => {
+                const trimmed = group.trim();
+                if (/[-–—]/.test(trimmed)) {
+                  const [start, end] = trimmed.split(/[-–—]/).map((v2) => parseInt(v2.trim()));
+                  if (!isNaN(start) && !isNaN(end) && start <= end) {
+                    for (let v2 = start; v2 <= end; v2++) {
+                      allVerses.push(v2);
+                    }
+                  } else if (!isNaN(start) && !isNaN(end) && start > end) {
+                    allVerses.push(start);
+                  }
+                } else {
+                  allVerses.push(parseInt(trimmed));
+                }
+              });
+              const verseStart = Math.min(...allVerses);
+              const verseEnd = Math.max(...allVerses);
+              let cleanVerseGroups = verseGroups.replace(/,\s+/g, ",");
+              cleanVerseGroups = cleanVerseGroups.replace(/\s*-\s*/g, "-");
+              return validateAndWarn({
+                book: canonicalBook,
+                chapter,
+                verse: [verseStart, verseEnd],
+                reference: `${canonicalBook} ${chapter}:${cleanVerseGroups}`
+              });
+            } else if (matchResult.length === 5) {
+              const verseStart = parseInt(matchResult[3]);
+              const verseEnd = parseInt(matchResult[4]);
+              if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart <= verseEnd) {
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter,
+                  verse: [verseStart, verseEnd],
+                  reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
+                });
+              } else if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart > verseEnd) {
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter,
+                  verse: verseStart,
+                  reference: `${canonicalBook} ${chapter}:${verseStart}`
+                });
+              }
+            } else if (matchResult.length === 4 && !matchResult[3].includes(",") && /[-–—]/.test(matchResult[3])) {
+              const versePart = matchResult[3].trim();
+              const [start, end] = versePart.split(/\s*[-–—]\s*/).map((v2) => parseInt(v2.trim()));
+              if (!isNaN(start) && !isNaN(end) && start <= end) {
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter,
+                  verse: [start, end],
+                  reference: `${canonicalBook} ${chapter}:${start}-${end}`
+                });
+              } else if (!isNaN(start) && !isNaN(end) && start > end) {
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter,
+                  verse: start,
+                  reference: `${canonicalBook} ${chapter}:${start}`
+                });
+              }
+            } else if (matchResult.length === 4 && !matchResult[3].includes(",") && !/[-–—]/.test(matchResult[3])) {
+              const verse = parseInt(matchResult[3]);
+              if (!isNaN(verse)) {
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter,
+                  verse,
+                  reference: `${canonicalBook} ${chapter}:${verse}`
+                });
+              }
+            }
+          }
+        }
+      }
+      if (!normalizedMatch.includes(":")) {
+        const chapterRangeMatch = normalizedMatch.match(/^(.+?)\s+(\d+)\s*[-–—]\s*(\d+)$/);
+        if (chapterRangeMatch) {
+          const bookPart = chapterRangeMatch[1].trim();
+          const startCh = parseInt(chapterRangeMatch[2], 10);
+          const endCh = parseInt(chapterRangeMatch[3], 10);
+          if (!isNaN(startCh) && !isNaN(endCh) && endCh > startCh) {
+            for (const bookName of bookNames) {
+              const normalizedBookName = normalizeText(bookName);
+              const normalizedBookPart = normalizeText(bookPart);
+              if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
+                const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+                  (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
+                )?.name || bookName;
+                const vrStart = getChapterVerseRange(canonicalBook, startCh);
+                const vrEnd = getChapterVerseRange(canonicalBook, endCh);
+                if (!vrStart || !vrEnd) continue;
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter: startCh,
+                  verse: [vrStart.start, vrEnd.end],
+                  reference: `${canonicalBook} ${startCh}-${endCh}`
+                });
+              }
+            }
+          }
+        }
+        const chapterOnlyMatch = normalizedMatch.match(/^(.+?)\s+(\d+)$/);
+        if (chapterOnlyMatch) {
+          const bookPart = chapterOnlyMatch[1].trim();
+          const ch = parseInt(chapterOnlyMatch[2], 10);
+          if (!isNaN(ch)) {
+            for (const bookName of bookNames) {
+              const normalizedBookName = normalizeText(bookName);
+              const normalizedBookPart = normalizeText(bookPart);
+              if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
+                const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
+                  (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
+                )?.name || bookName;
+                const expanded = normalizeChapterReference(canonicalBook, ch);
+                if (!expanded) continue;
+                const vr = getChapterVerseRange(canonicalBook, ch);
+                if (!vr) continue;
+                return validateAndWarn({
+                  book: canonicalBook,
+                  chapter: ch,
+                  verse: [vr.start, vr.end],
+                  reference: expanded
+                });
+              }
+            }
+          }
+        }
+      }
+      return null;
+    };
+    detectScriptureReferences = (text2) => {
+      const references = [];
+      const bookNames = getBookNameVariations();
+      const escapedBookNames = bookNames.map(
+        (name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      );
+      const dashPattern = "[-\u2013\u2014]";
+      const referencePattern = new RegExp(
+        `\\b(${escapedBookNames.join("|")})\\s+(\\d+):(\\d+(?:\\s*${dashPattern}\\s*\\d+)?(?:,\\s*\\d+(?:\\s*${dashPattern}\\s*\\d+)?)*)(?=\\s|$|[^\\d\\w])`,
+        "gi"
+      );
+      let match3;
+      while ((match3 = referencePattern.exec(text2)) !== null) {
+        let fullMatch = match3[0];
+        const originalMatchEnd = match3.index + fullMatch.length;
+        let adjustedLastIndex = originalMatchEnd;
+        const versePartMatch = fullMatch.match(/:\s*([^:]+)$/);
+        if (versePartMatch && versePartMatch[1].includes(",")) {
+          const verseGroups = versePartMatch[1];
+          const lastCommaIndex = verseGroups.lastIndexOf(",");
+          if (lastCommaIndex >= 0) {
+            const afterLastComma = verseGroups.substring(lastCommaIndex + 1).trim();
+            if (/^\d+$/.test(afterLastComma)) {
+              const textAfterMatch = text2.substring(originalMatchEnd);
+              const wordAfterSpace = textAfterMatch.match(/^\s+(\w+)/)?.[1];
+              if (wordAfterSpace) {
+                const potentialBookName = `${afterLastComma} ${wordAfterSpace}`;
+                const matchesBookName = bookNames.some((bookName) => {
+                  const normalizedBook = normalizeText(bookName);
+                  const normalizedPotential = normalizeText(potentialBookName);
+                  return normalizedBook === normalizedPotential || normalizedBook.startsWith(normalizedPotential) || normalizedPotential.startsWith(normalizedBook);
+                });
+                if (matchesBookName) {
+                  const trimmedLength = verseGroups.length - lastCommaIndex;
+                  fullMatch = fullMatch.substring(0, fullMatch.length - trimmedLength);
+                  adjustedLastIndex = match3.index + fullMatch.length;
+                }
+              }
+            }
+          }
+        }
+        const extracted = parseReference(fullMatch);
+        if (extracted) {
+          if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) {
+            continue;
+          }
+          const versePartInMatch = fullMatch.match(/:\s*(\d+)/);
+          if (versePartInMatch) {
+            const verseInMatch = parseInt(versePartInMatch[1]);
+            if (Array.isArray(extracted.verse)) {
+              if (extracted.verse[0] !== verseInMatch && extracted.verse[0] < verseInMatch) {
+                if (DEBUG) {
+                  console.warn("[Scripture Detection] Verse mismatch detected:", {
+                    originalMatch: fullMatch,
+                    parsedVerse: extracted.verse[0],
+                    matchVerse: verseInMatch
+                  });
+                }
+                const correctedVerse = verseInMatch;
+                extracted.verse = correctedVerse;
+                extracted.reference = `${extracted.book} ${extracted.chapter}:${correctedVerse}`;
+              }
+            } else {
+              if (extracted.verse !== verseInMatch && extracted.verse < verseInMatch) {
+                extracted.verse = verseInMatch;
+                extracted.reference = `${extracted.book} ${extracted.chapter}:${verseInMatch}`;
+              }
+            }
+          }
+          extracted.reference = fullMatch;
+          const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+          const isDuplicate = references.some((ref) => {
+            const normalizedRef = normalizeScriptureReference(ref.reference);
+            return normalizedRef === normalizedExtracted;
+          });
+          if (!isDuplicate) {
+            references.push(extracted);
+          }
+        }
+        if (adjustedLastIndex !== originalMatchEnd) {
+          referencePattern.lastIndex = adjustedLastIndex;
+        }
+      }
+      const chapterRangePattern = new RegExp(
+        `\\b(${escapedBookNames.join("|")})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?=\\s|$|[^\\d\\w-])`,
+        "gi"
+      );
+      while ((match3 = chapterRangePattern.exec(text2)) !== null) {
+        const fullMatch = match3[0];
+        const extracted = parseReference(fullMatch.trim());
+        if (extracted && !fullMatch.includes(":")) {
+          if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
+          extracted.reference = fullMatch;
+          const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+          const isDuplicate = references.some((ref) => {
+            const normalizedRef = normalizeScriptureReference(ref.reference);
+            return normalizedRef === normalizedExtracted;
+          });
+          if (!isDuplicate) {
+            references.push(extracted);
+          }
+        }
+      }
+      const chapterOnlyPattern = new RegExp(
+        `\\b(${escapedBookNames.join("|")})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?=\\s|$|[^\\d\\w])`,
+        "gi"
+      );
+      while ((match3 = chapterOnlyPattern.exec(text2)) !== null) {
+        const fullMatch = match3[0];
+        const extracted = parseReference(fullMatch.trim());
+        if (extracted && !fullMatch.includes(":")) {
+          if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
+          extracted.reference = fullMatch;
+          const normalizedExtracted = normalizeScriptureReference(extracted.reference);
+          const isDuplicate = references.some((ref) => {
+            const normalizedRef = normalizeScriptureReference(ref.reference);
+            return normalizedRef === normalizedExtracted;
+          });
+          if (isDuplicate) continue;
+          const hasVerseLevelInChapter = references.some(
+            (r) => r.book === extracted.book && r.chapter === extracted.chapter && r.reference.includes(":")
+          );
+          if (hasVerseLevelInChapter) continue;
+          references.push(extracted);
+        }
+      }
+      return references;
+    };
+    parseScriptureReference = (reference) => {
+      const parsed = parseReference(reference);
+      if (!parsed) return null;
+      return {
+        book: parsed.book,
+        chapter: parsed.chapter,
+        verse: parsed.verse
+      };
+    };
+    detectScripture = async (text2) => {
+      if (!text2 || text2.trim().length === 0) {
+        return {
+          isScripture: false,
+          type: null,
+          references: [],
+          confidence: 0
+        };
+      }
+      const plainText = text2.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+      const references = detectScriptureReferences(plainText);
+      if (references.length > 0) {
+        return {
+          isScripture: true,
+          type: "reference",
+          references,
+          confidence: 0.9,
+          detectedText: plainText
+        };
+      }
+      return {
+        isScripture: false,
+        type: null,
+        references: [],
+        confidence: 0
+      };
+    };
+    getPrimaryReference = (detection) => {
+      if (detection.references.length > 0) {
+        return detection.references[0].reference;
+      }
+      return null;
+    };
+    normalizeScriptureReference = (reference) => {
+      if (!reference || typeof reference !== "string") {
+        return reference;
+      }
+      const parsed = parseReference(reference.trim());
+      if (parsed) {
+        return parsed.reference;
+      }
+      let normalized = reference.replace(/:\s+/g, ":");
+      normalized = normalized.replace(/,\s+/g, ",");
+      normalized = normalized.replace(/(\d+)\s*[-–—]\s*(\d+)/g, "$1-$2");
+      normalized = normalized.trim();
+      return normalized;
+    };
+    parseVerseGroups = (reference) => {
+      const match3 = reference.match(/:\s*([^:]+)$/);
+      if (!match3) return [];
+      const versePart = match3[1].trim();
+      const normalized = versePart.replace(/\s+\|\s+/g, ",").replace(/,\s+/g, ",");
+      const groups = [];
+      normalized.split(",").forEach((group) => {
+        const trimmed = group.trim();
+        if (/[-–—]/.test(trimmed)) {
+          const [start, end] = trimmed.split(/[-–—]/).map((v2) => parseInt(v2.trim()));
+          if (!isNaN(start) && !isNaN(end)) {
+            groups.push({ start, end });
+          }
+        } else {
+          const verse = parseInt(trimmed);
+          if (!isNaN(verse)) {
+            groups.push({ start: verse, end: verse });
+          }
+        }
+      });
+      return groups;
+    };
+  }
+});
+
+// src/utils/scripture-highlighter.ts
+function escapeHtmlAttr(s2) {
+  return s2.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+function stripNoteLinkScriptureSpans(content) {
+  if (!content) return content;
+  let result = content;
+  const noteLinkRegex = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>|<span[^>]*data-note-id\s*=\s*["'][^"']+["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
+  result = result.replace(noteLinkRegex, (match3, inner1, inner2) => {
+    const innerContent = inner1 || inner2 || "";
+    const plainText = innerContent.replace(/<[^>]*>/g, "").trim();
+    const scriptureRefs = detectScriptureReferences(plainText);
+    if (scriptureRefs.length > 0) {
+      return innerContent;
+    }
+    return match3;
+  });
+  return result;
+}
+function stripBrokenPillSpans(content) {
+  if (!content) return content;
+  let result = content;
+  const spanRegex = /<span[^>]*data-scripture-reference\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
+  result = result.replace(spanRegex, (match3, innerContent) => {
+    const noteIdMatch = match3.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+    let hasValidNoteId = false;
+    if (noteIdMatch) {
+      const noteIdValue = noteIdMatch[1];
+      hasValidNoteId = Boolean(noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "");
+    }
+    return hasValidNoteId ? match3 : innerContent;
+  });
+  return result;
+}
+function highlightScriptureReferences(content, references) {
+  if (!content || references.length === 0) {
+    return content;
+  }
+  let updatedContent = stripNoteLinkScriptureSpans(content);
+  updatedContent = stripBrokenPillSpans(updatedContent);
+  for (const { reference, noteId, translation } of references) {
+    const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const tokens = escapedReference.match(/\S+|\s+/g) || [];
+    const flexiblePattern = tokens.map((token) => {
+      if (/^\s+$/.test(token)) {
+        return `\\s*(?:<[^>]+>)*\\s*`;
+      } else {
+        return `(?:<[^>]+>)*${token}(?:<[^>]+>)*`;
+      }
+    }).join("");
+    const pattern = new RegExp(`(${flexiblePattern})`, "gi");
+    const matches3 = [];
+    let match3;
+    while ((match3 = pattern.exec(updatedContent)) !== null) {
+      const cleanText = match3[0].replace(/<[^>]+>/g, "").trim();
+      if (cleanText.toLowerCase() === reference.toLowerCase()) {
+        matches3.push({
+          match: match3[0],
+          index: match3.index,
+          cleanText: reference
+          // Use original reference (always plain text, no formatting)
+        });
+      }
+    }
+    for (let i = matches3.length - 1; i >= 0; i--) {
+      const { match: matchText, index: index2, cleanText } = matches3[i];
+      const beforeMatch = updatedContent.substring(0, index2);
+      const matchEnd = index2 + matchText.length;
+      let searchPos = index2;
+      let foundCompletePillSpan = false;
+      while (searchPos > 0) {
+        const lastSpanOpen = beforeMatch.lastIndexOf("<span", searchPos - 1);
+        if (lastSpanOpen === -1) break;
+        const spanTagEnd = updatedContent.indexOf(">", lastSpanOpen);
+        if (spanTagEnd === -1 || spanTagEnd >= index2) {
+          searchPos = lastSpanOpen - 1;
+          continue;
+        }
+        const spanTag = updatedContent.substring(lastSpanOpen, spanTagEnd + 1);
+        const hasScriptureRef = spanTag.includes("data-scripture-reference");
+        const noteIdMatch = spanTag.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+        const noteIdValue = noteIdMatch ? noteIdMatch[1] : null;
+        const hasValidNoteId = noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "";
+        const isCompletePillSpan = hasScriptureRef && hasValidNoteId;
+        const spanCloseAfter = updatedContent.indexOf("</span>", spanTagEnd + 1);
+        if (spanCloseAfter !== -1 && spanCloseAfter < index2) {
+          searchPos = lastSpanOpen - 1;
+          continue;
+        }
+        if (isCompletePillSpan) {
+          const spanCloseAfterMatch = updatedContent.indexOf("</span>", matchEnd);
+          if (spanCloseAfterMatch !== -1) {
+            foundCompletePillSpan = true;
+            break;
+          }
+        }
+        searchPos = lastSpanOpen - 1;
+      }
+      if (foundCompletePillSpan) {
+        continue;
+      }
+      const openSpansBefore = (beforeMatch.match(/<span[^>]*class="note-link"[^>]*>/gi) || []).length;
+      const closeSpansBefore = (beforeMatch.match(/<\/span>/gi) || []).length;
+      if (openSpansBefore > closeSpansBefore) {
+        continue;
+      }
+      const contextBefore = beforeMatch.substring(Math.max(0, beforeMatch.length - 100));
+      const contextAfter = updatedContent.substring(matchEnd, Math.min(matchEnd + 100, updatedContent.length));
+      const fullContext = contextBefore + matchText + contextAfter;
+      if (fullContext.includes(`data-note-id="${noteId}"`)) {
+        continue;
+      }
+      const cleanMatchText = matchText.replace(/<[^>]+>/g, "");
+      const leadingSpaces = cleanMatchText.match(/^\s*/)?.[0] || "";
+      const trailingSpaces = cleanMatchText.match(/\s*$/)?.[0] || "";
+      const translationAttr = translation ? ` data-scripture-translation="${escapeHtmlAttr(translation)}" data-scripture-translation-label="${escapeHtmlAttr(getTranslationAbbreviationDisplay(translation))}"` : "";
+      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
+      updatedContent = updatedContent.substring(0, index2) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index2 + matchText.length);
+    }
+  }
+  return updatedContent;
+}
+var init_scripture_highlighter = __esm({
+  "src/utils/scripture-highlighter.ts"() {
+    "use strict";
+    init_translations();
+    init_scripture_detector();
+  }
+});
+
 // src/utils/ids.ts
 var ids_exports = {};
 __export(ids_exports, {
@@ -18687,6 +29399,695 @@ var init_ids = __esm({
   "src/utils/ids.ts"() {
     "use strict";
     lastTimestamp = 0;
+  }
+});
+
+// server/utils/xp-system.ts
+function getReferralCreditXpForOrdinal(ordinal1Based) {
+  if (ordinal1Based < 1) return REFERRAL_XP_MIN;
+  const raw2 = REFERRAL_XP_FIRST - (ordinal1Based - 1) * REFERRAL_XP_DECREMENT;
+  return Math.max(REFERRAL_XP_MIN, raw2);
+}
+function checkContentLength(content, type) {
+  const minLength = type === "note" ? MIN_CONTENT_LENGTHS.NOTE : MIN_CONTENT_LENGTHS.THREAD;
+  return content.trim().length >= minLength;
+}
+async function checkRateLimit(userId, activityType, excludeScriptureNotes = false) {
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1e3);
+    const recentXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, activityType),
+      gte(UserXP.createdAt, oneHourAgo.toISOString())
+    ));
+    let count3 = recentXP.length;
+    if (excludeScriptureNotes && activityType === "note_created") {
+      count3 = recentXP.filter((record) => {
+        if (!record.metadata) return true;
+        try {
+          const metadata = JSON.parse(record.metadata);
+          return !metadata.isScriptureNote;
+        } catch {
+          return true;
+        }
+      }).length;
+    }
+    const limit = activityType === "thread_created" ? RATE_LIMITS.THREADS_PER_HOUR : RATE_LIMITS.NOTES_PER_HOUR;
+    return count3 < limit;
+  } catch (error) {
+    console.error("Error checking rate limit:", error);
+    return true;
+  }
+}
+async function revokeXPOnDeletion(userId, relatedId, itemCreatedAt) {
+  try {
+    const now2 = /* @__PURE__ */ new Date();
+    const timeDiff = now2.getTime() - itemCreatedAt.getTime();
+    if (timeDiff > QUICK_DELETION_WINDOW_MS) {
+      return 0;
+    }
+    const xpRecords = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.relatedId, relatedId)
+    ));
+    let revokedAmount = 0;
+    for (const record of xpRecords) {
+      revokedAmount += record.xpAmount;
+      await db.delete(UserXP).where(eq(UserXP.id, record.id));
+    }
+    return revokedAmount;
+  } catch (error) {
+    console.error("Error revoking XP on deletion:", error);
+    return 0;
+  }
+}
+async function revokeAllXPForItem(userId, relatedId) {
+  try {
+    const xpRecords = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.relatedId, relatedId)
+    ));
+    let revokedAmount = 0;
+    for (const record of xpRecords) {
+      revokedAmount += record.xpAmount;
+      await db.delete(UserXP).where(eq(UserXP.id, record.id));
+    }
+    return revokedAmount;
+  } catch (error) {
+    console.error("Error revoking all XP for item:", error);
+    return 0;
+  }
+}
+async function deleteAllXpForRelatedIds(userId, relatedIds) {
+  const unique2 = [...new Set(relatedIds.filter(Boolean))];
+  if (unique2.length === 0) return;
+  try {
+    for (let i = 0; i < unique2.length; i += XP_RELATED_ID_CHUNK) {
+      const chunk = unique2.slice(i, i + XP_RELATED_ID_CHUNK);
+      await db.delete(UserXP).where(and(eq(UserXP.userId, userId), inArray(UserXP.relatedId, chunk)));
+    }
+  } catch (error) {
+    console.error("Error bulk-deleting XP for related ids:", error);
+  }
+}
+async function awardXP(userId, activityType, xpAmount, relatedId, metadata) {
+  try {
+    const season = getCurrentSeason();
+    const now2 = /* @__PURE__ */ new Date();
+    await db.insert(UserXP).values({
+      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      activityType,
+      xpAmount,
+      relatedId: relatedId || null,
+      season,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+      createdAt: now2.toISOString()
+    });
+    await updateSeasonalXP(userId, season, xpAmount);
+    await updateLifetimeXP(userId, xpAmount);
+  } catch (error) {
+    console.error("Error awarding XP:", error);
+  }
+}
+async function updateSeasonalXP(userId, season, xpAmount) {
+  try {
+    const existing = await db.select().from(UserSeasonalXP).where(and(
+      eq(UserSeasonalXP.userId, userId),
+      eq(UserSeasonalXP.season, season)
+    )).limit(1);
+    if (existing.length > 0) {
+      await db.update(UserSeasonalXP).set({
+        totalXP: existing[0].totalXP + xpAmount,
+        sessionCount: existing[0].sessionCount + (xpAmount > 0 && existing[0].sessionCount !== void 0 ? 1 : 0),
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      }).where(eq(UserSeasonalXP.id, existing[0].id));
+    } else {
+      await db.insert(UserSeasonalXP).values({
+        id: `seasonal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        season,
+        totalXP: xpAmount,
+        sessionCount: 0,
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  } catch (error) {
+    console.error("Error updating seasonal XP:", error);
+  }
+}
+async function updateLifetimeXP(userId, xpAmount) {
+  try {
+    const existing = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, userId)).limit(1);
+    if (existing.length > 0) {
+      await db.update(UserLifetimeXP).set({
+        totalXP: existing[0].totalXP + xpAmount,
+        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+      }).where(eq(UserLifetimeXP.id, existing[0].id));
+    } else {
+      await db.insert(UserLifetimeXP).values({
+        id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        totalXP: xpAmount,
+        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  } catch (error) {
+    console.error("Error updating lifetime XP:", error);
+  }
+}
+async function getSeasonalXP(userId, season) {
+  try {
+    const currentSeason = season || getCurrentSeason();
+    const seasonal = await db.select().from(UserSeasonalXP).where(and(
+      eq(UserSeasonalXP.userId, userId),
+      eq(UserSeasonalXP.season, currentSeason)
+    )).limit(1);
+    return seasonal.length > 0 ? seasonal[0].totalXP : 0;
+  } catch (error) {
+    console.error("Error getting seasonal XP:", error);
+    return 0;
+  }
+}
+async function getLifetimeXP(userId) {
+  try {
+    const lifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, userId)).limit(1);
+    if (lifetime.length > 0 && lifetime[0].totalXP > 0) {
+      return lifetime[0].totalXP;
+    }
+    const xpRecords = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
+    const totalXP = xpRecords.reduce((sum2, record) => sum2 + record.xpAmount, 0);
+    if (totalXP > 0 && (lifetime.length === 0 || lifetime[0].totalXP === 0)) {
+      if (lifetime.length > 0) {
+        await db.update(UserLifetimeXP).set({ totalXP, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(UserLifetimeXP.userId, userId));
+      } else {
+        await db.insert(UserLifetimeXP).values({
+          id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userId,
+          totalXP,
+          lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+    }
+    return totalXP;
+  } catch (error) {
+    console.error("Error getting lifetime XP:", error);
+    return 0;
+  }
+}
+async function getAllSeasonalXP(userId) {
+  try {
+    const allSeasons = await db.select().from(UserSeasonalXP).where(eq(UserSeasonalXP.userId, userId));
+    const seasonOrder = {
+      "spring": 1,
+      "summer": 2,
+      "fall": 3,
+      "winter": 4
+    };
+    const sortedSeasons = allSeasons.filter((record) => record.totalXP > 0).sort((a, b3) => {
+      const [aSeason, aYear] = a.season.split("-");
+      const [bSeason, bYear] = b3.season.split("-");
+      const aYearNum = parseInt(aYear);
+      const bYearNum = parseInt(bYear);
+      if (aYearNum !== bYearNum) {
+        return bYearNum - aYearNum;
+      }
+      return (seasonOrder[bSeason] || 0) - (seasonOrder[aSeason] || 0);
+    }).map((record) => ({
+      season: record.season,
+      seasonName: getSeasonDisplayName(record.season),
+      totalXP: record.totalXP
+    }));
+    return sortedSeasons;
+  } catch (error) {
+    console.error("Error getting all seasonal XP:", error);
+    return [];
+  }
+}
+async function awardSessionXP(userId, sessionXP) {
+  try {
+    const today = /* @__PURE__ */ new Date();
+    today.setHours(0, 0, 0, 0);
+    const todaySessions = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
+      gte(UserXP.createdAt, today.toISOString())
+    ));
+    if (todaySessions.length >= DAILY_CAPS.SESSIONS) {
+      return false;
+    }
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.SESSION_COMPLETED,
+      sessionXP,
+      void 0,
+      { sessionNumber: todaySessions.length + 1 }
+    );
+    return true;
+  } catch (error) {
+    console.error("Error awarding session XP:", error);
+    return false;
+  }
+}
+async function awardCreationBonusXP(userId, itemType) {
+  try {
+    const today = /* @__PURE__ */ new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayCreationXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.CREATION_BONUS),
+      gte(UserXP.createdAt, today.toISOString())
+    ));
+    const todayTotal = todayCreationXP.reduce((sum2, r) => sum2 + r.xpAmount, 0);
+    if (todayTotal >= DAILY_CAPS.CREATION_BONUS) {
+      return false;
+    }
+    const xpToAward = Math.min(
+      XP_VALUES.CREATION_BONUS,
+      DAILY_CAPS.CREATION_BONUS - todayTotal
+    );
+    if (xpToAward > 0) {
+      await awardXP(
+        userId,
+        ACTIVITY_TYPES.CREATION_BONUS,
+        xpToAward,
+        void 0,
+        { itemType }
+      );
+    }
+    return xpToAward > 0;
+  } catch (error) {
+    console.error("Error awarding creation bonus XP:", error);
+    return false;
+  }
+}
+async function awardVotdEngagementXP(userId, featuredItemId, source) {
+  try {
+    const already = await hasXPBeenAwarded(userId, ACTIVITY_TYPES.VOTD_ENGAGED, featuredItemId);
+    if (already) return;
+    await awardXP(userId, ACTIVITY_TYPES.VOTD_ENGAGED, XP_VALUES.VOTD_ENGAGED, featuredItemId, { source });
+  } catch (error) {
+    console.error("Error awarding VOTD engagement XP:", error);
+  }
+}
+async function awardChurchAddedXP(userId) {
+  try {
+    const existing = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.CHURCH_ADDED)
+    )).limit(1);
+    if (existing.length > 0) {
+      return false;
+    }
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.CHURCH_ADDED,
+      XP_VALUES.CHURCH_ADDED,
+      void 0,
+      void 0
+    );
+    return true;
+  } catch (error) {
+    console.error("Error awarding church addition XP:", error);
+    return false;
+  }
+}
+async function awardMonthlyAttendanceXP(userId) {
+  try {
+    const now2 = /* @__PURE__ */ new Date();
+    const startOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const existing = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.MONTHLY_ATTENDANCE),
+      gte(UserXP.createdAt, startOfMonth.toISOString())
+    )).limit(1);
+    if (existing.length > 0) {
+      return false;
+    }
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.MONTHLY_ATTENDANCE,
+      XP_VALUES.MONTHLY_ATTENDANCE,
+      void 0,
+      {
+        month: now2.getMonth() + 1,
+        year: now2.getFullYear()
+      }
+    );
+    await db.update(UserMetadata).set({ lastMonthlyVisit: now2.toISOString() }).where(eq(UserMetadata.userId, userId));
+    return true;
+  } catch (error) {
+    console.error("Error awarding monthly attendance XP:", error);
+    return false;
+  }
+}
+async function awardNewSeasonBonus(userId) {
+  try {
+    const currentSeason = getCurrentSeason();
+    const existing = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.NEW_SEASON),
+      eq(UserXP.season, currentSeason)
+    )).limit(1);
+    if (existing.length > 0) {
+      return false;
+    }
+    await awardXP(
+      userId,
+      ACTIVITY_TYPES.NEW_SEASON,
+      XP_VALUES.NEW_SEASON_BONUS,
+      void 0,
+      { season: currentSeason, seasonName: getSeasonDisplayName(currentSeason) }
+    );
+    return true;
+  } catch (error) {
+    console.error("Error awarding new season bonus:", error);
+    return false;
+  }
+}
+async function checkLifetimeMilestones(userId) {
+  try {
+    const lifetimeXP = await getLifetimeXP(userId);
+    const milestones = [];
+    if (lifetimeXP >= 100) milestones.push("first_hundred");
+    if (lifetimeXP >= 500) milestones.push("five_hundred");
+    if (lifetimeXP >= 1e3) milestones.push("thousand");
+    if (lifetimeXP >= 5e3) milestones.push("five_thousand");
+    if (lifetimeXP >= 1e4) milestones.push("ten_thousand");
+    if (lifetimeXP >= 25e3) milestones.push("twenty_five_thousand");
+    if (lifetimeXP >= 5e4) milestones.push("fifty_thousand");
+    return milestones;
+  } catch (error) {
+    console.error("Error checking lifetime milestones:", error);
+    return [];
+  }
+}
+async function awardThreadCreatedXP(userId, threadId, title, subtitle) {
+  try {
+    const existingXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.THREAD_CREATED),
+      eq(UserXP.relatedId, threadId)
+    )).limit(1);
+    if (existingXP.length > 0) {
+      return;
+    }
+    if (title && !checkContentLength(title, "thread")) {
+      return;
+    }
+    const withinRateLimit = await checkRateLimit(userId, "thread_created", false);
+    if (!withinRateLimit) {
+      return;
+    }
+    const metadata = JSON.stringify({
+      contentLength: title?.length || 0
+    });
+    await db.insert(UserXP).values({
+      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      activityType: ACTIVITY_TYPES.THREAD_CREATED,
+      xpAmount: XP_VALUES.THREAD_CREATED,
+      relatedId: threadId,
+      metadata,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (error) {
+    console.error("Error awarding thread creation XP:", error);
+  }
+}
+async function awardNoteCreatedXP(userId, noteId, isScriptureNote = false, content) {
+  try {
+    const existingXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, ACTIVITY_TYPES.NOTE_CREATED),
+      eq(UserXP.relatedId, noteId)
+    )).limit(1);
+    if (existingXP.length > 0) {
+      return;
+    }
+    if (!isScriptureNote && content && !checkContentLength(content, "note")) {
+      return;
+    }
+    if (!isScriptureNote) {
+      const withinRateLimit = await checkRateLimit(userId, "note_created", true);
+      if (!withinRateLimit) {
+        return;
+      }
+    }
+    const xpAmount = isScriptureNote ? XP_VALUES.SCRIPTURE_NOTE_CREATED : XP_VALUES.NOTE_CREATED;
+    let isFirstNoteToday = false;
+    if (!isScriptureNote) {
+      const today = /* @__PURE__ */ new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayNotes = await db.select().from(Notes).where(and(
+        eq(Notes.userId, userId),
+        gte(Notes.createdAt, today.toISOString())
+      )).limit(1);
+      isFirstNoteToday = todayNotes.length === 0;
+    }
+    const metadata = JSON.stringify({
+      isScriptureNote,
+      contentLength: content?.length || 0
+    });
+    await db.insert(UserXP).values({
+      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      userId,
+      activityType: ACTIVITY_TYPES.NOTE_CREATED,
+      xpAmount,
+      relatedId: noteId,
+      metadata,
+      createdAt: (/* @__PURE__ */ new Date()).toISOString()
+    });
+    if (isFirstNoteToday) {
+      const existingBonusXP = await db.select().from(UserXP).where(and(
+        eq(UserXP.userId, userId),
+        eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
+        eq(UserXP.relatedId, noteId)
+      )).limit(1);
+      if (existingBonusXP.length === 0) {
+        await db.insert(UserXP).values({
+          id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_bonus`,
+          userId,
+          activityType: ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
+          xpAmount: XP_VALUES.FIRST_NOTE_DAILY_BONUS,
+          relatedId: noteId,
+          createdAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error awarding note creation XP:", error);
+  }
+}
+async function getXPBreakdown(userId) {
+  try {
+    const xpRecords = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
+    const breakdown = {
+      sessionCompleted: 0,
+      creationBonus: 0,
+      churchAdded: 0,
+      monthlyAttendance: 0,
+      newSeason: 0,
+      weeklyStreak: 0,
+      referralCredited: 0,
+      // Legacy
+      threadCreated: 0,
+      noteCreated: 0,
+      noteOpened: 0,
+      firstNoteDailyBonus: 0,
+      votdEngaged: 0
+    };
+    xpRecords.forEach((record) => {
+      switch (record.activityType) {
+        case ACTIVITY_TYPES.SESSION_COMPLETED:
+          breakdown.sessionCompleted += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.CREATION_BONUS:
+          breakdown.creationBonus += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.CHURCH_ADDED:
+          breakdown.churchAdded += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.MONTHLY_ATTENDANCE:
+          breakdown.monthlyAttendance += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.NEW_SEASON:
+          breakdown.newSeason += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.WEEKLY_STREAK:
+          breakdown.weeklyStreak += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.REFERRAL_CREDITED:
+          breakdown.referralCredited += record.xpAmount;
+          break;
+        // Legacy activity types
+        case ACTIVITY_TYPES.THREAD_CREATED:
+          breakdown.threadCreated += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.NOTE_CREATED:
+          breakdown.noteCreated += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.NOTE_OPENED:
+          breakdown.noteOpened += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS:
+          breakdown.firstNoteDailyBonus += record.xpAmount;
+          break;
+        case ACTIVITY_TYPES.VOTD_ENGAGED:
+          breakdown.votdEngaged += record.xpAmount;
+          break;
+      }
+    });
+    const totalXP = Object.values(breakdown).reduce((sum2, value) => sum2 + value, 0);
+    return {
+      totalXP,
+      breakdown
+    };
+  } catch (error) {
+    console.error("Error getting XP breakdown:", error);
+    return {
+      totalXP: 0,
+      breakdown: {
+        sessionCompleted: 0,
+        creationBonus: 0,
+        churchAdded: 0,
+        monthlyAttendance: 0,
+        newSeason: 0,
+        weeklyStreak: 0,
+        referralCredited: 0,
+        threadCreated: 0,
+        noteCreated: 0,
+        noteOpened: 0,
+        firstNoteDailyBonus: 0,
+        votdEngaged: 0
+      }
+    };
+  }
+}
+async function hasXPBeenAwarded(userId, activityType, relatedId) {
+  try {
+    const existingXP = await db.select().from(UserXP).where(and(
+      eq(UserXP.userId, userId),
+      eq(UserXP.activityType, activityType),
+      eq(UserXP.relatedId, relatedId)
+    )).limit(1);
+    return existingXP.length > 0;
+  } catch (error) {
+    console.error("Error checking if XP has been awarded:", error);
+    return false;
+  }
+}
+async function cleanupDuplicateXP(userId) {
+  try {
+    const allXP = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
+    const groupedXP = allXP.reduce((acc, record) => {
+      const key2 = `${record.activityType}_${record.relatedId}`;
+      if (!acc[key2]) acc[key2] = [];
+      acc[key2].push(record);
+      return acc;
+    }, {});
+    let removedCount = 0;
+    const totalCount = allXP.length;
+    for (const [key2, records] of Object.entries(groupedXP)) {
+      if (records.length > 1) {
+        const sortedRecords = records.sort((a, b3) => new Date(a.createdAt).getTime() - new Date(b3.createdAt).getTime());
+        const toRemove = sortedRecords.slice(1);
+        for (const record of toRemove) {
+          await db.delete(UserXP).where(eq(UserXP.id, record.id));
+          removedCount++;
+        }
+      }
+    }
+    return { removed: removedCount, total: totalCount };
+  } catch (error) {
+    console.error("Error during duplicate XP cleanup:", error);
+    return { removed: 0, total: 0 };
+  }
+}
+async function backfillUserXP(userId) {
+  try {
+    await cleanupDuplicateXP(userId);
+    const userThreads = await db.select().from(Threads).where(eq(Threads.userId, userId));
+    const userNotes = await db.select().from(Notes).where(eq(Notes.userId, userId));
+    for (const thread of userThreads) {
+      await awardThreadCreatedXP(userId, thread.id, thread.title, thread.subtitle || null);
+    }
+    for (const note of userNotes) {
+      const isScriptureNote = note.noteType === "scripture";
+      await awardNoteCreatedXP(userId, note.id, isScriptureNote, note.content || "");
+    }
+  } catch (error) {
+    console.error("Error during XP backfill:", error);
+  }
+}
+var XP_VALUES, REFERRAL_XP_FIRST, REFERRAL_XP_DECREMENT, REFERRAL_XP_MIN, DAILY_CAPS, MIN_CONTENT_LENGTHS, RATE_LIMITS, QUICK_DELETION_WINDOW_MS, ACTIVITY_TYPES, XP_RELATED_ID_CHUNK;
+var init_xp_system = __esm({
+  "server/utils/xp-system.ts"() {
+    "use strict";
+    init_db2();
+    init_season_helpers();
+    XP_VALUES = {
+      SESSION_BASE: 15,
+      SESSION_MAX: 40,
+      CREATION_BONUS: 5,
+      CHURCH_ADDED: 50,
+      MONTHLY_ATTENDANCE: 25,
+      NEW_SEASON_BONUS: 50,
+      // One-time reward for returning in a new season
+      WEEKLY_STREAK_3_4_DAYS: 15,
+      WEEKLY_STREAK_5_6_DAYS: 25,
+      WEEKLY_STREAK_7_DAYS: 35,
+      // Legacy values (kept for backward compatibility)
+      THREAD_CREATED: 10,
+      NOTE_CREATED: 10,
+      SCRIPTURE_NOTE_CREATED: 3,
+      NOTE_OPENED: 1,
+      FIRST_NOTE_DAILY_BONUS: 5,
+      /** One-time per VOTD featured item when user engages (quick-add or create-note), not for close/dismiss-only */
+      VOTD_ENGAGED: 5
+    };
+    REFERRAL_XP_FIRST = 100;
+    REFERRAL_XP_DECREMENT = 25;
+    REFERRAL_XP_MIN = 25;
+    DAILY_CAPS = {
+      SESSIONS: 3,
+      // Max 3 sessions per day
+      CREATION_BONUS: 20,
+      // Max 20 XP/day from creation bonuses
+      // Legacy caps
+      NOTE_OPENED: 50
+      // Max 50 XP per day from opening notes
+    };
+    MIN_CONTENT_LENGTHS = {
+      NOTE: 10,
+      // Minimum 10 characters for notes
+      THREAD: 3
+      // Minimum 3 characters for threads
+    };
+    RATE_LIMITS = {
+      THREADS_PER_HOUR: 5,
+      // Max 5 threads per hour
+      NOTES_PER_HOUR: 20
+      // Max 20 notes per hour
+    };
+    QUICK_DELETION_WINDOW_MS = 2 * 60 * 1e3;
+    ACTIVITY_TYPES = {
+      SESSION_COMPLETED: "session_completed",
+      CREATION_BONUS: "creation_bonus",
+      CHURCH_ADDED: "church_added",
+      MONTHLY_ATTENDANCE: "monthly_attendance",
+      NEW_SEASON: "new_season",
+      WEEKLY_STREAK: "weekly_streak",
+      REFERRAL_CREDITED: "referral_credited",
+      // Legacy activity types (kept for backward compatibility)
+      THREAD_CREATED: "thread_created",
+      NOTE_CREATED: "note_created",
+      NOTE_OPENED: "note_opened",
+      FIRST_NOTE_DAILY_BONUS: "first_note_daily",
+      VOTD_ENGAGED: "votd_engaged"
+    };
+    XP_RELATED_ID_CHUNK = 2e3;
   }
 });
 
@@ -18871,6 +30272,334 @@ var init_html_stripper = __esm({
   }
 });
 
+// server/utils/auto-tag-generator.ts
+function isTagOverlapping(newTag, existingTag) {
+  const newLower = newTag.toLowerCase();
+  const existingLower = existingTag.toLowerCase();
+  if (newLower === existingLower) return true;
+  if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
+  const overlappingPairs = [
+    ["goodness", "righteousness"],
+    ["grace", "mercy"],
+    ["love", "mercy"],
+    ["faith", "belief"],
+    ["hope", "faith"],
+    ["peace", "joy"],
+    ["kingdom of god", "heaven"],
+    ["resurrection", "eternal life"],
+    ["eternal life", "everlasting life"],
+    ["holy spirit", "spirit"],
+    ["jesus", "christ"],
+    ["jesus", "lord"],
+    ["god", "father"],
+    ["god", "lord"]
+  ];
+  for (const [tag1, tag2] of overlappingPairs) {
+    if (newLower === tag1 && existingLower === tag2 || newLower === tag2 && existingLower === tag1) return true;
+  }
+  return false;
+}
+async function generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold = 0.7) {
+  try {
+    if (!userId) {
+      console.error("Auto-tag generation failed: userId is required");
+      return { suggestions: [], totalFound: 0, highConfidence: 0 };
+    }
+    const { stripHtml: stripHtml2 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
+    const cleanTitle2 = (noteTitle || "").trim();
+    const cleanContent = stripHtml2(noteContent || "", { preserveSpacing: true }).trim();
+    const fullText = `${cleanTitle2} ${cleanContent}`.trim();
+    if (!fullText) return { suggestions: [], totalFound: 0, highConfidence: 0 };
+    let foundKeywords = [];
+    try {
+      foundKeywords = findKeywordsInTextWithPriority(fullText, cleanTitle2, cleanContent);
+    } catch (keywordError) {
+      console.error("Keyword detection error:", keywordError instanceof Error ? keywordError.message : String(keywordError));
+      foundKeywords = [];
+    }
+    let existingTags = [];
+    try {
+      if (!db) throw new Error("Database connection not available");
+      existingTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
+    } catch (dbError) {
+      console.error("Database error fetching existing tags:", dbError instanceof Error ? dbError.message : String(dbError));
+      existingTags = [];
+    }
+    const existingTagNames = new Set(existingTags.map((tag) => tag.name.toLowerCase()));
+    const suggestions = [];
+    let highConfidence = 0;
+    for (const { keyword, confidence } of foundKeywords) {
+      if (keyword.name.toLowerCase() === "god") continue;
+      if (confidence >= confidenceThreshold) {
+        const isOverlapping = suggestions.some((existing) => isTagOverlapping(keyword.name, existing.keyword));
+        if (isOverlapping) continue;
+        const isExisting = existingTagNames.has(keyword.name.toLowerCase());
+        const existingTag = isExisting ? existingTags.filter((t) => t.name.toLowerCase() === keyword.name.toLowerCase()).sort((a, b3) => new Date(b3.createdAt).getTime() - new Date(a.createdAt).getTime())[0] : void 0;
+        suggestions.push({ keyword: keyword.name, category: keyword.category, confidence, isExisting, tagId: existingTag?.id });
+        if (confidence >= 0.8) highConfidence++;
+      }
+    }
+    suggestions.sort((a, b3) => b3.confidence - a.confidence);
+    const bibleStudyCategories = ["spiritual", "biblical", "character", "book", "theme"];
+    const enhancedSuggestions = suggestions.map((suggestion) => {
+      const isBibleStudy = bibleStudyCategories.includes(suggestion.category);
+      if (isBibleStudy) {
+        return { ...suggestion, confidence: Math.min(1, suggestion.confidence + 0.05) };
+      }
+      return suggestion;
+    });
+    enhancedSuggestions.sort((a, b3) => b3.confidence - a.confidence);
+    const topSuggestions = enhancedSuggestions.slice(0, 12);
+    return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
+  } catch (error) {
+    console.error("Error generating auto tags:", error instanceof Error ? error.message : String(error));
+    return { suggestions: [], totalFound: 0, highConfidence: 0 };
+  }
+}
+function dedupeSuggestionsByKeyword(suggestions) {
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const s2 of suggestions) {
+    const k2 = s2.keyword.toLowerCase();
+    if (seen.has(k2)) continue;
+    seen.add(k2);
+    out.push(s2);
+  }
+  return out;
+}
+async function applyAutoTags(noteId, suggestions, userId, options) {
+  const errors = [];
+  let applied = 0;
+  if (!noteId || !userId) {
+    const error = "Missing required parameters: noteId or userId";
+    console.error("applyAutoTags validation failed:", error);
+    return { applied: 0, errors: [error] };
+  }
+  const list = dedupeSuggestionsByKeyword(suggestions);
+  for (const suggestion of list) {
+    try {
+      let tagId = suggestion.tagId;
+      if (!tagId) {
+        try {
+          const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
+          const existingTag = allUserTags.find((t) => t.name.toLowerCase() === suggestion.keyword.toLowerCase());
+          if (existingTag) {
+            tagId = existingTag.id;
+          } else {
+            const newTagId = `tag_${(0, import_crypto3.randomUUID)()}`;
+            await db.insert(Tags).values({
+              id: newTagId,
+              name: suggestion.keyword,
+              color: getColorForCategory(suggestion.category),
+              category: suggestion.category,
+              userId,
+              isSystem: true,
+              createdAt: now()
+            });
+            tagId = newTagId;
+          }
+        } catch (tagError) {
+          console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
+          errors.push(`Failed to handle tag "${suggestion.keyword}": ${tagError}`);
+          continue;
+        }
+      }
+      if (!tagId) {
+        errors.push(`Missing tagId for "${suggestion.keyword}"`);
+        continue;
+      }
+      if (options?.forceRelink) {
+        await db.delete(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId)));
+      } else {
+        const existingRelation = first(await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId))).limit(1));
+        if (existingRelation) continue;
+      }
+      const relationId = `note_tag_${(0, import_crypto3.randomUUID)()}`;
+      await db.insert(NoteTags).values({
+        id: relationId,
+        noteId,
+        tagId,
+        isAutoGenerated: true,
+        confidence: suggestion.confidence,
+        createdAt: now()
+      });
+      applied++;
+    } catch (error) {
+      console.error(`Error applying tag ${suggestion.keyword}:`, error);
+      errors.push(`Failed to apply tag "${suggestion.keyword}": ${error}`);
+    }
+  }
+  return { applied, errors };
+}
+function getColorForCategory(category) {
+  const colorMap = {
+    "spiritual": "#006eff",
+    "biblical": "#28a745",
+    "character": "#ffc107",
+    "place": "#17a2b8",
+    "book": "#6f42c1",
+    "theme": "#fd7e14",
+    "life": "#e83e8c"
+  };
+  return colorMap[category] || "#006eff";
+}
+async function removeAutoTags(noteId) {
+  try {
+    await db.delete(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.isAutoGenerated, true)));
+    return 1;
+  } catch (error) {
+    console.error("Error removing auto tags:", error);
+    return 0;
+  }
+}
+async function regenerateAutoTags(noteId, noteTitle, noteContent, userId, confidenceThreshold = 0.7, options) {
+  try {
+    if (options?.removeAllNoteTagLinks) {
+      await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
+    } else {
+      await removeAutoTags(noteId);
+    }
+    const result = await generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold);
+    const out = await applyAutoTags(noteId, result.suggestions, userId, {
+      forceRelink: Boolean(options?.removeAllNoteTagLinks)
+    });
+    return { ...out, suggestionCount: result.suggestions.length };
+  } catch (error) {
+    console.error("Error regenerating auto tags:", error);
+    return { applied: 0, errors: [`Failed to regenerate tags: ${error}`], suggestionCount: 0 };
+  }
+}
+var import_crypto3, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN;
+var init_auto_tag_generator = __esm({
+  "server/utils/auto-tag-generator.ts"() {
+    "use strict";
+    import_crypto3 = require("crypto");
+    init_bible_study_keywords();
+    init_db2();
+    AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
+  }
+});
+
+// server/utils/fetch-verse-text.ts
+async function fetchVerseText(reference, translation = "NET") {
+  const cleanReference = reference.replace(/,\s+/g, ",");
+  const parsed = parseScriptureReference(cleanReference);
+  if (!parsed) {
+    return "";
+  }
+  const normalizedKey = normalizeScriptureReference(cleanReference);
+  let cached = void 0;
+  try {
+    cached = first(await db.select({ content: VerseTextCache.content }).from(VerseTextCache).where(and(
+      eq(VerseTextCache.reference, normalizedKey),
+      eq(VerseTextCache.translation, translation)
+    )).limit(1));
+  } catch (cacheReadErr) {
+    const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);
+    let causeMsg = "";
+    for (let e = cacheReadErr; e != null; e = e?.cause) {
+      causeMsg += (e instanceof Error ? e.message : String(e)) + " ";
+    }
+    const isMissingTable = /no such table|VerseTextCache/i.test(msg + causeMsg);
+    if (isMissingTable) {
+      console.warn("[fetchVerseText] VerseTextCache unavailable:", (msg + causeMsg).trim().slice(0, 120));
+    } else {
+      throw cacheReadErr;
+    }
+  }
+  if (cached?.content && cached.content.length > 0) {
+    return cached.content;
+  }
+  let verseGroups = parseVerseGroups(cleanReference);
+  if (verseGroups.length === 0) {
+    const v2 = parsed.verse;
+    if (v2 !== void 0 && v2 !== null) {
+      const start = Array.isArray(v2) ? v2[0] : v2;
+      const end = Array.isArray(v2) ? v2[1] ?? v2[0] : v2;
+      if (typeof start === "number" && typeof end === "number") {
+        verseGroups = [{ start, end }];
+      }
+    }
+  }
+  if (verseGroups.length === 0) {
+    return "";
+  }
+  for (const group of verseGroups) {
+    if (group.start === group.end) {
+      if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
+        return "";
+      }
+    } else {
+      if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
+        return "";
+      }
+    }
+  }
+  let allVerses = [];
+  try {
+    const versePromises = verseGroups.map(async (group) => {
+      const rows = await db.select({ verse: BibleVerses.verse, text: BibleVerses.text }).from(BibleVerses).where(and(
+        eq(BibleVerses.translationId, translation),
+        eq(BibleVerses.book, parsed.book),
+        eq(BibleVerses.chapter, parsed.chapter),
+        gte(BibleVerses.verse, group.start),
+        lte(BibleVerses.verse, group.end)
+      )).orderBy(BibleVerses.verse);
+      return rows;
+    });
+    const verseArrays = await Promise.all(versePromises);
+    allVerses = verseArrays.flat();
+  } catch (err) {
+    console.error(`[fetchVerseText] DB error for ${reference} (${translation}):`, err?.message ?? err);
+    return "";
+  }
+  if (allVerses.length === 0) {
+    return `<p><em>This verse is not included in the ${translation} translation.</em></p>`;
+  }
+  let formatted;
+  if (verseGroups.length > 1) {
+    const formattedParts = [];
+    verseGroups.forEach((group, index2) => {
+      const groupVerses = allVerses.filter(
+        (v2) => v2.verse >= group.start && v2.verse <= group.end
+      );
+      if (groupVerses.length > 0) {
+        const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
+        formattedParts.push(`<p><strong>${label}</strong></p>`);
+        const groupText = groupVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+        formattedParts.push(`<p>${groupText}</p>`);
+        if (index2 < verseGroups.length - 1) {
+          formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
+        }
+      } else {
+        formattedParts.push(`<p><em>Verses ${group.start}-${group.end} are not included in the ${translation} translation.</em></p>`);
+      }
+    });
+    formatted = formattedParts.join("");
+  } else {
+    formatted = allVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
+  }
+  try {
+    await db.insert(VerseTextCache).values({
+      reference: normalizedKey,
+      translation,
+      content: formatted,
+      createdAt: nowISO()
+    }).onConflictDoNothing();
+  } catch (cacheErr) {
+    console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey} (${translation}):`, cacheErr?.message ?? cacheErr);
+  }
+  return formatted;
+}
+var init_fetch_verse_text = __esm({
+  "server/utils/fetch-verse-text.ts"() {
+    "use strict";
+    init_scripture_detector();
+    init_db2();
+    init_dates();
+  }
+});
+
 // server/utils/unorganized-thread.ts
 var unorganized_thread_exports = {};
 __export(unorganized_thread_exports, {
@@ -18945,11 +30674,835 @@ var init_unorganized_thread = __esm({
   }
 });
 
+// server/utils/process-scripture-references.ts
+async function resolveParentThreadIds(noteId, threadId, note) {
+  if (threadId !== void 0) {
+    const arr = Array.isArray(threadId) ? threadId : [threadId];
+    const out = /* @__PURE__ */ new Set();
+    for (const t of arr) {
+      if (t && t.trim() && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_")) {
+        out.add(t);
+      }
+    }
+    return [...out];
+  }
+  const ids = /* @__PURE__ */ new Set();
+  const rels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+  for (const r of rels) {
+    if (r.threadId && r.threadId !== "thread_unorganized" && !r.threadId.startsWith("thread_onboarding_")) {
+      ids.add(r.threadId);
+    }
+  }
+  if (note.threadId && note.threadId !== "thread_unorganized" && !note.threadId.startsWith("thread_onboarding_")) {
+    ids.add(note.threadId);
+  }
+  return [...ids];
+}
+async function addScriptureNoteToParentThreads(scriptureNoteId, parentThreadIds, userId) {
+  const filtered = parentThreadIds.filter((t) => t && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_"));
+  if (filtered.length === 0) return;
+  const scriptureNote = first(await db.select().from(Notes).where(eq(Notes.id, scriptureNoteId)).limit(1));
+  if (!scriptureNote) return;
+  const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
+  const existingSet = new Set(existingRels.map((r) => r.threadId));
+  const needsPrimary = existingRels.length === 0 || scriptureNote.threadId === "thread_unorganized";
+  let primaryUpdated = false;
+  for (const tid of filtered) {
+    if (existingSet.has(tid)) continue;
+    try {
+      await db.insert(NoteThreads).values({
+        id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        noteId: scriptureNoteId,
+        threadId: tid,
+        createdAt: /* @__PURE__ */ new Date()
+      });
+      existingSet.add(tid);
+      if (needsPrimary && !primaryUpdated) {
+        await db.update(Notes).set({ threadId: tid }).where(eq(Notes.id, scriptureNoteId));
+        primaryUpdated = true;
+      }
+      await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+    } catch {
+    }
+  }
+}
+async function processScriptureReferences(noteId, userId, threadId, contentOverride, translation = "NET") {
+  const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
+  const current = prev.catch(() => {
+  }).then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation));
+  userProcessingQueue.set(userId, current);
+  try {
+    return await current;
+  } finally {
+    if (userProcessingQueue.get(userId) === current) {
+      userProcessingQueue.delete(userId);
+    }
+  }
+}
+async function processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation = "NET") {
+  const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1));
+  if (!note) {
+    throw new Error("Note not found");
+  }
+  let noteContent = contentOverride || note.content;
+  const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
+  const existingReferences = /* @__PURE__ */ new Map();
+  const pendingPills = /* @__PURE__ */ new Map();
+  const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  let match3;
+  while ((match3 = pillPattern1.exec(noteContent)) !== null) {
+    const reference = match3[1];
+    const pillNoteId = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      existingReferences.set(normalizedRef, pillNoteId);
+    }
+  }
+  const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern2.exec(noteContent)) !== null) {
+    const pillNoteId = match3[1];
+    const reference = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const pendingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pendingPillPattern.exec(noteContent)) !== null) {
+    const fullMatch = match3[0];
+    const reference = match3[1];
+    const noteIdMatch = fullMatch.match(/data-note-id\s*=\s*["']([^"']+)["']/);
+    if (noteIdMatch) {
+      const noteIdValue = noteIdMatch[1];
+      if (noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "") {
+        continue;
+      }
+    }
+    const normalizedRef = normalizeScriptureReference(reference);
+    if (!existingReferences.has(normalizedRef) && !pendingPills.has(normalizedRef)) {
+      const translationMatch = fullMatch.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/);
+      const pillTranslation = translationMatch ? translationMatch[1] : void 0;
+      pendingPills.set(normalizedRef, {
+        reference: match3[1],
+        fullMatch: match3[0],
+        startIndex: match3.index || 0,
+        pillTranslation
+      });
+    }
+  }
+  const pillPattern3 = /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern3.exec(noteContent)) !== null) {
+    const reference = match3[1];
+    const pillNoteId = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const noteLinkPattern = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
+  while ((match3 = noteLinkPattern.exec(noteContent)) !== null) {
+    const pillNoteId = match3[1];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
+      const innerRefs = detectScriptureReferences(innerContent);
+      if (innerRefs.length > 0) {
+        const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
+        if (!existingReferences.has(normalizedRef)) {
+          existingReferences.set(normalizedRef, pillNoteId);
+        }
+      }
+    }
+  }
+  const noteLinkPattern2 = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi;
+  while ((match3 = noteLinkPattern2.exec(noteContent)) !== null) {
+    const pillNoteId = match3[1];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
+      const innerRefs = detectScriptureReferences(innerContent);
+      if (innerRefs.length > 0) {
+        const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
+        if (!existingReferences.has(normalizedRef)) {
+          existingReferences.set(normalizedRef, pillNoteId);
+        }
+      }
+    }
+  }
+  const pillPattern6 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern6.exec(noteContent)) !== null) {
+    const reference = match3[1];
+    const pillNoteId = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const pillPattern7 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern7.exec(noteContent)) !== null) {
+    const pillNoteId = match3[1];
+    const reference = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const pillPattern8 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern8.exec(noteContent)) !== null) {
+    const reference = match3[1];
+    const pillNoteId = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const pillPattern9 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
+  while ((match3 = pillPattern9.exec(noteContent)) !== null) {
+    const pillNoteId = match3[1];
+    const reference = match3[2];
+    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
+      const normalizedRef = normalizeScriptureReference(reference);
+      if (!existingReferences.has(normalizedRef)) {
+        existingReferences.set(normalizedRef, pillNoteId);
+      }
+    }
+  }
+  const plainText = noteContent.replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const detectedReferences = detectScriptureReferences(plainText);
+  console.log("[processScriptureReferences] Detection", {
+    noteId,
+    plainTextLength: plainText.length,
+    detectedCount: detectedReferences.length,
+    firstRef: detectedReferences[0]?.reference ?? null
+  });
+  const results = [];
+  const referenceMap = /* @__PURE__ */ new Map();
+  const normalizedScriptureMap = /* @__PURE__ */ new Map();
+  let scriptureMapLoaded = false;
+  async function loadScriptureMapFromDb() {
+    if (scriptureMapLoaded) return;
+    scriptureMapLoaded = true;
+    const allUserScripture = await db.select({
+      noteId: ScriptureMetadata.noteId,
+      reference: ScriptureMetadata.reference
+    }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
+    const duplicatesByNormalized = /* @__PURE__ */ new Map();
+    for (const scripture of allUserScripture) {
+      const normalizedStored = normalizeScriptureReference(scripture.reference);
+      if (!normalizedScriptureMap.has(normalizedStored)) {
+        normalizedScriptureMap.set(normalizedStored, {
+          noteId: scripture.noteId,
+          reference: scripture.reference
+        });
+      } else {
+        const existing = normalizedScriptureMap.get(normalizedStored);
+        if (existing.noteId !== scripture.noteId) {
+          if (!duplicatesByNormalized.has(normalizedStored)) {
+            duplicatesByNormalized.set(normalizedStored, [existing.noteId]);
+          }
+          duplicatesByNormalized.get(normalizedStored).push(scripture.noteId);
+        }
+      }
+    }
+    if (duplicatesByNormalized.size > 0) {
+      try {
+        console.log(`[processScriptureReferences] Found ${duplicatesByNormalized.size} duplicate scripture reference(s) for user ${userId}, consolidating...`);
+        for (const [normalizedRef, dupeNoteIds] of duplicatesByNormalized.entries()) {
+          const dupeNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes).where(and(eq(Notes.userId, userId), eq(Notes.noteType, "scripture")));
+          const relevantNotes = dupeNotes.filter((n) => dupeNoteIds.includes(n.id)).sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
+          if (relevantNotes.length < 2) continue;
+          const keeperId = relevantNotes[0].id;
+          const duplicateIds = relevantNotes.slice(1).map((n) => n.id);
+          for (const dupeId of duplicateIds) {
+            const junctionsToMove = await db.select().from(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
+            for (const junction of junctionsToMove) {
+              const existingKeeperJunction = first(await db.select().from(NoteScriptureReferences).where(and(
+                eq(NoteScriptureReferences.noteId, junction.noteId),
+                eq(NoteScriptureReferences.scriptureNoteId, keeperId)
+              )).limit(1));
+              if (existingKeeperJunction) {
+                await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+              } else {
+                await db.update(NoteScriptureReferences).set({ scriptureNoteId: keeperId }).where(eq(NoteScriptureReferences.id, junction.id));
+              }
+            }
+            const affectedNotes = await db.select({ id: Notes.id, content: Notes.content }).from(Notes).where(eq(Notes.userId, userId));
+            for (const affectedNote of affectedNotes) {
+              if (affectedNote.content && affectedNote.content.includes(dupeId)) {
+                const updatedContent2 = affectedNote.content.replace(
+                  new RegExp(`data-note-id=["']${dupeId}["']`, "g"),
+                  `data-note-id="${keeperId}"`
+                );
+                if (updatedContent2 !== affectedNote.content) {
+                  await db.update(Notes).set({ content: updatedContent2 }).where(eq(Notes.id, affectedNote.id));
+                }
+              }
+            }
+            await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
+            await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
+            await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
+            await db.delete(Comments).where(eq(Comments.noteId, dupeId));
+            await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
+            await db.delete(Notes).where(eq(Notes.id, dupeId));
+          }
+          normalizedScriptureMap.set(normalizedRef, { noteId: keeperId, reference: normalizedRef });
+          console.log(`[processScriptureReferences] Consolidated "${normalizedRef}": kept ${keeperId}, removed ${duplicateIds.join(", ")}`);
+        }
+      } catch (dedupError) {
+        console.error("[processScriptureReferences] Dedup cleanup failed (non-critical):", dedupError?.message ?? dedupError);
+      }
+    }
+  }
+  const skipBulkScriptureLoad = pendingPills.size === 0 && detectedReferences.every((d) => existingReferences.has(normalizeScriptureReference(d.reference)));
+  if (!skipBulkScriptureLoad) {
+    await loadScriptureMapFromDb();
+  }
+  const processedReferences = /* @__PURE__ */ new Set();
+  for (const detectedRef of detectedReferences) {
+    const reference = detectedRef.reference;
+    const normalizedReference = normalizeScriptureReference(reference);
+    if (processedReferences.has(normalizedReference)) {
+      continue;
+    }
+    processedReferences.add(normalizedReference);
+    if (existingReferences.has(normalizedReference)) {
+      const existingNoteId = existingReferences.get(normalizedReference);
+      referenceMap.set(reference, existingNoteId);
+      continue;
+    }
+    try {
+      let existingScripture = normalizedScriptureMap.get(normalizedReference) ? { noteId: normalizedScriptureMap.get(normalizedReference).noteId, reference: normalizedScriptureMap.get(normalizedReference).reference } : null;
+      if (!existingScripture) {
+        const freshCheck = await db.select({
+          noteId: ScriptureMetadata.noteId,
+          reference: ScriptureMetadata.reference
+        }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
+        for (const row of freshCheck) {
+          if (normalizeScriptureReference(row.reference) === normalizedReference) {
+            existingScripture = { noteId: row.noteId, reference: row.reference };
+            normalizedScriptureMap.set(normalizedReference, { noteId: row.noteId, reference: row.reference });
+            break;
+          }
+        }
+      }
+      if (!existingScripture) {
+        try {
+          const pendingPillInfo = pendingPills.get(normalizedReference);
+          const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
+          const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
+          let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+          if (!userMetadata) {
+            const existingNotes = await db.select({
+              simpleNoteId: Notes.simpleNoteId
+            }).from(Notes).where(and(
+              eq(Notes.userId, userId),
+              isNotNull(Notes.simpleNoteId)
+            )).orderBy(desc(Notes.simpleNoteId)).limit(1);
+            const highestExistingId = existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0;
+            const season = getCurrentSeason();
+            await db.insert(UserMetadata).values({
+              id: `user_metadata_${userId}`,
+              userId,
+              highestSimpleNoteId: highestExistingId,
+              userColor: "blue",
+              currentSeason: season,
+              createdAt: /* @__PURE__ */ new Date()
+            });
+            userMetadata = {
+              id: `user_metadata_${userId}`,
+              userId,
+              highestSimpleNoteId: highestExistingId,
+              userColor: "blue",
+              email: null,
+              firstName: null,
+              lastName: null,
+              profileImageUrl: null,
+              clerkDataUpdatedAt: null,
+              churchName: null,
+              churchCity: null,
+              churchState: null,
+              churchCountry: null,
+              currentSeason: season,
+              lastMonthlyVisit: null,
+              churchAddedAt: null,
+              referralBonusNotes: 0,
+              referralCode: null,
+              lockPinSalt: null,
+              lockPinHash: null,
+              createdAt: /* @__PURE__ */ new Date(),
+              updatedAt: null
+            };
+          }
+          const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+          const nextSimpleNoteId = effectiveHighest + 1;
+          const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
+          const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
+          const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
+          await ensureUnorganizedThread2(userId);
+          const now2 = /* @__PURE__ */ new Date();
+          const shareToken = generateShareToken();
+          const scriptureNote = first(await db.insert(Notes).values({
+            id: generateNoteId(),
+            content: capitalizedContent,
+            title: capitalizedTitle,
+            threadId: "thread_unorganized",
+            spaceId: null,
+            simpleNoteId: nextSimpleNoteId,
+            noteType: "scripture",
+            userId,
+            isPublic: true,
+            shareToken,
+            shareTokenCreatedAt: now2,
+            addedBy: "harvous",
+            createdAt: now2
+          }).returning());
+          await db.update(UserMetadata).set({
+            highestSimpleNoteId: nextSimpleNoteId,
+            updatedAt: /* @__PURE__ */ new Date()
+          }).where(eq(UserMetadata.userId, userId));
+          const parsed = parseScriptureReference(normalizedReference);
+          if (parsed) {
+            const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+            const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+            await db.insert(ScriptureMetadata).values({
+              id: `scripture_${scriptureNote.id}_${Date.now()}`,
+              noteId: scriptureNote.id,
+              reference: normalizedReference,
+              // Store normalized reference
+              book: parsed.book,
+              chapter: parsed.chapter,
+              verse: verseStart,
+              verseEnd: verseEnd || null,
+              translation: effectiveTranslation,
+              originalText: capitalizedContent,
+              createdAt: /* @__PURE__ */ new Date()
+            });
+          }
+          await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
+          (async () => {
+            try {
+              const autoTagResult = await generateAutoTags(
+                capitalizedTitle || "",
+                capitalizedContent,
+                userId,
+                AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
+              );
+              if (autoTagResult.suggestions.length > 0) {
+                await applyAutoTags(scriptureNote.id, autoTagResult.suggestions, userId);
+              }
+            } catch (err) {
+              console.error("Auto-tagging failed for scripture note (non-critical):", err);
+            }
+          })().catch(() => {
+          });
+          await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);
+          referenceMap.set(reference, scriptureNote.id);
+          normalizedScriptureMap.set(normalizedReference, { noteId: scriptureNote.id, reference: normalizedReference });
+          try {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${scriptureNote.id}-${Date.now()}`,
+              noteId,
+              // The note containing the reference
+              scriptureNoteId: scriptureNote.id,
+              // The scripture note being referenced
+              createdAt: /* @__PURE__ */ new Date()
+            });
+          } catch (junctionError) {
+            if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
+              console.error(`[processScriptureReferences] Failed to create junction for new scripture (noteId=${noteId}, scriptureNoteId=${scriptureNote.id}, reference=${reference}):`, junctionError?.message ?? junctionError);
+            }
+          }
+          results.push({
+            action: "created",
+            noteId: scriptureNote.id,
+            reference
+          });
+        } catch (error) {
+          console.error(`Error creating scripture note for ${reference}:`, error);
+        }
+      } else {
+        const existingNoteId = existingScripture.noteId;
+        referenceMap.set(reference, existingNoteId);
+        try {
+          const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
+            and(
+              eq(NoteScriptureReferences.noteId, noteId),
+              eq(NoteScriptureReferences.scriptureNoteId, existingNoteId)
+            )
+          ).limit(1));
+          if (!existingJunction) {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${existingNoteId}-${Date.now()}`,
+              noteId,
+              // The note containing the reference
+              scriptureNoteId: existingNoteId,
+              // The scripture note being referenced
+              createdAt: /* @__PURE__ */ new Date()
+            });
+          }
+        } catch (junctionError) {
+          if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
+            console.error(`[processScriptureReferences] Failed to create junction for existing scripture (noteId=${noteId}, scriptureNoteId=${existingNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
+          }
+        }
+        const threadCount = first(await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId)).limit(1));
+        const inUnorganized = !threadCount || threadCount.count === 0;
+        if (parentThreadIds.length === 0) {
+          results.push({
+            action: "unorganized",
+            noteId: existingNoteId,
+            reference
+          });
+        } else {
+          const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId));
+          const existingSet = new Set(existingRels.map((r) => r.threadId));
+          let addedAny = false;
+          for (const tid of parentThreadIds) {
+            if (existingSet.has(tid)) continue;
+            try {
+              await db.insert(NoteThreads).values({
+                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                noteId: existingNoteId,
+                threadId: tid,
+                createdAt: /* @__PURE__ */ new Date()
+              });
+              existingSet.add(tid);
+              addedAny = true;
+              await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
+            } catch {
+            }
+          }
+          if (addedAny && inUnorganized) {
+            await db.update(Notes).set({ threadId: parentThreadIds[0] }).where(eq(Notes.id, existingNoteId));
+          }
+          results.push({
+            action: addedAny ? "added" : "skipped",
+            noteId: existingNoteId,
+            reference
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Error processing scripture reference ${reference}:`, error);
+    }
+  }
+  const referencesForHighlighting = Array.from(referenceMap.entries()).map(([reference, noteId2]) => {
+    const normalizedRef = normalizeScriptureReference(reference);
+    const pillInfo = pendingPills.get(normalizedRef);
+    return {
+      reference,
+      noteId: noteId2,
+      translation: pillInfo?.pillTranslation || translation
+    };
+  });
+  for (const [normalizedRef, existingScriptureNoteId] of existingReferences.entries()) {
+    const matchingRef = detectedReferences.find((d) => normalizeScriptureReference(d.reference) === normalizedRef);
+    const referenceForHighlight = matchingRef?.reference ?? normalizedRef;
+    if (!referenceMap.has(referenceForHighlight)) {
+      referenceMap.set(referenceForHighlight, existingScriptureNoteId);
+      const pillInfo = pendingPills.get(normalizedRef);
+      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation });
+    }
+    try {
+      const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
+        and(
+          eq(NoteScriptureReferences.noteId, noteId),
+          eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
+        )
+      ).limit(1));
+      if (!existingJunction) {
+        await db.insert(NoteScriptureReferences).values({
+          id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          noteId,
+          scriptureNoteId: existingScriptureNoteId,
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
+    } catch (junctionError) {
+      if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
+        console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
+      }
+    }
+  }
+  const allExistingPills = /* @__PURE__ */ new Map();
+  function collectPill(scriptureNoteId, reference) {
+    if (scriptureNoteId && scriptureNoteId !== "pending" && scriptureNoteId !== "null" && scriptureNoteId !== "" && !allExistingPills.has(scriptureNoteId)) {
+      allExistingPills.set(scriptureNoteId, reference);
+    }
+  }
+  const allPillPatterns = [
+    { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
+    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 }
+  ];
+  let pillMatch;
+  for (const { re: re2, refIdx, noteIdIdx } of allPillPatterns) {
+    re2.lastIndex = 0;
+    while ((pillMatch = re2.exec(noteContent)) !== null) {
+      collectPill(pillMatch[noteIdIdx], pillMatch[refIdx]);
+    }
+  }
+  for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
+    try {
+      const scriptureNote = first(await db.select().from(Notes).where(
+        and(
+          eq(Notes.id, scriptureNoteId),
+          eq(Notes.userId, userId),
+          eq(Notes.noteType, "scripture")
+        )
+      ).limit(1));
+      if (!scriptureNote) {
+        console.log(`Scripture note ${scriptureNoteId} not found for reference ${reference}, creating new one`);
+        const normalizedRef = normalizeScriptureReference(reference);
+        await loadScriptureMapFromDb();
+        const existingEntry = normalizedScriptureMap.get(normalizedRef);
+        const existingScriptureByRef = existingEntry ? { noteId: existingEntry.noteId, reference: existingEntry.reference } : null;
+        if (existingScriptureByRef) {
+          const actualNoteId = existingScriptureByRef.noteId;
+          const existingJunction2 = first(await db.select().from(NoteScriptureReferences).where(
+            and(
+              eq(NoteScriptureReferences.noteId, noteId),
+              eq(NoteScriptureReferences.scriptureNoteId, actualNoteId)
+            )
+          ).limit(1));
+          if (!existingJunction2) {
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${actualNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              noteId,
+              scriptureNoteId: actualNoteId,
+              createdAt: /* @__PURE__ */ new Date()
+            });
+          }
+          noteContent = noteContent.replace(
+            new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
+            `data-note-id="${actualNoteId}"`
+          );
+        } else {
+          try {
+            const verseText = await fetchVerseText(normalizedRef, translation);
+            let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+            if (!userMetadata) {
+              const existingNotes = await db.select({
+                simpleNoteId: Notes.simpleNoteId
+              }).from(Notes).where(and(
+                eq(Notes.userId, userId),
+                isNotNull(Notes.simpleNoteId)
+              )).orderBy(desc(Notes.simpleNoteId)).limit(1);
+              const highestExistingId = existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0;
+              const season = getCurrentSeason();
+              await db.insert(UserMetadata).values({
+                id: `user_metadata_${userId}`,
+                userId,
+                highestSimpleNoteId: highestExistingId,
+                userColor: "blue",
+                currentSeason: season,
+                createdAt: /* @__PURE__ */ new Date()
+              });
+              userMetadata = {
+                id: `user_metadata_${userId}`,
+                userId,
+                highestSimpleNoteId: highestExistingId,
+                userColor: "blue",
+                email: null,
+                firstName: null,
+                lastName: null,
+                profileImageUrl: null,
+                clerkDataUpdatedAt: null,
+                churchName: null,
+                churchCity: null,
+                churchState: null,
+                churchCountry: null,
+                currentSeason: season,
+                lastMonthlyVisit: null,
+                churchAddedAt: null,
+                referralBonusNotes: 0,
+                referralCode: null,
+                lockPinSalt: null,
+                lockPinHash: null,
+                createdAt: /* @__PURE__ */ new Date(),
+                updatedAt: null
+              };
+            }
+            const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
+            const nextSimpleNoteId = effectiveHighest + 1;
+            const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
+            const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
+            const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
+            await ensureUnorganizedThread2(userId);
+            const now2 = /* @__PURE__ */ new Date();
+            const shareToken = generateShareToken();
+            const newScriptureNote = first(await db.insert(Notes).values({
+              id: generateNoteId(),
+              content: capitalizedContent,
+              title: capitalizedTitle,
+              threadId: "thread_unorganized",
+              spaceId: null,
+              simpleNoteId: nextSimpleNoteId,
+              noteType: "scripture",
+              userId,
+              isPublic: true,
+              shareToken,
+              shareTokenCreatedAt: now2,
+              addedBy: "harvous",
+              createdAt: now2
+            }).returning());
+            await db.update(UserMetadata).set({
+              highestSimpleNoteId: nextSimpleNoteId,
+              updatedAt: /* @__PURE__ */ new Date()
+            }).where(eq(UserMetadata.userId, userId));
+            const parsed = parseScriptureReference(normalizedRef);
+            if (parsed) {
+              const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
+              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
+              await db.insert(ScriptureMetadata).values({
+                id: `scripture_${newScriptureNote.id}_${Date.now()}`,
+                noteId: newScriptureNote.id,
+                reference: normalizedRef,
+                book: parsed.book,
+                chapter: parsed.chapter,
+                verse: verseStart,
+                verseEnd: verseEnd || null,
+                translation,
+                originalText: capitalizedContent,
+                createdAt: /* @__PURE__ */ new Date()
+              });
+            }
+            await awardNoteCreatedXP(userId, newScriptureNote.id, true, capitalizedContent);
+            try {
+              const autoTagResult = await generateAutoTags(capitalizedTitle || "", capitalizedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
+              if (autoTagResult.suggestions.length > 0) {
+                await applyAutoTags(newScriptureNote.id, autoTagResult.suggestions, userId);
+              }
+            } catch (tagError) {
+              console.error(`Error auto-generating tags for scripture note ${newScriptureNote.id}:`, tagError);
+            }
+            await db.insert(NoteScriptureReferences).values({
+              id: `note-scripture-${noteId}-${newScriptureNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+              noteId,
+              scriptureNoteId: newScriptureNote.id,
+              createdAt: /* @__PURE__ */ new Date()
+            });
+            noteContent = noteContent.replace(
+              new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
+              `data-note-id="${newScriptureNote.id}"`
+            );
+            await addScriptureNoteToParentThreads(newScriptureNote.id, parentThreadIds, userId);
+            normalizedScriptureMap.set(normalizedRef, { noteId: newScriptureNote.id, reference: normalizedRef });
+            results.push({
+              action: "created",
+              noteId: newScriptureNote.id,
+              reference
+            });
+          } catch (createError2) {
+            console.error(`Error creating scripture note for pasted pill ${reference}:`, createError2);
+          }
+        }
+        continue;
+      }
+      const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
+        and(
+          eq(NoteScriptureReferences.noteId, noteId),
+          eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId)
+        )
+      ).limit(1));
+      if (!existingJunction) {
+        await db.insert(NoteScriptureReferences).values({
+          id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          noteId,
+          scriptureNoteId,
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
+    } catch (junctionError) {
+      if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
+        console.error(`[processScriptureReferences] Failed to create junction for pill (noteId=${noteId}, scriptureNoteId=${scriptureNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
+      }
+    }
+  }
+  const presentScriptureNoteIds = /* @__PURE__ */ new Set();
+  for (const noteId2 of referenceMap.values()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  for (const noteId2 of existingReferences.values()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  for (const noteId2 of allExistingPills.keys()) {
+    if (noteId2) presentScriptureNoteIds.add(noteId2);
+  }
+  try {
+    const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
+    for (const junction of existingJunctions) {
+      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
+        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
+      }
+    }
+  } catch (pruneError) {
+    console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
+  }
+  const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
+  console.log("[processScriptureReferences] Updating note with highlighted content", {
+    noteId,
+    referencesForHighlightingCount: referencesForHighlighting.length
+  });
+  await db.update(Notes).set({
+    content: updatedContent,
+    updatedAt: /* @__PURE__ */ new Date()
+  }).where(eq(Notes.id, noteId));
+  (async () => {
+    try {
+      const tagTitle = note.title ?? "";
+      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
+      if (tagResult.suggestions.length > 0) {
+        await applyAutoTags(noteId, tagResult.suggestions, userId);
+      }
+    } catch (tagErr) {
+      console.error(
+        "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
+        tagErr instanceof Error ? tagErr.message : tagErr
+      );
+    }
+  })().catch(() => {
+  });
+  return {
+    results,
+    updatedContent
+  };
+}
+var userProcessingQueue;
+var init_process_scripture_references = __esm({
+  "server/utils/process-scripture-references.ts"() {
+    "use strict";
+    init_db2();
+    init_highest_simple_note_id();
+    init_scripture_detector();
+    init_scripture_highlighter();
+    init_ids();
+    init_season_helpers();
+    init_xp_system();
+    init_auto_tag_generator();
+    init_fetch_verse_text();
+    userProcessingQueue = /* @__PURE__ */ new Map();
+  }
+});
+
 // src/utils/onboarding-notes.generated.ts
-var onboardingNotesGenerated;
+var ONBOARDING_PACK_VERSION, onboardingNotesGenerated;
 var init_onboarding_notes_generated = __esm({
   "src/utils/onboarding-notes.generated.ts"() {
     "use strict";
+    ONBOARDING_PACK_VERSION = 2;
     onboardingNotesGenerated = [
       {
         "title": "Note from the Founder",
@@ -18958,17 +31511,17 @@ var init_onboarding_notes_generated = __esm({
       },
       {
         "title": "Notes, threads, and spaces oh my!",
-        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there some some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.\nWhen you erase a thread the notes don&#39;t get erased (expect for this thread). Any note that doesn&#39;t belong to a another thread moves into a default thread called Unorganized.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):</p>\n<ol>\n<li>Each note comes with its own # ex: N316 (which by the way you get 200 of these for free) so you can use this however you like. The idea is you can easily refer to this note simply by its number. </li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. There are 7 supported translations: KJV, NKJV, ESV, NIV, NLT, NET, and BSB. You can select your default Bible translation in My Profile &gt; My Preferences. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on note it was highlight to create a link between the two. (This one is my favorite)</li>\n</ol>",
+        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there are some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There are two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.</p>\n<p>When you erase a thread, your notes stay in Harvous unless you choose <strong>Erase thread and notes</strong>: <strong>Erase thread</strong> moves any note that only lived in that thread into <strong>Unorganized</strong>; <strong>Erase thread and notes</strong> removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are <strong>view-only</strong> in the app\u2014you can read them here, not edit them in the editor.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):</p>\n<ol>\n<li>Each note gets its own # (e.g. N316). Numbered note IDs are unlimited for everyone\u2014the idea is you can refer to a note quickly by its number. </li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. Harvous includes many translations, including <strong>KJV, NKJV, ESV, NIV, NLT, NET, BSB, NASB, CSB, AMP, and MSG</strong>. You can select your default Bible translation in <strong>My Profile \u2192 My Preferences</strong>. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on the note it was highlighted on to create a link between the two. (This one is my favorite)</li>\n</ol>",
         "order": 2
       },
       {
         "title": "Finding your way around",
-        "content": "<p>Within Harvous you can of course create notes, threads, and spaces like we covered in the other note. And well you can also of course find said notes, threads, and spaces, edit your info, connect your church, and much more. </p>\n<h2>Navigation</h2>\n<p>For large screens, on the left you will see \u201CMy Home\u201D and then \u201CWelcome to Harvous\u201D. This is your navigation and here will appear either spaces or threads. When you open a note that thread it belongs to will show up in the navigation. </p>\n<p>For small screens, this is all at the top. Within the navigation on mobile you will also see the \u201CNew Space\u201D button (it\u2019s bottom left on larger screens).</p>\n<h2>Edit, Add, and Find</h2>\n<p>There are square buttons with icons for these actions. The (...) is to edit said space, thread, or note. The (+) is to add a thread or note (reminder: adding a new space is done within navigation). And finally the magnifying glass is to find your threads, and notes (you find spaces in My Spaces on profile).</p>\n<h2>Profile &amp; Settings</h2>\n<p>To edit your name, password, avatar color, your church, and see your spaces and more this is all within your profile. Find the circle with your initials. That\u2019s where.</p>",
+        "content": "<p>Within Harvous you can of course create notes, threads, and spaces like we covered in the other note. And well you can also of course find said notes, threads, and spaces, edit your info, connect your church, and much more. </p>\n<h2>Navigation</h2>\n<p>For large screens, on the left you will see \u201CMy Home\u201D and then \u201CWelcome to Harvous\u201D. This is your navigation and here will appear either spaces or threads. When you open a note, the thread it belongs to will show up in the navigation. </p>\n<p>For small screens, this is all at the top. On wider screens, the \u201CNew Space\u201D control also appears toward the bottom left of the nav area; on mobile it\u2019s grouped with the top navigation.</p>\n<h2>Edit, Add, and Find</h2>\n<p>There are square buttons with icons for these actions. The (...) is to edit said space, thread, or note. The (+) is to add a thread or note (reminder: adding a new space is done within navigation). And finally the magnifying glass is to find your threads, and notes (you find spaces in My Spaces on profile).</p>\n<h2>Profile &amp; Settings</h2>\n<p>To edit your name, password, avatar color, your church, and see your spaces and more this is all within your profile. Find the circle with your initials. That\u2019s where.</p>",
         "order": 3
       },
       {
         "title": "Works on any device",
-        "content": '<p>Harvous runs in a modern web browser, so you can use it on your laptop, tablet, or phone\u2014whatever you\u2019ve got. For a better experience on your tablet or phone, use your browser\u2019s <strong>share menu</strong> and choose <strong>\u201CAdd to Home Screen.\u201D</strong> Harvous then opens from an icon on your home screen and feels more like an app (no address bar, full screen).</p>\n<p>Here are help articles for <a href="https://support.apple.com/guide/shortcuts/add-a-shortcut-to-the-home-screen-apd735880972/ios">iOS</a> and <a href="https://support.google.com/android/answer/9450271?hl=en">Android</a>. </p>\n<p>So you know, there a future plans to have standalone apps to download from the App Store or Google Play Store.</p>',
+        "content": '<p>Harvous runs in a modern web browser, so you can use it on your laptop, tablet, or phone\u2014whatever you\u2019ve got. For a better experience on your tablet or phone, use your browser\u2019s <strong>share menu</strong> and choose <strong>\u201CAdd to Home Screen.\u201D</strong> Harvous then opens from an icon on your home screen and feels more like an app (no address bar, full screen).</p>\n<p>Here are help articles for <a href="https://support.apple.com/guide/iphone/add-a-website-icon-to-your-home-screen-iph42ab2f3a7/ios">iOS (Safari: add a website icon to the Home Screen)</a> and <a href="https://support.google.com/android/answer/9450271?hl=en">Android</a>. </p>\n<p>There are future plans to have standalone apps to download from the App Store or Google Play Store.</p>',
         "order": 4
       }
     ];
@@ -18978,6 +31531,7 @@ var init_onboarding_notes_generated = __esm({
 // src/utils/load-onboarding-notes.ts
 var load_onboarding_notes_exports = {};
 __export(load_onboarding_notes_exports, {
+  ONBOARDING_PACK_VERSION: () => ONBOARDING_PACK_VERSION,
   loadOnboardingNotes: () => loadOnboardingNotes
 });
 function loadOnboardingNotes() {
@@ -18987,6 +31541,104 @@ var init_load_onboarding_notes = __esm({
   "src/utils/load-onboarding-notes.ts"() {
     "use strict";
     init_onboarding_notes_generated();
+  }
+});
+
+// server/utils/onboarding-sync.ts
+var onboarding_sync_exports = {};
+__export(onboarding_sync_exports, {
+  syncOnboardingNotesIfNeeded: () => syncOnboardingNotesIfNeeded
+});
+async function deleteSystemNoteRows(userId, noteId) {
+  await db.update(Notes).set({ linkedFromNoteId: null, updatedAt: nowISO() }).where(eq(Notes.linkedFromNoteId, noteId));
+  await db.delete(NoteThreads).where(eq(NoteThreads.noteId, noteId));
+  await db.delete(NoteScriptureReferences).where(or(eq(NoteScriptureReferences.noteId, noteId), eq(NoteScriptureReferences.scriptureNoteId, noteId)));
+  await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, noteId));
+  await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
+  await db.delete(Comments).where(eq(Comments.noteId, noteId));
+  await db.delete(ResourceMetadata).where(eq(ResourceMetadata.noteId, noteId));
+  await db.delete(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId)));
+}
+async function syncOnboardingNotesIfNeeded(userId) {
+  const { loadOnboardingNotes: loadOnboardingNotes2, ONBOARDING_PACK_VERSION: ONBOARDING_PACK_VERSION2 } = await Promise.resolve().then(() => (init_load_onboarding_notes(), load_onboarding_notes_exports));
+  const { generateNoteId: generateNoteId2 } = await Promise.resolve().then(() => (init_ids(), ids_exports));
+  const meta = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
+  if (!meta) return;
+  const applied = meta.onboardingPackVersionApplied ?? 0;
+  if (applied >= ONBOARDING_PACK_VERSION2) return;
+  const onboardingThreadId = `thread_onboarding_${userId}`;
+  const threadRow = first(await db.select({ id: Threads.id }).from(Threads).where(eq(Threads.id, onboardingThreadId)).limit(1));
+  if (!threadRow) return;
+  const pack = loadOnboardingNotes2();
+  if (pack.length === 0) {
+    await db.update(UserMetadata).set({ onboardingPackVersionApplied: ONBOARDING_PACK_VERSION2, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+    return;
+  }
+  const systemNotes = await db.select().from(Notes).where(and(eq(Notes.threadId, onboardingThreadId), eq(Notes.userId, userId), eq(Notes.addedBy, "system"))).orderBy(desc(Notes.simpleNoteId));
+  const bySimple = /* @__PURE__ */ new Map();
+  for (const n of systemNotes) {
+    if (n.simpleNoteId != null) bySimple.set(n.simpleNoteId, n);
+  }
+  const ts2 = nowISO();
+  for (let i = 0; i < pack.length; i++) {
+    const order = i + 1;
+    const noteData = pack[i];
+    const title = noteData.title.charAt(0).toUpperCase() + noteData.title.slice(1);
+    const content = noteData.content;
+    const existing = bySimple.get(order);
+    if (existing) {
+      await db.update(Notes).set({ title, content, updatedAt: ts2 }).where(and(eq(Notes.id, existing.id), eq(Notes.userId, userId)));
+      try {
+        await processScriptureReferences(existing.id, userId, onboardingThreadId, content);
+      } catch (e) {
+        console.error("[onboarding-sync] scripture processing failed", existing.id, e);
+      }
+    } else {
+      const noteId = generateNoteId2();
+      await db.insert(Notes).values({
+        id: noteId,
+        title,
+        content,
+        threadId: onboardingThreadId,
+        spaceId: null,
+        simpleNoteId: order,
+        userId,
+        isPublic: false,
+        addedBy: "system",
+        createdAt: ts2,
+        lastVisited: ts2
+      });
+      await db.insert(NoteThreads).values({
+        id: `note-thread-${noteId}-${Date.now()}`,
+        noteId,
+        threadId: onboardingThreadId,
+        createdAt: nowISO()
+      });
+      try {
+        await processScriptureReferences(noteId, userId, onboardingThreadId, content);
+      } catch (e) {
+        console.error("[onboarding-sync] scripture processing failed", noteId, e);
+      }
+    }
+  }
+  const maxPackOrder = pack.length;
+  const extras = systemNotes.filter((n) => n.simpleNoteId != null && n.simpleNoteId > maxPackOrder);
+  for (const row of extras) {
+    await deleteSystemNoteRows(userId, row.id);
+  }
+  await db.update(Threads).set({
+    subtitle: `${pack.length} notes to get you started`,
+    updatedAt: ts2
+  }).where(and(eq(Threads.id, onboardingThreadId), eq(Threads.userId, userId)));
+  await db.update(UserMetadata).set({ onboardingPackVersionApplied: ONBOARDING_PACK_VERSION2, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+  console.log("[onboarding-sync] applied pack version", ONBOARDING_PACK_VERSION2, { userId });
+}
+var init_onboarding_sync = __esm({
+  "server/utils/onboarding-sync.ts"() {
+    "use strict";
+    init_db2();
+    init_dates();
+    init_process_scripture_references();
   }
 });
 
@@ -54568,96 +67220,6 @@ var require_turndown_cjs = __commonJS({
   }
 });
 
-// src/data/translations.ts
-var translations_exports = {};
-__export(translations_exports, {
-  TRANSLATIONS: () => TRANSLATIONS,
-  TRANSLATION_ORDER: () => TRANSLATION_ORDER,
-  getTranslation: () => getTranslation
-});
-function getTranslation(id) {
-  return TRANSLATIONS[id];
-}
-var TRANSLATIONS, TRANSLATION_ORDER;
-var init_translations = __esm({
-  "src/data/translations.ts"() {
-    "use strict";
-    TRANSLATIONS = {
-      KJV: {
-        id: "KJV",
-        name: "King James Version",
-        abbreviation: "KJV",
-        publisher: "Public Domain",
-        copyright: "The King James Version is in the public domain.",
-        website: "https://www.kingjamesbibleonline.org",
-        isPublicDomain: true,
-        sortOrder: 2
-      },
-      NKJV: {
-        id: "NKJV",
-        name: "New King James Version",
-        abbreviation: "NKJV",
-        publisher: "Thomas Nelson",
-        copyright: "Scripture quotations are from the New King James Version\xAE. Copyright \xA9 1982 by Thomas Nelson. All rights reserved.",
-        website: "https://www.thomasnelson.com/nkjv",
-        isPublicDomain: false,
-        sortOrder: 3
-      },
-      ESV: {
-        id: "ESV",
-        name: "English Standard Version",
-        abbreviation: "ESV",
-        publisher: "Crossway",
-        copyright: "Scripture quotations are from the ESV\xAE Bible (The Holy Bible, English Standard Version\xAE), copyright \xA9 2001 by Crossway, a publishing ministry of Good News Publishers. All rights reserved.",
-        website: "https://www.esv.org",
-        isPublicDomain: false,
-        sortOrder: 1
-      },
-      NIV: {
-        id: "NIV",
-        name: "New International Version",
-        abbreviation: "NIV",
-        publisher: "Biblica / Zondervan",
-        copyright: "Scripture quotations are from The Holy Bible, New International Version\xAE NIV\xAE. Copyright \xA9 1973, 1978, 1984, 2011 by Biblica, Inc.\u2122 All rights reserved worldwide.",
-        website: "https://www.thenivbible.com",
-        isPublicDomain: false,
-        sortOrder: 5
-      },
-      NLT: {
-        id: "NLT",
-        name: "New Living Translation",
-        abbreviation: "NLT",
-        publisher: "Tyndale House",
-        copyright: "Scripture quotations are from the Holy Bible, New Living Translation. Copyright \xA9 1996, 2004, 2015 by Tyndale House Foundation and Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.",
-        website: "https://www.tyndale.com/nlt",
-        isPublicDomain: false,
-        sortOrder: 6
-      },
-      NET: {
-        id: "NET",
-        name: "NET Bible",
-        abbreviation: "NET",
-        publisher: "Biblical Studies Press, L.L.C.",
-        copyright: "Scripture quotations are from the NET Bible\xAE copyright \xA91996, 2019 by Biblical Studies Press, L.L.C. http://netbible.com All rights reserved.",
-        website: "https://netbible.org",
-        isPublicDomain: false,
-        sortOrder: 4
-      },
-      BSB: {
-        id: "BSB",
-        name: "Berean Standard Bible",
-        abbreviation: "BSB",
-        publisher: "Bible Hub",
-        copyright: "The Berean Bible (Berean Standard Bible BSB) \xA9 2016, 2020 by Bible Hub and Berean.Bible. Free to use and share. All rights reserved.",
-        website: "https://berean.bible",
-        isPublicDomain: false,
-        sortOrder: 0
-      }
-    };
-    TRANSLATION_ORDER = Object.values(TRANSLATIONS).sort((a, b3) => a.sortOrder - b3.sortOrder).map((t) => t.id);
-  }
-});
-
 // node_modules/standardwebhooks/dist/timing_safe_equal.js
 var require_timing_safe_equal = __commonJS({
   "node_modules/standardwebhooks/dist/timing_safe_equal.js"(exports2) {
@@ -57892,12347 +70454,18 @@ async function resolveRefToUserId(ref) {
   return row?.userId ?? null;
 }
 
-// src/utils/season-helpers.ts
-function getCurrentSeason() {
-  const now2 = /* @__PURE__ */ new Date();
-  const month = now2.getMonth() + 1;
-  const year = now2.getFullYear();
-  if (month >= 3 && month <= 5) return `spring-${year}`;
-  if (month >= 6 && month <= 8) return `summer-${year}`;
-  if (month >= 9 && month <= 11) return `fall-${year}`;
-  if (month === 12) return `winter-${year}`;
-  return `winter-${year - 1}`;
-}
-function getSeasonDisplayName(season) {
-  const currentSeason = season || getCurrentSeason();
-  const [seasonName, year] = currentSeason.split("-");
-  const capitalized = seasonName.charAt(0).toUpperCase() + seasonName.slice(1);
-  return `${capitalized} ${year}`;
-}
-
-// server/utils/process-scripture-references.ts
-init_db2();
-
-// server/utils/highest-simple-note-id.ts
-init_db2();
-init_dates();
-async function getEffectiveHighestSimpleNoteId(userId) {
-  const [userMetadata, existingNotes] = await Promise.all([
-    db.select({ highestSimpleNoteId: UserMetadata.highestSimpleNoteId }).from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1).then((rows) => first(rows)),
-    db.select({ simpleNoteId: Notes.simpleNoteId }).from(Notes).where(and(eq(Notes.userId, userId), isNotNull(Notes.simpleNoteId))).orderBy(desc(Notes.simpleNoteId)).limit(1)
-  ]);
-  const fromMetadata = userMetadata?.highestSimpleNoteId ?? 0;
-  const maxFromNotes = existingNotes.length > 0 ? existingNotes[0].simpleNoteId ?? 0 : 0;
-  const effectiveHighest = Math.max(fromMetadata, maxFromNotes);
-  if (userMetadata && effectiveHighest > (userMetadata.highestSimpleNoteId ?? 0)) {
-    await db.update(UserMetadata).set({ highestSimpleNoteId: effectiveHighest, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
-  }
-  return effectiveHighest;
-}
-
-// src/utils/keyword-trie.ts
-var MAX_PHRASE_WORDS = 5;
-function buildKeywordTrie(keywords) {
-  const root = { children: /* @__PURE__ */ new Map() };
-  for (const keyword of keywords) {
-    if (keyword.category !== "book" && keyword.category !== "character") continue;
-    const mainPhrase = keyword.name.toLowerCase().trim();
-    if (mainPhrase) insertPhrase(root, mainPhrase, keyword, false);
-    for (const syn of keyword.synonyms) {
-      const phrase = syn.toLowerCase().trim();
-      if (phrase) insertPhrase(root, phrase, keyword, true);
-    }
-  }
-  return { _root: root };
-}
-function insertPhrase(root, phrase, keyword, isSynonym) {
-  const words = phrase.split(/\s+/).filter(Boolean);
-  let node = root;
-  for (const word of words) {
-    let next = node.children.get(word);
-    if (!next) {
-      next = { children: /* @__PURE__ */ new Map() };
-      node.children.set(word, next);
-    }
-    node = next;
-  }
-  if (!node.matches) node.matches = [];
-  node.matches.push({ keyword, isSynonym });
-}
-function tokenize(text2) {
-  if (!text2 || !text2.trim()) return [];
-  return text2.toLowerCase().match(/\b[\w']+\b/g) ?? [];
-}
-function findWordBoundMatches(trie, title, content) {
-  const root = trie._root;
-  const result = /* @__PURE__ */ new Map();
-  function scanText(text2, inTitle) {
-    const words = tokenize(text2);
-    for (let i = 0; i < words.length; i++) {
-      for (let len = 1; len <= Math.min(MAX_PHRASE_WORDS, words.length - i); len++) {
-        const phraseWords = words.slice(i, i + len);
-        const stats = lookupPhrase(root, phraseWords);
-        if (!stats) continue;
-        for (const { keyword, isSynonym } of stats) {
-          const conf = isSynonym ? keyword.confidence * 0.8 : keyword.confidence;
-          const existing = result.get(keyword);
-          if (!existing) {
-            result.set(keyword, {
-              confidence: conf,
-              inTitle,
-              inContent: !inTitle,
-              frequency: 1
-            });
-          } else {
-            existing.frequency += 1;
-            if (inTitle) existing.inTitle = true;
-            else existing.inContent = true;
-            existing.confidence = Math.max(existing.confidence, conf);
-          }
-        }
-      }
-    }
-  }
-  if (title?.trim()) scanText(title.trim(), true);
-  if (content?.trim()) scanText(content.trim(), false);
-  return result;
-}
-function lookupPhrase(root, words) {
-  let node = root;
-  for (const word of words) {
-    node = node?.children.get(word);
-    if (!node) return null;
-  }
-  return node.matches ?? null;
-}
-
-// src/utils/bible-study-keywords.ts
-var BIBLE_STUDY_KEYWORDS = [
-  // Biblical Books
-  { name: "Genesis", category: "book", synonyms: ["gen", "first book"], confidence: 0.9 },
-  { name: "Exodus", category: "book", synonyms: ["exo", "second book"], confidence: 0.9 },
-  { name: "Leviticus", category: "book", synonyms: ["lev", "third book"], confidence: 0.9 },
-  { name: "Numbers", category: "book", synonyms: ["num", "fourth book"], confidence: 0.9 },
-  { name: "Deuteronomy", category: "book", synonyms: ["deut", "fifth book"], confidence: 0.9 },
-  { name: "Joshua", category: "book", synonyms: ["josh"], confidence: 0.9 },
-  { name: "Judges", category: "book", synonyms: ["judg"], confidence: 0.9 },
-  { name: "Ruth", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "1 Samuel", category: "book", synonyms: ["1 sam", "first samuel"], confidence: 0.9 },
-  { name: "2 Samuel", category: "book", synonyms: ["2 sam", "second samuel"], confidence: 0.9 },
-  { name: "1 Kings", category: "book", synonyms: ["1 kgs", "first kings"], confidence: 0.9 },
-  { name: "2 Kings", category: "book", synonyms: ["2 kgs", "second kings"], confidence: 0.9 },
-  { name: "1 Chronicles", category: "book", synonyms: ["1 chron", "first chronicles"], confidence: 0.9 },
-  { name: "2 Chronicles", category: "book", synonyms: ["2 chron", "second chronicles"], confidence: 0.9 },
-  { name: "Ezra", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Nehemiah", category: "book", synonyms: ["neh"], confidence: 0.9 },
-  { name: "Esther", category: "book", synonyms: ["esth"], confidence: 0.9 },
-  { name: "Job", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Psalms", category: "book", synonyms: ["psalm", "ps"], confidence: 0.9 },
-  { name: "Proverbs", category: "book", synonyms: ["prov", "proverb"], confidence: 0.9 },
-  { name: "Ecclesiastes", category: "book", synonyms: ["eccl", "ecc"], confidence: 0.9 },
-  { name: "Song of Songs", category: "book", synonyms: ["song of solomon", "sos"], confidence: 0.9 },
-  { name: "Isaiah", category: "book", synonyms: ["isa"], confidence: 0.9 },
-  { name: "Jeremiah", category: "book", synonyms: ["jer"], confidence: 0.9 },
-  { name: "Lamentations", category: "book", synonyms: ["lam"], confidence: 0.9 },
-  { name: "Ezekiel", category: "book", synonyms: ["ezek"], confidence: 0.9 },
-  { name: "Daniel", category: "book", synonyms: ["dan"], confidence: 0.9 },
-  { name: "Hosea", category: "book", synonyms: ["hos"], confidence: 0.9 },
-  { name: "Joel", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Amos", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Obadiah", category: "book", synonyms: ["obad"], confidence: 0.9 },
-  { name: "Jonah", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Micah", category: "book", synonyms: ["mic"], confidence: 0.9 },
-  { name: "Nahum", category: "book", synonyms: ["nah"], confidence: 0.9 },
-  { name: "Habakkuk", category: "book", synonyms: ["hab"], confidence: 0.9 },
-  { name: "Zephaniah", category: "book", synonyms: ["zeph"], confidence: 0.9 },
-  { name: "Haggai", category: "book", synonyms: ["hag"], confidence: 0.9 },
-  { name: "Zechariah", category: "book", synonyms: ["zech"], confidence: 0.9 },
-  { name: "Malachi", category: "book", synonyms: ["mal"], confidence: 0.9 },
-  { name: "Matthew", category: "book", synonyms: ["matt", "mt"], confidence: 0.9 },
-  { name: "Mark", category: "book", synonyms: ["mk", "mr"], confidence: 0.9 },
-  { name: "Luke", category: "book", synonyms: ["lk"], confidence: 0.9 },
-  { name: "John", category: "book", synonyms: ["jn"], confidence: 0.9 },
-  { name: "Acts", category: "book", synonyms: ["acts of the apostles"], confidence: 0.9 },
-  { name: "Romans", category: "book", synonyms: ["rom"], confidence: 0.9 },
-  { name: "1 Corinthians", category: "book", synonyms: ["1 cor", "first corinthians"], confidence: 0.9 },
-  { name: "2 Corinthians", category: "book", synonyms: ["2 cor", "second corinthians"], confidence: 0.9 },
-  { name: "Galatians", category: "book", synonyms: ["gal"], confidence: 0.9 },
-  { name: "Ephesians", category: "book", synonyms: ["eph"], confidence: 0.9 },
-  { name: "Philippians", category: "book", synonyms: ["phil"], confidence: 0.9 },
-  { name: "Colossians", category: "book", synonyms: ["col"], confidence: 0.9 },
-  { name: "1 Thessalonians", category: "book", synonyms: ["1 thess", "first thessalonians"], confidence: 0.9 },
-  { name: "2 Thessalonians", category: "book", synonyms: ["2 thess", "second thessalonians"], confidence: 0.9 },
-  { name: "1 Timothy", category: "book", synonyms: ["1 tim", "first timothy"], confidence: 0.9 },
-  { name: "2 Timothy", category: "book", synonyms: ["2 tim", "second timothy"], confidence: 0.9 },
-  { name: "Titus", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Philemon", category: "book", synonyms: ["phlm"], confidence: 0.9 },
-  { name: "Hebrews", category: "book", synonyms: ["heb"], confidence: 0.9 },
-  { name: "James", category: "book", synonyms: ["jas"], confidence: 0.9 },
-  { name: "1 Peter", category: "book", synonyms: ["1 pet", "first peter"], confidence: 0.9 },
-  { name: "2 Peter", category: "book", synonyms: ["2 pet", "second peter"], confidence: 0.9 },
-  { name: "1 John", category: "book", synonyms: ["1 jn", "first john"], confidence: 0.9 },
-  { name: "2 John", category: "book", synonyms: ["2 jn", "second john"], confidence: 0.9 },
-  { name: "3 John", category: "book", synonyms: ["3 jn", "third john"], confidence: 0.9 },
-  { name: "Jude", category: "book", synonyms: [], confidence: 0.9 },
-  { name: "Revelation", category: "book", synonyms: ["rev", "apocalypse"], confidence: 0.9 },
-  // Biblical Characters
-  { name: "Jesus", category: "character", synonyms: ["christ", "jesus christ", "lord", "savior", "messiah", "jesus's", "jesus'"], confidence: 0.95 },
-  { name: "God", category: "character", synonyms: ["lord", "father", "almighty", "creator", "god's"], confidence: 0.95 },
-  { name: "Holy Spirit", category: "character", synonyms: ["spirit", "holy ghost", "comforter"], confidence: 0.9 },
-  { name: "Moses", category: "character", synonyms: ["moses'", "moses's"], confidence: 0.9 },
-  { name: "Abraham", category: "character", synonyms: ["abram"], confidence: 0.9 },
-  { name: "David", category: "character", synonyms: ["david's"], confidence: 0.9 },
-  { name: "Paul", category: "character", synonyms: ["apostle paul", "saul", "paul's"], confidence: 0.9 },
-  { name: "Peter", category: "character", synonyms: ["simon peter", "simon", "peter's"], confidence: 0.9 },
-  { name: "John", category: "character", synonyms: ["apostle john", "john the apostle", "john's"], confidence: 0.9 },
-  { name: "Mary", category: "character", synonyms: ["virgin mary", "mary mother of jesus", "mary's"], confidence: 0.9 },
-  { name: "Noah", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Adam", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Eve", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Joseph", category: "character", synonyms: ["joseph son of jacob", "joseph of egypt"], confidence: 0.9 },
-  { name: "Jacob", category: "character", synonyms: ["israel"], confidence: 0.9 },
-  { name: "Isaac", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Sarah", category: "character", synonyms: ["sarah wife of abraham"], confidence: 0.9 },
-  { name: "Elijah", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Elisha", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Daniel", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Esther", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Ruth", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Samson", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Samuel", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Solomon", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Isaiah", category: "character", synonyms: ["prophet isaiah"], confidence: 0.9 },
-  { name: "Jeremiah", category: "character", synonyms: ["prophet jeremiah"], confidence: 0.9 },
-  { name: "Ezekiel", category: "character", synonyms: ["prophet ezekiel"], confidence: 0.9 },
-  { name: "Daniel", category: "character", synonyms: ["prophet daniel"], confidence: 0.9 },
-  { name: "Jonah", category: "character", synonyms: ["prophet jonah"], confidence: 0.9 },
-  { name: "John the Baptist", category: "character", synonyms: ["john baptist", "baptist"], confidence: 0.9 },
-  { name: "Mary Magdalene", category: "character", synonyms: ["magdalene"], confidence: 0.9 },
-  { name: "Thomas", category: "character", synonyms: ["doubting thomas"], confidence: 0.9 },
-  { name: "Judas", category: "character", synonyms: ["judas iscariot"], confidence: 0.9 },
-  { name: "Pilate", category: "character", synonyms: ["pontius pilate"], confidence: 0.9 },
-  { name: "James", category: "character", synonyms: ["james brother of jesus", "james the just"], confidence: 0.9 },
-  { name: "Stephen", category: "character", synonyms: ["stephen the martyr"], confidence: 0.9 },
-  { name: "Barnabas", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Timothy", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Nicodemus", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Martha", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Lazarus", category: "character", synonyms: [], confidence: 0.9 },
-  { name: "Aaron", category: "character", synonyms: [], confidence: 0.9 },
-  // Biblical Places
-  { name: "Jerusalem", category: "place", synonyms: ["holy city", "zion"], confidence: 0.9 },
-  { name: "Bethlehem", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Nazareth", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Galilee", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Capernaum", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Gethsemane", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Golgotha", category: "place", synonyms: ["calvary"], confidence: 0.9 },
-  { name: "Garden of Eden", category: "place", synonyms: ["eden"], confidence: 0.9 },
-  { name: "Mount Sinai", category: "place", synonyms: ["sinai"], confidence: 0.9 },
-  { name: "Red Sea", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Jordan River", category: "place", synonyms: ["jordan"], confidence: 0.9 },
-  { name: "Dead Sea", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Mount of Olives", category: "place", synonyms: ["olives"], confidence: 0.9 },
-  { name: "Temple", category: "place", synonyms: ["jerusalem temple", "holy temple"], confidence: 0.9 },
-  { name: "Rome", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Corinth", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Ephesus", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Philippi", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Thessalonica", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Antioch", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Egypt", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Babylon", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Samaria", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Damascus", category: "place", synonyms: [], confidence: 0.9 },
-  { name: "Athens", category: "place", synonyms: [], confidence: 0.9 },
-  // Spiritual Themes
-  { name: "Prayer", category: "spiritual", synonyms: ["praying", "intercession", "petition"], confidence: 0.8 },
-  { name: "Faith", category: "spiritual", synonyms: ["belief", "trust", "confidence"], confidence: 0.8 },
-  { name: "Love", category: "spiritual", synonyms: ["charity", "agape", "compassion"], confidence: 0.8 },
-  { name: "Hope", category: "spiritual", synonyms: ["expectation", "anticipation"], confidence: 0.8 },
-  { name: "Grace", category: "spiritual", synonyms: ["favor", "mercy", "unmerited favor"], confidence: 0.8 },
-  { name: "Mercy", category: "spiritual", synonyms: ["compassion", "forgiveness", "pity"], confidence: 0.8 },
-  { name: "Forgiveness", category: "spiritual", synonyms: ["pardon", "absolution", "reconciliation"], confidence: 0.8 },
-  { name: "Salvation", category: "spiritual", synonyms: ["redemption", "deliverance", "rescue"], confidence: 0.8 },
-  { name: "Repentance", category: "spiritual", synonyms: ["turning", "conversion", "change of heart"], confidence: 0.8 },
-  { name: "Worship", category: "spiritual", synonyms: ["praise", "adoration", "reverence"], confidence: 0.8 },
-  { name: "Praise", category: "spiritual", synonyms: ["worship", "glorify", "exalt"], confidence: 0.8 },
-  { name: "Thanksgiving", category: "spiritual", synonyms: ["gratitude", "thankfulness"], confidence: 0.8 },
-  { name: "Peace", category: "spiritual", synonyms: ["tranquility", "serenity", "shalom"], confidence: 0.8 },
-  { name: "Joy", category: "spiritual", synonyms: ["gladness", "happiness", "rejoicing"], confidence: 0.8 },
-  { name: "Patience", category: "spiritual", synonyms: ["endurance", "perseverance", "longsuffering"], confidence: 0.8 },
-  { name: "Kindness", category: "spiritual", synonyms: ["gentleness", "goodness", "compassion"], confidence: 0.8 },
-  { name: "Goodness", category: "spiritual", synonyms: ["virtue", "righteousness", "moral excellence"], confidence: 0.8 },
-  { name: "Faithfulness", category: "spiritual", synonyms: ["loyalty", "reliability", "steadfastness"], confidence: 0.8 },
-  { name: "Gentleness", category: "spiritual", synonyms: ["meekness", "humility", "mildness"], confidence: 0.8 },
-  { name: "Self-control", category: "spiritual", synonyms: ["temperance", "discipline", "restraint"], confidence: 0.8 },
-  // Biblical Themes
-  { name: "Covenant", category: "biblical", synonyms: ["agreement", "promise", "pact"], confidence: 0.8 },
-  { name: "Redemption", category: "biblical", synonyms: ["salvation", "deliverance", "ransom"], confidence: 0.8 },
-  { name: "Atonement", category: "biblical", synonyms: ["reconciliation", "propitiation"], confidence: 0.8 },
-  { name: "Resurrection", category: "biblical", synonyms: ["rising", "new life", "resurrected"], confidence: 0.8 },
-  { name: "Incarnation", category: "biblical", synonyms: ["god becoming man", "enfleshment"], confidence: 0.8 },
-  { name: "Trinity", category: "biblical", synonyms: ["godhead", "three in one"], confidence: 0.8 },
-  { name: "Kingdom of God", category: "biblical", synonyms: ["kingdom of heaven", "god's kingdom"], confidence: 0.8 },
-  { name: "Gospel", category: "biblical", synonyms: ["good news", "evangel"], confidence: 0.8 },
-  { name: "Discipleship", category: "biblical", synonyms: ["following christ", "being a disciple"], confidence: 0.8 },
-  { name: "Mission", category: "biblical", synonyms: ["evangelism", "witnessing", "sharing faith"], confidence: 0.8 },
-  { name: "Parables", category: "biblical", synonyms: ["stories", "teachings"], confidence: 0.8 },
-  { name: "Miracles", category: "biblical", synonyms: ["wonders", "signs"], confidence: 0.8 },
-  { name: "Prophecy", category: "biblical", synonyms: ["prophecies", "foretelling"], confidence: 0.8 },
-  { name: "Law", category: "biblical", synonyms: ["commandments", "statutes"], confidence: 0.8 },
-  { name: "Sacrifice", category: "biblical", synonyms: ["offering", "giving up"], confidence: 0.8 },
-  { name: "Temple", category: "biblical", synonyms: ["sanctuary", "holy place"], confidence: 0.8 },
-  { name: "Sabbath", category: "biblical", synonyms: ["rest", "day of rest"], confidence: 0.8 },
-  { name: "Baptism", category: "biblical", synonyms: ["immersion", "washing", "baptized", "baptize"], confidence: 0.8 },
-  { name: "Communion", category: "biblical", synonyms: ["lord's supper", "eucharist"], confidence: 0.8 },
-  { name: "Marriage", category: "biblical", synonyms: ["wedding", "union"], confidence: 0.8 },
-  { name: "Satan", category: "biblical", synonyms: ["devil", "evil one", "tempter"], confidence: 0.85 },
-  { name: "Angels", category: "biblical", synonyms: ["angel", "heavenly host", "messenger"], confidence: 0.85 },
-  { name: "Sin", category: "biblical", synonyms: ["sinful", "transgression", "iniquity"], confidence: 0.8 },
-  { name: "Judgment", category: "biblical", synonyms: ["judgement", "judge", "day of judgment"], confidence: 0.8 },
-  { name: "Heaven", category: "biblical", synonyms: ["eternal life", "paradise", "kingdom of heaven"], confidence: 0.8 },
-  { name: "Hell", category: "biblical", synonyms: ["gehenna", "eternal punishment"], confidence: 0.85 },
-  { name: "Righteousness", category: "biblical", synonyms: ["righteous", "righteousness"], confidence: 0.8 },
-  // Life Themes
-  { name: "Family", category: "life", synonyms: ["relatives", "household"], confidence: 0.7 },
-  { name: "Marriage", category: "life", synonyms: ["wedding", "union", "relationship"], confidence: 0.7 },
-  { name: "Parenting", category: "life", synonyms: ["childrearing", "raising children"], confidence: 0.7 },
-  { name: "Friendship", category: "life", synonyms: ["companionship", "fellowship"], confidence: 0.7 },
-  { name: "Work", category: "life", synonyms: ["labor", "employment", "vocation"], confidence: 0.7 },
-  { name: "Money", category: "life", synonyms: ["finances", "wealth", "prosperity"], confidence: 0.7 },
-  { name: "Health", category: "life", synonyms: ["wellness", "healing"], confidence: 0.7 },
-  { name: "Suffering", category: "life", synonyms: ["pain", "trial", "hardship"], confidence: 0.7 },
-  { name: "Death", category: "life", synonyms: ["dying", "mortality"], confidence: 0.7 },
-  { name: "Grief", category: "life", synonyms: ["mourning", "sorrow", "loss"], confidence: 0.7 },
-  { name: "Fear", category: "life", synonyms: ["anxiety", "worry", "concern"], confidence: 0.7 },
-  { name: "Anger", category: "life", synonyms: ["wrath", "rage", "fury"], confidence: 0.7 },
-  { name: "Pride", category: "life", synonyms: ["arrogance", "conceit", "vanity"], confidence: 0.7 },
-  { name: "Humility", category: "life", synonyms: ["meekness", "modesty"], confidence: 0.7 },
-  { name: "Wisdom", category: "life", synonyms: ["understanding", "insight"], confidence: 0.7 },
-  { name: "Knowledge", category: "life", synonyms: ["learning", "education"], confidence: 0.7 },
-  { name: "Truth", category: "life", synonyms: ["honesty", "veracity"], confidence: 0.7 },
-  { name: "Justice", category: "life", synonyms: ["righteousness", "fairness"], confidence: 0.7 },
-  { name: "Peace", category: "life", synonyms: ["harmony", "tranquility"], confidence: 0.7 },
-  { name: "Hope", category: "life", synonyms: ["optimism", "expectation"], confidence: 0.7 }
-];
-var keywordTrie = null;
-function getKeywordTrie() {
-  if (!keywordTrie) keywordTrie = buildKeywordTrie(BIBLE_STUDY_KEYWORDS);
-  return keywordTrie;
-}
-function findKeywordsInTextWithPriority(fullText, title, content) {
-  const foundKeywords = [];
-  const titleLower = title.toLowerCase();
-  const contentLower = content.toLowerCase();
-  const trie = getKeywordTrie();
-  const wordBoundMatches = findWordBoundMatches(trie, title, content);
-  for (const [keyword, stats] of wordBoundMatches) {
-    const titleBoost = stats.inTitle ? 0.2 : 0;
-    const frequencyBoost = stats.frequency > 1 ? Math.min(0.5, (stats.frequency - 1) * 0.1) : 0;
-    foundKeywords.push({
-      keyword,
-      confidence: Math.min(1, stats.confidence + titleBoost + frequencyBoost)
-    });
-  }
-  for (const keyword of BIBLE_STUDY_KEYWORDS) {
-    if (keyword.category === "book" || keyword.category === "character") continue;
-    let found = false;
-    let confidence = keyword.confidence;
-    let foundInTitle = false;
-    let foundInContent = false;
-    let frequency = 0;
-    const keywordLower = keyword.name.toLowerCase();
-    if (titleLower?.includes(keywordLower)) {
-      foundInTitle = true;
-      found = true;
-      confidence = keyword.confidence;
-      frequency += titleLower.split(keywordLower).length - 1;
-    }
-    if (contentLower?.includes(keywordLower)) {
-      foundInContent = true;
-      found = true;
-      confidence = keyword.confidence;
-      frequency += contentLower.split(keywordLower).length - 1;
-    }
-    for (const synonym of keyword.synonyms) {
-      const synonymLower = synonym.toLowerCase();
-      if (titleLower?.includes(synonymLower)) {
-        foundInTitle = true;
-        found = true;
-        confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += titleLower.split(synonymLower).length - 1;
-      }
-      if (contentLower?.includes(synonymLower)) {
-        foundInContent = true;
-        found = true;
-        confidence = Math.max(confidence, keyword.confidence * 0.8);
-        frequency += contentLower.split(synonymLower).length - 1;
-      }
-    }
-    if (found) {
-      const titleBoost = foundInTitle ? 0.2 : 0;
-      const frequencyBoost = frequency > 1 ? Math.min(0.5, (frequency - 1) * 0.1) : 0;
-      foundKeywords.push({
-        keyword,
-        confidence: Math.min(1, confidence + titleBoost + frequencyBoost)
-      });
-    }
-  }
-  return foundKeywords.sort((a, b3) => b3.confidence - a.confidence);
-}
-
-// src/data/bible-chapters.json
-var bible_chapters_default = [
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 67
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 55
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 57
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 43,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 44,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 45,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 46,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 47,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 48,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 49,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Genesis",
-    bookOrder: 1,
-    testament: "old",
-    chapter: 50,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Exodus",
-    bookOrder: 2,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 59
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 57
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 55
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Leviticus",
-    bookOrder: 3,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 54
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 89
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 45
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 65
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 54
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 56
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Numbers",
-    bookOrder: 4,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 68
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Deuteronomy",
-    bookOrder: 5,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 63
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 45
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Joshua",
-    bookOrder: 6,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 57
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 48
-  },
-  {
-    book: "Judges",
-    bookOrder: 7,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Ruth",
-    bookOrder: 8,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ruth",
-    bookOrder: 8,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ruth",
-    bookOrder: 8,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ruth",
-    bookOrder: 8,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 58
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Samuel",
-    bookOrder: 9,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "2 Samuel",
-    bookOrder: 10,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 53
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 66
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "1 Kings",
-    bookOrder: 11,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 53
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "2 Kings",
-    bookOrder: 12,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 54
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 55
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 81
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 Chronicles",
-    bookOrder: 13,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "2 Chronicles",
-    bookOrder: 14,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 70
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Ezra",
-    bookOrder: 15,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 73
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Nehemiah",
-    bookOrder: 16,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Esther",
-    bookOrder: 17,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 3
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Job",
-    bookOrder: 18,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 43,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 44,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 45,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 46,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 47,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 48,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 49,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 50,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 51,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 52,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 53,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 54,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 55,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 56,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 57,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 58,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 59,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 60,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 61,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 62,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 63,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 64,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 65,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 66,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 67,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 68,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 69,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 70,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 71,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 72,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 73,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 74,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 75,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 76,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 77,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 78,
-    startVerse: 1,
-    endVerse: 72
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 79,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 80,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 81,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 82,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 83,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 84,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 85,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 86,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 87,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 88,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 89,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 90,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 91,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 92,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 93,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 94,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 95,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 96,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 97,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 98,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 99,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 100,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 101,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 102,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 103,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 104,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 105,
-    startVerse: 1,
-    endVerse: 45
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 106,
-    startVerse: 1,
-    endVerse: 48
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 107,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 108,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 109,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 110,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 111,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 112,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 113,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 114,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 115,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 116,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 117,
-    startVerse: 1,
-    endVerse: 2
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 118,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 119,
-    startVerse: 1,
-    endVerse: 176
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 120,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 121,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 122,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 123,
-    startVerse: 1,
-    endVerse: 4
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 124,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 125,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 126,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 127,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 128,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 129,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 130,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 131,
-    startVerse: 1,
-    endVerse: 3
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 132,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 133,
-    startVerse: 1,
-    endVerse: 3
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 134,
-    startVerse: 1,
-    endVerse: 3
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 135,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 136,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 137,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 138,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 139,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 140,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 141,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 142,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 143,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 144,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 145,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 146,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 147,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 148,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 149,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Psalms",
-    bookOrder: 19,
-    testament: "old",
-    chapter: 150,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Proverbs",
-    bookOrder: 20,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Ecclesiastes",
-    bookOrder: 21,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Song of Solomon",
-    bookOrder: 22,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 43,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 44,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 45,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 46,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 47,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 48,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 49,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 50,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 51,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 52,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 53,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 54,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 55,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 56,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 57,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 58,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 59,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 60,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 61,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 62,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 63,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 64,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 65,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Isaiah",
-    bookOrder: 23,
-    testament: "old",
-    chapter: 66,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 43,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 44,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 45,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 46,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 47,
-    startVerse: 1,
-    endVerse: 7
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 48,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 49,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 50,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 51,
-    startVerse: 1,
-    endVerse: 64
-  },
-  {
-    book: "Jeremiah",
-    bookOrder: 24,
-    testament: "old",
-    chapter: 52,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Lamentations",
-    bookOrder: 25,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Lamentations",
-    bookOrder: 25,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Lamentations",
-    bookOrder: 25,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 66
-  },
-  {
-    book: "Lamentations",
-    bookOrder: 25,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Lamentations",
-    bookOrder: 25,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 63
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 29,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 30,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 31,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 32,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 33,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 34,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 35,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 36,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 37,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 38,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 39,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 40,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 41,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 42,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 43,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 44,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 45,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 46,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 47,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ezekiel",
-    bookOrder: 26,
-    testament: "old",
-    chapter: 48,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 45
-  },
-  {
-    book: "Daniel",
-    bookOrder: 27,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 5
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Hosea",
-    bookOrder: 28,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Joel",
-    bookOrder: 29,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Joel",
-    bookOrder: 29,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Joel",
-    bookOrder: 29,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Amos",
-    bookOrder: 30,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Obadiah",
-    bookOrder: 31,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Jonah",
-    bookOrder: 32,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Jonah",
-    bookOrder: 32,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Jonah",
-    bookOrder: 32,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Jonah",
-    bookOrder: 32,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Micah",
-    bookOrder: 33,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Nahum",
-    bookOrder: 34,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Nahum",
-    bookOrder: 34,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Nahum",
-    bookOrder: 34,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Habakkuk",
-    bookOrder: 35,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Habakkuk",
-    bookOrder: 35,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Habakkuk",
-    bookOrder: 35,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Zephaniah",
-    bookOrder: 36,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Zephaniah",
-    bookOrder: 36,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Zephaniah",
-    bookOrder: 36,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Haggai",
-    bookOrder: 37,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Haggai",
-    bookOrder: 37,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 9
-  },
-  {
-    book: "Zechariah",
-    bookOrder: 38,
-    testament: "old",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Malachi",
-    bookOrder: 39,
-    testament: "old",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Malachi",
-    bookOrder: 39,
-    testament: "old",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Malachi",
-    bookOrder: 39,
-    testament: "old",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Malachi",
-    bookOrder: 39,
-    testament: "old",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 6
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 48
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 58
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 46
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 75
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 66
-  },
-  {
-    book: "Matthew",
-    bookOrder: 40,
-    testament: "new",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 45
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 56
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 72
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Mark",
-    bookOrder: 41,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 80
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 49
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 56
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 62
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 54
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 59
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 48
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 71
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 56
-  },
-  {
-    book: "Luke",
-    bookOrder: 42,
-    testament: "new",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 53
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 51
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 54
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 71
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 53
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 59
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 57
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 50
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "John",
-    bookOrder: 43,
-    testament: "new",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 47
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 37
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 42
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 60
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 43
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 48
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 52
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 41
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 38
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 23,
-    startVerse: 1,
-    endVerse: 35
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 24,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 25,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 26,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 27,
-    startVerse: 1,
-    endVerse: 44
-  },
-  {
-    book: "Acts",
-    bookOrder: 44,
-    testament: "new",
-    chapter: 28,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 36
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Romans",
-    bookOrder: 45,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 34
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 58
-  },
-  {
-    book: "1 Corinthians",
-    bookOrder: 46,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Corinthians",
-    bookOrder: 47,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 31
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "Galatians",
-    bookOrder: 48,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 32
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 33
-  },
-  {
-    book: "Ephesians",
-    bookOrder: 49,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Philippians",
-    bookOrder: 50,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Philippians",
-    bookOrder: 50,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 30
-  },
-  {
-    book: "Philippians",
-    bookOrder: 50,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Philippians",
-    bookOrder: 50,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Colossians",
-    bookOrder: 51,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Colossians",
-    bookOrder: 51,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 23
-  },
-  {
-    book: "Colossians",
-    bookOrder: 51,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Colossians",
-    bookOrder: 51,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "1 Thessalonians",
-    bookOrder: 52,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "1 Thessalonians",
-    bookOrder: 52,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "1 Thessalonians",
-    bookOrder: 52,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "1 Thessalonians",
-    bookOrder: 52,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "1 Thessalonians",
-    bookOrder: 52,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "2 Thessalonians",
-    bookOrder: 53,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 12
-  },
-  {
-    book: "2 Thessalonians",
-    bookOrder: 53,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "2 Thessalonians",
-    bookOrder: 53,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Timothy",
-    bookOrder: 54,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Timothy",
-    bookOrder: 55,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "2 Timothy",
-    bookOrder: 55,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "2 Timothy",
-    bookOrder: 55,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "2 Timothy",
-    bookOrder: 55,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Titus",
-    bookOrder: 56,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Titus",
-    bookOrder: 56,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Titus",
-    bookOrder: 56,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Philemon",
-    bookOrder: 57,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 16
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 28
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 39
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 40
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Hebrews",
-    bookOrder: 58,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "James",
-    bookOrder: 59,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "James",
-    bookOrder: 59,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 26
-  },
-  {
-    book: "James",
-    bookOrder: 59,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "James",
-    bookOrder: 59,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "James",
-    bookOrder: 59,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "1 Peter",
-    bookOrder: 60,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Peter",
-    bookOrder: 60,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "1 Peter",
-    bookOrder: 60,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "1 Peter",
-    bookOrder: 60,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "1 Peter",
-    bookOrder: 60,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "2 Peter",
-    bookOrder: 61,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 Peter",
-    bookOrder: 61,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "2 Peter",
-    bookOrder: 61,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "1 John",
-    bookOrder: 62,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 10
-  },
-  {
-    book: "1 John",
-    bookOrder: 62,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "1 John",
-    bookOrder: 62,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "1 John",
-    bookOrder: 62,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "1 John",
-    bookOrder: 62,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "2 John",
-    bookOrder: 63,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "3 John",
-    bookOrder: 64,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Jude",
-    bookOrder: 65,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 25
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 1,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 2,
-    startVerse: 1,
-    endVerse: 29
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 3,
-    startVerse: 1,
-    endVerse: 22
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 4,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 5,
-    startVerse: 1,
-    endVerse: 14
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 6,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 7,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 8,
-    startVerse: 1,
-    endVerse: 13
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 9,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 10,
-    startVerse: 1,
-    endVerse: 11
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 11,
-    startVerse: 1,
-    endVerse: 19
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 12,
-    startVerse: 1,
-    endVerse: 17
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 13,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 14,
-    startVerse: 1,
-    endVerse: 20
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 15,
-    startVerse: 1,
-    endVerse: 8
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 16,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 17,
-    startVerse: 1,
-    endVerse: 18
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 18,
-    startVerse: 1,
-    endVerse: 24
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 19,
-    startVerse: 1,
-    endVerse: 21
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 20,
-    startVerse: 1,
-    endVerse: 15
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 21,
-    startVerse: 1,
-    endVerse: 27
-  },
-  {
-    book: "Revelation",
-    bookOrder: 66,
-    testament: "new",
-    chapter: 22,
-    startVerse: 1,
-    endVerse: 21
-  }
-];
-
-// src/utils/scripture-detector.ts
-var DEBUG = false;
-var BIBLE_CHAPTERS_MAP = null;
-function buildBibleChaptersMap() {
-  if (BIBLE_CHAPTERS_MAP) {
-    return BIBLE_CHAPTERS_MAP;
-  }
-  const map = /* @__PURE__ */ new Map();
-  const data = bible_chapters_default;
-  for (const chapter of data) {
-    const bookName = chapter.book;
-    if (!map.has(bookName)) {
-      map.set(bookName, /* @__PURE__ */ new Map());
-    }
-    const bookMap = map.get(bookName);
-    bookMap.set(chapter.chapter, {
-      startVerse: chapter.startVerse,
-      endVerse: chapter.endVerse
-    });
-  }
-  const songOfSolomon = map.get("Song of Solomon");
-  if (songOfSolomon && !map.has("Song of Songs")) {
-    map.set("Song of Songs", songOfSolomon);
-  }
-  BIBLE_CHAPTERS_MAP = map;
-  return map;
-}
-function getChapterVerseRange(book, chapter) {
-  const map = buildBibleChaptersMap();
-  const bookMap = map.get(book);
-  if (!bookMap) {
-    return null;
-  }
-  const chapterData = bookMap.get(chapter);
-  if (!chapterData) {
-    return null;
-  }
-  return { start: chapterData.startVerse, end: chapterData.endVerse };
-}
-function validateVerseNumber(book, chapter, verse) {
-  const range = getChapterVerseRange(book, chapter);
-  if (!range) {
-    return false;
-  }
-  return verse >= range.start && verse <= range.end;
-}
-function validateVerseRange(book, chapter, startVerse, endVerse) {
-  const range = getChapterVerseRange(book, chapter);
-  if (!range) {
-    return false;
-  }
-  return startVerse >= range.start && startVerse <= range.end && endVerse >= range.start && endVerse <= range.end && startVerse <= endVerse;
-}
-function normalizeChapterReference(book, chapter) {
-  const range = getChapterVerseRange(book, chapter);
-  if (!range) {
-    return null;
-  }
-  return `${book} ${chapter}:${range.start}-${range.end}`;
-}
-var getBookNameVariations = () => {
-  const variations = [];
-  BIBLE_STUDY_KEYWORDS.filter((k2) => k2.category === "book").forEach((k2) => {
-    variations.push(k2.name);
-    variations.push(...k2.synonyms);
-  });
-  return variations;
-};
-var normalizeText = (text2) => {
-  return text2.toLowerCase().replace(/[.,;:!?'"()\-–—]/g, "").replace(/\s+/g, " ").trim();
-};
-function validateAndWarn(ref) {
-  const { book, chapter, verse } = ref;
-  if (Array.isArray(verse)) {
-    const [start, end] = verse;
-    const singleChapterRange = getChapterVerseRange(book, chapter);
-    if (singleChapterRange && end > singleChapterRange.end) {
-      return ref;
-    }
-  }
-  if (Array.isArray(verse)) {
-    const [start, end] = verse;
-    if (!validateVerseRange(book, chapter, start, end)) {
-      const range = getChapterVerseRange(book, chapter);
-      if (range) {
-        console.warn(`Invalid verse range: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
-      } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
-      }
-    }
-  } else {
-    if (!validateVerseNumber(book, chapter, verse)) {
-      const range = getChapterVerseRange(book, chapter);
-      if (range) {
-        console.warn(`Invalid verse number: ${ref.reference}. Valid range for ${book} ${chapter} is ${range.start}-${range.end}`);
-      } else {
-        console.warn(`Unknown book/chapter: ${book} ${chapter}`);
-      }
-    }
-  }
-  return ref;
-}
-var parseReference = (match3) => {
-  const patterns = [
-    // Comma-separated verse groups: "Book 1:2-3, 5-7, 10" or "Book 1:2 - 3, 5 - 7, 10"
-    /^(.+?)\s+(\d+):((?:\d+(?:\s*[-–—]\s*\d+)?)(?:,\s*\d+(?:\s*[-–—]\s*\d+)?)*)$/,
-    // Single range: "Book 1:2-3" or "Book 1:2 - 3"
-    /^(.+?)\s+(\d+):(\d+)\s*[-–—]\s*(\d+)$/,
-    // Single verse: "Book 1:2"
-    /^(.+?)\s+(\d+):(\d+)$/
-  ];
-  const bookNames = getBookNameVariations();
-  const normalizedMatch = match3.trim();
-  for (const pattern of patterns) {
-    const matchResult = normalizedMatch.match(pattern);
-    if (!matchResult) continue;
-    let bookPart = matchResult[1].trim();
-    const chapter = parseInt(matchResult[2]);
-    for (const bookName of bookNames) {
-      const normalizedBookName = normalizeText(bookName);
-      const normalizedBookPart = normalizeText(bookPart);
-      if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
-        const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-          (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
-        )?.name || bookName;
-        if (matchResult.length === 4 && matchResult[3].includes(",")) {
-          const verseGroups = matchResult[3].trim();
-          const allVerses = [];
-          verseGroups.split(",").forEach((group) => {
-            const trimmed = group.trim();
-            if (/[-–—]/.test(trimmed)) {
-              const [start, end] = trimmed.split(/[-–—]/).map((v2) => parseInt(v2.trim()));
-              if (!isNaN(start) && !isNaN(end) && start <= end) {
-                for (let v2 = start; v2 <= end; v2++) {
-                  allVerses.push(v2);
-                }
-              } else if (!isNaN(start) && !isNaN(end) && start > end) {
-                allVerses.push(start);
-              }
-            } else {
-              allVerses.push(parseInt(trimmed));
-            }
-          });
-          const verseStart = Math.min(...allVerses);
-          const verseEnd = Math.max(...allVerses);
-          let cleanVerseGroups = verseGroups.replace(/,\s+/g, ",");
-          cleanVerseGroups = cleanVerseGroups.replace(/\s*-\s*/g, "-");
-          return validateAndWarn({
-            book: canonicalBook,
-            chapter,
-            verse: [verseStart, verseEnd],
-            reference: `${canonicalBook} ${chapter}:${cleanVerseGroups}`
-          });
-        } else if (matchResult.length === 5) {
-          const verseStart = parseInt(matchResult[3]);
-          const verseEnd = parseInt(matchResult[4]);
-          if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart <= verseEnd) {
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse: [verseStart, verseEnd],
-              reference: `${canonicalBook} ${chapter}:${verseStart}-${verseEnd}`
-            });
-          } else if (!isNaN(verseStart) && !isNaN(verseEnd) && verseStart > verseEnd) {
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse: verseStart,
-              reference: `${canonicalBook} ${chapter}:${verseStart}`
-            });
-          }
-        } else if (matchResult.length === 4 && !matchResult[3].includes(",") && /[-–—]/.test(matchResult[3])) {
-          const versePart = matchResult[3].trim();
-          const [start, end] = versePart.split(/\s*[-–—]\s*/).map((v2) => parseInt(v2.trim()));
-          if (!isNaN(start) && !isNaN(end) && start <= end) {
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse: [start, end],
-              reference: `${canonicalBook} ${chapter}:${start}-${end}`
-            });
-          } else if (!isNaN(start) && !isNaN(end) && start > end) {
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse: start,
-              reference: `${canonicalBook} ${chapter}:${start}`
-            });
-          }
-        } else if (matchResult.length === 4 && !matchResult[3].includes(",") && !/[-–—]/.test(matchResult[3])) {
-          const verse = parseInt(matchResult[3]);
-          if (!isNaN(verse)) {
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter,
-              verse,
-              reference: `${canonicalBook} ${chapter}:${verse}`
-            });
-          }
-        }
-      }
-    }
-  }
-  if (!normalizedMatch.includes(":")) {
-    const chapterRangeMatch = normalizedMatch.match(/^(.+?)\s+(\d+)\s*[-–—]\s*(\d+)$/);
-    if (chapterRangeMatch) {
-      const bookPart = chapterRangeMatch[1].trim();
-      const startCh = parseInt(chapterRangeMatch[2], 10);
-      const endCh = parseInt(chapterRangeMatch[3], 10);
-      if (!isNaN(startCh) && !isNaN(endCh) && endCh > startCh) {
-        for (const bookName of bookNames) {
-          const normalizedBookName = normalizeText(bookName);
-          const normalizedBookPart = normalizeText(bookPart);
-          if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
-            const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-              (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
-            )?.name || bookName;
-            const vrStart = getChapterVerseRange(canonicalBook, startCh);
-            const vrEnd = getChapterVerseRange(canonicalBook, endCh);
-            if (!vrStart || !vrEnd) continue;
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter: startCh,
-              verse: [vrStart.start, vrEnd.end],
-              reference: `${canonicalBook} ${startCh}-${endCh}`
-            });
-          }
-        }
-      }
-    }
-    const chapterOnlyMatch = normalizedMatch.match(/^(.+?)\s+(\d+)$/);
-    if (chapterOnlyMatch) {
-      const bookPart = chapterOnlyMatch[1].trim();
-      const ch = parseInt(chapterOnlyMatch[2], 10);
-      if (!isNaN(ch)) {
-        for (const bookName of bookNames) {
-          const normalizedBookName = normalizeText(bookName);
-          const normalizedBookPart = normalizeText(bookPart);
-          if (normalizedBookPart === normalizedBookName || normalizedBookPart.startsWith(normalizedBookName) || normalizedBookName.startsWith(normalizedBookPart)) {
-            const canonicalBook = BIBLE_STUDY_KEYWORDS.find(
-              (k2) => k2.category === "book" && (k2.name.toLowerCase() === bookName.toLowerCase() || k2.synonyms.some((s2) => s2.toLowerCase() === bookName.toLowerCase()))
-            )?.name || bookName;
-            const expanded = normalizeChapterReference(canonicalBook, ch);
-            if (!expanded) continue;
-            const vr = getChapterVerseRange(canonicalBook, ch);
-            if (!vr) continue;
-            return validateAndWarn({
-              book: canonicalBook,
-              chapter: ch,
-              verse: [vr.start, vr.end],
-              reference: expanded
-            });
-          }
-        }
-      }
-    }
-  }
-  return null;
-};
-function isValidScriptureContext(text2, matchIndex, matchLength) {
-  const before2 = text2.substring(Math.max(0, matchIndex - 30), matchIndex).trim();
-  const after2 = text2.substring(matchIndex + matchLength, matchIndex + matchLength + 30).trim();
-  const invalidAfterPattern = /\b(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\s+(ago|later|before|after)\b/i;
-  if (invalidAfterPattern.test(after2)) {
-    return false;
-  }
-  const falsePositivePattern = /^\s*(years?|months?|days?|dollars?|people|times?|hours?|minutes?|seconds?|weeks?)\b/i;
-  if (falsePositivePattern.test(after2)) {
-    const refText = text2.substring(matchIndex, matchIndex + matchLength);
-    if (!refText.includes(":") && falsePositivePattern.test(after2)) {
-      return false;
-    }
-  }
-  const firstCharAfter = after2.charAt(0);
-  if (!firstCharAfter) {
-    return true;
-  }
-  const validAfterChars = /^[.,;:!?\s\n]/;
-  if (validAfterChars.test(firstCharAfter)) {
-    return true;
-  }
-  if (/^[a-z]/.test(after2)) {
-    const commonWordsAfter = /^(is|are|was|were|has|have|had|will|would|can|could|should|may|might)\b/i;
-    if (commonWordsAfter.test(after2)) {
-      return true;
-    }
-  }
-  const invalidBefore = /\b(about|around|over|under|near|from|to|at|in|on|for|with|by)\s+$/i;
-  if (invalidBefore.test(before2)) {
-    return false;
-  }
-  return true;
-}
-var detectScriptureReferences = (text2) => {
-  const references = [];
-  const bookNames = getBookNameVariations();
-  const escapedBookNames = bookNames.map(
-    (name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  );
-  const dashPattern = "[-\u2013\u2014]";
-  const referencePattern = new RegExp(
-    `\\b(${escapedBookNames.join("|")})\\s+(\\d+):(\\d+(?:\\s*${dashPattern}\\s*\\d+)?(?:,\\s*\\d+(?:\\s*${dashPattern}\\s*\\d+)?)*)(?=\\s|$|[^\\d\\w])`,
-    "gi"
-  );
-  let match3;
-  while ((match3 = referencePattern.exec(text2)) !== null) {
-    let fullMatch = match3[0];
-    const originalMatchEnd = match3.index + fullMatch.length;
-    let adjustedLastIndex = originalMatchEnd;
-    const versePartMatch = fullMatch.match(/:\s*([^:]+)$/);
-    if (versePartMatch && versePartMatch[1].includes(",")) {
-      const verseGroups = versePartMatch[1];
-      const lastCommaIndex = verseGroups.lastIndexOf(",");
-      if (lastCommaIndex >= 0) {
-        const afterLastComma = verseGroups.substring(lastCommaIndex + 1).trim();
-        if (/^\d+$/.test(afterLastComma)) {
-          const textAfterMatch = text2.substring(originalMatchEnd);
-          const wordAfterSpace = textAfterMatch.match(/^\s+(\w+)/)?.[1];
-          if (wordAfterSpace) {
-            const potentialBookName = `${afterLastComma} ${wordAfterSpace}`;
-            const matchesBookName = bookNames.some((bookName) => {
-              const normalizedBook = normalizeText(bookName);
-              const normalizedPotential = normalizeText(potentialBookName);
-              return normalizedBook === normalizedPotential || normalizedBook.startsWith(normalizedPotential) || normalizedPotential.startsWith(normalizedBook);
-            });
-            if (matchesBookName) {
-              const trimmedLength = verseGroups.length - lastCommaIndex;
-              fullMatch = fullMatch.substring(0, fullMatch.length - trimmedLength);
-              adjustedLastIndex = match3.index + fullMatch.length;
-            }
-          }
-        }
-      }
-    }
-    const extracted = parseReference(fullMatch);
-    if (extracted) {
-      if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) {
-        continue;
-      }
-      const versePartInMatch = fullMatch.match(/:\s*(\d+)/);
-      if (versePartInMatch) {
-        const verseInMatch = parseInt(versePartInMatch[1]);
-        if (Array.isArray(extracted.verse)) {
-          if (extracted.verse[0] !== verseInMatch && extracted.verse[0] < verseInMatch) {
-            if (DEBUG) {
-              console.warn("[Scripture Detection] Verse mismatch detected:", {
-                originalMatch: fullMatch,
-                parsedVerse: extracted.verse[0],
-                matchVerse: verseInMatch
-              });
-            }
-            const correctedVerse = verseInMatch;
-            extracted.verse = correctedVerse;
-            extracted.reference = `${extracted.book} ${extracted.chapter}:${correctedVerse}`;
-          }
-        } else {
-          if (extracted.verse !== verseInMatch && extracted.verse < verseInMatch) {
-            extracted.verse = verseInMatch;
-            extracted.reference = `${extracted.book} ${extracted.chapter}:${verseInMatch}`;
-          }
-        }
-      }
-      extracted.reference = fullMatch;
-      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
-      const isDuplicate = references.some((ref) => {
-        const normalizedRef = normalizeScriptureReference(ref.reference);
-        return normalizedRef === normalizedExtracted;
-      });
-      if (!isDuplicate) {
-        references.push(extracted);
-      }
-    }
-    if (adjustedLastIndex !== originalMatchEnd) {
-      referencePattern.lastIndex = adjustedLastIndex;
-    }
-  }
-  const chapterRangePattern = new RegExp(
-    `\\b(${escapedBookNames.join("|")})\\s+(\\d+)\\s*${dashPattern}\\s*(\\d+)(?!\\s*:)(?=\\s|$|[^\\d\\w-])`,
-    "gi"
-  );
-  while ((match3 = chapterRangePattern.exec(text2)) !== null) {
-    const fullMatch = match3[0];
-    const extracted = parseReference(fullMatch.trim());
-    if (extracted && !fullMatch.includes(":")) {
-      if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
-      extracted.reference = fullMatch;
-      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
-      const isDuplicate = references.some((ref) => {
-        const normalizedRef = normalizeScriptureReference(ref.reference);
-        return normalizedRef === normalizedExtracted;
-      });
-      if (!isDuplicate) {
-        references.push(extracted);
-      }
-    }
-  }
-  const chapterOnlyPattern = new RegExp(
-    `\\b(${escapedBookNames.join("|")})\\s+(\\d+)(?!\\s*:)(?!\\s*${dashPattern}\\s*\\d)(?=\\s|$|[^\\d\\w])`,
-    "gi"
-  );
-  while ((match3 = chapterOnlyPattern.exec(text2)) !== null) {
-    const fullMatch = match3[0];
-    const extracted = parseReference(fullMatch.trim());
-    if (extracted && !fullMatch.includes(":")) {
-      if (!isValidScriptureContext(text2, match3.index, fullMatch.length)) continue;
-      extracted.reference = fullMatch;
-      const normalizedExtracted = normalizeScriptureReference(extracted.reference);
-      const isDuplicate = references.some((ref) => {
-        const normalizedRef = normalizeScriptureReference(ref.reference);
-        return normalizedRef === normalizedExtracted;
-      });
-      if (isDuplicate) continue;
-      const hasVerseLevelInChapter = references.some(
-        (r) => r.book === extracted.book && r.chapter === extracted.chapter && r.reference.includes(":")
-      );
-      if (hasVerseLevelInChapter) continue;
-      references.push(extracted);
-    }
-  }
-  return references;
-};
-var parseScriptureReference = (reference) => {
-  const parsed = parseReference(reference);
-  if (!parsed) return null;
-  return {
-    book: parsed.book,
-    chapter: parsed.chapter,
-    verse: parsed.verse
-  };
-};
-var detectScripture = async (text2) => {
-  if (!text2 || text2.trim().length === 0) {
-    return {
-      isScripture: false,
-      type: null,
-      references: [],
-      confidence: 0
-    };
-  }
-  const plainText = text2.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  const references = detectScriptureReferences(plainText);
-  if (references.length > 0) {
-    return {
-      isScripture: true,
-      type: "reference",
-      references,
-      confidence: 0.9,
-      detectedText: plainText
-    };
-  }
-  return {
-    isScripture: false,
-    type: null,
-    references: [],
-    confidence: 0
-  };
-};
-var getPrimaryReference = (detection) => {
-  if (detection.references.length > 0) {
-    return detection.references[0].reference;
-  }
-  return null;
-};
-var normalizeScriptureReference = (reference) => {
-  if (!reference || typeof reference !== "string") {
-    return reference;
-  }
-  const parsed = parseReference(reference.trim());
-  if (parsed) {
-    return parsed.reference;
-  }
-  let normalized = reference.replace(/:\s+/g, ":");
-  normalized = normalized.replace(/,\s+/g, ",");
-  normalized = normalized.replace(/(\d+)\s*[-–—]\s*(\d+)/g, "$1-$2");
-  normalized = normalized.trim();
-  return normalized;
-};
-var parseVerseGroups = (reference) => {
-  const match3 = reference.match(/:\s*([^:]+)$/);
-  if (!match3) return [];
-  const versePart = match3[1].trim();
-  const normalized = versePart.replace(/\s+\|\s+/g, ",").replace(/,\s+/g, ",");
-  const groups = [];
-  normalized.split(",").forEach((group) => {
-    const trimmed = group.trim();
-    if (/[-–—]/.test(trimmed)) {
-      const [start, end] = trimmed.split(/[-–—]/).map((v2) => parseInt(v2.trim()));
-      if (!isNaN(start) && !isNaN(end)) {
-        groups.push({ start, end });
-      }
-    } else {
-      const verse = parseInt(trimmed);
-      if (!isNaN(verse)) {
-        groups.push({ start: verse, end: verse });
-      }
-    }
-  });
-  return groups;
-};
-
-// src/utils/scripture-highlighter.ts
-function stripNoteLinkScriptureSpans(content) {
-  if (!content) return content;
-  let result = content;
-  const noteLinkRegex = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>|<span[^>]*data-note-id\s*=\s*["'][^"']+["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
-  result = result.replace(noteLinkRegex, (match3, inner1, inner2) => {
-    const innerContent = inner1 || inner2 || "";
-    const plainText = innerContent.replace(/<[^>]*>/g, "").trim();
-    const scriptureRefs = detectScriptureReferences(plainText);
-    if (scriptureRefs.length > 0) {
-      return innerContent;
-    }
-    return match3;
-  });
-  return result;
-}
-function stripBrokenPillSpans(content) {
-  if (!content) return content;
-  let result = content;
-  const spanRegex = /<span[^>]*data-scripture-reference\s*=\s*["'][^"']+["'][^>]*>([\s\S]*?)<\/span>/gi;
-  result = result.replace(spanRegex, (match3, innerContent) => {
-    const noteIdMatch = match3.match(/data-note-id\s*=\s*["']([^"']+)["']/);
-    let hasValidNoteId = false;
-    if (noteIdMatch) {
-      const noteIdValue = noteIdMatch[1];
-      hasValidNoteId = Boolean(noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "");
-    }
-    return hasValidNoteId ? match3 : innerContent;
-  });
-  return result;
-}
-function highlightScriptureReferences(content, references) {
-  if (!content || references.length === 0) {
-    return content;
-  }
-  let updatedContent = stripNoteLinkScriptureSpans(content);
-  updatedContent = stripBrokenPillSpans(updatedContent);
-  for (const { reference, noteId, translation } of references) {
-    const escapedReference = reference.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const tokens = escapedReference.match(/\S+|\s+/g) || [];
-    const flexiblePattern = tokens.map((token) => {
-      if (/^\s+$/.test(token)) {
-        return `\\s*(?:<[^>]+>)*\\s*`;
-      } else {
-        return `(?:<[^>]+>)*${token}(?:<[^>]+>)*`;
-      }
-    }).join("");
-    const pattern = new RegExp(`(${flexiblePattern})`, "gi");
-    const matches3 = [];
-    let match3;
-    while ((match3 = pattern.exec(updatedContent)) !== null) {
-      const cleanText = match3[0].replace(/<[^>]+>/g, "").trim();
-      if (cleanText.toLowerCase() === reference.toLowerCase()) {
-        matches3.push({
-          match: match3[0],
-          index: match3.index,
-          cleanText: reference
-          // Use original reference (always plain text, no formatting)
-        });
-      }
-    }
-    for (let i = matches3.length - 1; i >= 0; i--) {
-      const { match: matchText, index: index2, cleanText } = matches3[i];
-      const beforeMatch = updatedContent.substring(0, index2);
-      const matchEnd = index2 + matchText.length;
-      let searchPos = index2;
-      let foundCompletePillSpan = false;
-      while (searchPos > 0) {
-        const lastSpanOpen = beforeMatch.lastIndexOf("<span", searchPos - 1);
-        if (lastSpanOpen === -1) break;
-        const spanTagEnd = updatedContent.indexOf(">", lastSpanOpen);
-        if (spanTagEnd === -1 || spanTagEnd >= index2) {
-          searchPos = lastSpanOpen - 1;
-          continue;
-        }
-        const spanTag = updatedContent.substring(lastSpanOpen, spanTagEnd + 1);
-        const hasScriptureRef = spanTag.includes("data-scripture-reference");
-        const noteIdMatch = spanTag.match(/data-note-id\s*=\s*["']([^"']+)["']/);
-        const noteIdValue = noteIdMatch ? noteIdMatch[1] : null;
-        const hasValidNoteId = noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "";
-        const isCompletePillSpan = hasScriptureRef && hasValidNoteId;
-        const spanCloseAfter = updatedContent.indexOf("</span>", spanTagEnd + 1);
-        if (spanCloseAfter !== -1 && spanCloseAfter < index2) {
-          searchPos = lastSpanOpen - 1;
-          continue;
-        }
-        if (isCompletePillSpan) {
-          const spanCloseAfterMatch = updatedContent.indexOf("</span>", matchEnd);
-          if (spanCloseAfterMatch !== -1) {
-            foundCompletePillSpan = true;
-            break;
-          }
-        }
-        searchPos = lastSpanOpen - 1;
-      }
-      if (foundCompletePillSpan) {
-        continue;
-      }
-      const openSpansBefore = (beforeMatch.match(/<span[^>]*class="note-link"[^>]*>/gi) || []).length;
-      const closeSpansBefore = (beforeMatch.match(/<\/span>/gi) || []).length;
-      if (openSpansBefore > closeSpansBefore) {
-        continue;
-      }
-      const contextBefore = beforeMatch.substring(Math.max(0, beforeMatch.length - 100));
-      const contextAfter = updatedContent.substring(matchEnd, Math.min(matchEnd + 100, updatedContent.length));
-      const fullContext = contextBefore + matchText + contextAfter;
-      if (fullContext.includes(`data-note-id="${noteId}"`)) {
-        continue;
-      }
-      const cleanMatchText = matchText.replace(/<[^>]+>/g, "");
-      const leadingSpaces = cleanMatchText.match(/^\s*/)?.[0] || "";
-      const trailingSpaces = cleanMatchText.match(/\s*$/)?.[0] || "";
-      const translationAttr = translation ? ` data-scripture-translation="${translation}"` : "";
-      const wrapped = `<span data-scripture-reference="${cleanText}" data-note-id="${noteId}"${translationAttr} class="scripture-pill scripture-pill-clickable" style="background-color: var(--color-paper); border-radius: 12px; padding: 0px 8px; display: inline-flex; align-items: baseline; height: auto; min-height: 28px; gap: 4px; box-shadow: 0px -3px 0px 0px inset rgba(176,176,176,0.25); font-weight: 600; font-style: normal; font-size: 16px; color: var(--color-deep-grey); vertical-align: baseline; line-height: 1.6; user-select: none; white-space: normal; cursor: pointer;">${cleanText}</span>`;
-      updatedContent = updatedContent.substring(0, index2) + leadingSpaces + wrapped + trailingSpaces + updatedContent.substring(index2 + matchText.length);
-    }
-  }
-  return updatedContent;
-}
-
-// server/utils/process-scripture-references.ts
-init_ids();
-
-// server/utils/xp-system.ts
-init_db2();
-var XP_VALUES = {
-  SESSION_BASE: 15,
-  SESSION_MAX: 40,
-  CREATION_BONUS: 5,
-  CHURCH_ADDED: 50,
-  MONTHLY_ATTENDANCE: 25,
-  NEW_SEASON_BONUS: 50,
-  // One-time reward for returning in a new season
-  WEEKLY_STREAK_3_4_DAYS: 15,
-  WEEKLY_STREAK_5_6_DAYS: 25,
-  WEEKLY_STREAK_7_DAYS: 35,
-  // Legacy values (kept for backward compatibility)
-  THREAD_CREATED: 10,
-  NOTE_CREATED: 10,
-  SCRIPTURE_NOTE_CREATED: 3,
-  NOTE_OPENED: 1,
-  FIRST_NOTE_DAILY_BONUS: 5,
-  /** One-time per VOTD featured item when user engages (quick-add or create-note), not for close/dismiss-only */
-  VOTD_ENGAGED: 5
-};
-var REFERRAL_XP_FIRST = 100;
-var REFERRAL_XP_DECREMENT = 25;
-var REFERRAL_XP_MIN = 25;
-function getReferralCreditXpForOrdinal(ordinal1Based) {
-  if (ordinal1Based < 1) return REFERRAL_XP_MIN;
-  const raw2 = REFERRAL_XP_FIRST - (ordinal1Based - 1) * REFERRAL_XP_DECREMENT;
-  return Math.max(REFERRAL_XP_MIN, raw2);
-}
-var DAILY_CAPS = {
-  SESSIONS: 3,
-  // Max 3 sessions per day
-  CREATION_BONUS: 20,
-  // Max 20 XP/day from creation bonuses
-  // Legacy caps
-  NOTE_OPENED: 50
-  // Max 50 XP per day from opening notes
-};
-var MIN_CONTENT_LENGTHS = {
-  NOTE: 10,
-  // Minimum 10 characters for notes
-  THREAD: 3
-  // Minimum 3 characters for threads
-};
-var RATE_LIMITS = {
-  THREADS_PER_HOUR: 5,
-  // Max 5 threads per hour
-  NOTES_PER_HOUR: 20
-  // Max 20 notes per hour
-};
-var QUICK_DELETION_WINDOW_MS = 2 * 60 * 1e3;
-var ACTIVITY_TYPES = {
-  SESSION_COMPLETED: "session_completed",
-  CREATION_BONUS: "creation_bonus",
-  CHURCH_ADDED: "church_added",
-  MONTHLY_ATTENDANCE: "monthly_attendance",
-  NEW_SEASON: "new_season",
-  WEEKLY_STREAK: "weekly_streak",
-  REFERRAL_CREDITED: "referral_credited",
-  // Legacy activity types (kept for backward compatibility)
-  THREAD_CREATED: "thread_created",
-  NOTE_CREATED: "note_created",
-  NOTE_OPENED: "note_opened",
-  FIRST_NOTE_DAILY_BONUS: "first_note_daily",
-  VOTD_ENGAGED: "votd_engaged"
-};
-function checkContentLength(content, type) {
-  const minLength = type === "note" ? MIN_CONTENT_LENGTHS.NOTE : MIN_CONTENT_LENGTHS.THREAD;
-  return content.trim().length >= minLength;
-}
-async function checkRateLimit(userId, activityType, excludeScriptureNotes = false) {
-  try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1e3);
-    const recentXP = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, activityType),
-      gte(UserXP.createdAt, oneHourAgo.toISOString())
-    ));
-    let count3 = recentXP.length;
-    if (excludeScriptureNotes && activityType === "note_created") {
-      count3 = recentXP.filter((record) => {
-        if (!record.metadata) return true;
-        try {
-          const metadata = JSON.parse(record.metadata);
-          return !metadata.isScriptureNote;
-        } catch {
-          return true;
-        }
-      }).length;
-    }
-    const limit = activityType === "thread_created" ? RATE_LIMITS.THREADS_PER_HOUR : RATE_LIMITS.NOTES_PER_HOUR;
-    return count3 < limit;
-  } catch (error) {
-    console.error("Error checking rate limit:", error);
-    return true;
-  }
-}
-async function revokeXPOnDeletion(userId, relatedId, itemCreatedAt) {
-  try {
-    const now2 = /* @__PURE__ */ new Date();
-    const timeDiff = now2.getTime() - itemCreatedAt.getTime();
-    if (timeDiff > QUICK_DELETION_WINDOW_MS) {
-      return 0;
-    }
-    const xpRecords = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.relatedId, relatedId)
-    ));
-    let revokedAmount = 0;
-    for (const record of xpRecords) {
-      revokedAmount += record.xpAmount;
-      await db.delete(UserXP).where(eq(UserXP.id, record.id));
-    }
-    return revokedAmount;
-  } catch (error) {
-    console.error("Error revoking XP on deletion:", error);
-    return 0;
-  }
-}
-async function revokeAllXPForItem(userId, relatedId) {
-  try {
-    const xpRecords = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.relatedId, relatedId)
-    ));
-    let revokedAmount = 0;
-    for (const record of xpRecords) {
-      revokedAmount += record.xpAmount;
-      await db.delete(UserXP).where(eq(UserXP.id, record.id));
-    }
-    return revokedAmount;
-  } catch (error) {
-    console.error("Error revoking all XP for item:", error);
-    return 0;
-  }
-}
-var XP_RELATED_ID_CHUNK = 2e3;
-async function deleteAllXpForRelatedIds(userId, relatedIds) {
-  const unique2 = [...new Set(relatedIds.filter(Boolean))];
-  if (unique2.length === 0) return;
-  try {
-    for (let i = 0; i < unique2.length; i += XP_RELATED_ID_CHUNK) {
-      const chunk = unique2.slice(i, i + XP_RELATED_ID_CHUNK);
-      await db.delete(UserXP).where(and(eq(UserXP.userId, userId), inArray(UserXP.relatedId, chunk)));
-    }
-  } catch (error) {
-    console.error("Error bulk-deleting XP for related ids:", error);
-  }
-}
-async function awardXP(userId, activityType, xpAmount, relatedId, metadata) {
-  try {
-    const season = getCurrentSeason();
-    const now2 = /* @__PURE__ */ new Date();
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      activityType,
-      xpAmount,
-      relatedId: relatedId || null,
-      season,
-      metadata: metadata ? JSON.stringify(metadata) : null,
-      createdAt: now2.toISOString()
-    });
-    await updateSeasonalXP(userId, season, xpAmount);
-    await updateLifetimeXP(userId, xpAmount);
-  } catch (error) {
-    console.error("Error awarding XP:", error);
-  }
-}
-async function updateSeasonalXP(userId, season, xpAmount) {
-  try {
-    const existing = await db.select().from(UserSeasonalXP).where(and(
-      eq(UserSeasonalXP.userId, userId),
-      eq(UserSeasonalXP.season, season)
-    )).limit(1);
-    if (existing.length > 0) {
-      await db.update(UserSeasonalXP).set({
-        totalXP: existing[0].totalXP + xpAmount,
-        sessionCount: existing[0].sessionCount + (xpAmount > 0 && existing[0].sessionCount !== void 0 ? 1 : 0),
-        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-      }).where(eq(UserSeasonalXP.id, existing[0].id));
-    } else {
-      await db.insert(UserSeasonalXP).values({
-        id: `seasonal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        season,
-        totalXP: xpAmount,
-        sessionCount: 0,
-        createdAt: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-  } catch (error) {
-    console.error("Error updating seasonal XP:", error);
-  }
-}
-async function updateLifetimeXP(userId, xpAmount) {
-  try {
-    const existing = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, userId)).limit(1);
-    if (existing.length > 0) {
-      await db.update(UserLifetimeXP).set({
-        totalXP: existing[0].totalXP + xpAmount,
-        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-      }).where(eq(UserLifetimeXP.id, existing[0].id));
-    } else {
-      await db.insert(UserLifetimeXP).values({
-        id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        totalXP: xpAmount,
-        lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-      });
-    }
-  } catch (error) {
-    console.error("Error updating lifetime XP:", error);
-  }
-}
-async function getSeasonalXP(userId, season) {
-  try {
-    const currentSeason = season || getCurrentSeason();
-    const seasonal = await db.select().from(UserSeasonalXP).where(and(
-      eq(UserSeasonalXP.userId, userId),
-      eq(UserSeasonalXP.season, currentSeason)
-    )).limit(1);
-    return seasonal.length > 0 ? seasonal[0].totalXP : 0;
-  } catch (error) {
-    console.error("Error getting seasonal XP:", error);
-    return 0;
-  }
-}
-async function getLifetimeXP(userId) {
-  try {
-    const lifetime = await db.select().from(UserLifetimeXP).where(eq(UserLifetimeXP.userId, userId)).limit(1);
-    if (lifetime.length > 0 && lifetime[0].totalXP > 0) {
-      return lifetime[0].totalXP;
-    }
-    const xpRecords = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
-    const totalXP = xpRecords.reduce((sum2, record) => sum2 + record.xpAmount, 0);
-    if (totalXP > 0 && (lifetime.length === 0 || lifetime[0].totalXP === 0)) {
-      if (lifetime.length > 0) {
-        await db.update(UserLifetimeXP).set({ totalXP, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(UserLifetimeXP.userId, userId));
-      } else {
-        await db.insert(UserLifetimeXP).values({
-          id: `lifetime_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          userId,
-          totalXP,
-          lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-    }
-    return totalXP;
-  } catch (error) {
-    console.error("Error getting lifetime XP:", error);
-    return 0;
-  }
-}
-async function getAllSeasonalXP(userId) {
-  try {
-    const allSeasons = await db.select().from(UserSeasonalXP).where(eq(UserSeasonalXP.userId, userId));
-    const seasonOrder = {
-      "spring": 1,
-      "summer": 2,
-      "fall": 3,
-      "winter": 4
-    };
-    const sortedSeasons = allSeasons.filter((record) => record.totalXP > 0).sort((a, b3) => {
-      const [aSeason, aYear] = a.season.split("-");
-      const [bSeason, bYear] = b3.season.split("-");
-      const aYearNum = parseInt(aYear);
-      const bYearNum = parseInt(bYear);
-      if (aYearNum !== bYearNum) {
-        return bYearNum - aYearNum;
-      }
-      return (seasonOrder[bSeason] || 0) - (seasonOrder[aSeason] || 0);
-    }).map((record) => ({
-      season: record.season,
-      seasonName: getSeasonDisplayName(record.season),
-      totalXP: record.totalXP
-    }));
-    return sortedSeasons;
-  } catch (error) {
-    console.error("Error getting all seasonal XP:", error);
-    return [];
-  }
-}
-async function awardSessionXP(userId, sessionXP) {
-  try {
-    const today = /* @__PURE__ */ new Date();
-    today.setHours(0, 0, 0, 0);
-    const todaySessions = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.SESSION_COMPLETED),
-      gte(UserXP.createdAt, today.toISOString())
-    ));
-    if (todaySessions.length >= DAILY_CAPS.SESSIONS) {
-      return false;
-    }
-    await awardXP(
-      userId,
-      ACTIVITY_TYPES.SESSION_COMPLETED,
-      sessionXP,
-      void 0,
-      { sessionNumber: todaySessions.length + 1 }
-    );
-    return true;
-  } catch (error) {
-    console.error("Error awarding session XP:", error);
-    return false;
-  }
-}
-async function awardCreationBonusXP(userId, itemType) {
-  try {
-    const today = /* @__PURE__ */ new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayCreationXP = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.CREATION_BONUS),
-      gte(UserXP.createdAt, today.toISOString())
-    ));
-    const todayTotal = todayCreationXP.reduce((sum2, r) => sum2 + r.xpAmount, 0);
-    if (todayTotal >= DAILY_CAPS.CREATION_BONUS) {
-      return false;
-    }
-    const xpToAward = Math.min(
-      XP_VALUES.CREATION_BONUS,
-      DAILY_CAPS.CREATION_BONUS - todayTotal
-    );
-    if (xpToAward > 0) {
-      await awardXP(
-        userId,
-        ACTIVITY_TYPES.CREATION_BONUS,
-        xpToAward,
-        void 0,
-        { itemType }
-      );
-    }
-    return xpToAward > 0;
-  } catch (error) {
-    console.error("Error awarding creation bonus XP:", error);
-    return false;
-  }
-}
-async function awardVotdEngagementXP(userId, featuredItemId, source) {
-  try {
-    const already = await hasXPBeenAwarded(userId, ACTIVITY_TYPES.VOTD_ENGAGED, featuredItemId);
-    if (already) return;
-    await awardXP(userId, ACTIVITY_TYPES.VOTD_ENGAGED, XP_VALUES.VOTD_ENGAGED, featuredItemId, { source });
-  } catch (error) {
-    console.error("Error awarding VOTD engagement XP:", error);
-  }
-}
-async function awardChurchAddedXP(userId) {
-  try {
-    const existing = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.CHURCH_ADDED)
-    )).limit(1);
-    if (existing.length > 0) {
-      return false;
-    }
-    await awardXP(
-      userId,
-      ACTIVITY_TYPES.CHURCH_ADDED,
-      XP_VALUES.CHURCH_ADDED,
-      void 0,
-      void 0
-    );
-    return true;
-  } catch (error) {
-    console.error("Error awarding church addition XP:", error);
-    return false;
-  }
-}
-async function awardMonthlyAttendanceXP(userId) {
-  try {
-    const now2 = /* @__PURE__ */ new Date();
-    const startOfMonth = new Date(now2.getFullYear(), now2.getMonth(), 1);
-    startOfMonth.setHours(0, 0, 0, 0);
-    const existing = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.MONTHLY_ATTENDANCE),
-      gte(UserXP.createdAt, startOfMonth.toISOString())
-    )).limit(1);
-    if (existing.length > 0) {
-      return false;
-    }
-    await awardXP(
-      userId,
-      ACTIVITY_TYPES.MONTHLY_ATTENDANCE,
-      XP_VALUES.MONTHLY_ATTENDANCE,
-      void 0,
-      {
-        month: now2.getMonth() + 1,
-        year: now2.getFullYear()
-      }
-    );
-    await db.update(UserMetadata).set({ lastMonthlyVisit: now2.toISOString() }).where(eq(UserMetadata.userId, userId));
-    return true;
-  } catch (error) {
-    console.error("Error awarding monthly attendance XP:", error);
-    return false;
-  }
-}
-async function awardNewSeasonBonus(userId) {
-  try {
-    const currentSeason = getCurrentSeason();
-    const existing = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.NEW_SEASON),
-      eq(UserXP.season, currentSeason)
-    )).limit(1);
-    if (existing.length > 0) {
-      return false;
-    }
-    await awardXP(
-      userId,
-      ACTIVITY_TYPES.NEW_SEASON,
-      XP_VALUES.NEW_SEASON_BONUS,
-      void 0,
-      { season: currentSeason, seasonName: getSeasonDisplayName(currentSeason) }
-    );
-    return true;
-  } catch (error) {
-    console.error("Error awarding new season bonus:", error);
-    return false;
-  }
-}
-async function checkLifetimeMilestones(userId) {
-  try {
-    const lifetimeXP = await getLifetimeXP(userId);
-    const milestones = [];
-    if (lifetimeXP >= 100) milestones.push("first_hundred");
-    if (lifetimeXP >= 500) milestones.push("five_hundred");
-    if (lifetimeXP >= 1e3) milestones.push("thousand");
-    if (lifetimeXP >= 5e3) milestones.push("five_thousand");
-    if (lifetimeXP >= 1e4) milestones.push("ten_thousand");
-    if (lifetimeXP >= 25e3) milestones.push("twenty_five_thousand");
-    if (lifetimeXP >= 5e4) milestones.push("fifty_thousand");
-    return milestones;
-  } catch (error) {
-    console.error("Error checking lifetime milestones:", error);
-    return [];
-  }
-}
-async function awardThreadCreatedXP(userId, threadId, title, subtitle) {
-  try {
-    const existingXP = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.THREAD_CREATED),
-      eq(UserXP.relatedId, threadId)
-    )).limit(1);
-    if (existingXP.length > 0) {
-      return;
-    }
-    if (title && !checkContentLength(title, "thread")) {
-      return;
-    }
-    const withinRateLimit = await checkRateLimit(userId, "thread_created", false);
-    if (!withinRateLimit) {
-      return;
-    }
-    const metadata = JSON.stringify({
-      contentLength: title?.length || 0
-    });
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      activityType: ACTIVITY_TYPES.THREAD_CREATED,
-      xpAmount: XP_VALUES.THREAD_CREATED,
-      relatedId: threadId,
-      metadata,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-  } catch (error) {
-    console.error("Error awarding thread creation XP:", error);
-  }
-}
-async function awardNoteCreatedXP(userId, noteId, isScriptureNote = false, content) {
-  try {
-    const existingXP = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, ACTIVITY_TYPES.NOTE_CREATED),
-      eq(UserXP.relatedId, noteId)
-    )).limit(1);
-    if (existingXP.length > 0) {
-      return;
-    }
-    if (!isScriptureNote && content && !checkContentLength(content, "note")) {
-      return;
-    }
-    if (!isScriptureNote) {
-      const withinRateLimit = await checkRateLimit(userId, "note_created", true);
-      if (!withinRateLimit) {
-        return;
-      }
-    }
-    const xpAmount = isScriptureNote ? XP_VALUES.SCRIPTURE_NOTE_CREATED : XP_VALUES.NOTE_CREATED;
-    let isFirstNoteToday = false;
-    if (!isScriptureNote) {
-      const today = /* @__PURE__ */ new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayNotes = await db.select().from(Notes).where(and(
-        eq(Notes.userId, userId),
-        gte(Notes.createdAt, today.toISOString())
-      )).limit(1);
-      isFirstNoteToday = todayNotes.length === 0;
-    }
-    const metadata = JSON.stringify({
-      isScriptureNote,
-      contentLength: content?.length || 0
-    });
-    await db.insert(UserXP).values({
-      id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      userId,
-      activityType: ACTIVITY_TYPES.NOTE_CREATED,
-      xpAmount,
-      relatedId: noteId,
-      metadata,
-      createdAt: (/* @__PURE__ */ new Date()).toISOString()
-    });
-    if (isFirstNoteToday) {
-      const existingBonusXP = await db.select().from(UserXP).where(and(
-        eq(UserXP.userId, userId),
-        eq(UserXP.activityType, ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS),
-        eq(UserXP.relatedId, noteId)
-      )).limit(1);
-      if (existingBonusXP.length === 0) {
-        await db.insert(UserXP).values({
-          id: `xp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_bonus`,
-          userId,
-          activityType: ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS,
-          xpAmount: XP_VALUES.FIRST_NOTE_DAILY_BONUS,
-          relatedId: noteId,
-          createdAt: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-    }
-  } catch (error) {
-    console.error("Error awarding note creation XP:", error);
-  }
-}
-async function getXPBreakdown(userId) {
-  try {
-    const xpRecords = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
-    const breakdown = {
-      sessionCompleted: 0,
-      creationBonus: 0,
-      churchAdded: 0,
-      monthlyAttendance: 0,
-      newSeason: 0,
-      weeklyStreak: 0,
-      referralCredited: 0,
-      // Legacy
-      threadCreated: 0,
-      noteCreated: 0,
-      noteOpened: 0,
-      firstNoteDailyBonus: 0,
-      votdEngaged: 0
-    };
-    xpRecords.forEach((record) => {
-      switch (record.activityType) {
-        case ACTIVITY_TYPES.SESSION_COMPLETED:
-          breakdown.sessionCompleted += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.CREATION_BONUS:
-          breakdown.creationBonus += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.CHURCH_ADDED:
-          breakdown.churchAdded += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.MONTHLY_ATTENDANCE:
-          breakdown.monthlyAttendance += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.NEW_SEASON:
-          breakdown.newSeason += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.WEEKLY_STREAK:
-          breakdown.weeklyStreak += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.REFERRAL_CREDITED:
-          breakdown.referralCredited += record.xpAmount;
-          break;
-        // Legacy activity types
-        case ACTIVITY_TYPES.THREAD_CREATED:
-          breakdown.threadCreated += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.NOTE_CREATED:
-          breakdown.noteCreated += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.NOTE_OPENED:
-          breakdown.noteOpened += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.FIRST_NOTE_DAILY_BONUS:
-          breakdown.firstNoteDailyBonus += record.xpAmount;
-          break;
-        case ACTIVITY_TYPES.VOTD_ENGAGED:
-          breakdown.votdEngaged += record.xpAmount;
-          break;
-      }
-    });
-    const totalXP = Object.values(breakdown).reduce((sum2, value) => sum2 + value, 0);
-    return {
-      totalXP,
-      breakdown
-    };
-  } catch (error) {
-    console.error("Error getting XP breakdown:", error);
-    return {
-      totalXP: 0,
-      breakdown: {
-        sessionCompleted: 0,
-        creationBonus: 0,
-        churchAdded: 0,
-        monthlyAttendance: 0,
-        newSeason: 0,
-        weeklyStreak: 0,
-        referralCredited: 0,
-        threadCreated: 0,
-        noteCreated: 0,
-        noteOpened: 0,
-        firstNoteDailyBonus: 0,
-        votdEngaged: 0
-      }
-    };
-  }
-}
-async function hasXPBeenAwarded(userId, activityType, relatedId) {
-  try {
-    const existingXP = await db.select().from(UserXP).where(and(
-      eq(UserXP.userId, userId),
-      eq(UserXP.activityType, activityType),
-      eq(UserXP.relatedId, relatedId)
-    )).limit(1);
-    return existingXP.length > 0;
-  } catch (error) {
-    console.error("Error checking if XP has been awarded:", error);
-    return false;
-  }
-}
-async function cleanupDuplicateXP(userId) {
-  try {
-    const allXP = await db.select().from(UserXP).where(eq(UserXP.userId, userId));
-    const groupedXP = allXP.reduce((acc, record) => {
-      const key2 = `${record.activityType}_${record.relatedId}`;
-      if (!acc[key2]) acc[key2] = [];
-      acc[key2].push(record);
-      return acc;
-    }, {});
-    let removedCount = 0;
-    const totalCount = allXP.length;
-    for (const [key2, records] of Object.entries(groupedXP)) {
-      if (records.length > 1) {
-        const sortedRecords = records.sort((a, b3) => new Date(a.createdAt).getTime() - new Date(b3.createdAt).getTime());
-        const toRemove = sortedRecords.slice(1);
-        for (const record of toRemove) {
-          await db.delete(UserXP).where(eq(UserXP.id, record.id));
-          removedCount++;
-        }
-      }
-    }
-    return { removed: removedCount, total: totalCount };
-  } catch (error) {
-    console.error("Error during duplicate XP cleanup:", error);
-    return { removed: 0, total: 0 };
-  }
-}
-async function backfillUserXP(userId) {
-  try {
-    await cleanupDuplicateXP(userId);
-    const userThreads = await db.select().from(Threads).where(eq(Threads.userId, userId));
-    const userNotes = await db.select().from(Notes).where(eq(Notes.userId, userId));
-    for (const thread of userThreads) {
-      await awardThreadCreatedXP(userId, thread.id, thread.title, thread.subtitle || null);
-    }
-    for (const note of userNotes) {
-      const isScriptureNote = note.noteType === "scripture";
-      await awardNoteCreatedXP(userId, note.id, isScriptureNote, note.content || "");
-    }
-  } catch (error) {
-    console.error("Error during XP backfill:", error);
-  }
-}
-
-// server/utils/auto-tag-generator.ts
-var import_crypto3 = require("crypto");
-init_db2();
-var AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN = 0.65;
-function isTagOverlapping(newTag, existingTag) {
-  const newLower = newTag.toLowerCase();
-  const existingLower = existingTag.toLowerCase();
-  if (newLower === existingLower) return true;
-  if (newLower.includes(existingLower) || existingLower.includes(newLower)) return true;
-  const overlappingPairs = [
-    ["goodness", "righteousness"],
-    ["grace", "mercy"],
-    ["love", "mercy"],
-    ["faith", "belief"],
-    ["hope", "faith"],
-    ["peace", "joy"],
-    ["kingdom of god", "heaven"],
-    ["resurrection", "eternal life"],
-    ["eternal life", "everlasting life"],
-    ["holy spirit", "spirit"],
-    ["jesus", "christ"],
-    ["jesus", "lord"],
-    ["god", "father"],
-    ["god", "lord"]
-  ];
-  for (const [tag1, tag2] of overlappingPairs) {
-    if (newLower === tag1 && existingLower === tag2 || newLower === tag2 && existingLower === tag1) return true;
-  }
-  return false;
-}
-async function generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold = 0.7) {
-  try {
-    if (!userId) {
-      console.error("Auto-tag generation failed: userId is required");
-      return { suggestions: [], totalFound: 0, highConfidence: 0 };
-    }
-    const { stripHtml: stripHtml2 } = await Promise.resolve().then(() => (init_html_stripper(), html_stripper_exports));
-    const cleanTitle2 = (noteTitle || "").trim();
-    const cleanContent = stripHtml2(noteContent || "", { preserveSpacing: true }).trim();
-    const fullText = `${cleanTitle2} ${cleanContent}`.trim();
-    if (!fullText) return { suggestions: [], totalFound: 0, highConfidence: 0 };
-    let foundKeywords = [];
-    try {
-      foundKeywords = findKeywordsInTextWithPriority(fullText, cleanTitle2, cleanContent);
-    } catch (keywordError) {
-      console.error("Keyword detection error:", keywordError instanceof Error ? keywordError.message : String(keywordError));
-      foundKeywords = [];
-    }
-    let existingTags = [];
-    try {
-      if (!db) throw new Error("Database connection not available");
-      existingTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-    } catch (dbError) {
-      console.error("Database error fetching existing tags:", dbError instanceof Error ? dbError.message : String(dbError));
-      existingTags = [];
-    }
-    const existingTagNames = new Set(existingTags.map((tag) => tag.name.toLowerCase()));
-    const suggestions = [];
-    let highConfidence = 0;
-    for (const { keyword, confidence } of foundKeywords) {
-      if (keyword.name.toLowerCase() === "god") continue;
-      if (confidence >= confidenceThreshold) {
-        const isOverlapping = suggestions.some((existing) => isTagOverlapping(keyword.name, existing.keyword));
-        if (isOverlapping) continue;
-        const isExisting = existingTagNames.has(keyword.name.toLowerCase());
-        const existingTag = isExisting ? existingTags.filter((t) => t.name.toLowerCase() === keyword.name.toLowerCase()).sort((a, b3) => new Date(b3.createdAt).getTime() - new Date(a.createdAt).getTime())[0] : void 0;
-        suggestions.push({ keyword: keyword.name, category: keyword.category, confidence, isExisting, tagId: existingTag?.id });
-        if (confidence >= 0.8) highConfidence++;
-      }
-    }
-    suggestions.sort((a, b3) => b3.confidence - a.confidence);
-    const bibleStudyCategories = ["spiritual", "biblical", "character", "book", "theme"];
-    const enhancedSuggestions = suggestions.map((suggestion) => {
-      const isBibleStudy = bibleStudyCategories.includes(suggestion.category);
-      if (isBibleStudy) {
-        return { ...suggestion, confidence: Math.min(1, suggestion.confidence + 0.05) };
-      }
-      return suggestion;
-    });
-    enhancedSuggestions.sort((a, b3) => b3.confidence - a.confidence);
-    const topSuggestions = enhancedSuggestions.slice(0, 12);
-    return { suggestions: topSuggestions, totalFound: suggestions.length, highConfidence };
-  } catch (error) {
-    console.error("Error generating auto tags:", error instanceof Error ? error.message : String(error));
-    return { suggestions: [], totalFound: 0, highConfidence: 0 };
-  }
-}
-function dedupeSuggestionsByKeyword(suggestions) {
-  const seen = /* @__PURE__ */ new Set();
-  const out = [];
-  for (const s2 of suggestions) {
-    const k2 = s2.keyword.toLowerCase();
-    if (seen.has(k2)) continue;
-    seen.add(k2);
-    out.push(s2);
-  }
-  return out;
-}
-async function applyAutoTags(noteId, suggestions, userId, options) {
-  const errors = [];
-  let applied = 0;
-  if (!noteId || !userId) {
-    const error = "Missing required parameters: noteId or userId";
-    console.error("applyAutoTags validation failed:", error);
-    return { applied: 0, errors: [error] };
-  }
-  const list = dedupeSuggestionsByKeyword(suggestions);
-  for (const suggestion of list) {
-    try {
-      let tagId = suggestion.tagId;
-      if (!tagId) {
-        try {
-          const allUserTags = await db.select().from(Tags).where(eq(Tags.userId, userId));
-          const existingTag = allUserTags.find((t) => t.name.toLowerCase() === suggestion.keyword.toLowerCase());
-          if (existingTag) {
-            tagId = existingTag.id;
-          } else {
-            const newTagId = `tag_${(0, import_crypto3.randomUUID)()}`;
-            await db.insert(Tags).values({
-              id: newTagId,
-              name: suggestion.keyword,
-              color: getColorForCategory(suggestion.category),
-              category: suggestion.category,
-              userId,
-              isSystem: true,
-              createdAt: now()
-            });
-            tagId = newTagId;
-          }
-        } catch (tagError) {
-          console.error(`Error handling tag ${suggestion.keyword}:`, tagError);
-          errors.push(`Failed to handle tag "${suggestion.keyword}": ${tagError}`);
-          continue;
-        }
-      }
-      if (!tagId) {
-        errors.push(`Missing tagId for "${suggestion.keyword}"`);
-        continue;
-      }
-      if (options?.forceRelink) {
-        await db.delete(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId)));
-      } else {
-        const existingRelation = first(await db.select().from(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.tagId, tagId))).limit(1));
-        if (existingRelation) continue;
-      }
-      const relationId = `note_tag_${(0, import_crypto3.randomUUID)()}`;
-      await db.insert(NoteTags).values({
-        id: relationId,
-        noteId,
-        tagId,
-        isAutoGenerated: true,
-        confidence: suggestion.confidence,
-        createdAt: now()
-      });
-      applied++;
-    } catch (error) {
-      console.error(`Error applying tag ${suggestion.keyword}:`, error);
-      errors.push(`Failed to apply tag "${suggestion.keyword}": ${error}`);
-    }
-  }
-  return { applied, errors };
-}
-function getColorForCategory(category) {
-  const colorMap = {
-    "spiritual": "#006eff",
-    "biblical": "#28a745",
-    "character": "#ffc107",
-    "place": "#17a2b8",
-    "book": "#6f42c1",
-    "theme": "#fd7e14",
-    "life": "#e83e8c"
-  };
-  return colorMap[category] || "#006eff";
-}
-async function removeAutoTags(noteId) {
-  try {
-    await db.delete(NoteTags).where(and(eq(NoteTags.noteId, noteId), eq(NoteTags.isAutoGenerated, true)));
-    return 1;
-  } catch (error) {
-    console.error("Error removing auto tags:", error);
-    return 0;
-  }
-}
-async function regenerateAutoTags(noteId, noteTitle, noteContent, userId, confidenceThreshold = 0.7, options) {
-  try {
-    if (options?.removeAllNoteTagLinks) {
-      await db.delete(NoteTags).where(eq(NoteTags.noteId, noteId));
-    } else {
-      await removeAutoTags(noteId);
-    }
-    const result = await generateAutoTags(noteTitle, noteContent, userId, confidenceThreshold);
-    const out = await applyAutoTags(noteId, result.suggestions, userId, {
-      forceRelink: Boolean(options?.removeAllNoteTagLinks)
-    });
-    return { ...out, suggestionCount: result.suggestions.length };
-  } catch (error) {
-    console.error("Error regenerating auto tags:", error);
-    return { applied: 0, errors: [`Failed to regenerate tags: ${error}`], suggestionCount: 0 };
-  }
-}
-
-// server/utils/fetch-verse-text.ts
-init_db2();
-init_dates();
-async function fetchVerseText(reference, translation = "NET") {
-  const cleanReference = reference.replace(/,\s+/g, ",");
-  const parsed = parseScriptureReference(cleanReference);
-  if (!parsed) {
-    return "";
-  }
-  const normalizedKey = normalizeScriptureReference(cleanReference);
-  let cached = void 0;
-  try {
-    cached = first(await db.select({ content: VerseTextCache.content }).from(VerseTextCache).where(and(
-      eq(VerseTextCache.reference, normalizedKey),
-      eq(VerseTextCache.translation, translation)
-    )).limit(1));
-  } catch (cacheReadErr) {
-    const msg = cacheReadErr instanceof Error ? cacheReadErr.message : String(cacheReadErr);
-    let causeMsg = "";
-    for (let e = cacheReadErr; e != null; e = e?.cause) {
-      causeMsg += (e instanceof Error ? e.message : String(e)) + " ";
-    }
-    const isMissingTable = /no such table|VerseTextCache/i.test(msg + causeMsg);
-    if (isMissingTable) {
-      console.warn("[fetchVerseText] VerseTextCache unavailable:", (msg + causeMsg).trim().slice(0, 120));
-    } else {
-      throw cacheReadErr;
-    }
-  }
-  if (cached?.content && cached.content.length > 0) {
-    return cached.content;
-  }
-  let verseGroups = parseVerseGroups(cleanReference);
-  if (verseGroups.length === 0) {
-    const v2 = parsed.verse;
-    if (v2 !== void 0 && v2 !== null) {
-      const start = Array.isArray(v2) ? v2[0] : v2;
-      const end = Array.isArray(v2) ? v2[1] ?? v2[0] : v2;
-      if (typeof start === "number" && typeof end === "number") {
-        verseGroups = [{ start, end }];
-      }
-    }
-  }
-  if (verseGroups.length === 0) {
-    return "";
-  }
-  for (const group of verseGroups) {
-    if (group.start === group.end) {
-      if (!validateVerseNumber(parsed.book, parsed.chapter, group.start)) {
-        return "";
-      }
-    } else {
-      if (!validateVerseRange(parsed.book, parsed.chapter, group.start, group.end)) {
-        return "";
-      }
-    }
-  }
-  let allVerses = [];
-  try {
-    const versePromises = verseGroups.map(async (group) => {
-      const rows = await db.select({ verse: BibleVerses.verse, text: BibleVerses.text }).from(BibleVerses).where(and(
-        eq(BibleVerses.translationId, translation),
-        eq(BibleVerses.book, parsed.book),
-        eq(BibleVerses.chapter, parsed.chapter),
-        gte(BibleVerses.verse, group.start),
-        lte(BibleVerses.verse, group.end)
-      )).orderBy(BibleVerses.verse);
-      return rows;
-    });
-    const verseArrays = await Promise.all(versePromises);
-    allVerses = verseArrays.flat();
-  } catch (err) {
-    console.error(`[fetchVerseText] DB error for ${reference} (${translation}):`, err?.message ?? err);
-    return "";
-  }
-  if (allVerses.length === 0) {
-    return `<p><em>This verse is not included in the ${translation} translation.</em></p>`;
-  }
-  let formatted;
-  if (verseGroups.length > 1) {
-    const formattedParts = [];
-    verseGroups.forEach((group, index2) => {
-      const groupVerses = allVerses.filter(
-        (v2) => v2.verse >= group.start && v2.verse <= group.end
-      );
-      if (groupVerses.length > 0) {
-        const label = group.start === group.end ? `Verse ${group.start}:` : `Verses ${group.start}-${group.end}:`;
-        formattedParts.push(`<p><strong>${label}</strong></p>`);
-        const groupText = groupVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
-        formattedParts.push(`<p>${groupText}</p>`);
-        if (index2 < verseGroups.length - 1) {
-          formattedParts.push('<hr style="margin: 1rem 0; border: none; border-top: 1px solid var(--color-stone-grey); opacity: 0.3;" />');
-        }
-      } else {
-        formattedParts.push(`<p><em>Verses ${group.start}-${group.end} are not included in the ${translation} translation.</em></p>`);
-      }
-    });
-    formatted = formattedParts.join("");
-  } else {
-    formatted = allVerses.map((v2) => `<sup>${v2.verse}</sup>${v2.text}`).join(" ");
-  }
-  try {
-    await db.insert(VerseTextCache).values({
-      reference: normalizedKey,
-      translation,
-      content: formatted,
-      createdAt: nowISO()
-    }).onConflictDoNothing();
-  } catch (cacheErr) {
-    console.error(`[fetchVerseText] Cache insert failed for ${normalizedKey} (${translation}):`, cacheErr?.message ?? cacheErr);
-  }
-  return formatted;
-}
-
-// server/utils/process-scripture-references.ts
-async function resolveParentThreadIds(noteId, threadId, note) {
-  if (threadId !== void 0) {
-    const arr = Array.isArray(threadId) ? threadId : [threadId];
-    const out = /* @__PURE__ */ new Set();
-    for (const t of arr) {
-      if (t && t.trim() && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_")) {
-        out.add(t);
-      }
-    }
-    return [...out];
-  }
-  const ids = /* @__PURE__ */ new Set();
-  const rels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, noteId));
-  for (const r of rels) {
-    if (r.threadId && r.threadId !== "thread_unorganized" && !r.threadId.startsWith("thread_onboarding_")) {
-      ids.add(r.threadId);
-    }
-  }
-  if (note.threadId && note.threadId !== "thread_unorganized" && !note.threadId.startsWith("thread_onboarding_")) {
-    ids.add(note.threadId);
-  }
-  return [...ids];
-}
-async function addScriptureNoteToParentThreads(scriptureNoteId, parentThreadIds, userId) {
-  const filtered = parentThreadIds.filter((t) => t && t !== "thread_unorganized" && !t.startsWith("thread_onboarding_"));
-  if (filtered.length === 0) return;
-  const scriptureNote = first(await db.select().from(Notes).where(eq(Notes.id, scriptureNoteId)).limit(1));
-  if (!scriptureNote) return;
-  const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, scriptureNoteId));
-  const existingSet = new Set(existingRels.map((r) => r.threadId));
-  const needsPrimary = existingRels.length === 0 || scriptureNote.threadId === "thread_unorganized";
-  let primaryUpdated = false;
-  for (const tid of filtered) {
-    if (existingSet.has(tid)) continue;
-    try {
-      await db.insert(NoteThreads).values({
-        id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        noteId: scriptureNoteId,
-        threadId: tid,
-        createdAt: /* @__PURE__ */ new Date()
-      });
-      existingSet.add(tid);
-      if (needsPrimary && !primaryUpdated) {
-        await db.update(Notes).set({ threadId: tid }).where(eq(Notes.id, scriptureNoteId));
-        primaryUpdated = true;
-      }
-      await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
-    } catch {
-    }
-  }
-}
-var userProcessingQueue = /* @__PURE__ */ new Map();
-async function processScriptureReferences(noteId, userId, threadId, contentOverride, translation = "NET") {
-  const prev = userProcessingQueue.get(userId) ?? Promise.resolve();
-  const current = prev.catch(() => {
-  }).then(() => processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation));
-  userProcessingQueue.set(userId, current);
-  try {
-    return await current;
-  } finally {
-    if (userProcessingQueue.get(userId) === current) {
-      userProcessingQueue.delete(userId);
-    }
-  }
-}
-async function processScriptureReferencesInternal(noteId, userId, threadId, contentOverride, translation = "NET") {
-  const note = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, userId))).limit(1));
-  if (!note) {
-    throw new Error("Note not found");
-  }
-  let noteContent = contentOverride || note.content;
-  const parentThreadIds = await resolveParentThreadIds(noteId, threadId, note);
-  const existingReferences = /* @__PURE__ */ new Map();
-  const pendingPills = /* @__PURE__ */ new Map();
-  const pillPattern1 = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  let match3;
-  while ((match3 = pillPattern1.exec(noteContent)) !== null) {
-    const reference = match3[1];
-    const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      existingReferences.set(normalizedRef, pillNoteId);
-    }
-  }
-  const pillPattern2 = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern2.exec(noteContent)) !== null) {
-    const pillNoteId = match3[1];
-    const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const pendingPillPattern = /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pendingPillPattern.exec(noteContent)) !== null) {
-    const fullMatch = match3[0];
-    const reference = match3[1];
-    const noteIdMatch = fullMatch.match(/data-note-id\s*=\s*["']([^"']+)["']/);
-    if (noteIdMatch) {
-      const noteIdValue = noteIdMatch[1];
-      if (noteIdValue && noteIdValue !== "pending" && noteIdValue !== "null" && noteIdValue !== "") {
-        continue;
-      }
-    }
-    const normalizedRef = normalizeScriptureReference(reference);
-    if (!existingReferences.has(normalizedRef) && !pendingPills.has(normalizedRef)) {
-      const translationMatch = fullMatch.match(/data-scripture-translation\s*=\s*["']([^"']+)["']/);
-      const pillTranslation = translationMatch ? translationMatch[1] : void 0;
-      pendingPills.set(normalizedRef, {
-        reference: match3[1],
-        fullMatch: match3[0],
-        startIndex: match3.index || 0,
-        pillTranslation
-      });
-    }
-  }
-  const pillPattern3 = /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern3.exec(noteContent)) !== null) {
-    const reference = match3[1];
-    const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const noteLinkPattern = /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*>([\s\S]*?)<\/span>/gi;
-  while ((match3 = noteLinkPattern.exec(noteContent)) !== null) {
-    const pillNoteId = match3[1];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
-      const innerRefs = detectScriptureReferences(innerContent);
-      if (innerRefs.length > 0) {
-        const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
-        if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
-        }
-      }
-    }
-  }
-  const noteLinkPattern2 = /<span[^>]*class\s*=\s*["'][^"']*note-link[^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/span>/gi;
-  while ((match3 = noteLinkPattern2.exec(noteContent)) !== null) {
-    const pillNoteId = match3[1];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const innerContent = match3[2].replace(/<[^>]*>/g, "").trim();
-      const innerRefs = detectScriptureReferences(innerContent);
-      if (innerRefs.length > 0) {
-        const normalizedRef = normalizeScriptureReference(innerRefs[0].reference);
-        if (!existingReferences.has(normalizedRef)) {
-          existingReferences.set(normalizedRef, pillNoteId);
-        }
-      }
-    }
-  }
-  const pillPattern6 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern6.exec(noteContent)) !== null) {
-    const reference = match3[1];
-    const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const pillPattern7 = /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern7.exec(noteContent)) !== null) {
-    const pillNoteId = match3[1];
-    const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const pillPattern8 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern8.exec(noteContent)) !== null) {
-    const reference = match3[1];
-    const pillNoteId = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const pillPattern9 = /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi;
-  while ((match3 = pillPattern9.exec(noteContent)) !== null) {
-    const pillNoteId = match3[1];
-    const reference = match3[2];
-    if (pillNoteId && pillNoteId !== "pending" && pillNoteId !== "null" && pillNoteId !== "") {
-      const normalizedRef = normalizeScriptureReference(reference);
-      if (!existingReferences.has(normalizedRef)) {
-        existingReferences.set(normalizedRef, pillNoteId);
-      }
-    }
-  }
-  const plainText = noteContent.replace(/<span[^>]*data-scripture-reference[^>]*>([\s\S]*?)<\/span>/gi, "$1").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-  const detectedReferences = detectScriptureReferences(plainText);
-  console.log("[processScriptureReferences] Detection", {
-    noteId,
-    plainTextLength: plainText.length,
-    detectedCount: detectedReferences.length,
-    firstRef: detectedReferences[0]?.reference ?? null
-  });
-  const results = [];
-  const referenceMap = /* @__PURE__ */ new Map();
-  const normalizedScriptureMap = /* @__PURE__ */ new Map();
-  let scriptureMapLoaded = false;
-  async function loadScriptureMapFromDb() {
-    if (scriptureMapLoaded) return;
-    scriptureMapLoaded = true;
-    const allUserScripture = await db.select({
-      noteId: ScriptureMetadata.noteId,
-      reference: ScriptureMetadata.reference
-    }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
-    const duplicatesByNormalized = /* @__PURE__ */ new Map();
-    for (const scripture of allUserScripture) {
-      const normalizedStored = normalizeScriptureReference(scripture.reference);
-      if (!normalizedScriptureMap.has(normalizedStored)) {
-        normalizedScriptureMap.set(normalizedStored, {
-          noteId: scripture.noteId,
-          reference: scripture.reference
-        });
-      } else {
-        const existing = normalizedScriptureMap.get(normalizedStored);
-        if (existing.noteId !== scripture.noteId) {
-          if (!duplicatesByNormalized.has(normalizedStored)) {
-            duplicatesByNormalized.set(normalizedStored, [existing.noteId]);
-          }
-          duplicatesByNormalized.get(normalizedStored).push(scripture.noteId);
-        }
-      }
-    }
-    if (duplicatesByNormalized.size > 0) {
-      try {
-        console.log(`[processScriptureReferences] Found ${duplicatesByNormalized.size} duplicate scripture reference(s) for user ${userId}, consolidating...`);
-        for (const [normalizedRef, dupeNoteIds] of duplicatesByNormalized.entries()) {
-          const dupeNotes = await db.select({ id: Notes.id, createdAt: Notes.createdAt }).from(Notes).where(and(eq(Notes.userId, userId), eq(Notes.noteType, "scripture")));
-          const relevantNotes = dupeNotes.filter((n) => dupeNoteIds.includes(n.id)).sort((a, b3) => (a.createdAt || "").localeCompare(b3.createdAt || ""));
-          if (relevantNotes.length < 2) continue;
-          const keeperId = relevantNotes[0].id;
-          const duplicateIds = relevantNotes.slice(1).map((n) => n.id);
-          for (const dupeId of duplicateIds) {
-            const junctionsToMove = await db.select().from(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
-            for (const junction of junctionsToMove) {
-              const existingKeeperJunction = first(await db.select().from(NoteScriptureReferences).where(and(
-                eq(NoteScriptureReferences.noteId, junction.noteId),
-                eq(NoteScriptureReferences.scriptureNoteId, keeperId)
-              )).limit(1));
-              if (existingKeeperJunction) {
-                await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
-              } else {
-                await db.update(NoteScriptureReferences).set({ scriptureNoteId: keeperId }).where(eq(NoteScriptureReferences.id, junction.id));
-              }
-            }
-            const affectedNotes = await db.select({ id: Notes.id, content: Notes.content }).from(Notes).where(eq(Notes.userId, userId));
-            for (const affectedNote of affectedNotes) {
-              if (affectedNote.content && affectedNote.content.includes(dupeId)) {
-                const updatedContent2 = affectedNote.content.replace(
-                  new RegExp(`data-note-id=["']${dupeId}["']`, "g"),
-                  `data-note-id="${keeperId}"`
-                );
-                if (updatedContent2 !== affectedNote.content) {
-                  await db.update(Notes).set({ content: updatedContent2 }).where(eq(Notes.id, affectedNote.id));
-                }
-              }
-            }
-            await db.delete(ScriptureMetadata).where(eq(ScriptureMetadata.noteId, dupeId));
-            await db.delete(NoteThreads).where(eq(NoteThreads.noteId, dupeId));
-            await db.delete(NoteTags).where(eq(NoteTags.noteId, dupeId));
-            await db.delete(Comments).where(eq(Comments.noteId, dupeId));
-            await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.scriptureNoteId, dupeId));
-            await db.delete(Notes).where(eq(Notes.id, dupeId));
-          }
-          normalizedScriptureMap.set(normalizedRef, { noteId: keeperId, reference: normalizedRef });
-          console.log(`[processScriptureReferences] Consolidated "${normalizedRef}": kept ${keeperId}, removed ${duplicateIds.join(", ")}`);
-        }
-      } catch (dedupError) {
-        console.error("[processScriptureReferences] Dedup cleanup failed (non-critical):", dedupError?.message ?? dedupError);
-      }
-    }
-  }
-  const skipBulkScriptureLoad = pendingPills.size === 0 && detectedReferences.every((d) => existingReferences.has(normalizeScriptureReference(d.reference)));
-  if (!skipBulkScriptureLoad) {
-    await loadScriptureMapFromDb();
-  }
-  const processedReferences = /* @__PURE__ */ new Set();
-  for (const detectedRef of detectedReferences) {
-    const reference = detectedRef.reference;
-    const normalizedReference = normalizeScriptureReference(reference);
-    if (processedReferences.has(normalizedReference)) {
-      continue;
-    }
-    processedReferences.add(normalizedReference);
-    if (existingReferences.has(normalizedReference)) {
-      const existingNoteId = existingReferences.get(normalizedReference);
-      referenceMap.set(reference, existingNoteId);
-      continue;
-    }
-    try {
-      let existingScripture = normalizedScriptureMap.get(normalizedReference) ? { noteId: normalizedScriptureMap.get(normalizedReference).noteId, reference: normalizedScriptureMap.get(normalizedReference).reference } : null;
-      if (!existingScripture) {
-        const freshCheck = await db.select({
-          noteId: ScriptureMetadata.noteId,
-          reference: ScriptureMetadata.reference
-        }).from(ScriptureMetadata).innerJoin(Notes, eq(ScriptureMetadata.noteId, Notes.id)).where(eq(Notes.userId, userId));
-        for (const row of freshCheck) {
-          if (normalizeScriptureReference(row.reference) === normalizedReference) {
-            existingScripture = { noteId: row.noteId, reference: row.reference };
-            normalizedScriptureMap.set(normalizedReference, { noteId: row.noteId, reference: row.reference });
-            break;
-          }
-        }
-      }
-      if (!existingScripture) {
-        try {
-          const pendingPillInfo = pendingPills.get(normalizedReference);
-          const effectiveTranslation = pendingPillInfo?.pillTranslation || translation;
-          const verseText = await fetchVerseText(normalizedReference, effectiveTranslation);
-          let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-          if (!userMetadata) {
-            const existingNotes = await db.select({
-              simpleNoteId: Notes.simpleNoteId
-            }).from(Notes).where(and(
-              eq(Notes.userId, userId),
-              isNotNull(Notes.simpleNoteId)
-            )).orderBy(desc(Notes.simpleNoteId)).limit(1);
-            const highestExistingId = existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0;
-            const season = getCurrentSeason();
-            await db.insert(UserMetadata).values({
-              id: `user_metadata_${userId}`,
-              userId,
-              highestSimpleNoteId: highestExistingId,
-              userColor: "blue",
-              currentSeason: season,
-              createdAt: /* @__PURE__ */ new Date()
-            });
-            userMetadata = {
-              id: `user_metadata_${userId}`,
-              userId,
-              highestSimpleNoteId: highestExistingId,
-              userColor: "blue",
-              email: null,
-              firstName: null,
-              lastName: null,
-              profileImageUrl: null,
-              clerkDataUpdatedAt: null,
-              churchName: null,
-              churchCity: null,
-              churchState: null,
-              churchCountry: null,
-              currentSeason: season,
-              lastMonthlyVisit: null,
-              churchAddedAt: null,
-              referralBonusNotes: 0,
-              referralCode: null,
-              lockPinSalt: null,
-              lockPinHash: null,
-              createdAt: /* @__PURE__ */ new Date(),
-              updatedAt: null
-            };
-          }
-          const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
-          const nextSimpleNoteId = effectiveHighest + 1;
-          const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
-          const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
-          const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
-          await ensureUnorganizedThread2(userId);
-          const now2 = /* @__PURE__ */ new Date();
-          const shareToken = generateShareToken();
-          const scriptureNote = first(await db.insert(Notes).values({
-            id: generateNoteId(),
-            content: capitalizedContent,
-            title: capitalizedTitle,
-            threadId: "thread_unorganized",
-            spaceId: null,
-            simpleNoteId: nextSimpleNoteId,
-            noteType: "scripture",
-            userId,
-            isPublic: true,
-            shareToken,
-            shareTokenCreatedAt: now2,
-            addedBy: "harvous",
-            createdAt: now2
-          }).returning());
-          await db.update(UserMetadata).set({
-            highestSimpleNoteId: nextSimpleNoteId,
-            updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq(UserMetadata.userId, userId));
-          const parsed = parseScriptureReference(normalizedReference);
-          if (parsed) {
-            const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-            const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
-            await db.insert(ScriptureMetadata).values({
-              id: `scripture_${scriptureNote.id}_${Date.now()}`,
-              noteId: scriptureNote.id,
-              reference: normalizedReference,
-              // Store normalized reference
-              book: parsed.book,
-              chapter: parsed.chapter,
-              verse: verseStart,
-              verseEnd: verseEnd || null,
-              translation: effectiveTranslation,
-              originalText: capitalizedContent,
-              createdAt: /* @__PURE__ */ new Date()
-            });
-          }
-          await awardNoteCreatedXP(userId, scriptureNote.id, true, capitalizedContent);
-          try {
-            const autoTagResult = await generateAutoTags(
-              capitalizedTitle || "",
-              capitalizedContent,
-              userId,
-              AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN
-            );
-            if (autoTagResult.suggestions.length > 0) {
-              await applyAutoTags(
-                scriptureNote.id,
-                autoTagResult.suggestions,
-                userId
-              );
-            }
-          } catch (error) {
-            console.error("Auto-tagging failed for scripture note (non-critical):", error);
-          }
-          await addScriptureNoteToParentThreads(scriptureNote.id, parentThreadIds, userId);
-          referenceMap.set(reference, scriptureNote.id);
-          normalizedScriptureMap.set(normalizedReference, { noteId: scriptureNote.id, reference: normalizedReference });
-          try {
-            await db.insert(NoteScriptureReferences).values({
-              id: `note-scripture-${noteId}-${scriptureNote.id}-${Date.now()}`,
-              noteId,
-              // The note containing the reference
-              scriptureNoteId: scriptureNote.id,
-              // The scripture note being referenced
-              createdAt: /* @__PURE__ */ new Date()
-            });
-          } catch (junctionError) {
-            if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
-              console.error(`[processScriptureReferences] Failed to create junction for new scripture (noteId=${noteId}, scriptureNoteId=${scriptureNote.id}, reference=${reference}):`, junctionError?.message ?? junctionError);
-            }
-          }
-          results.push({
-            action: "created",
-            noteId: scriptureNote.id,
-            reference
-          });
-        } catch (error) {
-          console.error(`Error creating scripture note for ${reference}:`, error);
-        }
-      } else {
-        const existingNoteId = existingScripture.noteId;
-        referenceMap.set(reference, existingNoteId);
-        try {
-          const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
-            and(
-              eq(NoteScriptureReferences.noteId, noteId),
-              eq(NoteScriptureReferences.scriptureNoteId, existingNoteId)
-            )
-          ).limit(1));
-          if (!existingJunction) {
-            await db.insert(NoteScriptureReferences).values({
-              id: `note-scripture-${noteId}-${existingNoteId}-${Date.now()}`,
-              noteId,
-              // The note containing the reference
-              scriptureNoteId: existingNoteId,
-              // The scripture note being referenced
-              createdAt: /* @__PURE__ */ new Date()
-            });
-          }
-        } catch (junctionError) {
-          if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
-            console.error(`[processScriptureReferences] Failed to create junction for existing scripture (noteId=${noteId}, scriptureNoteId=${existingNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
-          }
-        }
-        const threadCount = first(await db.select({ count: count() }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId)).limit(1));
-        const inUnorganized = !threadCount || threadCount.count === 0;
-        if (parentThreadIds.length === 0) {
-          results.push({
-            action: "unorganized",
-            noteId: existingNoteId,
-            reference
-          });
-        } else {
-          const existingRels = await db.select({ threadId: NoteThreads.threadId }).from(NoteThreads).where(eq(NoteThreads.noteId, existingNoteId));
-          const existingSet = new Set(existingRels.map((r) => r.threadId));
-          let addedAny = false;
-          for (const tid of parentThreadIds) {
-            if (existingSet.has(tid)) continue;
-            try {
-              await db.insert(NoteThreads).values({
-                id: `note-thread-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                noteId: existingNoteId,
-                threadId: tid,
-                createdAt: /* @__PURE__ */ new Date()
-              });
-              existingSet.add(tid);
-              addedAny = true;
-              await db.update(Threads).set({ updatedAt: /* @__PURE__ */ new Date() }).where(and(eq(Threads.id, tid), eq(Threads.userId, userId)));
-            } catch {
-            }
-          }
-          if (addedAny && inUnorganized) {
-            await db.update(Notes).set({ threadId: parentThreadIds[0] }).where(eq(Notes.id, existingNoteId));
-          }
-          results.push({
-            action: addedAny ? "added" : "skipped",
-            noteId: existingNoteId,
-            reference
-          });
-        }
-      }
-    } catch (error) {
-      console.error(`Error processing scripture reference ${reference}:`, error);
-    }
-  }
-  const referencesForHighlighting = Array.from(referenceMap.entries()).map(([reference, noteId2]) => {
-    const normalizedRef = normalizeScriptureReference(reference);
-    const pillInfo = pendingPills.get(normalizedRef);
-    return {
-      reference,
-      noteId: noteId2,
-      translation: pillInfo?.pillTranslation || translation
-    };
-  });
-  for (const [normalizedRef, existingScriptureNoteId] of existingReferences.entries()) {
-    const matchingRef = detectedReferences.find((d) => normalizeScriptureReference(d.reference) === normalizedRef);
-    const referenceForHighlight = matchingRef?.reference ?? normalizedRef;
-    if (!referenceMap.has(referenceForHighlight)) {
-      referenceMap.set(referenceForHighlight, existingScriptureNoteId);
-      const pillInfo = pendingPills.get(normalizedRef);
-      referencesForHighlighting.push({ reference: referenceForHighlight, noteId: existingScriptureNoteId, translation: pillInfo?.pillTranslation || translation });
-    }
-    try {
-      const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
-        and(
-          eq(NoteScriptureReferences.noteId, noteId),
-          eq(NoteScriptureReferences.scriptureNoteId, existingScriptureNoteId)
-        )
-      ).limit(1));
-      if (!existingJunction) {
-        await db.insert(NoteScriptureReferences).values({
-          id: `note-scripture-${noteId}-${existingScriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          noteId,
-          scriptureNoteId: existingScriptureNoteId,
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-    } catch (junctionError) {
-      if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
-        console.error(`[processScriptureReferences] Failed to create junction for existing ref (noteId=${noteId}, scriptureNoteId=${existingScriptureNoteId}):`, junctionError?.message ?? junctionError);
-      }
-    }
-  }
-  const allExistingPills = /* @__PURE__ */ new Map();
-  function collectPill(scriptureNoteId, reference) {
-    if (scriptureNoteId && scriptureNoteId !== "pending" && scriptureNoteId !== "null" && scriptureNoteId !== "" && !allExistingPills.has(scriptureNoteId)) {
-      allExistingPills.set(scriptureNoteId, reference);
-    }
-  }
-  const allPillPatterns = [
-    { re: /<span[^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*scripture-pill[^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*class\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 },
-    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 1, noteIdIdx: 2 },
-    { re: /<span[^>]*style\s*=\s*["'][^"']*["'][^>]*data-note-id\s*=\s*["']([^"']+)["'][^>]*data-scripture-reference\s*=\s*["']([^"']+)["'][^>]*>/gi, refIdx: 2, noteIdIdx: 1 }
-  ];
-  let pillMatch;
-  for (const { re: re2, refIdx, noteIdIdx } of allPillPatterns) {
-    re2.lastIndex = 0;
-    while ((pillMatch = re2.exec(noteContent)) !== null) {
-      collectPill(pillMatch[noteIdIdx], pillMatch[refIdx]);
-    }
-  }
-  for (const [scriptureNoteId, reference] of allExistingPills.entries()) {
-    try {
-      const scriptureNote = first(await db.select().from(Notes).where(
-        and(
-          eq(Notes.id, scriptureNoteId),
-          eq(Notes.userId, userId),
-          eq(Notes.noteType, "scripture")
-        )
-      ).limit(1));
-      if (!scriptureNote) {
-        console.log(`Scripture note ${scriptureNoteId} not found for reference ${reference}, creating new one`);
-        const normalizedRef = normalizeScriptureReference(reference);
-        await loadScriptureMapFromDb();
-        const existingEntry = normalizedScriptureMap.get(normalizedRef);
-        const existingScriptureByRef = existingEntry ? { noteId: existingEntry.noteId, reference: existingEntry.reference } : null;
-        if (existingScriptureByRef) {
-          const actualNoteId = existingScriptureByRef.noteId;
-          const existingJunction2 = first(await db.select().from(NoteScriptureReferences).where(
-            and(
-              eq(NoteScriptureReferences.noteId, noteId),
-              eq(NoteScriptureReferences.scriptureNoteId, actualNoteId)
-            )
-          ).limit(1));
-          if (!existingJunction2) {
-            await db.insert(NoteScriptureReferences).values({
-              id: `note-scripture-${noteId}-${actualNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-              noteId,
-              scriptureNoteId: actualNoteId,
-              createdAt: /* @__PURE__ */ new Date()
-            });
-          }
-          noteContent = noteContent.replace(
-            new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
-            `data-note-id="${actualNoteId}"`
-          );
-        } else {
-          try {
-            const verseText = await fetchVerseText(normalizedRef, translation);
-            let userMetadata = first(await db.select().from(UserMetadata).where(eq(UserMetadata.userId, userId)).limit(1));
-            if (!userMetadata) {
-              const existingNotes = await db.select({
-                simpleNoteId: Notes.simpleNoteId
-              }).from(Notes).where(and(
-                eq(Notes.userId, userId),
-                isNotNull(Notes.simpleNoteId)
-              )).orderBy(desc(Notes.simpleNoteId)).limit(1);
-              const highestExistingId = existingNotes.length > 0 ? existingNotes[0].simpleNoteId || 0 : 0;
-              const season = getCurrentSeason();
-              await db.insert(UserMetadata).values({
-                id: `user_metadata_${userId}`,
-                userId,
-                highestSimpleNoteId: highestExistingId,
-                userColor: "blue",
-                currentSeason: season,
-                createdAt: /* @__PURE__ */ new Date()
-              });
-              userMetadata = {
-                id: `user_metadata_${userId}`,
-                userId,
-                highestSimpleNoteId: highestExistingId,
-                userColor: "blue",
-                email: null,
-                firstName: null,
-                lastName: null,
-                profileImageUrl: null,
-                clerkDataUpdatedAt: null,
-                churchName: null,
-                churchCity: null,
-                churchState: null,
-                churchCountry: null,
-                currentSeason: season,
-                lastMonthlyVisit: null,
-                churchAddedAt: null,
-                referralBonusNotes: 0,
-                referralCode: null,
-                lockPinSalt: null,
-                lockPinHash: null,
-                createdAt: /* @__PURE__ */ new Date(),
-                updatedAt: null
-              };
-            }
-            const effectiveHighest = await getEffectiveHighestSimpleNoteId(userId);
-            const nextSimpleNoteId = effectiveHighest + 1;
-            const capitalizedContent = (verseText || reference).charAt(0).toUpperCase() + (verseText || reference).slice(1);
-            const capitalizedTitle = reference.charAt(0).toUpperCase() + reference.slice(1);
-            const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
-            await ensureUnorganizedThread2(userId);
-            const now2 = /* @__PURE__ */ new Date();
-            const shareToken = generateShareToken();
-            const newScriptureNote = first(await db.insert(Notes).values({
-              id: generateNoteId(),
-              content: capitalizedContent,
-              title: capitalizedTitle,
-              threadId: "thread_unorganized",
-              spaceId: null,
-              simpleNoteId: nextSimpleNoteId,
-              noteType: "scripture",
-              userId,
-              isPublic: true,
-              shareToken,
-              shareTokenCreatedAt: now2,
-              addedBy: "harvous",
-              createdAt: now2
-            }).returning());
-            await db.update(UserMetadata).set({
-              highestSimpleNoteId: nextSimpleNoteId,
-              updatedAt: /* @__PURE__ */ new Date()
-            }).where(eq(UserMetadata.userId, userId));
-            const parsed = parseScriptureReference(normalizedRef);
-            if (parsed) {
-              const verseStart = Array.isArray(parsed.verse) ? parsed.verse[0] : parsed.verse;
-              const verseEnd = Array.isArray(parsed.verse) ? parsed.verse[1] : void 0;
-              await db.insert(ScriptureMetadata).values({
-                id: `scripture_${newScriptureNote.id}_${Date.now()}`,
-                noteId: newScriptureNote.id,
-                reference: normalizedRef,
-                book: parsed.book,
-                chapter: parsed.chapter,
-                verse: verseStart,
-                verseEnd: verseEnd || null,
-                translation,
-                originalText: capitalizedContent,
-                createdAt: /* @__PURE__ */ new Date()
-              });
-            }
-            await awardNoteCreatedXP(userId, newScriptureNote.id, true, capitalizedContent);
-            try {
-              const autoTagResult = await generateAutoTags(capitalizedTitle || "", capitalizedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
-              if (autoTagResult.suggestions.length > 0) {
-                await applyAutoTags(newScriptureNote.id, autoTagResult.suggestions, userId);
-              }
-            } catch (tagError) {
-              console.error(`Error auto-generating tags for scripture note ${newScriptureNote.id}:`, tagError);
-            }
-            await db.insert(NoteScriptureReferences).values({
-              id: `note-scripture-${noteId}-${newScriptureNote.id}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-              noteId,
-              scriptureNoteId: newScriptureNote.id,
-              createdAt: /* @__PURE__ */ new Date()
-            });
-            noteContent = noteContent.replace(
-              new RegExp(`data-note-id=["']${scriptureNoteId}["']`, "g"),
-              `data-note-id="${newScriptureNote.id}"`
-            );
-            await addScriptureNoteToParentThreads(newScriptureNote.id, parentThreadIds, userId);
-            normalizedScriptureMap.set(normalizedRef, { noteId: newScriptureNote.id, reference: normalizedRef });
-            results.push({
-              action: "created",
-              noteId: newScriptureNote.id,
-              reference
-            });
-          } catch (createError2) {
-            console.error(`Error creating scripture note for pasted pill ${reference}:`, createError2);
-          }
-        }
-        continue;
-      }
-      const existingJunction = first(await db.select().from(NoteScriptureReferences).where(
-        and(
-          eq(NoteScriptureReferences.noteId, noteId),
-          eq(NoteScriptureReferences.scriptureNoteId, scriptureNoteId)
-        )
-      ).limit(1));
-      if (!existingJunction) {
-        await db.insert(NoteScriptureReferences).values({
-          id: `note-scripture-${noteId}-${scriptureNoteId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          noteId,
-          scriptureNoteId,
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-    } catch (junctionError) {
-      if (!junctionError?.message?.includes("UNIQUE constraint failed")) {
-        console.error(`[processScriptureReferences] Failed to create junction for pill (noteId=${noteId}, scriptureNoteId=${scriptureNoteId}, reference=${reference}):`, junctionError?.message ?? junctionError);
-      }
-    }
-  }
-  const presentScriptureNoteIds = /* @__PURE__ */ new Set();
-  for (const noteId2 of referenceMap.values()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  for (const noteId2 of existingReferences.values()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  for (const noteId2 of allExistingPills.keys()) {
-    if (noteId2) presentScriptureNoteIds.add(noteId2);
-  }
-  try {
-    const existingJunctions = await db.select({ id: NoteScriptureReferences.id, scriptureNoteId: NoteScriptureReferences.scriptureNoteId }).from(NoteScriptureReferences).where(eq(NoteScriptureReferences.noteId, noteId));
-    for (const junction of existingJunctions) {
-      if (!presentScriptureNoteIds.has(junction.scriptureNoteId)) {
-        await db.delete(NoteScriptureReferences).where(eq(NoteScriptureReferences.id, junction.id));
-      }
-    }
-  } catch (pruneError) {
-    console.error("[processScriptureReferences] Failed to prune stale references (non-critical):", pruneError?.message ?? pruneError);
-  }
-  const updatedContent = highlightScriptureReferences(noteContent, referencesForHighlighting);
-  console.log("[processScriptureReferences] Updating note with highlighted content", {
-    noteId,
-    referencesForHighlightingCount: referencesForHighlighting.length
-  });
-  await db.update(Notes).set({
-    content: updatedContent,
-    updatedAt: /* @__PURE__ */ new Date()
-  }).where(eq(Notes.id, noteId));
-  (async () => {
-    try {
-      const tagTitle = note.title ?? "";
-      const tagResult = await generateAutoTags(tagTitle, updatedContent, userId, AUTO_TAG_CONFIDENCE_SYSTEM_AUTOGEN);
-      if (tagResult.suggestions.length > 0) {
-        await applyAutoTags(noteId, tagResult.suggestions, userId);
-      }
-    } catch (tagErr) {
-      console.error(
-        "[processScriptureReferences] Auto-tag parent note failed (non-critical):",
-        tagErr instanceof Error ? tagErr.message : tagErr
-      );
-    }
-  })().catch(() => {
-  });
-  return {
-    results,
-    updatedContent
-  };
-}
-
 // server/utils/user-cache.ts
+init_season_helpers();
+init_process_scripture_references();
 var pendingInit = /* @__PURE__ */ new Map();
 var pendingOnboardingChain = /* @__PURE__ */ new Map();
 async function ensureOnboardingThreadIfMissing(userId) {
   const prev = pendingOnboardingChain.get(userId) ?? Promise.resolve();
-  const next = prev.then(() => ensureOnboardingThreadBody(userId));
+  const next = prev.then(async () => {
+    await ensureOnboardingThreadBody(userId);
+    const { syncOnboardingNotesIfNeeded: syncOnboardingNotesIfNeeded2 } = await Promise.resolve().then(() => (init_onboarding_sync(), onboarding_sync_exports));
+    await syncOnboardingNotesIfNeeded2(userId);
+  });
   pendingOnboardingChain.set(userId, next);
   return next.finally(() => {
     if (pendingOnboardingChain.get(userId) === next) {
@@ -70246,7 +70479,7 @@ async function ensureOnboardingThreadBody(userId) {
   if (existing) return;
   const { generateNoteId: generateNoteId2 } = await Promise.resolve().then(() => (init_ids(), ids_exports));
   const { ensureUnorganizedThread: ensureUnorganizedThread2 } = await Promise.resolve().then(() => (init_unorganized_thread(), unorganized_thread_exports));
-  const { loadOnboardingNotes: loadOnboardingNotes2 } = await Promise.resolve().then(() => (init_load_onboarding_notes(), load_onboarding_notes_exports));
+  const { loadOnboardingNotes: loadOnboardingNotes2, ONBOARDING_PACK_VERSION: ONBOARDING_PACK_VERSION2 } = await Promise.resolve().then(() => (init_load_onboarding_notes(), load_onboarding_notes_exports));
   await ensureUnorganizedThread2(userId);
   const onboardingNotes = loadOnboardingNotes2();
   if (onboardingNotes.length === 0) {
@@ -70317,7 +70550,11 @@ async function ensureOnboardingThreadBody(userId) {
       }
     })
   );
-  await db.update(UserMetadata).set({ highestSimpleNoteId: onboardingNotes.length, updatedAt: nowISO() }).where(eq(UserMetadata.userId, userId));
+  await db.update(UserMetadata).set({
+    highestSimpleNoteId: onboardingNotes.length,
+    onboardingPackVersionApplied: ONBOARDING_PACK_VERSION2,
+    updatedAt: nowISO()
+  }).where(eq(UserMetadata.userId, userId));
   console.log(`[onboarding] created thread with ${onboardingNotes.length} notes for user ${userId}`);
 }
 async function getCachedUserData(userId) {
@@ -71136,7 +71373,13 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
     const fetchLimit = limit + offset + 1;
     let allNotes = [];
     if (threadId === "thread_unorganized") {
-      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
+      const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, userId), isNull(NoteThreads.id))).orderBy(
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Notes.lastVisited),
+        desc(Notes.updatedAt),
+        desc(Notes.createdAt),
+        asc(Notes.id)
+      ).limit(fetchLimit);
       const unorganizedNoteIds = unorganizedNotes.map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (unorganizedNoteIds.length > 0) {
@@ -71161,7 +71404,13 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       }
       allNotes = allNotes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
     } else {
-      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
+      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Notes.lastVisited),
+        desc(Notes.updatedAt),
+        desc(Notes.createdAt),
+        asc(Notes.id)
+      ).limit(fetchLimit);
       const threadNoteIds = junctionNotes.map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (threadNoteIds.length > 0) {
@@ -71179,7 +71428,7 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       });
       allNotes = Array.from(notesMap.values());
     }
-    const sortedAllNotes = sortByCreatedAtAsc(
+    const sortedAllNotes = sortByLastVisited(
       allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
     );
     const hasMore = sortedAllNotes.length > offset + limit;
@@ -71248,8 +71497,14 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
 async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(asc(Notes.createdAt), asc(Notes.id)).limit(fetchLimit);
-    const sortedAllNotes = sortByCreatedAtAsc(
+    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(
+      asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+      desc(Notes.lastVisited),
+      desc(Notes.updatedAt),
+      desc(Notes.createdAt),
+      asc(Notes.id)
+    ).limit(fetchLimit);
+    const sortedAllNotes = sortByLastVisited(
       junctionNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
     );
     const hasMore = sortedAllNotes.length > offset + limit;
@@ -73685,6 +73940,9 @@ async function requireSpaceAccess(spaceId, userId, requireOwner = false) {
   throw new SpaceAccessError(403, "You do not have access to this space");
 }
 
+// server/routes/threads.ts
+init_xp_system();
+
 // server/utils/move-scripture-notes-to-thread.ts
 init_db2();
 async function moveScriptureNotesToThread(parentNoteId, threadId, userId) {
@@ -74809,6 +75067,9 @@ function requireHarvousAdmin(c) {
   return null;
 }
 
+// server/routes/notes.ts
+init_scripture_detector();
+
 // src/utils/tiptap-helpers.ts
 function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
   if (!htmlContent || !targetNoteId) {
@@ -74823,6 +75084,10 @@ function stripNoteLinksToNoteId(htmlContent, targetNoteId) {
 }
 
 // server/routes/notes.ts
+init_season_helpers();
+init_xp_system();
+init_auto_tag_generator();
+init_process_scripture_references();
 init_unorganized_thread();
 
 // server/utils/heal-scripture-note-threads.ts
@@ -74926,6 +75191,9 @@ async function removeScriptureNotesFromThread(parentNoteId, threadId, userId) {
     console.error(`Error removing scripture notes for parent note ${parentNoteId} from thread:`, error);
   }
 }
+
+// server/routes/notes.ts
+init_highest_simple_note_id();
 
 // node_modules/@ndaidong/bellajs/esm/utils/detection.js
 var ob2Str = (val) => {
@@ -85614,6 +85882,9 @@ ${callout.content}
 
 // server/routes/notes.ts
 var route10 = new Hono2();
+function isOnboardingSystemNote(note) {
+  return note.threadId.startsWith("thread_onboarding_") && note.addedBy === "system";
+}
 var TITLE_HARD_LIMIT = 50;
 var truncateAndCapitalizeTitle = (title) => {
   const truncated = title.slice(0, TITLE_HARD_LIMIT);
@@ -85863,40 +86134,23 @@ route10.post("/api/notes/create", requireAuth, rateLimitNoteCreate(), async (c) 
       }
     }
     const actualThreadId = threadId && threadId !== "thread_unorganized" ? threadId : "thread_unorganized";
-    const latestNote = finalNoteType === "resource" ? first(await db.select().from(Notes).where(eq(Notes.id, newNote.id)).limit(1)) : null;
-    const contentToProcess = latestNote?.content || newNote.content;
-    let scriptureResults = [];
-    let processedContent = null;
-    let scriptureProcessingError = false;
+    const contentToProcess = newNote.content;
     if (!contentEncrypted) {
-      try {
-        console.log("[api/notes/create] Processing scripture references", {
-          noteId: newNote.id,
-          contentLength: contentToProcess?.length,
-          contentPreview: contentToProcess?.slice(0, 200),
-          translation: scriptureVersion || "NET"
-        });
-        const scriptureResult = await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || "NET");
-        scriptureResults = scriptureResult.results || [];
-        processedContent = scriptureResult.updatedContent || null;
-        console.log("[api/notes/create] Scripture processing complete", {
-          resultsCount: scriptureResults.length,
-          results: scriptureResults,
-          hasUpdatedContent: !!processedContent
-        });
-      } catch (err) {
-        console.error("[api/notes/create] Scripture processing failed:", err?.message ?? err);
-        scriptureProcessingError = true;
-      }
-    }
-    if (processedContent) {
-      newNote.content = processedContent;
+      (async () => {
+        try {
+          console.log("[api/notes/create] Background scripture processing start", { noteId: newNote.id });
+          await processScriptureReferences(newNote.id, auth.userId, actualThreadId, contentToProcess, scriptureVersion || "NET");
+          console.log("[api/notes/create] Background scripture processing complete", { noteId: newNote.id });
+        } catch (err) {
+          console.error("[api/notes/create] Background scripture processing failed:", err?.message ?? err);
+        }
+      })().catch((err) => console.error("[api/notes/create] Unhandled background scripture error:", newNote.id, err));
     }
     return c.json({
       success: "Note created!",
       note: newNote,
-      scriptureResults,
-      scriptureProcessingError
+      scriptureResults: [],
+      scriptureDeferred: true
     });
   } catch (error) {
     console.error("[api/notes/create] Error:", error);
@@ -85913,6 +86167,9 @@ route10.put("/api/notes/update", requireAuth, rateLimit("write"), async (c) => {
     if (!contentValidation.isValid) return c.json({ error: contentValidation.error, code: contentValidation.code }, 400);
     const existingNote = first(await db.select().from(Notes).where(and(eq(Notes.id, noteId), eq(Notes.userId, auth.userId))).limit(1));
     if (!existingNote) return c.json({ error: "Note not found" }, 404);
+    if (isOnboardingSystemNote(existingNote)) {
+      return c.json({ error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    }
     const isEncrypted = contentEncrypted === true;
     const capitalizedContent = isEncrypted ? content : content.charAt(0).toUpperCase() + content.slice(1);
     const capitalizedTitle = title ? title.charAt(0).toUpperCase() + title.slice(1) : title;
@@ -86505,6 +86762,9 @@ route10.post("/api/notes/:id/update-content", requireAuth, rateLimit("write"), a
     if (!content || typeof content !== "string") return c.json({ success: false, error: "Content is required" }, 400);
     const note = first(await db.select().from(Notes).where(and(eq(Notes.id, id), eq(Notes.userId, auth.userId))).limit(1));
     if (!note) return c.json({ success: false, error: "Note not found" }, 404);
+    if (isOnboardingSystemNote(note)) {
+      return c.json({ success: false, error: "This note is read-only.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
+    }
     const updateData = { content, updatedAt: nowISO() };
     if (typeof contentEncrypted === "boolean") {
       updateData.contentEncrypted = contentEncrypted;
@@ -86679,9 +86939,22 @@ route10.get("/api/notes/:noteId/share", requireAuth, async (c) => {
   try {
     const auth = getAuthenticatedAuth(c);
     const noteId = requireParam(c, "noteId");
-    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, shareTokenCreatedAt: Notes.shareTokenCreatedAt, userId: Notes.userId, noteType: Notes.noteType, contentEncrypted: Notes.contentEncrypted }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    const note = first(
+      await db.select({
+        id: Notes.id,
+        threadId: Notes.threadId,
+        addedBy: Notes.addedBy,
+        isPublic: Notes.isPublic,
+        shareToken: Notes.shareToken,
+        shareTokenCreatedAt: Notes.shareTokenCreatedAt,
+        userId: Notes.userId,
+        noteType: Notes.noteType,
+        contentEncrypted: Notes.contentEncrypted
+      }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+    );
     if (!note) return c.json({ error: "Note not found" }, 404);
     if (note.userId !== auth.userId) return c.json({ error: "You do not have permission to access this note" }, 403);
+    if (isOnboardingSystemNote(note)) return c.json({ error: "This note cannot be shared.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
     let effectiveShareToken = note.shareToken;
     let effectiveShareTokenCreatedAt = note.shareTokenCreatedAt;
     const isScriptureNote = note.noteType === "scripture";
@@ -86713,9 +86986,20 @@ route10.post("/api/notes/:noteId/share", requireAuth, rateLimit("write"), async 
     const noteId = requireParam(c, "noteId");
     const { action } = await c.req.json();
     if (!action || !["enable", "disable", "refresh"].includes(action)) return c.json({ error: "Invalid action" }, 400);
-    const note = first(await db.select({ id: Notes.id, isPublic: Notes.isPublic, shareToken: Notes.shareToken, userId: Notes.userId, contentEncrypted: Notes.contentEncrypted }).from(Notes).where(eq(Notes.id, noteId)).limit(1));
+    const note = first(
+      await db.select({
+        id: Notes.id,
+        threadId: Notes.threadId,
+        addedBy: Notes.addedBy,
+        isPublic: Notes.isPublic,
+        shareToken: Notes.shareToken,
+        userId: Notes.userId,
+        contentEncrypted: Notes.contentEncrypted
+      }).from(Notes).where(eq(Notes.id, noteId)).limit(1)
+    );
     if (!note) return c.json({ error: "Note not found" }, 404);
     if (note.userId !== auth.userId) return c.json({ error: "You do not have permission" }, 403);
+    if (isOnboardingSystemNote(note)) return c.json({ error: "This note cannot be shared.", code: "ONBOARDING_NOTE_READ_ONLY" }, 400);
     if (note.contentEncrypted && (action === "enable" || action === "refresh")) {
       return c.json({ error: "Remove the lock first to share it.", code: "ENCRYPTED_NOTE_CANNOT_SHARE" }, 400);
     }
@@ -86749,6 +87033,7 @@ var notes_default = route10;
 // server/routes/spaces.ts
 init_db2();
 init_dates();
+init_xp_system();
 
 // server/utils/tier-limits.ts
 init_db2();
@@ -87768,6 +88053,7 @@ var spaces_default = route11;
 // server/routes/user.ts
 init_db2();
 init_dates();
+init_xp_system();
 
 // server/utils/session-tracker.ts
 init_db2();
@@ -87797,6 +88083,10 @@ function calculateSessionXP(session) {
   if (contentCreated >= 1) xp += 10;
   return Math.min(xp, 40);
 }
+
+// server/routes/user.ts
+init_highest_simple_note_id();
+init_season_helpers();
 
 // src/utils/lock-pin-server.ts
 var import_node_crypto2 = __toESM(require("node:crypto"), 1);
@@ -88185,6 +88475,7 @@ function parseMarkdownNoteSection(section) {
 }
 
 // server/routes/user.ts
+init_scripture_detector();
 init_unorganized_thread();
 var app = new Hono2();
 var NOTE_ID_DELETE_CHUNK = 2e3;
@@ -89017,6 +89308,8 @@ var user_default = app;
 
 // server/routes/tags-scripture.ts
 init_db2();
+init_scripture_detector();
+init_fetch_verse_text();
 init_dates();
 var app2 = new Hono2();
 app2.post("/api/tags/create", requireAuth, rateLimit("write"), async (c) => {
@@ -89294,6 +89587,10 @@ var tags_scripture_default = app2;
 init_db2();
 init_dates();
 init_ids();
+init_season_helpers();
+init_xp_system();
+init_process_scripture_references();
+init_highest_simple_note_id();
 var app3 = new Hono2();
 var SHARED_BULK_INSERT_CHUNK = 400;
 var XP_AWARD_CONCURRENCY = 8;
@@ -89961,6 +90258,9 @@ async function getSubscriptionInfo(userId, auth) {
   };
 }
 
+// server/routes/billing.ts
+init_xp_system();
+
 // node_modules/hono/dist/utils/cookie.js
 var validCookieNameRegEx = /^[\w!#$%&'*.^`|~+-]+$/;
 var validCookieValueRegEx = /^[ !#-:<-[\]-~]*$/;
@@ -90591,7 +90891,10 @@ var resource_default = app5;
 init_db2();
 init_dates();
 init_ids();
+init_season_helpers();
+init_xp_system();
 init_unorganized_thread();
+init_highest_simple_note_id();
 
 // src/utils/webflow-verification.ts
 async function verifyInboxItemInWebflow(webflowItemId, collectionId = "690ed2f0edd9bab40a4eb397") {
@@ -92208,8 +92511,13 @@ var webhooks_default = app8;
 // server/routes/sync.ts
 init_db2();
 init_dates();
+init_season_helpers();
+init_xp_system();
+init_highest_simple_note_id();
 init_ids();
 init_unorganized_thread();
+init_scripture_detector();
+init_fetch_verse_text();
 var app9 = new Hono2();
 var processedMutations = /* @__PURE__ */ new Map();
 var MUTATION_CACHE_TTL = 5 * 60 * 1e3;
@@ -93885,6 +94193,7 @@ function getPreviousMonth() {
 
 // server/routes/admin.ts
 init_ids();
+init_auto_tag_generator();
 var app11 = new Hono2();
 async function handleAggregateAnalytics(c) {
   try {
@@ -94548,7 +94857,12 @@ init_db2();
 init_dates();
 init_schema2();
 init_ids();
+init_scripture_detector();
 init_unorganized_thread();
+init_fetch_verse_text();
+init_highest_simple_note_id();
+init_xp_system();
+init_season_helpers();
 
 // server/constants/dev-featured-samples.ts
 var SAMPLE_VOTD_SCHEDULE_ID = "votd_dev_sample";
@@ -95196,6 +95510,8 @@ var featured_default = app12;
 init_db2();
 init_dates();
 init_schema2();
+init_fetch_verse_text();
+init_scripture_detector();
 
 // src/utils/verse-plain-display.ts
 function stripHtmlPreservingBreaksForVotd(html) {
@@ -95347,6 +95663,7 @@ var VOTD_LENT_VERSES = [
 ];
 
 // server/utils/votd-reference-bounds.ts
+init_scripture_detector();
 function bookFromReference(reference) {
   const p = parseScriptureReference(normalizeScriptureReference(reference.trim()));
   return p?.book ?? null;
@@ -95508,6 +95825,7 @@ function isCalendarHolidayDate(dateUtc) {
 }
 
 // server/utils/votd-pool.ts
+init_scripture_detector();
 init_db2();
 init_schema2();
 

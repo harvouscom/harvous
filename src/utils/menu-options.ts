@@ -67,7 +67,21 @@ export function shouldShowActionStripMenu(
  * @param currentUserId Optional; current user id for ownership check
  * @returns Array of menu options
  */
-export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space", contentId?: string, noteType?: string, contentEncrypted?: boolean, contentEncryptedServer?: boolean, simpleNoteId?: number | null, spaceRole?: 'owner' | 'member' | null, contentOwnerId?: string | null, currentUserId?: string | null, spaceIsShared?: boolean, linkedFromNoteId?: string | null) {
+export function getMenuOptions(
+  contentType: "thread" | "note" | "space" | "dashboard" | "profile" | "search" | "new-space",
+  contentId?: string,
+  noteType?: string,
+  contentEncrypted?: boolean,
+  contentEncryptedServer?: boolean,
+  simpleNoteId?: number | null,
+  spaceRole?: 'owner' | 'member' | null,
+  contentOwnerId?: string | null,
+  currentUserId?: string | null,
+  spaceIsShared?: boolean,
+  linkedFromNoteId?: string | null,
+  /** For notes: parent thread id (e.g. to detect onboarding Welcome thread). */
+  noteThreadId?: string | null
+) {
   // No menu options for unorganized thread (cannot be edited or erased)
   if (contentType === "thread" && contentId === "thread_unorganized") {
     return [];
@@ -91,7 +105,9 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: "eraseThread", label: "Erase Thread" },
         { action: "eraseThreadAndNotes", label: "Erase Thread and Notes" },
       ];
-    case "note":
+    case "note": {
+      // Welcome thread only contains pack notes; thread id is enough (addedBy may be missing from seeded cache).
+      const isOnboardingPackNote = !!noteThreadId?.startsWith('thread_onboarding_');
       const options = [];
 
       // Notes tab: scripture (backlinks) or default note created from highlighted text in another note
@@ -104,8 +120,8 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         { action: "openNoteDetailsTags", label: "Tags" }
       );
 
-      // Lock / Remove lock for default notes only (owner only when contentOwnerId is set)
-      if (noteType === 'default' && canEditContent) {
+      // Lock / Remove lock for default notes only (owner only when contentOwnerId is set); not for view-only onboarding
+      if (noteType === 'default' && canEditContent && !isOnboardingPackNote) {
         if (!contentEncrypted && contentEncryptedServer) {
           // Unlocked in session but still encrypted on server: show both options
           options.push({ action: "lockNote", label: "Lock" });
@@ -116,15 +132,16 @@ export function getMenuOptions(contentType: "thread" | "note" | "space" | "dashb
         }
       }
 
-      // Share only when note is not locked
-      if (contentEncrypted !== true) {
+      // Share only when note is not locked; onboarding pack notes are not shareable
+      if (contentEncrypted !== true && !isOnboardingPackNote) {
         options.push({ action: "shareNote", label: "Share" });
       }
-      if (canEditContent) {
+      if (canEditContent && !isOnboardingPackNote) {
         options.push({ action: "eraseNote", label: "Erase Note" });
       }
 
       return options;
+    }
     case "space":
       if (spaceRole === 'member') {
         return [

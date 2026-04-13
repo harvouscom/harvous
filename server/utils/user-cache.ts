@@ -37,7 +37,11 @@ const pendingOnboardingChain = new Map<string, Promise<void>>();
  */
 export async function ensureOnboardingThreadIfMissing(userId: string): Promise<void> {
   const prev = pendingOnboardingChain.get(userId) ?? Promise.resolve();
-  const next = prev.then(() => ensureOnboardingThreadBody(userId));
+  const next = prev.then(async () => {
+    await ensureOnboardingThreadBody(userId);
+    const { syncOnboardingNotesIfNeeded } = await import('./onboarding-sync');
+    await syncOnboardingNotesIfNeeded(userId);
+  });
   pendingOnboardingChain.set(userId, next);
   return next.finally(() => {
     if (pendingOnboardingChain.get(userId) === next) {
@@ -53,7 +57,7 @@ async function ensureOnboardingThreadBody(userId: string): Promise<void> {
 
   const { generateNoteId } = await import('@/utils/ids');
   const { ensureUnorganizedThread } = await import('./unorganized-thread');
-  const { loadOnboardingNotes } = await import('@/utils/load-onboarding-notes');
+  const { loadOnboardingNotes, ONBOARDING_PACK_VERSION } = await import('@/utils/load-onboarding-notes');
 
   await ensureUnorganizedThread(userId);
   const onboardingNotes = loadOnboardingNotes();
@@ -135,8 +139,13 @@ async function ensureOnboardingThreadBody(userId: string): Promise<void> {
     })
   );
 
-  await db.update(UserMetadata)
-    .set({ highestSimpleNoteId: onboardingNotes.length, updatedAt: nowISO() })
+  await db
+    .update(UserMetadata)
+    .set({
+      highestSimpleNoteId: onboardingNotes.length,
+      onboardingPackVersionApplied: ONBOARDING_PACK_VERSION,
+      updatedAt: nowISO(),
+    })
     .where(eq(UserMetadata.userId, userId));
 
   console.log(`[onboarding] created thread with ${onboardingNotes.length} notes for user ${userId}`);

@@ -25,10 +25,9 @@ export default function NotePage() {
   const processScriptureMutation = useProcessScriptureRefs();
 
   // Notes in shared spaces that the current user did not add are view-only (member view).
-  // Onboarding notes (addedBy: system) stay read-only even for the owner.
+  // Welcome thread onboarding pack notes: read-only in the card like scripture notes (CardFullEditable readOnlyLikeScripture); API also rejects edits.
   const isNoteOwner = !!(user?.id && note?.userId && note.userId === user.id);
-  const isSystemNote = note?.addedBy === 'system';
-  const isEditable = isNoteOwner && !isSystemNote;
+  const isEditable = isNoteOwner;
 
   // Invalidate the note query when lock state or content changes externally
   // (e.g. after removeLock, or after a scripture pill's translation is changed
@@ -186,6 +185,22 @@ export default function NotePage() {
   }, [note?.threads, noteId]);
   const parentThreadId = parentThread?.id ?? undefined;
 
+  // Note detail API includes threadId on the row, but seeded list cache often only has threads[].
+  // Resolve Welcome thread from parentThreadId, API threadId, or any membership — otherwise readOnlyLikeScripture stays false and the card stays editable.
+  const isOnboardingReadonly = useMemo(() => {
+    const apiThreadId =
+      note && typeof note === 'object' && 'threadId' in note
+        ? (note as { threadId?: string | null }).threadId ?? undefined
+        : undefined;
+    const resolved =
+      parentThreadId ??
+      apiThreadId ??
+      note?.threads?.find((th) => th.id.startsWith('thread_onboarding_'))?.id ??
+      note?.threads?.[0]?.id;
+    if (resolved?.startsWith('thread_onboarding_')) return true;
+    return note?.threads?.some((th) => th.id.startsWith('thread_onboarding_')) ?? false;
+  }, [parentThreadId, note]);
+
   // Align localStorage thread cache with resolved parent (?thread=) so fallbacks in
   // CardFullEditable / Tiptap / nav match the thread the user opened from, not threads[0].
   useEffect(() => {
@@ -314,6 +329,7 @@ export default function NotePage() {
           resourceUrl={note.resourceUrl ?? undefined}
           contentEncrypted={note.contentEncrypted ?? false}
           isEditable={isEditable}
+          readOnlyLikeScripture={isOnboardingReadonly}
           className="h-full flex-1 min-h-0"
         />
       </SubtleContentMount>

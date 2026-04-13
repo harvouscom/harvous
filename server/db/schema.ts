@@ -166,6 +166,8 @@ export const UserMetadata = pgTable('UserMetadata', {
   lockPinSalt: text('lockPinSalt'),
   lockPinHash: text('lockPinHash'),
   defaultTranslation: text('defaultTranslation').notNull().default('NET'),
+  /** Last applied onboarding markdown pack version (see ONBOARDING_PACK_VERSION). */
+  onboardingPackVersionApplied: integer('onboardingPackVersionApplied').notNull().default(0),
   createdAt: ts('createdAt').notNull(),
   updatedAt: ts('updatedAt'),
 });

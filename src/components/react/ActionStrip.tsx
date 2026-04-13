@@ -73,7 +73,7 @@ export default function ActionStrip({
   spaceIsShared,
   contentOwnerId,
   userId: userIdProp,
-  linkedFromNoteId
+  linkedFromNoteId,
 }: ActionStripProps) {
   const userId = usePersistedUserId();
   const effectiveUserId = userIdProp ?? userId;
@@ -94,7 +94,8 @@ export default function ActionStrip({
     contentOwnerId,
     effectiveUserId,
     spaceIsShared,
-    linkedFromNoteId
+    linkedFromNoteId,
+    contentType === 'note' ? currentThreadId : undefined
   );
   const showStrip = shouldShowActionStripMenu(
     contentType,

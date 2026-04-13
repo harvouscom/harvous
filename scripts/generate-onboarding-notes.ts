@@ -51,10 +51,15 @@ for (const { name, order } of FILES) {
   notes.push(parseMarkdownNote(md, order));
 }
 
+/** Bump when onboarding markdown meaningfully changes so existing users receive updates via sync. */
+const ONBOARDING_PACK_VERSION = 2;
+
 const lines: string[] = [
-  '/** Auto-generated from src/data/onboarding/*.md - do not edit. Run: npm run generate:onboarding */',
+  '/** Auto-generated from src/data/onboarding/*.md - do not edit. Run: tsx scripts/generate-onboarding-notes.ts */',
   '',
   'export interface OnboardingNoteGenerated { title: string; content: string; order: number }',
+  '',
+  `export const ONBOARDING_PACK_VERSION = ${ONBOARDING_PACK_VERSION} as const;`,
   '',
   `export const onboardingNotesGenerated: OnboardingNoteGenerated[] = ${JSON.stringify(notes, null, 2)};`,
   '',

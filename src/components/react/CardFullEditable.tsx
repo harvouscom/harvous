@@ -56,6 +56,8 @@ interface CardFullEditableProps {
   isAuthenticated?: boolean;
   /** When true, runs iOS focus scroll fix (window.scrollTo(0,0) on focusin) so toolbar stays visible. Also run on touch devices when false. */
   inBottomSheet?: boolean;
+  /** Welcome-thread pack notes (system): same as scripture — no title/body editing in the card. */
+  readOnlyLikeScripture?: boolean;
 }
 
 export default function CardFullEditable({ 
@@ -77,10 +79,12 @@ export default function CardFullEditable({
   shareToken,
   isAuthenticated,
   inBottomSheet = false,
+  readOnlyLikeScripture = false,
 }: CardFullEditableProps) {
-  // Override isEditable for scripture notes (always read-only) and when offline (create-only mode)
+  // Override isEditable for scripture notes, onboarding pack notes, and offline (create-only mode)
   const isCurrentlyOffline = useIsOffline();
-  const effectiveIsEditable = noteType === 'scripture' || isCurrentlyOffline ? false : isEditable;
+  const effectiveIsEditable =
+    noteType === 'scripture' || readOnlyLikeScripture || isCurrentlyOffline ? false : isEditable;
   const resolvedScriptureVersion = noteType === 'scripture'
     ? (version || getCachedProfileData()?.defaultTranslation || 'NET')
     : undefined;
@@ -380,8 +384,6 @@ export default function CardFullEditable({
   // Listen for keyboard shortcut to start editing
   useEffect(() => {
     const handleEditNote = () => {
-      // Prevent editing scripture notes
-      if (noteType === 'scripture') return;
       if (!isContentEditing && !isTitleEditing && effectiveIsEditable) {
         // Save current scroll position
         if (contentDisplayRef.current) {
@@ -403,7 +405,7 @@ export default function CardFullEditable({
     return () => {
       window.removeEventListener('editNote', handleEditNote);
     };
-  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent, noteType]);
+  }, [isContentEditing, isTitleEditing, effectiveIsEditable, displayTitle, displayContent]);
 
   // Listen for hyperlink creation event
   useEffect(() => {
@@ -812,7 +814,7 @@ export default function CardFullEditable({
 
 
   const startEditing = (focus: 'title' | 'content' = 'title') => {
-    // Prevent editing if not editable (e.g., scripture notes or shared notes)
+    // Prevent editing if not editable (scripture, onboarding pack, offline, or shared/member view)
     if (!effectiveIsEditable) {
       return;
     }

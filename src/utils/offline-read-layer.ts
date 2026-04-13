@@ -12,9 +12,11 @@ import {
   sortByLastVisited,
   sortThreadsByLastVisited,
   sortByCreatedAtAsc,
+  sortOnboardingThreadNotes,
   sortThreadsChronologicallyForSpace,
   normalizeDate,
 } from '@/utils/sorting';
+import { isOnboardingThread } from '@/utils/last-visited-sections';
 
 /**
  * Dashboard snapshot - all data needed for initial dashboard render
@@ -357,13 +359,12 @@ export async function getNotesForThreadLocal(userId: string, threadId: string, l
       .filter(note => noteIds.includes(note.id) && note.syncStatus !== 'deleted')
       .toArray();
     
-    const sorted = sortByLastVisited(
-      allNotes.map(note => ({
-        ...note,
-        updatedAt: note.updatedAt || note.createdAt,
-        id: note.id,
-      })),
-    );
+    const mapped = allNotes.map(note => ({
+      ...note,
+      updatedAt: note.updatedAt || note.createdAt,
+      id: note.id,
+    }));
+    const sorted = isOnboardingThread(threadId) ? sortOnboardingThreadNotes(mapped) : sortByLastVisited(mapped);
 
     const hasMore = sorted.length > offset + limit;
     const notes = sorted.slice(offset, offset + limit);

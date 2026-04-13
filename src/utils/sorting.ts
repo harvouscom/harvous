@@ -131,6 +131,30 @@ export function sortByCreatedAtAsc<T extends { createdAt?: Date | string | null;
 }
 
 /**
+ * Onboarding pack notes are inserted with the same `createdAt` for every row, so created-time sort
+ * ties and falls back to random `id` order. Pack order is `simpleNoteId` (1 = first markdown, etc.).
+ */
+export function sortOnboardingThreadNotes<
+  T extends { simpleNoteId?: number | null; createdAt?: Date | string | null; id?: string },
+>(items: T[]): T[] {
+  const rank = (n: number | null | undefined) =>
+    n != null && n > 0 ? n : Number.MAX_SAFE_INTEGER;
+  return [...items].sort((a, b) => {
+    const aR = rank(a.simpleNoteId);
+    const bR = rank(b.simpleNoteId);
+    if (aR !== bR) return aR - bR;
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    const aId = a.id || '';
+    const bId = b.id || '';
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
+
+/**
  * Shared / public space thread list: pinned first, then oldest thread first.
  */
 export function sortThreadsChronologicallyForSpace<

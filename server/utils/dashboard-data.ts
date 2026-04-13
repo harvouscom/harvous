@@ -18,7 +18,8 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited, sortByCreatedAtAsc } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes } from "@/utils/sorting";
+import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
@@ -620,13 +621,16 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       }
       allNotes = allNotes.filter(n => n.noteType !== 'scripture' || !organizedScriptureIds.has(n.id ?? ''));
     } else {
+      const threadOrderBy = isOnboardingThread(threadId)
+        ? [asc(Notes.simpleNoteId), asc(Notes.id)]
+        : [
+            asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+            desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
+          ];
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-        .orderBy(
-          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-        )
+        .orderBy(...threadOrderBy)
         .limit(fetchLimit);
 
       const threadNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
@@ -649,9 +653,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       allNotes = Array.from(notesMap.values());
     }
 
-    const sortedAllNotes = sortByLastVisited(
-      allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
-    );
+    const mappedNotes = allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
+    const sortedAllNotes = isOnboardingThread(threadId)
+      ? sortOnboardingThreadNotes(mappedNotes)
+      : sortByLastVisited(mappedNotes);
 
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
@@ -726,19 +731,23 @@ export async function getNotesForThreadForMember(
 ): Promise<{ notes: any[]; hasMore: boolean }> {
   try {
     const fetchLimit = limit + offset + 1;
+    const memberThreadOrderBy = isOnboardingThread(threadId)
+      ? [asc(Notes.simpleNoteId), asc(Notes.id)]
+      : [
+          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id),
+        ];
     const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
-      .orderBy(
-        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
-        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
-      )
+      .orderBy(...memberThreadOrderBy)
       .limit(fetchLimit);
 
-    const sortedAllNotes = sortByLastVisited(
-      junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
-    );
+    const mappedMember = junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' }));
+    const sortedAllNotes = isOnboardingThread(threadId)
+      ? sortOnboardingThreadNotes(mappedMember)
+      : sortByLastVisited(mappedMember);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
 
