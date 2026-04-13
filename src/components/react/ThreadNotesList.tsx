@@ -5,7 +5,7 @@ import CardNote from './CardNote';
 import ActionButton from './ActionButton';
 import EraseConfirmDialog from './EraseConfirmDialog';
 import { stripHtml } from '@/utils/html-stripper';
-import { normalizeDate, sortByCreatedAtDesc } from '@/utils/sorting';
+import { normalizeDate, sortByLastVisited } from '@/utils/sorting';
 import { debug } from '@/utils/logger';
 import { isPWA, isStaleData } from '@/utils/content-list-helpers';
 import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
@@ -224,9 +224,9 @@ function computeThreadNotesViewList(options: {
   return sortNotesByTime(uniqueNotes, options.threadId);
 }
 
-// Newest first (createdAt) — matches GET /api/threads/:id/notes and offline thread notes.
+// Same as non-chronological space notes: lastVisited → updatedAt → createdAt (see sortByLastVisited).
 function sortNotesByTime(notes: Note[], _threadId: string): Note[] {
-  return sortByCreatedAtDesc(notes);
+  return sortByLastVisited(notes);
 }
 
 export default function ThreadNotesList({
@@ -522,8 +522,7 @@ export default function ThreadNotesList({
             new Map(typeFiltered.map((note: Note) => [note.id, note])).values()
           );
 
-          // Sort by time (newest first) to ensure proper animation order
-          // For onboarding thread, uses chronological sorting by createdAt
+          // sortByLastVisited (same as space notes); keeps list order stable for row animations
           const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
 
           setNotes(sortedNotes);
@@ -637,9 +636,6 @@ export default function ThreadNotesList({
                 new Map(newNotes.map(note => [note.id, note])).values()
               );
               
-              // Sort by time (newest first) to ensure proper animation order
-              // This maintains chronological order regardless of note type
-              // For onboarding thread, uses chronological sorting by createdAt
               return sortNotesByTime(uniqueNotes, threadId);
             });
           }
@@ -737,7 +733,6 @@ export default function ThreadNotesList({
             }
             // Add new note and re-sort
             const updated = [noteToAdd, ...prev];
-            // For onboarding thread, uses chronological sorting by createdAt
             return sortNotesByTime(updated, threadId);
           });
         }
@@ -902,7 +897,6 @@ export default function ThreadNotesList({
                 return prev;
               }
               const updated = [optimisticNote, ...prev];
-              // For onboarding thread, uses chronological sorting by createdAt
               return sortNotesByTime(updated, threadId);
             });
           }
@@ -1467,11 +1461,6 @@ export default function ThreadNotesList({
       new Map(newItems.map(note => [note.id, note])).values()
     );
     
-    // Sort by time (newest first) to ensure proper animation order
-    // This maintains chronological order regardless of note type, so animation delays
-    // continue correctly (e.g., if items are [scripture, scripture, default, scripture],
-    // they animate with delays [0ms, 50ms, 100ms, 150ms] in that order)
-    // For onboarding thread, uses chronological sorting by createdAt
     const sortedNotes = sortNotesByTime(uniqueNotes, threadId);
     
     setNotes(sortedNotes);

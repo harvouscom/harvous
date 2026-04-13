@@ -130,20 +130,6 @@ export function sortByCreatedAtAsc<T extends { createdAt?: Date | string | null;
   });
 }
 
-/** Newest first by createdAt, then id descending — matches thread notes API ordering. */
-export function sortByCreatedAtDesc<T extends { createdAt?: Date | string | null; id?: string }>(items: T[]): T[] {
-  return [...items].sort((a, b) => {
-    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
-    const bTime = b.createdAt ? normalizeDate(b.createdAt)?.getTime() ?? 0 : 0;
-    if (aTime !== bTime) return bTime - aTime;
-    const aId = a.id || '';
-    const bId = b.id || '';
-    if (aId < bId) return 1;
-    if (aId > bId) return -1;
-    return 0;
-  });
-}
-
 /**
  * Shared / public space thread list: pinned first, then oldest thread first.
  */

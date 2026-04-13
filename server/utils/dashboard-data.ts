@@ -18,7 +18,7 @@ import {
 import { nowISO } from '../db/dates';
 import { getThreadColorCSS, getThreadGradientCSS } from "@/utils/colors";
 import { getInboxCount as getInboxCountUtil } from "./inbox-data";
-import { sortByLastVisited, sortByCreatedAtAsc, sortByCreatedAtDesc } from "@/utils/sorting";
+import { sortByLastVisited, sortByCreatedAtAsc } from "@/utils/sorting";
 import { stripHtmlForCard } from "@/utils/html-stripper";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
@@ -583,7 +583,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const unorganizedNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(Notes.userId, userId), isNull(NoteThreads.id)))
-        .orderBy(desc(Notes.createdAt), desc(Notes.id))
+        .orderBy(
+          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+        )
         .limit(fetchLimit);
 
       const unorganizedNoteIds = unorganizedNotes.map(n => n.id).filter(Boolean);
@@ -620,7 +623,10 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       const junctionNotes = await db.select(NOTE_SELECT_COLUMNS)
         .from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
         .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId)))
-        .orderBy(desc(Notes.createdAt), desc(Notes.id))
+        .orderBy(
+          asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+          desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+        )
         .limit(fetchLimit);
 
       const threadNoteIds = junctionNotes.map(n => n.id).filter(Boolean);
@@ -643,7 +649,7 @@ export async function getNotesForThread(threadId: string, userId: string, limit 
       allNotes = Array.from(notesMap.values());
     }
 
-    const sortedAllNotes = sortByCreatedAtDesc(
+    const sortedAllNotes = sortByLastVisited(
       allNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
     );
 
@@ -724,10 +730,13 @@ export async function getNotesForThreadForMember(
       .from(Notes)
       .innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id))
       .where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false)))
-      .orderBy(desc(Notes.createdAt), desc(Notes.id))
+      .orderBy(
+        asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
+        desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
+      )
       .limit(fetchLimit);
 
-    const sortedAllNotes = sortByCreatedAtDesc(
+    const sortedAllNotes = sortByLastVisited(
       junctionNotes.map(note => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || '' })),
     );
     const hasMore = sortedAllNotes.length > offset + limit;

@@ -12,7 +12,6 @@ import {
   sortByLastVisited,
   sortThreadsByLastVisited,
   sortByCreatedAtAsc,
-  sortByCreatedAtDesc,
   sortThreadsChronologicallyForSpace,
   normalizeDate,
 } from '@/utils/sorting';
@@ -358,7 +357,7 @@ export async function getNotesForThreadLocal(userId: string, threadId: string, l
       .filter(note => noteIds.includes(note.id) && note.syncStatus !== 'deleted')
       .toArray();
     
-    const sorted = sortByCreatedAtDesc(
+    const sorted = sortByLastVisited(
       allNotes.map(note => ({
         ...note,
         updatedAt: note.updatedAt || note.createdAt,

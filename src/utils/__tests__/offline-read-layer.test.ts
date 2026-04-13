@@ -475,7 +475,7 @@ describe('offline-read-layer', () => {
       const result = await getNotesForThreadLocal(testUserId, threadId, 3, 0);
       expect(result.notes).toHaveLength(3);
       expect(result.hasMore).toBe(true);
-      // Newest first (note-0 has the latest createdAt)
+      // No lastVisited: sortByLastVisited uses createdAt among unvisited (newest first)
       expect(result.notes.map((n) => n.id)).toEqual(['note-0', 'note-1', 'note-2']);
     });
   });
