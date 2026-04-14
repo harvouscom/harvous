@@ -128,15 +128,16 @@ export async function canAddMemberToSpace(
 }
 
 export async function canAddMemberToSpaceByOwnerId(
-  spaceId: string, spaceOwnerId: string
+  spaceId: string, _spaceOwnerId: string
 ): Promise<{ allowed: boolean; reason?: string; currentCount?: number; limit?: number }> {
-  const tier = await getTierForUserId(spaceOwnerId);
-  const limits = getTierLimits(tier);
+  // Both free and unlimited tiers share the same membersPerSpace limit (MEMBERS_PER_SPACE_CAP),
+  // so there's no need to look up the owner's tier via a Clerk API call.
+  const limit = MEMBERS_PER_SPACE_CAP;
   const currentCount = await getSpaceMemberCount(spaceId);
-  if (currentCount >= limits.membersPerSpace) {
-    return { allowed: false, reason: 'This space has reached its people limit.', currentCount, limit: limits.membersPerSpace };
+  if (currentCount >= limit) {
+    return { allowed: false, reason: 'This space has reached its people limit.', currentCount, limit };
   }
-  return { allowed: true, currentCount, limit: limits.membersPerSpace };
+  return { allowed: true, currentCount, limit };
 }
 
 export async function canJoinSpace(

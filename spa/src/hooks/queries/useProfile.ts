@@ -5,6 +5,7 @@ import { updateCachedProfileData } from '@/utils/profile-cache';
 import {
   HARVOUS_PROFILE_CACHE_KEY,
   HARVOUS_USER_COLOR_KEY,
+  HARVOUS_USER_NAMES_KEY,
   HARVOUS_XP_CACHE_KEY,
 } from '@/utils/user-cache-keys';
 
@@ -36,6 +37,26 @@ export function getCachedUserColor(): string | null {
 export function setCachedUserColor(color: string) {
   try {
     localStorage.setItem(HARVOUS_USER_COLOR_KEY, color);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getCachedUserNames(): { firstName: string; lastName: string } | null {
+  try {
+    const raw = localStorage.getItem(HARVOUS_USER_NAMES_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedUserNames(firstName: string | null, lastName: string | null) {
+  try {
+    localStorage.setItem(
+      HARVOUS_USER_NAMES_KEY,
+      JSON.stringify({ firstName: firstName ?? '', lastName: lastName ?? '' }),
+    );
   } catch {
     /* ignore */
   }
@@ -150,6 +171,7 @@ export function useProfile() {
         >('/api/user/get-profile')
         .then((data) => {
           if (data.userColor) setCachedUserColor(data.userColor);
+          setCachedUserNames(data.firstName ?? null, data.lastName ?? null);
           const defaultTranslation = data.defaultTranslation ?? 'NET';
           updateCachedProfileData({
             firstName: data.firstName ?? '',

@@ -292,28 +292,46 @@ export async function getSpacesWithCounts(userId: string) {
   }
 }
 
-export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number }>> {
+export async function getMemberOfSpaces(userId: string): Promise<Array<{ id: string; title: string | null; color: string | null; memberCount: number; totalItemCount: number }>> {
   try {
-    const [memberships, ownedSpaceIds] = await Promise.all([
-      db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, userId)),
-      db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId)),
-    ]);
-    const ownedSet = new Set(ownedSpaceIds.map((r) => r.id));
+    // Single JOIN to get all spaces the user is a member of (but does not own)
+    const spaceRows = await db
+      .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
+      .from(Members)
+      .innerJoin(Spaces, eq(Members.spaceId, Spaces.id))
+      .where(and(eq(Members.userId, userId), ne(Spaces.userId, userId)));
 
-    const nonOwnedMemberships = memberships.filter(m => !ownedSet.has(m.spaceId));
-    const results = await Promise.all(
-      nonOwnedMemberships.map(async (m) => {
-        const spaceRow = first(await db
-          .select({ id: Spaces.id, title: Spaces.title, color: Spaces.color })
-          .from(Spaces)
-          .where(eq(Spaces.id, m.spaceId))
-          .limit(1));
-        if (!spaceRow) return null;
-        const memberCount = await getSpaceMemberCount(spaceRow.id);
-        return { id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount };
-      })
-    );
-    return results.filter((r): r is NonNullable<typeof r> => r !== null);
+    if (spaceRows.length === 0) return [];
+
+    const spaceIds = spaceRows.map(r => r.id);
+
+    // Three aggregation queries instead of 2N individual queries
+    const [memberCounts, threadCounts, noteCounts] = await Promise.all([
+      db.select({ spaceId: Members.spaceId, cnt: count() })
+        .from(Members)
+        .where(inArray(Members.spaceId, spaceIds))
+        .groupBy(Members.spaceId),
+      db.select({ spaceId: Threads.spaceId, cnt: count() })
+        .from(Threads)
+        .where(and(isNotNull(Threads.spaceId), inArray(Threads.spaceId, spaceIds)))
+        .groupBy(Threads.spaceId),
+      db.select({ spaceId: Notes.spaceId, cnt: count() })
+        .from(Notes)
+        .where(and(isNotNull(Notes.spaceId), inArray(Notes.spaceId, spaceIds)))
+        .groupBy(Notes.spaceId),
+    ]);
+
+    const memberCountMap = new Map(memberCounts.map(r => [r.spaceId, r.cnt]));
+    const threadCountMap = new Map(threadCounts.map(r => [r.spaceId!, r.cnt]));
+    const noteCountMap = new Map(noteCounts.map(r => [r.spaceId!, r.cnt]));
+
+    return spaceRows.map(space => ({
+      id: space.id,
+      title: space.title,
+      color: space.color,
+      memberCount: memberCountMap.get(space.id) || 0,
+      totalItemCount: (threadCountMap.get(space.id) || 0) + (noteCountMap.get(space.id) || 0),
+    }));
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];

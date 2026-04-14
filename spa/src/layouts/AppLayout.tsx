@@ -31,7 +31,7 @@ import {
   type NavigationData,
 } from '../hooks/queries/useNavigation';
 import { prefetchFeaturedDismissed } from '../hooks/queries/useFeaturedDismissed';
-import { useProfile, getCachedUserColor } from '../hooks/queries/useProfile';
+import { useProfile, getCachedUserColor, getCachedUserNames } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearNoteParentThreadCacheByThreadId } from '../hooks/queries/useNote';
 import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
 import { useSpace, clearCachedSpaceBootstrap } from '../hooks/queries/useSpace';
@@ -114,7 +114,11 @@ export default function AppLayout() {
   })();
 
   const { data: profile } = useProfile();
-  const navAvatarInitials = useMemo(() => getNavAvatarInitials(user ?? undefined, profile), [user, profile]);
+  const localStorageNames = useMemo(() => getCachedUserNames(), []);
+  const navAvatarInitials = useMemo(
+    () => getNavAvatarInitials(user ?? undefined, profile ?? localStorageNames ?? undefined),
+    [user, profile, localStorageNames],
+  );
   const navDisplayName = useMemo(() => {
     const name = getNavDisplayName(user ?? undefined, profile);
     // SessionStorage-backed profile (placeholderData) usually supplies the name before Clerk hydrates.

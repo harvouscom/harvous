@@ -14,7 +14,6 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, get
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
-import { db, first, Threads, Notes, count, eq, and, isNotNull } from '../db';
 
 const route = new Hono();
 
@@ -71,16 +70,9 @@ route.get('/api/navigation/data', async (c) => {
       backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || 'paper'),
     }));
 
-    const memberSpacesWithGradients = await Promise.all(memberSpaces.map(async (space) => {
-      const threadCountResult = first(await db.select({ count: count() })
-        .from(Threads).where(eq(Threads.spaceId, space.id)).limit(1));
-      const noteCountResult = first(await db.select({ count: count() })
-        .from(Notes).where(and(eq(Notes.spaceId, space.id), isNotNull(Notes.spaceId))).limit(1));
-      return {
-        ...space,
-        totalItemCount: (threadCountResult?.count || 0) + (noteCountResult?.count || 0),
-        backgroundGradient: getThreadGradientCSS(space.color || 'paper'),
-      };
+    const memberSpacesWithGradients = memberSpaces.map(space => ({
+      ...space,
+      backgroundGradient: getThreadGradientCSS(space.color || 'paper'),
     }));
 
     return c.json(

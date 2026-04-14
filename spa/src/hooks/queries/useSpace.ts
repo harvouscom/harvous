@@ -138,6 +138,7 @@ export function useSpaceMembers(spaceId: string) {
     queryKey: ['space', spaceId, 'members'],
     queryFn: () => api.get<{ members: unknown[] }>(`/api/spaces/${spaceId}/members`),
     enabled: !!spaceId,
+    staleTime: 30_000,
   });
 }
 

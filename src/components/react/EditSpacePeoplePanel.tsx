@@ -60,6 +60,7 @@ export default function EditSpacePeoplePanel({
       }
     } catch (error) {
       console.error('Error fetching member info:', error);
+      window.dispatchEvent(new CustomEvent('toast', { detail: { message: 'Failed to load members', type: 'error' } }));
     } finally {
       setIsLoadingMembers(false);
     }
@@ -145,6 +146,9 @@ export default function EditSpacePeoplePanel({
         })
       );
 
+      // Signal cross-context listeners (e.g. SPA React Query cache) to refresh
+      window.dispatchEvent(new CustomEvent('harvous:spacesMembersChanged', { detail: { spaceId } }));
+
       await fetchMemberInfo();
     } catch (err: any) {
       window.dispatchEvent(
@@ -162,20 +166,8 @@ export default function EditSpacePeoplePanel({
 
   useEffect(() => {
     if (spaceId) {
-      fetchMemberInfo();
-      fetchShareLink();
+      Promise.all([fetchMemberInfo(), fetchShareLink()]);
     }
-  }, [spaceId]);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && spaceId) {
-        fetchMemberInfo();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [spaceId]);
 
   const handleClose = () => {

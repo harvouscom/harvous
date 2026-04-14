@@ -77,6 +77,17 @@ export default function SpacePage() {
     clearSearch();
   }, [spaceId, clearSearch]);
 
+  // Invalidate the members cache when the Astro-island EditSpacePeoplePanel
+  // removes or adds a member (cross-context signal via DOM custom event).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { spaceId: changedSpaceId } = (e as CustomEvent<{ spaceId: string }>).detail;
+      queryClient.invalidateQueries({ queryKey: ['space', changedSpaceId, 'members'] });
+    };
+    window.addEventListener('harvous:spacesMembersChanged', handler);
+    return () => window.removeEventListener('harvous:spacesMembersChanged', handler);
+  }, [queryClient]);
+
   // Prefetch thread details for threads in this space that aren't in nav (e.g. joined space)
   // so the thread page header shows title/color immediately when the user clicks a thread.
   const PREFETCH_THREAD_LIMIT = 15;

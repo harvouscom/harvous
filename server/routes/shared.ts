@@ -16,7 +16,7 @@ import { getAuth, getAuthenticatedAuth, requireAuth, requireParam } from '../mid
 import {
   db, Notes, Threads, NoteThreads, UserMetadata, ScriptureMetadata, ResourceMetadata,
   NoteScriptureReferences, SpaceInvitations, Spaces, Members,
-  eq, and, desc, asc, isNotNull, count, sql, inArray,
+  eq, and, desc, asc, isNotNull, count, sql, inArray, lt,
   first,
 } from '../db';
 import { nowISO } from '../db/dates';
@@ -688,6 +688,14 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
 
     const token = requireParam(c, 'token');
 
+    // Passively drain expired invitations older than 30 days on each accept attempt
+    await db.delete(SpaceInvitations).where(
+      and(
+        eq(SpaceInvitations.status, 'expired'),
+        lt(SpaceInvitations.expiresAt, sql`datetime('now', '-30 days')`)
+      )
+    );
+
     const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
     if (!invitation) return c.json({ error: 'Invitation not found', code: 'NOT_FOUND' }, 404);
 
@@ -696,7 +704,8 @@ app.post('/api/invitations/:token/accept', requireAuth, rateLimit('write'), asyn
     }
 
     if (invitation.expiresAt && new Date() > new Date(invitation.expiresAt)) {
-      await db.update(SpaceInvitations).set({ status: 'expired' }).where(eq(SpaceInvitations.id, invitation.id));
+      // Delete instead of marking expired — no value in keeping expired rows
+      await db.delete(SpaceInvitations).where(eq(SpaceInvitations.id, invitation.id));
       return c.json({ error: 'This invitation has expired', code: 'INVITATION_EXPIRED' }, 410);
     }
 
