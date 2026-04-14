@@ -14,6 +14,7 @@ const TagIcon = { src: 'tag' };
 const LockIcon = { src: 'lock' };
 const UnlockIcon = { src: 'unlock' };
 const HashtagIcon = { src: 'hashtag' };
+const BookIcon = { src: 'book' };
 
 interface SquareButtonProps {
   variant?: "Add" | "Close" | "More" | "Back" | "Find";
@@ -140,6 +141,9 @@ export default function SquareButton({
             break;
           case "openNoteDetailsTags":
             icon = TagIcon;
+            break;
+          case "compareScriptureNote":
+            icon = BookIcon;
             break;
           case "lockNote":
             icon = effectiveEncrypted ? UnlockIcon : LockIcon;

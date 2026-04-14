@@ -120,6 +120,10 @@ export function getMenuOptions(
         { action: "openNoteDetailsTags", label: "Tags" }
       );
 
+      if (noteType === 'scripture') {
+        options.push({ action: "compareScriptureNote", label: "Compare" });
+      }
+
       // Lock / Remove lock for default notes only (owner only when contentOwnerId is set); not for view-only onboarding
       if (noteType === 'default' && canEditContent && !isOnboardingPackNote) {
         if (!contentEncrypted && contentEncryptedServer) {

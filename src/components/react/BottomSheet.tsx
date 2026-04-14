@@ -22,6 +22,7 @@ import PinEntryPanel from './PinEntryPanel';
 import LockPinPanel from './LockPinPanel';
 import MyInboxPanel from './MyInboxPanel';
 import AdminVotdPanel from './AdminVotdPanel';
+import { getCachedProfileData } from '@/utils/profile-cache';
 
 const createLazyPanel = (importFn: () => Promise<{ default: React.ComponentType<any> }>, name: string) =>
   lazy(() => importFn().catch((err) => {
@@ -32,6 +33,7 @@ const createLazyPanel = (importFn: () => Promise<{ default: React.ComponentType<
 const NewNotePanel = createLazyPanel(() => import('./NewNotePanel'), 'NewNotePanel');
 const NewThreadPanel = createLazyPanel(() => import('./NewThreadPanel'), 'NewThreadPanel');
 const NoteDetailsPanel = createLazyPanel(() => import('./NoteDetailsPanel'), 'NoteDetailsPanel');
+const ScriptureComparePanel = createLazyPanel(() => import('./ScriptureComparePanel'), 'ScriptureComparePanel');
 
 /** Shows nothing for delayMs, then children (e.g. Loading…) so fast loads don't flash. */
 function DelayedFallback({ delayMs, children }: { delayMs: number; children: React.ReactNode }) {
@@ -69,7 +71,7 @@ export interface BottomSheetProps {
   founderLetterHtml?: string;
 }
 
-type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myPreferences' | 'mySharing' | 'myInbox' | 'adminVotd' | 'mySpaces' | 'myData' | 'myAchievements' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'pinEntry' | 'lockPin';
+type DrawerType = 'note' | 'thread' | 'resource' | 'noteDetails' | 'editNameColor' | 'editThread' | 'editSpace' | 'addToSpace' | 'editSpacePeople' | 'getSupport' | 'emailPassword' | 'myChurch' | 'myPreferences' | 'mySharing' | 'myInbox' | 'adminVotd' | 'mySpaces' | 'myData' | 'myAchievements' | 'referral' | 'inboxPreview' | 'aboutHarvous' | 'noteShare' | 'scriptureCompare' | 'pinEntry' | 'lockPin';
 
 type SheetCloseReason = 'dismiss' | 'escape' | 'button';
 type SheetCloseHandler = (reason: SheetCloseReason) => boolean | Promise<boolean>;
@@ -123,6 +125,7 @@ const getDrawerTitle = (drawerType: DrawerType, sharePanelData: SharePanelDrawer
     'inboxPreview': 'Inbox Preview',
     'aboutHarvous': 'Letter from the Founder',
     'noteShare': 'Share Note',
+    'scriptureCompare': 'Compare',
     'pinEntry': 'Lock Note',
     'lockPin': 'Lock PIN',
   };
@@ -154,6 +157,12 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
   const [noteDetailsTab, setNoteDetailsTab] = useState<string | undefined>(undefined);
   const [noteDetailsNote, setNoteDetailsNote] = useState<any | null>(null);
   const [sharePanelData, setSharePanelData] = useState<SharePanelDrawerData | null>(null);
+  const [scriptureCompareData, setScriptureCompareData] = useState<{
+    noteId: string;
+    reference: string;
+    content: string;
+    version: string;
+  } | null>(null);
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [addToSpaceSpaceId, setAddToSpaceSpaceId] = useState<string | null>(null);
   const sheetFocusRef = useRef<HTMLButtonElement | null>(null);
@@ -184,7 +193,13 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       return;
     }
 
-    if (typeof navigator !== 'undefined' && !navigator.onLine && type !== 'note' && type !== 'resource') {
+    if (
+      typeof navigator !== 'undefined' &&
+      !navigator.onLine &&
+      type !== 'note' &&
+      type !== 'resource' &&
+      type !== 'scriptureCompare'
+    ) {
       return;
     }
 
@@ -195,7 +210,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     // to avoid the loading flash caused by a full remount on every open.
     const needsFreshState: DrawerType[] = [
       'note', 'thread', 'resource', 'noteDetails',
-      'editThread', 'editSpace', 'addToSpace', 'editSpacePeople', 'inboxPreview', 'noteShare', 'pinEntry',
+      'editThread', 'editSpace', 'addToSpace', 'editSpacePeople', 'inboxPreview', 'noteShare', 'scriptureCompare', 'pinEntry',
     ];
     if (needsFreshState.includes(type)) {
       setPanelKey(prev => prev + 1);
@@ -360,6 +375,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (drawerTypeRef.current === 'noteShare') {
         setSharePanelData(null);
       }
+      if (drawerTypeRef.current === 'scriptureCompare') {
+        setScriptureCompareData(null);
+      }
     };
 
     // Listen for bottom sheet events
@@ -421,11 +439,26 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       }
     };
 
+    const handleOpenScriptureComparePanel = (event: Event) => {
+      if (!isMobile) return;
+      const { contentId } = (event as CustomEvent<{ contentId?: string }>).detail || {};
+      if (!contentId) return;
+      if (!currentNote || String(currentNote.id) !== String(contentId)) return;
+      setScriptureCompareData({
+        noteId: contentId,
+        reference: currentNote.title ?? '',
+        content: currentNote.content ?? '',
+        version: currentNote.version ?? getCachedProfileData()?.defaultTranslation ?? 'NET',
+      });
+      openBottomSheet('scriptureCompare');
+    };
+
     window.addEventListener('openEditThreadPanel', handleOpenEditThreadPanel);
     window.addEventListener('openEditSpacePanel', handleOpenEditSpacePanel as EventListener);
     window.addEventListener('openAddToSpacePanel', handleOpenAddToSpacePanel as EventListener);
     window.addEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeoplePanel as EventListener);
     window.addEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
+    window.addEventListener('openScriptureComparePanel', handleOpenScriptureComparePanel as EventListener);
     
     // Listen for profile panel events (for mobile bottom sheet)
     const handleOpenProfilePanel = (event: CustomEvent) => {
@@ -514,6 +547,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     window.addEventListener('closeEditSpacePeoplePanel', handleCloseBottomSheet);
     window.addEventListener('closeInboxPreview', handleCloseBottomSheet);
     window.addEventListener('closeNoteSharePanel', handleCloseBottomSheet);
+    window.addEventListener('closeScriptureComparePanel', handleCloseBottomSheet);
     window.addEventListener('closePinEntryPanel', handleCloseBottomSheet);
 
     return () => {
@@ -525,6 +559,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openAddToSpacePanel', handleOpenAddToSpacePanel as EventListener);
       window.removeEventListener('openEditSpacePeoplePanel', handleOpenEditSpacePeoplePanel as EventListener);
       window.removeEventListener('openNoteDetailsPanel', handleOpenNoteDetailsPanel as EventListener);
+      window.removeEventListener('openScriptureComparePanel', handleOpenScriptureComparePanel as EventListener);
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNewNotePanel', handleOpenNewNote);
       window.removeEventListener('openNewThreadPanel', handleOpenNewThread);
@@ -541,6 +576,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('closeInboxPreview', handleCloseBottomSheet);
       window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
       window.removeEventListener('closeNoteSharePanel', handleCloseBottomSheet);
+      window.removeEventListener('closeScriptureComparePanel', handleCloseBottomSheet);
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleCloseBottomSheet);
     };
@@ -579,7 +615,8 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
     drawerType === 'getSupport' ||
     drawerType === 'referral' ||
     drawerType === 'aboutHarvous' ||
-    drawerType === 'lockPin';
+    drawerType === 'lockPin' ||
+    drawerType === 'scriptureCompare';
 
   // When note/resource sheet open on mobile: only set toolbar position and editor max-height when keyboard is open; leave sheet unchanged (100vh)
   useEffect(() => {
@@ -955,6 +992,23 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
                   />
                 </Suspense>
               )}
+            </div>
+          )}
+
+          {/* Scripture Compare Panel */}
+          {drawerType === 'scriptureCompare' && scriptureCompareData && (
+            <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
+              <Suspense fallback={<DelayedFallback delayMs={80}>{mobileLoadingFallback}</DelayedFallback>}>
+                <ScriptureComparePanel
+                  key={`mobile-scripture-compare-${panelKey}`}
+                  noteId={scriptureCompareData.noteId}
+                  scriptureReference={scriptureCompareData.reference}
+                  initialContent={scriptureCompareData.content}
+                  initialVersion={scriptureCompareData.version}
+                  onClose={() => window.dispatchEvent(new CustomEvent('closeScriptureComparePanel'))}
+                  inBottomSheet={true}
+                />
+              </Suspense>
             </div>
           )}
           

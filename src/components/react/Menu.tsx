@@ -70,6 +70,10 @@ const renderIcon = (icon: any, action: string) => {
     'right-from-bracket': {
       viewBox: '0 0 512 512',
       path: 'M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z'
+    },
+    book: {
+      viewBox: '0 0 448 512',
+      path: 'M96 0C43 0 0 43 0 96V416c0 53 43 96 96 96H384h32c17.7 0 32-14.3 32-32s-14.3-32-32-32H384V384c0-17.7-14.3-32-32-32H128c-17.7 0-32 14.3-32 32v64H96c-17.7 0-32-14.3-32-32V192c0-17.7 14.3-32 32-32h256V96c0-53-43-96-96-96H96zM288 448c0 8.8 7.2 16 16 16h32c8.8 0 16-7.2 16-16V272c0-8.8-7.2-16-16-16H304c-8.8 0-16 7.2-16 16V448z'
     }
   };
 
@@ -94,6 +98,8 @@ const renderIcon = (icon: any, action: string) => {
     iconKey = 'lock';
   } else if (action === 'copyNoteId') {
     iconKey = 'hashtag';
+  } else if (action === 'compareScriptureNote') {
+    iconKey = 'book';
   } else if (action.includes('Note')) {
     iconKey = 'note-sticky';
   } else if (action === 'viewSpace' || action.includes('seeDetails') || action.includes('Details')) {
@@ -118,6 +124,7 @@ const renderIcon = (icon: any, action: string) => {
     else if (src.includes('lock')) iconKey = 'lock';
     else if (src.includes('hashtag')) iconKey = 'hashtag';
     else if (src.includes('right-from-bracket')) iconKey = 'right-from-bracket';
+    else if (src === 'book' || src.includes('book')) iconKey = 'book';
   }
 
   // If we found a matching icon, render as inline SVG
@@ -316,6 +323,12 @@ export default function Menu({
         }));
       } catch (error) {
         console.error('Error opening note details panel (notes):', error);
+      }
+    } else if (action === 'compareScriptureNote') {
+      try {
+        window.dispatchEvent(new CustomEvent('openScriptureComparePanel', { detail: { contentId } }));
+      } catch (error) {
+        console.error('Error opening scripture compare panel:', error);
       }
     } else if (action === 'editThread') {
       // Handle Edit Thread action

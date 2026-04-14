@@ -1,15 +1,15 @@
 import { useEffect, useState, type AnimationEvent, type ReactNode } from 'react';
 
 /**
- * Wraps async-loaded main content with the shared subtle grid expand + fade-in
- * (see `.subtle-content-mount` in `src/styles/cards.css`).
- * After the fade animation, inner overflow is released so nested scroll areas work.
+ * Wraps async-loaded main content (see `.subtle-content-mount` in `src/styles/cards.css`).
+ * `expand`: grid height reveal + inner fade-up. `fade`: flex-column layout for main column scroll
+ * areas — inner uses scroll-safe overflow immediately (no entrance animation).
  */
 export default function SubtleContentMount({
   children,
   className = '',
   innerClassName = '',
-  /** `expand`: grid height reveal (compact blocks). `fade`: opacity/slide only — use inside flex scroll columns (dashboard, thread, space) so layout height is not collapsed to 0. */
+  /** `expand`: grid height reveal (compact blocks). `fade`: use inside flex scroll columns (dashboard, thread, space) so layout height is not collapsed to 0. */
   variant = 'expand',
 }: {
   children: ReactNode;
@@ -19,7 +19,7 @@ export default function SubtleContentMount({
   innerClassName?: string;
   variant?: 'expand' | 'fade';
 }) {
-  const [innerScrollSafe, setInnerScrollSafe] = useState(false);
+  const [innerScrollSafe, setInnerScrollSafe] = useState(() => variant === 'fade');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

@@ -344,6 +344,10 @@ export default function ActionStrip({
       window.dispatchEvent(new CustomEvent('openNoteDetailsPanel', { detail: { contentId, contentType, tab: 'notes' } }));
       return;
     }
+    if (action === 'compareScriptureNote') {
+      window.dispatchEvent(new CustomEvent('openScriptureComparePanel', { detail: { contentId } }));
+      return;
+    }
     if (action === 'editThread') {
       window.dispatchEvent(new CustomEvent('openEditThreadPanel', { detail: { contentId, contentType } }));
       return;

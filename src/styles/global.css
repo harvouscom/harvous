@@ -1085,11 +1085,34 @@ button[disabled] {
 }
 .translation-dropdown-trigger span {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 600 !important; /* beat late global `button *` (700) so NET pill matches NewNotePanel */
   color: var(--color-deep-grey) !important;
   white-space: nowrap;
   line-height: normal;
 }
+
+/* Late global `button { font-weight: 700 !important; }` — keep translation pill control unambiguous */
+button.translation-dropdown-trigger {
+  font-weight: 600 !important;
+}
+
+/* Scripture Compare: same inset treatment as `.new-note-panel button:not([data-outer-shadow])` (see "NewNotePanel" block ~524) */
+.scripture-compare-panel .translation-dropdown-trigger {
+  will-change: transform, box-shadow;
+  transition:
+    box-shadow 0.125s ease-in-out,
+    background-color 0.125s ease-in-out,
+    transform 0.125s ease-in-out;
+  box-shadow: 0px -3px 0px 0px #78766f33 inset;
+}
+
+.scripture-compare-panel .translation-dropdown-trigger:active {
+  filter: brightness(0.97);
+  box-shadow:
+    0px -1px 0px 0px #78766f33 inset,
+    0px 1px 0px 0px #78766f33 inset;
+}
+
 .translation-dropdown-chevron {
   width: 10px;
   height: 10px;

@@ -4,6 +4,7 @@ import ButtonSmall from './ButtonSmall';
 import OfflineModeInfoPanel from './OfflineModeInfoPanel';
 import { prefetchSpacePanelData } from '@/utils/prefetch-space-panel';
 import { clearVotdPendingCreateNoteFeaturedId } from '@/utils/featured-dismiss-local';
+import { getCachedProfileData } from '@/utils/profile-cache';
 
 // Helper function to create lazy-loaded components with error handling
 const createLazyComponent = (importFn: () => Promise<any>, componentName: string) => {
@@ -59,6 +60,7 @@ const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), '
 const LockPinPanel = createLazyComponent(() => import('./LockPinPanel'), 'LockPinPanel');
 const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'), 'AboutHarvousPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
+const ScriptureComparePanel = createLazyComponent(() => import('./ScriptureComparePanel'), 'ScriptureComparePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
 /** Preload panel chunks so opening a panel resolves Suspense immediately (shared cache with lazy). */
@@ -74,6 +76,7 @@ function preloadPanelChunks() {
       () => import('./NewNotePanel'),
       () => import('./NewThreadPanel'),
       () => import('./NoteDetailsPanel'),
+      () => import('./ScriptureComparePanel'),
       () => import('./EditSpacePeoplePanel'),
       () => import('./MySpacesPanel'),
       () => import('./EditNameColorPanel'),
@@ -135,6 +138,7 @@ type PanelType =
   | 'lockPin'
   | 'aboutHarvous'
   | 'noteShare'
+  | 'scriptureCompare'
   | 'pinEntry'
   | 'offlineHelp'
   | null;
@@ -211,6 +215,8 @@ type PanelAction =
   | { type: 'CLOSE_ABOUT_HARVOUS' }
   | { type: 'OPEN_NOTE_SHARE' }
   | { type: 'CLOSE_NOTE_SHARE' }
+  | { type: 'OPEN_SCRIPTURE_COMPARE' }
+  | { type: 'CLOSE_SCRIPTURE_COMPARE' }
   | { type: 'OPEN_PIN_ENTRY' }
   | { type: 'CLOSE_PIN_ENTRY' }
   | { type: 'OPEN_OFFLINE_HELP' }
@@ -450,6 +456,12 @@ function panelReducer(state: PanelState, action: PanelAction): PanelState {
     case 'CLOSE_NOTE_SHARE':
       return { activePanel: null, panelKey: state.panelKey };
 
+    case 'OPEN_SCRIPTURE_COMPARE':
+      return { activePanel: 'scriptureCompare', panelKey: state.panelKey + 1 };
+
+    case 'CLOSE_SCRIPTURE_COMPARE':
+      return { activePanel: null, panelKey: state.panelKey };
+
     case 'OPEN_PIN_ENTRY':
       return { activePanel: 'pinEntry', panelKey: state.panelKey + 1 };
 
@@ -547,6 +559,14 @@ export default function DesktopPanelManager({
     | { kind: 'thread'; threadId: string; threadTitle?: string }
     | null
   >(null);
+  const [scriptureCompareData, setScriptureCompareData] = useState<{
+    noteId: string;
+    reference: string;
+    content: string;
+    version: string;
+  } | null>(null);
+  const currentNoteRef = useRef(currentNote);
+  currentNoteRef.current = currentNote;
   const [pinEntryData, setPinEntryData] = useState<{ noteId: string; mode: 'set' | 'unlock' | 'removeLock' | 'changeLock' | 'setForAccount' | 'lockWithAccountPin'; noteContent: string; isEncrypted: boolean } | null>(null);
   const [requestedSpaceId, setRequestedSpaceId] = useState<string | null>(null);
   const [requestedNoteId, setRequestedNoteId] = useState<string | null>(null);
@@ -756,6 +776,26 @@ export default function DesktopPanelManager({
       setSharePanelData(null);
     };
 
+    const handleOpenScriptureCompare = (event: Event) => {
+      const { contentId } = (event as CustomEvent<{ contentId?: string }>).detail || {};
+      if (!contentId) return;
+      const note = currentNoteRef.current;
+      if (!note || String(note.id) !== String(contentId)) return;
+      setScriptureCompareData({
+        noteId: contentId,
+        reference: note.title ?? '',
+        content: note.content ?? '',
+        version: note.version ?? getCachedProfileData()?.defaultTranslation ?? 'NET',
+      });
+      dispatch({ type: 'OPEN_SCRIPTURE_COMPARE' });
+      window.dispatchEvent(new CustomEvent('closeMoreMenu'));
+    };
+
+    const handleCloseScriptureComparePanel = () => {
+      dispatch({ type: 'CLOSE_SCRIPTURE_COMPARE' });
+      setScriptureCompareData(null);
+    };
+
     const handleOpenPinEntryPanel = (event: CustomEvent) => {
       const { noteId: id, mode, noteContent: content, isEncrypted } = event.detail || {};
       if (id && mode && content !== undefined) {
@@ -800,6 +840,8 @@ export default function DesktopPanelManager({
     window.addEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
     window.addEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
     window.addEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
+    window.addEventListener('openScriptureComparePanel', handleOpenScriptureCompare as EventListener);
+    window.addEventListener('closeScriptureComparePanel', handleCloseScriptureComparePanel);
     window.addEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
     window.addEventListener('closePinEntryPanel', handleClosePinEntryPanel);
     window.addEventListener('openOfflineHelpPanel', handleOpenOfflineHelpPanel as EventListener);
@@ -811,6 +853,7 @@ export default function DesktopPanelManager({
       setRequestedNoteId(null);
       setAddToSpaceSpaceId(null);
       setSharePanelData(null);
+      setScriptureCompareData(null);
       dispatch({ type: 'CLOSE_ALL' });
     };
     window.addEventListener('closeAllPanels', handleCloseAllPanels);
@@ -839,6 +882,8 @@ export default function DesktopPanelManager({
       window.removeEventListener('openProfilePanel', handleOpenProfilePanel as EventListener);
       window.removeEventListener('openNoteSharePanel', handleOpenNoteSharePanel as EventListener);
       window.removeEventListener('closeNoteSharePanel', handleCloseNoteSharePanel);
+      window.removeEventListener('openScriptureComparePanel', handleOpenScriptureCompare as EventListener);
+      window.removeEventListener('closeScriptureComparePanel', handleCloseScriptureComparePanel);
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleClosePinEntryPanel);
       window.removeEventListener('openOfflineHelpPanel', handleOpenOfflineHelpPanel as EventListener);
@@ -967,6 +1012,10 @@ export default function DesktopPanelManager({
     window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
   }, []);
 
+  const handleCloseScriptureCompare = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('closeScriptureComparePanel'));
+  }, []);
+
   const handleClosePinEntry = useCallback(() => {
     window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
   }, []);
@@ -1028,6 +1077,9 @@ export default function DesktopPanelManager({
           break;
         case 'noteShare':
           window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+          break;
+        case 'scriptureCompare':
+          window.dispatchEvent(new CustomEvent('closeScriptureComparePanel'));
           break;
         case 'pinEntry':
           window.dispatchEvent(new CustomEvent('closePinEntryPanel'));
@@ -1255,6 +1307,25 @@ export default function DesktopPanelManager({
                       threadTitle: currentThread?.title || sharePanelData.threadTitle,
                     })}
                 onClose={handleCloseNoteShare}
+                inBottomSheet={false}
+              />
+            </div>
+          </Suspense>
+        </PanelErrorBoundary>
+      )}
+
+      {/* Scripture Compare Panel - Desktop Only */}
+      {state.activePanel === 'scriptureCompare' && scriptureCompareData && (
+        <PanelErrorBoundary>
+          <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
+            <div className="h-full hidden min-[1160px]:block">
+              <ScriptureComparePanel
+                key={`scripture-compare-${state.panelKey}`}
+                noteId={scriptureCompareData.noteId}
+                scriptureReference={scriptureCompareData.reference}
+                initialContent={scriptureCompareData.content}
+                initialVersion={scriptureCompareData.version}
+                onClose={handleCloseScriptureCompare}
                 inBottomSheet={false}
               />
             </div>
