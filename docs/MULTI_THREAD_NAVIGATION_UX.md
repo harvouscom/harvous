@@ -18,7 +18,7 @@ When a note belongs to multiple threads, there's a UX challenge: **Which thread 
   1. URL parameter override (`?thread=threadId`) - explicit user choice
   2. Navigation context detection - thread user was viewing when they clicked
   3. Most recent thread activity - fallback to thread with most recent updates
-  4. Unorganized thread fallback - final fallback for edge cases
+  4. My Pile thread fallback - final fallback for edge cases
 
   *(Note: A `NoteThreadAccess` table for per-note last-accessed-thread tracking was removed; context is determined by URL and navigation state only. See [ARCHITECTURE.md](./ARCHITECTURE.md) and [DATABASE.md](./DATABASE.md).)*
 - The note shows which threads it belongs to in the NoteDetailsPanel
@@ -278,7 +278,7 @@ When a note belongs to multiple threads, there's a UX challenge: **Which thread 
 ### ✅ Completed Features
 - **Smart Thread Selection**: 4-tier priority (URL param → navigation context → most recent thread → unorganized fallback)
 - **Primary Thread Removal**: Eliminated arbitrary "primary thread" defaults
-- **Unorganized Thread Preservation**: Maintains existing unorganized thread behavior
+- **My Pile thread preservation**: Maintains existing My Pile thread behavior
 - **Graceful Degradation**: Multiple fallback levels ensure notes always open in valid context
 
 *(NoteThreadAccess table and per-note access tracking were removed; see ARCHITECTURE.md and DATABASE.md.)*

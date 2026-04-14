@@ -8,8 +8,8 @@ Learn how to organize your Bible study notes effectively in Harvous. This guide 
 
 "For You" is your inbox - a capture zone for quick note-taking and unorganized content:
 
-- **Unorganized notes**: Notes that aren't in any thread yet
-- **Unorganized threads**: Threads that aren't in any space yet
+- **Notes not in a thread yet**: Shown in the My Pile thread until you add them elsewhere
+- **Threads not in a space yet**: Threads that aren't assigned to a space
 - **Perfect for**: Rapid idea capture during study
 - **Later organization**: Move items from "For You" to organized spaces when ready
 

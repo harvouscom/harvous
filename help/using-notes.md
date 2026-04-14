@@ -17,7 +17,7 @@ Notes are individual pieces of content - your thoughts, insights, reflections, a
 
 1. **Click the "+" button** in the top navigation
 2. **Select "New Note"** from the dropdown
-3. **Choose a thread** (or leave as "Unorganized" for now)
+3. **Choose a thread** (or leave as "My Pile" for now)
    - You can organize it later if needed
 4. **Add a title** that describes your note
    - Make it clear and searchable (e.g., "John 3:16 - God's Love")
@@ -109,15 +109,15 @@ You create a note about "God's love" in your "Romans Study" thread. Later, you r
 ### Notes Are Never Deleted
 
 - **Always preserved**: Notes are never permanently deleted
-- **Thread deletion**: When you delete a thread, its notes move to "Unorganized" (not deleted)
+- **Thread deletion**: When you delete a thread, its notes move to "My Pile" (not deleted)
 - **Accident protection**: No fear of losing important insights
 - **Complete history**: Every note you've ever created is saved
 
 ### How It Works
 
-- **Delete a thread**: All its notes are moved to "Unorganized" in "For You"
+- **Delete a thread**: All its notes are moved to "My Pile" in "For You"
 - **Remove from thread**: Removing a note from a thread doesn't delete it
-- **Recovery**: You can always find notes in "Unorganized" or by searching
+- **Recovery**: You can always find notes in "My Pile" or by searching
 
 ### Why This Matters
 

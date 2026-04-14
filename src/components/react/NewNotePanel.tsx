@@ -9,6 +9,7 @@ import { getThreadGradientCSS } from '@/utils/colors';
 import { debug } from '@/utils/logger';
 import { safeURL } from '@/utils/safe-url';
 import { usePersistedUserId } from '@/utils/user-id';
+import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { getNextSimpleNoteIdPreview, getLocalNoteCount, cacheHighestSimpleNoteId, getCachedHighestSimpleNoteId } from '@/utils/offline-mutations';
 import { clearVotdPendingCreateNoteFeaturedId } from '@/utils/featured-dismiss-local';
 
@@ -723,7 +724,7 @@ export default function NewNotePanel({
 
             threadSelection.setThreadOptions((prev) => {
               const filtered = prev.filter(t => !t.id.startsWith('pending_'));
-              const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+              const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || isMyPileDisplayTitle(t.title));
               if (filtered.some((t) => t.id === created.id)) return filtered;
               const updated = unorganizedIdx === -1 
                 ? [...filtered, threadToUse]
@@ -738,10 +739,10 @@ export default function NewNotePanel({
         }
       } catch (err: any) {
         console.error('[NewNotePanel] Failed to create thread in handleSaveAndClose:', err);
-        showToast('Could not create thread. Note saved to Unorganized.', 'warning');
+        showToast(`Could not create thread. Note saved to ${MY_PILE_THREAD_TITLE}.`, 'warning');
         setPendingThreadName(null);
         threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
-        threadSelection.handleThreadSelect('Unorganized');
+        threadSelection.handleThreadSelect(MY_PILE_THREAD_TITLE);
       }
     }
     
@@ -768,11 +769,11 @@ export default function NewNotePanel({
     // Only show if there are multiple scripture references (as the dialog text states)
     // Show dialog when:
     // 1. Note type is resource
-    // 2. Selected thread is Unorganized (user hasn't manually selected the suggested thread)
+    // 2. Selected thread is My Pile (user hasn't manually selected the suggested thread)
     // 3. A suggested thread name exists (either existing thread or new thread name)
     // 4. There are multiple scripture references detected
     const isResource = form.noteType === 'resource';
-    const isUnorganized = threadSelection.selectedThread === 'Unorganized';
+    const isUnorganized = isMyPileDisplayTitle(threadSelection.selectedThread);
     const hasSuggestedThread = suggestedThreadName && suggestedThreadName.trim() !== '';
     const hasMultipleScriptures = scriptureCount > 1;
     
@@ -862,7 +863,7 @@ export default function NewNotePanel({
           // Remove pending thread and add the real thread to options
           threadSelection.setThreadOptions((prev) => {
             const filtered = prev.filter(t => !t.id.startsWith('pending_'));
-            const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+            const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || isMyPileDisplayTitle(t.title));
             if (filtered.some((t) => t.id === created.id)) return filtered;
             const updated = unorganizedIdx === -1 
               ? [...filtered, threadToUse]
@@ -878,15 +879,15 @@ export default function NewNotePanel({
         }
       } catch (err: any) {
         console.error('[NewNotePanel] Failed to create thread during note submission:', err);
-        showToast('Could not create thread. Note saved to Unorganized.', 'warning');
+        showToast(`Could not create thread. Note saved to ${MY_PILE_THREAD_TITLE}.`, 'warning');
         setPendingThreadName(null);
         
         // Remove pending thread from options
         threadSelection.setThreadOptions(prev => prev.filter(t => !t.id.startsWith('pending_')));
         
-        // Fallback to Unorganized
+        // Fallback to My Pile
         threadIdToUse = 'thread_unorganized';
-        threadSelection.handleThreadSelect('Unorganized');
+        threadSelection.handleThreadSelect(MY_PILE_THREAD_TITLE);
       }
     }
     
@@ -980,7 +981,7 @@ export default function NewNotePanel({
         // Ensure the new thread is available in the combobox options immediately.
         threadSelection.setThreadOptions((prev) => {
           if (prev.some((t) => t.id === created.id)) return prev;
-          const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+          const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || isMyPileDisplayTitle(t.title));
           if (unorganizedIdx === -1) return [...prev, threadToUse];
           return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
         });
@@ -1013,7 +1014,7 @@ export default function NewNotePanel({
         if (!alreadyInOptions) {
           threadSelection.setThreadOptions((prev) => {
             if (prev.some((t) => t.id === threadToUse.id)) return prev;
-            const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+            const unorganizedIdx = prev.findIndex((t) => t.id === 'thread_unorganized' || isMyPileDisplayTitle(t.title));
             if (unorganizedIdx === -1) return [...prev, threadToUse];
             return [...prev.slice(0, unorganizedIdx + 1), threadToUse, ...prev.slice(unorganizedIdx + 1)];
           });
@@ -1043,7 +1044,7 @@ export default function NewNotePanel({
       await submission.handleSubmit(syntheticEvent, threadToUse.id);
     } catch (err: any) {
       console.error('[SuggestedThreadDialog] Failed to use suggested thread:', err);
-      showToast('Could not use suggested thread. Saving to Unorganized.', 'warning');
+      showToast(`Could not use suggested thread. Saving to ${MY_PILE_THREAD_TITLE}.`, 'warning');
       setSuggestedThreadName(null);
       const syntheticEvent = new Event('submit', { bubbles: true, cancelable: true }) as unknown as React.FormEvent;
       await submission.handleSubmit(syntheticEvent);
@@ -1169,7 +1170,7 @@ export default function NewNotePanel({
                   };
                   threadSelection.setThreadOptions((prev) => {
                     const filtered = prev.filter(t => !t.id.startsWith('pending_') || t.title !== trimmedName);
-                    const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || t.title === 'Unorganized');
+                    const unorganizedIdx = filtered.findIndex((t) => t.id === 'thread_unorganized' || isMyPileDisplayTitle(t.title));
                     return unorganizedIdx === -1
                       ? [...filtered, pendingThread]
                       : [...filtered.slice(0, unorganizedIdx + 1), pendingThread, ...filtered.slice(unorganizedIdx + 1)];

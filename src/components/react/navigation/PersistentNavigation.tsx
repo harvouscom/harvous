@@ -8,6 +8,7 @@ import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { prefetchSpaceRouteIntent, prefetchThreadRouteIntent } from '../../../../spa/src/utils/prefetch-route-intent';
+import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 interface ActiveThreadProp {
   id: string;
@@ -167,7 +168,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         if (!parentThreadId || !parentThreadId.startsWith('thread_')) return null;
 
         let title = noteEl?.dataset?.parentThreadTitle ?? navEl?.dataset?.parentThreadTitle ?? 'Thread';
-        if (parentThreadId === 'thread_unorganized') title = 'Unorganized';
+        if (parentThreadId === 'thread_unorganized') title = MY_PILE_THREAD_TITLE;
         const countStr = noteEl?.dataset?.parentThreadCount ?? navEl?.dataset?.parentThreadCount ?? '0';
         let backgroundGradient =
           noteEl?.dataset?.parentThreadBackgroundGradient ??
@@ -222,7 +223,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         // If activeThreadProp has default/fallback title ('Thread') or no gradient,
         // check navigation history for better data before using defaults.
         const fromHistory = navigationHistory.find((i) => i.id === activeThreadProp.id);
-        const propTitle = activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || '');
+        const propTitle = activeThreadProp.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadProp.title || '');
         const hasRealTitle = propTitle && propTitle !== 'Thread';
         const hasRealGradient = activeThreadProp.backgroundGradient && activeThreadProp.backgroundGradient !== 'var(--color-gradient-gray)';
         activeParentThread = {
@@ -245,7 +246,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           const now = Date.now();
           activeParentThread = {
             id: 'thread_unorganized',
-            title: 'Unorganized',
+            title: MY_PILE_THREAD_TITLE,
             count: 1,
             backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)',
             spaceId: null,
@@ -330,7 +331,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       const activeThreadItem = (activeThreadProp?.id === activeThreadIdFromPath)
         ? {
             id: activeThreadProp.id,
-            title: activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || fromHistory?.title || 'Thread'),
+            title: activeThreadProp.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadProp.title || fromHistory?.title || 'Thread'),
             count: activeThreadProp.noteCount ?? fromHistory?.count ?? 0,
             backgroundGradient: activeThreadProp.backgroundGradient || fromHistory?.backgroundGradient || 'var(--color-gradient-gray)',
             spaceId: activeThreadProp.spaceId ?? (fromHistory as any)?.spaceId ?? null,
@@ -340,7 +341,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         : fromHistory
           ? {
               id: fromHistory.id,
-              title: fromHistory.id === 'thread_unorganized' ? 'Unorganized' : fromHistory.title,
+              title: fromHistory.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : fromHistory.title,
               count: fromHistory.count || 0,
               backgroundGradient: fromHistory.id === 'thread_unorganized'
                 ? PAPER_GRADIENT
@@ -352,19 +353,19 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           : fromDom
             ? {
                 ...fromDom,
-                title: fromDom.id === 'thread_unorganized' ? 'Unorganized' : (fromDom.title || 'Thread'),
+                title: fromDom.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (fromDom.title || 'Thread'),
               }
             : null;
 
-      // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
-      // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
+      // CRITICAL: Don't add if this is a thread titled My Pile (or legacy Unorganized) but with wrong ID
+      // This prevents duplicate My Pile items when a renamed thread conflicts with thread_unorganized
       const isUnorganizedTitleWithWrongId =
         activeThreadItem &&
-        activeThreadItem.title === 'Unorganized' &&
+        isMyPileDisplayTitle(activeThreadItem.title) &&
         activeThreadItem.id !== 'thread_unorganized';
 
-      // Also check if "Unorganized" already exists by title (not just ID)
-      const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
+      // Also check if My Pile already exists by title (not just ID)
+      const unorganizedAlreadyExists = persistentItems.some((i) => isMyPileDisplayTitle(i.title));
 
       if (
         activeThreadItem &&
@@ -393,7 +394,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       const GRAY_FALLBACK = 'var(--color-gradient-gray)';
       persistentItems = persistentItems.map((item) => {
         if (item.id !== activeThreadIdFromPath) return item;
-        const propTitle = activeThreadProp.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadProp.title || item.title);
+        const propTitle = activeThreadProp.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadProp.title || item.title);
         const propGradient = activeThreadProp.backgroundGradient || item.backgroundGradient;
         // Only update if prop data is meaningfully different/better
         const titleChanged = propTitle && propTitle !== 'Thread' && propTitle !== item.title;
@@ -429,14 +430,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     }
     // Ensure the active parent thread is visible even if it doesn't match scoping yet.
     if (activeParentThread && !persistentItems.some((i) => i.id === activeParentThread.id)) {
-      // CRITICAL: Don't add if this is a thread titled "Unorganized" but with wrong ID
-      // This prevents duplicate "Unorganized" items when a renamed thread conflicts with thread_unorganized
-      const isUnorganizedTitleWithWrongId = 
-        activeParentThread.title === 'Unorganized' && 
+      // CRITICAL: Don't add if this is a thread titled My Pile (or legacy Unorganized) but with wrong ID
+      // This prevents duplicate My Pile items when a renamed thread conflicts with thread_unorganized
+      const isUnorganizedTitleWithWrongId =
+        isMyPileDisplayTitle(activeParentThread.title) &&
         activeParentThread.id !== 'thread_unorganized';
       
-      // Also check if "Unorganized" already exists by title (not just ID)
-      const unorganizedAlreadyExists = persistentItems.some((i) => i.title === 'Unorganized');
+      // Also check if My Pile already exists by title (not just ID)
+      const unorganizedAlreadyExists = persistentItems.some((i) => isMyPileDisplayTitle(i.title));
       
       if (
         !isUnorganizedTitleWithWrongId &&
@@ -636,7 +637,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
               >
                 <SpaceButton
                   as="div"
-                  text={item.id === 'thread_unorganized' ? 'Unorganized' : item.title}
+                  text={item.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : item.title}
                   count={
                     isActive && activeThreadProp?.id === item.id
                       ? Math.max(activeThreadProp.noteCount ?? 0, item.count ?? 0)

@@ -28640,7 +28640,7 @@ var init_translations = __esm({
         name: "New American Standard Bible (1995)",
         abbreviation: "NASB 1995",
         publisher: "The Lockman Foundation",
-        copyright: "Scripture quotations taken from the New American Standard Bible\xAE (NASB 1995), Copyright \xA9 1960, 1971, 1977, 1995 by The Lockman Foundation. Used by permission. All rights reserved.",
+        copyright: "Scripture quotations taken from the New American Standard Bible\xAE (NASB 1995), Copyright \xA9 1960, 1971, 1977, 1995 by The Lockman Foundation. All rights reserved.",
         website: "https://www.lockman.org",
         isPublicDomain: false,
         sortOrder: 7
@@ -28650,7 +28650,7 @@ var init_translations = __esm({
         name: "Christian Standard Bible",
         abbreviation: "CSB",
         publisher: "Holman Bible Publishers",
-        copyright: "Christian Standard Bible\xAE, CSB\xAE Copyright \xA9 2017 by Holman Bible Publishers. Used by permission. All rights reserved.",
+        copyright: "Christian Standard Bible\xAE, CSB\xAE Copyright \xA9 2017 by Holman Bible Publishers. All rights reserved.",
         website: "https://csbible.com",
         isPublicDomain: false,
         sortOrder: 8
@@ -28660,7 +28660,7 @@ var init_translations = __esm({
         name: "Amplified Bible",
         abbreviation: "AMP",
         publisher: "The Lockman Foundation",
-        copyright: "Scripture quotations marked AMP are taken from the Amplified\xAE Bible, Copyright \xA9 2015 by The Lockman Foundation. Used by permission. All rights reserved.",
+        copyright: "Scripture quotations marked AMP are taken from the Amplified\xAE Bible, Copyright \xA9 2015 by The Lockman Foundation. All rights reserved.",
         website: "https://www.lockman.org",
         isPublicDomain: false,
         sortOrder: 9
@@ -28670,7 +28670,7 @@ var init_translations = __esm({
         name: "The Message",
         abbreviation: "MSG",
         publisher: "NavPress",
-        copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright \xA9 1993, 2002, 2018 by Eugene H. Peterson. Used by permission of NavPress.",
+        copyright: "Scripture quotations marked MSG are taken from THE MESSAGE, copyright \xA9 1993, 2002, 2018 by Eugene H. Peterson.",
         website: "https://www.navpress.com",
         isPublicDomain: false,
         sortOrder: 10
@@ -30600,6 +30600,22 @@ var init_fetch_verse_text = __esm({
   }
 });
 
+// src/utils/my-pile-thread.ts
+function normalizeMyPileTitleForComparison(title) {
+  return (title ?? "").trim().toLowerCase();
+}
+function isMyPileDisplayTitle(title) {
+  const n = normalizeMyPileTitleForComparison(title);
+  return n === "my pile" || n === "unorganized" || n === "sort later";
+}
+var MY_PILE_THREAD_TITLE;
+var init_my_pile_thread = __esm({
+  "src/utils/my-pile-thread.ts"() {
+    "use strict";
+    MY_PILE_THREAD_TITLE = "My Pile";
+  }
+});
+
 // server/utils/unorganized-thread.ts
 var unorganized_thread_exports = {};
 __export(unorganized_thread_exports, {
@@ -30621,11 +30637,14 @@ async function ensureUnorganizedThread(userId) {
       eq(Threads.userId, userId),
       eq(Threads.id, "thread_unorganized")
     )).limit(1));
+    if (existingThread && existingThread.title !== MY_PILE_THREAD_TITLE) {
+      await db.update(Threads).set({ title: MY_PILE_THREAD_TITLE, updatedAt: nowISO() }).where(eq(Threads.id, "thread_unorganized"));
+    }
     if (!existingThread) {
       try {
         await db.insert(Threads).values({
           id: "thread_unorganized",
-          title: "Unorganized",
+          title: MY_PILE_THREAD_TITLE,
           subtitle: "Notes that haven't been organized into threads yet",
           spaceId: null,
           userId,
@@ -30649,7 +30668,7 @@ async function ensureUnorganizedThread(userId) {
     )).limit(1));
     const threadData = {
       id: "thread_unorganized",
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       color: null,
       noteCount: noteCount?.count || 0,
       backgroundGradient: "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
@@ -30659,7 +30678,7 @@ async function ensureUnorganizedThread(userId) {
     console.error("Error in ensureUnorganizedThread:", error);
     return {
       id: "thread_unorganized",
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       color: null,
       noteCount: 0,
       backgroundGradient: "linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)"
@@ -30671,6 +30690,7 @@ var init_unorganized_thread = __esm({
     "use strict";
     init_db2();
     init_dates();
+    init_my_pile_thread();
   }
 });
 
@@ -31511,7 +31531,7 @@ var init_onboarding_notes_generated = __esm({
       },
       {
         "title": "Notes, threads, and spaces oh my!",
-        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there are some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There are two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.</p>\n<p>When you erase a thread, your notes stay in Harvous unless you choose <strong>Erase thread and notes</strong>: <strong>Erase thread</strong> moves any note that only lived in that thread into <strong>Unorganized</strong>; <strong>Erase thread and notes</strong> removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are <strong>view-only</strong> in the app\u2014you can read them here, not edit them in the editor.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique (FYI: you can see many of these on the details panel which you open from the \u201C...\u201D square button to the right or at the bottom):</p>\n<ol>\n<li>Each note gets its own # (e.g. N316). Numbered note IDs are unlimited for everyone\u2014the idea is you can refer to a note quickly by its number. </li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. Harvous includes many translations, including <strong>KJV, NKJV, ESV, NIV, NLT, NET, BSB, NASB, CSB, AMP, and MSG</strong>. You can select your default Bible translation in <strong>My Profile \u2192 My Preferences</strong>. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on the note it was highlighted on to create a link between the two. (This one is my favorite)</li>\n</ol>",
+        "content": "<p>First and foremost this is a notes app. But because it\u2019s designed for Bible study there are some unique things worth mentioning. </p>\n<h2>Spaces</h2>\n<p>Spaces are where threads and notes are placed. \u201CMy Home\u201D is the permanent space for all your threads and notes by default. You&#39;ll find this at the top with a up and down arrow icon next to it (similar to the buttons you press to call for an elevator). This is where you started from before you selected the \u201CWelcome to Harvous\u201D thread. Only way to delete the \u201CMy Home\u201D space would be to delete your account (which you can easily do by the way).</p>\n<p>There are two places to find spaces:</p>\n<ol>\n<li>At the top by selecting &quot;My Home&quot; and this will expand to see any existing spaces to visit</li>\n<li>In Profile (your initials) within &quot;My Spaces.&quot;</li>\n</ol>\n<p>You create spaces by finding the \u201CNew Space\u201D button within where you can find your spaces (mentioned above).</p>\n<p>Spaces can be <strong>private</strong> (just you) or <strong>shared</strong>. With a shared space you get a link to invite others\u2014great for small groups, family devotions, or a study with friends. Everyone in the space can add any existing threads and notes or create new threads and notes there. Shared spaces are available on all plans.</p>\n<p>When you erase a space, your notes and threads stay safe\u2014you&#39;re just removing the grouping.</p>\n<h2>Threads</h2>\n<p>Threads are where notes belong (instead of \u201Cfolders\u201D) For example this note is inside the \u201CWelcome to Harvous\u201D thread. Right now they are only private, but in the future you could make them shared for friends, group study, or the general public. Threads are called threads because they are meant to be worked on over time where a folder\u2019s job is to collect.</p>\n<p>You create threads from the big blue plus button at the bottom.</p>\n<p>When you erase a thread, your notes stay in Harvous unless you choose <strong>Erase thread and notes</strong>: <strong>Erase thread</strong> moves any note that only lived in that thread into <strong>My Pile</strong>; <strong>Erase thread and notes</strong> removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are <strong>view-only</strong> in the app\u2014you can read them here, not edit them in the editor.</p>\n<h2>Notes</h2>\n<p>Notes are notes. What you expect from a notes app is here, but here are some things that make notes in Harvous unique. Open the <strong>...</strong> (more) menu on a note\u2014the action strip along the <strong>bottom</strong> of the screen\u2014to see threads, tags, and other options for that note.</p>\n<ol>\n<li>Each note gets its own # (e.g. N316). Numbered note IDs are unlimited for everyone\u2014the idea is you can refer to a note quickly by its number.</li>\n<li>To get scripture create a new note and just type the scripture reference in the title field. Wait a second and you will see the text.</li>\n<li>If and when you type a scripture reference like John 3:16-17 you will see an auto-generated pill with said scripture text as another note. Harvous includes many translations, including <strong>KJV, NKJV, ESV, NIV, NLT, NET, BSB, NASB, CSB, AMP, and MSG</strong>. You can select your default Bible translation in <strong>My Profile \u2192 My Preferences</strong>. Harvous keeps track of where your scripture was captured with what notes and threads.</li>\n<li>Speaking of threads again... notes can belong to more than one thread. Harvous treats notes as gold.</li>\n<li>Of course there are tags! Every notes app has tags. But, there is a library of available tags Harvous picks from and auto-generates based on the content of your note.</li>\n<li>Select text to create a new note. Sometimes you want to go deeper in a brand new note. Well you can! Oh and Harvous highlights this selected text on the note it was highlighted on to create a link between the two. (This one is my favorite)</li>\n</ol>",
         "order": 2
       },
       {
@@ -70930,9 +70950,66 @@ function sortByCreatedAtAsc(items) {
     return 0;
   });
 }
+function sortOnboardingThreadNotes(items) {
+  const rank = (n) => n != null && n > 0 ? n : Number.MAX_SAFE_INTEGER;
+  return [...items].sort((a, b3) => {
+    const aR = rank(a.simpleNoteId);
+    const bR = rank(b3.simpleNoteId);
+    if (aR !== bR) return aR - bR;
+    const aTime = a.createdAt ? normalizeDate(a.createdAt)?.getTime() ?? 0 : 0;
+    const bTime = b3.createdAt ? normalizeDate(b3.createdAt)?.getTime() ?? 0 : 0;
+    if (aTime !== bTime) return aTime - bTime;
+    const aId = a.id || "";
+    const bId = b3.id || "";
+    if (aId < bId) return -1;
+    if (aId > bId) return 1;
+    return 0;
+  });
+}
+
+// src/utils/last-visited-sections.ts
+var SECTION_KEYS = {
+  recent: "recent",
+  moreThan3Days: "moreThan3Days",
+  moreThan1Week: "moreThan1Week",
+  moreThan2Weeks: "moreThan2Weeks",
+  moreThan1Month: "moreThan1Month",
+  moreThan6Months: "moreThan6Months",
+  moreThan1Year: "moreThan1Year"
+};
+var SECTION_ORDER = [
+  SECTION_KEYS.recent,
+  SECTION_KEYS.moreThan3Days,
+  SECTION_KEYS.moreThan1Week,
+  SECTION_KEYS.moreThan2Weeks,
+  SECTION_KEYS.moreThan1Month,
+  SECTION_KEYS.moreThan6Months,
+  SECTION_KEYS.moreThan1Year
+];
+var SECTION_LABELS = {
+  [SECTION_KEYS.recent]: "",
+  // No label for first group
+  [SECTION_KEYS.moreThan3Days]: "More than 3 days ago",
+  [SECTION_KEYS.moreThan1Week]: "More than a week ago",
+  [SECTION_KEYS.moreThan2Weeks]: "More than 2 weeks ago",
+  [SECTION_KEYS.moreThan1Month]: "More than a month ago",
+  [SECTION_KEYS.moreThan6Months]: "More than 6 months ago",
+  [SECTION_KEYS.moreThan1Year]: "More than a year ago"
+};
+var MS_PER_DAY = 24 * 60 * 60 * 1e3;
+var THREE_DAYS_MS = 3 * MS_PER_DAY;
+var ONE_WEEK_MS = 7 * MS_PER_DAY;
+var TWO_WEEKS_MS = 14 * MS_PER_DAY;
+var ONE_MONTH_MS = 30 * MS_PER_DAY;
+var SIX_MONTHS_MS = 182 * MS_PER_DAY;
+var ONE_YEAR_MS = 365 * MS_PER_DAY;
+function isOnboardingThread(threadId) {
+  return typeof threadId === "string" && threadId.startsWith("thread_onboarding_");
+}
 
 // server/utils/dashboard-data.ts
 init_html_stripper();
+init_my_pile_thread();
 async function spaceUsesChronologicalOrdering(spaceId) {
   const row = first(
     await db.select({ isPublic: Spaces.isPublic }).from(Spaces).where(eq(Spaces.id, spaceId)).limit(1)
@@ -70964,10 +71041,19 @@ async function findUnorganizedThread(userId) {
     const existing = first(
       await db.select(selectFields).from(Threads).where(eq(Threads.id, "thread_unorganized")).limit(1)
     );
-    if (existing) return existing;
+    if (existing) {
+      if (existing.title !== MY_PILE_THREAD_TITLE) {
+        await db.update(Threads).set({ title: MY_PILE_THREAD_TITLE, updatedAt: nowISO() }).where(eq(Threads.id, "thread_unorganized"));
+        const refreshed = first(
+          await db.select(selectFields).from(Threads).where(eq(Threads.id, "thread_unorganized")).limit(1)
+        );
+        if (refreshed) return refreshed;
+      }
+      return existing;
+    }
     await db.insert(Threads).values({
       id: "thread_unorganized",
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       subtitle: "Notes that haven't been organized into threads yet",
       spaceId: null,
       userId,
@@ -70984,10 +71070,6 @@ async function findUnorganizedThread(userId) {
     console.error("Error finding/creating unorganized thread:", error);
     return null;
   }
-}
-async function getSpaceMemberCount(spaceId) {
-  const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId));
-  return members.length;
 }
 async function getAllThreadsWithCounts(userId) {
   try {
@@ -71143,21 +71225,24 @@ async function getSpacesWithCounts(userId) {
 }
 async function getMemberOfSpaces(userId) {
   try {
-    const [memberships, ownedSpaceIds] = await Promise.all([
-      db.select({ spaceId: Members.spaceId }).from(Members).where(eq(Members.userId, userId)),
-      db.select({ id: Spaces.id }).from(Spaces).where(eq(Spaces.userId, userId))
+    const spaceRows = await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color }).from(Members).innerJoin(Spaces, eq(Members.spaceId, Spaces.id)).where(and(eq(Members.userId, userId), ne(Spaces.userId, userId)));
+    if (spaceRows.length === 0) return [];
+    const spaceIds = spaceRows.map((r) => r.id);
+    const [memberCounts, threadCounts, noteCounts] = await Promise.all([
+      db.select({ spaceId: Members.spaceId, cnt: count() }).from(Members).where(inArray(Members.spaceId, spaceIds)).groupBy(Members.spaceId),
+      db.select({ spaceId: Threads.spaceId, cnt: count() }).from(Threads).where(and(isNotNull(Threads.spaceId), inArray(Threads.spaceId, spaceIds))).groupBy(Threads.spaceId),
+      db.select({ spaceId: Notes.spaceId, cnt: count() }).from(Notes).where(and(isNotNull(Notes.spaceId), inArray(Notes.spaceId, spaceIds))).groupBy(Notes.spaceId)
     ]);
-    const ownedSet = new Set(ownedSpaceIds.map((r) => r.id));
-    const nonOwnedMemberships = memberships.filter((m2) => !ownedSet.has(m2.spaceId));
-    const results = await Promise.all(
-      nonOwnedMemberships.map(async (m2) => {
-        const spaceRow = first(await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color }).from(Spaces).where(eq(Spaces.id, m2.spaceId)).limit(1));
-        if (!spaceRow) return null;
-        const memberCount = await getSpaceMemberCount(spaceRow.id);
-        return { id: spaceRow.id, title: spaceRow.title, color: spaceRow.color, memberCount };
-      })
-    );
-    return results.filter((r) => r !== null);
+    const memberCountMap = new Map(memberCounts.map((r) => [r.spaceId, r.cnt]));
+    const threadCountMap = new Map(threadCounts.map((r) => [r.spaceId, r.cnt]));
+    const noteCountMap = new Map(noteCounts.map((r) => [r.spaceId, r.cnt]));
+    return spaceRows.map((space) => ({
+      id: space.id,
+      title: space.title,
+      color: space.color,
+      memberCount: memberCountMap.get(space.id) || 0,
+      totalItemCount: (threadCountMap.get(space.id) || 0) + (noteCountMap.get(space.id) || 0)
+    }));
   } catch (error) {
     console.error("Error fetching member-of spaces:", error);
     return [];
@@ -71404,13 +71489,14 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       }
       allNotes = allNotes.filter((n) => n.noteType !== "scripture" || !organizedScriptureIds.has(n.id ?? ""));
     } else {
-      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(
+      const threadOrderBy = isOnboardingThread(threadId) ? [asc(Notes.simpleNoteId), asc(Notes.id)] : [
         asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
         desc(Notes.lastVisited),
         desc(Notes.updatedAt),
         desc(Notes.createdAt),
         asc(Notes.id)
-      ).limit(fetchLimit);
+      ];
+      const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.userId, userId))).orderBy(...threadOrderBy).limit(fetchLimit);
       const threadNoteIds = junctionNotes.map((n) => n.id).filter(Boolean);
       let referencedScriptureNotes = [];
       if (threadNoteIds.length > 0) {
@@ -71428,9 +71514,8 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
       });
       allNotes = Array.from(notesMap.values());
     }
-    const sortedAllNotes = sortByLastVisited(
-      allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
-    );
+    const mappedNotes = allNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }));
+    const sortedAllNotes = isOnboardingThread(threadId) ? sortOnboardingThreadNotes(mappedNotes) : sortByLastVisited(mappedNotes);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -71497,16 +71582,16 @@ async function getNotesForThread(threadId, userId, limit = 20, offset = 0) {
 async function getNotesForThreadForMember(threadId, ownerUserId, limit = 100, offset = 0) {
   try {
     const fetchLimit = limit + offset + 1;
-    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(
+    const memberThreadOrderBy = isOnboardingThread(threadId) ? [asc(Notes.simpleNoteId), asc(Notes.id)] : [
       asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
       desc(Notes.lastVisited),
       desc(Notes.updatedAt),
       desc(Notes.createdAt),
       asc(Notes.id)
-    ).limit(fetchLimit);
-    const sortedAllNotes = sortByLastVisited(
-      junctionNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }))
-    );
+    ];
+    const junctionNotes = await db.select(NOTE_SELECT_COLUMNS).from(Notes).innerJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(NoteThreads.threadId, threadId), eq(Notes.contentEncrypted, false))).orderBy(...memberThreadOrderBy).limit(fetchLimit);
+    const mappedMember = junctionNotes.map((note) => ({ ...note, updatedAt: note.updatedAt || note.createdAt, id: note.id || "" }));
+    const sortedAllNotes = isOnboardingThread(threadId) ? sortOnboardingThreadNotes(mappedMember) : sortByLastVisited(mappedMember);
     const hasMore = sortedAllNotes.length > offset + limit;
     const sortedNotes = sortedAllNotes.slice(offset, offset + limit);
     const resourceNoteIds = sortedNotes.filter((n) => n.noteType === "resource").map((n) => n.id);
@@ -71771,7 +71856,7 @@ async function getContentItems(userId, limit = 20, offset = 0, filterExcludeRefe
         scriptureReferences: scriptureReferencesMap[note.id] || void 0,
         version: version2,
         userId: note.userId,
-        threadTitle: note.threadId === "thread_unorganized" ? "Unorganized" : noteThread?.title ?? null,
+        threadTitle: note.threadId === "thread_unorganized" ? MY_PILE_THREAD_TITLE : noteThread?.title ?? null,
         threadColor: noteThread?.color ?? null,
         threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null)
       };
@@ -72213,7 +72298,7 @@ function handleAPIError(error, context) {
 
 // server/routes/navigation.ts
 init_unorganized_thread();
-init_db2();
+init_my_pile_thread();
 var route2 = new Hono2();
 route2.get("/api/navigation/data", async (c) => {
   try {
@@ -72238,7 +72323,7 @@ route2.get("/api/navigation/data", async (c) => {
     const now2 = (/* @__PURE__ */ new Date()).toISOString();
     threadsWithGradients.push({
       id: "thread_unorganized",
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       subtitle: "Notes that haven't been organized into threads yet",
       color: null,
       spaceId: null,
@@ -72256,14 +72341,9 @@ route2.get("/api/navigation/data", async (c) => {
       ...space,
       backgroundGradient: space.backgroundGradient || getThreadGradientCSS(space.color || "paper")
     }));
-    const memberSpacesWithGradients = await Promise.all(memberSpaces.map(async (space) => {
-      const threadCountResult = first(await db.select({ count: count() }).from(Threads).where(eq(Threads.spaceId, space.id)).limit(1));
-      const noteCountResult = first(await db.select({ count: count() }).from(Notes).where(and(eq(Notes.spaceId, space.id), isNotNull(Notes.spaceId))).limit(1));
-      return {
-        ...space,
-        totalItemCount: (threadCountResult?.count || 0) + (noteCountResult?.count || 0),
-        backgroundGradient: getThreadGradientCSS(space.color || "paper")
-      };
+    const memberSpacesWithGradients = memberSpaces.map((space) => ({
+      ...space,
+      backgroundGradient: getThreadGradientCSS(space.color || "paper")
     }));
     return c.json(
       {
@@ -74524,6 +74604,7 @@ function getClientIP(request) {
 
 // server/routes/threads.ts
 init_ids();
+init_my_pile_thread();
 var route9 = new Hono2();
 var ERASE_NOTE_CHUNK = 2e3;
 function parseSelectedNoteIds(raw2) {
@@ -74579,7 +74660,7 @@ route9.get("/api/threads/list", requireAuth, async (c) => {
     if (!hasUnorganizedThread) {
       threadOptions.unshift({
         id: "thread_unorganized",
-        title: "Unorganized",
+        title: MY_PILE_THREAD_TITLE,
         color: null,
         spaceId: null,
         noteCount: unorganizedThreadData.noteCount || 0,
@@ -74721,7 +74802,7 @@ route9.delete("/api/threads/delete", requireAuth, rateLimit("write"), async (c) 
       }
     }
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
-    return c.json({ success: "Thread erased! Notes have been moved to the Unorganized thread.", threadId });
+    return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
   } catch (error) {
     const standardError = handleAPIError(error, { endpoint: "/api/threads/delete", action: "delete_thread" });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -74732,13 +74813,13 @@ route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
     const auth = getAuthenticatedAuth(c);
     const existingThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
     if (existingThread) {
-      return c.json({ success: true, message: "Unorganized thread already exists", thread: existingThread });
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: existingThread });
     }
     const now2 = nowISO();
     const unorganizedThread = {
       id: "thread_unorganized",
       userId: auth.userId,
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       subtitle: "Individual notes and unassigned content",
       color: null,
       spaceId: null,
@@ -74749,11 +74830,11 @@ route9.post("/api/threads/ensure-unorganized", requireAuth, async (c) => {
     };
     try {
       await db.insert(Threads).values(unorganizedThread);
-      return c.json({ success: true, message: "Unorganized thread created", thread: unorganizedThread }, 201);
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
     } catch (insertError) {
       if (insertError.code === "23505" || insertError.message?.includes("unique constraint")) {
         const createdThread = first(await db.select().from(Threads).where(and(eq(Threads.userId, auth.userId), eq(Threads.id, "thread_unorganized"))).limit(1));
-        if (createdThread) return c.json({ success: true, message: "Unorganized thread already exists", thread: createdThread });
+        if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });
       }
       throw insertError;
     }
@@ -74816,7 +74897,7 @@ route9.get("/api/threads/:threadId/prefetch", requireAuth, async (c) => {
         const notes2 = Array.isArray(notesResult) ? [] : notesResult.notes;
         thread = {
           id: "thread_unorganized",
-          title: "Unorganized",
+          title: MY_PILE_THREAD_TITLE,
           subtitle: "Notes that haven't been organized into threads yet",
           color: null,
           userId: auth.userId,
@@ -75089,6 +75170,7 @@ init_xp_system();
 init_auto_tag_generator();
 init_process_scripture_references();
 init_unorganized_thread();
+init_my_pile_thread();
 
 // server/utils/heal-scripture-note-threads.ts
 init_db2();
@@ -86599,7 +86681,7 @@ route10.get("/api/notes/:id/details", requireAuth, async (c) => {
         const unorganizedCountResult = first(await db.select({ count: count() }).from(Notes).leftJoin(NoteThreads, eq(NoteThreads.noteId, Notes.id)).where(and(eq(Notes.userId, auth.userId), isNull(NoteThreads.id))).limit(1));
         allThreads = [{
           ...unorganizedRow,
-          title: "Unorganized",
+          title: unorganizedRow.title || MY_PILE_THREAD_TITLE,
           subtitle: unorganizedRow.subtitle || "Thread",
           count: unorganizedCountResult?.count || 0,
           backgroundGradient: getThreadGradientCSS(unorganizedRow.color || "paper")
@@ -87095,7 +87177,7 @@ async function getSpaceMembershipCount(userId) {
   const memberships = await db.select().from(Members).where(eq(Members.userId, userId));
   return memberships.length;
 }
-async function getSpaceMemberCount2(spaceId) {
+async function getSpaceMemberCount(spaceId) {
   const members = await db.select().from(Members).where(eq(Members.spaceId, spaceId));
   return members.length;
 }
@@ -87114,7 +87196,7 @@ async function canCreateSharedSpace(userId, auth) {
   return { allowed: true, currentCount, limit: limits.ownedSharedSpaces };
 }
 async function canOwnerAddOneMoreSharedSpace(ownerUserId, spaceId, ownerAuth) {
-  const currentMemberCount = await getSpaceMemberCount2(spaceId);
+  const currentMemberCount = await getSpaceMemberCount(spaceId);
   if (currentMemberCount > 0) return { allowed: true };
   const tier = ownerAuth ? getUserTier(ownerAuth) : await getTierForUserId(ownerUserId);
   const limits = getTierLimits(tier);
@@ -87133,20 +87215,19 @@ async function canOwnerAddOneMoreSharedSpace(ownerUserId, spaceId, ownerAuth) {
 async function canAddMemberToSpace(spaceId, _spaceOwnerId, ownerAuth) {
   const tier = getUserTier(ownerAuth);
   const limits = getTierLimits(tier);
-  const currentCount = await getSpaceMemberCount2(spaceId);
+  const currentCount = await getSpaceMemberCount(spaceId);
   if (currentCount >= limits.membersPerSpace) {
     return { allowed: false, reason: "This space has reached its people limit.", currentCount, limit: limits.membersPerSpace };
   }
   return { allowed: true, currentCount, limit: limits.membersPerSpace };
 }
-async function canAddMemberToSpaceByOwnerId(spaceId, spaceOwnerId) {
-  const tier = await getTierForUserId(spaceOwnerId);
-  const limits = getTierLimits(tier);
-  const currentCount = await getSpaceMemberCount2(spaceId);
-  if (currentCount >= limits.membersPerSpace) {
-    return { allowed: false, reason: "This space has reached its people limit.", currentCount, limit: limits.membersPerSpace };
+async function canAddMemberToSpaceByOwnerId(spaceId, _spaceOwnerId) {
+  const limit = MEMBERS_PER_SPACE_CAP;
+  const currentCount = await getSpaceMemberCount(spaceId);
+  if (currentCount >= limit) {
+    return { allowed: false, reason: "This space has reached its people limit.", currentCount, limit };
   }
-  return { allowed: true, currentCount, limit: limits.membersPerSpace };
+  return { allowed: true, currentCount, limit };
 }
 async function canJoinSpace(userId, auth) {
   const tier = getUserTier(auth);
@@ -87187,6 +87268,9 @@ var PREFIXES = [
 ];
 function idToUrl(id, threadContext, fromNoteId) {
   if (id == null || typeof id !== "string") return "/";
+  if (id === "thread_unorganized") {
+    return "/thread/mypile";
+  }
   let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
     if (id.startsWith(prefix)) {
@@ -87958,7 +88042,7 @@ route11.get("/api/spaces/join-preview/:token", async (c) => {
     const ownerFirst = ownerMeta?.firstName || "";
     const ownerLastInitial = ownerMeta?.lastName ? ownerMeta.lastName.charAt(0).toUpperCase() : "";
     const ownerDisplayName = isHarvousOwned ? "Harvous" : ownerFirst ? ownerLastInitial ? `${ownerFirst} ${ownerLastInitial}.` : ownerFirst : "Anonymous";
-    const memberCount = await getSpaceMemberCount2(space.id);
+    const memberCount = await getSpaceMemberCount(space.id);
     const totalMembers = memberCount + 1;
     const threads = await db.select({ id: Threads.id, title: Threads.title, color: Threads.color }).from(Threads).where(eq(Threads.spaceId, space.id)).orderBy(desc(Threads.updatedAt)).limit(5);
     const threadIds = threads.map((t) => t.id);
@@ -88171,6 +88255,7 @@ function htmlToPlainText(html) {
 
 // server/utils/export-user-data.ts
 init_db2();
+init_my_pile_thread();
 async function generateUserExport(userId, format) {
   const allNotes = await db.select({
     id: Notes.id,
@@ -88232,7 +88317,7 @@ async function generateUserExport(userId, format) {
       const tags = noteTagsMap.get(note.id) || [];
       const plainContent = htmlToPlainText(note.content || "");
       rows.push([
-        escapeCSV(thread?.title || "Unorganized"),
+        escapeCSV(thread?.title || MY_PILE_THREAD_TITLE),
         escapeCSV(thread?.color || ""),
         escapeCSV(note.title || "Untitled"),
         escapeCSV(plainContent),
@@ -88477,6 +88562,7 @@ function parseMarkdownNoteSection(section) {
 // server/routes/user.ts
 init_scripture_detector();
 init_unorganized_thread();
+init_my_pile_thread();
 var app = new Hono2();
 var NOTE_ID_DELETE_CHUNK = 2e3;
 async function deleteNoteRelatedRowsBulk(noteIds) {
@@ -89183,7 +89269,7 @@ app.get("/api/profile/my-shared-spaces", requireAuth, rateLimit("read"), async (
     );
     const owned = [];
     for (const space of ownedSpacesRows) {
-      const memberCount = await getSpaceMemberCount2(space.id);
+      const memberCount = await getSpaceMemberCount(space.id);
       const hasShareLink = space.shareToken != null && space.shareToken.length > 0;
       if (memberCount > 0 || hasShareLink) {
         owned.push({
@@ -89203,7 +89289,7 @@ app.get("/api/profile/my-shared-spaces", requireAuth, rateLimit("read"), async (
       if (ownedSpaceIds.has(m2.spaceId)) continue;
       const spaceRow = first(await db.select({ id: Spaces.id, title: Spaces.title, color: Spaces.color }).from(Spaces).where(eq(Spaces.id, m2.spaceId)).limit(1));
       if (spaceRow) {
-        const memberCount = await getSpaceMemberCount2(spaceRow.id);
+        const memberCount = await getSpaceMemberCount(spaceRow.id);
         memberOf.push({ id: spaceRow.id, title: spaceRow.title || "Untitled space", color: spaceRow.color ?? void 0, memberCount });
       }
     }
@@ -89252,7 +89338,7 @@ function getThreadColorFromTitle(threadTitle) {
   return availableColors[Math.abs(hash) % availableColors.length];
 }
 async function getOrCreateThread(userId, threadTitle, threadColor) {
-  if (!threadTitle || threadTitle.trim() === "" || threadTitle === "Unorganized") {
+  if (!threadTitle || threadTitle.trim() === "" || isMyPileDisplayTitle(threadTitle)) {
     await ensureUnorganizedThread(userId);
     return "thread_unorganized";
   }
@@ -90150,13 +90236,19 @@ app3.post("/api/invitations/:token/accept", requireAuth, rateLimit("write"), asy
   try {
     const auth = getAuthenticatedAuth(c);
     const token = requireParam(c, "token");
+    await db.delete(SpaceInvitations).where(
+      and(
+        eq(SpaceInvitations.status, "expired"),
+        lt(SpaceInvitations.expiresAt, sql`datetime('now', '-30 days')`)
+      )
+    );
     const invitation = first(await db.select().from(SpaceInvitations).where(eq(SpaceInvitations.inviteToken, token)).limit(1));
     if (!invitation) return c.json({ error: "Invitation not found", code: "NOT_FOUND" }, 404);
     if (invitation.status !== "pending") {
       return c.json({ error: `This invitation has already been ${invitation.status}`, code: "INVITATION_NOT_PENDING" }, 410);
     }
     if (invitation.expiresAt && /* @__PURE__ */ new Date() > new Date(invitation.expiresAt)) {
-      await db.update(SpaceInvitations).set({ status: "expired" }).where(eq(SpaceInvitations.id, invitation.id));
+      await db.delete(SpaceInvitations).where(eq(SpaceInvitations.id, invitation.id));
       return c.json({ error: "This invitation has expired", code: "INVITATION_EXPIRED" }, 410);
     }
     const space = first(await db.select().from(Spaces).where(eq(Spaces.id, invitation.spaceId)).limit(1));

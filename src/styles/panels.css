@@ -972,8 +972,11 @@ html.ios-pwa .drawer-slide {
 .tab-btn .badge-count {
   background: rgba(120, 118, 111, 0.1) !important;
   opacity: 1 !important; /* Override parent opacity so badge appears at full opacity */
-  width: 22px !important;
+  min-width: 22px !important;
+  width: max-content !important;
   height: 22px !important;
+  padding: 0 5px !important;
+  box-sizing: border-box !important;
 }
 
 .tab-btn .badge-number {

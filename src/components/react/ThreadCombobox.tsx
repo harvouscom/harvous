@@ -5,6 +5,7 @@ import ActionButton from './ActionButton';
 import Icon from './Icon';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, type ThreadColor } from '@/utils/colors';
+import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 
 interface Thread {
   id: string;
@@ -641,7 +642,7 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
             
             {filteredThreads.length > 0 ? (
               filteredThreads.map((thread) => {
-                const isUnorganized = thread.id === 'thread_unorganized' || thread.title === 'Unorganized';
+                const isUnorganized = thread.id === 'thread_unorganized' || isMyPileDisplayTitle(thread.title);
                 const threadAccentColor = isUnorganized 
                   ? "var(--color-paper)" 
                   : (thread.color ? `var(--color-${thread.color})` : "var(--color-purple)");
@@ -684,7 +685,13 @@ const ThreadCombobox: React.FC<ThreadComboboxProps> = ({
                         style={{ backgroundColor: 'white' }}
                       >
                         <div className="relative shrink-0 size-5">
-                          {thread.isPublic === true ? (
+                          {isUnorganized ? (
+                            <Icon
+                              name="layer-group"
+                              size={20}
+                              className="thread-combobox-create-row-icon block max-w-none size-full text-[var(--color-deep-grey)] opacity-80 pointer-events-none"
+                            />
+                          ) : thread.isPublic === true ? (
                             <svg className="block max-w-none size-full text-[var(--color-deep-grey)] opacity-80" fill="currentColor" viewBox="0 0 640 640">
                               <path d="M96 192C96 130.1 146.1 80 208 80C269.9 80 320 130.1 320 192C320 253.9 269.9 304 208 304C146.1 304 96 253.9 96 192zM32 528C32 430.8 110.8 352 208 352C305.2 352 384 430.8 384 528L384 534C384 557.2 365.2 576 342 576L74 576C50.8 576 32 557.2 32 534L32 528zM464 128C517 128 560 171 560 224C560 277 517 320 464 320C411 320 368 277 368 224C368 171 411 128 464 128zM464 368C543.5 368 608 432.5 608 512L608 534.4C608 557.4 589.4 576 566.4 576L421.6 576C428.2 563.5 432 549.2 432 534L432 528C432 476.5 414.6 429.1 385.5 391.3C408.1 376.6 435.1 368 464 368z"/>
                             </svg>

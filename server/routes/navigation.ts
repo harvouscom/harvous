@@ -14,6 +14,7 @@ import { getAllThreadsWithCounts, getSpacesWithCounts, getInboxDisplayCount, get
 import { getThreadGradientCSS } from '@/utils/colors';
 import { handleAPIError } from '@/utils/error-handling';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 const route = new Hono();
 
@@ -50,7 +51,7 @@ route.get('/api/navigation/data', async (c) => {
     const now = new Date().toISOString();
     threadsWithGradients.push({
       id: 'thread_unorganized',
-      title: 'Unorganized',
+      title: MY_PILE_THREAD_TITLE,
       subtitle: "Notes that haven't been organized into threads yet" as string | null,
       color: null,
       spaceId: null,

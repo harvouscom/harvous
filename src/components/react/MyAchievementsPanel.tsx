@@ -136,7 +136,7 @@ export default function MyAchievementsPanel({
                             </span>
                           </div>
                           <div className="p-[20px] flex-shrink-0">
-                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex-center rounded-3xl w-6 h-6">
+                            <div className="badge-count bg-[rgba(120,118,111,0.1)] flex-center rounded-3xl">
                               <span className="text-[14px] font-sans font-semibold text-[var(--color-deep-grey)] leading-[0] badge-number">
                                 {formatBadgeCount(xpData.allSeasons.length)}
                               </span>

@@ -540,10 +540,8 @@
   min-width: 0;
 }
 
+/* Inherits pill sizing from navigation.css `.badge-count`; opacity only here */
 .condensed-thread-item .badge-count {
-  width: auto;
-  min-width: 24px;
-  padding: 0 6px;
   opacity: 1 !important;
 }
 

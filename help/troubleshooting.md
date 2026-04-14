@@ -12,7 +12,7 @@ Solutions to common problems and issues in Harvous.
 - Note was moved to a different space
 
 **Solutions:**
-1. **Check "For You" tab**: Unorganized notes appear here
+1. **Check "For You" tab**: Notes in My Pile appear here
 2. **Use search**: Search for the note by title or content
 3. **Browse by thread**: Check the thread you assigned it to
 4. **Browse by space**: Check the space it belongs to

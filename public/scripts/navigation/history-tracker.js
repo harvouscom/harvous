@@ -473,13 +473,14 @@ function extractItemDataFromPage(currentItemId) {
       }
     }
     
+    // Display title for thread_unorganized — keep in sync with src/utils/my-pile-thread.ts (MY_PILE_THREAD_TITLE)
     // For note pages, try to get parent thread data from the main content area
     if (currentItemId.startsWith('note_')) {
       const noteElement = document.querySelector('[data-note-id]');
       
       if (noteElement) {
         const parentThreadId = noteElement.dataset.parentThreadId || 'thread_unorganized';
-        const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'Unorganized';
+        const parentThreadTitle = noteElement.dataset.parentThreadTitle || 'My Pile';
         const parentThreadCount = noteElement.dataset.parentThreadCount || '0';
         const parentThreadBackgroundGradient = noteElement.dataset.parentThreadBackgroundGradient;
         const parentThreadColor = noteElement.dataset.parentThreadColor;
@@ -488,7 +489,7 @@ function extractItemDataFromPage(currentItemId) {
         if (parentThreadId === 'thread_unorganized') {
           return {
             id: 'thread_unorganized',
-            title: 'Unorganized',
+            title: 'My Pile',
             type: 'thread',
             count: parseInt(parentThreadCount) || 0,
             backgroundGradient: parentThreadBackgroundGradient || getThreadGradientCSS('paper'),
@@ -513,7 +514,7 @@ function extractItemDataFromPage(currentItemId) {
     if (currentItemId.startsWith('thread_')) {
       itemData = {
         id: currentItemId,
-        title: currentItemId === 'thread_unorganized' ? 'Unorganized' : 'Thread',
+        title: currentItemId === 'thread_unorganized' ? 'My Pile' : 'Thread',
         type: 'thread',
         count: 0,
         backgroundGradient: currentItemId === 'thread_unorganized' 
@@ -531,10 +532,10 @@ function extractItemDataFromPage(currentItemId) {
         color: 'paper'
       };
     } else if (currentItemId.startsWith('note_')) {
-      // Final fallback for notes: default to unorganized
+      // Final fallback for notes: default to My Pile thread
       itemData = {
         id: 'thread_unorganized',
-        title: 'Unorganized',
+        title: 'My Pile',
         type: 'thread',
         count: 0,
         backgroundGradient: getThreadGradientCSS('paper'),

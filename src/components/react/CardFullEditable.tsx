@@ -1837,44 +1837,49 @@ export default function CardFullEditable({
         {/* Save/Cancel buttons when only title is being edited - shown at bottom like content editing */}
         {isTitleEditing && !isContentEditing && renderSaveCancelButtons('px-3')}
 
-        {/* Bible Translation Attribution - visible at bottom for scripture notes */}
+        {/* Bible Translation Attribution — same footer structure as ScriptureComparePanel (border + top padding); px-3 matches main column shell; p keeps right inset for FAB */}
         {noteType === 'scripture' && displayScriptureVersion && (() => {
           const translationInfo = getTranslation(displayScriptureVersion);
           if (!translationInfo) return null;
           return (
             <div
-              className="panel__attribution"
-              style={{
-                padding: '1rem',
-                borderTop: '1px solid oklch(0.96 0 0)',
-                marginTop: 'auto',
-                flexShrink: 0
-              }}
+              className="px-3 w-full"
+              style={{ marginTop: 'auto', flexShrink: 0, paddingBottom: '12px' }}
             >
-              <p
+              <div
+                className="panel__attribution"
                 style={{
-                  fontSize: '10px',
-                  lineHeight: '1.4',
-                  color: 'var(--color-pebble-grey)',
-                  margin: 0,
-                  textAlign: 'left',
-                  paddingRight: '96px'
+                  padding: '0.75rem 0 0',
+                  borderTop: '1px solid oklch(0.96 0 0)',
+                  marginTop: '0.75rem',
+                  flexShrink: 0,
                 }}
               >
-                {translationInfo.copyright}{' '}
-                <a
-                  href={translationInfo.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <p
                   style={{
+                    fontSize: '10px',
+                    lineHeight: '1.4',
                     color: 'var(--color-pebble-grey)',
-                    textDecoration: 'underline',
-                    textDecorationColor: 'var(--color-pebble-grey)'
+                    margin: 0,
+                    textAlign: 'left',
+                    paddingRight: '80px',
                   }}
                 >
-                  {translationInfo.abbreviation}
-                </a>
-              </p>
+                  {translationInfo.copyright}{' '}
+                  <a
+                    href={translationInfo.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: 'var(--color-pebble-grey)',
+                      textDecoration: 'underline',
+                      textDecorationColor: 'var(--color-pebble-grey)',
+                    }}
+                  >
+                    {translationInfo.abbreviation}
+                  </a>
+                </p>
+              </div>
             </div>
           );
         })()}

@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
 import ButtonSmall from '../ButtonSmall';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export interface SuggestedThreadDialogProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ export interface SuggestedThreadDialogProps {
 }
 
 /**
- * A dialog that appears when submitting a resource note with "Unorganized" selected
+ * A dialog that appears when submitting a resource note with My Pile selected
  * while an AI-suggested thread exists, giving users a chance to use the suggestion.
  */
 export default function SuggestedThreadDialog({
@@ -107,7 +108,7 @@ export default function SuggestedThreadDialog({
           marginBottom: '0.75rem',
           lineHeight: '1.5'
         }}>
-          This resource has multiple scripture references. Would you like to organize it into the suggested thread <strong style={{ color: 'var(--color-deep-grey)' }}>"{suggestedThreadName}"</strong> instead of keeping it in Unorganized?
+          This resource has multiple scripture references. Would you like to organize it into the suggested thread <strong style={{ color: 'var(--color-deep-grey)' }}>&quot;{suggestedThreadName}&quot;</strong> instead of keeping it in {MY_PILE_THREAD_TITLE}?
         </p>
         <p style={{
           color: 'var(--color-stone-grey)',
@@ -129,7 +130,7 @@ export default function SuggestedThreadDialog({
             onClick={onKeepUnorganized}
             state="Secondary"
           >
-            Keep in Unorganized
+            Keep in {MY_PILE_THREAD_TITLE}
           </ButtonSmall>
           <ButtonSmall
             type="button"

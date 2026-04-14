@@ -62,17 +62,17 @@ Harvous uses a hierarchical content organization system to help users structure 
 - **Organized Content**: Items assigned to spaces, shown in the "Full list" section
   - All threads (regardless of spaceId) appear in organized content
   - Individual notes assigned to spaces
-  - Individual notes in unorganized thread (these are user-generated and belong in organized content, not inbox)
+  - Individual notes in the My Pile thread (these are user-generated and belong in organized content, not inbox)
 
 ### Thread Deletion Behavior
 
-When a thread is deleted, the system preserves all notes by moving them to the "Unorganized" thread:
+When a thread is deleted, the system preserves all notes by moving them to the "My Pile" thread:
 
-- **Primary Thread Notes**: Notes that have the deleted thread as their primary `threadId` are moved to the "Unorganized" thread
+- **Primary Thread Notes**: Notes that have the deleted thread as their primary `threadId` are moved to the "My Pile" thread
 - **Many-to-Many Relationships**: Notes that are in the deleted thread via the `NoteThreads` junction table have their relationship removed (but remain in other threads)
-- **Note Preservation**: No notes are ever deleted when a thread is deleted - they are always preserved and moved to "Unorganized"
-- **Unorganized Thread**: The "Unorganized" thread always exists by default (hidden from dashboard display)
-- **Protection**: The "Unorganized" thread itself cannot be deleted to prevent data loss
+- **Note Preservation**: No notes are ever deleted when a thread is deleted - they are always preserved and moved to "My Pile"
+- **My Pile thread**: Always exists by default (hidden from dashboard display)
+- **Protection**: The My Pile thread itself cannot be deleted to prevent data loss
 
 ### Example Structure
 
@@ -143,7 +143,7 @@ The system uses a hybrid approach for note-thread relationships:
 
 - **Primary Relationship**: Each note has a required `threadId` field pointing to its primary thread (used primarily for unorganized thread fallback)
 - **Many-to-Many Support**: `NoteThreads` junction table allows notes to belong to multiple threads
-- **Unorganized Thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
+- **My Pile thread**: Special thread with ID `thread_unorganized` serves as default for unassigned notes
 - **Thread Deletion Logic**: When a thread is deleted, notes with that thread as primary `threadId` are moved to unorganized thread
 - **Junction Cleanup**: Many-to-many relationships are removed from `NoteThreads` table when threads are deleted
 - **Data Integrity**: No notes are ever deleted - they are always preserved and moved to unorganized thread
@@ -155,7 +155,7 @@ When a note belongs to multiple threads, the system uses intelligent defaults to
 1. **URL Parameter Override** (`?thread=threadId`) - explicit user choice
 2. **Navigation Context Detection** - thread user was viewing when they clicked the note
 3. **Most Recent Thread Activity** - fallback to thread with most recent `updatedAt` timestamp
-4. **Unorganized Thread Fallback** - final fallback for notes with no valid thread context
+4. **My Pile thread fallback** - final fallback for notes with no valid thread context
 
 *(NoteThreadAccess table was removed; context is determined by URL and navigation state only. See [DATABASE.md](./DATABASE.md).)*
 

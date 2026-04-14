@@ -43,7 +43,7 @@ Key rules:
 - Mesh gradients (`generateThreadMeshGradient`) are client-only — never call during SSR
 - TipTap editor must remain lazy-loaded in `CardFullEditable`
 - Inbox is for external/incoming content only — never show user-created notes there
-- Thread deletion preserves notes (moves to Unorganized) — never hard-delete
+- Thread deletion preserves notes (moves to My Pile) — never hard-delete
 - `CardNote` renders 3 distinct note types (`default`, `scripture`, `resource`) — maintain all variants
 - Title character limit: 50 char hard limit with soft warning — do not remove without product approval
 - `CardNote` is used in many places — test OrganizedContentList, SpaceContentList, ThreadNotesList, InboxItemPreview, NoteDetailsPanel after any card changes

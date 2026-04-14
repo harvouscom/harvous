@@ -117,7 +117,7 @@ describe('offline-read-layer', () => {
       await offlineDB.threads.add({
         id: 'thread_unorganized',
         userId: testUserId,
-        title: 'Unorganized',
+        title: 'My Pile',
         subtitle: null,
         spaceId: null,
         color: null,

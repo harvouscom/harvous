@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { extractIdFromPath } from '@/utils/url-helpers';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 const TAB_COUNTS_CACHE_PREFIX = 'harvous-tab-counts-';
 
@@ -300,7 +301,7 @@ export default function TabNav({
               </span>
               {count !== undefined && count > 0 && (
                 <div className="badge-count">
-                  <span className="badge-number">{count > 99 ? '99+' : String(count)}</span>
+                  <span className="badge-number">{formatBadgeCount(count)}</span>
                 </div>
               )}
             </button>

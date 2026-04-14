@@ -10,6 +10,7 @@ import { useJoinSpace } from '../hooks/mutations/useJoinSpace';
 import { navigationQueryKeyPrefix } from '../hooks/queries/useNavigation';
 import { idToUrl } from '../../../src/utils/url-helpers';
 import { getThreadIconOnAccentCSS } from '../../../src/utils/colors';
+import { formatBadgeCount } from '@/utils/badge-count';
 
 interface SpacePreview {
   id: string;
@@ -227,7 +228,7 @@ export default function JoinSpacePage() {
                                   <span className="condensed-thread-item__title">{thread.title}</span>
                                   {thread.noteCount > 0 && (
                                     <div className="badge-count" style={{ flexShrink: 0 }}>
-                                      <span className="badge-number">{thread.noteCount > 99 ? '99+' : thread.noteCount}</span>
+                                      <span className="badge-number">{formatBadgeCount(thread.noteCount)}</span>
                                     </div>
                                   )}
                                 </div>

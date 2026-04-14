@@ -21,6 +21,7 @@ import { getInboxCount as getInboxCountUtil } from "./inbox-data";
 import { sortByLastVisited, sortByCreatedAtAsc, sortOnboardingThreadNotes } from "@/utils/sorting";
 import { isOnboardingThread } from "@/utils/last-visited-sections";
 import { stripHtmlForCard } from "@/utils/html-stripper";
+import { MY_PILE_THREAD_TITLE } from "@/utils/my-pile-thread";
 
 // ─── Private helpers ────────────────────────────────────────────────────────────
 
@@ -44,7 +45,7 @@ function extractScriptureTranslationFromNoteContent(content: string | null | und
 }
 
 /**
- * Find (or create) the "Unorganized" thread for a user.
+ * Find (or create) the My Pile thread (`thread_unorganized`) for a user.
  */
 async function findUnorganizedThread(userId: string) {
   const selectFields = {
@@ -68,12 +69,26 @@ async function findUnorganizedThread(userId: string) {
         .where(eq(Threads.id, "thread_unorganized"))
         .limit(1)
     );
-    if (existing) return existing;
+    if (existing) {
+      if (existing.title !== MY_PILE_THREAD_TITLE) {
+        await db.update(Threads)
+          .set({ title: MY_PILE_THREAD_TITLE, updatedAt: nowISO() })
+          .where(eq(Threads.id, 'thread_unorganized'));
+        const refreshed = first(
+          await db.select(selectFields)
+            .from(Threads)
+            .where(eq(Threads.id, "thread_unorganized"))
+            .limit(1),
+        );
+        if (refreshed) return refreshed;
+      }
+      return existing;
+    }
 
     // Row doesn't exist yet — insert, silently ignoring a concurrent insert race
     await db.insert(Threads).values({
       id: "thread_unorganized",
-      title: "Unorganized",
+      title: MY_PILE_THREAD_TITLE,
       subtitle: "Notes that haven't been organized into threads yet",
       spaceId: null,
       userId: userId,
@@ -1049,7 +1064,7 @@ export async function getContentItems(userId: string, limit = 20, offset = 0, fi
         scriptureReferences: scriptureReferencesMap[note.id] || undefined,
         version,
         userId: note.userId,
-        threadTitle: note.threadId === 'thread_unorganized' ? 'Unorganized' : (noteThread?.title ?? null),
+        threadTitle: note.threadId === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (noteThread?.title ?? null),
         threadColor: noteThread?.color ?? null,
         threadBackgroundGradient: noteThread?.backgroundGradient || (noteThread?.color ? getThreadGradientCSS(noteThread.color) : null),
       };

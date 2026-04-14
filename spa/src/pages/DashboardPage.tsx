@@ -23,6 +23,7 @@ import {
   type DashboardContentTabId,
 } from '@/utils/content-tab-storage';
 import { prefetchThreadRouteIntent } from '../utils/prefetch-route-intent';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 type DashboardContentFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -107,7 +108,7 @@ export default function DashboardPage() {
       };
       seedNoteFromList(queryClient, listNote, {
         id: noteItem.threadId ?? noteItem.noteId,
-        title: noteItem.threadTitle ?? (noteItem.threadId === 'thread_unorganized' ? 'Unorganized' : 'Thread'),
+        title: noteItem.threadTitle ?? (noteItem.threadId === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : 'Thread'),
         color: noteItem.threadColor ?? null,
         backgroundGradient: noteItem.threadBackgroundGradient ?? 'var(--color-gradient-gray)',
       });

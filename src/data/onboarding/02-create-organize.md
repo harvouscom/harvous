@@ -23,7 +23,7 @@ Threads are where notes belong (instead of “folders”) For example this note 
 
 You create threads from the big blue plus button at the bottom.
 
-When you erase a thread, your notes stay in Harvous unless you choose **Erase thread and notes**: **Erase thread** moves any note that only lived in that thread into **Unorganized**; **Erase thread and notes** removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are **view-only** in the app—you can read them here, not edit them in the editor.
+When you erase a thread, your notes stay in Harvous unless you choose **Erase thread and notes**: **Erase thread** moves any note that only lived in that thread into **My Pile**; **Erase thread and notes** removes the thread and deletes notes that only belonged there (notes that also appear in other threads stay). That works the same for the Welcome thread as for your other threads. Notes in this Welcome thread are **view-only** in the app—you can read them here, not edit them in the editor.
 
 ## Notes
 

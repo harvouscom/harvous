@@ -27,7 +27,7 @@ All API endpoints require authentication via Clerk. The `userId` is automaticall
 
 **POST** `/api/notes/create`
 
-Creates a new note. Notes are always created in the "Unorganized" thread initially, and can be added to specific threads via the junction table.
+Creates a new note. Notes are always created in the "My Pile" thread initially, and can be added to specific threads via the junction table.
 
 **Request Body** (FormData):
 ```
@@ -378,7 +378,7 @@ selectedNoteIds?: string (optional, JSON array of note IDs)
 
 **DELETE** `/api/threads/delete?threadId=thread_abc123`
 
-Deletes a thread and moves associated notes to the "Unorganized" thread.
+Deletes a thread and moves associated notes to the "My Pile" thread.
 
 **Query Parameters**:
 - `threadId` (required): Thread ID to delete
@@ -463,17 +463,17 @@ Gets all threads for the authenticated user.
 
 ---
 
-### Ensure Unorganized Thread
+### Ensure My Pile Thread
 
 **POST** `/api/threads/ensure-unorganized`
 
-Ensures the "Unorganized" thread exists for the authenticated user. This is called automatically when needed.
+Ensures the "My Pile" thread exists for the authenticated user. This is called automatically when needed.
 
 **Response** (200 OK):
 ```json
 {
   "id": "thread_unorganized",
-  "title": "Unorganized",
+  "title": "My Pile",
   "exists": true
 }
 ```

@@ -268,7 +268,7 @@ Based on analysis of our codebase, here are the components that would benefit mo
 **Status**: ✅ **COMPLETED** - Fully functional React component with many-to-many thread management
 - ✅ **Thread Management**: Add/remove notes from multiple threads
 - ✅ **Search Interface**: SearchInput-based thread selection
-- ✅ **Confirmation Dialogs**: "Move to Unorganized" for last thread removal
+- ✅ **Confirmation Dialogs**: "Move to My Pile" for last thread removal
 - ✅ **Toast Notifications**: Success/error feedback for all operations
 - ✅ **Error Handling**: Graceful fallback for junction table mismatches
 - ✅ **Many-to-Many**: Notes can belong to multiple threads simultaneously
@@ -280,7 +280,7 @@ Based on analysis of our codebase, here are the components that would benefit mo
 - 🔄 **URL Management**: Update current URL to reflect primary thread changes
 - 🔄 **Thread Display**: Update navigation to show note in correct thread
 - 🔄 **Breadcrumb Updates**: Update thread name and color in navigation
-- 🔄 **Unorganized Handling**: Show note in "Unorganized" when removed from all threads
+- 🔄 **My Pile handling**: Show note in "My Pile" when removed from all threads
 
 **Implementation Notes:**
 - Currently uses custom events (`noteRemovedFromThread`, `noteAddedToThread`)
@@ -433,7 +433,7 @@ This React Islands strategy has proven successful and provides a solid foundatio
 - 🔄 **Thread Updates**: Update navigation when note threads change
 - 🔄 **URL Management**: Update current URL to reflect primary thread
 - 🔄 **Breadcrumb Updates**: Update thread name and color display
-- 🔄 **Unorganized Handling**: Show notes in "Unorganized" thread when appropriate
+- 🔄 **My Pile handling**: Show notes in the My Pile thread when appropriate
 - 🔄 **Event Integration**: Listen for `noteRemovedFromThread` and `noteAddedToThread` events
 
 #### 5. **Search and Filtering**

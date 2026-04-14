@@ -11,6 +11,7 @@ import { useProcessScriptureRefs } from '../hooks/mutations/useProcessScriptureR
 import { updateNoteOffline } from '../../../src/utils/offline-mutations';
 import { detectScriptureReferences } from '@/utils/scripture-detector';
 import { debug } from '@/utils/logger';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export default function NotePage() {
   const { noteId: noteSlug } = useParams({ strict: false }) as { noteId: string };
@@ -49,7 +50,7 @@ export default function NotePage() {
     };
   }, [noteId, queryClient]);
 
-  // After removing this note from the thread it was opened in, replace ?thread= with the next membership (or Unorganized).
+  // After removing this note from the thread it was opened in, replace ?thread= with the next membership (or My Pile).
   const noteThreadFromUrlRef = useRef<string | null>(null);
   const noteSpaceIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -176,7 +177,7 @@ export default function NotePage() {
       const isUnorganized = threadId === 'thread_unorganized';
       return {
         id: threadId,
-        title: isUnorganized ? 'Unorganized' : 'Thread',
+        title: isUnorganized ? MY_PILE_THREAD_TITLE : 'Thread',
         color: null,
         backgroundGradient: isUnorganized ? 'var(--color-paper)' : 'var(--color-gradient-gray)',
       };
@@ -244,7 +245,7 @@ export default function NotePage() {
     const openedInSpaceId = noteSpaceIdRef.current;
     (window as any).addToNavigationHistory({
       id: parent.id,
-      title: isUnorganized ? 'Unorganized' : parent.title,
+      title: isUnorganized ? MY_PILE_THREAD_TITLE : parent.title,
       count: threadWithMeta.count ?? 0,
       backgroundGradient: parent.backgroundGradient ?? 'var(--color-gradient-gray)',
       spaceId: spaceId,

@@ -12,6 +12,7 @@ import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
+import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 /**
  * Check if Clerk authentication is ready
@@ -956,7 +957,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   // On note page: ensure the active parent thread is in the list (mirrors desktop PersistentNavigation).
   // When viewing a note in unorganized without having opened the thread view first, thread_unorganized
-  // may never have been added to navigationHistory — inject it so "Unorganized" appears in the nav.
+  // may never have been added to navigationHistory — inject it so My Pile appears in the nav.
   const persistentItemsWithActiveParent = (() => {
     // Detect note page: currentItemId can be "note_xxx" (after extractIdFromPath) or pathname "/note/xxx" (SPA initialPath)
     const isOnNotePage = currentItemId.startsWith('note_') || pathnameProp.startsWith('/note/');
@@ -986,7 +987,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (activeThreadCandidate?.id === activeParentThreadId) {
       activeParentThread = {
         id: activeThreadCandidate.id,
-        title: activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title || 'Thread'),
+        title: activeThreadCandidate.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadCandidate.title || 'Thread'),
         count: activeThreadCandidate.noteCount ?? 0,
         backgroundGradient: activeThreadCandidate.backgroundGradient || getThreadGradientCSS('paper'),
         spaceId: activeThreadCandidate.spaceId ?? null,
@@ -995,7 +996,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       const unorganizedFromNav = threads.find((t) => t.id === 'thread_unorganized');
       activeParentThread = {
         id: 'thread_unorganized',
-        title: 'Unorganized',
+        title: MY_PILE_THREAD_TITLE,
         count: unorganizedFromNav?.noteCount ?? 0,
         backgroundGradient: unorganizedFromNav?.backgroundGradient || getThreadGradientCSS('paper'),
         spaceId: null,
@@ -1015,11 +1016,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
     if (!activeParentThread) return persistentItems;
 
-    // Deduplication: don't add "Unorganized" with wrong id, or if "Unorganized" already exists by title
+    // Deduplication: don't add My Pile with wrong id, or if it already exists by title
     const isUnorganizedTitleWithWrongId =
-      activeParentThread.title === 'Unorganized' && activeParentThread.id !== 'thread_unorganized';
-    const unorganizedAlreadyExists = persistentItems.some((i: any) => i.title === 'Unorganized');
-    if (isUnorganizedTitleWithWrongId || (activeParentThread.title === 'Unorganized' && unorganizedAlreadyExists)) {
+      isMyPileDisplayTitle(activeParentThread.title) && activeParentThread.id !== 'thread_unorganized';
+    const unorganizedAlreadyExists = persistentItems.some((i: any) => isMyPileDisplayTitle(i.title));
+    if (isUnorganizedTitleWithWrongId || (isMyPileDisplayTitle(activeParentThread.title) && unorganizedAlreadyExists)) {
       return persistentItems;
     }
 
@@ -1521,7 +1522,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
               as="div"
               text={
                 activeThreadCandidate
-                  ? (activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title ?? 'Thread'))
+                  ? (activeThreadCandidate.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadCandidate.title ?? 'Thread'))
                   : displaySelectedSpaceLabel
               }
               count={
@@ -1842,7 +1843,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       const displayThread = isActive && activeThreadCandidate
                         ? {
                             ...activeThreadCandidate,
-                            title: activeThreadCandidate.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadCandidate.title ?? 'Thread'),
+                            title: activeThreadCandidate.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadCandidate.title ?? 'Thread'),
                             noteCount: Math.max(
                               activeThreadCandidate.noteCount ?? 0,
                               thread.noteCount ?? 0
@@ -1850,7 +1851,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                           }
                         : {
                             ...thread,
-                            title: thread.id === 'thread_unorganized' ? 'Unorganized' : (thread.title ?? 'Thread'),
+                            title: thread.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (thread.title ?? 'Thread'),
                           };
                       // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
                       let spaceForLink = effectiveSelectedSpaceId;

@@ -59,6 +59,7 @@ import { parseMarkdownExport, type ParsedMarkdownNote } from '@/utils/markdown-i
 import { markdownToHtml } from '@/utils/markdown-to-html';
 import { parseScriptureReference } from '@/utils/scripture-detector';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { isMyPileDisplayTitle } from '@/utils/my-pile-thread';
 
 const app = new Hono();
 
@@ -974,7 +975,7 @@ function getThreadColorFromTitle(threadTitle: string): string {
 }
 
 async function getOrCreateThread(userId: string, threadTitle: string, threadColor?: string | null): Promise<string> {
-  if (!threadTitle || threadTitle.trim() === '' || threadTitle === 'Unorganized') {
+  if (!threadTitle || threadTitle.trim() === '' || isMyPileDisplayTitle(threadTitle)) {
     await ensureUnorganizedThread(userId);
     return 'thread_unorganized';
   }

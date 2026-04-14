@@ -68,7 +68,7 @@ No, note IDs are permanent and sequential. They help maintain order and prevent 
 
 ### What happens if I delete a note?
 
-Notes are never permanently deleted. When you delete a thread, its notes move to "Unorganized" in "For You". This prevents accidental loss of important insights.
+Notes are never permanently deleted. When you delete a thread, its notes move to "My Pile" in "For You". This prevents accidental loss of important insights.
 
 ## Data Safety
 
@@ -82,7 +82,7 @@ Yes! Your notes are:
 
 ### Can I lose my notes?
 
-No. Notes are never permanently deleted. Even if you delete a thread, all its notes are moved to "Unorganized" where you can find them again.
+No. Notes are never permanently deleted. Even if you delete a thread, all its notes are moved to "My Pile" where you can find them again.
 
 ### Is my data backed up?
 

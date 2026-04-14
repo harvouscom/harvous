@@ -66,7 +66,7 @@ Spaces are your main organizational containers. Here's how to create one:
 
 1. **Click the "+" button** in the top navigation
 2. **Select "New Note"** from the dropdown
-3. **Choose a thread** (or leave as "Unorganized" for now)
+3. **Choose a thread** (or leave as "My Pile" for now)
 4. **Add a title** that describes your note
 5. **Write your content** using the rich text editor
 6. **Click "Create Note"** to save
@@ -198,7 +198,7 @@ Harvous includes a gamification system to encourage engagement and content creat
 
 ### Note Preservation
 - **Notes are never deleted** - they're always preserved
-- When you delete a thread, its notes move to "Unorganized"
+- When you delete a thread, its notes move to "My Pile"
 - This prevents accidental loss of important insights
 
 ### Many-to-Many Relationships
@@ -220,7 +220,7 @@ A: Use the search function or browse through your organized spaces and threads.
 A: No, note IDs are permanent and sequential. They help maintain order and prevent confusion.
 
 **Q: What happens if I delete a thread?**
-A: The thread is removed, but all its notes are preserved and moved to "Unorganized" in "For You".
+A: The thread is removed, but all its notes are preserved and moved to "My Pile" in "For You".
 
 **Q: How do I organize my content better?**
 A: Start by creating a few main spaces, then group related notes into threads within those spaces.

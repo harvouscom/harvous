@@ -97,7 +97,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     abbreviation: 'NASB 1995',
     publisher: 'The Lockman Foundation',
     copyright:
-      'Scripture quotations taken from the New American Standard Bible® (NASB 1995), Copyright © 1960, 1971, 1977, 1995 by The Lockman Foundation. Used by permission. All rights reserved.',
+      'Scripture quotations taken from the New American Standard Bible® (NASB 1995), Copyright © 1960, 1971, 1977, 1995 by The Lockman Foundation. All rights reserved.',
     website: 'https://www.lockman.org',
     isPublicDomain: false,
     sortOrder: 7,
@@ -108,7 +108,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     abbreviation: 'CSB',
     publisher: 'Holman Bible Publishers',
     copyright:
-      'Christian Standard Bible®, CSB® Copyright © 2017 by Holman Bible Publishers. Used by permission. All rights reserved.',
+      'Christian Standard Bible®, CSB® Copyright © 2017 by Holman Bible Publishers. All rights reserved.',
     website: 'https://csbible.com',
     isPublicDomain: false,
     sortOrder: 8,
@@ -119,7 +119,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     abbreviation: 'AMP',
     publisher: 'The Lockman Foundation',
     copyright:
-      'Scripture quotations marked AMP are taken from the Amplified® Bible, Copyright © 2015 by The Lockman Foundation. Used by permission. All rights reserved.',
+      'Scripture quotations marked AMP are taken from the Amplified® Bible, Copyright © 2015 by The Lockman Foundation. All rights reserved.',
     website: 'https://www.lockman.org',
     isPublicDomain: false,
     sortOrder: 9,
@@ -130,7 +130,7 @@ export const TRANSLATIONS: Record<string, TranslationInfo> = {
     abbreviation: 'MSG',
     publisher: 'NavPress',
     copyright:
-      'Scripture quotations marked MSG are taken from THE MESSAGE, copyright © 1993, 2002, 2018 by Eugene H. Peterson. Used by permission of NavPress.',
+      'Scripture quotations marked MSG are taken from THE MESSAGE, copyright © 1993, 2002, 2018 by Eugene H. Peterson.',
     website: 'https://www.navpress.com',
     isPublicDomain: false,
     sortOrder: 10,

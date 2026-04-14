@@ -39,6 +39,7 @@ import { handleAPIError } from '@/utils/error-handling';
 import { validateTitle, validateColor, validateSpaceId } from '@/utils/validation';
 import { rateLimit } from '@/utils/rate-limit';
 import { generateThreadId, generateShareToken } from '@/utils/ids';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 const route = new Hono();
 
@@ -116,7 +117,7 @@ route.get('/api/threads/list', requireAuth, async (c) => {
     if (!hasUnorganizedThread) {
       threadOptions.unshift({
         id: 'thread_unorganized',
-        title: 'Unorganized',
+        title: MY_PILE_THREAD_TITLE,
         color: null,
         spaceId: null,
         noteCount: unorganizedThreadData.noteCount || 0,
@@ -312,7 +313,7 @@ route.delete('/api/threads/delete', requireAuth, rateLimit('write'), async (c) =
 
     await db.delete(Threads).where(and(eq(Threads.id, threadId), eq(Threads.userId, auth.userId)));
 
-    return c.json({ success: 'Thread erased! Notes have been moved to the Unorganized thread.', threadId });
+    return c.json({ success: `Thread erased! Notes have been moved to the ${MY_PILE_THREAD_TITLE} thread.`, threadId });
   } catch (error: any) {
     const standardError = handleAPIError(error, { endpoint: '/api/threads/delete', action: 'delete_thread' });
     return c.json({ error: standardError.message, code: standardError.code }, 500);
@@ -328,14 +329,14 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
       .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
 
     if (existingThread) {
-      return c.json({ success: true, message: 'Unorganized thread already exists', thread: existingThread });
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: existingThread });
     }
 
     const now = nowISO();
     const unorganizedThread = {
       id: 'thread_unorganized',
       userId: auth.userId,
-      title: 'Unorganized',
+      title: MY_PILE_THREAD_TITLE,
       subtitle: 'Individual notes and unassigned content',
       color: null,
       spaceId: null,
@@ -347,12 +348,12 @@ route.post('/api/threads/ensure-unorganized', requireAuth, async (c) => {
 
     try {
       await db.insert(Threads).values(unorganizedThread);
-      return c.json({ success: true, message: 'Unorganized thread created', thread: unorganizedThread }, 201);
+      return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread created`, thread: unorganizedThread }, 201);
     } catch (insertError: any) {
       if (insertError.code === '23505' || insertError.message?.includes('unique constraint')) {
         const createdThread = first(await db.select().from(Threads)
           .where(and(eq(Threads.userId, auth.userId), eq(Threads.id, 'thread_unorganized'))).limit(1));
-        if (createdThread) return c.json({ success: true, message: 'Unorganized thread already exists', thread: createdThread });
+        if (createdThread) return c.json({ success: true, message: `${MY_PILE_THREAD_TITLE} thread already exists`, thread: createdThread });
       }
       throw insertError;
     }
@@ -436,7 +437,7 @@ route.get('/api/threads/:threadId/prefetch', requireAuth, async (c) => {
         const notes = Array.isArray(notesResult) ? [] : notesResult.notes;
         thread = {
           id: 'thread_unorganized',
-          title: 'Unorganized',
+          title: MY_PILE_THREAD_TITLE,
           subtitle: 'Notes that haven\'t been organized into threads yet',
           color: null,
           userId: auth.userId,

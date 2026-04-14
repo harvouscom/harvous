@@ -4,6 +4,7 @@ import { extractIdFromPath } from '@/utils/url-helpers';
 import { captureException } from '@/utils/posthog';
 import { getThreadsLocal } from '@/utils/offline-read-layer';
 import { usePersistedUserId } from '@/utils/user-id';
+import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export interface Thread {
   id: string;
@@ -35,7 +36,7 @@ export interface UseThreadSelectionReturn {
 
 const DEFAULT_UNORGANIZED_THREAD: Thread = {
   id: 'thread_unorganized',
-  title: 'Unorganized',
+  title: MY_PILE_THREAD_TITLE,
   color: null,
   noteCount: 0,
   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
@@ -48,7 +49,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   const { currentThread, navigationHistory, suggestedThreadIds, suggestedDomain, suggestionReasons } = options;
   
   const [threadOptions, setThreadOptions] = useState<Thread[]>([DEFAULT_UNORGANIZED_THREAD]);
-  const [selectedThread, setSelectedThread] = useState('Unorganized');
+  const [selectedThread, setSelectedThread] = useState(MY_PILE_THREAD_TITLE);
   const [hasSetThreadFromSaved, setHasSetThreadFromSaved] = useState(false);
   
   // Get userId for offline data access
@@ -141,9 +142,9 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         const localThreads = await getThreadsLocal(userId);
         const formattedThreads = formatThreads(localThreads);
         
-        // Ensure 'Unorganized' thread exists
-        // CRITICAL: Only check by ID, not title - a thread with title "Unorganized" but different ID
-        // (like a renamed onboarding thread) should NOT be treated as THE unorganized thread
+        // Ensure My Pile thread exists
+        // CRITICAL: Only check by ID, not title - a thread with title My Pile / legacy Unorganized but different ID
+        // (like a renamed onboarding thread) should NOT be treated as THE sentinel thread
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
           thread.id === 'thread_unorganized'
         );
@@ -172,9 +173,9 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         const threads = await response.json();
         const formattedThreads = formatThreads(threads);
         
-        // Ensure 'Unorganized' thread exists
-        // CRITICAL: Only check by ID, not title - a thread with title "Unorganized" but different ID
-        // (like a renamed onboarding thread) should NOT be treated as THE unorganized thread
+        // Ensure My Pile thread exists
+        // CRITICAL: Only check by ID, not title - a thread with title My Pile / legacy Unorganized but different ID
+        // (like a renamed onboarding thread) should NOT be treated as THE sentinel thread
         const hasUnorganizedThread = formattedThreads.some((thread: Thread) => 
           thread.id === 'thread_unorganized'
         );
@@ -190,10 +191,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
         // Skip if we already initialized from currentThread — that takes priority.
         const savedThreadId = localStorage.getItem('newNoteThread');
         if (savedThreadId && !hasSetThreadFromSaved && !hasInitializedFromCurrentThread.current) {
-          let matchedThread = 'Unorganized';
+          let matchedThread = MY_PILE_THREAD_TITLE;
           
           if (savedThreadId === 'thread_unorganized') {
-            matchedThread = 'Unorganized';
+            matchedThread = MY_PILE_THREAD_TITLE;
           } else {
             const matchingThread = filteredThreads.find((thread: Thread) => thread.id === savedThreadId);
             if (matchingThread) {
@@ -220,7 +221,7 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
     if (hasManualSelection.current) {
       return;
     }
-    // Never use onboarding thread as default; stay on Unorganized
+    // Never use onboarding thread as default; stay on My Pile
     if (currentThread?.id?.startsWith('thread_onboarding_')) {
       return;
     }
@@ -244,13 +245,13 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   }, [currentThread, threadOptions, selectedThread]);
 
   // Handle thread selection when threadOptions are loaded
-  // Priority: 1) currentThread, 2) client-side detection, 3) savedThreadId, 4) Unorganized
+  // Priority: 1) currentThread, 2) client-side detection, 3) savedThreadId, 4) My Pile
   useEffect(() => {
     // Don't override manual selections
     if (hasManualSelection.current) {
       return;
     }
-    // Never use onboarding thread as default; fall through to Unorganized or other priorities
+    // Never use onboarding thread as default; fall through to My Pile or other priorities
     if (currentThread?.id?.startsWith('thread_onboarding_')) {
       // Skip Priority 1; continue to Priority 2/3/4 below
     } else if (currentThread && currentThread.id && !hasInitializedFromCurrentThread.current) {
@@ -306,10 +307,10 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
       const savedThreadId = localStorage.getItem('newNoteThreadPending') || localStorage.getItem('newNoteThread') || '';
       
       if (savedThreadId) {
-        let matchedThread = 'Unorganized';
+        let matchedThread = MY_PILE_THREAD_TITLE;
         
         if (savedThreadId === 'thread_unorganized') {
-          matchedThread = 'Unorganized';
+          matchedThread = MY_PILE_THREAD_TITLE;
         } else {
           const matchingThread = threadOptions.find(thread => thread.id === savedThreadId);
           if (matchingThread) {
@@ -333,12 +334,12 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   }, [currentThread?.id]);
 
   // Save to localStorage when selectedThread changes (if not from saved).
-  // Don't save the default "Unorganized" until we've actually initialized —
+  // Don't save the default My Pile until we've actually initialized —
   // otherwise the uninitialized default overwrites a previously saved thread
   // and gets picked up as Priority 3 before currentThread arrives.
   useEffect(() => {
     if (!hasSetThreadFromSaved) {
-      if (selectedThread !== 'Unorganized' || hasInitializedFromCurrentThread.current) {
+      if (!isMyPileDisplayTitle(selectedThread) || hasInitializedFromCurrentThread.current) {
         localStorage.setItem('newNoteThread', selectedThread);
       }
     }
@@ -387,12 +388,12 @@ export function useThreadSelection(options: UseThreadSelectionOptions = {}): Use
   }, []);
 
   // Get selected thread object
-  // CRITICAL: When "Unorganized" is selected, always prioritize `thread_unorganized`
-  // This prevents confusion when there are multiple threads with title "Unorganized"
-  // (e.g., a renamed onboarding thread) - we should always use the virtual unorganized thread
+  // CRITICAL: When My Pile is selected, always prioritize `thread_unorganized`
+  // This prevents confusion when there are multiple threads with the same display title
+  // (e.g., a renamed onboarding thread) - we should always use the virtual sentinel thread
   const getSelectedThread = useCallback((): Thread => {
-    // Special case: when selecting "Unorganized", always use thread_unorganized
-    if (selectedThread === 'Unorganized') {
+    // Special case: when selecting My Pile (or legacy title), always use thread_unorganized
+    if (isMyPileDisplayTitle(selectedThread)) {
       const unorganizedThread = threadOptions.find(thread => thread.id === 'thread_unorganized');
       if (unorganizedThread) {
         return unorganizedThread;

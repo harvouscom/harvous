@@ -19,7 +19,7 @@ const PREFIXES: Array<[string, string]> = [
 /**
  * Convert a database ID to a URL path.
  * "thread_abc123"           → "/thread/abc123"
- * "thread_unorganized"      → "/thread/unorganized"
+ * "thread_unorganized"      → "/thread/mypile"
  * "thread_onboarding_user1" → "/thread/onboarding_user1"
  * "note_def456"             → "/note/def456"
  * "space_ghi789"            → "/space/ghi789"
@@ -29,6 +29,9 @@ const PREFIXES: Array<[string, string]> = [
  */
 export function idToUrl(id: string, threadContext?: string, fromNoteId?: string): string {
   if (id == null || typeof id !== 'string') return '/';
+  if (id === 'thread_unorganized') {
+    return '/thread/mypile';
+  }
   let url = `/${id}`;
   for (const [prefix, urlPrefix] of PREFIXES) {
     if (id.startsWith(prefix)) {
@@ -55,7 +58,11 @@ export function urlToId(pathname: string): string | null {
   for (const [prefix, urlPrefix] of PREFIXES) {
     if (pathname.startsWith(urlPrefix)) {
       const rest = pathname.slice(urlPrefix.length);
-      if (rest) return prefix + rest;
+      if (!rest) return null;
+      if (prefix === 'thread_' && (rest === 'mypile' || rest === 'unorganized')) {
+        return 'thread_unorganized';
+      }
+      return prefix + rest;
     }
   }
   return null;

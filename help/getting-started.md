@@ -100,7 +100,7 @@ Notes are your individual thoughts and insights:
 
 1. **Click the "+" button** in the top navigation
 2. **Select "New Note"** from the dropdown
-3. **Choose a thread** (or leave as "Unorganized" for now)
+3. **Choose a thread** (or leave as "My Pile" for now)
 4. **Add a title** that describes your note
 5. **Write your content** using the rich text editor
    - Use the toolbar for formatting (bold, italic, lists)

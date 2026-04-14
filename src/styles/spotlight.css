@@ -233,7 +233,8 @@
 /* Count pinned right (SpaceButton-style); close stacks on the badge like nav items with .close-icon */
 .spotlight-recent-item__badge-slot {
   position: relative;
-  width: 24px;
+  min-width: 24px;
+  width: max-content;
   height: 24px;
   flex-shrink: 0;
   display: flex;

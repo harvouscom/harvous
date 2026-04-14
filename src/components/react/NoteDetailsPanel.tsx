@@ -17,6 +17,7 @@ import { usePersistedUserId } from '@/utils/user-id';
 import { getCachedNoteDetails, setCachedNoteDetails } from '@/utils/note-details-cache';
 import { invalidatePanelDataCache, PANEL_CACHE_KEYS } from '@/utils/panel-data-cache';
 import { getModalOverlayBaseStyle, useDesktopMainModalPortal } from '@/hooks/useDesktopMainModalPortal';
+import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 interface Thread {
   id: string;
@@ -110,7 +111,7 @@ export default function NoteDetailsPanel({
   const isScriptureNote = noteType === 'scripture';
   const showNotesTab = isScriptureNote || (noteType === 'default' && !!linkedFromNoteId);
   const isUnorganizedThread = (thread: Thread) =>
-    thread.id === 'thread_unorganized' || thread.title?.trim().toLowerCase() === 'unorganized';
+    thread.id === 'thread_unorganized' || isMyPileDisplayTitle(thread.title);
   const visibleThreads = localThreads.filter((thread) => !isUnorganizedThread(thread));
 
   useEffect(() => {
@@ -416,7 +417,7 @@ export default function NoteDetailsPanel({
         // Show success toast
         window.dispatchEvent(new CustomEvent('toast', {
           detail: {
-            message: 'Note moved to Unorganized thread',
+            message: `Note moved to ${MY_PILE_THREAD_TITLE} thread`,
             type: 'success'
           }
         }));
@@ -455,7 +456,7 @@ export default function NoteDetailsPanel({
           setLocalThreads((prev: Thread[]) => prev.filter((t: Thread) => t.id !== threadToRemove));
           window.dispatchEvent(new CustomEvent('toast', {
             detail: {
-              message: 'Note moved to Unorganized thread',
+              message: `Note moved to ${MY_PILE_THREAD_TITLE} thread`,
               type: 'success'
             }
           }));
@@ -626,7 +627,7 @@ export default function NoteDetailsPanel({
                 Remove from Last Thread?
               </h3>
               <p className="modal-body">
-                This is the only thread this note belongs to. Removing it will move the note to the &quot;Unorganized&quot;
+                This is the only thread this note belongs to. Removing it will move the note to the &quot;{MY_PILE_THREAD_TITLE}&quot;
                 thread. Are you sure you want to continue?
               </p>
               <div className="modal-footer">
@@ -642,7 +643,7 @@ export default function NoteDetailsPanel({
                   state="Delete"
                   disabled={isMovingThread}
                 >
-                  {isMovingThread ? 'Moving...' : 'Move to Unorganized'}
+                  {isMovingThread ? 'Moving...' : `Move to ${MY_PILE_THREAD_TITLE}`}
                 </ButtonSmall>
               </div>
             </div>
@@ -830,7 +831,7 @@ export default function NoteDetailsPanel({
                         <AddToSection
                           allItems={localAllUserThreads.filter((thread: Thread) => {
                             if (thread.id === 'thread_unorganized') return false;
-                            return thread.title?.trim().toLowerCase() !== 'unorganized';
+                            return !isMyPileDisplayTitle(thread.title);
                           })}
                           currentItems={localThreads}
                           onItemSelect={handleAddToThread}

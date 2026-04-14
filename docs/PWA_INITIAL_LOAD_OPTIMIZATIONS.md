@@ -22,7 +22,7 @@ This document outlines all optimizations implemented to improve initial PWA load
   - Tab Manager Script
   - Toast Handler Script
   - Navigation History Script
-  - Unorganized Handler Script
+  - My Pile handler script (unorganized-handler.js)
   - Service Worker Manager Script
 - **Impact**: Reduces initial JavaScript execution time by ~200-500ms
 

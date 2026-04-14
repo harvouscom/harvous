@@ -20,6 +20,7 @@ import CreateNoteButton from '../../../src/components/react/CreateNoteButton';
 import NotePageAddButton from '../../../src/components/react/NotePageAddButton';
 import ActionStrip from '../../../src/components/react/ActionStrip';
 import { getMenuOptions, shouldShowActionStripMenu } from '../../../src/utils/menu-options';
+import { urlToId } from '@/utils/url-helpers';
 import { api } from '../lib/api';
 import { useRecordThreadVisit, useRecordNoteVisit } from '../hooks/mutations/useRecordVisit';
 import {
@@ -36,6 +37,7 @@ import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearN
 import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
 import { useSpace, clearCachedSpaceBootstrap } from '../hooks/queries/useSpace';
 import { useIsOffline } from '@/hooks/useIsOffline';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 function isOfflineInteractionAllowed(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
@@ -149,21 +151,23 @@ export default function AppLayout() {
   // Once we show the app shell, keep it mounted through Clerk init transitions (avoids double fade-in).
   const committedToShellRef = useRef(false);
 
-  // Derive current IDs from path before hooks (hooks must be called unconditionally)
+  // Derive current IDs from path before hooks (hooks must be called unconditionally).
+  // urlToId maps /thread/mypile (and legacy /thread/unorganized) → thread_unorganized — must match ThreadPage slug logic.
   const pathSlugEarly = pathname.split('/').pop() || '';
   const isNoteEarly = pathname.startsWith('/note/');
   const isThreadEarly = pathname.startsWith('/thread/');
   const isSpaceEarly = pathname.startsWith('/space/');
+  const routeEntityId = urlToId(pathname);
   let noteIdForHook = isNoteEarly
-    ? (pathSlugEarly.startsWith('note_') ? pathSlugEarly : `note_${pathSlugEarly}`)
+    ? (routeEntityId ?? (pathSlugEarly.startsWith('note_') ? pathSlugEarly : `note_${pathSlugEarly}`))
     : '';
   let threadIdForHook = isThreadEarly
-    ? (pathSlugEarly.startsWith('thread_') ? pathSlugEarly : `thread_${pathSlugEarly}`)
+    ? (routeEntityId ?? (pathSlugEarly.startsWith('thread_') ? pathSlugEarly : `thread_${pathSlugEarly}`))
     : '';
   if (threadIdForHook.startsWith('thread/')) threadIdForHook = 'thread_' + threadIdForHook.slice(7);
   if (noteIdForHook.startsWith('note/')) noteIdForHook = 'note_' + noteIdForHook.slice(5);
   const spaceIdForHook = isSpaceEarly
-    ? (pathSlugEarly.startsWith('space_') ? pathSlugEarly : `space_${pathSlugEarly}`)
+    ? (routeEntityId ?? (pathSlugEarly.startsWith('space_') ? pathSlugEarly : `space_${pathSlugEarly}`))
     : '';
 
   // When viewing a note page, fetch note details to get parent thread/type
@@ -483,14 +487,14 @@ export default function AppLayout() {
   const isSpace = pathname.startsWith('/space/');
 
   const currentId = isThread
-    ? (pathSlug.startsWith('thread_') ? pathSlug : `thread_${pathSlug}`)
+    ? (routeEntityId ?? (pathSlug.startsWith('thread_') ? pathSlug : `thread_${pathSlug}`))
     : isNote
-    ? (pathSlug.startsWith('note_') ? pathSlug : `note_${pathSlug}`)
+    ? (routeEntityId ?? (pathSlug.startsWith('note_') ? pathSlug : `note_${pathSlug}`))
     : isSpace
-    ? (pathSlug.startsWith('space_') ? pathSlug : `space_${pathSlug}`)
+    ? (routeEntityId ?? (pathSlug.startsWith('space_') ? pathSlug : `space_${pathSlug}`))
     : pathSlug;
 
-  const spaceId = isSpace ? `space_${pathSlug}` : undefined;
+  const spaceId = isSpace ? (routeEntityId ?? `space_${pathSlug}`) : undefined;
 
   // Build spaces list (owned + member) — must come before currentSpace derivation
   const allSpaces = [
@@ -598,7 +602,7 @@ export default function AppLayout() {
       const isUnorganized = parentData.id === 'thread_unorganized';
       return {
         id: parentData.id,
-        title: isUnorganized ? 'Unorganized' : (parentData.title ?? 'Thread'),
+        title: isUnorganized ? MY_PILE_THREAD_TITLE : (parentData.title ?? 'Thread'),
         noteCount: withCount.count ?? withCount.noteCount ?? 0,
         backgroundGradient: parentData.backgroundGradient || 'var(--color-paper)',
         spaceId: (parentData as { spaceId?: string | null }).spaceId ?? null,
@@ -681,10 +685,13 @@ export default function AppLayout() {
     parentThreadData?.userId === user?.id ||
     (noteParentThreadId && nav?.threads.some(t => t.id === noteParentThreadId)) ||
     (noteParentThreadId === 'thread_unorganized' && currentNote?.userId === user?.id);
+  // My Pile is always the current user’s thread; don’t gate the CTA on `currentThread.userId` from prefetch.
   const canShowAddNote =
     contentType === 'dashboard' ||
     (contentType === 'space' && (effectiveSpaceRole === 'owner' || effectiveSpaceRole === 'member')) ||
-    (contentType === 'thread' && contentOwnerId === currentUserId) ||
+    (contentType === 'thread' &&
+      currentUserId != null &&
+      (currentId === 'thread_unorganized' || contentOwnerId === currentUserId)) ||
     (contentType === 'note' && noteParentThreadOwnedByUser);
 
   // Only show CreateNoteButton / ActionStrip once we have data to decide (avoids flash-then-hide for members)

@@ -14,6 +14,7 @@ import { wrapTextWithNoteLink } from '@/utils/tiptap-helpers';
 import { completePendingVotdCreateNoteDismiss } from '@/utils/featured-dismiss-local';
 import type { NoteType, ResourceMetadata } from './useNewNoteForm';
 import type { Thread } from './useThreadSelection';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export interface UseNoteSubmissionOptions {
   // Form data
@@ -356,7 +357,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           submitMutexRef.current = false;
           setIsSubmitting(false);
           resetForm();
-          setSelectedThread('Unorganized');
+          setSelectedThread(MY_PILE_THREAD_TITLE);
           clearLocalStorage();
           localStorage.removeItem('showNewNotePanel');
           localStorage.removeItem('showNewThreadPanel');
@@ -431,7 +432,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
               submitMutexRef.current = false;
               setIsSubmitting(false);
               resetForm();
-              setSelectedThread('Unorganized');
+              setSelectedThread(MY_PILE_THREAD_TITLE);
               clearLocalStorage();
               localStorage.removeItem('showNewNotePanel');
               if (onClose) onClose();
@@ -796,7 +797,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
 
           // Reset form and clear localStorage
           resetForm();
-          setSelectedThread('Unorganized');
+          setSelectedThread(MY_PILE_THREAD_TITLE);
           clearLocalStorage();
 
           // Close panel
@@ -821,7 +822,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
           // If no note was created, still close the panel
           localStorage.removeItem('showNewNotePanel');
           resetForm();
-          setSelectedThread('Unorganized');
+          setSelectedThread(MY_PILE_THREAD_TITLE);
           submitMutexRef.current = false;
           setIsSubmitting(false);
           clearLocalStorage();

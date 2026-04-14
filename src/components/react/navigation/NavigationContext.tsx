@@ -5,6 +5,7 @@ import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/ur
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { getSelectedSpaceId, setSelectedSpaceId } from './selectedSpace';
 import { clearNavStack } from '@/utils/nav-stack';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 // Navigation item interface
 export interface NavigationItem {
@@ -762,7 +763,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const pid = noteElement.dataset.parentThreadId;
         return {
           id: pid,
-          title: pid === 'thread_unorganized' ? 'Unorganized' : (noteElement.dataset.parentThreadTitle || 'Thread'),
+          title: pid === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (noteElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: noteElement.dataset.parentThreadSpaceId || null,
@@ -786,7 +787,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (parentThreadId) {
         return {
           id: parentThreadId,
-          title: parentThreadId === 'thread_unorganized' ? 'Unorganized' : (navigationElement.dataset.parentThreadTitle || 'Thread'),
+          title: parentThreadId === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (navigationElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(navigationElement.dataset.parentThreadCount || '0'),
           backgroundGradient: navigationElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: navigationElement.dataset.parentThreadSpaceId || null,
@@ -799,7 +800,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const pid = noteElement.dataset.parentThreadId;
         return {
           id: pid,
-          title: pid === 'thread_unorganized' ? 'Unorganized' : (noteElement.dataset.parentThreadTitle || 'Thread'),
+          title: pid === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (noteElement.dataset.parentThreadTitle || 'Thread'),
           count: parseInt(noteElement.dataset.parentThreadCount || '0'),
           backgroundGradient: noteElement.dataset.parentThreadBackgroundGradient || 'var(--color-gradient-gray)',
           spaceId: noteElement.dataset.parentThreadSpaceId || null,
@@ -1663,11 +1664,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else {
           // Thread not in history - we need to fetch it and add it (unless caller will navigate to note)
           // CRITICAL: When note is created in unorganized, add unorganized synchronously even if we're about to navigate.
-          // This ensures the desktop nav shows Unorganized before/after navigation (trackNavigationAccess can run before new DOM is ready).
+          // This ensures the desktop nav shows My Pile before/after navigation (trackNavigationAccess can run before new DOM is ready).
           if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
             addToNavigationHistory({
               id: 'thread_unorganized',
-              title: 'Unorganized',
+              title: MY_PILE_THREAD_TITLE,
               count: 1, // At least 1 (the new note)
               backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
             });
@@ -1706,7 +1707,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 // IMPORTANT: If wasCreatedWithThread is true, unorganized should NEVER be added
                 addToNavigationHistory({
                   id: 'thread_unorganized',
-                  title: 'Unorganized',
+                  title: MY_PILE_THREAD_TITLE,
                   count: 1, // At least 1 (the new note)
                   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                 });
@@ -1723,7 +1724,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
               if (actualThreadId === 'thread_unorganized' && !wasCreatedWithThread) {
                 addToNavigationHistory({
                   id: 'thread_unorganized',
-                  title: 'Unorganized',
+                  title: MY_PILE_THREAD_TITLE,
                   count: 1,
                   backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                 });
@@ -1796,7 +1797,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                     // Wasn't in raw history at all — add it
                     addToNavigationHistory({
                       id: 'thread_unorganized',
-                      title: 'Unorganized',
+                      title: MY_PILE_THREAD_TITLE,
                       count: unorganizedThread.noteCount,
                       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
                     });

@@ -1,9 +1,10 @@
 /**
- * Unorganized thread utilities
+ * Sentinel thread utilities (display title: My Pile — id `thread_unorganized`)
  */
 
 import { db, first, Threads, Notes, NoteThreads, eq, and, count, isNull } from '../db';
 import { nowISO } from '../db/dates';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export async function ensureUnorganizedThread(userId: string) {
   try {
@@ -25,11 +26,17 @@ export async function ensureUnorganizedThread(userId: string) {
     ))
     .limit(1));
 
+    if (existingThread && existingThread.title !== MY_PILE_THREAD_TITLE) {
+      await db.update(Threads)
+        .set({ title: MY_PILE_THREAD_TITLE, updatedAt: nowISO() })
+        .where(eq(Threads.id, 'thread_unorganized'));
+    }
+
     if (!existingThread) {
       try {
         await db.insert(Threads).values({
           id: "thread_unorganized",
-          title: "Unorganized",
+          title: MY_PILE_THREAD_TITLE,
           subtitle: "Notes that haven't been organized into threads yet",
           spaceId: null,
           userId: userId,
@@ -64,7 +71,7 @@ export async function ensureUnorganizedThread(userId: string) {
 
     const threadData = {
       id: 'thread_unorganized',
-      title: 'Unorganized',
+      title: MY_PILE_THREAD_TITLE,
       color: null,
       noteCount: noteCount?.count || 0,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'
@@ -75,7 +82,7 @@ export async function ensureUnorganizedThread(userId: string) {
     console.error("Error in ensureUnorganizedThread:", error);
     return {
       id: 'thread_unorganized',
-      title: 'Unorganized',
+      title: MY_PILE_THREAD_TITLE,
       color: null,
       noteCount: 0,
       backgroundGradient: 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)'

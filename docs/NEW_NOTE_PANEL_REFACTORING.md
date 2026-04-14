@@ -121,7 +121,7 @@ interface UseThreadSelectionReturn {
   1. `currentThread` prop (if provided)
   2. Client-side detection from URL/navigation context
   3. Saved thread ID from localStorage
-  4. Default to "Unorganized"
+  4. Default to "My Pile"
 - Tracks manual vs automatic thread selection
 - Persists thread selection to localStorage
 

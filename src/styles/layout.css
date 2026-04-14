@@ -302,7 +302,7 @@
 /* "Add a note" button: floats at the bottom of the card area */
 .create-note-button {
   position: absolute;
-  bottom: 1rem;
+  bottom: 12px;
   left: 1rem;
   right: 1rem;
   z-index: 2;
@@ -313,7 +313,7 @@
 /* Wrapper for CTA + menu (space page): same slot as button, button fills wrapper */
 .create-note-button-wrapper {
   position: absolute;
-  bottom: 1rem;
+  bottom: 12px;
   left: 1rem;
   right: 1rem;
   z-index: 2;
@@ -372,7 +372,7 @@
    compound selector to win specificity. */
 .profile-logout-button {
   position: absolute;
-  bottom: 1rem;
+  bottom: 12px;
   left: 1rem;
   right: 1rem;
   z-index: 2;
@@ -555,7 +555,7 @@ button.new-space-floating-button {
   min-height: 0;
   max-height: 100%;
   width: 100%;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
 }
 
 /* Base: no height (mobile uses auto; desktop scoped below) */

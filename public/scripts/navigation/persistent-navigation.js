@@ -20,6 +20,13 @@ function _pathToId(pathname) {
   return null;
 }
 
+/** Matches src/utils/badge-count.ts — caps display at "99+" for wide counts */
+function _formatBadgeCount(count) {
+  var n = count == null || count === '' ? 0 : Number(count);
+  if (isNaN(n)) n = 0;
+  return n > 99 ? '99+' : String(n);
+}
+
 // Load persistent navigation from localStorage with proper chronological ordering
 // Added retry logic to wait for DOM readiness
 function loadPersistentNavigation(retryCount) {
@@ -359,12 +366,12 @@ function loadPersistentNavigation(retryCount) {
       
       // Badge count with hover functionality
       const badgeCount = document.createElement('div');
-      badgeCount.className = 'badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl w-6 h-6 relative cursor-pointer';
+      badgeCount.className = 'badge-count bg-[rgba(120,118,111,0.1)] flex items-center justify-center rounded-3xl relative cursor-pointer';
       badgeCount.style.pointerEvents = 'auto';
       badgeCount.setAttribute('data-close-item', item.id);
       
       const countSpan = document.createElement('span');
-      countSpan.textContent = item.count || 0;
+      countSpan.textContent = _formatBadgeCount(item.count);
       countSpan.className = 'text-[14px] font-sans font-semibold leading-[0] badge-number';
       countSpan.style.color = buttonTextColor;
       countSpan.style.display = 'block'; // Ensure it's visible initially

@@ -130,7 +130,7 @@ N004: Prayer Request - Healing for Sarah
 
 ### "For You" Tab
 - **Capture zone** for quick note-taking
-- **Unorganized content** that needs sorting
+- **My Pile / unfiled content** that needs sorting
 - **Threads without spaces** waiting for organization
 - **Perfect for** rapid idea capture during study
 
@@ -158,7 +158,7 @@ N004: Prayer Request - Healing for Sarah
 
 ### Note Preservation
 - **Notes are never deleted** - they're always preserved
-- **Thread deletion**: Notes move to "Unorganized" instead of being lost
+- **Thread deletion**: Notes move to "My Pile" instead of being lost
 - **Accident protection**: No fear of losing important insights
 - **Complete history**: Every note you've ever created is saved
 - **Sequential Note IDs**: User-friendly IDs (N001, N002, N003) that never reuse deleted numbers

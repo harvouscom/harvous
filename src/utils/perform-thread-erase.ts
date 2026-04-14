@@ -15,7 +15,7 @@ export function getThreadEraseConfirmCopy(mode: ThreadEraseMode): { title: strin
     return {
       title: 'Erase this thread?',
       body:
-        'The thread will be removed. Your notes stay in Harvous; any note that only belonged here moves to Unorganized.',
+        'The thread will be removed. Your notes stay in Harvous; any note that only belonged here moves to My Pile.',
     };
   }
   return {

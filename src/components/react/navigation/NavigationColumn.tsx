@@ -12,6 +12,7 @@ import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 /**
  * Check if Clerk authentication is ready
@@ -684,7 +685,7 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
     const openedInSpaceId = spaceIdForHistoryRef.current;
     addToNavigationHistory({
       id: activeThreadForHistory.id,
-      title: activeThreadForHistory.id === 'thread_unorganized' ? 'Unorganized' : (activeThreadForHistory.title || 'Thread'),
+      title: activeThreadForHistory.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (activeThreadForHistory.title || 'Thread'),
       count: activeThreadForHistory.noteCount ?? 0,
       backgroundGradient: activeThreadForHistory.backgroundGradient || 'var(--color-gradient-gray)',
       spaceId: activeThreadForHistory.spaceId ?? null,

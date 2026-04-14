@@ -165,9 +165,9 @@ Imagine Harvous as a house with three main rooms:
 **The Problem We Solved:** Users need confidence that their content is safe. Deletion should be reversible or at least preserve the content.
 
 **How It Works:**
-- When you delete a thread, all its notes are moved to "Unorganized" (not deleted)
+- When you delete a thread, all its notes are moved to "My Pile" (not deleted)
 - Notes are never permanently deleted from the database
-- You can always recover content by looking in "Unorganized"
+- You can always recover content by looking in "My Pile"
 - This gives you safety without cluttering your active organization
 
 **Why This Matters:** Bible study insights are precious. A note you wrote months ago might become relevant again. We preserve everything so you never lose your spiritual journey.
@@ -259,7 +259,7 @@ Imagine Harvous as a house with three main rooms:
 - **Rich text content** with formatting (bold, italic, lists)
 - Can belong to **multiple threads** simultaneously
 - Can exist **directly in a space** (not in any thread)
-- **Never deleted** - moved to "Unorganized" if thread is deleted
+- **Never deleted** - moved to "My Pile" if thread is deleted
 
 **Why This Matters:** Notes are your actual content. They're what you create, what you search for, and what you reference. The ID system makes them easy to reference, and the preservation system ensures you never lose them.
 
@@ -523,7 +523,7 @@ Imagine Harvous as a house with three main rooms:
 2. **User Isolation:** Database queries filter by user ID - you only see your content
 3. **Data Persistence:** Everything is saved immediately to the database
 4. **Backup:** Database backup and recovery are handled by the Supabase project configuration
-5. **No Data Loss:** Notes are never deleted, only moved to "Unorganized"
+5. **No Data Loss:** Notes are never deleted, only moved to "My Pile"
 
 ### Why Sequential IDs Never Reuse
 
@@ -543,13 +543,13 @@ Imagine Harvous as a house with three main rooms:
 
 **The Problem:** Accidental deletion is devastating. You might delete a thread and lose important notes.
 
-**The Solution:** When you delete a thread, all its notes are moved to "Unorganized" (not deleted).
+**The Solution:** When you delete a thread, all its notes are moved to "My Pile" (not deleted).
 
 **How It Works:**
 - Delete thread → Remove note-thread relationships
-- Notes with no relationships → Automatically become "Unorganized"
-- "Unorganized" thread always exists (can't be deleted)
-- You can always recover content from "Unorganized"
+- Notes with no relationships → Automatically land in "My Pile"
+- The My Pile thread always exists (can't be deleted)
+- You can always recover content from "My Pile"
 
 **Why This Matters:** Your spiritual journey is precious. We preserve everything so you never lose insights.
 

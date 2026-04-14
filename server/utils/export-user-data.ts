@@ -15,6 +15,7 @@ import {
   desc,
 } from '../db';
 import { htmlToPlainText, htmlToMarkdown } from '../../src/utils/html-to-markdown';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
 export type ExportFormat = 'csv-threads' | 'markdown' | 'text';
 
@@ -106,7 +107,7 @@ export async function generateUserExport(
       const tags = noteTagsMap.get(note.id) || [];
       const plainContent = htmlToPlainText(note.content || '');
       rows.push([
-        escapeCSV(thread?.title || 'Unorganized'),
+        escapeCSV(thread?.title || MY_PILE_THREAD_TITLE),
         escapeCSV(thread?.color || ''),
         escapeCSV(note.title || 'Untitled'),
         escapeCSV(plainContent),

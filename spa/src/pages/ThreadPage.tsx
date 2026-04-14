@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useParams, useRouterState } from '@tanstack/react-router';
+import { useNavigate, useParams, useRouterState } from '@tanstack/react-router';
 import { useThread } from '../hooks/queries/useThread';
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
@@ -19,6 +19,7 @@ import {
   setStoredThreadContentTab,
   type ThreadContentTabId,
 } from '../../../src/utils/content-tab-storage';
+import { MY_PILE_THREAD_TITLE, MY_PILE_THREAD_URL_SEGMENT } from '@/utils/my-pile-thread';
 
 type NoteTypeFilter = 'all' | 'notes' | 'scripture' | 'search';
 
@@ -28,6 +29,15 @@ const TABS: Array<{ id: NoteTypeFilter; label: string }> = [
   { id: 'scripture', label: 'Scripture' },
   { id: 'search',    label: 'Search' },
 ];
+
+/** URL `/thread/mypile` and legacy `/thread/unorganized` map to DB id `thread_unorganized`. */
+function threadSlugToThreadId(threadSlug: string): string {
+  if (threadSlug === MY_PILE_THREAD_URL_SEGMENT || threadSlug === 'unorganized') {
+    return 'thread_unorganized';
+  }
+  if (threadSlug.startsWith('thread_')) return threadSlug;
+  return `thread_${threadSlug}`;
+}
 
 function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefined): string | null {
   if (search == null) return null;
@@ -46,8 +56,15 @@ function getSpaceIdFromSearch(search: string | Record<string, unknown> | undefin
 export default function ThreadPage() {
   const { threadId: threadSlug } = useParams({ strict: false }) as { threadId: string };
   const search = useRouterState({ select: (s) => s.location.search });
-  const threadId = threadSlug.startsWith('thread_') ? threadSlug : `thread_${threadSlug}`;
+  const navigate = useNavigate();
+  const threadId = threadSlugToThreadId(threadSlug);
   const isUnorganized = threadId === 'thread_unorganized';
+
+  useEffect(() => {
+    if (threadSlug === 'unorganized') {
+      navigate({ to: '/thread/mypile', replace: true, search: (prev) => prev });
+    }
+  }, [threadSlug, navigate]);
   const queryClient = useQueryClient();
   const { data: threadPrefetch, isLoading } = useThread(threadId);
   const thread = threadPrefetch?.thread;
@@ -108,7 +125,7 @@ export default function ThreadPage() {
 
   const threadContext = {
     id: threadId,
-    title: isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title ?? 'Thread'),
+    title: isUnorganized ? MY_PILE_THREAD_TITLE : (thread?.title ?? navThread?.title ?? 'Thread'),
     color: isUnorganized ? 'paper' : (thread?.color ?? navThread?.color ?? 'paper'),
     backgroundGradient: thread?.backgroundGradient ?? navThread?.backgroundGradient ?? 'var(--color-gradient-gray)',
   };
@@ -138,7 +155,7 @@ export default function ThreadPage() {
   useEffect(() => {
     const effectSpaceId = spaceIdRef.current;
     const navThread = nav?.threads.find(t => t.id === threadId);
-    const title = isUnorganized ? 'Unorganized' : (thread?.title ?? navThread?.title);
+    const title = isUnorganized ? MY_PILE_THREAD_TITLE : (thread?.title ?? navThread?.title);
     // Never push placeholder "Thread" into history — it overwrites real titles from localStorage on reload.
     if (!isUnorganized && !title) return;
 
@@ -161,8 +178,8 @@ export default function ThreadPage() {
 
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === noteTypeFilter }));
 
-  // For the unorganized thread, use hardcoded values since it's a virtual thread
-  const resolvedTitle = isUnorganized ? 'Unorganized'
+  // For the My Pile thread, use hardcoded values since it's a virtual thread
+  const resolvedTitle = isUnorganized ? MY_PILE_THREAD_TITLE
     : (thread?.title ?? navThread?.title ?? '');
   const resolvedColor = isUnorganized ? 'paper'
     : (thread?.color ?? navThread?.color ?? 'paper');

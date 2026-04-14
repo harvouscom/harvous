@@ -144,7 +144,7 @@ export default function ScriptureComparePanel({
 
   return (
     <div className={`scripture-compare-panel panel-wrapper ${inBottomSheet ? 'panel-wrapper--bottom-sheet' : ''} w-full`}>
-      <div className={inBottomSheet ? 'flex-fill flex-stack' : 'flex-stack'} style={{ gap: 0, position: 'relative' }}>
+      <div className="flex-fill flex-stack" style={{ gap: 0, position: 'relative' }}>
         <div className={`panel ${inBottomSheet ? 'panel--bottom-sheet' : ''}`}>
           <div className="panel__header">
             <div className="panel__title">
@@ -157,8 +157,8 @@ export default function ScriptureComparePanel({
               <div className="panel__content-scroll">
                 {/* Same shell as ScriptureNoteForm (NewNotePanel) so translation pill matches pixel-for-pixel */}
                 <div
-                  className="box-border flex flex-col flex-1 min-h-0 items-start pt-3 px-3 relative"
-                  style={{ maxHeight: '100%', width: '100%' }}
+                  className="box-border flex flex-col flex-1 min-h-0 items-stretch pt-3 px-3 relative"
+                  style={{ maxHeight: '100%', width: '100%', minHeight: 0 }}
                 >
                   <div className="flex gap-3 items-center justify-center relative shrink-0 w-full">
                     <div className="basis-0 font-sans font-semibold grow leading-[0] min-h-px min-w-px not-italic relative shrink-0 text-[var(--color-deep-grey)] text-[24px]">
@@ -229,11 +229,11 @@ export default function ScriptureComparePanel({
 
                   {translationInfo && (
                   <div
-                    className="panel__attribution"
+                    className="panel__attribution w-full"
                     style={{
-                      padding: '1rem',
+                      padding: '0.75rem 0 0',
                       borderTop: '1px solid oklch(0.96 0 0)',
-                      marginTop: '1.5rem',
+                      marginTop: 'auto',
                       flexShrink: 0,
                     }}
                   >
@@ -244,7 +244,6 @@ export default function ScriptureComparePanel({
                         color: 'var(--color-pebble-grey)',
                         margin: 0,
                         textAlign: 'left',
-                        paddingRight: '96px',
                       }}
                     >
                       {translationInfo.copyright}{' '}

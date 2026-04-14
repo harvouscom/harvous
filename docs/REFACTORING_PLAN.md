@@ -498,7 +498,7 @@ Test and document that everything works:
 - [ ] Navigation history shows in sidebar
 - [ ] Close (×) button works on navigation items
 - [ ] Navigation persists after page refresh
-- [ ] Unorganized thread appears/disappears correctly
+- [ ] My Pile thread appears/disappears correctly
 
 **Panels (Desktop):**
 - [ ] "Add" button opens correct panels

@@ -44,6 +44,7 @@ import { generateAutoTags, applyAutoTags, removeAutoTags, regenerateAutoTags } f
 import { processScriptureReferences } from '../utils/process-scripture-references';
 import { getNextUntitledNoteName } from '../utils/untitled-naming';
 import { ensureUnorganizedThread } from '../utils/unorganized-thread';
+import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 import { moveScriptureNotesToThread } from '../utils/move-scripture-notes-to-thread';
 import { healScriptureNoteThreadsFromParents } from '../utils/heal-scripture-note-threads';
 import { removeScriptureNotesFromThread } from '../utils/remove-scripture-notes-from-thread';
@@ -894,7 +895,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
       }
     }
 
-    // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows "Unorganized".
+    // Notes that live only in unorganized have no NoteThreads row; include unorganized thread so nav shows My Pile.
     if (!isMemberView && allThreads.length === 0 && note.threadId === 'thread_unorganized') {
       await ensureUnorganizedThread(auth.userId);
       const unorganizedRow = first(await db.select({ id: Threads.id, title: Threads.title, subtitle: Threads.subtitle, color: Threads.color, spaceId: Threads.spaceId, isPublic: Threads.isPublic, isPinned: Threads.isPinned, createdAt: Threads.createdAt, updatedAt: Threads.updatedAt })
@@ -909,7 +910,7 @@ route.get('/api/notes/:id/details', requireAuth, async (c) => {
           .limit(1));
         allThreads = [{
           ...unorganizedRow,
-          title: 'Unorganized',
+          title: unorganizedRow.title || MY_PILE_THREAD_TITLE,
           subtitle: unorganizedRow.subtitle || 'Thread',
           count: unorganizedCountResult?.count || 0,
           backgroundGradient: getThreadGradientCSS(unorganizedRow.color || 'paper'),
