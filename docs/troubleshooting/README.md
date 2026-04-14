@@ -14,6 +14,7 @@ This folder contains troubleshooting documentation for common issues encountered
 - **[Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md)** - Debugging persistent navigation close functionality and thread duplication
 - **[Active space changes unexpectedly](./ACTIVE_SPACE_CHANGES_UNEXPECTEDLY.md)** - Why the space switcher can update without an explicit pick (URL `?space=`, mobile sync, storage); investigation checklist and fix directions
 - **[iOS PWA sheet / modal overlay vs status bar](./IOS_PWA_SHEET_OVERLAY_SAFE_AREA.md)** - Backdrop safe-area issues on installed PWA; `env()` unreliability, approaches tried, checklist
+- **[Note scroll well progressive blur (deferred)](./NOTE_SCROLL_WELL_PROGRESSIVE_BLUR.md)** - Backdrop blur edges on note body scroll: muddy gray on light cards; current mask-only approach; notes if we try again
 
 ## Quick Reference
 

@@ -309,11 +309,9 @@ export default function CardFullEditable({
   }, [isContentEditing, isTitleEditing]);
 
   const [contentViewTopFade, setContentViewTopFade] = useState(false);
-  const [contentViewBottomFade, setContentViewBottomFade] = useState(false);
 
   const viewScrollMaskClasses = [
     contentViewTopFade ? 'card-full-editable__content-scroll--top-fade' : '',
-    contentViewBottomFade ? 'card-full-editable__content-scroll--bottom-fade' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -327,7 +325,6 @@ export default function CardFullEditable({
   useEffect(() => {
     if (isContentEditing) {
       setContentViewTopFade(false);
-      setContentViewBottomFade(false);
       return;
     }
     const el = contentDisplayRef.current;
@@ -337,7 +334,6 @@ export default function CardFullEditable({
       const t = contentDisplayRef.current;
       if (!t) {
         setContentViewTopFade(false);
-        setContentViewBottomFade(false);
         return;
       }
       const { overflowY, overflow } = window.getComputedStyle(t);
@@ -348,13 +344,11 @@ export default function CardFullEditable({
         overflow === 'scroll';
       if (!scrollable) {
         setContentViewTopFade(false);
-        setContentViewBottomFade(false);
         return;
       }
       const { scrollTop, scrollHeight, clientHeight } = t;
       const overflowing = scrollHeight > clientHeight + 1;
       setContentViewTopFade(overflowing && scrollTop > 0);
-      setContentViewBottomFade(overflowing && scrollTop + clientHeight < scrollHeight - 2);
     };
 
     syncViewScrollMask();

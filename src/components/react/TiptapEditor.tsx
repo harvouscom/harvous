@@ -34,11 +34,12 @@ const pendingPillCreations = new Set<string>();
 
 // Track a recently created pill that hasn't had its translation resolved yet.
 // On the next space/Enter, we check if the user typed a translation abbreviation after it.
-let pendingTranslationPill: {
+// Map of normalized reference → pending entry (keyed so multiple pills created at once each get a window)
+const pendingTranslationPills = new Map<string, {
   reference: string;
-  editorId: string; // to scope to the correct editor instance
+  editorId: string;
   timeoutId: ReturnType<typeof setTimeout> | null;
-} | null = null;
+}>();
 
 // Toast is declared globally elsewhere - no need to redeclare here
 
@@ -261,16 +262,15 @@ export function snapCursorOutsideScripturePill(editor: any): void {
 
     // Cursor right after pill AND nothing follows in the paragraph:
     // visually the cursor is inside the pill's styled box.
-    // Insert an empty paragraph so the cursor has somewhere outside.
+    // Insert a trailing space so the cursor has a non-pill landing spot without
+    // adding an extra paragraph that would destroy the user's paragraph structure.
     if (beforeInPill && !afterInPill) {
       const atEndOfParent = offset === parent.content.size;
       if (atEndOfParent) {
-        const endOfBlock = $from.after($from.depth);
-        const paragraphType = state.schema.nodes.paragraph;
-        if (!paragraphType) return;
+        const endOfParaContent = $from.end($from.depth);
         const tr = state.tr;
-        tr.insert(endOfBlock, paragraphType.create());
-        tr.setSelection(TextSelection.create(tr.doc, endOfBlock + 1));
+        tr.insertText(' ', endOfParaContent);
+        tr.setSelection(TextSelection.create(tr.doc, endOfParaContent + 1));
         tr.setStoredMarks([]);
         tr.setMeta('addToHistory', false);
         editor.view.dispatch(tr);
@@ -821,113 +821,107 @@ function getTextBeforeCursorForScripture(editor: any): string {
 // Helper function to check/create scripture note and get noteId
 
 /**
- * Resolves a pending translation pill. Finds the pill in the doc, checks the text immediately
- * after it for a valid translation abbreviation. If found, applies it and deletes the abbreviation.
- * Otherwise applies the user's default translation.
- * @returns true if an abbreviation was consumed from the text (so we can skip normal detection)
+ * Resolves all pending translation pills for this editor. For each pill, checks the text
+ * immediately after it for a valid translation abbreviation. If found, applies it and deletes
+ * the abbreviation. Otherwise applies the user's default translation.
+ * @returns true if any abbreviation was consumed from the text (so we can skip normal detection)
  */
 function resolvePendingTranslationPill(editor: any): boolean {
-  if (!pendingTranslationPill || !editor || editor.isDestroyed) {
-    pendingTranslationPill = null;
-    return false;
+  if (!editor || editor.isDestroyed) return false;
+  const editorId = String(editor.view?.dom?.id || 'default');
+  const entries = Array.from(pendingTranslationPills.entries()).filter(([, v]) => v.editorId === editorId);
+  if (entries.length === 0) return false;
+
+  // Clear all entries for this editor upfront
+  for (const [key, entry] of entries) {
+    if (entry.timeoutId) clearTimeout(entry.timeoutId);
+    pendingTranslationPills.delete(key);
   }
 
-  const { reference } = pendingTranslationPill;
-  pendingTranslationPill = null;
-
+  let anyConsumed = false;
   try {
     const view = editor.view;
     const doc = view.state.doc;
     const markType = view.state.schema.marks.scripturePill;
     if (!markType) return false;
 
-    // Find the pill in the document by looking for the scripturePill mark with matching reference and null translation
-    let pillFrom = -1, pillTo = -1;
-    doc.descendants((node: any, pos: number) => {
-      if (pillFrom !== -1) return false; // already found
-      if (!node.isText) return;
-      const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
-      if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(reference)) {
-        pillFrom = pos;
-        pillTo = pos + node.nodeSize;
-        return false;
-      }
-    });
-
-    if (pillFrom === -1) return false;
-
-    // Check text between the pill and the current cursor for a translation abbreviation
-    const cursorPos = view.state.selection.from;
-    // Scan from pill end to cursor position (the user typed the abbreviation here)
-    const scanEnd = Math.min(cursorPos, doc.content.size);
-    let textAfterPill = '';
-    if (pillTo < scanEnd) {
+    for (const [, { reference }] of entries) {
       try {
-        textAfterPill = doc.textBetween(pillTo, scanEnd);
-      } catch (_) { /* cross-node boundary */ }
+        let pillFrom = -1, pillTo = -1;
+        doc.descendants((node: any, pos: number) => {
+          if (pillFrom !== -1) return false;
+          if (!node.isText) return;
+          const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
+          if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(reference)) {
+            pillFrom = pos;
+            pillTo = pos + node.nodeSize;
+            return false;
+          }
+        });
+
+        if (pillFrom === -1) continue;
+
+        const cursorPos = view.state.selection.from;
+        const scanEnd = Math.min(cursorPos, doc.content.size);
+        let textAfterPill = '';
+        if (pillTo < scanEnd) {
+          try { textAfterPill = doc.textBetween(pillTo, scanEnd); } catch (_) {}
+        }
+
+        const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
+        if (trailing) {
+          const deleteFrom = pillTo;
+          const deleteTo = pillTo + trailing.consumed.length;
+          const tr = view.state.tr;
+          tr.delete(deleteFrom, deleteTo);
+          tr.addMark(pillFrom, pillTo, markType.create({ reference, noteId: 'pending', translation: trailing.canonicalId }));
+          tr.setMeta('addToHistory', false);
+          tr.setStoredMarks([]);
+          view.dispatch(tr);
+          anyConsumed = true;
+        } else {
+          const resolvedTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
+          const tr = view.state.tr;
+          tr.addMark(pillFrom, pillTo, markType.create({ reference, noteId: 'pending', translation: resolvedTranslation }));
+          tr.setMeta('addToHistory', false);
+          view.dispatch(tr);
+        }
+      } catch (e) {
+        console.error('[TiptapEditor] Error resolving pending translation pill:', e);
+      }
     }
-
-    const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
-    let resolvedTranslation: string;
-    let consumedAbbrev = false;
-
-    if (trailing) {
-      resolvedTranslation = trailing.canonicalId;
-      consumedAbbrev = true;
-      // Delete the abbreviation text from the doc
-      const deleteFrom = pillTo;
-      const deleteTo = pillTo + trailing.consumed.length;
-      const tr = view.state.tr;
-      tr.delete(deleteFrom, deleteTo);
-      // Update the pill mark with the resolved translation
-      tr.addMark(pillFrom, pillTo, markType.create({
-        reference,
-        noteId: 'pending',
-        translation: resolvedTranslation,
-      }));
-      tr.setMeta('addToHistory', false);
-      tr.setStoredMarks([]);
-      view.dispatch(tr);
-    } else {
-      // No abbreviation — apply user's default
-      resolvedTranslation = getCachedProfileData()?.defaultTranslation || 'NET';
-      const tr = view.state.tr;
-      tr.addMark(pillFrom, pillTo, markType.create({
-        reference,
-        noteId: 'pending',
-        translation: resolvedTranslation,
-      }));
-      tr.setMeta('addToHistory', false);
-      view.dispatch(tr);
-    }
-
-    return consumedAbbrev;
   } catch (e) {
-    console.error('[TiptapEditor] Error resolving pending translation pill:', e);
-    return false;
+    console.error('[TiptapEditor] Error in resolvePendingTranslationPill:', e);
   }
+  return anyConsumed;
 }
 
 /**
- * If text after the new pill is already a full translation abbreviation, consume it and set the mark.
- * Does not apply the profile default (so the user can still type an abbrev after a lone "ref + space").
+ * If text after any pending pill is already a full translation abbreviation, consume it and set
+ * the mark on all pending pills for this editor. Does not apply the profile default (so the user
+ * can still type an abbrev after a lone "ref + space").
+ * @returns true if an abbreviation was consumed from any pill
  */
 function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
-  if (!pendingTranslationPill || !editor || editor.isDestroyed) return false;
-  const { reference, timeoutId } = pendingTranslationPill;
+  if (!editor || editor.isDestroyed) return false;
+  const editorId = String(editor.view?.dom?.id || 'default');
+  const entries = Array.from(pendingTranslationPills.entries()).filter(([, v]) => v.editorId === editorId);
+  if (entries.length === 0) return false;
+
   try {
     const view = editor.view;
     const doc = view.state.doc;
     const markType = view.state.schema.marks.scripturePill;
     if (!markType) return false;
 
-    let pillFrom = -1;
-    let pillTo = -1;
+    // Check the last-created pill for an abbreviation (most recently typed)
+    const [, lastEntry] = entries[entries.length - 1];
+    let pillFrom = -1, pillTo = -1;
     doc.descendants((node: any, pos: number) => {
       if (pillFrom !== -1) return false;
       if (!node.isText) return;
       const pillMark = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
-      if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(reference)) {
+      if (pillMark && normalizeScriptureReference(pillMark.attrs.reference) === normalizeScriptureReference(lastEntry.reference)) {
         pillFrom = pos;
         pillTo = pos + node.nodeSize;
         return false;
@@ -940,34 +934,48 @@ function tryConsumeTranslationAbbrevAfterPill(editor: any): boolean {
     const scanEnd = Math.min(cursorPos, doc.content.size);
     let textAfterPill = '';
     if (pillTo < scanEnd) {
-      try {
-        textAfterPill = doc.textBetween(pillTo, scanEnd);
-      } catch (_) {
-        /* cross-node boundary */
-      }
+      try { textAfterPill = doc.textBetween(pillTo, scanEnd); } catch (_) {}
     }
 
     const trailing = matchTrailingTranslationAbbreviation(textAfterPill);
     if (!trailing) return false;
 
-    const deleteFrom = pillTo;
-    const deleteTo = pillTo + trailing.consumed.length;
-    const tr = view.state.tr;
-    tr.delete(deleteFrom, deleteTo);
-    tr.addMark(pillFrom, pillTo, markType.create({
-      reference,
-      noteId: 'pending',
-      translation: trailing.canonicalId,
-    }));
-    tr.setMeta('addToHistory', false);
-    tr.setStoredMarks([]);
-    view.dispatch(tr);
+    // Apply the detected abbreviation to ALL pending pills for this editor
+    for (const [key, entry] of entries) {
+      if (entry.timeoutId) clearTimeout(entry.timeoutId);
+      pendingTranslationPills.delete(key);
+      try {
+        let pFrom = -1, pTo = -1;
+        doc.descendants((node: any, pos: number) => {
+          if (pFrom !== -1) return false;
+          if (!node.isText) return;
+          const pm = node.marks.find((m: any) => m.type.name === 'scripturePill' && !m.attrs.translation);
+          if (pm && normalizeScriptureReference(pm.attrs.reference) === normalizeScriptureReference(entry.reference)) {
+            pFrom = pos;
+            pTo = pos + node.nodeSize;
+            return false;
+          }
+        });
+        if (pFrom === -1) continue;
 
-    if (timeoutId) clearTimeout(timeoutId);
-    pendingTranslationPill = null;
+        const deleteFrom = pTo;
+        const deleteTo = pTo + trailing.consumed.length;
+        const tr = view.state.tr;
+        // Only delete abbreviation text once (for the last pill, which is the one just after the typed abbrev)
+        if (entry.reference === lastEntry.reference) {
+          tr.delete(deleteFrom, deleteTo);
+        }
+        tr.addMark(pFrom, pTo, markType.create({ reference: entry.reference, noteId: 'pending', translation: trailing.canonicalId }));
+        tr.setMeta('addToHistory', false);
+        tr.setStoredMarks([]);
+        view.dispatch(tr);
+      } catch (e) {
+        console.error('[TiptapEditor] Error consuming translation abbrev for pill:', e);
+      }
+    }
     return true;
   } catch (e) {
-    console.error('[TiptapEditor] Error consuming translation abbrev after pill:', e);
+    console.error('[TiptapEditor] Error in tryConsumeTranslationAbbrevAfterPill:', e);
     return false;
   }
 }
@@ -977,22 +985,30 @@ function schedulePendingTranslationAfterPillCreation(
   references: (ScriptureReference | ScriptureReferenceWithTranslation)[],
 ) {
   if (!references.length) return;
-  const lastRef = references[references.length - 1];
   const editorId = String(editor.view?.dom?.id || 'default');
-  if (pendingTranslationPill?.timeoutId) clearTimeout(pendingTranslationPill.timeoutId);
-  pendingTranslationPill = {
-    reference: lastRef.reference,
-    editorId,
-    timeoutId: null,
-  };
+
+  // Register every reference in the map so each gets its own detection window
+  for (const ref of references) {
+    const key = normalizeScriptureReference(ref.reference);
+    const existing = pendingTranslationPills.get(key);
+    if (existing?.timeoutId) clearTimeout(existing.timeoutId);
+    pendingTranslationPills.set(key, { reference: ref.reference, editorId, timeoutId: null });
+  }
+
+  // Try to immediately consume an already-typed abbreviation
   if (!tryConsumeTranslationAbbrevAfterPill(editor)) {
-    const timeoutId = setTimeout(() => {
-      if (pendingTranslationPill?.editorId === editorId) {
-        resolvePendingTranslationPill(editor);
-      }
-    }, 3000);
-    if (pendingTranslationPill) {
-      pendingTranslationPill.timeoutId = timeoutId;
+    // Set a 3-second timeout per reference; whichever fires last wins
+    for (const ref of references) {
+      const key = normalizeScriptureReference(ref.reference);
+      const entry = pendingTranslationPills.get(key);
+      if (!entry) continue;
+      const timeoutId = setTimeout(() => {
+        const current = pendingTranslationPills.get(key);
+        if (current?.editorId === editorId) {
+          resolvePendingTranslationPill(editor);
+        }
+      }, 3000);
+      entry.timeoutId = timeoutId;
     }
   }
 }
@@ -1082,23 +1098,54 @@ function createPendingPillsForReferences(editor: any, references: (ScriptureRefe
             // Use explicit translation if provided, otherwise null (deferred — set on next space/Enter or timeout)
             const pillTranslation = translation || null;
 
+            // 2b: Leading space — insert if the char immediately before the reference is not
+            // whitespace and we're not at the start of the paragraph (avoids "SeeJohn 3:16 " case)
+            let leadingOffset = 0;
+            try {
+              const $startPos = tr.doc.resolve(adjustedPos.from);
+              const atParaStart = $startPos.parentOffset === 0;
+              if (!atParaStart) {
+                const charBefore = tr.doc.textBetween(adjustedPos.from - 1, adjustedPos.from);
+                if (charBefore && charBefore !== ' ' && charBefore !== '\n' && charBefore !== '\t') {
+                  tr.insertText(' ', adjustedPos.from);
+                  leadingOffset = 1;
+                }
+              }
+            } catch (_) {}
+
+            const pillFrom = adjustedPos.from + leadingOffset;
+            const pillTo = adjustedPos.to + leadingOffset;
+
             // Replace text with canonical reference when it differs (e.g. "john 3:16" -> "John 3:16")
-            const currentText = tr.doc.textBetween(adjustedPos.from, adjustedPos.to);
+            const currentText = tr.doc.textBetween(pillFrom, pillTo);
             // Normalize both sides for comparison (handle spacing around dashes/colons)
             const normalizeRef = (s: string) => s.replace(/\s*[-–—]\s*/g, '-').replace(/\s*:\s*/g, ':').trim();
+            let finalPillTo = pillTo;
             if (normalizeRef(currentText) !== normalizeRef(reference)) {
               const textNode = state.schema.text(reference, [
                 markType.create({ reference, noteId: 'pending', translation: pillTranslation })
               ]);
-              tr.replaceWith(adjustedPos.from, adjustedPos.to, textNode);
+              tr.replaceWith(pillFrom, pillTo, textNode);
+              finalPillTo = pillFrom + reference.length;
             } else {
-              tr.removeMark(adjustedPos.from, adjustedPos.to, markType);
-              tr.addMark(adjustedPos.from, adjustedPos.to, markType.create({
+              tr.removeMark(pillFrom, pillTo, markType);
+              tr.addMark(pillFrom, pillTo, markType.create({
                 reference,
                 noteId: 'pending',
                 translation: pillTranslation,
               }));
             }
+
+            // 2a: Trailing space — insert if the pill ends at paragraph end so the cursor
+            // always has a non-pill landing spot (avoids the empty-paragraph snap-cursor hack)
+            try {
+              const $endPos = tr.doc.resolve(finalPillTo);
+              const atParaEnd = $endPos.parentOffset === $endPos.parent.content.size;
+              if (atParaEnd) {
+                tr.insertText(' ', finalPillTo);
+              }
+            } catch (_) {}
+
             modified = true;
           }
         } catch (e) {
@@ -2703,6 +2750,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
   const [toolbarEnterEpoch, setToolbarEnterEpoch] = useState(0);
   const editorWasFocusedForToolbarRef = useRef(false);
   const [activeStates, setActiveStates] = useState({
+    canUndo: false,
+    canRedo: false,
     bold: false,
     italic: false,
     underline: false,
@@ -2725,9 +2774,19 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     reference: string;
     updating?: boolean; // true while API call is in flight
   } | null>(null);
+  const [deleteConfirmPill, setDeleteConfirmPill] = useState<{
+    rect: DOMRect;
+    reference: string;
+    boundaries: { start: number; end: number };
+  } | null>(null);
+  // Ref mirrors deleteConfirmPill for reading inside handleKeyDown (avoids stale closure)
+  const deleteConfirmPillRef = useRef<{
+    rect: DOMRect;
+    reference: string;
+    boundaries: { start: number; end: number };
+  } | null>(null);
   const [contentOverflowing, setContentOverflowing] = useState(false);
   const [contentHasScrolledDown, setContentHasScrolledDown] = useState(false);
-  const [contentHasScrolledToBottom, setContentHasScrolledToBottom] = useState(false);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<any>(null);
   const tiptapContentRef = useRef<HTMLDivElement>(null);
@@ -2880,8 +2939,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const { from: mobFrom, to: mobTo } = editor.state.selection;
         if (mobFrom === mobTo && mobFrom >= 2) {
           const $mobFrom = editor.state.doc.resolve(mobFrom);
+          const thisEditorId = String(editor.view?.dom?.id || 'default');
           const needsScripturePass =
-            pendingTranslationPill !== null ||
+            Array.from(pendingTranslationPills.values()).some(e => e.editorId === thisEditorId) ||
             isScripturePillBoundaryCursor($mobFrom, editor.state.doc);
           if (!needsScripturePass) {
             if (mobileScriptureDetectionTimer.current) {
@@ -3269,47 +3329,115 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         const $from = view.state.selection.$from;
         const scripturePillMark = $from.marks().find(mark => mark.type.name === 'scripturePill');
 
-        // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
-        // This must fire first to prevent ProseMirror's default backspace from eating pill characters
-        if ((event.key === 'Backspace' || event.key === 'Delete') && from === to) {
-          if (scripturePillMark) {
-            // Cursor is inside the pill — delete entire pill atomically
-            const boundaries = findPillBoundaries(view.state.doc, from);
-            if (boundaries) {
-              event.preventDefault();
-              editor.chain()
-                .deleteRange({ from: boundaries.start, to: boundaries.end })
-                .run();
-              return true;
+        // Arrow key atomic pill navigation: skip over a pill in one keystroke
+        if ((event.key === 'ArrowRight' || event.key === 'ArrowLeft') && from === to &&
+            !event.shiftKey && !event.metaKey && !event.altKey && !event.ctrlKey) {
+          const $from = view.state.selection.$from;
+          const parent = $from.parent;
+          const parentOffset = $from.parentOffset;
+
+          if (event.key === 'ArrowRight') {
+            const childAfterInfo = parent.childAfter(parentOffset);
+            if (childAfterInfo.node &&
+                childAfterInfo.offset === parentOffset &&
+                childAfterInfo.node.marks.some((m: any) => m.type.name === 'scripturePill')) {
+              const boundaries = findPillBoundaries(view.state.doc, from + 1);
+              if (boundaries) {
+                event.preventDefault();
+                editor.commands.setTextSelection(boundaries.end);
+                return true;
+              }
             }
           } else {
-            // Cursor is outside — check if adjacent to a pill
-            const direction = event.key === 'Backspace' ? 'before' : 'after';
-            const adjacentBoundaries = findAdjacentPillBoundaries(view.state.doc, from, direction);
-            if (adjacentBoundaries) {
-              event.preventDefault();
-              editor.chain()
-                .deleteRange({ from: adjacentBoundaries.start, to: adjacentBoundaries.end })
-                .run();
-              return true;
+            const childBeforeInfo = parent.childBefore(parentOffset);
+            if (childBeforeInfo.node &&
+                childBeforeInfo.offset + childBeforeInfo.node.nodeSize === parentOffset &&
+                childBeforeInfo.node.marks.some((m: any) => m.type.name === 'scripturePill')) {
+              const boundaries = findPillBoundaries(view.state.doc, from - 1);
+              if (boundaries) {
+                event.preventDefault();
+                editor.commands.setTextSelection(boundaries.start);
+                return true;
+              }
             }
           }
         }
+
+        // EARLY CHECK: Handle Backspace/Delete adjacent to or inside a pill
+        // This must fire first to prevent ProseMirror's default backspace from eating pill characters
+        if ((event.key === 'Backspace' || event.key === 'Delete') && from === to) {
+          // If a delete confirmation is already showing, the second press confirms deletion
+          const existingConfirm = deleteConfirmPillRef.current;
+          if (existingConfirm) {
+            event.preventDefault();
+            setDeleteConfirmPill(null);
+            deleteConfirmPillRef.current = null;
+            editor.chain()
+              .deleteRange({ from: existingConfirm.boundaries.start, to: existingConfirm.boundaries.end })
+              .run();
+            return true;
+          }
+
+          // First press — find the pill to confirm then show floater
+          let pillBoundaries: { start: number; end: number } | null = null;
+          let pillReference: string | null = null;
+
+          if (scripturePillMark) {
+            pillBoundaries = findPillBoundaries(view.state.doc, from);
+            pillReference = scripturePillMark.attrs.reference;
+          } else {
+            const direction = event.key === 'Backspace' ? 'before' : 'after';
+            const adj = findAdjacentPillBoundaries(view.state.doc, from, direction);
+            if (adj) {
+              pillBoundaries = adj;
+              // Find the mark to get the reference text
+              try {
+                const midPos = Math.floor((adj.start + adj.end) / 2);
+                const $mid = view.state.doc.resolve(midPos);
+                const mark = $mid.marks().find((m: any) => m.type.name === 'scripturePill')
+                  || $mid.nodeAfter?.marks?.find((m: any) => m.type.name === 'scripturePill');
+                pillReference = mark?.attrs.reference || null;
+              } catch (_) {}
+            }
+          }
+
+          if (pillBoundaries && pillReference) {
+            event.preventDefault();
+            // Find the pill's DOM element to position the confirm floater
+            const pillEl = editor.view.dom.querySelector(
+              `.scripture-pill[data-scripture-reference="${CSS.escape(pillReference)}"]`
+            ) as HTMLElement | null;
+            const rect = pillEl ? pillEl.getBoundingClientRect() : new DOMRect(0, 0, 0, 0);
+            const confirmData = { rect, reference: pillReference, boundaries: pillBoundaries };
+            setDeleteConfirmPill(confirmData);
+            deleteConfirmPillRef.current = confirmData;
+            return true;
+          }
+        }
+
+        // Dismiss delete confirm on Escape
+        if (event.key === 'Escape' && deleteConfirmPillRef.current) {
+          setDeleteConfirmPill(null);
+          deleteConfirmPillRef.current = null;
+          return true;
+        }
         
-        // Detect scripture references when space or Enter is pressed (desktop only)
+        // Detect scripture references when space, Enter, comma, or period is pressed (desktop only)
         // On mobile, scripture detection happens in onUpdate to avoid interfering
         // with native keyboard behavior (e.g., iOS double-space-to-period)
-        const isSpaceOrEnterKey =
-          event.key === ' ' || event.key === 'Enter' || event.key === 'NumpadEnter';
-        if (isSpaceOrEnterKey && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
+        const isDetectionTrigger =
+          event.key === ' ' || event.key === 'Enter' || event.key === 'NumpadEnter' ||
+          event.key === ',' || event.key === '.';
+        const isSyncTrigger = event.key === ' ' || event.key === ',' || event.key === '.';
+        if (isDetectionTrigger && from === to && !scripturePillMark && !event.metaKey && !event.ctrlKey && !event.altKey && !isMobileDevice()) {
           // Step 1: Resolve any pending translation pill from a previous keypress
           // (Check if user typed a translation abbreviation like "ESV" after the last pill)
           const consumedAbbrev = resolvePendingTranslationPill(editor);
           if (consumedAbbrev) {
-            if (event.key === ' ') {
+            if (isSyncTrigger) {
               event.preventDefault();
               const tr = view.state.tr;
-              tr.insertText(' ', view.state.selection.from);
+              tr.insertText(event.key, view.state.selection.from);
               tr.setStoredMarks([]);
               view.dispatch(tr);
               return true;
@@ -3327,17 +3455,17 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
             if (textBeforeCursor.trim().length > 0) {
               const references = detectScriptureReferences(textBeforeCursor);
               if (references.length > 0) {
-                if (event.key === ' ') {
-                  // On desktop: Synchronously handle the space and the pill creation
+                if (isSyncTrigger) {
+                  // On desktop: Synchronously handle the trigger char and the pill creation
                   event.preventDefault();
 
-                  // Create a single transaction for the space insertion
+                  // Insert the trigger character (space / comma / period)
                   const tr = view.state.tr;
-                  tr.insertText(' ', view.state.selection.from);
+                  tr.insertText(event.key, view.state.selection.from);
                   tr.setStoredMarks([]);
                   view.dispatch(tr);
 
-                  // Create pills without translation (deferred — will resolve on next space/Enter or timeout)
+                  // Create pills without translation (deferred — will resolve on next trigger or timeout)
                   createPendingPillsForReferences(editor, references);
                   schedulePendingTranslationAfterPillCreation(editor, references);
                   return true;
@@ -3782,6 +3910,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       if (!target.closest('.scripture-translation-picker') && !target.closest('.scripture-pill')) {
         setTranslationPicker(null);
       }
+      if (!target.closest('.scripture-delete-confirm') && !target.closest('.scripture-pill')) {
+        setDeleteConfirmPill(null);
+        deleteConfirmPillRef.current = null;
+      }
     };
 
     // Use capture phase so we intercept pill clicks before ProseMirror
@@ -4180,6 +4312,8 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
       }
       
       const newStates = {
+        canUndo: editor.can().undo(),
+        canRedo: editor.can().redo(),
         bold: editor.isActive('bold'),
         italic: editor.isActive('italic'),
         underline: editor.isActive('underline'),
@@ -4212,10 +4346,9 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     const overflowing = scrollHeight > clientHeight + 1;
     setContentOverflowing(overflowing);
     setContentHasScrolledDown(scrollTop > 0);
-    setContentHasScrolledToBottom(scrollTop + clientHeight >= scrollHeight - 2);
   }, []);
 
-  /* Top/bottom fade masks: keep overflow + scroll flags in sync (CardFullEditable flex layout often settles after first paint). */
+  /* Top fade mask when scrolled: keep overflow + scroll flags in sync (CardFullEditable flex layout often settles after first paint). */
   useEffect(() => {
     if (!editor) return;
     const el = tiptapContentRef.current;
@@ -4293,20 +4426,24 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
     isActive, 
     children, 
     title,
-    ariaLabel 
+    ariaLabel,
+    disabled = false
   }: { 
     onClick: () => void; 
     isActive: boolean; 
     children: React.ReactNode; 
     title: string;
     ariaLabel?: string;
+    disabled?: boolean;
   }) => {
     const iconRef = React.useRef<HTMLDivElement>(null);
     
     return (
       <button
         type="button"
+        disabled={disabled}
         onMouseDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+          if (disabled) return;
           // Use onMouseDown to prevent editor from losing focus
           e.preventDefault();
           e.stopPropagation();
@@ -4349,22 +4486,26 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           alignItems: 'center !important',
           justifyContent: 'center !important',
           boxShadow: 'none !important',
-          cursor: 'pointer !important',
+          cursor: disabled ? 'not-allowed !important' : 'pointer !important',
+          opacity: disabled ? 0.38 : 1,
           transition: '0.2s ease-in-out !important'
         }}
         onMouseEnter={() => {
+          if (disabled) return;
           // Change icon color on hover - deep grey
           if (iconRef.current) {
             iconRef.current.style.setProperty('color', 'var(--color-deep-grey)', 'important');
           }
         }}
         onMouseLeave={() => {
+          if (disabled) return;
           // Reset icon color - deep grey for active, gray for inactive
           if (iconRef.current) {
             iconRef.current.style.setProperty('color', isActive ? 'var(--color-deep-grey)' : 'var(--color-gray)', 'important');
           }
         }}
         onMouseUp={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
+          if (disabled) return;
           // Visual feedback for click
           e.currentTarget.style.setProperty('filter', 'none', 'important');
           e.currentTarget.style.setProperty('transform', 'none', 'important');
@@ -4384,7 +4525,7 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         >
           {children}
         </div>
-        {isActive && (
+        {isActive && !disabled && (
           <div 
             className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-[var(--color-deep-grey)] rounded-full"
             style={{
@@ -4429,6 +4570,34 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         >
           <div className="tiptap-toolbar__hscroll">
           <TiptapToolbarTrack key={toolbarEnterEpoch} placement="top">
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) {
+                return;
+              }
+              editor.chain().focus().undo().run();
+            }}
+            isActive={false}
+            disabled={!activeStates.canUndo}
+            title="Undo"
+            ariaLabel="Undo"
+          >
+            <Icon name="arrow-rotate-left" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) {
+                return;
+              }
+              editor.chain().focus().redo().run();
+            }}
+            isActive={false}
+            disabled={!activeStates.canRedo}
+            title="Redo"
+            ariaLabel="Redo"
+          >
+            <Icon name="arrow-rotate-right" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
           <ToolbarButton
             onClick={() => {
               if (!editor) {
@@ -4530,10 +4699,10 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
           </div>
         </div>
       )}
-      {/* Scroll area with top/bottom fade mask; toolbar is outside so not faded */}
+      {/* Scroll area with optional top fade when scrolled; toolbar is outside so not faded */}
       <div
         ref={tiptapContentRef}
-        className={`tiptap-content flex-1 min-h-0 overflow-auto relative ${contentOverflowing && !contentHasScrolledToBottom ? 'tiptap-content--bottom-fade' : ''} ${contentOverflowing && contentHasScrolledDown ? 'tiptap-content--top-fade' : ''}`}
+        className={`tiptap-content flex-1 min-h-0 overflow-auto relative ${contentOverflowing && contentHasScrolledDown ? 'tiptap-content--top-fade' : ''}`}
         onClick={(e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
           if (editor) {
             editor.commands.focus();
@@ -4598,6 +4767,66 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
               <Icon name="copy" size={12} />
               Copy
             </button>
+          </div>,
+          document.body
+        )}
+        {/* Delete confirmation floater — appears on first Backspace/Delete near a pill */}
+        {deleteConfirmPill && createPortal(
+          <div
+            data-harvous-bottom-sheet-floating=""
+            className="scripture-delete-confirm floating-picker-enter"
+            style={{
+              position: 'fixed',
+              top: deleteConfirmPill.rect.bottom + 6,
+              left: Math.max(8, deleteConfirmPill.rect.left + deleteConfirmPill.rect.width / 2 - 100),
+              zIndex: 99999,
+              pointerEvents: 'auto',
+              padding: '10px 12px',
+              borderRadius: '10px',
+              backgroundColor: 'var(--color-snow-white)',
+              boxShadow: '0 1px 6px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              minWidth: '180px',
+              maxWidth: '240px',
+            }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-charcoal-black)', lineHeight: 1.3 }}>
+              Remove this scripture pill?
+            </span>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button"
+                className="btn btn--sm btn--danger"
+                style={{ flex: 1, minHeight: 32, padding: '0 12px', fontSize: '13px', borderRadius: '12px' }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const confirm = deleteConfirmPillRef.current;
+                  if (!confirm || !editor) return;
+                  setDeleteConfirmPill(null);
+                  deleteConfirmPillRef.current = null;
+                  editor.chain().deleteRange({ from: confirm.boundaries.start, to: confirm.boundaries.end }).run();
+                }}
+              >
+                Remove
+              </button>
+              <button
+                type="button"
+                className="btn btn--sm btn--secondary"
+                style={{ flex: 1, minHeight: 32, padding: '0 12px', fontSize: '13px', borderRadius: '12px' }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDeleteConfirmPill(null);
+                  deleteConfirmPillRef.current = null;
+                }}
+              >
+                Keep
+              </button>
+            </div>
           </div>,
           document.body
         )}
@@ -4738,6 +4967,30 @@ const TiptapEditor: React.FC<TiptapEditorProps> = ({
         >
           <div className="tiptap-toolbar__hscroll">
           <TiptapToolbarTrack key={toolbarEnterEpoch} placement="bottom">
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().undo().run();
+            }}
+            isActive={false}
+            disabled={!activeStates.canUndo}
+            title="Undo"
+            ariaLabel="Undo"
+          >
+            <Icon name="arrow-rotate-left" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
+          <ToolbarButton
+            onClick={() => {
+              if (!editor) return;
+              editor.chain().focus().redo().run();
+            }}
+            isActive={false}
+            disabled={!activeStates.canRedo}
+            title="Redo"
+            ariaLabel="Redo"
+          >
+            <Icon name="arrow-rotate-right" size={20} style={{ fill: 'currentColor' }} />
+          </ToolbarButton>
           <ToolbarButton
             onClick={() => {
               if (!editor) return;

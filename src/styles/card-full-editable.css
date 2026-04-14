@@ -301,46 +301,7 @@
   color: inherit;
 }
 
-/* Fade overflow content at bottom only; top stays fully visible */
-.card-full-editable__content-fade-edges {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-/* View-mode scroll body: match .tiptap-content--top-fade / --bottom-fade (CardFullEditable display) */
-.card-full-editable__content-scroll--bottom-fade {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
+/* View-mode scroll body: match .tiptap-content--top-fade (CardFullEditable display) */
 .card-full-editable__content-scroll--top-fade {
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -353,27 +314,6 @@
     transparent 0,
     black 48px,
     black 100%
-  );
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
-.card-full-editable__content-scroll--top-fade.card-full-editable__content-scroll--bottom-fade {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 48px,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 48px,
-    black calc(100% - 48px),
-    transparent 100%
   );
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;

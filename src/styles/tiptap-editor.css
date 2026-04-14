@@ -280,26 +280,7 @@
   scroll-padding: 0 !important;
 }
 
-/* Edit mode: bottom fade when not scrolled to bottom; top fade when scrolled down (mask stays fixed like bottom) */
-.tiptap-content.tiptap-content--bottom-fade {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    black 0,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  -webkit-mask-size: 100% 100%;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-}
-
+/* Edit mode: top fade when scrolled down (content continues under header area) */
 .tiptap-content.tiptap-content--top-fade {
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -317,23 +298,6 @@
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-}
-
-.tiptap-content.tiptap-content--top-fade.tiptap-content--bottom-fade {
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 48px,
-    black calc(100% - 48px),
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0,
-    black 48px,
-    black calc(100% - 48px),
-    transparent 100%
-  );
 }
 
 /* Prep frame: no animation yet (armed on next frames via React) — avoids “instant pop” when
