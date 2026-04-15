@@ -1,5 +1,18 @@
 # Open in current/active space — fixes attempted and what still needs fixing
 
+## Implemented (single source of truth, v1.216)
+
+The following shipped to align **space context** with **links** and **layout** (see `src/utils/current-space-for-links.ts`):
+
+- **Shared helper** `getSpaceIdForPersistentNavLinks` / `appendSpaceQueryParam` — URL `?space=` first, then `/space/...` path, then `effectiveSpaceIdForLinks` from `NavigationColumn`, then `getSelectedSpaceId()`. Left nav omits `?space=` on `/` and `/dashboard` only (avoids stale storage on Home nav).
+- **PersistentNavigation** + **MobileNavigation** use the helper; **NavigationColumn** passes `effectiveSpaceIdForLinks`.
+- **AppLayout** derives `currentSpace` from URL `?space=` on thread/note before falling back to the thread’s canonical `spaceId`.
+- **OrganizedContentList** (My Home) and **Dashboard** search (**SearchResultsList** with `spaceIdForLinks`) append `?space=` from the selected space.
+- **Search** on space/thread routes uses router path + search with the same helper; **Spotlight** uses the helper (and `getSelectedSpaceId()` on Home).
+- **Breadcrumb** navigation (`navigation-breadcrumb.ts`) preserves space on programmatic navigations.
+
+Remaining gaps worth occasional audit: inline note links in the editor, ActionStrip / Menu redirects, panels that build `idToUrl` without the helper, and any legacy `persistent-navigation.js` if it is ever loaded.
+
 ## Original problem
 
 1. **Opens in last space:** Clicking a thread or note in the nav opens it in the space it was last opened in (or the thread's "home" space), instead of the **current/active space** (the one selected in the space switcher or implied by the current URL).

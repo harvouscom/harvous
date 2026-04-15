@@ -187,7 +187,11 @@ export default function DashboardPage() {
                     }}
                   />
                 )}
-                <SearchResultsList query={debouncedSearch} recentSearchCountSync={null} />
+                <SearchResultsList
+                  query={debouncedSearch}
+                  recentSearchCountSync={null}
+                  spaceIdForLinks={spaceIdForLinks}
+                />
               </div>
             ) : (
               <OrganizedContentList

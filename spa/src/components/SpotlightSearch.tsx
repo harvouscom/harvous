@@ -18,6 +18,8 @@ import {
 } from '@/utils/recent-search-storage';
 import { MIN_SEARCH_QUERY_LENGTH } from '@/utils/search-query';
 import { idToUrl } from '@/utils/url-helpers';
+import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/current-space-for-links';
+import { getSelectedSpaceId } from '@/components/react/navigation/selectedSpace';
 import { getThreadColorCSS, getThreadIconOnAccentCSS } from '@/utils/colors';
 import { useThread } from '../hooks/queries/useThread';
 import { useSpace } from '../hooks/queries/useSpace';
@@ -254,7 +256,14 @@ export default function SpotlightSearch() {
         addRecentSearchTerm(null, navTerm);
       }
       close();
-      router.navigate({ to: idToUrl(id) as any });
+      const path = typeof window !== 'undefined' ? window.location.pathname : '';
+      const search = typeof window !== 'undefined' ? window.location.search : '';
+      const isHome = path === '/' || path === '/dashboard';
+      const spaceForHref = isHome
+        ? getSelectedSpaceId()
+        : getSpaceIdForPersistentNavLinks({ pathname: path, search, effectiveSpaceId: undefined });
+      const target = appendSpaceQueryParam(idToUrl(id), spaceForHref);
+      router.navigate({ to: target as any });
     },
     [query, close],
   );

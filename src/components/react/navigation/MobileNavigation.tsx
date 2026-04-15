@@ -1035,14 +1035,18 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     if (items.length === 0) return { spaces: [], threads: [] };
 
     const getOpenedInSpaceIds = (item: any): Array<string | null> => {
-      if (Array.isArray(item?.openedInSpaceIds)) return item.openedInSpaceIds as Array<string | null>;
+      if (Array.isArray(item?.openedInSpaceIds) && item.openedInSpaceIds.length > 0) {
+        return item.openedInSpaceIds as Array<string | null>;
+      }
       return [item?.openedInSpaceId ?? item?.spaceId ?? null];
     };
 
     const scoped = items.filter((item: any) => {
       const scopes = getOpenedInSpaceIds(item);
       if (!spaceIdForFilter) return scopes.some((s) => s == null);
-      return scopes.some((s) => s === spaceIdForFilter);
+      if (scopes.some((s) => s === spaceIdForFilter)) return true;
+      const canonical = item?.spaceId;
+      return typeof canonical === 'string' && canonical === spaceIdForFilter;
     });
 
     const rawSpaces = scoped.filter((item: any) => item.id?.startsWith('space_'));

@@ -324,7 +324,9 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
     };
 
     const getOpenedInSpaceIds = (item: any): Array<string | null> => {
-      if (Array.isArray(item?.openedInSpaceIds)) return item.openedInSpaceIds as Array<string | null>;
+      if (Array.isArray(item?.openedInSpaceIds) && item.openedInSpaceIds.length > 0) {
+        return item.openedInSpaceIds as Array<string | null>;
+      }
       // Back-compat: single scope or fallback to thread's spaceId
       return [item?.openedInSpaceId ?? item?.spaceId ?? null];
     };
@@ -355,7 +357,13 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
     // - On space page: show items opened in that space.
     persistentItems = persistentItems.filter((item: any) => {
       const scopes = getOpenedInSpaceIds(item);
-      return !spaceIdForFilter ? scopes.some((s) => s == null) : scopes.some((s) => s === spaceIdForFilter);
+      if (!spaceIdForFilter) {
+        return scopes.some((s) => s == null);
+      }
+      if (scopes.some((s) => s === spaceIdForFilter)) return true;
+      // Thread lives in this space but was only opened from Home ([null] scope) — still show it on the space page.
+      const canonical = item?.spaceId;
+      return typeof canonical === 'string' && canonical === spaceIdForFilter;
     });
 
     // Ensure the active thread is visible on thread pages, but ONLY if the URL space

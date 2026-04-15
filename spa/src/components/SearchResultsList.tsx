@@ -1,5 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { useRouterState } from '@tanstack/react-router';
 import SearchResultRow from '../../../src/components/react/SearchResultRow';
+import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '../../../src/utils/current-space-for-links';
 import { idToUrl } from '../../../src/utils/url-helpers';
 import {
   addRecentSearchTerm,
@@ -20,13 +22,47 @@ export interface SearchResultsListProps {
    * `null` = global Find (`harvous-recent-searches`). Omit to disable.
    */
   recentSearchCountSync?: RecentSearchStorageScope;
+  /** On My Home (`/` or `/dashboard`), thread/note links include this space (same as OrganizedContentList). */
+  spaceIdForLinks?: string | null;
+}
+
+function searchStringFromRouter(searchRaw: unknown): string {
+  if (typeof searchRaw === 'string') {
+    if (!searchRaw) return '';
+    return searchRaw.startsWith('?') ? searchRaw : `?${searchRaw}`;
+  }
+  if (searchRaw && typeof searchRaw === 'object') {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(searchRaw as Record<string, unknown>)) {
+      if (v != null) params.set(k, String(v));
+    }
+    const str = params.toString();
+    return str ? `?${str}` : '';
+  }
+  return '';
 }
 
 export default function SearchResultsList({
   query,
   scope,
   recentSearchCountSync,
+  spaceIdForLinks,
 }: SearchResultsListProps) {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const searchRaw = useRouterState({ select: (s) => s.location.search });
+  const searchStr = useMemo(() => searchStringFromRouter(searchRaw), [searchRaw]);
+
+  const spaceForHref = useMemo(() => {
+    if (pathname === '/' || pathname === '/dashboard') {
+      return spaceIdForLinks ?? null;
+    }
+    return getSpaceIdForPersistentNavLinks({
+      pathname,
+      search: searchStr,
+      effectiveSpaceId: spaceIdForLinks ?? undefined,
+    });
+  }, [pathname, searchStr, spaceIdForLinks]);
+
   const trimmed = query.trim();
   const trimmedRef = useRef(trimmed);
   trimmedRef.current = trimmed;
@@ -125,16 +161,23 @@ export default function SearchResultsList({
       >
         {results.length} result{results.length !== 1 ? 's' : ''}
       </div>
-      {results.map((result) => (
-        <a
-          key={result.id}
-          href={idToUrl(result.id)}
-          className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
-          style={{ textDecoration: 'none' }}
-        >
-          <SearchResultRow result={result} />
-        </a>
-      ))}
+      {results.map((result) => {
+        const baseHref =
+          result.type === 'note' && result.threadId
+            ? idToUrl(result.id, result.threadId)
+            : idToUrl(result.id);
+        const href = appendSpaceQueryParam(baseHref, spaceForHref);
+        return (
+          <a
+            key={result.id}
+            href={href}
+            className="block transition-transform duration-200 hover:scale-[1.002] active:scale-[0.99]"
+            style={{ textDecoration: 'none' }}
+          >
+            <SearchResultRow result={result} />
+          </a>
+        );
+      })}
     </div>
   );
 }
