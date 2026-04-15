@@ -348,9 +348,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
       } catch { return null; }
     })();
     // Path wins (space page), then ?space= param (thread/note opened from space), then storage fallback.
+    // On thread/note pages use URL-only — never fall back to selectedSpaceId, which can be stale
+    // and cause Home-only threads (onboarding, My Pile) to disappear from the sidebar.
+    const isThreadOrNoteRoute = currentPath.startsWith('/thread/') || currentPath.startsWith('/note/');
     const spaceIdForFilter = isDashboardRoute
       ? null
-      : (spaceIdFromPath ?? spaceIdFromSearch ?? selectedSpaceId);
+      : isThreadOrNoteRoute
+        ? (spaceIdFromSearch ?? null)
+        : (spaceIdFromPath ?? spaceIdFromSearch ?? selectedSpaceId);
 
     // Scope threads to the current view (route), not storage.
     // - On dashboard: show items opened in Home (null scope).
@@ -608,9 +613,12 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
       return null;
     }
   })();
+  const isThreadOrNoteRouteForClose = currentPathForClose.startsWith('/thread/') || currentPathForClose.startsWith('/note/');
   const spaceIdForClose = isDashboardRouteForClose
     ? null
-    : (spaceIdFromPathForClose ?? spaceIdFromSearchForClose ?? selectedSpaceId);
+    : isThreadOrNoteRouteForClose
+      ? (spaceIdFromSearchForClose ?? null)
+      : (spaceIdFromPathForClose ?? spaceIdFromSearchForClose ?? selectedSpaceId);
 
   return (
     <div id="persistent-navigation" className="persistent-nav">

@@ -11,7 +11,7 @@ This folder contains troubleshooting documentation for common issues encountered
 
 ### UI/Component Issues
 - **[Close Icon Troubleshooting](./CLOSE_ICON_TROUBLESHOOTING.md)** - Fixing close icon functionality in RecentSearches component
-- **[Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md)** - Debugging persistent navigation close functionality and thread duplication
+- **[Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md)** - Space-scoped history (`openedInSpaceIds`), close + redirect, URL-only scope on thread/note routes, Home-only threads (onboarding / My Pile), localStorage keys and console checks
 - **[Closed nav items on Home / dashboard](./CLOSED_NAV_ITEMS_HOME_DASHBOARD.md)** - Dismissed threads reappearing on Home: root cause (`removeFromClosedItems` inside `addToNavigationHistory`), why spaces masked it, correct reopen path
 - **[Active space changes unexpectedly](./ACTIVE_SPACE_CHANGES_UNEXPECTEDLY.md)** - Why the space switcher can update without an explicit pick (URL `?space=`, mobile sync, storage); investigation checklist and fix directions
 - **[iOS PWA sheet / modal overlay vs status bar](./IOS_PWA_SHEET_OVERLAY_SAFE_AREA.md)** - Backdrop safe-area issues on installed PWA; `env()` unreliability, approaches tried, checklist
@@ -31,7 +31,7 @@ This folder contains troubleshooting documentation for common issues encountered
 
 **Component event handling not working?**
 - See [Close Icon Troubleshooting](./CLOSE_ICON_TROUBLESHOOTING.md) for event propagation issues
-- See [Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md) for navigation-specific issues
+- See [Persistent Navigation Debug](./PERSISTENT_NAVIGATION_DEBUG.md) for space-scoped sidebar history, dismiss, and onboarding / My Pile scope issues
 - Dismissed threads reappear on Home only? See [Closed nav items on Home / dashboard](./CLOSED_NAV_ITEMS_HOME_DASHBOARD.md)
 
 ## Contributing

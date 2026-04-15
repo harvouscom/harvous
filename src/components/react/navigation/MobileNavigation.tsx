@@ -1022,7 +1022,21 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   })();
 
   // Route-based scope for filter: on dashboard show only Home threads; on space page show that space's threads.
-  const spaceIdForFilter = isDashboard ? null : effectiveSelectedSpaceId;
+  // On thread/note pages use URL-only — never fall back to selectedSpaceId so Home-only threads
+  // (onboarding, My Pile) are visible when there's no ?space= in the URL.
+  const spaceIdForFilter = isDashboard
+    ? null
+    : isThreadOrNoteRoute
+      ? (routeSelectedSpaceId ?? null)
+      : effectiveSelectedSpaceId;
+
+  // URL-only space for close: on thread/note pages, don't fall back to selectedSpaceId/currentSpace
+  // so Home-only threads (onboarding, My Pile) close from the correct scope.
+  const spaceIdForClose = isDashboard
+    ? null
+    : isThreadOrNoteRoute
+      ? (routeSelectedSpaceId ?? null)
+      : effectiveSelectedSpaceId;
 
   // Organize persistent items hierarchically (spaces with threads nested)
   const organizePersistentItems = (items: any[]) => {
@@ -1860,7 +1874,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     removeFromNavigationHistory(
                                       thread.id,
                                       thread.id.startsWith('thread_')
-                                        ? { sameTitleAs: thread.title, fromSpaceId: spaceIdForFilter }
+                                        ? { sameTitleAs: thread.title, fromSpaceId: spaceIdForClose }
                                         : undefined
                                     );
                                     if (wasActive) closeSheet();

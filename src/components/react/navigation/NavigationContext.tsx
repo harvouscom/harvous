@@ -64,6 +64,10 @@ const defaultContextValue: NavigationContextType = {
   updateNavigationItemCount: () => {},
 };
 
+// Home-only threads — these must never have space scopes in openedInSpaceIds.
+const isHomeOnlyThread = (id: string): boolean =>
+  id === 'thread_unorganized' || id.startsWith('thread_onboarding_');
+
 // Provider component
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const normalizeOpenedInSpaceId = (value: unknown): string | null => {
@@ -560,11 +564,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const hasExplicitOpenedInSpaceIds =
       (item as any).openedInSpaceIds !== undefined && Array.isArray((item as any).openedInSpaceIds);
+    // URL-only space (null = no URL evidence, NOT "Home"). Only a real space_* value
+    // should be merged; null must NOT be treated as the Home scope here because
+    // callers already pass [null] explicitly when the user is on the dashboard.
     const implicitScope = getSpaceIdForImplicitHistoryScope();
-    const itemOpenedInSpaceIds =
-      hasExplicitOpenedInSpaceIds && existingIndex === -1
-        ? getItemOpenedInSpaceIds(item)
-        : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [implicitScope]);
 
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position; never overwrite a positive count with 0 so badge persists
@@ -587,35 +590,54 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         defaultGrads.has(incomingGrad as any) && existingGrad && !defaultGrads.has(existingGrad as any)
           ? existingGrad
           : incomingGrad;
+      // Home-only threads (onboarding, My Pile) must never accumulate space scopes.
+      const forceHomeOnly = isHomeOnlyThread(item.id);
       rawHistory[existingIndex] = {
         ...existingItem,
         ...item,
         title: preservedTitle,
         backgroundGradient: preservedGradient,
         count: preservedCount,
-        // When explicit scopes are provided (e.g. from ThreadPage/NotePage), replace
-        // existing scopes — but guard against [null] overwriting a real space scope.
-        // This prevents async re-renders from clobbering correct scopes.
-        openedInSpaceIds: (() => {
-          if (!hasExplicitOpenedInSpaceIds) {
-            return mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), [implicitScope]);
-          }
-          const newScopes = getItemOpenedInSpaceIds(item);
-          const existingScopes = getItemOpenedInSpaceIds(existingItem);
-          return mergeOpenedInSpaceIds(existingScopes, newScopes);
-        })(),
-        openedInSpaceId: hasExplicitOpenedInSpaceIds
-          ? normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null)
-          : normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? implicitScope ?? null),
+        openedInSpaceIds: forceHomeOnly
+          ? [null]
+          : (() => {
+              const existingScopes = getItemOpenedInSpaceIds(existingItem);
+              const callerScopes = hasExplicitOpenedInSpaceIds
+                ? getItemOpenedInSpaceIds(item)
+                : [];
+              // Only merge implicitScope when the URL proves a real space (space_*).
+              // null means "no URL evidence" — callers already pass [null] for Home.
+              const additions = implicitScope != null
+                ? [...callerScopes, implicitScope]
+                : callerScopes;
+              return additions.length > 0
+                ? mergeOpenedInSpaceIds(existingScopes, additions)
+                : existingScopes;
+            })(),
+        openedInSpaceId: forceHomeOnly ? null : normalizeOpenedInSpaceId(
+          (item as any).openedInSpaceId ?? (implicitScope != null ? implicitScope : null)
+        ),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
       };
     } else {
-      // Item doesn't exist - add to the end (first time opening behavior)
+      // Item doesn't exist - add to the end (first time opening behavior).
+      const forceHomeOnly = isHomeOnlyThread(item.id);
+      // For new items, trust the caller's explicit scopes; supplement with
+      // implicitScope only when it proves a real space and the caller didn't provide scopes.
+      const newItemScopes = forceHomeOnly
+        ? [null]
+        : hasExplicitOpenedInSpaceIds
+          ? getItemOpenedInSpaceIds(item)
+          : (implicitScope != null
+              ? mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [implicitScope])
+              : getItemOpenedInSpaceIds(item));
       const newItem: NavigationItem = {
         ...item,
-        openedInSpaceIds: itemOpenedInSpaceIds,
-        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? implicitScope ?? null),
+        openedInSpaceIds: newItemScopes,
+        openedInSpaceId: forceHomeOnly ? null : normalizeOpenedInSpaceId(
+          (item as any).openedInSpaceId ?? (implicitScope != null ? implicitScope : null)
+        ),
         firstAccessed: Date.now(),
         lastAccessed: Date.now()
       };
@@ -778,108 +800,140 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const selectedSpaceId = getSelectedSpaceId();
     const isActive = itemId === currentActiveItemId || (itemId.startsWith('space_') && itemId === selectedSpaceId);
 
-    // Space-scoped thread close: remove only the current route's entry from openedInSpaceIds; keep the row for other spaces.
-    if (itemId.startsWith('thread_') && options && Object.prototype.hasOwnProperty.call(options, 'fromSpaceId')) {
+    // Space-scoped thread close: strip fromSpaceId from openedInSpaceIds instead of deleting the row.
+    // If other scopes remain the thread stays visible in those other spaces.
+    // Skip for Home-only threads (onboarding, My Pile) — they always do a full close.
+    if (itemId.startsWith('thread_') && !isHomeOnlyThread(itemId) && options && Object.prototype.hasOwnProperty.call(options, 'fromSpaceId')) {
       const rawHistoryPartial = getRawNavigationHistory();
-      const idxPartial = rawHistoryPartial.findIndex((h: any) => h.id === itemId);
-      if (idxPartial !== -1) {
-        const entry = rawHistoryPartial[idxPartial];
+      const target = normalizeOpenedInSpaceId(options.fromSpaceId as string | null);
+
+      // Collect the primary item + any same-title duplicates
+      const idsToProcess = [itemId];
+      if (options.sameTitleAs) {
+        for (const row of rawHistoryPartial) {
+          if (
+            row?.id?.startsWith('thread_') &&
+            row.id !== itemId &&
+            (row as any).title === options.sameTitleAs
+          ) {
+            idsToProcess.push(row.id);
+          }
+        }
+      }
+
+      // Try to strip `target` from each row's scopes; track which IDs still have remaining scopes
+      let anyPartial = false;
+      const fullyRemovedIds: string[] = [];
+      const nextRaw = [...rawHistoryPartial];
+      for (const procId of idsToProcess) {
+        const idx = nextRaw.findIndex((h: any) => h.id === procId);
+        if (idx === -1) continue;
+        const entry = nextRaw[idx];
         const scopes = getItemOpenedInSpaceIds(entry);
-        const target = normalizeOpenedInSpaceId(options.fromSpaceId as string | null);
-        const newScopes = scopes.filter((s) => normalizeOpenedInSpaceId(s) !== target);
-        if (newScopes.length < scopes.length && newScopes.length > 0) {
-          const updatedRow = {
+        const remaining = scopes.filter((s) => normalizeOpenedInSpaceId(s) !== target);
+        if (remaining.length < scopes.length && remaining.length > 0) {
+          nextRaw[idx] = {
             ...entry,
-            openedInSpaceIds: newScopes,
+            openedInSpaceIds: remaining,
             openedInSpaceId: normalizeOpenedInSpaceId(
-              newScopes.find((s) => s != null) ?? newScopes[0] ?? null
+              remaining.find((s) => s != null) ?? remaining[0] ?? null
             ),
             lastAccessed: Date.now(),
           };
-          const nextRaw = [...rawHistoryPartial];
-          nextRaw[idxPartial] = updatedRow;
-          saveNavigationHistory(nextRaw);
-          setNavigationHistory(getNavigationHistory());
-          if (typeof window !== 'undefined') {
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-            }, 0);
-          }
-
-          if (isActive && navigateIfActive) {
-            const currentSpaceKeyFromUrl = ((): string | null => {
-              if (typeof window === 'undefined') return null;
-              try {
-                const fromUrl = new URLSearchParams(window.location.search).get('space');
-                if (fromUrl && fromUrl.startsWith('space_')) return fromUrl;
-              } catch {
-                // ignore
-              }
-              const path = window.location.pathname;
-              if (path.startsWith('/space/')) {
-                const spaceId = extractIdFromPath(path);
-                if (spaceId?.startsWith('space_')) return spaceId;
-              }
-              return null;
-            })();
-
-            const closedIds = getClosedItems();
-            let nextItem: any = null;
-            const currentSpaceKey = currentSpaceKeyFromUrl;
-            const isValidNeighbor = (navItem: any) => {
-              if (!navItem?.id || navItem.id.startsWith('space_')) return false;
-              if (closedIds.includes(navItem.id)) return false;
-              const neighborScopes = getItemOpenedInSpaceIds(navItem);
-              if (currentSpaceKey === null) return neighborScopes.some((s: string | null) => s == null);
-              return neighborScopes.includes(currentSpaceKey);
-            };
-
-            const currentIndex = nextRaw.findIndex((navItem: any) => navItem.id === itemId);
-            if (currentIndex !== -1) {
-              for (let i = currentIndex + 1; i < nextRaw.length && !nextItem; i++) {
-                if (nextRaw[i].id !== itemId && isValidNeighbor(nextRaw[i])) nextItem = nextRaw[i];
-              }
-              for (let i = currentIndex - 1; i >= 0 && !nextItem; i--) {
-                if (nextRaw[i].id !== itemId && isValidNeighbor(nextRaw[i])) nextItem = nextRaw[i];
-              }
-            }
-
-            let targetUrl: string;
-            if (nextItem) {
-              const spaceParam =
-                itemId.startsWith('thread_') && currentSpaceKeyFromUrl
-                  ? `&space=${encodeURIComponent(currentSpaceKeyFromUrl)}`
-                  : '';
-              targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}${spaceParam}`;
-            } else {
-              targetUrl = currentSpaceKeyFromUrl ? idToUrl(currentSpaceKeyFromUrl) : '/';
-            }
-            if (document.hidden) {
-              window.location.href = targetUrl;
-              return;
-            }
-            import('app-navigate')
-              .then(({ navigate }) => {
-                navigate(targetUrl, { history: 'replace' });
-              })
-              .catch(async (error) => {
-                const errorObj = error instanceof Error ? error : new Error(String(error));
-                console.warn('View Transitions import failed, using standard navigation:', errorObj);
-                try {
-                  const { captureException } = await import('@/utils/posthog');
-                  captureException(errorObj, {
-                    context: 'navigation-context',
-                    action: 'remove-item-navigate',
-                    targetUrl: targetUrl
-                  });
-                } catch {
-                  // Ignore PostHog import errors
-                }
-                window.location.href = targetUrl;
-              });
-          }
-          return;
+          anyPartial = true;
+        } else if (remaining.length === 0) {
+          fullyRemovedIds.push(procId);
         }
+        // remaining.length === scopes.length → target wasn't in this thread's scopes; leave it alone.
+      }
+
+      if (anyPartial) {
+        // Remove any rows that lost their last scope entirely
+        const cleaned = fullyRemovedIds.length > 0
+          ? nextRaw.filter((h: any) => !fullyRemovedIds.includes(h.id))
+          : nextRaw;
+        fullyRemovedIds.forEach((id) => addToClosedItems(id));
+        saveNavigationHistory(cleaned);
+        setNavigationHistory(getNavigationHistory());
+        if (typeof window !== 'undefined') {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+          }, 0);
+        }
+
+        if (isActive && navigateIfActive) {
+          const currentSpaceKeyFromUrl = ((): string | null => {
+            if (typeof window === 'undefined') return null;
+            try {
+              const fromUrl = new URLSearchParams(window.location.search).get('space');
+              if (fromUrl && fromUrl.startsWith('space_')) return fromUrl;
+            } catch {
+              // ignore
+            }
+            const path = window.location.pathname;
+            if (path.startsWith('/space/')) {
+              const spaceId = extractIdFromPath(path);
+              if (spaceId?.startsWith('space_')) return spaceId;
+            }
+            return null;
+          })();
+
+          const closedIds = getClosedItems();
+          let nextItem: any = null;
+          const currentSpaceKey = currentSpaceKeyFromUrl;
+          const isValidNeighbor = (navItem: any) => {
+            if (!navItem?.id || navItem.id.startsWith('space_')) return false;
+            if (closedIds.includes(navItem.id)) return false;
+            if (fullyRemovedIds.includes(navItem.id)) return false;
+            const neighborScopes = getItemOpenedInSpaceIds(navItem);
+            if (currentSpaceKey === null) return neighborScopes.some((s: string | null) => s == null);
+            return neighborScopes.includes(currentSpaceKey);
+          };
+
+          const currentIndex = cleaned.findIndex((navItem: any) => navItem.id === itemId);
+          if (currentIndex !== -1) {
+            for (let i = currentIndex + 1; i < cleaned.length && !nextItem; i++) {
+              if (cleaned[i].id !== itemId && isValidNeighbor(cleaned[i])) nextItem = cleaned[i];
+            }
+            for (let i = currentIndex - 1; i >= 0 && !nextItem; i--) {
+              if (cleaned[i].id !== itemId && isValidNeighbor(cleaned[i])) nextItem = cleaned[i];
+            }
+          }
+
+          let targetUrl: string;
+          if (nextItem) {
+            const spaceParam = currentSpaceKeyFromUrl
+              ? `&space=${encodeURIComponent(currentSpaceKeyFromUrl)}`
+              : '';
+            targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}${spaceParam}`;
+          } else {
+            targetUrl = currentSpaceKeyFromUrl ? idToUrl(currentSpaceKeyFromUrl) : '/';
+          }
+          if (document.hidden) {
+            window.location.href = targetUrl;
+            return;
+          }
+          import('app-navigate')
+            .then(({ navigate }) => {
+              navigate(targetUrl, { history: 'replace' });
+            })
+            .catch(async (error) => {
+              const errorObj = error instanceof Error ? error : new Error(String(error));
+              console.warn('View Transitions import failed, using standard navigation:', errorObj);
+              try {
+                const { captureException } = await import('@/utils/posthog');
+                captureException(errorObj, {
+                  context: 'navigation-context',
+                  action: 'remove-item-navigate',
+                  targetUrl: targetUrl
+                });
+              } catch {
+                // Ignore PostHog import errors
+              }
+              window.location.href = targetUrl;
+            });
+        }
+        return;
       }
     }
 
@@ -1806,6 +1860,34 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         } else {
           safeSetItem(MIGRATION_KEY, '1', { cleanupOldest: false, fallbackToSession: false });
         }
+      }
+    } catch {
+      // non-critical
+    }
+
+    // One-time repair: strip bad space scopes from Home-only threads (onboarding, My Pile).
+    // Earlier scope-merging code incorrectly accumulated space IDs on these threads.
+    const REPAIR_HOME_ONLY_KEY = 'harvous-nav-repair-home-only-v1';
+    try {
+      if (typeof window !== 'undefined' && !safeGetItem(REPAIR_HOME_ONLY_KEY)) {
+        const rawHistory = getRawNavigationHistory();
+        let repaired = false;
+        const repairedHistory = rawHistory.map((item: any) => {
+          if (!item?.id || !isHomeOnlyThread(item.id)) return item;
+          const scopes = Array.isArray(item.openedInSpaceIds) ? item.openedInSpaceIds : [];
+          const hasSpaceScopes = scopes.some((s: unknown) => typeof s === 'string' && s.startsWith('space_'));
+          if (hasSpaceScopes || (scopes.length > 0 && !scopes.includes(null))) {
+            repaired = true;
+            return { ...item, openedInSpaceIds: [null], openedInSpaceId: null };
+          }
+          return item;
+        });
+        if (repaired) {
+          saveNavigationHistory(repairedHistory);
+          setNavigationHistory(getNavigationHistory());
+          window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+        }
+        safeSetItem(REPAIR_HOME_ONLY_KEY, '1', { cleanupOldest: false, fallbackToSession: false });
       }
     } catch {
       // non-critical

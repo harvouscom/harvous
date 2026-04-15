@@ -1,179 +1,82 @@
-# Persistent Navigation Debug Plan
+# Persistent navigation — troubleshooting
 
-## Current Status (Last Session)
+Operational notes for **space-scoped sidebar history**, **close + redirect**, and **Home-only threads** (onboarding welcome thread, My Pile). Production UI lives in the **React SPA** + shared components under `src/components/react/navigation/`.
 
-### ✅ **Working Features:**
-1. **Hover Behavior**: When hovering over persistent navigation items, the badge count disappears and Font Awesome close icon appears
-2. **Visual Styling**: Persistent navigation items match the "For You" button styling exactly
-3. **Chronological Ordering**: Items are displayed in correct chronological order (oldest first)
-4. **Persistence**: Navigation history is properly saved to localStorage
-5. **Hitbox Positioning**: 40px x 40px hitbox is properly centered on badge count area
-6. **Badge Background**: Disappears completely on hover, showing only close icon
+## Architecture (current)
 
-### ❌ **Critical Issues:**
+| Concern | Where it lives |
+|--------|----------------|
+| History blob, add/remove/close, migrations | [`src/components/react/navigation/NavigationContext.tsx`](../../src/components/react/navigation/NavigationContext.tsx) |
+| Desktop pills + filter + close | [`src/components/react/navigation/PersistentNavigation.tsx`](../../src/components/react/navigation/PersistentNavigation.tsx) |
+| Mobile sheet + filter + close | [`src/components/react/navigation/MobileNavigation.tsx`](../../src/components/react/navigation/MobileNavigation.tsx) |
+| URL-only space for history merge (no storage fallback) | [`src/utils/current-space-for-links.ts`](../../src/utils/current-space-for-links.ts) — `getSpaceIdForImplicitHistoryScope` |
+| Thread page → history sync | [`spa/src/pages/ThreadPage.tsx`](../../spa/src/pages/ThreadPage.tsx) (`addToNavigationHistory` via `window`) |
 
-#### 1. **Close Functionality Not Working**
-- **Problem**: Clicking the close icon navigates to the thread page instead of removing the item
-- **Root Cause**: Click event is not being caught by our event listener due to close icon being inside a link element
-- **Evidence**: No console logs from close functionality being triggered
-- **Current Implementation**: Using capture phase event listener with `stopImmediatePropagation()`, `stopPropagation()`, and `preventDefault()`
+**localStorage keys**
 
-#### 2. **Thread Duplication in Navigation**
-- **Problem**: When a note is added to a thread, sometimes the thread appears duplicated in navigation
-- **Impact**: Creates confusing UX with duplicate entries
-- **Need Investigation**: Check deduplication logic in navigation history management
+| Key | Purpose |
+|-----|---------|
+| `harvous-navigation-history-v2` | Raw history (threads + space rows used by switcher) |
+| `harvous-closed-navigation-items` | IDs dismissed from persistent nav |
+| `harvous-selected-space-id` | Last space selection (can lag URL; see below) |
+| `harvous-nav-repair-home-only-v1` | One-time flag: bad `openedInSpaceIds` on Home-only threads were scrubbed |
 
-## Technical Implementation Details
+## `openedInSpaceIds` and multi-space threads
 
-### **Current Architecture:**
-- **JavaScript-based persistent navigation** in `src/layouts/Layout.astro`
-- **React NavigationProvider** for context management
-- **localStorage** for persistence (`harvous-navigation-history-v2`)
-- **Font Awesome** for close icons (`fa-solid fa-xmark`)
+Each history row for a thread can list **where the user has opened that thread** for sidebar purposes: `null` = **Home** (dashboard / no space in URL), `space_*` = that space.
 
-### **Key Files:**
-- `src/layouts/Layout.astro` - Main persistent navigation implementation
-- `src/components/react/navigation/NavigationContext.tsx` - React context
-- `src/components/NavigationColumnReact.astro` - Astro wrapper
-- `src/components/react/navigation/SpaceButton.tsx` - Reference styling
+- **`addToNavigationHistory`** merges explicit caller scopes with **`getSpaceIdForImplicitHistoryScope()`** (URL `?space=` or `/space/...` only — **not** `harvous-selected-space-id`) so stale storage does not attach the wrong space when the URL has no space.
+- **`removeFromNavigationHistory`** with **`fromSpaceId`** (from desktop/mobile close) **strips one scope** when the thread is still open elsewhere; otherwise it removes the row and uses the standard close + neighbor redirect path.
 
-### **Event Handling Structure:**
-```javascript
-// Current close functionality (NOT WORKING)
-document.addEventListener('click', (event) => {
-  const closeIcon = event.target.closest('.close-icon');
-  if (!closeIcon) return;
-  
-  event.stopImmediatePropagation();
-  event.stopPropagation();
-  event.preventDefault();
-  
-  // Remove from navigation history
-  // ...
-}, true); // Capture phase
-```
+Related: [Closed nav items on Home / dashboard](./CLOSED_NAV_ITEMS_HOME_DASHBOARD.md) (dismissed rows vs `removeFromClosedItems`).
 
-## Debug Plan for Next Session
+## Thread / note routes: URL-only filter and close scope
 
-### **Phase 1: Fix Close Functionality**
+On **`/thread/...`** and **`/note/...`**, **`spaceIdForFilter`** and **`spaceIdForClose`** must **not** fall back to `harvous-selected-space-id` when there is no `?space=` in the URL.
 
-#### **Option A: Direct Event Listener on Close Icon**
-- Add event listener directly to each close icon element when created
-- Use `onclick` attribute or `addEventListener` on the element itself
-- This bypasses the document-level event delegation
+**Why:** Home-only rows (`openedInSpaceIds: [null]`) — onboarding thread, My Pile — would disappear from the sidebar and close would use the wrong scope if we used a stale “last selected space” while the URL had no space. That looked like “onboarding missing” or “cannot close from nav.”
 
-#### **Option B: Restructure DOM to Avoid Link Conflict**
-- Move close icon outside the link element
-- Use absolute positioning to maintain visual appearance
-- Ensure close icon is not a child of the clickable link
+**Policy:** On thread/note pages without `?space=`, treat the view as **Home** for filtering and for `fromSpaceId` (null). Space pages and explicit `?space=` still scope correctly.
 
-#### **Option C: Use Different Event Type**
-- Try `mousedown` instead of `click` to catch event earlier
-- Use `pointerdown` for better touch support
-- Test with different event phases
+## Home-only threads (`thread_unorganized`, `thread_onboarding_*`)
 
-### **Phase 2: Fix Thread Duplication**
+These threads **cannot** belong to a space in the product model, but older scope-merging could still **`openedInSpaceIds`** with real `space_*` values (e.g. from implicit scope + storage bugs). Symptoms:
 
-#### **Investigation Steps:**
-1. **Check NavigationContext.tsx** - Look for deduplication logic in `addToNavigationHistory`
-2. **Check Astro tracking** - Verify thread tracking doesn't create duplicates
-3. **Check localStorage** - Examine actual stored data for duplicates
-4. **Test note creation flow** - Reproduce the duplication scenario
+- Onboarding or My Pile **appeared in every space’s** sidebar.
+- **Close** only stripped one scope at a time → felt “unable to close” or required closing once per space.
 
-#### **Potential Causes:**
-- Race condition between React and Astro tracking
-- Missing deduplication in navigation history updates
-- Incorrect item ID generation for threads
-- Multiple tracking calls for same thread
+**Invariants (code):**
 
-### **Phase 3: Testing & Validation**
+- **`isHomeOnlyThread(id)`** in `NavigationContext.tsx` — true for `thread_unorganized` and ids starting with `thread_onboarding_`.
+- **`addToNavigationHistory`** forces **`openedInSpaceIds: [null]`** and **`openedInSpaceId: null`** for those ids (no space accumulation).
+- **`removeFromNavigationHistory`** **skips** the partial strip branch for Home-only threads; they always get a **full** close (same as normal dismiss).
+- **One-time repair** on load: if `harvous-nav-repair-home-only-v1` is unset, any Home-only row with non-Home scopes is rewritten to `[null]` and the flag is set.
 
-#### **Test Cases:**
-1. **Close Functionality:**
-   - Hover over persistent navigation item
-   - Click close icon
-   - Verify item is removed without navigation
-   - Verify navigation history is updated
+If you need to **re-run** the repair after manual testing, clear `harvous-nav-repair-home-only-v1` in devtools and reload once.
 
-2. **Thread Duplication:**
-   - Create a new thread
-   - Add a note to the thread
-   - Check navigation for duplicates
-   - Verify chronological ordering
+## Quick diagnostics (browser console)
 
-3. **Edge Cases:**
-   - Multiple rapid clicks on close icon
-   - Hover and click timing
-   - Navigation with multiple threads/notes
-
-## Code Changes Needed
-
-### **Immediate Fixes:**
-
-#### **1. Fix Close Functionality**
-```javascript
-// Add direct event listener to each close icon
-closeIcon.addEventListener('click', (event) => {
-  event.stopImmediatePropagation();
-  event.stopPropagation();
-  event.preventDefault();
-  
-  const itemId = closeIcon.getAttribute('data-close-item');
-  // Remove from navigation history
-  // ...
-});
-```
-
-#### **2. Investigate Thread Duplication**
-- Add logging to `addToNavigationHistory` in NavigationContext.tsx
-- Check for existing items before adding new ones
-- Verify thread ID generation is consistent
-
-### **Testing Commands:**
-```bash
-# Clear navigation history for testing
-localStorage.removeItem('harvous-navigation-history-v2');
-
-# Check current navigation history
+```js
+// Raw history (includes space rows)
 JSON.parse(localStorage.getItem('harvous-navigation-history-v2') || '[]');
+
+// Dismissed ids
+JSON.parse(localStorage.getItem('harvous-closed-navigation-items') || '[]');
+
+// Find onboarding / My Pile scopes
+JSON.parse(localStorage.getItem('harvous-navigation-history-v2') || '[]')
+  .filter((r) => r?.id === 'thread_unorganized' || String(r?.id).startsWith('thread_onboarding_'))
+  .map((r) => ({ id: r.id, openedInSpaceIds: r.openedInSpaceIds, openedInSpaceId: r.openedInSpaceId }));
 ```
 
-## Success Criteria
+Expect Home-only threads: **`openedInSpaceIds: [null]`** only (after repair / any new add).
 
-### **Close Functionality:**
-- [ ] Clicking close icon removes item from navigation
-- [ ] No navigation occurs when clicking close icon
-- [ ] Console logs show close functionality being triggered
-- [ ] Navigation history is updated correctly
+## Related docs
 
-### **Thread Duplication:**
-- [ ] No duplicate threads in navigation
-- [ ] Thread appears only once after note creation
-- [ ] Chronological ordering maintained
-- [ ] Navigation history contains unique items only
+- [Closed nav items on Home / dashboard](./CLOSED_NAV_ITEMS_HOME_DASHBOARD.md) — closed list vs `addToNavigationHistory` / `viewingThisThread`
+- [Active space changes unexpectedly](./ACTIVE_SPACE_CHANGES_UNEXPECTEDLY.md) — `harvous-selected-space-id` vs URL; why “active space” can move without the switcher
+- [Navigation history persistence lessons](../NAVIGATION_HISTORY_PERSISTENCE_LESSONS.md) — synchronous localStorage around new-note flows
 
-### **Overall UX:**
-- [ ] Smooth hover transitions
-- [ ] Clear visual feedback
-- [ ] Consistent behavior across all persistent items
-- [ ] No console errors or warnings
+## Close control vs link (RecentSearches)
 
-## Notes for Next Session
-
-1. **Start with close functionality** - This is the most critical issue
-2. **Test systematically** - Use browser dev tools to verify event handling
-3. **Check console logs** - Ensure our event listeners are being triggered
-4. **Reproduce thread duplication** - Need to understand when/how it occurs
-5. **Consider alternative approaches** - If current method doesn't work, try different event handling strategies
-
-## Related Files to Review
-
-- `src/layouts/Layout.astro` (lines 1837-1874) - Close functionality
-- `src/components/react/navigation/NavigationContext.tsx` - Navigation history management
-- `src/components/react/navigation/SpaceButton.tsx` - Reference styling
-- Browser console logs for event handling debugging
-
-
-
-
-
+Persistent nav close uses React **`badgeClose`** on [`SpaceButton`](../../src/components/react/navigation/SpaceButton.tsx) and calls **`removeFromNavigationHistory`** directly (no document-level capture listener). For a **different** close-inside-link issue, see [Close Icon Troubleshooting](./CLOSE_ICON_TROUBLESHOOTING.md) (`RecentSearches`).

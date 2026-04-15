@@ -42,16 +42,32 @@ export function getSpaceIdForPersistentNavLinks(options: {
 }
 
 /**
- * Same resolution as nav links, for implicit navigation-history scopes when callers
- * do not pass `openedInSpaceIds` — prefers route / URL over storage-only `getSelectedSpaceId()`.
+ * URL-only space for implicit navigation-history scopes. Unlike
+ * `getSpaceIdForPersistentNavLinks`, this does NOT fall back to
+ * `getSelectedSpaceId()` (localStorage). If the URL doesn't carry a space
+ * (`?space=` or `/space/...`), the user is in Home context → `null`.
+ * Using storage would leak stale space IDs into history scopes.
  */
 export function getSpaceIdForImplicitHistoryScope(): string | null {
   if (typeof window === 'undefined') return null;
-  return getSpaceIdForPersistentNavLinks({
-    pathname: window.location.pathname,
-    search: window.location.search,
-    effectiveSpaceId: null,
-  });
+  const pathname = window.location.pathname || '';
+  if (pathname === '/' || pathname === '/dashboard') return null;
+
+  try {
+    const q = window.location.search;
+    const search = q?.startsWith('?') ? q.slice(1) : q || '';
+    const fromUrl = new URLSearchParams(search).get('space');
+    if (fromUrl?.startsWith('space_')) return fromUrl;
+  } catch {
+    // ignore
+  }
+
+  if (pathname.startsWith('/space/')) {
+    const id = extractIdFromPath(pathname);
+    if (id?.startsWith('space_')) return id.replace(/\/$/, '');
+  }
+
+  return null;
 }
 
 /** Append ?space= or &space= if not already present. */
