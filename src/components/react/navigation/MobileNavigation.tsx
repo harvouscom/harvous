@@ -1859,7 +1859,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                                     const wasActive = thread.id === currentActiveItemId;
                                     removeFromNavigationHistory(
                                       thread.id,
-                                      thread.id.startsWith('thread_') ? { sameTitleAs: thread.title } : undefined
+                                      thread.id.startsWith('thread_')
+                                        ? { sameTitleAs: thread.title, fromSpaceId: spaceIdForFilter }
+                                        : undefined
                                     );
                                     if (wasActive) closeSheet();
                                   },

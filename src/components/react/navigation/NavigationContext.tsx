@@ -32,6 +32,11 @@ export interface RemoveFromNavigationHistoryOptions {
   navigateIfActive?: boolean;
   /** When closing a thread, remove all threads with this title from history so the thread disappears from nav */
   sameTitleAs?: string;
+  /**
+   * Current sidebar/route space to remove from `openedInSpaceIds` only (multi-scope threads).
+   * Use `null` for My Home. When set, other scopes are preserved unless this was the last scope.
+   */
+  fromSpaceId?: string | null;
 }
 
 // Navigation context interface
@@ -592,12 +597,16 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // existing scopes — but guard against [null] overwriting a real space scope.
         // This prevents async re-renders from clobbering correct scopes.
         openedInSpaceIds: (() => {
-          if (!hasExplicitOpenedInSpaceIds) return getItemOpenedInSpaceIds(existingItem);
+          if (!hasExplicitOpenedInSpaceIds) {
+            return mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(existingItem), [implicitScope]);
+          }
           const newScopes = getItemOpenedInSpaceIds(item);
           const existingScopes = getItemOpenedInSpaceIds(existingItem);
           return mergeOpenedInSpaceIds(existingScopes, newScopes);
         })(),
-        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
+        openedInSpaceId: hasExplicitOpenedInSpaceIds
+          ? normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null)
+          : normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? implicitScope ?? null),
         firstAccessed: preservedFirstAccessed,
         lastAccessed: Date.now()
       };
@@ -768,7 +777,112 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // For spaces, also check if it's the selected space (in case pathname doesn't match)
     const selectedSpaceId = getSelectedSpaceId();
     const isActive = itemId === currentActiveItemId || (itemId.startsWith('space_') && itemId === selectedSpaceId);
-    
+
+    // Space-scoped thread close: remove only the current route's entry from openedInSpaceIds; keep the row for other spaces.
+    if (itemId.startsWith('thread_') && options && Object.prototype.hasOwnProperty.call(options, 'fromSpaceId')) {
+      const rawHistoryPartial = getRawNavigationHistory();
+      const idxPartial = rawHistoryPartial.findIndex((h: any) => h.id === itemId);
+      if (idxPartial !== -1) {
+        const entry = rawHistoryPartial[idxPartial];
+        const scopes = getItemOpenedInSpaceIds(entry);
+        const target = normalizeOpenedInSpaceId(options.fromSpaceId as string | null);
+        const newScopes = scopes.filter((s) => normalizeOpenedInSpaceId(s) !== target);
+        if (newScopes.length < scopes.length && newScopes.length > 0) {
+          const updatedRow = {
+            ...entry,
+            openedInSpaceIds: newScopes,
+            openedInSpaceId: normalizeOpenedInSpaceId(
+              newScopes.find((s) => s != null) ?? newScopes[0] ?? null
+            ),
+            lastAccessed: Date.now(),
+          };
+          const nextRaw = [...rawHistoryPartial];
+          nextRaw[idxPartial] = updatedRow;
+          saveNavigationHistory(nextRaw);
+          setNavigationHistory(getNavigationHistory());
+          if (typeof window !== 'undefined') {
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
+            }, 0);
+          }
+
+          if (isActive && navigateIfActive) {
+            const currentSpaceKeyFromUrl = ((): string | null => {
+              if (typeof window === 'undefined') return null;
+              try {
+                const fromUrl = new URLSearchParams(window.location.search).get('space');
+                if (fromUrl && fromUrl.startsWith('space_')) return fromUrl;
+              } catch {
+                // ignore
+              }
+              const path = window.location.pathname;
+              if (path.startsWith('/space/')) {
+                const spaceId = extractIdFromPath(path);
+                if (spaceId?.startsWith('space_')) return spaceId;
+              }
+              return null;
+            })();
+
+            const closedIds = getClosedItems();
+            let nextItem: any = null;
+            const currentSpaceKey = currentSpaceKeyFromUrl;
+            const isValidNeighbor = (navItem: any) => {
+              if (!navItem?.id || navItem.id.startsWith('space_')) return false;
+              if (closedIds.includes(navItem.id)) return false;
+              const neighborScopes = getItemOpenedInSpaceIds(navItem);
+              if (currentSpaceKey === null) return neighborScopes.some((s: string | null) => s == null);
+              return neighborScopes.includes(currentSpaceKey);
+            };
+
+            const currentIndex = nextRaw.findIndex((navItem: any) => navItem.id === itemId);
+            if (currentIndex !== -1) {
+              for (let i = currentIndex + 1; i < nextRaw.length && !nextItem; i++) {
+                if (nextRaw[i].id !== itemId && isValidNeighbor(nextRaw[i])) nextItem = nextRaw[i];
+              }
+              for (let i = currentIndex - 1; i >= 0 && !nextItem; i--) {
+                if (nextRaw[i].id !== itemId && isValidNeighbor(nextRaw[i])) nextItem = nextRaw[i];
+              }
+            }
+
+            let targetUrl: string;
+            if (nextItem) {
+              const spaceParam =
+                itemId.startsWith('thread_') && currentSpaceKeyFromUrl
+                  ? `&space=${encodeURIComponent(currentSpaceKeyFromUrl)}`
+                  : '';
+              targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}${spaceParam}`;
+            } else {
+              targetUrl = currentSpaceKeyFromUrl ? idToUrl(currentSpaceKeyFromUrl) : '/';
+            }
+            if (document.hidden) {
+              window.location.href = targetUrl;
+              return;
+            }
+            import('app-navigate')
+              .then(({ navigate }) => {
+                navigate(targetUrl, { history: 'replace' });
+              })
+              .catch(async (error) => {
+                const errorObj = error instanceof Error ? error : new Error(String(error));
+                console.warn('View Transitions import failed, using standard navigation:', errorObj);
+                try {
+                  const { captureException } = await import('@/utils/posthog');
+                  captureException(errorObj, {
+                    context: 'navigation-context',
+                    action: 'remove-item-navigate',
+                    targetUrl: targetUrl
+                  });
+                } catch {
+                  // Ignore PostHog import errors
+                }
+                window.location.href = targetUrl;
+              });
+          }
+          return;
+        }
+      }
+    }
+
     // If removing an active item, navigate to the next available item first
     if (isActive) {
       // Space context for neighbor selection + fallback — from URL only. getSelectedSpaceId() can

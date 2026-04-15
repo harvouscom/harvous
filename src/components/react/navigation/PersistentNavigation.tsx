@@ -592,6 +592,26 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
     effectiveSpaceId: effectiveSpaceIdForLinks,
   });
 
+  // Same route-based scope as getPersistentItems filter — used for space-scoped thread close.
+  const currentPathForClose = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isDashboardRouteForClose = currentPathForClose === '/' || currentPathForClose === '/dashboard';
+  const spaceIdFromPathForClose = (() => {
+    if (!currentPathForClose.startsWith('/space/')) return null;
+    const id = extractIdFromPath(currentPathForClose);
+    return id && id.startsWith('space_') ? id : null;
+  })();
+  const spaceIdFromSearchForClose = (() => {
+    try {
+      const s = new URLSearchParams(liveSearch).get('space');
+      return s && s.startsWith('space_') ? s : null;
+    } catch {
+      return null;
+    }
+  })();
+  const spaceIdForClose = isDashboardRouteForClose
+    ? null
+    : (spaceIdFromPathForClose ?? spaceIdFromSearchForClose ?? selectedSpaceId);
+
   return (
     <div id="persistent-navigation" className="persistent-nav">
       {persistentItems.map((item) => {
@@ -708,7 +728,9 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
                     onClick: () => {
                       removeFromNavigationHistory(
                         item.id,
-                        item.id.startsWith('thread_') ? { sameTitleAs: item.title } : undefined
+                        item.id.startsWith('thread_')
+                          ? { sameTitleAs: item.title, fromSpaceId: spaceIdForClose }
+                          : undefined
                       );
                     },
                     ariaLabel: `Close ${item.title || 'item'}`,
