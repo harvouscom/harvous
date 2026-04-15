@@ -24,6 +24,7 @@ import {
 } from '@/utils/content-tab-storage';
 import { prefetchThreadRouteIntent } from '../utils/prefetch-route-intent';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import { useSelectedSpaceId } from '../../../src/components/react/navigation/selectedSpace';
 
 type DashboardContentFilter = 'all' | 'threads' | 'notes' | 'scripture' | 'resources';
 
@@ -115,6 +116,8 @@ export default function DashboardPage() {
     }
   }, [cachedItems, queryClient]);
 
+  const spaceIdForLinks = useSelectedSpaceId(null);
+
   const prefetchSearch = useCallback(
     (term: string) => {
       const t = term.trim();
@@ -197,6 +200,7 @@ export default function DashboardPage() {
                 initialHasMoreFromParent={initialHasMoreFromParent}
                 onNotePrefetch={prefetchNote}
                 onThreadIntent={onThreadIntent}
+                spaceIdForLinks={spaceIdForLinks}
               />
             )}
             {/* Spacer so the last item can scroll above the floating "Create a note" button */}

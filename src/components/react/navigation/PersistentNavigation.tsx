@@ -4,7 +4,8 @@ import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import { debug } from '@/utils/logger';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
-import { useSelectedSpaceId, getSelectedSpaceId } from './selectedSpace';
+import { useSelectedSpaceId } from './selectedSpace';
+import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/current-space-for-links';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { safeNavigate } from '@/utils/safe-navigate';
 import { prefetchSpaceRouteIntent, prefetchThreadRouteIntent } from '../../../../spa/src/utils/prefetch-route-intent';
@@ -22,11 +23,17 @@ interface PersistentNavigationProps {
   onSpaceSwitcherClick?: (event: React.MouseEvent) => void;
   /** SSR-provided active thread (e.g. from layout when viewing a note). First-priority source for active parent thread, same as mobile. */
   activeThread?: ActiveThreadProp | null;
+  /** Route + storage resolved space from NavigationColumn — keeps thread links correct on first paint. */
+  effectiveSpaceIdForLinks?: string | null;
 }
 
 const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
 
-const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwitcherClick, activeThread: activeThreadProp }) => {
+const PersistentNavigation: React.FC<PersistentNavigationProps> = ({
+  onSpaceSwitcherClick,
+  activeThread: activeThreadProp,
+  effectiveSpaceIdForLinks,
+}) => {
   const queryClient = useQueryClient();
   const contextValue = useNavigation();
   const { navigationHistory, removeFromNavigationHistory, getCurrentActiveItemId } = contextValue;
@@ -570,6 +577,13 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     }
   }
 
+  const liveSearch = typeof window !== 'undefined' ? window.location.search : '';
+  const navContextSpaceId = getSpaceIdForPersistentNavLinks({
+    pathname: livePath,
+    search: liveSearch,
+    effectiveSpaceId: effectiveSpaceIdForLinks,
+  });
+
   return (
     <div id="persistent-navigation" className="persistent-nav">
       {persistentItems.map((item) => {
@@ -608,33 +622,11 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
           return null;
         }
 
-        let spaceForLink: string | null = selectedSpaceId ?? getSelectedSpaceId();
-        const getThreadHrefWithSpace = () => {
-          // On Home dashboard, never append ?space= from storage — stale selectedSpaceId would
-          // re-scope Home threads to another space when clicked.
-          if (typeof window !== 'undefined') {
-            const p = window.location.pathname;
-            if (p === '/' || p === '/dashboard') {
-              return idToUrl(item.id);
-            }
-          }
-          // Use the current space so threads always open in the space the user is viewing.
-          // Fall back to getSelectedSpaceId() (direct storage read) in case React state
-          // hasn't hydrated yet, then check the URL query param as a last resort.
-          if (typeof window !== 'undefined') {
-            try {
-              const fromUrl = new URLSearchParams(window.location.search).get('space');
-              if (fromUrl && fromUrl.startsWith('space_')) spaceForLink = fromUrl;
-            } catch {
-              // ignore
-            }
-          }
-          const hasSpace = typeof spaceForLink === 'string' && spaceForLink.startsWith('space_');
-          return hasSpace ? `${idToUrl(item.id)}?space=${encodeURIComponent(spaceForLink!)}` : idToUrl(item.id);
-        };
-
         // CRITICAL: Ensure href is always valid - never set to /undefined
-        const validHref = item.id.startsWith('thread_') ? getThreadHrefWithSpace() : idToUrl(item.id);
+        const validHref =
+          item.id.startsWith('thread_')
+            ? appendSpaceQueryParam(idToUrl(item.id), navContextSpaceId)
+            : idToUrl(item.id);
 
         return (
           <div
@@ -681,7 +673,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                     }
                   }
                   if (!noteThreadId || noteThreadId !== item.id) return;
-                  const backTarget = getBackTarget(currentNoteId, item.id, spaceForLink);
+                  const backTarget = getBackTarget(currentNoteId, item.id, navContextSpaceId);
                   if (backTarget.startsWith('/note/')) {
                     e.preventDefault();
                     popNavStack(item.id);

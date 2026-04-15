@@ -649,10 +649,25 @@ export default function AppLayout() {
   })();
 
   // Enrich currentSpace with title/gradient from nav so navigation components can display it.
+  // Prefer URL ?space= on thread/note over the thread's canonical spaceId so the shell matches the space the user opened from.
   // When on space page, merge currentSpaceDetail (title, color) and isOwner so Edit Space panel paints correctly without waiting for fetch.
-  const currentSpaceBase = spaceId
-    ? (allSpaces.find(s => s.id === spaceId) ?? { id: spaceId, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' })
-    : (spaceFromSearch ? (allSpaces.find(s => s.id === spaceFromSearch) ?? { id: spaceFromSearch, title: 'Space', totalItemCount: 0, backgroundGradient: 'var(--color-paper)' }) : null);
+  const contextSpaceIdForLayout: string | null = (() => {
+    if (spaceId) return spaceId;
+    if ((isThread || isNote) && spaceFromSearch) return spaceFromSearch;
+    if (isThread && currentThread?.spaceId) return currentThread.spaceId;
+    if (isNote && (parentThreadData?.spaceId || activeThread?.spaceId)) {
+      return parentThreadData?.spaceId ?? activeThread?.spaceId ?? null;
+    }
+    return null;
+  })();
+  const currentSpaceBase = contextSpaceIdForLayout
+    ? (allSpaces.find(s => s.id === contextSpaceIdForLayout) ?? {
+        id: contextSpaceIdForLayout,
+        title: 'Space',
+        totalItemCount: 0,
+        backgroundGradient: 'var(--color-paper)',
+      })
+    : null;
   const currentSpace = (() => {
     if (!currentSpaceBase) return currentSpaceBase;
     const isOwnerForSpace =

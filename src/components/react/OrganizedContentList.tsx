@@ -12,6 +12,7 @@ import { useOptimisticUpdates } from '@/hooks/useOptimisticUpdates';
 import { buildAPIUrl, referrerMatchesPattern } from '@/utils/safe-url';
 import { prefetchThreadContent, initThreadCacheCleanup } from '@/utils/thread-cache';
 import { idToUrl } from '@/utils/url-helpers';
+import { appendSpaceQueryParam } from '@/utils/current-space-for-links';
 import {
   getSectionKeyForItem,
   SECTION_ORDER,
@@ -69,6 +70,8 @@ interface OrganizedContentListProps {
   onNotePrefetch?: (noteId: string) => void;
   /** Called when user hovers/focuses a thread row — prefetch thread route data (SPA React Query) */
   onThreadIntent?: (threadId: string) => void;
+  /** When set (e.g. My Home + space switcher), thread/note links include ?space= so context matches the selected space. */
+  spaceIdForLinks?: string | null;
 }
 
 // Helper to normalize dates once at API boundary
@@ -169,6 +172,7 @@ export default function OrganizedContentList({
   initialHasMoreFromParent,
   onNotePrefetch,
   onThreadIntent,
+  spaceIdForLinks,
 }: OrganizedContentListProps) {
   const queryClient = useQueryClient();
 
@@ -1591,10 +1595,11 @@ export default function OrganizedContentList({
   }, []);
 
   const renderItem = (item: OrganizedContentItem, index: number) => {
-    const href =
+    const baseHref =
       item.type === 'thread'
         ? idToUrl(item.threadId || item.id)
         : idToUrl(item.noteId || item.id, item.threadId || undefined);
+    const href = appendSpaceQueryParam(baseHref, spaceIdForLinks);
 
     const isScriptureNote = item.type === 'note' && item.noteType === 'scripture';
 

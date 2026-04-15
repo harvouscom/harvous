@@ -5,7 +5,19 @@
 
 import { debug } from './logger';
 import { safeNavigate } from './safe-navigate';
+import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from './current-space-for-links';
 import { extractIdFromPath, idToUrl } from './url-helpers';
+
+function navigateUrlForTarget(targetItemId: string): string {
+  const base = idToUrl(targetItemId);
+  if (typeof window === 'undefined') return base;
+  const spaceId = getSpaceIdForPersistentNavLinks({
+    pathname: window.location.pathname,
+    search: window.location.search,
+    effectiveSpaceId: null,
+  });
+  return appendSpaceQueryParam(base, spaceId);
+}
 
 /**
  * Check if the current page is in a specific thread/space context
@@ -96,7 +108,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
   // Use safeNavigate so app:route-change fires and refresh logic runs
   // Fallback to full page reload if client navigation fails
   if (isOnNotePage && isNavigatingToThreadOrSpace) {
-    const targetUrl = idToUrl(targetItemId);
+    const targetUrl = navigateUrlForTarget(targetItemId);
     debug('[handleBreadcrumbNavigation] Navigating from note to thread/space', { targetItemId, targetUrl });
 
     // Double-check the URL is valid before navigating
@@ -131,7 +143,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
       window.history.back();
     } else {
       // Fallback: navigate directly if no history
-      const fallbackUrl = idToUrl(targetItemId);
+      const fallbackUrl = navigateUrlForTarget(targetItemId);
       debug('[handleBreadcrumbNavigation] In context but no history - navigating directly', { fallbackUrl });
       if ((window as any).appNavigate) {
         (window as any).appNavigate(fallbackUrl);
@@ -141,7 +153,7 @@ export function handleBreadcrumbNavigation(targetItemId: string): void {
     }
   } else {
     // Not in context - navigate directly
-    const directUrl = idToUrl(targetItemId);
+    const directUrl = navigateUrlForTarget(targetItemId);
     debug('[handleBreadcrumbNavigation] Not in context - navigating directly', { directUrl });
     if ((window as any).appNavigate) {
       (window as any).appNavigate(directUrl);

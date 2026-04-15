@@ -9,6 +9,7 @@ import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
+import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/current-space-for-links';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
@@ -1854,20 +1855,17 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                             ...thread,
                             title: thread.id === 'thread_unorganized' ? MY_PILE_THREAD_TITLE : (thread.title ?? 'Thread'),
                           };
-                      // Use current URL ?space= when present so nav clicks open in the space the user is viewing.
-                      let spaceForLink = effectiveSelectedSpaceId;
-                      if (typeof window !== 'undefined') {
-                        try {
-                          const fromUrl = new URLSearchParams(window.location.search).get('space');
-                          if (fromUrl && fromUrl.startsWith('space_')) spaceForLink = fromUrl;
-                        } catch {
-                          // ignore
-                        }
-                      }
-                      const threadHref =
-                        typeof spaceForLink === 'string' && spaceForLink.startsWith('space_')
-                          ? `${idToUrl(thread.id)}?space=${encodeURIComponent(spaceForLink)}`
-                          : idToUrl(thread.id);
+                      const searchForLinks = searchProp.startsWith('?')
+                        ? searchProp
+                        : searchProp
+                          ? `?${searchProp}`
+                          : '';
+                      const navContextSpaceId = getSpaceIdForPersistentNavLinks({
+                        pathname: pathnameProp,
+                        search: searchForLinks,
+                        effectiveSpaceId: effectiveSelectedSpaceId,
+                      });
+                      const threadHref = appendSpaceQueryParam(idToUrl(thread.id), navContextSpaceId);
                       return (
                         <div key={thread.id} className="nav-item-container group w-full">
                           <div

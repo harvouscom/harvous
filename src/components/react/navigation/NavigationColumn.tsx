@@ -1379,7 +1379,10 @@ const NavigationColumn: React.FC<NavigationColumnProps> = ({
                 ref={navColumnScrollRef}
                 className={`nav-column-scroll ${navScrollHasScrolledDown ? 'nav-column-scroll--top-fade' : ''}`}
               >
-                <PersistentNavigation activeThread={updatedActiveThread || activeThread} />
+                <PersistentNavigation
+                  activeThread={updatedActiveThread || activeThread}
+                  effectiveSpaceIdForLinks={effectiveSelectedSpaceId}
+                />
               </div>
             </div>
           </div>
