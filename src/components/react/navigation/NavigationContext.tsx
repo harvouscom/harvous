@@ -4,6 +4,7 @@ import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
 import { getSelectedSpaceId, setSelectedSpaceId } from './selectedSpace';
+import { getSpaceIdForImplicitHistoryScope } from '@/utils/current-space-for-links';
 import { clearNavStack } from '@/utils/nav-stack';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
@@ -554,10 +555,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     const hasExplicitOpenedInSpaceIds =
       (item as any).openedInSpaceIds !== undefined && Array.isArray((item as any).openedInSpaceIds);
+    const implicitScope = getSpaceIdForImplicitHistoryScope();
     const itemOpenedInSpaceIds =
       hasExplicitOpenedInSpaceIds && existingIndex === -1
         ? getItemOpenedInSpaceIds(item)
-        : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [getSelectedSpaceId()]);
+        : mergeOpenedInSpaceIds(getItemOpenedInSpaceIds(item), [implicitScope]);
 
     if (existingIndex !== -1) {
       // Item already exists - update lastAccessed time but keep position; never overwrite a positive count with 0 so badge persists
@@ -604,7 +606,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const newItem: NavigationItem = {
         ...item,
         openedInSpaceIds: itemOpenedInSpaceIds,
-        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? null),
+        openedInSpaceId: normalizeOpenedInSpaceId((item as any).openedInSpaceId ?? implicitScope ?? null),
         firstAccessed: Date.now(),
         lastAccessed: Date.now()
       };

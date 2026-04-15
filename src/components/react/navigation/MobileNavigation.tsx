@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigation } from './NavigationContext';
 import SpaceButton from './SpaceButton';
 import Avatar from './Avatar';
 import { getThreadGradientCSS } from '@/utils/colors';
 import Icon from '../Icon';
-import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
@@ -13,6 +13,9 @@ import { appendSpaceQueryParam, getSpaceIdForPersistentNavLinks } from '@/utils/
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
 import { isMyPileDisplayTitle, MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
+import { prefetchThreadRouteIntent } from '../../../../spa/src/utils/prefetch-route-intent';
+
+const PAPER_GRADIENT = 'linear-gradient(180deg, var(--color-paper) 0%, var(--color-paper) 100%)';
 
 /**
  * Check if Clerk authentication is ready
@@ -85,6 +88,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   onNavigate,
   viewerUserId = null,
 }) => {
+  const queryClient = useQueryClient();
   const navigate = onNavigate || safeNavigateSync;
   const selectedSpaceId = useSelectedSpaceId();
   // Route-derived space (same logic as NavigationColumn): from ?space= or /space/...
@@ -124,10 +128,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const lastEventUpdateRef = useRef<{ spaceId: string; timestamp: number } | null>(null);
   // Local state for spaces that gets updated when spaces are modified
   const [localSpaces, setLocalSpaces] = useState<Space[]>(spaces);
-  // Track which items are in "close mode" (showing close icon instead of badge)
-  const [itemsInCloseMode, setItemsInCloseMode] = useState<Set<string>>(new Set());
-  // Track items explicitly closed this session so they stay hidden until nav history propagates
-  const [closedItemIds, setClosedItemIds] = useState<Set<string>>(new Set());
   // IDs of spaces deleted this session so dropdown and "Add Existing Space" don't show them (match desktop)
   const deletedSpaceIdsRef = useRef<Set<string>>(new Set());
   // Profile data state for avatar updates
@@ -272,12 +272,6 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       document.removeEventListener('app:route-change', readActiveThreadFromDom);
     };
   }, [readActiveThreadFromDom]);
-
-  // Determine text color - pastel colors use dark text for visibility
-  const getTextColor = (gradient: string | undefined, isActive: boolean): string => {
-    // All thread colors use dark text (pastel colors)
-    return 'var(--color-deep-grey)';
-  };
 
   const isDashboard = currentItemId === '' || currentItemId === 'dashboard';
   const isNote = currentItemId.startsWith('note_');
@@ -1076,17 +1070,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
 
   const { threads: persistentThreads } = organizePersistentItems(persistentItemsWithActiveParent);
 
-  // Show only threads from navigation history (same as desktop PersistentNavigation).
-  // Filter out closedItemIds so closed threads disappear immediately.
-  const displayThreads = useMemo(() => {
-    return persistentThreads.filter((t) => !closedItemIds.has(t.id));
-  }, [persistentThreads, closedItemIds]);
-
   const closeSheet = useCallback(() => {
     setIsSheetOpen(false);
     setIsSpacePanelOpen(false);
-    // Exit close mode for all items when dropdown closes
-    setItemsInCloseMode(new Set());
   }, []);
 
   const openSheet = useCallback(() => {
@@ -1094,8 +1080,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     setIsSheetOpen(true);
     // If there are no threads to show, auto-open the space picker panel.
     // This helps first-run / "only spaces exist" states.
-    setIsSpacePanelOpen(displayThreads.length === 0);
-  }, [displayThreads.length]);
+    setIsSpacePanelOpen(persistentThreads.length === 0);
+  }, [persistentThreads.length]);
 
   /** Bar sort control: open or close sheet (pointer + click for keyboard; dedupe via barSheetTogglePointerRef). */
   const toggleSheetFromBar = useCallback(() => {
@@ -1116,50 +1102,8 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     [closeSheet]
   );
 
-  const handleItemClick = (itemId?: string) => {
+  const handleItemClick = () => {
     closeSheet();
-    // If clicking on a specific item, exit its close mode
-    if (itemId) {
-      setItemsInCloseMode(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
-      });
-    }
-  };
-
-  // Toggle close mode for an item (show close icon instead of badge)
-  const toggleCloseMode = (itemId: string) => {
-    setItemsInCloseMode(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  };
-
-  // Handle close icon click - remove item and exit close mode
-  const handleCloseClick = (itemId: string, e: React.MouseEvent | React.TouchEvent, title?: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setClosedItemIds((prev) => {
-      const next = new Set(prev);
-      next.add(itemId);
-      return next;
-    });
-    removeFromNavigationHistory(
-      itemId,
-      itemId.startsWith('thread_') && title ? { sameTitleAs: title } : undefined
-    );
-    // Exit close mode after closing
-    setItemsInCloseMode(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(itemId);
-      return newSet;
-    });
   };
 
   // Get raw navigation history from storage (including spaces)
@@ -1535,7 +1479,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                 activeThreadCandidate
                   ? Math.max(
                       (updatedCurrentThread ?? currentThread)?.noteCount ?? 0,
-                      displayThreads.find((t) => t.id === currentActiveItemId)?.noteCount ?? 0
+                      persistentThreads.find((t) => t.id === currentActiveItemId)?.noteCount ?? 0
                     )
                   : displaySelectedSpaceCount
               }
@@ -1840,9 +1784,9 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                     </div>
                   </div>
                 ) : null}
-                {displayThreads.length > 0 ? (
+                {persistentThreads.length > 0 ? (
                   <>
-                    {displayThreads.map((thread) => {
+                    {persistentThreads.map((thread) => {
                       const isActive = currentActiveItemId.startsWith('thread_') && thread.id === currentActiveItemId;
                       // Use updated thread data for active thread to show live updates.
                       // Prefer the persistent list's count when layout count is 0 (e.g. note page before note loads, or member thread not in nav).
@@ -1871,91 +1815,57 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
                       });
                       const threadHref = appendSpaceQueryParam(idToUrl(thread.id), navContextSpaceId);
                       return (
-                        <div key={thread.id} className="nav-item-container group w-full">
-                          <div
-                            className="block w-full"
-                            style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', cursor: 'pointer' }}
-                            onClick={() => {
-                              const isActiveItem = thread.id === currentActiveItemId;
-                              const isOnNotePage = currentItemId.startsWith('note_');
-                              if (!isActiveItem || isOnNotePage) {
-                                navigate(threadHref);
-                              }
-                              handleItemClick(thread.id);
-                            }}
-                          >
+                        <div
+                          key={thread.id}
+                          className="nav-item-container group w-full"
+                          data-navigation-item={thread.id}
+                        >
+                          <div className="nav-item-wrapper">
                             <div
-                              className="space-btn pl-4"
-                              style={
-                                isActive
-                                  ? {
-                                      backgroundImage: displayThread.backgroundGradient?.includes('gradient')
-                                        ? displayThread.backgroundGradient
-                                        : undefined,
-                                      backgroundColor: displayThread.backgroundGradient?.includes('gradient')
-                                        ? undefined
-                                        : (displayThread.backgroundGradient || undefined),
-                                    }
-                                  : {}
-                              }
+                              className="block w-full"
+                              style={{
+                                touchAction: 'manipulation',
+                                WebkitTapHighlightColor: 'transparent',
+                                cursor: 'pointer',
+                              }}
+                              onPointerEnter={() => {
+                                prefetchThreadRouteIntent(queryClient, thread.id);
+                              }}
+                              onClick={() => {
+                                const isActiveItem = thread.id === currentActiveItemId;
+                                const isOnNotePage = currentItemId.startsWith('note_');
+                                if (!isActiveItem || isOnNotePage) {
+                                  navigate(threadHref);
+                                }
+                                handleItemClick();
+                              }}
                             >
-                              <div className="space-btn__content">
-                                <div className="space-btn__text-wrapper">
-                                  <span className="space-btn__text" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
-                                    {displayThread.title}
-                                  </span>
-                                </div>
-                                {/* Relative wrapper: the badge wrapper's padding:20px provides visual spacing;
-                                    the inner relative div keeps the badge at 24×24 with an overlay on top. */}
-                                <div className="space-btn__badge-wrapper" style={{ position: 'relative' }}>
-                                  {/* Visual badge — pointer-events:none so the overlay above catches all taps */}
-                                  <div
-                                    className="badge-count"
-                                    style={{ pointerEvents: 'none' }}
-                                  >
-                                    {itemsInCloseMode.has(thread.id) ? (
-                                      <Icon name="xmark" size={14} style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }} />
-                                    ) : (
-                                      <span className="badge-number" style={{ color: getTextColor(displayThread.backgroundGradient, isActive) }}>
-                                        {formatBadgeCount(displayThread.noteCount)}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {/* Transparent overlay: sits on top of the visual badge and its 20px wrapper padding.
-                                      inset:0 fills the entire wrapper (including padding) = ~64×64 touch target.
-                                      onPointerDown fires immediately — no 300ms delay, no passive-listener issues. */}
-                                  <div
-                                    role="button"
-                                    aria-label={itemsInCloseMode.has(thread.id) ? `Remove ${displayThread.title}` : `Close options for ${displayThread.title}`}
-                                    data-close-item={thread.id}
-                                    style={{
-                                      position: 'absolute',
-                                      inset: 0,
-                                      cursor: 'pointer',
-                                      touchAction: 'manipulation',
-                                      WebkitTapHighlightColor: 'transparent',
-                                    }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      if (itemsInCloseMode.has(thread.id)) {
-                                        // removeFromNavigationHistory navigates away when the removed
-                                        // thread is the currently-active one. Close the sheet first
-                                        // so that navigation happens cleanly. For non-active threads
-                                        // the thread just disappears and the sheet stays open.
-                                        const isCurrentlyActive = thread.id === currentActiveItemId;
-                                        handleCloseClick(thread.id, e as any, thread.title);
-                                        if (isCurrentlyActive) {
-                                          closeSheet();
-                                        }
-                                      } else {
-                                        toggleCloseMode(thread.id);
-                                      }
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              {isActive && <div className="space-btn__shadow" />}
+                              <SpaceButton
+                                as="div"
+                                text={displayThread.title}
+                                count={displayThread.noteCount ?? 0}
+                                state="WithCount"
+                                showCountBadge={false}
+                                rightAccessory="count"
+                                backgroundGradient={
+                                  thread.id === 'thread_unorganized'
+                                    ? PAPER_GRADIENT
+                                    : (displayThread.backgroundGradient || 'var(--color-paper)')
+                                }
+                                isActive={isActive}
+                                itemId={thread.id}
+                                badgeClose={{
+                                  onClick: () => {
+                                    const wasActive = thread.id === currentActiveItemId;
+                                    removeFromNavigationHistory(
+                                      thread.id,
+                                      thread.id.startsWith('thread_') ? { sameTitleAs: thread.title } : undefined
+                                    );
+                                    if (wasActive) closeSheet();
+                                  },
+                                  ariaLabel: `Close ${displayThread.title || 'item'}`,
+                                }}
+                              />
                             </div>
                           </div>
                         </div>

@@ -41,6 +41,19 @@ export function getSpaceIdForPersistentNavLinks(options: {
   return getSelectedSpaceId();
 }
 
+/**
+ * Same resolution as nav links, for implicit navigation-history scopes when callers
+ * do not pass `openedInSpaceIds` — prefers route / URL over storage-only `getSelectedSpaceId()`.
+ */
+export function getSpaceIdForImplicitHistoryScope(): string | null {
+  if (typeof window === 'undefined') return null;
+  return getSpaceIdForPersistentNavLinks({
+    pathname: window.location.pathname,
+    search: window.location.search,
+    effectiveSpaceId: null,
+  });
+}
+
 /** Append ?space= or &space= if not already present. */
 export function appendSpaceQueryParam(href: string, spaceId: string | null | undefined): string {
   if (!spaceId || !spaceId.startsWith('space_')) return href;
