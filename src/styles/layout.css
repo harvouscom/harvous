@@ -41,7 +41,7 @@
 @media (min-width: 1160px) {
   .desktop-layout {
     display: grid;
-    grid-template-columns: 310px minmax(380px, 640px) minmax(380px, 640px);
+    grid-template-columns: 260px minmax(430px, 690px) minmax(380px, 640px);
     gap: 1.5rem;
     flex: 1;
     min-height: 0;

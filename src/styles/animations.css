@@ -220,7 +220,7 @@ html.ios-pwa .modal-overlay-enter {
 @media (min-width: 1160px) {
   .modal-overlay-enter {
     display: grid !important;
-    grid-template-columns: 310px 1fr 1fr;
+    grid-template-columns: 260px minmax(430px, 690px) minmax(380px, 640px);
     gap: 1.5rem;
     /* At least 12px from viewport edges; keep 1.5rem when larger (matches spotlight-overlay) */
     padding: max(12px, 1.5rem) !important;

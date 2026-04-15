@@ -6,7 +6,7 @@ import { useSpaceBootstrap, getCachedSpaceBootstrap } from '../hooks/queries/use
 import { useNavigation } from '../hooks/queries/useNavigation';
 import { getThreadQueryOptions } from '../hooks/queries/useThread';
 import { getNoteQueryOptions, seedNoteFromList, type ListNoteForSeed } from '../hooks/queries/useNote';
-import { safeGetItem, safeSetItem } from '../../../src/utils/safe-storage';
+import { setSelectedSpaceId } from '../../../src/components/react/navigation/selectedSpace';
 import {
   getStoredSpaceContentTab,
   setStoredSpaceContentTab,
@@ -154,27 +154,15 @@ export default function SpacePage() {
     if (isError) navigate({ to: '/', replace: true });
   }, [isError, navigate]);
 
-  // Track this space visit in navigation history so NavigationColumn shows it in the dropdown.
-  // (NavigationContext isn't mounted in the SPA, so trackNavigationAccess() never runs.)
+  // Ensure selected space storage is always in sync with the current URL.
+  // NavigationColumn does this via its URL-sync effect, but calling it here eliminates
+  // any race between NavigationColumn's effect and PersistentNavigation's first render.
   useEffect(() => {
-    if (!space) return;
-    try {
-      const stored = safeGetItem('harvous-navigation-history-v2');
-      const history: any[] = stored ? JSON.parse(stored) : [];
-      const existingIndex = history.findIndex((item: any) => item.id === spaceId);
-      const now = Date.now();
-      if (existingIndex !== -1) {
-        history[existingIndex] = { ...history[existingIndex], title: space.title, lastAccessed: now };
-      } else {
-        history.push({ id: spaceId, title: space.title, backgroundGradient: space.backgroundGradient, firstAccessed: now, lastAccessed: now });
-      }
-      safeSetItem('harvous-navigation-history-v2', JSON.stringify(history));
-      // Notify NavigationColumn to re-read history
-      window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
-    } catch {
-      // ignore storage errors
-    }
-  }, [spaceId, space]);
+    setSelectedSpaceId(spaceId);
+  }, [spaceId]);
+
+  // Space visits are recorded in harvous-navigation-history-v2 by NavigationContext.trackNavigationAccess()
+  // (app:route-change on pathname). Avoid duplicating that write here — it bypassed closed-item filtering.
 
   const headerBgColor = `var(--color-${resolvedSpaceColor})`;
   const tabs = TABS.map(t => ({ ...t, isActive: t.id === filter }));

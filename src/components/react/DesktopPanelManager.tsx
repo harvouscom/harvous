@@ -60,6 +60,7 @@ const GetSupportPanel = createLazyComponent(() => import('./GetSupportPanel'), '
 const LockPinPanel = createLazyComponent(() => import('./LockPinPanel'), 'LockPinPanel');
 const AboutHarvousPanel = createLazyComponent(() => import('./AboutHarvousPanel'), 'AboutHarvousPanel');
 const NoteSharePanel = createLazyComponent(() => import('./NoteSharePanel'), 'NoteSharePanel');
+const SpaceSharePanel = createLazyComponent(() => import('./SpaceSharePanel'), 'SpaceSharePanel');
 const ScriptureComparePanel = createLazyComponent(() => import('./ScriptureComparePanel'), 'ScriptureComparePanel');
 const PinEntryPanel = createLazyComponent(() => import('./PinEntryPanel'), 'PinEntryPanel');
 
@@ -557,6 +558,7 @@ export default function DesktopPanelManager({
   const [sharePanelData, setSharePanelData] = useState<
     | { kind: 'note'; noteId: string; noteTitle?: string }
     | { kind: 'thread'; threadId: string; threadTitle?: string }
+    | { kind: 'space'; spaceId: string }
     | null
   >(null);
   const [scriptureCompareData, setScriptureCompareData] = useState<{
@@ -581,6 +583,7 @@ export default function DesktopPanelManager({
   useEffect(() => {
     if (contentType === 'space' && currentSpace?.id) {
       import('./EditSpacePanel').catch(() => {});
+      import('./SpaceSharePanel').catch(() => {});
       import('./AddToSpacePanel').catch(() => {});
       import('./EditSpacePeoplePanel').catch(() => {});
       prefetchSpacePanelData(currentSpace.id);
@@ -761,7 +764,9 @@ export default function DesktopPanelManager({
     const handleOpenNoteSharePanel = (event: CustomEvent) => {
       const { contentId, contentType: ct } = event.detail || {};
       if (contentId) {
-        if (ct === 'thread') {
+        if (ct === 'space') {
+          setSharePanelData({ kind: 'space', spaceId: contentId });
+        } else if (ct === 'thread') {
           setSharePanelData({ kind: 'thread', threadId: contentId, threadTitle: undefined });
         } else {
           setSharePanelData({ kind: 'note', noteId: contentId, noteTitle: undefined });
@@ -1295,20 +1300,31 @@ export default function DesktopPanelManager({
         <PanelErrorBoundary>
           <Suspense fallback={<DelayedFallback delayMs={80} containerClasses="h-full hidden min-[1160px]:block"><ProgressBarFallback containerClasses="h-full hidden min-[1160px]:block" /></DelayedFallback>}>
             <div className="h-full hidden min-[1160px]:block">
-              <NoteSharePanel
-                key={`note-share-${state.panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
-                {...(sharePanelData.kind === 'note'
-                  ? {
-                      noteId: sharePanelData.noteId,
-                      noteTitle: currentNote?.title || sharePanelData.noteTitle,
-                    }
-                  : {
-                      threadId: sharePanelData.threadId,
-                      threadTitle: currentThread?.title || sharePanelData.threadTitle,
-                    })}
-                onClose={handleCloseNoteShare}
-                inBottomSheet={false}
-              />
+              {sharePanelData.kind === 'space' ? (
+                <SpaceSharePanel
+                  key={`space-share-${state.panelKey}-${sharePanelData.spaceId}`}
+                  spaceId={sharePanelData.spaceId}
+                  initialTitle={currentSpace?.title}
+                  initialColor={currentSpace?.color}
+                  onClose={handleCloseNoteShare}
+                  inBottomSheet={false}
+                />
+              ) : (
+                <NoteSharePanel
+                  key={`note-share-${state.panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
+                  {...(sharePanelData.kind === 'note'
+                    ? {
+                        noteId: sharePanelData.noteId,
+                        noteTitle: currentNote?.title || sharePanelData.noteTitle,
+                      }
+                    : {
+                        threadId: sharePanelData.threadId,
+                        threadTitle: currentThread?.title || sharePanelData.threadTitle,
+                      })}
+                  onClose={handleCloseNoteShare}
+                  inBottomSheet={false}
+                />
+              )}
             </div>
           </Suspense>
         </PanelErrorBoundary>

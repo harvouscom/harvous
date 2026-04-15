@@ -116,6 +116,11 @@
   --text-color-primary: var(--color-deep-grey);
   --text-color-secondary: var(--color-stone-grey);
 
+  /* Keyboard focus ring (WCAG 2.4.7) — same hue as action strip in cards.css */
+  --focus-ring-color: var(--color-bold-blue);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
   /* Shadows - using OKLCH alpha for consistent appearance */
   --shadow-color: oklch(var(--lch-stone-grey) / 0.2);
   --shadow-primary: 0px 6px 0px 0px oklch(85% 0.02 90);

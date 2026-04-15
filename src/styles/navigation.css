@@ -204,6 +204,69 @@
   }
 }
 
+/*
+ * Persistent nav: same interaction as `.space-switcher-dropdown__item` + `.space-switcher-dropdown__close-btn` —
+ * dismiss hidden until the full row is hovered or focused-within (not only the badge slot).
+ */
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .badge-count,
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .space-btn__toggle-icon {
+  transition: opacity 0.2s ease-out;
+}
+
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .close-icon {
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  right: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):hover .nav-item__badge-slot .badge-count,
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):focus-within .nav-item__badge-slot .badge-count,
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):hover .nav-item__badge-slot .space-btn__toggle-icon,
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):focus-within .nav-item__badge-slot .space-btn__toggle-icon {
+  opacity: 0;
+}
+
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):hover .nav-item__badge-slot .close-icon,
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon):focus-within .nav-item__badge-slot .close-icon {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .close-icon:hover {
+  transform: translate(-50%, -50%);
+}
+
+@media (hover: none) {
+  #persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot {
+    width: auto;
+    min-width: 24px;
+    gap: 6px;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  #persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .badge-count,
+  #persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .space-btn__toggle-icon {
+    opacity: 1 !important;
+  }
+
+  #persistent-navigation .nav-item-container:has(.nav-item__badge-slot .close-icon) .nav-item__badge-slot .close-icon {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
 /* ==========================================================================
    Badge Count
    ========================================================================== */
@@ -232,6 +295,28 @@
   justify-content: center;
   width: 100%;
   height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* TabNav tab badges + inline labels: tight to digits (no horizontal padding), 12px type */
+.badge-count--tab-nav {
+  background: rgba(120, 118, 111, 0.1) !important;
+  opacity: 1 !important; /* Override parent .tab-nav__button opacity when tab inactive */
+  min-width: auto !important;
+  width: max-content !important;
+  height: 22px !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.badge-count--tab-nav .badge-number {
+  font-size: 12px !important;
+  font-family: var(--font-sans) !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  width: auto !important;
+  height: auto !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -421,6 +506,7 @@
   .nav-column-top {
     overflow: hidden;
     gap: 0;
+    padding-top: 8px;
   }
 
   .nav-column-buttons {
@@ -516,6 +602,12 @@
   width: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  border-radius: 24px;
+}
+
+.nav-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .nav-link--shrink {
@@ -543,6 +635,12 @@
   color: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  border-radius: 24px;
+}
+
+.nav-column-bottom__profile-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .nav-column-bottom__profile-pill {
@@ -582,6 +680,12 @@
   color: inherit;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  border-radius: 24px;
+}
+
+.nav-column-bottom__profile-back:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .nav-column-bottom__search-link {
@@ -589,6 +693,12 @@
   text-decoration: none;
   color: inherit;
   -webkit-tap-highlight-color: transparent;
+  border-radius: 24px;
+}
+
+.nav-column-bottom__search-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* ==========================================================================
@@ -1088,6 +1198,12 @@
   -webkit-tap-highlight-color: transparent !important;
 }
 
+/* Restore keyboard focus ring (overrides outline:none above; WCAG 2.4.7) */
+.tab-nav-container .tab-nav button.tab-nav__button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color) !important;
+  outline-offset: var(--focus-ring-offset) !important;
+}
+
 .tab-nav__label,
 .tab-nav__label *,
 span.tab-nav__label,
@@ -1102,25 +1218,6 @@ button.tab-nav__button .tab-nav__label,
   flex-shrink: 0;
   white-space: nowrap;
   color: var(--color-deep-grey);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Badge styling inside tab-nav buttons (matches tab-btn styling) */
-.tab-nav__button .badge-count {
-  background: rgba(120, 118, 111, 0.1) !important;
-  opacity: 1 !important; /* Override parent opacity so badge appears at full opacity */
-  min-width: 22px !important;
-  width: max-content !important;
-  height: 22px !important;
-  padding: 0 5px !important;
-  box-sizing: border-box !important;
-}
-
-.tab-nav__button .badge-number {
-  font-size: 12px !important;
-  font-family: var(--font-sans) !important;
-  font-weight: 700 !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1270,11 +1367,12 @@ button.space-btn .space-btn__text {
   display: none;
 }
 
+/* Fixed width (not %): containing block is the 64×64 .space-switcher-details; % would be 64px and misaligns the menu */
 .space-switcher-details__panel {
   position: absolute;
-  top: calc(64px + 12px);
+  top: calc(64px + 8px);
   right: 0;
-  width: max(260px, 310px);
+  width: 260px;
   z-index: 1000002;
 }
 
@@ -1282,9 +1380,13 @@ button.space-btn .space-btn__text {
   display: none;
 }
 
+.space-switcher-anchor__toggle:focus:not(:focus-visible) {
+  outline: none;
+}
+
 .space-switcher-anchor__toggle:focus-visible {
-  outline: 2px solid rgba(120, 118, 111, 0.35);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
   border-radius: 24px;
 }
 
@@ -1363,6 +1465,24 @@ button.space-btn .space-btn__text {
   font-size: 18px;
   font-weight: 700;
   position: relative;
+  border-radius: 0;
+}
+
+.space-switcher-dropdown__item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(-1 * var(--focus-ring-width));
+  z-index: 1;
+}
+
+.space-switcher-dropdown__scroll .space-switcher-dropdown__item:first-child:focus-visible {
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+.space-switcher-dropdown__footer .space-switcher-dropdown__item:focus-visible,
+.space-switcher-dropdown__footer .space-switcher-dropdown__new-space:focus-visible {
+  border-bottom-left-radius: 24px;
+  border-bottom-right-radius: 24px;
 }
 
 .space-switcher-dropdown__icon-slot {
@@ -1390,6 +1510,15 @@ button.space-btn .space-btn__text {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease-out;
+  border-radius: 6px;
+}
+
+.space-switcher-dropdown__close-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+  z-index: 2;
 }
 
 .space-switcher-dropdown__item:has(.space-switcher-dropdown__close-btn):hover .space-switcher-dropdown__close-btn {

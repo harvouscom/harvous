@@ -1,5 +1,5 @@
 import React, { createContext, use, useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { safeSetItem, safeGetItem, safeRemoveItem, getStorage } from '@/utils/safe-storage';
+import { safeSetItem, safeGetItem } from '@/utils/safe-storage';
 import { safeFetch, isAuthReady } from '@/utils/safe-fetch';
 import { idToUrl, extractIdFromPath, detectEntityTypeFromPath } from '@/utils/url-helpers';
 import { shouldForceRefresh, trackNoteDeletion, refreshBadgeCountsWithVerification } from '@/utils/badge-count-refresh';
@@ -114,35 +114,197 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return out.length > 0 ? out : [null];
   };
 
-  // Helper functions for closed items tracking
+  // Both the closed-items list AND navigation history MUST use window.localStorage directly.
+  // safeGetItem/safeSetItem use getStorage() which does a test-write on every call; near quota
+  // the test fails and I/O bounces to sessionStorage. This creates a split-brain where writes
+  // go to sessionStorage while reads hit stale localStorage, resurrecting closed items.
+  const CLOSED_NAV_KEY = 'harvous-closed-navigation-items';
+  const NAV_HISTORY_KEY = 'harvous-navigation-history-v2';
+  /** Written alongside nav history in whichever tier holds the blob; used to pick the newer copy on read. */
+  const NAV_WRITE_TS_KEY = 'harvous-nav-write-ts';
+
+  /** Read nav history JSON. When both tiers have data, compare write timestamps so a fresh
+   *  sessionStorage fallback (after local quota) is not discarded in favor of stale localStorage. */
+  const readNavHistoryRaw = (): string | null => {
+    const parseTs = (s: string | null): number => {
+      if (s == null || s === '') return 0;
+      const n = parseInt(s, 10);
+      return Number.isFinite(n) ? n : 0;
+    };
+    try {
+      let fromLocal: string | null = null;
+      let fromSession: string | null = null;
+      try {
+        fromLocal = window.localStorage.getItem(NAV_HISTORY_KEY);
+      } catch {
+        /* ignore */
+      }
+      try {
+        fromSession = window.sessionStorage?.getItem(NAV_HISTORY_KEY) ?? null;
+      } catch {
+        /* ignore */
+      }
+
+      if (!fromLocal?.length && !fromSession?.length) return null;
+
+      const tsLocal = parseTs(window.localStorage.getItem(NAV_WRITE_TS_KEY));
+      const tsSession = parseTs(window.sessionStorage?.getItem(NAV_WRITE_TS_KEY));
+
+      if (fromLocal?.length && !fromSession?.length) {
+        try {
+          window.sessionStorage?.removeItem(NAV_HISTORY_KEY);
+          window.sessionStorage?.removeItem(NAV_WRITE_TS_KEY);
+        } catch {
+          /* ignore */
+        }
+        return fromLocal;
+      }
+      if (!fromLocal?.length && fromSession?.length) {
+        try {
+          window.localStorage.setItem(NAV_HISTORY_KEY, fromSession);
+          window.localStorage.setItem(NAV_WRITE_TS_KEY, String(tsSession || Date.now()));
+          window.sessionStorage.removeItem(NAV_HISTORY_KEY);
+          window.sessionStorage.removeItem(NAV_WRITE_TS_KEY);
+        } catch {
+          /* quota still full, keep session copy */
+        }
+        return fromSession;
+      }
+
+      // both exist — pick newer write
+      if (tsSession > tsLocal) {
+        try {
+          window.localStorage.setItem(NAV_HISTORY_KEY, fromSession!);
+          window.localStorage.setItem(NAV_WRITE_TS_KEY, String(tsSession));
+          window.sessionStorage.removeItem(NAV_HISTORY_KEY);
+          window.sessionStorage.removeItem(NAV_WRITE_TS_KEY);
+        } catch {
+          /* keep session */
+        }
+        return fromSession;
+      }
+
+      try {
+        window.sessionStorage?.removeItem(NAV_HISTORY_KEY);
+        window.sessionStorage?.removeItem(NAV_WRITE_TS_KEY);
+      } catch {
+        /* ignore */
+      }
+      return fromLocal;
+    } catch {
+      return null;
+    }
+  };
+
+  /** Write nav history JSON to localStorage with quota-recovery (trim + retry). */
+  const writeNavHistory = (json: string): boolean => {
+    const ts = String(Date.now());
+    const clearSessionFallback = () => {
+      try {
+        window.sessionStorage?.removeItem(NAV_HISTORY_KEY);
+        window.sessionStorage?.removeItem(NAV_WRITE_TS_KEY);
+      } catch {
+        /* ignore */
+      }
+    };
+    try {
+      window.localStorage.setItem(NAV_HISTORY_KEY, json);
+      window.localStorage.setItem(NAV_WRITE_TS_KEY, ts);
+      clearSessionFallback();
+      return true;
+    } catch {
+      try {
+        // Trim nav history to free space, then retry
+        const old = window.localStorage.getItem(NAV_HISTORY_KEY);
+        if (old) {
+          const arr: unknown = JSON.parse(old);
+          if (Array.isArray(arr) && arr.length > 3) {
+            window.localStorage.setItem(NAV_HISTORY_KEY, JSON.stringify(arr.slice(-3)));
+          }
+        }
+        window.localStorage.setItem(NAV_HISTORY_KEY, json);
+        window.localStorage.setItem(NAV_WRITE_TS_KEY, ts);
+        clearSessionFallback();
+        return true;
+      } catch {
+        // Last resort: sessionStorage so the current session isn't broken
+        try {
+          window.sessionStorage?.setItem(NAV_HISTORY_KEY, json);
+          window.sessionStorage?.setItem(NAV_WRITE_TS_KEY, ts);
+        } catch {
+          /* ignore */
+        }
+        return false;
+      }
+    }
+  };
+
   const getClosedItems = (): string[] => {
     if (typeof window === 'undefined') {
       return [];
     }
+    const ids = new Set<string>();
+    // Merge from both tiers — addToClosedItems can fall back to sessionStorage when
+    // localStorage is full, so either tier may hold the most recent copy.
     try {
-      const stored = safeGetItem('harvous-closed-navigation-items');
-      return stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      console.error('Error getting closed items:', error);
-      return [];
-    }
+      const fromLocal = window.localStorage.getItem(CLOSED_NAV_KEY);
+      if (fromLocal) {
+        const p: unknown = JSON.parse(fromLocal);
+        if (Array.isArray(p)) p.forEach((x) => { if (typeof x === 'string') ids.add(x); });
+      }
+    } catch { /* ignore */ }
+    try {
+      const fromSession = window.sessionStorage?.getItem(CLOSED_NAV_KEY);
+      if (fromSession) {
+        const p: unknown = JSON.parse(fromSession);
+        if (Array.isArray(p)) p.forEach((x) => { if (typeof x === 'string') ids.add(x); });
+        // Promote merged set to localStorage so it survives a refresh
+        const merged = [...ids];
+        try { window.localStorage.setItem(CLOSED_NAV_KEY, JSON.stringify(merged)); window.sessionStorage.removeItem(CLOSED_NAV_KEY); } catch { /* quota still full */ }
+      }
+    } catch { /* ignore */ }
+    return [...ids];
   };
 
   const addToClosedItems = (itemId: string) => {
     if (typeof window === 'undefined') {
       return;
     }
+    const closedItems = getClosedItems();
+    if (closedItems.includes(itemId)) {
+      return;
+    }
+    closedItems.push(itemId);
+    const json = JSON.stringify(closedItems);
     try {
-      const closedItems = getClosedItems();
-      if (!closedItems.includes(itemId)) {
-        closedItems.push(itemId);
-        safeSetItem('harvous-closed-navigation-items', JSON.stringify(closedItems), {
-          cleanupOldest: true,
-          fallbackToSession: true,
-        });
+      window.localStorage.setItem(CLOSED_NAV_KEY, json);
+    } catch {
+      try {
+        const h = window.localStorage.getItem(NAV_HISTORY_KEY);
+        if (h) {
+          const arr: unknown = JSON.parse(h);
+          if (Array.isArray(arr) && arr.length > 3) {
+            window.localStorage.setItem(NAV_HISTORY_KEY, JSON.stringify(arr.slice(-3)));
+          }
+        }
+        window.localStorage.setItem(CLOSED_NAV_KEY, json);
+      } catch {
+        try {
+          window.localStorage.removeItem(NAV_HISTORY_KEY);
+          try {
+            window.localStorage.removeItem(NAV_WRITE_TS_KEY);
+          } catch {
+            /* ignore */
+          }
+          window.localStorage.setItem(CLOSED_NAV_KEY, json);
+        } catch {
+          try {
+            window.sessionStorage?.setItem(CLOSED_NAV_KEY, json);
+          } catch {
+            /* ignore */
+          }
+        }
       }
-    } catch (error) {
-      console.error('Error adding to closed items:', error);
     }
   };
 
@@ -150,15 +312,20 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (typeof window === 'undefined') {
       return;
     }
+    const closedItems = getClosedItems();
+    const filtered = closedItems.filter((id) => id !== itemId);
+    if (filtered.length === closedItems.length) {
+      return;
+    }
     try {
-      const closedItems = getClosedItems();
-      const filtered = closedItems.filter(id => id !== itemId);
-      safeSetItem('harvous-closed-navigation-items', JSON.stringify(filtered), {
-        cleanupOldest: true,
-        fallbackToSession: true,
-      });
-    } catch (error) {
-      console.error('Error removing from closed items:', error);
+      window.localStorage.setItem(CLOSED_NAV_KEY, JSON.stringify(filtered));
+    } catch {
+      /* ignore */
+    }
+    try {
+      window.sessionStorage?.removeItem(CLOSED_NAV_KEY);
+    } catch {
+      /* ignore */
     }
   };
 
@@ -181,7 +348,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     
     try {
-      const stored = safeGetItem('harvous-navigation-history-v2');
+      const stored = readNavHistoryRaw();
       
       let parsed = stored ? JSON.parse(stored) : [];
       let needsMigration = false;
@@ -203,10 +370,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       
       // Migrate to new format if needed (save back as direct array)
       if (needsMigration) {
-        safeSetItem('harvous-navigation-history-v2', JSON.stringify(parsed), {
-          cleanupOldest: true,
-          fallbackToSession: true,
-        });
+        writeNavHistory(JSON.stringify(parsed));
       }
       
       // If localStorage is empty but we have a backup, use it
@@ -251,10 +415,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
 
       if (needsMigration) {
-        safeSetItem('harvous-navigation-history-v2', JSON.stringify(normalizedItems), {
-          cleanupOldest: true,
-          fallbackToSession: true,
-        });
+        writeNavHistory(JSON.stringify(normalizedItems));
       }
 
       // Filter out specific test items (exact title matches only)
@@ -317,8 +478,23 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
+    // Strip items the user has closed from the persisted raw data (defense-in-depth).
+    // Many code paths read rawHistory, modify one entry, and save the whole array back.
+    // If the read hit a stale localStorage copy (safeGetItem can bounce between localStorage
+    // and sessionStorage depending on quota), closed items may have been resurrected in the
+    // array. Filtering them here ensures they never survive a save regardless of origin.
+    // Exception: thread_unorganized is kept even when closed (count 0) to preserve position.
+    const closedIds = getClosedItems();
+    const withoutClosed =
+      closedIds.length > 0
+        ? history.filter(
+            (item: any) =>
+              !item?.id || item.id === 'thread_unorganized' || !closedIds.includes(item.id)
+          )
+        : history;
+
     // Dedupe by id so we never persist duplicate entries (e.g. from races on note create)
-    const deduped = history.reduce((acc: NavigationItem[], current: NavigationItem) => {
+    const deduped = withoutClosed.reduce((acc: NavigationItem[], current: NavigationItem) => {
       const existingItem = acc.find((item) => item.id === current.id);
       if (!existingItem) {
         acc.push(current);
@@ -331,23 +507,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     try {
       const jsonString = JSON.stringify(deduped);
-      const success = safeSetItem('harvous-navigation-history-v2', jsonString, {
-        cleanupOldest: true,
-        fallbackToSession: true,
-      });
-      
+      writeNavHistory(jsonString);
+
       // Also update the backup
       (window as any).navigationHistoryBackup = [...deduped];
-
-      if (!success) {
-        console.error('💾 saveNavigationHistory - SAVE FAILED! Could not save to storage');
-      } else {
-        // Verify the save worked
-        const verification = safeGetItem('harvous-navigation-history-v2');
-        if (verification !== jsonString) {
-          console.error('💾 saveNavigationHistory - SAVE FAILED! Data mismatch');
-        }
-      }
     } catch (error) {
       console.error('Error saving navigation history:', error);
     }
@@ -366,9 +529,22 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       return;
     }
 
-    // Remove from closed items list if it was previously closed
-    // This handles the case where user explicitly navigates to a closed item
-    removeFromClosedItems(item.id);
+    // saveNavigationHistory strips rows whose ids are still in harvous-closed-navigation-items.
+    // Only clear the closed bit when this add is for the thread the user is actually viewing —
+    // same rules as trackNavigationAccess isCurrentlyActive (lines ~1199–1204). Otherwise
+    // background callers (noteCount refetch, etc.) would wrongly reopen dismissed threads.
+    if (typeof window !== 'undefined') {
+      const currentPath = window.location.pathname;
+      const pathSegmentId =
+        extractIdFromPath(currentPath) ?? (currentPath.startsWith('/') ? currentPath.substring(1) : currentPath);
+      const currentActiveItemId = getCurrentActiveItemId();
+      const viewingThisThread =
+        item.id === currentActiveItemId ||
+        (pathSegmentId.startsWith('note_') && item.id.startsWith('thread_'));
+      if (viewingThisThread) {
+        removeFromClosedItems(item.id);
+      }
+    }
 
     // Use raw history so we preserve spaces when saving (getNavigationHistory filters out spaces)
     const rawHistory = getRawNavigationHistory();
@@ -571,7 +747,7 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const getRawNavigationHistory = (): any[] => {
     if (typeof window === 'undefined') return [];
     try {
-      const stored = safeGetItem('harvous-navigation-history-v2');
+      const stored = readNavHistoryRaw();
       const parsed = stored ? JSON.parse(stored) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
@@ -593,6 +769,25 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     // If removing an active item, navigate to the next available item first
     if (isActive) {
+      // Space context for neighbor selection + fallback — from URL only. getSelectedSpaceId() can
+      // stay set to a previously visited space while the user is on a Home thread (no ?space=), which
+      // broke neighbor filtering and sent users to the wrong space on close.
+      const currentSpaceKeyFromUrl = ((): string | null => {
+        if (typeof window === 'undefined') return null;
+        try {
+          const fromUrl = new URLSearchParams(window.location.search).get('space');
+          if (fromUrl && fromUrl.startsWith('space_')) return fromUrl;
+        } catch {
+          // ignore
+        }
+        const path = window.location.pathname;
+        if (path.startsWith('/space/')) {
+          const spaceId = extractIdFromPath(path);
+          if (spaceId?.startsWith('space_')) return spaceId;
+        }
+        return null;
+      })();
+
       // Use raw history (including spaces) to find next item
       const rawHistory = getRawNavigationHistory();
       // When closing a thread with sameTitleAs, remove itemId and all same-title threads so the thread disappears from nav
@@ -620,10 +815,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       } else {
         // Only navigate to the next thread within the SAME space.
         // Never pick a space entry or a thread from a different space as the next item.
-        const currentSpaceKey = selectedSpaceId ?? null;
+        const currentSpaceKey = currentSpaceKeyFromUrl;
         const isValidNeighbor = (item: any) => {
           // Never navigate to a space entry when closing a thread
           if (!item?.id || item.id.startsWith('space_')) return false;
+          // Never pick a thread the user already closed — rawHistory can still contain it if a
+          // stale save raced with close; navigating there would reopen via trackNavigationAccess.
+          if (closedIds.includes(item.id)) return false;
           // Must be visible in the current space's sidebar
           const scopes = getItemOpenedInSpaceIds(item);
           if (currentSpaceKey === null) return scopes.some((s: string | null) => s == null);
@@ -678,10 +876,17 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (navigateIfActive) {
         let targetUrl: string;
         if (nextItem) {
-          targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}`;
+          const spaceParam =
+            itemId.startsWith('thread_') && currentSpaceKeyFromUrl
+              ? `&space=${encodeURIComponent(currentSpaceKeyFromUrl)}`
+              : '';
+          targetUrl = `${idToUrl(nextItem.id)}?closed=${encodeURIComponent(itemId)}${spaceParam}`;
+        } else if (itemId.startsWith('space_')) {
+          const fallbackSpaceId = getSelectedSpaceId();
+          targetUrl =
+            fallbackSpaceId && fallbackSpaceId.startsWith('space_') ? idToUrl(fallbackSpaceId) : '/';
         } else {
-          const selectedSpaceId = getSelectedSpaceId();
-          targetUrl = selectedSpaceId && selectedSpaceId.startsWith('space_') ? idToUrl(selectedSpaceId) : '/';
+          targetUrl = currentSpaceKeyFromUrl ? idToUrl(currentSpaceKeyFromUrl) : '/';
         }
         if (document.hidden) {
           window.location.href = targetUrl;
@@ -970,9 +1175,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         // Save to storage
         saveNavigationHistory(limitedHistory);
         
-        // Update React state (filtered, no spaces)
-        const filteredHistory = limitedHistory.filter((item: any) => !item.id.startsWith('space_'));
-        setNavigationHistory(filteredHistory);
+        // Update React state via getNavigationHistory() so that closed items are properly
+        // excluded. The previous filter only stripped space_ IDs, which let user-closed threads
+        // re-enter navigationHistory and reappear in the sidebar (e.g. after visiting a space).
+        setNavigationHistory(getNavigationHistory());
         
         // Dispatch event to update UI
         if (typeof window !== 'undefined') {
@@ -1175,8 +1381,11 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 return { ...item, count: 0, spaceId: null };
               }
 
-              // Has notes — ensure it's not closed
-              removeFromClosedItems('thread_unorganized');
+              // Do NOT call removeFromClosedItems here: if the user explicitly closed My Pile
+              // while it still had notes, we must respect that choice. Re-opening is handled
+              // by handleNoteCreated (new note → addToNavigationHistory) and
+              // handleNoteRemovedFromThread (note moved to unorganized). A background count
+              // refresh should only auto-close (count=0), never auto-open.
 
               // Always update to API count — fresh data via cache: 'no-store'
               if (currentCount !== newCount) {
@@ -1231,6 +1440,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         .filter(item => item !== null && item.id.startsWith('thread_') && item.id !== 'thread_unorganized' && !threads.find((t: any) => t.id === item.id))
         .map(item => item!.id);
 
+      /** Ids removed by shared-thread prefetch (404). Excluded from merge so we don't resurrect them. */
+      const prefetchRemovedIds = new Set<string>();
+
       if (sharedThreadIds.length > 0) {
         await Promise.all(sharedThreadIds.map(async (threadId) => {
           try {
@@ -1239,6 +1451,8 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             if (idx === -1) return;
             // Gone or no access — drop stale nav pills (e.g. erased thread, left shared space).
             if (resp?.status === 404) {
+              const victim = updatedHistory[idx];
+              if (victim?.id) prefetchRemovedIds.add(victim.id);
               updatedHistory[idx] = null;
               return;
             }
@@ -1252,24 +1466,45 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         }));
       }
 
-      // Filter out items marked for removal (null values)
-      // Note: unorganized with 0 notes is kept in history (marked as closed) to preserve position
-      const filteredHistory = updatedHistory
-        .filter(item => {
-          if (item === null) return false;
-          return true;
-        }) as NavigationItem[];
-      
-      // Check if any counts actually changed or items were removed
-      const hasChanges = rawHistory.length !== filteredHistory.length ||
-        rawHistory.some((item: any, index: number) => {
-          const filteredItem = filteredHistory[index];
-          return !filteredItem || item.count !== filteredItem.count;
+      // Read rawHistory AFTER all async work so we never save a stale snapshot that re-adds threads
+      // the user closed during the prefetch gap (same idea as backfillThreadSpaceIds).
+      const patchById = new Map<string, NavigationItem>();
+      for (const entry of updatedHistory) {
+        if (entry === null) continue;
+        patchById.set(entry.id, entry);
+      }
+      const freshRawHistory = getRawNavigationHistory();
+      const mergedHistory = freshRawHistory
+        .filter((item: any) => !prefetchRemovedIds.has(item.id))
+        .map((item: any) => {
+          const p = patchById.get(item.id);
+          if (!p) return item;
+          if (typeof item.id === 'string' && item.id.startsWith('space_')) {
+            return { ...item, count: p.count ?? item.count };
+          }
+          return {
+            ...item,
+            count: p.count ?? item.count,
+            spaceId: p.spaceId !== undefined ? p.spaceId : item.spaceId,
+          };
         });
 
-      // Save and update state if there were changes (filteredHistory includes spaces)
+      // Check if any counts actually changed or items were removed
+      const hasChanges =
+        mergedHistory.length !== freshRawHistory.length ||
+        mergedHistory.some((item: any) => {
+          const orig = freshRawHistory.find((x: any) => x.id === item.id);
+          if (!orig) return true;
+          if (orig.count !== item.count) return true;
+          if (typeof item.id === 'string' && item.id.startsWith('thread_')) {
+            return (orig.spaceId ?? null) !== (item.spaceId ?? null);
+          }
+          return false;
+        });
+
+      // Save and update state if there were changes (mergedHistory includes spaces)
       if (hasChanges) {
-        saveNavigationHistory(filteredHistory);
+        saveNavigationHistory(mergedHistory);
         setNavigationHistory(getNavigationHistory());
       }
     } catch (error) {
@@ -1413,6 +1648,24 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     // Refresh immediately - single refresh is sufficient
     refreshHistory();
 
+    // On mount, scrub stale raw nav history: if any items that are in the closed-items list
+    // survived in localStorage (e.g. a previous save bounced to sessionStorage and the stale
+    // localStorage copy was never overwritten), strip them now and write back. This guarantees
+    // that no matter what happened in a prior session, a refresh can't resurrect closed items.
+    try {
+      const closedOnLoad = getClosedItems();
+      if (closedOnLoad.length > 0) {
+        const rawOnLoad = getRawNavigationHistory();
+        const closedSet = new Set(closedOnLoad);
+        const scrubbed = rawOnLoad.filter(
+          (item: any) => !item?.id || item.id === 'thread_unorganized' || !closedSet.has(item.id)
+        );
+        if (scrubbed.length < rawOnLoad.length) {
+          writeNavHistory(JSON.stringify(scrubbed));
+        }
+      }
+    } catch { /* non-critical */ }
+
     // One-time migration: clear likely-seeded thread list (old code used to seed nav from API when empty).
     // If history has many threads and we haven't migrated yet, keep only the current page's thread (or none).
     const MIGRATION_KEY = 'harvous-nav-migrated-no-seed-v1';
@@ -1452,8 +1705,9 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const backfillThreadSpaceIds = async () => {
       try {
         if (typeof window === 'undefined') return;
-        const rawHistory = getRawNavigationHistory();
-        const needsBackfill = rawHistory.some((item: any) => {
+        // Quick pre-flight: check if any threads need backfilling before hitting the network.
+        const preflightHistory = getRawNavigationHistory();
+        const needsBackfill = preflightHistory.some((item: any) => {
           return item?.id?.startsWith('thread_') && item.id !== 'thread_unorganized' && item.spaceId === undefined;
         });
         if (!needsBackfill) return;
@@ -1468,6 +1722,10 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (t?.id) spaceIdByThreadId.set(t.id, t.spaceId ?? null);
         }
 
+        // Read rawHistory AFTER the async call so we work with the CURRENT state of localStorage.
+        // Reading before the await caused a race: threads closed during the network round-trip
+        // were restored to raw history when the stale pre-call snapshot was saved back.
+        const rawHistory = getRawNavigationHistory();
         const updatedHistory = rawHistory.map((item: any) => {
           if (!item?.id?.startsWith('thread_') || item.id === 'thread_unorganized') return item;
           if (item.spaceId !== undefined) return item;

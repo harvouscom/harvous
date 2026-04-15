@@ -23,11 +23,12 @@ const __dirname = dirname(__filename);
 /**
  * Mapping of technical terms to user-friendly descriptions
  */
+// Category strings become ### headings in generated markdown — keep them plain text (no emoji).
 const USER_FRIENDLY_MAPPINGS = {
   // Navigation improvements
   'navigation': {
     keywords: ['nav', 'navigation', 'menu', 'sidebar', 'mobile nav', 'desktop nav'],
-    category: '🎯 Navigation Improvements',
+    category: 'Navigation improvements',
     transform: (text) => {
       if (text.includes('mobile')) return 'Made mobile navigation easier to use';
       if (text.includes('desktop')) return 'Improved desktop navigation experience';
@@ -38,7 +39,7 @@ const USER_FRIENDLY_MAPPINGS = {
   // Space & Thread organization
   'organization': {
     keywords: ['space', 'thread', 'hierarchy', 'organize', 'structure'],
-    category: '🗂️ Organization & Structure',
+    category: 'Organization and structure',
     transform: (text) => {
       if (text.includes('space')) return 'Better organization with Spaces';
       if (text.includes('thread')) return 'Improved thread management';
@@ -49,7 +50,7 @@ const USER_FRIENDLY_MAPPINGS = {
   // Editor improvements
   'editor': {
     keywords: ['editor', 'tiptap', 'paste', 'formatting', 'text', 'typing'],
-    category: '✍️ Writing & Editing',
+    category: 'Writing and editing',
     transform: (text) => {
       if (text.includes('paste')) return 'Smarter copy and paste';
       if (text.includes('format')) return 'Better text formatting';
@@ -60,14 +61,14 @@ const USER_FRIENDLY_MAPPINGS = {
   // Performance
   'performance': {
     keywords: ['perf', 'performance', 'speed', 'fast', 'optimize', 'cache'],
-    category: '⚡ Performance',
+    category: 'Performance',
     transform: (text) => 'Made the app faster and more responsive'
   },
   
   // Sync & Data
   'sync': {
     keywords: ['sync', 'synchronize', 'offline', 'data', 'storage'],
-    category: '🔄 Sync & Data',
+    category: 'Sync and data',
     transform: (text) => {
       if (text.includes('offline')) return 'Better offline support';
       return 'Improved data synchronization';
@@ -77,14 +78,14 @@ const USER_FRIENDLY_MAPPINGS = {
   // UI/UX Polish
   'polish': {
     keywords: ['ui', 'ux', 'design', 'visual', 'style', 'appearance'],
-    category: '✨ Visual Polish',
+    category: 'Visual polish',
     transform: (text) => 'Refined the visual design'
   },
   
   // Bug fixes
   'fixes': {
     keywords: ['fix', 'bug', 'issue', 'error', 'crash'],
-    category: '🐛 Bug Fixes',
+    category: 'Bug fixes',
     transform: (text) => text.replace(/^fix:?\s*/i, '').replace(/^Fixed?\s*/i, 'Fixed ')
   }
 };
@@ -152,7 +153,7 @@ function categorizeChange(changeText) {
   
   // Default category
   return {
-    category: '✨ General Improvements',
+    category: 'General improvements',
     userFriendly: changeText
   };
 }

@@ -5,6 +5,11 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Bash
 argument-hint: <task — e.g. "Write changelog for v1.216.0" or "Create a featured card for the offline mode launch">
 ---
 
+## Invariants (always)
+
+- **User release notes** (`release-notes/**/*.md`): Do **not** use emoji in the document title, any `###` section heading, or body copy. Use plain language only. Follow `release-notes/TEMPLATE.md` and `release-notes/README.md`. (Cursor: `.cursor/rules/release-notes-no-emoji.mdc`.)
+- When updating `.claude/agents/marketing.context.md`, keep this rule in that file’s invariants list so it survives across sessions.
+
 ## Step 1: Load Context
 Read `.claude/agents/marketing.context.md` to load current invariants, owned files, active resource IDs, and API usage patterns.
 
@@ -48,7 +53,7 @@ Identify which task type this is:
 
 ### Release note
 - Path: `release-notes/vX.Y-month-year.md` (e.g. `v1.216-april-2026.md`)
-- Follow `release-notes/TEMPLATE.md` strictly — emoji section headers, "What changed / How it helps you" framing
+- Follow `release-notes/TEMPLATE.md` strictly — **no emoji** anywhere in the file; use "What changed / How it helps you" framing
 - User-facing language only: no jargon, use "you", describe outcomes not implementation
 - Verify version number and release date before writing
 

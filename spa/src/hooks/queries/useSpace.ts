@@ -95,6 +95,7 @@ export interface SpaceContentItem {
   contentEncrypted?: boolean;
   threadId?: string | null;
   userId?: string;
+  isPinned?: boolean;
 }
 
 interface SpaceItemsPage {
@@ -155,6 +156,7 @@ interface SpaceItemsResponse {
     createdAt?: string;
     lastVisited?: string;
     userId?: string;
+    isPinned?: boolean;
   }>;
   notes: Array<{
     id: string;
@@ -169,6 +171,7 @@ interface SpaceItemsResponse {
     createdAt?: string;
     lastVisited?: string;
     userId?: string;
+    isPinned?: boolean;
   }>;
 }
 
@@ -188,6 +191,7 @@ function mapSpaceItemsResponse(data: SpaceItemsResponse): SpaceContentItem[] {
       createdAt: normalizeDate(thread.createdAt) || thread.createdAt,
       lastVisited: normalizeDate(thread.lastVisited) || thread.lastVisited,
       userId: thread.userId,
+      isPinned: thread.isPinned === true,
     })),
     ...notes.map((note) => ({
       id: note.id,
@@ -203,6 +207,7 @@ function mapSpaceItemsResponse(data: SpaceItemsResponse): SpaceContentItem[] {
       createdAt: normalizeDate(note.createdAt) || note.createdAt,
       lastVisited: normalizeDate(note.lastVisited) || note.lastVisited,
       userId: note.userId,
+      isPinned: note.isPinned === true,
     })),
   ];
   return allItems;

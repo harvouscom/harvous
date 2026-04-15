@@ -411,6 +411,14 @@ export default function Menu({
       } catch (error) {
         console.error('Error opening thread share panel:', error);
       }
+    } else if (action === 'shareSpace') {
+      try {
+        window.dispatchEvent(new CustomEvent('openNoteSharePanel', {
+          detail: { contentId, contentType: 'space' }
+        }));
+      } catch (error) {
+        console.error('Error opening space share panel:', error);
+      }
     } else if (action === 'lockNote') {
       // Handle Lock with PIN - trigger Lock button in note view
       try {

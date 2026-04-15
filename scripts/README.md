@@ -157,10 +157,12 @@ Edit `scripts/generate-release-notes.js` and add to `USER_FRIENDLY_MAPPINGS`:
 ```javascript
 'your-category': {
   keywords: ['keyword1', 'keyword2'],
-  category: '🎯 Your Category Name',
+  category: 'Your category name',
   transform: (text) => 'User-friendly description'
 }
 ```
+
+Category strings become `###` headings in generated markdown: use plain text only (no emoji). See `release-notes/README.md`.
 
 ### Customizing Benefits
 

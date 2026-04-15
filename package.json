@@ -44,6 +44,7 @@
     "easter:patch-metadata": "tsx scripts/patch-easter-2026-metadata.ts",
     "easter:sync-notes": "tsx scripts/sync-easter-2026-notes.ts",
     "easter-weekend:publish": "tsx scripts/publish-easter-weekend-thread.ts",
+    "lighthouse:a11y": "node scripts/lighthouse-a11y.mjs",
     "harvous:grant-space-member": "tsx scripts/grant-harvous-space-member.ts",
     "bible:download": "node server/data/bibles/_download_api_bible.mjs",
     "bible:download:new": "node server/data/bibles/_download_all_new_bibles.mjs",
@@ -129,6 +130,7 @@
     "drizzle-kit": "^0.31.9",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^25.0.1",
+    "lighthouse": "^11.7.1",
     "tsx": "^4.21.0",
     "vitest": "^4.0.18"
   }

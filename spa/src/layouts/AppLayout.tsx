@@ -35,7 +35,12 @@ import { prefetchFeaturedDismissed } from '../hooks/queries/useFeaturedDismissed
 import { useProfile, getCachedUserColor, getCachedUserNames } from '../hooks/queries/useProfile';
 import { useNote, getCachedNoteParentThreadId, getCachedNoteParentThread, clearNoteParentThreadCacheByThreadId } from '../hooks/queries/useNote';
 import { useThread, clearCachedThreadPrefetch } from '../hooks/queries/useThread';
-import { useSpace, clearCachedSpaceBootstrap } from '../hooks/queries/useSpace';
+import {
+  useSpace,
+  clearCachedSpaceBootstrap,
+  type SpaceBootstrapData,
+  type SpaceDetail,
+} from '../hooks/queries/useSpace';
 import { useIsOffline } from '@/hooks/useIsOffline';
 import { MY_PILE_THREAD_TITLE } from '@/utils/my-pile-thread';
 
@@ -419,9 +424,40 @@ export default function AppLayout() {
     };
 
     const handleSpaceUpdated = (e: Event) => {
-      const spaceId = (e as CustomEvent).detail?.spaceId;
-      if (spaceId) {
-        queryClient.invalidateQueries({ queryKey: ['space', spaceId] });
+      const detail = (e as CustomEvent<{
+        spaceId?: string;
+        isPublic?: boolean;
+        title?: string;
+        color?: string;
+        backgroundGradient?: string;
+      }>).detail;
+      const updatedSpaceId = detail?.spaceId;
+      if (updatedSpaceId) {
+        // useSpace's queryFn returns bootstrap.space without refetching; patch caches so
+        // isPublic/title/color updates (e.g. Share panel) apply immediately without full reload.
+        const patch = (prev: SpaceDetail | undefined): SpaceDetail | undefined => {
+          if (!prev) return prev;
+          let next = prev;
+          if (typeof detail.isPublic === 'boolean') {
+            next = { ...next, isPublic: detail.isPublic };
+          }
+          if (detail.title !== undefined) {
+            next = { ...next, title: detail.title };
+          }
+          if (detail.color !== undefined) {
+            next = { ...next, color: detail.color };
+          }
+          if (detail.backgroundGradient !== undefined) {
+            next = { ...next, backgroundGradient: detail.backgroundGradient };
+          }
+          return next;
+        };
+        queryClient.setQueryData<SpaceDetail | undefined>(['space', updatedSpaceId], patch);
+        queryClient.setQueryData<SpaceBootstrapData | undefined>(
+          ['space', updatedSpaceId, 'bootstrap'],
+          (old) => (old?.space ? { ...old, space: patch(old.space)! } : old),
+        );
+        queryClient.invalidateQueries({ queryKey: ['space', updatedSpaceId] });
       }
       debouncedRefreshNavigation();
     };

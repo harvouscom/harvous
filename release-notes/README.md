@@ -10,6 +10,10 @@ While the `Changelog/` folder contains technical commit messages for developers,
 - Tips for using new features
 - No technical jargon
 
+## Style
+
+- **No emoji** in release note files: not in the title, `###` section headers, or body text. Use clear headings and plain language instead.
+
 ## File Naming Convention
 
 Release notes are named by version and date:

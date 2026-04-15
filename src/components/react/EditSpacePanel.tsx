@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useUser } from '@clerk/clerk-react';
 import { THREAD_COLORS, getThreadColorCSS, getThreadTextColorCSS, getThreadGradientCSS, type ThreadColor } from '@/utils/colors';
 import SquareButton from './SquareButton';
 import AddToSpaceSection from './AddToSpaceSection';
@@ -13,8 +12,6 @@ import {
 import ActionButton from './ActionButton';
 import Icon from './Icon';
 import TabNav from './TabNav';
-import ThreadVisibilityDropdown from './ThreadVisibilityDropdown';
-import ConfirmDialog from './dialogs/ConfirmDialog';
 import { formatBadgeCount } from '@/utils/badge-count';
 import { idToUrl } from '@/utils/url-helpers';
 import { stripHtmlForPreview } from '@/utils/html-stripper';
@@ -43,17 +40,6 @@ interface Thread {
   [key: string]: any;
 }
 
-interface AdminFeaturedItem {
-  id: string;
-  contentType: string;
-  title: string;
-  description: string | null;
-  refId: string | null;
-  shareToken: string | null;
-  color: string | null;
-  isActive: boolean;
-}
-
 interface EditSpacePanelProps {
   spaceId: string;
   initialTitle?: string;
@@ -74,7 +60,6 @@ export default function EditSpacePanel({
   onClose,
   inBottomSheet = false
 }: EditSpacePanelProps) {
-  const { user } = useUser();
   const userId = usePersistedUserId();
   const cachedMembers = getCachedPanelData<SpaceMembersCache>(getSpaceMembersCacheKey(spaceId));
   const hasKnownOwnership = initialIsOwner !== undefined || !!cachedMembers;
@@ -82,7 +67,6 @@ export default function EditSpacePanel({
   const [formData, setFormData] = useState({
     title: initialTitle,
     selectedColor: initialColor,
-    selectedType: 'Private'
   });
   
   // Track initial values for unsaved changes detection
@@ -109,34 +93,18 @@ export default function EditSpacePanel({
   const [memberCount, setMemberCount] = useState(cachedMembers?.totalMembers ?? 1);
   const [memberLimit, setMemberLimit] = useState<number | null>(cachedMembers?.memberLimit ?? null);
   const [isOwner, setIsOwner] = useState(initialIsOwner ?? cachedMembers?.isOwner ?? false);
-  const [sharedTab, setSharedTab] = useState('invite');
   const [members, setMembers] = useState<any[]>(cachedMembers?.members ?? []);
   const [pendingInvitations, setPendingInvitations] = useState<any[]>(cachedMembers?.pendingInvitations ?? []);
   const [isLoadingMembers, setIsLoadingMembers] = useState(!hasKnownOwnership);
-
-  // Share link state (simplified approach like ThreadVisibilityDropdown)
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [shareToken, setShareToken] = useState<string | null>(null);
-  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
-
-  // Admin-only "Feature for all users" state
-  const [isHarvousAdmin, setIsHarvousAdmin] = useState(false);
-  const [adminFeaturedItem, setAdminFeaturedItem] = useState<AdminFeaturedItem | null>(null);
-  const [adminDescription, setAdminDescription] = useState('');
-  const [isSavingAdminFeature, setIsSavingAdminFeature] = useState(false);
-  const [isAdminDropdownOpen, setIsAdminDropdownOpen] = useState(false);
-  const [pendingFeature, setPendingFeature] = useState(false);
-  const adminDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Make-private confirmation dialog
-  const [showMakePrivateDialog, setShowMakePrivateDialog] = useState(false);
 
   // Tab navigation
   const [activeTab, setActiveTab] = useState<'added' | 'all'>(initialTabProp ?? 'added');
   
   // Refs to track current values for save functions (avoid stale closures)
   const formDataRef = useRef(formData);
-  
+  /** Preserves public/private when saving title/color (API defaults missing isPublic to false). */
+  const isPublicRef = useRef(false);
+
   // Refs to track pending saves and debounce timers
   const pendingColorSaveRef = useRef<ThreadColor | null>(null);
   const activeSaveOperationsRef = useRef<Set<string>>(new Set());
@@ -149,6 +117,17 @@ export default function EditSpacePanel({
   useEffect(() => {
     formDataRef.current = formData;
   }, [formData]);
+
+  useEffect(() => {
+    const onSpaceUpdated = (e: Event) => {
+      const d = (e as CustomEvent<{ spaceId?: string; isPublic?: boolean }>).detail;
+      if (d?.spaceId === spaceId && typeof d.isPublic === 'boolean') {
+        isPublicRef.current = d.isPublic;
+      }
+    };
+    window.addEventListener('spaceUpdated', onSpaceUpdated);
+    return () => window.removeEventListener('spaceUpdated', onSpaceUpdated);
+  }, [spaceId]);
 
   // Fetch all notes and threads (for AddToSpaceSection)
   const fetchAllItems = async () => {
@@ -249,103 +228,6 @@ export default function EditSpacePanel({
     }
   };
 
-  // Fetch share link for public spaces. Returns { ok, limitExceeded } so callers can revert UI when limit exceeded.
-  const fetchShareLink = async (): Promise<{ ok: boolean; limitExceeded?: boolean }> => {
-    if (!spaceId) return { ok: false };
-
-    try {
-      const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setShareLink(data.shareUrl || null);
-        setShareToken(data.shareToken || null);
-        return { ok: true };
-      }
-
-      if (response.status === 403) {
-        const data = await response.json().catch(() => ({}));
-        if (data.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
-          window.dispatchEvent(
-            new CustomEvent('toast', {
-              detail: {
-                message: data.error,
-                type: 'error',
-                code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-                upgradeUrl: data.upgradeUrl || '/upgrade',
-              },
-            })
-          );
-          return { ok: false, limitExceeded: true };
-        }
-      }
-      return { ok: false };
-    } catch (error) {
-      console.error('[EditSpacePanel] Error fetching share link:', error);
-      return { ok: false };
-    }
-  };
-
-  // Handle generate new share link
-  const generateNewShareLink = async () => {
-    if (isGeneratingLink || !spaceId) return;
-
-    const confirmed = confirm(
-      'This will create a new link. The old link will stop working. Continue?'
-    );
-
-    if (!confirmed) return;
-
-    setIsGeneratingLink(true);
-    try {
-      const response = await fetch(`/api/spaces/${spaceId}/share-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'refresh' }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to generate new link');
-      }
-
-      const data = await response.json();
-      setShareLink(data.shareUrl);
-      setShareToken(data.shareToken || null);
-
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: {
-            message: 'New share link generated',
-            type: 'success',
-          },
-        })
-      );
-      window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
-    } catch (err: any) {
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: {
-            message: err.message || 'Failed to generate new link',
-            type: 'error',
-          },
-        })
-      );
-    } finally {
-      setIsGeneratingLink(false);
-    }
-  };
-
-  // Helper to format dates.
-  // Hard-coded month names avoid iOS PWA ignoring the 'en-US' locale hint.
-  const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return `${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
-  };
-
   // Fetch member info on mount and when spaceId changes
   useEffect(() => {
     if (spaceId) {
@@ -364,159 +246,6 @@ export default function EditSpacePanel({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [spaceId]);
-
-  // Fetch or clear share link when selectedType changes
-  useEffect(() => {
-    if (formData.selectedType === 'Shared' && spaceId) {
-      fetchShareLink();
-    } else {
-      setShareLink(null);
-      setShareToken(null);
-    }
-  }, [formData.selectedType, spaceId]);
-
-  // Admin check (server-gated) so we can conditionally show admin controls.
-  useEffect(() => {
-    let cancelled = false;
-    setIsHarvousAdmin(false);
-    if (!user?.id) return () => { cancelled = true; };
-    fetch('/api/admin/check', { credentials: 'include' })
-      .then((res) => {
-        if (!res.ok) return { isAdmin: false };
-        return res.json().catch(() => ({ isAdmin: true }));
-      })
-      .then((data: any) => {
-        if (cancelled) return;
-        setIsHarvousAdmin(Boolean(data?.isAdmin));
-      })
-      .catch(() => {
-        if (!cancelled) setIsHarvousAdmin(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [user?.id]);
-
-  // If admin + shared space has token, load current featured state.
-  useEffect(() => {
-    if (!isHarvousAdmin) return;
-    const token = shareToken?.trim();
-    if (!token) {
-      setAdminFeaturedItem(null);
-      setAdminDescription('');
-      return;
-    }
-    let cancelled = false;
-    fetch(`/api/admin/featured/by-space/${encodeURIComponent(token)}`, { credentials: 'include' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((item: AdminFeaturedItem | null) => {
-        if (cancelled) return;
-        setAdminFeaturedItem(item);
-        setAdminDescription(item?.description ?? '');
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAdminFeaturedItem(null);
-          setAdminDescription('');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isHarvousAdmin, shareToken]);
-
-  const handleToggleAdminFeature = async () => {
-    if (!isHarvousAdmin) return;
-    const token = shareToken?.trim();
-    if (!token) return;
-    if (isSavingAdminFeature) return;
-
-    setIsSavingAdminFeature(true);
-    try {
-      if (adminFeaturedItem?.isActive) {
-        const res = await fetch(`/api/admin/featured/${adminFeaturedItem.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ isActive: false }),
-        });
-        if (!res.ok) throw new Error('Failed to update featured item');
-        const updated = (await res.json()) as AdminFeaturedItem;
-        setAdminFeaturedItem(updated);
-        window.dispatchEvent(
-          new CustomEvent('toast', { detail: { message: 'Removed from featured', type: 'success' } }),
-        );
-      } else {
-        const res = await fetch('/api/admin/featured', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            contentType: 'space',
-            title: formDataRef.current.title?.trim() || 'Space',
-            description: adminDescription?.trim() || null,
-            shareToken: token,
-            color: formData.selectedColor,
-            isActive: true,
-          }),
-        });
-        if (!res.ok) throw new Error('Failed to create featured item');
-        const created = (await res.json()) as AdminFeaturedItem;
-        setAdminFeaturedItem(created);
-        setAdminDescription(created?.description ?? adminDescription);
-        window.dispatchEvent(
-          new CustomEvent('toast', { detail: { message: 'Featured for everyone', type: 'success' } }),
-        );
-      }
-    } catch (err: any) {
-      window.dispatchEvent(
-        new CustomEvent('toast', {
-          detail: { message: err?.message || 'Failed to update featured state', type: 'error' },
-        }),
-      );
-    } finally {
-      setIsSavingAdminFeature(false);
-    }
-  };
-
-  const handleSaveAdminDescription = async () => {
-    if (!isHarvousAdmin) return;
-    if (!adminFeaturedItem?.id) return;
-    if (!adminFeaturedItem.isActive) return;
-    if (isSavingAdminFeature) return;
-
-    const next = adminDescription?.trim() || null;
-    if ((adminFeaturedItem.description ?? null) === next) return;
-
-    setIsSavingAdminFeature(true);
-    try {
-      const res = await fetch(`/api/admin/featured/${adminFeaturedItem.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ description: next }),
-      });
-      if (!res.ok) throw new Error('Failed to update description');
-      const updated = (await res.json()) as AdminFeaturedItem;
-      setAdminFeaturedItem(updated);
-    } catch {
-      // non-fatal
-    } finally {
-      setIsSavingAdminFeature(false);
-    }
-  };
-
-  // Close admin dropdown on outside click
-  useEffect(() => {
-    if (!isAdminDropdownOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (adminDropdownRef.current && !adminDropdownRef.current.contains(e.target as Node)) {
-        setIsAdminDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [isAdminDropdownOpen]);
 
   // Update initial values when props change
   useEffect(() => {
@@ -583,8 +312,8 @@ export default function EditSpacePanel({
               ...prev,
               title: space.title || '',
               selectedColor: space.color || 'paper',
-              selectedType: space.isPublic ? 'Shared' : 'Private'
             }));
+            isPublicRef.current = !!space.isPublic;
 
             // Always update initialValues to match fetched data
             setInitialValues(prev => ({
@@ -592,11 +321,6 @@ export default function EditSpacePanel({
               title: space.title || '',
               color: space.color || 'paper'
             }));
-
-            // Fetch share link if space is public
-            if (space.isPublic) {
-              fetchShareLink();
-            }
 
             // Mark that we've fetched data
             hasFetchedSpaceDataRef.current = true;
@@ -737,7 +461,8 @@ export default function EditSpacePanel({
       const formDataToSend = new FormData();
       formDataToSend.append('title', title.trim());
       formDataToSend.append('color', currentColor);
-      
+      formDataToSend.append('isPublic', String(isPublicRef.current));
+
       // OFFLINE-FIRST: Update space in local IndexedDB immediately
       let offlineUpdateSuccess = false;
       if (userId) {
@@ -868,7 +593,8 @@ export default function EditSpacePanel({
       const formDataToSend = new FormData();
       formDataToSend.append('title', currentTitle.trim());
       formDataToSend.append('color', color);
-      
+      formDataToSend.append('isPublic', String(isPublicRef.current));
+
       // OFFLINE-FIRST: Update space in local IndexedDB immediately
       let offlineUpdateSuccess = false;
       if (userId) {
@@ -965,105 +691,6 @@ export default function EditSpacePanel({
       setIsSaving(false);
     }
   }, [spaceId, userId, initialValues.color]);
-
-  // Save type change (Private/Shared)
-  const saveTypeChange = useCallback(async (selectedType: 'Private' | 'Shared') => {
-    const isPublic = selectedType === 'Shared';
-
-    // Track this save operation
-    const saveId = `type_${Date.now()}`;
-    activeSaveOperationsRef.current.add(saveId);
-    setIsSaving(true);
-    setSaveError(null);
-
-    try {
-      // Use refs to get current values (avoid stale closures)
-      const currentTitle = formDataRef.current.title;
-      const currentColor = formDataRef.current.selectedColor;
-
-      const formDataToSend = new FormData();
-      formDataToSend.append('title', currentTitle.trim());
-      formDataToSend.append('color', currentColor);
-      formDataToSend.append('isPublic', isPublic.toString());
-
-      const response = await fetch(`/api/spaces/${spaceId}/update`, {
-        method: 'POST',
-        body: formDataToSend,
-        credentials: 'include'
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        // Success - fetch share link if now public (creates token on first GET)
-        if (isPublic) {
-          const linkResult = await fetchShareLink();
-          if (linkResult && !linkResult.ok && linkResult.limitExceeded) {
-            // Revert: server rejected creating share link due to limit; set space back to private
-            const revertFormData = new FormData();
-            revertFormData.append('title', formDataRef.current.title.trim());
-            revertFormData.append('color', formData.selectedColor);
-            revertFormData.append('isPublic', 'false');
-            await fetch(`/api/spaces/${spaceId}/update`, {
-              method: 'POST',
-              body: revertFormData,
-              credentials: 'include',
-            });
-            setFormData(prev => ({ ...prev, selectedType: 'Private' }));
-            setShareLink(null);
-            window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
-            return;
-          }
-          window.dispatchEvent(new CustomEvent('mySharingInvalidate'));
-        } else {
-          setShareLink(null);
-        }
-
-        window.dispatchEvent(new CustomEvent('toast', {
-          detail: {
-            message: `Space is now ${selectedType.toLowerCase()}`,
-            type: 'success'
-          }
-        }));
-      } else {
-        if (response.status === 403 && data.code === 'SHARED_SPACE_LIMIT_EXCEEDED') {
-          window.dispatchEvent(
-            new CustomEvent('toast', {
-              detail: {
-                message: data.error,
-                type: 'error',
-                code: 'SHARED_SPACE_LIMIT_EXCEEDED',
-                upgradeUrl: data.upgradeUrl || '/upgrade',
-              },
-            })
-          );
-          setFormData(prev => ({ ...prev, selectedType: 'Private' }));
-          setShareLink(null);
-          return;
-        }
-        throw new Error(data.error || 'Failed to update space type');
-      }
-    } catch (error) {
-      console.error('Error saving space type:', error);
-      setSaveError(error instanceof Error ? error.message : 'Failed to save space type');
-
-      // Revert the UI change
-      setFormData(prev => ({
-        ...prev,
-        selectedType: isPublic ? 'Private' : 'Shared'
-      }));
-
-      window.dispatchEvent(new CustomEvent('toast', {
-        detail: {
-          message: 'Failed to update space type. Please try again.',
-          type: 'error'
-        }
-      }));
-    } finally {
-      activeSaveOperationsRef.current.delete(saveId);
-      setIsSaving(false);
-    }
-  }, [spaceId, fetchShareLink]);
 
   // Check for pending saves from sessionStorage on mount (for mobile remounts)
   // Must be after saveTitleChange and saveColorChange are defined
@@ -1452,157 +1079,6 @@ export default function EditSpacePanel({
                   </>
                 )}
 
-                {/* Space visibility dropdown: owner only */}
-                {isOwner && (
-                  <ThreadVisibilityDropdown
-                    isShared={formData.selectedType === 'Shared'}
-                    shareUrl={shareLink}
-                    onToggle={async (enabled) => {
-                      if (!enabled && memberCount > 1) {
-                        setShowMakePrivateDialog(true);
-                      } else {
-                        const type = enabled ? 'Shared' : 'Private';
-                        setFormData(prev => ({ ...prev, selectedType: type }));
-                        await saveTypeChange(type);
-                      }
-                    }}
-                    onRefresh={generateNewShareLink}
-                    isLoading={isGeneratingLink}
-                    isEditMode={true}
-                    privateTriggerLabel="Only I can see this space"
-                    sharedTriggerLabel="Shared to anyone with link"
-                    privateOptionLabel="Only I can see this space"
-                    sharedOptionLabel="Share to anyone with link"
-                  />
-                )}
-
-                {/* Admin-only: Feature this shared space for all users */}
-                {isOwner && isHarvousAdmin && formData.selectedType === 'Shared' && shareToken ? (
-                  <div className="edit-space-panel__admin-section">
-                    <div className="edit-space-panel__admin-header">
-                      <span className="edit-space-panel__admin-label">Admin</span>
-                    </div>
-
-                    {/* Dropdown wrapper — position:relative so the absolute options panel anchors correctly */}
-                    <div className="thread-visibility-dropdown" ref={adminDropdownRef}>
-                      {/* Trigger */}
-                      <button
-                        type="button"
-                        className="thread-visibility-dropdown__trigger space-button h-[64px] w-full"
-                        style={{ backgroundImage: 'var(--color-gradient-gray)' }}
-                        onClick={() => setIsAdminDropdownOpen((o) => !o)}
-                        disabled={isSavingAdminFeature}
-                      >
-                        <div className="flex items-center justify-between gap-3 relative w-full h-full">
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="size-4 flex-center shrink-0">
-                              <Icon name="megaphone" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                            </div>
-                            <span className="font-sans text-[18px] font-semibold whitespace-nowrap truncate text-[var(--color-deep-grey)]">
-                              {adminFeaturedItem?.isActive ? 'Featured for everyone' : 'Not featured'}
-                            </span>
-                          </div>
-                          <div className="size-4 flex-center shrink-0">
-                            <Icon
-                              name={isAdminDropdownOpen ? 'chevron-up' : 'chevron-down'}
-                              size={16}
-                              style={{ color: 'var(--color-deep-grey)' }}
-                            />
-                          </div>
-                        </div>
-                      </button>
-
-                    {/* Dropdown options */}
-                    {isAdminDropdownOpen && (
-                      <div className="thread-visibility-dropdown__options">
-                        {/* Not featured option */}
-                        <button
-                          type="button"
-                          className="thread-visibility-dropdown__option"
-                          onClick={() => {
-                            if (adminFeaturedItem?.isActive) {
-                              void handleToggleAdminFeature();
-                              setIsAdminDropdownOpen(false);
-                              setPendingFeature(false);
-                            } else {
-                              setPendingFeature(false);
-                              setIsAdminDropdownOpen(false);
-                            }
-                          }}
-                          disabled={isSavingAdminFeature}
-                        >
-                          <div className="thread-visibility-dropdown__option-content">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="thread-visibility-dropdown__option-text">Not featured</span>
-                            </div>
-                            {!adminFeaturedItem?.isActive && !pendingFeature && (
-                              <div className="thread-visibility-dropdown__check-slot">
-                                <span className="thread-visibility-dropdown__check" aria-hidden="true">
-                                  <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </button>
-
-                        {/* Feature for everyone option */}
-                        <button
-                          type="button"
-                          className="thread-visibility-dropdown__option"
-                          onClick={() => {
-                            if (!adminFeaturedItem?.isActive) {
-                              setPendingFeature(true);
-                            }
-                          }}
-                          disabled={isSavingAdminFeature}
-                        >
-                          <div className="thread-visibility-dropdown__option-content">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <span className="thread-visibility-dropdown__option-text">Feature for everyone</span>
-                            </div>
-                            {(adminFeaturedItem?.isActive || pendingFeature) && (
-                              <div className="thread-visibility-dropdown__check-slot">
-                                <span className="thread-visibility-dropdown__check" aria-hidden="true">
-                                  <Icon name="check" size={16} style={{ color: 'var(--color-deep-grey)' }} />
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </button>
-
-                        {/* Sub-panel: description + publish/remove */}
-                        {(pendingFeature || adminFeaturedItem?.isActive) && (
-                          <div className="thread-visibility-dropdown__sharing-ui">
-                            <textarea
-                              className="edit-space-panel__admin-description"
-                              placeholder="Description shown on the card…"
-                              value={adminDescription}
-                              onChange={(e) => setAdminDescription(e.target.value)}
-                              onBlur={adminFeaturedItem?.isActive ? handleSaveAdminDescription : undefined}
-                              rows={3}
-                            />
-                            {pendingFeature && !adminFeaturedItem?.isActive && (
-                              <button
-                                type="button"
-                                className="btn btn--lg btn--secondary"
-                                disabled={isSavingAdminFeature}
-                                onClick={async () => {
-                                  await handleToggleAdminFeature();
-                                  setPendingFeature(false);
-                                  setIsAdminDropdownOpen(false);
-                                }}
-                              >
-                                {isSavingAdminFeature ? 'Sending…' : 'Send to everyone'}
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    </div>{/* end .thread-visibility-dropdown */}
-                  </div>
-                ) : null}
-
                 {/* Only show when at invisible people cap (no number shown) */}
                 {!isLoadingMembers && isOwner && memberLimit != null && memberCount >= memberLimit && (
                   <div
@@ -1774,21 +1250,6 @@ export default function EditSpacePanel({
           transform: scale(0.99);
         }
       `}</style>
-
-      <ConfirmDialog
-        isOpen={showMakePrivateDialog}
-        title="Make this space private?"
-        message={`This space has ${memberCount - 1} ${memberCount - 1 === 1 ? 'person' : 'people'} in it. Making it private means they'll lose access to this space.`}
-        confirmLabel="Make Private"
-        cancelLabel="Keep Shared"
-        confirmDestructive={true}
-        onConfirm={async () => {
-          setShowMakePrivateDialog(false);
-          setFormData(prev => ({ ...prev, selectedType: 'Private' }));
-          await saveTypeChange('Private');
-        }}
-        onCancel={() => setShowMakePrivateDialog(false)}
-      />
     </div>
   );
 }

@@ -22,6 +22,8 @@ interface SpaceButtonProps {
   as?: 'button' | 'div';
   /** Stacks `.close-icon` on the count/toggle (persistent nav); hover/focus on `.nav-item__badge-slot` only (see navigation.css). */
   badgeClose?: { onClick: (e: React.MouseEvent<HTMLButtonElement>) => void; ariaLabel: string };
+  /** When false with `state="WithCount"`, hides the numeric badge (e.g. desktop persistent nav). Default true. */
+  showCountBadge?: boolean;
 }
 
 const SpaceButton: React.FC<SpaceButtonProps> = ({
@@ -41,6 +43,7 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
   onRightAccessoryClick,
   as = 'button',
   badgeClose,
+  showCountBadge = true,
   ...props
 }) => {
   const { removeFromNavigationHistory } = useNavigation();
@@ -212,11 +215,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
                     <span className="space-btn__toggle-icon" aria-hidden="true">
                       <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
                     </span>
-                  ) : (
+                  ) : showCountBadge ? (
                     <div className="badge-count">
                       <span className="badge-number">{formatBadgeCount(count)}</span>
                     </div>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     className="close-icon"
@@ -241,11 +244,11 @@ const SpaceButton: React.FC<SpaceButtonProps> = ({
                 <span className="space-btn__toggle-icon" aria-hidden="true">
                   <Icon name="sort" size={18} style={{ color: 'var(--color-pebble-grey)' }} />
                 </span>
-              ) : (
+              ) : showCountBadge ? (
                 <div className="badge-count">
                   <span className="badge-number">{formatBadgeCount(count)}</span>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>

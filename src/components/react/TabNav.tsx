@@ -300,7 +300,7 @@ export default function TabNav({
                 {tab.label}
               </span>
               {count !== undefined && count > 0 && (
-                <div className="badge-count">
+                <div className="badge-count badge-count--tab-nav">
                   <span className="badge-number">{formatBadgeCount(count)}</span>
                 </div>
               )}

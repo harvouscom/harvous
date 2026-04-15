@@ -303,9 +303,9 @@ export default function OfflineIndicator({ userId: propUserId }: { userId?: stri
         ...baseStyle,
         left: '24px',
         bottom: '100px',
-        width: '310px',
-        minWidth: '310px',
-        maxWidth: '310px',
+        width: '260px',
+        minWidth: '260px',
+        maxWidth: '260px',
         transform: 'none',
       };
 

@@ -13,6 +13,7 @@ import {
 import { captureException } from '@/utils/posthog';
 import ActionButton from './ActionButton';
 import { safeNavigate } from '@/utils/safe-navigate';
+import { setSelectedSpaceId } from './navigation/selectedSpace';
 import { idToUrl } from '@/utils/url-helpers';
 import { safeURL } from '@/utils/safe-url';
 import Icon from './Icon';
@@ -443,6 +444,29 @@ export default function NewSpacePanel({ onClose, onSpaceCreated, inBottomSheet =
 
             // Redirect to the newly created space
             if (result.space && result.space.id) {
+              // Mark the new space as selected so PersistentNavigation filters correctly immediately.
+              setSelectedSpaceId(result.space.id);
+
+              // Register selected threads in navigation history scoped to the new space so they
+              // appear in the space's persistent nav when the space page loads — without requiring
+              // the user to open each thread manually first.
+              if (selectedThreadIds.length > 0 && typeof (window as any).addToNavigationHistory === 'function') {
+                selectedThreadIds.forEach((threadId: string) => {
+                  const thread = allThreads.find(t => t.id === threadId);
+                  if (thread) {
+                    (window as any).addToNavigationHistory({
+                      id: threadId,
+                      title: thread.title || 'Thread',
+                      count: (thread as any).count ?? 0,
+                      backgroundGradient: (thread as any).backgroundGradient ?? 'var(--color-gradient-gray)',
+                      spaceId: result.space.id,
+                      openedInSpaceIds: [result.space.id],
+                      openedInSpaceId: result.space.id,
+                    });
+                  }
+                });
+              }
+
               const redirectUrl = idToUrl(result.space.id);
               // Add a small delay to ensure localStorage is updated before navigation
               setTimeout(() => {

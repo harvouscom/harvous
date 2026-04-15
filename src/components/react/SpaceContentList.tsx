@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import CardThread from './CardThread';
 import CardNote from './CardNote';
 import CondensedNoteItem from './CondensedNoteItem';
@@ -43,6 +44,8 @@ interface SpaceItem {
   userId?: string;
   /** Bible translation abbreviation for scripture notes (e.g. 'ESV', 'KJV') */
   version?: string;
+  /** Whether this item is pinned to the top of the space by the owner. */
+  isPinned?: boolean;
 }
 
 interface SpaceContentListProps {
@@ -80,6 +83,7 @@ export default function SpaceContentList({
   onNotesLoaded,
   onThreadIntent,
 }: SpaceContentListProps) {
+  const queryClient = useQueryClient();
   const noteHref = (noteId: string, threadId?: string | null) => {
     const path = idToUrl(noteId, threadId || undefined);
     const sep = path.includes('?') ? '&' : '?';
@@ -87,36 +91,26 @@ export default function SpaceContentList({
   };
   const threadHref = (threadId: string) => `${idToUrl(threadId)}?space=${encodeURIComponent(spaceId)}`;
   const handleSelectSpace = () => setSelectedSpaceId(spaceId);
+  // Stable sort: pinned items first, then apply the regular ordering within each group
+  const sortWithPins = (input: SpaceItem[], shared: boolean): SpaceItem[] => {
+    const base = (() => {
+      if (shared) return sortByCreatedAtAsc(input);
+      const withUpdatedAt = input.map(item => ({ ...item, updatedAt: item.lastUpdated }));
+      return sortByLastVisited(withUpdatedAt).map(({ updatedAt, ...item }) => item as SpaceItem);
+    })();
+    return base.slice().sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
+  };
+
   // Sort initial items by lastVisited on mount
   // Use inline sorting logic in initializers (can't use useCallback here)
   const [items, setItems] = useState<SpaceItem[]>(() => {
-    const raw = initialItems || [];
-    if (spaceIsShared) {
-      return sortByCreatedAtAsc(raw);
-    }
-    const itemsWithUpdatedAt = raw.map(item => ({
-      ...item,
-      updatedAt: item.lastUpdated
-    }));
-    const sorted = sortByLastVisited(itemsWithUpdatedAt);
-    return sorted.map(({ updatedAt, ...item }) => item);
+    return sortWithPins(initialItems || [], spaceIsShared);
   });
   const [deletedItemIds, setDeletedItemIds] = useState<Set<string>>(new Set());
   const deletedItemIdsRef = useRef<Set<string>>(new Set());
   const isMountedRef = useRef(true);
   // Compute initial sorted items for ref (useRef doesn't support lazy initializers)
-  const initialSortedItems = (() => {
-    const raw = initialItems || [];
-    if (spaceIsShared) {
-      return sortByCreatedAtAsc(raw);
-    }
-    const itemsWithUpdatedAt = raw.map(item => ({
-      ...item,
-      updatedAt: item.lastUpdated
-    }));
-    const sorted = sortByLastVisited(itemsWithUpdatedAt);
-    return sorted.map(({ updatedAt, ...item }) => item);
-  })();
+  const initialSortedItems = sortWithPins(initialItems || [], spaceIsShared);
   const itemsRef = useRef<SpaceItem[]>(initialSortedItems);
   const previousPathnameRef = useRef<string>(typeof window !== 'undefined' ? window.location.pathname : '');
   const isNavigatingRef = useRef(false);
@@ -134,12 +128,64 @@ export default function SpaceContentList({
   const pendingOptimisticUpdateRef = useRef<{ itemId: string; itemType: 'thread' | 'note' } | null>(null);
   // Skip refreshes after this space was deleted (avoids 404s before unmount)
   const spaceDeletedRef = useRef(false);
-  const [isRemovingItem, setIsRemovingItem] = useState(false);
+  /** Only the row being removed has its remove control disabled (matches pinning behavior). */
+  const [removingTarget, setRemovingTarget] = useState<{ id: string; type: 'thread' | 'note' } | null>(null);
+  /** Only the row being pinned is disabled — avoids graying out every pin control while a request is in flight. */
+  const [pinningTarget, setPinningTarget] = useState<{ id: string; type: 'thread' | 'note' } | null>(null);
+
+  // Pin/unpin an item in the space (owner only)
+  const handlePinItem = useCallback(
+    async (itemId: string, itemType: 'thread' | 'note', currentlyPinned: boolean) => {
+      const newPinned = !currentlyPinned;
+      const matchesTarget = (item: SpaceItem) => item.id === itemId && item.itemType === itemType;
+      // Optimistic update + re-sort so pinned rows move to the top (same rules as refresh/bootstrap)
+      setItems(prev =>
+        sortWithPins(
+          prev.map(item => (matchesTarget(item) ? { ...item, isPinned: newPinned } : item)),
+          spaceIsShared
+        )
+      );
+      setPinningTarget({ id: itemId, type: itemType });
+      try {
+        const response = await fetch(`/api/spaces/${spaceId}/pin-item`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, itemType, isPinned: newPinned }),
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          // Revert on failure
+          setItems(prev =>
+            sortWithPins(
+              prev.map(item => (matchesTarget(item) ? { ...item, isPinned: currentlyPinned } : item)),
+              spaceIsShared
+            )
+          );
+          window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Error ${newPinned ? 'pinning' : 'unpinning'} item`, type: 'error' } }));
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'bootstrap'] });
+          queryClient.invalidateQueries({ queryKey: ['space', spaceId, 'items'] });
+        }
+      } catch {
+        // Revert on error
+        setItems(prev =>
+          sortWithPins(
+            prev.map(item => (matchesTarget(item) ? { ...item, isPinned: currentlyPinned } : item)),
+            spaceIsShared
+          )
+        );
+        window.dispatchEvent(new CustomEvent('toast', { detail: { message: `Error ${newPinned ? 'pinning' : 'unpinning'} item`, type: 'error' } }));
+      } finally {
+        setPinningTarget(null);
+      }
+    },
+    [spaceId, queryClient, spaceIsShared]
+  );
 
   // Remove item from space (private: all; shared: only own items — visibility enforced by parent via isOwner/currentUserId)
   const handleRemoveFromSpace = useCallback(
     async (itemId: string, itemType: 'thread' | 'note') => {
-      setIsRemovingItem(true);
+      setRemovingTarget({ id: itemId, type: itemType });
       try {
         const noteIds = itemType === 'note' ? [itemId] : [];
         const threadIds = itemType === 'thread' ? [itemId] : [];
@@ -185,25 +231,16 @@ export default function SpaceContentList({
           })
         );
       } finally {
-        setIsRemovingItem(false);
+        setRemovingTarget(null);
       }
     },
     [spaceId]
   );
 
   // Public/shared spaces: oldest first (createdAt) for curated series. Private: lastVisited (newest first).
+  // Pinned items always float to the top regardless of sort order.
   const sortItemsByLastVisited = useCallback(
-    (items: SpaceItem[]): SpaceItem[] => {
-      if (spaceIsShared) {
-        return sortByCreatedAtAsc(items);
-      }
-      const itemsWithUpdatedAt = items.map(item => ({
-        ...item,
-        updatedAt: item.lastUpdated
-      }));
-      const sorted = sortByLastVisited(itemsWithUpdatedAt);
-      return sorted.map(({ updatedAt, ...item }) => item);
-    },
+    (items: SpaceItem[]): SpaceItem[] => sortWithPins(items, spaceIsShared),
     [spaceIsShared],
   );
 
@@ -409,7 +446,9 @@ export default function SpaceContentList({
               lastUpdated: thread.lastUpdated,
               isPublic: thread.isPublic,
               createdAt: normalizeDate(thread.createdAt) || thread.createdAt,
-              lastVisited: normalizeDate(thread.lastVisited) || thread.lastVisited
+              lastVisited: normalizeDate(thread.lastVisited) || thread.lastVisited,
+              userId: thread.userId,
+              isPinned: thread.isPinned === true,
             })),
             ...notes.map((note: any) => ({
               id: note.id,
@@ -422,8 +461,12 @@ export default function SpaceContentList({
               resourceDescription: note.resourceDescription,
               resourceImage: note.resourceImage,
               threadColors: note.threadColors,
+              threadId: note.threadId ?? null,
+              version: note.version,
               createdAt: normalizeDate(note.createdAt) || note.createdAt,
-              lastVisited: normalizeDate(note.lastVisited) || note.lastVisited
+              lastVisited: normalizeDate(note.lastVisited) || note.lastVisited,
+              userId: note.userId,
+              isPinned: note.isPinned === true,
             }))
           ];
           
@@ -1118,14 +1161,16 @@ export default function SpaceContentList({
     };
   }, [spaceId, refreshSpaceContent]);
 
-  // Filter items based on current filter
+  // Filter items based on current filter (must match refreshSpaceContent branch for combinedItems)
   const filteredItems = filter === 'all'
     ? items
     : filter === 'threads'
     ? items.filter(item => item.itemType === 'thread')
     : filter === 'scripture'
     ? items.filter(item => item.itemType === 'note' && item.noteType === 'scripture')
-    : items.filter(item => item.itemType === 'note');
+    : filter === 'resources'
+    ? items.filter(item => item.itemType === 'note' && item.noteType === 'resource')
+    : items.filter(item => item.itemType === 'note' && (item.noteType === 'default' || !item.noteType));
 
   if (filteredItems.length === 0) {
     const isLoadingEmpty = parentIsLoading || !hasResolvedFirstLoad;
@@ -1157,9 +1202,14 @@ export default function SpaceContentList({
     );
   }
 
+  // Pinned items ignore lastVisited section buckets and stay above all unpinned rows
+  const sortedFiltered = sortItemsByLastVisited([...filteredItems]);
+  const pinnedItems = sortedFiltered.filter((i) => i.isPinned === true);
+  const unpinnedForSections = sortedFiltered.filter((i) => i.isPinned !== true);
+
   const bySection = new Map<SectionKey, typeof filteredItems>();
   for (const key of SECTION_ORDER) bySection.set(key, []);
-  for (const item of filteredItems) {
+  for (const item of unpinnedForSections) {
     const key = getSectionKeyForItem({
       lastVisited: item.lastVisited,
       createdAt: item.createdAt,
@@ -1170,6 +1220,7 @@ export default function SpaceContentList({
 
   const renderItem = (item: (typeof filteredItems)[number], index: number) => {
     const canRemove = isOwner || (currentUserId != null && item.userId === currentUserId);
+    const canRemoveFromSpace = canRemove && item.isPinned !== true;
     return (
       <div
         key={item.id}
@@ -1242,26 +1293,67 @@ export default function SpaceContentList({
               />
             </a>
           )}
-          {canRemove && (
+          {item.isPinned && (
             <div
-              className="absolute top-0 right-0 w-12 h-full"
+              className="absolute top-2 left-2"
               style={{ pointerEvents: 'none', zIndex: 10 }}
+              title="Pinned"
             >
-              <ActionButton
-                variant="Remove"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleRemoveFromSpace(item.id, item.itemType);
-                }}
-                className={
-                  item.itemType === 'note' && item.noteType === 'scripture'
-                    ? 'absolute top-1/2 right-2 w-8 h-8 flex-center action-button-hover -translate-y-1/2'
-                    : 'absolute top-2 right-2 w-8 h-8 flex-center action-button-hover'
-                }
-                disabled={isRemovingItem}
-                style={{ pointerEvents: 'auto', zIndex: 11 }}
+              <i
+                className="fa-solid fa-thumbtack"
+                style={{ fontSize: '11px', color: 'var(--color-pebble-grey)', opacity: 0.7, transform: 'rotate(45deg)', display: 'block' }}
               />
+            </div>
+          )}
+          {(canRemoveFromSpace || isOwner) && (
+            <div
+              className="absolute top-0 right-0 h-full"
+              style={{
+                pointerEvents: 'none',
+                zIndex: 10,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+                gap: '6px',
+                paddingRight: '8px',
+                transform: item.itemType === 'thread' ? 'translateY(-20px)' : undefined,
+              }}
+            >
+              {isOwner && (
+                <ActionButton
+                  variant="Pin"
+                  isPinned={item.isPinned === true}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handlePinItem(item.id, item.itemType, item.isPinned === true);
+                  }}
+                  className="w-8 h-8 flex-center action-button-hover"
+                  disabled={
+                    pinningTarget != null &&
+                    pinningTarget.id === item.id &&
+                    pinningTarget.type === item.itemType
+                  }
+                  style={{ pointerEvents: 'auto', zIndex: 11 }}
+                />
+              )}
+              {canRemoveFromSpace && (
+                <ActionButton
+                  variant="Remove"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRemoveFromSpace(item.id, item.itemType);
+                  }}
+                  className="w-8 h-8 flex-center action-button-hover"
+                  disabled={
+                    removingTarget != null &&
+                    removingTarget.id === item.id &&
+                    removingTarget.type === item.itemType
+                  }
+                  style={{ pointerEvents: 'auto', zIndex: 11 }}
+                />
+              )}
             </div>
           )}
         </div>
@@ -1270,26 +1362,42 @@ export default function SpaceContentList({
   };
 
   let runningIndex = 0;
+  const pinnedElements: React.ReactNode[] = [];
+  for (const item of pinnedItems) {
+    pinnedElements.push(renderItem(item, runningIndex));
+    runningIndex += 1;
+  }
+
+  const sectionElements = SECTION_ORDER.flatMap((sectionKey) => {
+    const itemsInSection = bySection.get(sectionKey)!;
+    if (itemsInSection.length === 0) return [];
+    const label = SECTION_LABELS[sectionKey];
+    const elements: React.ReactNode[] = [];
+    if (label) {
+      elements.push(
+        <div key={`section-${sectionKey}`} className="organized-content__section-header">
+          {label}
+        </div>
+      );
+    }
+    for (const item of itemsInSection) {
+      elements.push(renderItem(item, runningIndex));
+      runningIndex += 1;
+    }
+    return elements;
+  });
+
+  const hasPinned = pinnedItems.length > 0;
+
   return (
-    <div ref={listKeyboardRef} className="flex flex-col" style={{ paddingBottom: '12px' }}>
-      {SECTION_ORDER.flatMap((sectionKey) => {
-        const itemsInSection = bySection.get(sectionKey)!;
-        if (itemsInSection.length === 0) return [];
-        const label = SECTION_LABELS[sectionKey];
-        const elements: React.ReactNode[] = [];
-        if (label) {
-          elements.push(
-            <div key={`section-${sectionKey}`} className="organized-content__section-header">
-              {label}
-            </div>
-          );
-        }
-        for (const item of itemsInSection) {
-          elements.push(renderItem(item, runningIndex));
-          runningIndex += 1;
-        }
-        return elements;
-      })}
+    <div ref={listKeyboardRef} className="flex flex-col organized-content" style={{ paddingBottom: '12px' }}>
+      {hasPinned && (
+        <div className="organized-content__pinned-shell">
+          <div className="organized-content__section-header">Pinned</div>
+          {pinnedElements}
+        </div>
+      )}
+      {sectionElements}
     </div>
   );
 }

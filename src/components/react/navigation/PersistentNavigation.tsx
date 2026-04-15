@@ -214,6 +214,32 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     // state/refresh can lag and the item may still be in navigationHistory; this hides it).
     persistentItems = persistentItems.filter((item) => !isRecentlyClosed(item.id));
 
+    // Defense-in-depth: filter permanently closed items by reading harvous-closed-navigation-items
+    // directly from storage. This catches cases where navigationHistory context contains stale
+    // closed threads (e.g. async race conditions restoring closed items to localStorage).
+    // Check both localStorage and sessionStorage since safeSetItem may fall back to session.
+    const permanentlyClosedIds = (() => {
+      const ids = new Set<string>();
+      try {
+        const fromLocal = window.localStorage?.getItem('harvous-closed-navigation-items');
+        if (fromLocal) {
+          const parsed: unknown = JSON.parse(fromLocal);
+          if (Array.isArray(parsed)) parsed.forEach((x: unknown) => { if (typeof x === 'string') ids.add(x); });
+        }
+      } catch { /* ignore */ }
+      try {
+        const fromSession = window.sessionStorage?.getItem('harvous-closed-navigation-items');
+        if (fromSession) {
+          const parsed: unknown = JSON.parse(fromSession);
+          if (Array.isArray(parsed)) parsed.forEach((x: unknown) => { if (typeof x === 'string') ids.add(x); });
+        }
+      } catch { /* ignore */ }
+      return ids;
+    })();
+    if (permanentlyClosedIds.size > 0) {
+      persistentItems = persistentItems.filter((item) => !permanentlyClosedIds.has(item.id));
+    }
+
     // Compute the active parent thread *before* scoping so we can always include it.
     // First priority: SSR-provided activeThread (same as mobile's currentThread) - most stable, avoids View Transition timing.
     let activeParentThread: { id: string; title: string; count: number; backgroundGradient: string; spaceId: string | null; firstAccessed: number; lastAccessed: number } | null = null;
@@ -297,8 +323,25 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
     };
 
     // Route-based scope for filtering: on dashboard show only Home threads; on space page show that space's threads.
-    const isDashboardRoute = pathname === '/' || pathname === '/dashboard';
-    const spaceIdForFilter = isDashboardRoute ? null : selectedSpaceId;
+    // Always derive from the live URL — more reliable than selectedSpaceId, which depends on
+    // NavigationColumn's async URL-sync effect and can be null/stale on first render.
+    const currentPath = window.location.pathname;
+    const isDashboardRoute = currentPath === '/' || currentPath === '/dashboard';
+    const spaceIdFromPath = (() => {
+      if (!currentPath.startsWith('/space/')) return null;
+      const id = extractIdFromPath(currentPath);
+      return id && id.startsWith('space_') ? id : null;
+    })();
+    const spaceIdFromSearch = (() => {
+      try {
+        const s = new URLSearchParams(window.location.search).get('space');
+        return s && s.startsWith('space_') ? s : null;
+      } catch { return null; }
+    })();
+    // Path wins (space page), then ?space= param (thread/note opened from space), then storage fallback.
+    const spaceIdForFilter = isDashboardRoute
+      ? null
+      : (spaceIdFromPath ?? spaceIdFromSearch ?? selectedSpaceId);
 
     // Scope threads to the current view (route), not storage.
     // - On dashboard: show items opened in Home (null scope).
@@ -371,7 +414,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
         activeThreadItem &&
         !isUnorganizedTitleWithWrongId &&
         !unorganizedAlreadyExists &&
-        !isRecentlyClosed(activeThreadItem.id)
+        !isRecentlyClosed(activeThreadItem.id) &&
+        !permanentlyClosedIds.has(activeThreadItem.id)
       ) {
         // Collapse same-title duplicates in favor of current page's thread
         persistentItems = persistentItems.filter(
@@ -442,7 +486,8 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
       if (
         !isUnorganizedTitleWithWrongId &&
         !unorganizedAlreadyExists &&
-        !isRecentlyClosed(activeParentThread.id)
+        !isRecentlyClosed(activeParentThread.id) &&
+        !permanentlyClosedIds.has(activeParentThread.id)
       ) {
         persistentItems = [activeParentThread, ...persistentItems];
       }
@@ -565,6 +610,14 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
 
         let spaceForLink: string | null = selectedSpaceId ?? getSelectedSpaceId();
         const getThreadHrefWithSpace = () => {
+          // On Home dashboard, never append ?space= from storage — stale selectedSpaceId would
+          // re-scope Home threads to another space when clicked.
+          if (typeof window !== 'undefined') {
+            const p = window.location.pathname;
+            if (p === '/' || p === '/dashboard') {
+              return idToUrl(item.id);
+            }
+          }
           // Use the current space so threads always open in the space the user is viewing.
           // Fall back to getSelectedSpaceId() (direct storage read) in case React state
           // hasn't hydrated yet, then check the URL query param as a last resort.
@@ -594,6 +647,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
               <a
                 href={validHref}
                 className="nav-link"
+                aria-current={isActive ? 'page' : undefined}
                 onPointerEnter={() => {
                   if (item.id.startsWith('thread_')) prefetchThreadRouteIntent(queryClient, item.id);
                   else if (item.id.startsWith('space_')) prefetchSpaceRouteIntent(queryClient, item.id);
@@ -644,6 +698,7 @@ const PersistentNavigation: React.FC<PersistentNavigationProps> = ({ onSpaceSwit
                       : (item.count || 0)
                   }
                   state="WithCount"
+                  showCountBadge={false}
                   rightAccessory={isSpaceItem ? 'spaceSwitcher' : 'count'}
                   onRightAccessoryClick={isSpaceItem ? onSpaceSwitcherClick : undefined}
                   backgroundGradient={item.id === 'thread_unorganized' ? PAPER_GRADIENT : (item.backgroundGradient || "var(--color-paper)")}

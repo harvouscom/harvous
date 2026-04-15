@@ -440,11 +440,16 @@
   box-shadow: none;
 }
 
-.edit-space-panel__admin-description:focus,
-.edit-space-panel__admin-description:focus-visible {
+.edit-space-panel__admin-description:focus:not(:focus-visible) {
   outline: none;
   box-shadow: none;
   border: none;
+}
+
+.edit-space-panel__admin-description:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+  border-radius: 12px;
 }
 
 .edit-space-panel__admin-description::placeholder {

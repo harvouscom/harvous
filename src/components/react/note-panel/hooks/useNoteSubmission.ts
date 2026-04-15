@@ -494,10 +494,10 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         }
         invalidatePanelDataCache(PANEL_CACHE_KEYS.subscription);
 
-        // Build scripture toast message for redirect (when scriptureDeferred, results are empty and we show a short message)
+        // Build scripture toast message for redirect (when scriptureDeferred, results are empty)
         let scriptureToastMessage = '';
         if (result.scriptureDeferred) {
-          scriptureToastMessage = 'Note created. Scripture links are being added.';
+          scriptureToastMessage = 'Note created.';
         } else if (result.scriptureProcessingError) {
           scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
         } else if (result.scriptureResults && Array.isArray(result.scriptureResults)) {
@@ -962,7 +962,7 @@ export function useNoteSubmission(options: UseNoteSubmissionOptions): UseNoteSub
         // Build scripture toast message for redirect (when scriptureDeferred, results are empty)
         let scriptureToastMessage = '';
         if (result.scriptureDeferred) {
-          scriptureToastMessage = 'Note created. Scripture links are being added.';
+          scriptureToastMessage = 'Note created.';
         } else if (result.scriptureProcessingError) {
           scriptureToastMessage = 'Note created. Some scripture links couldn\'t be created.';
         } else if (result.scriptureResults && result.scriptureResults.length > 0) {

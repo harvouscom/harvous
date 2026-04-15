@@ -616,6 +616,46 @@ route.post('/api/spaces/:spaceId/remove-items', requireAuth, async (c) => {
   }
 });
 
+// ─── POST /api/spaces/:spaceId/pin-item ──────────────────────────────────────
+route.post('/api/spaces/:spaceId/pin-item', requireAuth, async (c) => {
+  try {
+    const auth = getAuthenticatedAuth(c);
+
+    const spaceId = requireParam(c, 'spaceId');
+    let accessInfo: { role: string; space: any };
+    try { accessInfo = await requireSpaceAccess(spaceId, auth.userId); } catch (err) {
+      if (err instanceof SpaceAccessError) return c.json({ error: err.message, code: err.code }, err.status);
+      throw err;
+    }
+
+    if (accessInfo.role !== 'owner') {
+      return c.json({ error: 'Only the space owner can pin items', code: 'FORBIDDEN' }, 403);
+    }
+
+    const { itemId, itemType, isPinned } = await c.req.json();
+    if (!itemId || !itemType || typeof isPinned !== 'boolean') {
+      return c.json({ error: 'itemId, itemType, and isPinned are required', code: 'BAD_REQUEST' }, 400);
+    }
+
+    if (itemType === 'note') {
+      const note = first(await db.select({ id: Notes.id }).from(Notes).where(and(eq(Notes.id, itemId), eq(Notes.spaceId, spaceId))).limit(1));
+      if (!note) return c.json({ error: 'Note not found in space', code: 'NOT_FOUND' }, 404);
+      await db.update(Notes).set({ isPinned }).where(eq(Notes.id, itemId));
+    } else if (itemType === 'thread') {
+      const thread = first(await db.select({ id: Threads.id }).from(Threads).where(and(eq(Threads.id, itemId), eq(Threads.spaceId, spaceId))).limit(1));
+      if (!thread) return c.json({ error: 'Thread not found in space', code: 'NOT_FOUND' }, 404);
+      await db.update(Threads).set({ isPinned }).where(eq(Threads.id, itemId));
+    } else {
+      return c.json({ error: 'itemType must be "note" or "thread"', code: 'BAD_REQUEST' }, 400);
+    }
+
+    return c.json({ success: true });
+  } catch (error: any) {
+    const standardError = handleAPIError(error, { endpoint: '/api/spaces/[spaceId]/pin-item', action: 'pin_space_item' });
+    return c.json({ error: standardError.message, code: standardError.code }, 500);
+  }
+});
+
 // ─── GET /api/spaces/:spaceId/share-link ────────────────────────────────────
 route.get('/api/spaces/:spaceId/share-link', requireAuth, async (c) => {
   try {

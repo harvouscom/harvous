@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import InfiniteScrollList from './InfiniteScrollList';
 import CardNote from './CardNote';
 import CardThread from './CardThread';
@@ -17,6 +18,7 @@ import {
   SECTION_LABELS,
   type SectionKey
 } from '@/utils/last-visited-sections';
+import { clearDashboardSessionCache } from '@/utils/dashboard-session-cache';
 
 // SPA-compatible dashboard path check — Astro uses '/', SPA uses '/dashboard'
 const isDashboardPath = () =>
@@ -95,6 +97,23 @@ function sortItems(items: OrganizedContentItem[]): OrganizedContentItem[] {
   return sortByLastVisited(normalizedItems);
 }
 
+/** Fingerprint lastVisited / updated times so refresh can apply when IDs and order are unchanged. */
+function itemsRecencyKey(items: OrganizedContentItem[]): string {
+  return items
+    .map((item) => {
+      const lv = normalizeDate(item.lastVisited)?.getTime() ?? 0;
+      const up = item.updatedAt ? normalizeDate(item.updatedAt)?.getTime() ?? 0 : 0;
+      const lu =
+        typeof item.lastUpdated === 'string'
+          ? normalizeDate(item.lastUpdated)?.getTime() ?? 0
+          : typeof item.lastUpdated === 'number'
+            ? item.lastUpdated
+            : 0;
+      return `${item.id}:${lv}:${up}:${lu}`;
+    })
+    .join('|');
+}
+
 /**
  * Unified item matching helper - now simplified since all IDs use thread_/note_ format.
  * Matches items by comparing normalized IDs (stripping prefixes to get raw UUIDs).
@@ -151,6 +170,8 @@ export default function OrganizedContentList({
   onNotePrefetch,
   onThreadIntent,
 }: OrganizedContentListProps) {
+  const queryClient = useQueryClient();
+
   // Prevent a "flash" of server-rendered items that might include content the user deleted.
   // We can't read sessionStorage on the server, so we intentionally render a lightweight
   // placeholder until the client hydrates and we can apply the deleted ID filter.
@@ -745,8 +766,9 @@ export default function OrganizedContentList({
           }
         }
 
-        // Update state with the master list
-        const refreshedKey = sorted.map(item => item.id).join(',') + `|${sorted.length}`;
+        // Update state with the master list (include recency so lastVisited-only changes apply)
+        const idLenKey = sorted.map(item => item.id).join(',') + `|${sorted.length}`;
+        const refreshedKey = `${idLenKey}#${itemsRecencyKey(sorted)}`;
         if (isMountedRef.current && isDashboardPath() &&
             !refreshStateRef.current.isNavigating && filterRef.current === currentFilter) {
           if (refreshedKey !== refreshStateRef.current.lastRefreshKey || options?.expectedItemId) {
@@ -863,6 +885,10 @@ export default function OrganizedContentList({
     return null;
   }, []);
 
+  // Track previous initialItems to detect actual changes from server (declared
+  // before filter effect so we can reset when the content tab changes).
+  const prevPropsInitialItemsRef = useRef<string>('');
+
   // Handle filter changes. When parent (e.g. DashboardPage React Query) provides
   // initialItems for this filter, use them and do not clear or refetch. When
   // initialItems are empty, show loading and rely on parent to pass data when
@@ -872,6 +898,12 @@ export default function OrganizedContentList({
     if (!isMountedRef.current) return;
     const filterChanged = prevFilterRef2.current !== filter;
     prevFilterRef2.current = filter;
+    if (filterChanged) {
+      // Force the initialItems sync effect to re-apply parent data for this tab
+      // (All vs Threads use separate RQ caches; do not reuse the last composite key).
+      prevPropsInitialItemsRef.current = '';
+      refreshStateRef.current.lastRefreshKey = '';
+    }
     // Sync filterRef so any later refreshContent uses the correct filter.
     filterRef.current = filter;
     // On first mount with fresh SSR data, skip — the initialItems handler covers it
@@ -905,9 +937,6 @@ export default function OrganizedContentList({
   // already handles updates correctly. Mount refresh was causing double refreshes
   // and reordering issues when combined with stale cached pages.
 
-  // Track previous initialItems to detect actual changes from server
-  const prevPropsInitialItemsRef = useRef<string>('');
-
   // Handle initialItems changes (server-side props update).
   // Include scripture filter so switching to Scripture tab applies parent's scripture items.
   useEffect(() => {
@@ -918,12 +947,13 @@ export default function OrganizedContentList({
     }
 
     const itemsKey = initialItems.map(i => i.id).join(',');
-    const isNewServerData = itemsKey !== prevPropsInitialItemsRef.current;
+    const revision = dataGeneratedAt ?? 0;
+    const rawItems = initialItems.map(normalizeItemDates);
+    const compositeKey = `${itemsKey}@${revision}#${itemsRecencyKey(rawItems)}`;
+    const isNewServerData = compositeKey !== prevPropsInitialItemsRef.current;
 
     if (isNewServerData) {
-      prevPropsInitialItemsRef.current = itemsKey;
-      
-      const rawItems = initialItems.map(normalizeItemDates);
+      prevPropsInitialItemsRef.current = compositeKey;
       
       // Filter out deleted items
       const filteredDeleted = rawItems.filter(item => {
@@ -955,7 +985,7 @@ export default function OrganizedContentList({
       currentItemsRef.current = sorted;
       setIsLoadingFilter(false); // Parent (e.g. React Query) supplied data; clear loading
     }
-  }, [initialItems, filter, initialHasMoreFromParent]); // Removed deletedItemIds from dependencies to prevent list reset on deletion
+  }, [initialItems, filter, initialHasMoreFromParent, dataGeneratedAt]); // dataGeneratedAt: refetch same IDs with new lastVisited
 
   // Listen for deletion events (client-only)
   useEffect(() => {
@@ -1205,6 +1235,12 @@ export default function OrganizedContentList({
           // Now safe because server throttle is only 10 seconds
           // This gives instant visual feedback while server confirms
           if (previousWasThreadOrNote) {
+            clearDashboardSessionCache();
+            // refetchType 'all' refetches inactive tab queries too (not just the visible filter).
+            void queryClient.invalidateQueries({
+              queryKey: ['dashboard', 'content'],
+              refetchType: 'all',
+            });
             const extracted = extractItemIdFromPath(previousPathnameRef.current);
             if (extracted) {
               debug('[OrganizedContentList] handlePageLoad: Optimistically updating item', {
@@ -1318,7 +1354,7 @@ export default function OrganizedContentList({
         refreshStateRef.current.pendingTimeout = null;
       }
     };
-  }, [refreshContent, optimisticUpdateLastVisited, extractItemIdFromPath, initialItems, dataGeneratedAt]);
+  }, [refreshContent, optimisticUpdateLastVisited, extractItemIdFromPath, initialItems, dataGeneratedAt, queryClient]);
 
   // Handle visibility changes for PWA
   useEffect(() => {

@@ -113,7 +113,7 @@ export default function MySharingPanel({
     }
   }, [fetchShared]);
 
-  // Refetch when sharing is changed elsewhere (e.g. share link generated in EditSpacePanel)
+  // Refetch when sharing is changed elsewhere (e.g. share link generated in SpaceSharePanel)
   useEffect(() => {
     const handleInvalidate = () => fetchShared(true);
     window.addEventListener('mySharingInvalidate', handleInvalidate);

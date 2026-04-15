@@ -8,7 +8,6 @@ import { formatBadgeCount } from '@/utils/badge-count';
 import { setSelectedSpaceId, useSelectedSpaceId } from './selectedSpace';
 import ButtonSmall from '../ButtonSmall';
 import { Drawer, DrawerContent } from '@/components/ui/drawer';
-import { safeGetItem, safeSetItem } from '@/utils/safe-storage';
 import { idToUrl, extractIdFromPath } from '@/utils/url-helpers';
 import { safeNavigateSync, preloadSafeNavigate } from '@/utils/safe-navigate';
 import { getBackTarget, popNavStack } from '@/utils/nav-stack';
@@ -930,15 +929,15 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     let persistentItems = navigationHistory.filter((item) => {
       // Show all items, including active ones, to match desktop behavior
       // This allows users to see active items and close them if needed
-      
+
       // Don't show dashboard
       if (item.id === 'dashboard') {
         return false;
       }
-      
+
       return true;
     });
-    
+
     // CRITICAL: Final deduplication to prevent duplicate items from being rendered
     // This handles race conditions where an item might be added from multiple sources
     const seen = new Set<string>();
@@ -1163,7 +1162,7 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
   const getRawNavigationHistory = (): any[] => {
     if (typeof window === 'undefined') return [];
     try {
-      const stored = safeGetItem('harvous-navigation-history-v2');
+      const stored = window.localStorage.getItem('harvous-navigation-history-v2');
       const parsed = stored ? JSON.parse(stored) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch (error) {
@@ -1172,11 +1171,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
     }
   };
 
-  // Space IDs the user has closed from the switcher (match desktop so opened/available lists stay in sync)
+  // Space IDs the user has closed from the switcher (match desktop so opened/available lists stay in sync).
+  // MUST use window.localStorage directly — safeGetItem can bounce to sessionStorage and
+  // return an empty/partial list, causing split-brain with NavigationContext's localStorage writes.
   const getClosedSpaceIds = (): Set<string> => {
     if (typeof window === 'undefined') return new Set();
     try {
-      const stored = safeGetItem('harvous-closed-navigation-items');
+      const stored = window.localStorage.getItem('harvous-closed-navigation-items');
       const parsed = stored ? (JSON.parse(stored) as unknown) : [];
       const ids = Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
       return new Set(ids.filter((id) => id.startsWith('space_')));
@@ -1243,12 +1244,13 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       deletedSpaceIdsRef.current.add(spaceId);
       setLocalSpaces((prev) => prev.filter((s) => s.id !== spaceId));
       forceUpdate((prev) => prev + 1);
-      // Prune the deleted space from the "closed" list so stale IDs don't accumulate
+      // Prune the deleted space from the "closed" list so stale IDs don't accumulate.
+      // MUST use window.localStorage directly to stay consistent with NavigationContext.
       try {
-        const stored = safeGetItem('harvous-closed-navigation-items');
+        const stored = window.localStorage.getItem('harvous-closed-navigation-items');
         if (stored) {
           const pruned = (JSON.parse(stored) as string[]).filter((id) => id !== spaceId);
-          safeSetItem('harvous-closed-navigation-items', JSON.stringify(pruned), { cleanupOldest: true, fallbackToSession: true });
+          window.localStorage.setItem('harvous-closed-navigation-items', JSON.stringify(pruned));
         }
       } catch { /* ignore */ }
     };
@@ -1300,25 +1302,23 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
       });
   }, [localSpaces, spacesForDropdown]);
 
-  // Add space to opened list and remove from closed when user selects from "Add Existing Space" (match desktop)
+  // Add space to opened list and remove from closed when user selects from "Add Existing Space" (match desktop).
+  // MUST use window.localStorage directly for closed-items to stay consistent with NavigationContext.
   const addSpaceToNavigationHistory = useCallback((space: Space) => {
     if (typeof window === 'undefined') return;
     try {
       try {
-        const closedStored = safeGetItem('harvous-closed-navigation-items');
+        const closedStored = window.localStorage.getItem('harvous-closed-navigation-items');
         const closedParsed = closedStored ? (JSON.parse(closedStored) as unknown) : [];
         const closedIds = Array.isArray(closedParsed) ? closedParsed.filter((x) => typeof x === 'string') : [];
         const filtered = closedIds.filter((id) => id !== space.id);
         if (filtered.length !== closedIds.length) {
-          safeSetItem('harvous-closed-navigation-items', JSON.stringify(filtered), {
-            cleanupOldest: true,
-            fallbackToSession: true,
-          });
+          window.localStorage.setItem('harvous-closed-navigation-items', JSON.stringify(filtered));
         }
       } catch {
         /* ignore */
       }
-      const stored = safeGetItem('harvous-navigation-history-v2');
+      const stored = window.localStorage.getItem('harvous-navigation-history-v2');
       const history = stored ? JSON.parse(stored) : [];
       const existingIndex = history.findIndex((item: any) => item.id === space.id);
       if (existingIndex !== -1) {
@@ -1343,10 +1343,11 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({
         return aFirst - bFirst;
       });
       const limited = history.length > 10 ? history.slice(0, 10) : history;
-      safeSetItem('harvous-navigation-history-v2', JSON.stringify(limited), {
-        cleanupOldest: true,
-        fallbackToSession: true,
-      });
+      try {
+        window.localStorage.setItem('harvous-navigation-history-v2', JSON.stringify(limited));
+      } catch {
+        try { window.sessionStorage?.setItem('harvous-navigation-history-v2', JSON.stringify(limited)); } catch { /* ignore */ }
+      }
       window.dispatchEvent(new CustomEvent('navigationHistoryUpdated'));
       forceUpdate((p) => p + 1);
     } catch (err) {

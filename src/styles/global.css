@@ -816,20 +816,20 @@ button[disabled] {
 }
 
 /* Desktop: Position above nav-column-bottom, spanning full navigation column width */
-/* Position above nav-column-bottom (left: 24px, width: 310px to match nav column) */
+/* Position above nav-column-bottom (left: 24px, width: 260px to match nav column) */
 @media (min-width: 1160px) {
     [data-sonner-toaster] {
         left: 24px !important;
         right: auto !important;
         bottom: 112px !important; /* 64px nav-column-bottom + 24px gap + 24px layout padding */
-        width: 310px !important;
+        width: 260px !important;
         transform: none !important;
     }
     
     [data-sonner-toast] {
-        width: 310px !important;
-        min-width: 310px !important;
-        max-width: 310px !important;
+        width: 260px !important;
+        min-width: 260px !important;
+        max-width: 260px !important;
     }
 }
 

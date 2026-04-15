@@ -453,6 +453,10 @@ function handleKeyboardShortcut(event: KeyboardEvent): void {
       window.dispatchEvent(
         new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'thread' } }),
       );
+    } else if (entity === 'space' && id?.startsWith('space_')) {
+      window.dispatchEvent(
+        new CustomEvent('openNoteSharePanel', { detail: { contentId: id, contentType: 'space' } }),
+      );
     }
     return;
   }

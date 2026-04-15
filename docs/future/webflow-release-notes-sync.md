@@ -121,7 +121,7 @@ npm run release-notes:sync
 ### Phase 3: Markdown to HTML Conversion
 
 **Considerations:**
-- Preserve emoji (🎯, 🗂️, ✨, etc.)
+- Release notes use plain text only (no emoji in source markdown); conversion should not add decorative symbols.
 - Convert markdown headings to HTML
 - Handle bullet lists
 - Preserve code blocks if any

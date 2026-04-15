@@ -13,6 +13,7 @@ npm run db:push          # Drizzle Kit push (apply server/db/schema.ts to Supaba
 npm run db:check         # Pre-commit schema check (server/db/schema.ts)
 npm run test:e2e         # Playwright e2e (join/invite flows)
 npm run test:e2e:setup   # Seed e2e data then run e2e
+npm run lighthouse:a11y  # Build SPA, vite preview, Lighthouse accessibility (must score 100); use `-- --skip-build` to skip build
 npm run bible:generate -- NASB     # Generate NASB.json (NASB 1995) via Claude (needs ANTHROPIC_API_KEY in .env); resumes from partial
 npm run bible:generate:all         # Generate NASB 1995 / CSB / AMP / MSG in sequence via Claude
 npx tsx server/scripts/seed-bible-verses.ts NASB   # Import server/data/bibles/NASB.json (NASB 1995) into Supabase BibleVerses
@@ -83,6 +84,13 @@ public/                      # Static assets, sw.js, manifest.json
 - `docs/MOBILE_KEYBOARD_NOTE_SHEET.md` - Mobile keyboard + new-note bottom sheet (Vaul drawer shell; toolbar 12px above keyboard, editor scroll, layout-root scroll lock)
 - `src/components/ui/drawer.tsx` - Vaul wrapper for mobile drawers; `src/components/ui/sheet.tsx` - Radix sheet primitives (retained for shadcn-style patterns)
 - `docs/MAIN_COLUMN_LAYOUT.md` - Main-column and CTA layout rules (scroll fill, CardStack chain, button positioning)
+- `release-notes/` - User-facing release notes (`/marketing-agent`). Plain text only: no emoji in titles, headings, or body (`release-notes/README.md`).
+
+## Faith and AI (agent reference)
+
+Harvous is a Bible study app. When implementing or reviewing features that touch Scripture, theology, or pastoral tone, use external community guidance alongside project skills (e.g. `/theologian-agent`, `/scripture-agent`).
+
+- **[Unofficial Rules for AI Apps for Christians](https://faith.tools/posts/unofficial-rules-for-ai-apps-for-christians)** (faith.tools, Cam Pak) — practical norms for faith-oriented AI products: biblically accurate output; do not fabricate or misrepresent Scripture; clearly identify as AI, not human; do not replace human relationships or spiritual practices; balance grace and truth.
 
 ## E2E Testing
 

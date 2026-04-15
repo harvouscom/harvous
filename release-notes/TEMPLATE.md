@@ -5,11 +5,13 @@
 
 [Brief 1-2 sentence summary of the release theme/focus]
 
+**Style:** Do not use emoji characters anywhere in release notes (titles, section headers, or body). Use plain words only.
+
 ---
 
 ## Updates in This Release
 
-### 🎯 [Feature Name]
+### [Feature Name]
 
 **What changed:**
 - [Bullet point describing the change in simple terms]
@@ -20,7 +22,7 @@
 - [Another benefit if applicable]
 - [Use "you" language and focus on outcomes]
 
-### 🗂️ [Another Feature Name]
+### [Another Feature Name]
 
 **What changed:**
 - [Description]
@@ -28,7 +30,7 @@
 **How it helps you:**
 - [Benefit]
 
-### ✨ [Polish/Minor Improvements]
+### [Polish or minor improvements]
 
 **What changed:**
 - [Small improvements grouped together]

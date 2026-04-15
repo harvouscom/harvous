@@ -435,8 +435,8 @@
 }
 
 .featured-card__action-strip .action-strip__item:focus-visible {
-  outline: 2px solid var(--color-bold-blue);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* Subtle mount: grid height expand + fade/slide (dashboard featured, shared pages, panels, etc.) */
@@ -600,8 +600,8 @@
 }
 
 .featured-carousel__pager .action-strip__item:focus-visible {
-  outline: 2px solid var(--color-bold-blue);
-  outline-offset: 2px;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .featured-carousel__dots {
@@ -1482,7 +1482,7 @@
 .organized-content__section-header {
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: normal;
+  font-weight: 500;
   font-style: normal;
   line-height: normal;
   color: var(--color-pebble-grey);
@@ -1494,6 +1494,44 @@
 
 .organized-content__section-header:first-child {
   margin-top: 0;
+}
+
+/* Pinned block: subtle inset surface so pinned rows read as one group */
+/* Matches .card-stack / .card-stack__container radius (24px); very subtle tint builds toward the bottom */
+.organized-content__pinned-shell {
+  border-radius: 0 0 24px 24px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+  max-height: min(45vh, 380px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    color-mix(in oklch, var(--color-white) 50%, var(--color-snow-white) 50%) 100%
+  );
+  /* Outer: same as .card-stack; insets: scripture footer line color */
+  box-shadow:
+    0 1px 3px rgba(120, 118, 111, 0.1),
+    inset 1px 0 0 oklch(0.96 0 0),
+    inset -1px 0 0 oklch(0.96 0 0),
+    inset 0 -1px 0 oklch(0.96 0 0);
+}
+
+.organized-content__pinned-shell .organized-content__section-header {
+  margin-top: 0;
+}
+
+/* Rows use .mb-3 (12px); last row would double with shell padding — keep only the shell's 12px bottom inset */
+.organized-content__pinned-shell > .content-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Space between pinned block and dated sections: 12px total (not 16px from default section header margin) */
+.organized-content__pinned-shell + .organized-content__section-header {
+  margin-top: 12px;
 }
 
 /* ==========================================================================

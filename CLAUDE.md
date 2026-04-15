@@ -1,6 +1,6 @@
 # Harvous
 
-See `docs/AGENTS.md` for dev commands, architecture overview, and quick reference.
+See `AGENTS.md` for dev commands, architecture overview, quick reference, and faith/AI agent resources.
 
 ---
 
@@ -18,6 +18,9 @@ This project uses a team of specialized agents as slash commands. Each agent own
 | `/theologian-agent` | Theological review of authored study content (pairs with content-agent) |
 | `/sharing-agent` | Share tokens, public access, import flow |
 | `/data-agent` | Supabase, API endpoints, offline sync |
+| `/marketing-agent` | Changelog entries, user release notes in `release-notes/`, social copy, admin featured content |
+
+**Release notes style:** Markdown under `release-notes/` is plain text only — no emoji in titles, section headers, or body (`release-notes/README.md`, `release-notes/TEMPLATE.md`). The marketing agent owns this convention.
 
 ### Coordinator (opt-in)
 

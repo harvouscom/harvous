@@ -604,6 +604,7 @@ const NOTE_SELECT_COLUMNS = {
   contentEncrypted: Notes.contentEncrypted, threadId: Notes.threadId,
   spaceId: Notes.spaceId, simpleNoteId: Notes.simpleNoteId,
   noteType: Notes.noteType, isPublic: Notes.isPublic, isFeatured: Notes.isFeatured,
+  isPinned: Notes.isPinned,
   createdAt: Notes.createdAt, updatedAt: Notes.updatedAt, lastVisited: Notes.lastVisited,
   userId: Notes.userId,
 } as const;
@@ -1313,13 +1314,14 @@ export async function getNotesForSpace(spaceId: string, userId: string, limit = 
           .select(NOTE_SELECT_COLUMNS)
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
-          .orderBy(asc(Notes.createdAt), asc(Notes.id))
+          .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : await db
           .select(NOTE_SELECT_COLUMNS)
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.userId, userId)))
           .orderBy(
+            desc(Notes.isPinned),
             asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
             desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
           )
@@ -1402,13 +1404,14 @@ export async function getNotesForSpaceForMember(
           .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
-          .orderBy(asc(Notes.createdAt), asc(Notes.id))
+          .orderBy(desc(Notes.isPinned), asc(Notes.createdAt), asc(Notes.id))
           .limit(fetchLimit)
       : await db
           .select({ ...NOTE_SELECT_COLUMNS, userId: Notes.userId })
           .from(Notes)
           .where(and(eq(Notes.spaceId, spaceId), eq(Notes.contentEncrypted, false)))
           .orderBy(
+            desc(Notes.isPinned),
             asc(sql`CASE WHEN ${Notes.lastVisited} IS NOT NULL THEN 0 ELSE 1 END`),
             desc(Notes.lastVisited), desc(Notes.updatedAt), desc(Notes.createdAt), asc(Notes.id)
           )

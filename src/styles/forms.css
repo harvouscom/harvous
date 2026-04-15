@@ -59,6 +59,12 @@
   &::placeholder {
     color: var(--color-pebble-grey);
   }
+
+  &:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: 2px;
+    border-radius: 8px;
+  }
 }
 
 .search-input__clear {
@@ -97,7 +103,8 @@
     color: var(--color-stone-grey);
   }
 
-  &:focus {
+  &:focus,
+  &:focus-visible {
     border-color: var(--color-bold-blue);
     box-shadow: 0 0 0 2px rgba(65, 132, 242, 0.2);
   }

@@ -35,6 +35,12 @@
   opacity: 1;
 }
 
+.action-strip__item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
 .action-strip__label {
   white-space: nowrap;
 }

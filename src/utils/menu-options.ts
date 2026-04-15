@@ -148,14 +148,18 @@ export function getMenuOptions(
     }
     case "space":
       if (spaceRole === 'member') {
-        return [
+        const memberOptions = [
           { action: "viewSpace", label: "About Space" },
-          { action: "openEditSpacePanelPeople", label: "People" },
-          { action: "leaveSpace", label: "Leave Space" }
         ];
+        if (spaceIsShared) {
+          memberOptions.push({ action: "openEditSpacePanelPeople", label: "People" });
+        }
+        memberOptions.push({ action: "leaveSpace", label: "Leave Space" });
+        return memberOptions;
       }
       const spaceOptions = [
         { action: "editSpace", label: "Edit Space" },
+        { action: "shareSpace", label: "Share" },
       ];
       if (spaceIsShared) {
         spaceOptions.push({ action: "openEditSpacePanelPeople", label: "People" });

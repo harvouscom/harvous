@@ -364,6 +364,10 @@ export default function ActionStrip({
       window.dispatchEvent(new CustomEvent('openNoteSharePanel', { detail: { contentId, contentType: 'thread' } }));
       return;
     }
+    if (action === 'shareSpace') {
+      window.dispatchEvent(new CustomEvent('openNoteSharePanel', { detail: { contentId, contentType: 'space' } }));
+      return;
+    }
     if (action === 'lockNote') {
       window.dispatchEvent(new CustomEvent('focusLockNote', { detail: { contentId } }));
       return;

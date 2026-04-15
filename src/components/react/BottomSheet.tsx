@@ -18,6 +18,7 @@ import ReferralPanel from './ReferralPanel';
 import InboxItemPreviewPanel from './InboxItemPreviewPanel';
 import AboutHarvousPanel from './AboutHarvousPanel';
 import NoteSharePanel from './NoteSharePanel';
+import SpaceSharePanel from './SpaceSharePanel';
 import PinEntryPanel from './PinEntryPanel';
 import LockPinPanel from './LockPinPanel';
 import MyInboxPanel from './MyInboxPanel';
@@ -94,11 +95,13 @@ interface InboxItem {
 
 type SharePanelDrawerData =
   | { kind: 'note'; noteId: string; noteTitle?: string }
-  | { kind: 'thread'; threadId: string; threadTitle?: string };
+  | { kind: 'thread'; threadId: string; threadTitle?: string }
+  | { kind: 'space'; spaceId: string };
 
 // Helper function to get title for each drawer type
 const getDrawerTitle = (drawerType: DrawerType, sharePanelData: SharePanelDrawerData | null = null): string => {
   if (drawerType === 'noteShare' && sharePanelData) {
+    if (sharePanelData.kind === 'space') return 'Share Space';
     return sharePanelData.kind === 'thread' ? 'Share Thread' : 'Share Note';
   }
   const titleMap: Record<DrawerType, string> = {
@@ -514,7 +517,9 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       if (!isMobile) return;
       const { contentId, contentType: ct } = event.detail || {};
       if (contentId) {
-        if (ct === 'thread') {
+        if (ct === 'space') {
+          setSharePanelData({ kind: 'space', spaceId: contentId });
+        } else if (ct === 'thread') {
           setSharePanelData({ kind: 'thread', threadId: contentId, threadTitle: currentThread?.title });
         } else {
           setSharePanelData({ kind: 'note', noteId: contentId, noteTitle: currentNote?.title });
@@ -580,7 +585,7 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
       window.removeEventListener('openPinEntryPanel', handleOpenPinEntryPanel as EventListener);
       window.removeEventListener('closePinEntryPanel', handleCloseBottomSheet);
     };
-  }, [openBottomSheet, closeBottomSheet, isMobile, currentNote, currentThread]);
+  }, [openBottomSheet, closeBottomSheet, isMobile, currentNote, currentThread, currentSpace]);
 
   // Handle visibility changes
   useEffect(() => {
@@ -1270,22 +1275,35 @@ const BottomSheet: React.FC<BottomSheetProps> = ({
           {/* Note / Thread Share Panel */}
           {drawerType === 'noteShare' && sharePanelData && (
             <div className="panel-container flex-fill flex-stack" style={{ gap: 0 }}>
-              <NoteSharePanel
-                key={`mobile-note-share-${panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
-                {...(sharePanelData.kind === 'note'
-                  ? {
-                      noteId: sharePanelData.noteId,
-                      noteTitle: currentNote?.title || sharePanelData.noteTitle,
-                    }
-                  : {
-                      threadId: sharePanelData.threadId,
-                      threadTitle: currentThread?.title || sharePanelData.threadTitle,
-                    })}
-                onClose={() => {
-                  window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
-                }}
-                inBottomSheet={true}
-              />
+              {sharePanelData.kind === 'space' ? (
+                <SpaceSharePanel
+                  key={`mobile-space-share-${panelKey}-${sharePanelData.spaceId}`}
+                  spaceId={sharePanelData.spaceId}
+                  initialTitle={currentSpace?.title}
+                  initialColor={currentSpace?.color}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+                  }}
+                  inBottomSheet={true}
+                />
+              ) : (
+                <NoteSharePanel
+                  key={`mobile-note-share-${panelKey}-${sharePanelData.kind}-${sharePanelData.kind === 'note' ? sharePanelData.noteId : sharePanelData.threadId}`}
+                  {...(sharePanelData.kind === 'note'
+                    ? {
+                        noteId: sharePanelData.noteId,
+                        noteTitle: currentNote?.title || sharePanelData.noteTitle,
+                      }
+                    : {
+                        threadId: sharePanelData.threadId,
+                        threadTitle: currentThread?.title || sharePanelData.threadTitle,
+                      })}
+                  onClose={() => {
+                    window.dispatchEvent(new CustomEvent('closeNoteSharePanel'));
+                  }}
+                  inBottomSheet={true}
+                />
+              )}
             </div>
           )}
 

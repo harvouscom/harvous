@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../Icon';
-import { safeGetItem } from '@/utils/safe-storage';
 import { idToUrl } from '@/utils/url-helpers';
 import { setSelectedSpaceId } from './selectedSpace';
 
@@ -30,7 +29,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
   const closedSpaceIds = useMemo(() => {
     if (typeof window === 'undefined' || !isOpen) return new Set<string>();
     try {
-      const stored = safeGetItem('harvous-closed-navigation-items');
+      const stored = window.localStorage.getItem('harvous-closed-navigation-items');
       const parsed = stored ? (JSON.parse(stored) as unknown) : [];
       const ids = Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
       return new Set<string>(ids);
@@ -101,6 +100,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
           }}
           role="dialog"
           aria-label="Switch space"
+          aria-modal="false"
         >
           <div className="space-switcher-dropdown__panel">
             <div className="space-switcher-dropdown__scroll">
@@ -113,6 +113,7 @@ const SpaceSwitcherDropdown: React.FC<SpaceSwitcherDropdownProps> = ({
                   key={item.id}
                   href={item.href}
                   className={`space-switcher-dropdown__item ${isActive ? 'is-active' : ''}`}
+                  aria-current={isActive ? 'page' : undefined}
                   onClick={() => onClose()}
                 >
                   <span className="space-switcher-dropdown__label">{item.title}</span>

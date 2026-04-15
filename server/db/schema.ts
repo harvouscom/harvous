@@ -72,6 +72,7 @@ export const Notes = pgTable(
     userId: text('userId').notNull(),
     isPublic: boolean('isPublic').notNull().default(false),
     isFeatured: boolean('isFeatured').notNull().default(false),
+    isPinned: boolean('isPinned').notNull().default(false),
     order: integer('order').notNull().default(0),
     shareToken: text('shareToken'),
     shareTokenCreatedAt: ts('shareTokenCreatedAt'),

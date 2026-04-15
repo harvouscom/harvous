@@ -21,7 +21,7 @@
 @media (min-width: 1160px) {
   .spotlight-overlay {
     display: grid !important;
-    grid-template-columns: 310px 1fr 1fr;
+    grid-template-columns: 260px minmax(430px, 690px) minmax(380px, 640px);
     gap: 1.5rem;
     /* At least 12px from viewport edges; keep 1.5rem when larger */
     padding: max(12px, 1.5rem) !important;
@@ -380,9 +380,13 @@
   outline: none;
 }
 
-.spotlight-container [cmdk-item]:focus,
-.spotlight-container [cmdk-item]:focus-visible {
+.spotlight-container [cmdk-item]:focus:not(:focus-visible) {
   outline: none;
+}
+
+.spotlight-container [cmdk-item]:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: 2px;
 }
 
 /* Row surface stays white; interaction = depth only (no paper tint, no scale).
