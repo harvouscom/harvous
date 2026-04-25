@@ -12,6 +12,7 @@ struct NoteEditorView: View {
 
     #if os(macOS)
     @State private var proxy = EditorProxy()
+    @State private var showInspector = false
     #endif
 
     // MARK: - Body
@@ -37,7 +38,7 @@ struct NoteEditorView: View {
             Text("Select a note from the list or create a new one.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background)
+        .background(Color.surfaceElevated)
     }
 
     // MARK: - Editor canvas
@@ -46,110 +47,118 @@ struct NoteEditorView: View {
     private func editorCanvas(note: Note) -> some View {
         VStack(spacing: 0) {
             #if os(macOS)
-            // Top info bar
-            infoBar(note: note)
-            Divider()
-            // Formatting toolbar
-            FormatToolbar(proxy: proxy)
-            Divider()
+            editorHeader(note: note)
+            Color.separatorWarm.frame(height: 0.5)
             #endif
 
             // Scrollable content: title + body
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Large title
+                    // Large warm title
                     TextField("Title", text: $title, axis: .vertical)
-                        .font(.system(size: 32, weight: .bold))
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundStyle(Color.inkPrimary)
                         .textFieldStyle(.plain)
                         .focused($titleFocused)
-                        .padding(.horizontal, 36)
-                        .padding(.top, 28)
+                        .padding(.horizontal, 48)
+                        .padding(.top, 36)
                         .padding(.bottom, 12)
                         .onChange(of: title) { _, _ in scheduleAutosave(note) }
 
                     // Scripture refs (live, beneath title)
                     if !editorState.detectedRefs.isEmpty {
                         refsBar
-                            .padding(.horizontal, 36)
-                            .padding(.bottom, 10)
+                            .padding(.horizontal, 48)
+                            .padding(.bottom, 12)
                     }
 
                     // Body editor — TextKit 2
+                    #if os(macOS)
                     HarvousEditor(
                         state: $editorState,
                         proxy: proxy,
                         placeholder: "Start writing…",
-                        font: .systemFont(ofSize: 15, weight: .regular)
+                        font: .systemFont(ofSize: 16, weight: .regular)
                     )
                     .frame(minHeight: 400)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, 44)
                     .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                    #else
+                    HarvousEditor(
+                        state: $editorState,
+                        placeholder: "Start writing…"
+                    )
+                    .frame(minHeight: 400)
+                    .padding(.horizontal, 44)
+                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                    #endif
 
-                    // Tags
+                    // Tags (read-only, now also visible in inspector)
                     if !note.tags.isEmpty {
                         tagsRow(note.tags)
-                            .padding(.horizontal, 36)
-                            .padding(.top, 16)
-                            .padding(.bottom, 32)
+                            .padding(.horizontal, 48)
+                            .padding(.top, 20)
+                            .padding(.bottom, 40)
+                    } else {
+                        Spacer().frame(height: 60)
                     }
                 }
             }
-            .background(.background)
+            .background(Color.surfaceElevated)
+
+            #if os(macOS)
+            // Conditional format toolbar — slides in when text is selected
+            if proxy.hasSelection {
+                FormatToolbar(proxy: proxy)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            #endif
         }
-        .background(.background)
+        .background(Color.surfaceElevated)
+        #if os(macOS)
+        .animation(HarvousAnimation.spring, value: proxy.hasSelection)
+        .inspector(isPresented: $showInspector) {
+            NoteInspectorView(note: note)
+                .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
+        }
+        #endif
         .background { autosaveBackground(note: note) }
     }
 
-    // MARK: - Info bar (macOS top strip)
+    // MARK: - Minimal editor header (macOS)
 
     #if os(macOS)
-    private func infoBar(note: Note) -> some View {
-        HStack(spacing: 12) {
-            // Date & time
-            Image(systemName: "calendar")
-                .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
-            Text(note.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .monospacedDigit()
-
+    private func editorHeader(note: Note) -> some View {
+        HStack(spacing: 4) {
             Spacer()
 
-            // Thread chip
-            if let color = note.color {
-                HStack(spacing: 4) {
-                    Circle().fill(color).frame(width: 7, height: 7)
-                    Text(note.threadName ?? "Study")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(.quaternary, in: Capsule())
-            }
+            // Share
+            headerButton("square.and.arrow.up", help: "Share") { }
 
-            // Action buttons
-            HStack(spacing: 2) {
-                toolbarIconButton("pin", help: "Pin") { }
-                toolbarIconButton("magnifyingglass", help: "Find") { }
-                toolbarIconButton("square.and.arrow.up", help: "Share") { }
+            // Inspector toggle — reveals thread, tags, dates panel
+            headerButton(
+                showInspector ? "sidebar.right" : "sidebar.right",
+                help: showInspector ? "Hide Inspector" : "Show Inspector"
+            ) {
+                withAnimation(HarvousAnimation.spring) {
+                    showInspector.toggle()
+                }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 7)
-        .background(.bar)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.surfaceElevated)
     }
 
-    private func toolbarIconButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
+    private func headerButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(Color.inkTertiary)
                 .frame(width: 28, height: 28)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(.secondary)
         .help(help)
     }
     #endif
@@ -175,7 +184,7 @@ struct NoteEditorView: View {
                         }
                         .foregroundStyle(.tint)
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.vertical, 5)
                         .background(.tint.opacity(0.08), in: Capsule())
                         .overlay(Capsule().strokeBorder(.tint.opacity(0.2), lineWidth: 0.5))
                     }
@@ -193,14 +202,14 @@ struct NoteEditorView: View {
         HStack(spacing: 6) {
             Image(systemName: "tag")
                 .font(.system(size: 11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.inkQuaternary)
             ForEach(tags, id: \.self) { tag in
                 Text(tag)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.inkSecondary)
                     .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(.quaternary, in: Capsule())
+                    .padding(.vertical, 4)
+                    .background(Color.surfaceInset, in: Capsule())
             }
         }
     }

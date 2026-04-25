@@ -1,18 +1,23 @@
 import SwiftUI
 
 enum HarvousRadius {
-    static let card:   CGFloat = 16
-    static let button: CGFloat = 12
-    static let input:  CGFloat = 10
-    static let pill:   CGFloat = 999
+    static let card:         CGFloat = 20   // "squishier" — up from 16
+    static let button:       CGFloat = 12
+    static let input:        CGFloat = 10
+    static let pill:         CGFloat = 999
+    static let rowHighlight: CGFloat = 10   // warm rounded row selection
+    static let formatButton: CGFloat = 8    // format toolbar button press
 }
 
 enum HarvousAnimation {
     /// Standard spring — most transitions
-    static let spring = Animation.spring(response: 0.3, dampingFraction: 0.7)
+    static let spring = Animation.spring(response: 0.32, dampingFraction: 0.72)
 
     /// Overshoot spring — sheet presents, card appears
-    static let snappy = Animation.spring(response: 0.45, dampingFraction: 0.6)
+    static let snappy = Animation.spring(response: 0.42, dampingFraction: 0.60)
+
+    /// Tactile press — quick snap with slight bounce
+    static let press  = Animation.spring(response: 0.22, dampingFraction: 0.55)
 }
 
 /// Card shadow — matches the design system 6/2 shadow

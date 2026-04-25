@@ -24,16 +24,28 @@ struct HarvousEditor: NSViewRepresentable {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
 
+        // Warm typography
+        let para = NSMutableParagraphStyle()
+        para.lineHeightMultiple = 1.55
+        textView.defaultParagraphStyle = para
+        textView.typingAttributes = [
+            .font: NSFont.systemFont(ofSize: 16, weight: .regular),
+            .foregroundColor: NSColor(Color.inkPrimary),
+            .paragraphStyle: para
+        ]
+
         textView.isRichText = true       // rich text so formatting attributes stick
         textView.font = font
-        textView.textColor = .labelColor
-        textView.backgroundColor = .clear
+        textView.textColor = NSColor(Color.inkPrimary)
+        textView.backgroundColor = NSColor(Color.surfaceElevated)
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsUndo = true
         textView.textContainerInset = NSSize(width: 4, height: 8)
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
+        context.coordinator.proxy = proxy
+        context.coordinator.placeholderText = placeholder
         proxy?.textView = textView   // wire proxy for toolbar actions
 
         // Placeholder
@@ -47,6 +59,7 @@ struct HarvousEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         let textView = scrollView.documentView as! NSTextView
+        context.coordinator.proxy = proxy
         // Only update if the source of truth changed externally (not from the user typing)
         if textView.string != state.plainText && !context.coordinator.isEditing {
             textView.string = state.plainText
@@ -56,7 +69,9 @@ struct HarvousEditor: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var state: EditorState
         weak var textView: NSTextView?
+        var proxy: EditorProxy?
         var isEditing = false
+        var placeholderText = "What are you studying?"
         private var debounceTask: Task<Void, Never>?
 
         init(state: Binding<EditorState>) { _state = state }
@@ -73,13 +88,18 @@ struct HarvousEditor: NSViewRepresentable {
             }
         }
 
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let tv = notification.object as? NSTextView else { return }
+            proxy?.hasSelection = tv.selectedRange().length > 0
+        }
+
         func textDidBeginEditing(_ notification: Notification) {
             guard let tv = notification.object as? NSTextView else { return }
             isEditing = true
             // Clear placeholder if it's still there
             if tv.textColor == .placeholderTextColor {
                 tv.string = ""
-                tv.textColor = .labelColor
+                tv.textColor = NSColor(Color.inkPrimary)
                 tv.font = .systemFont(ofSize: 16)
             }
         }
@@ -88,7 +108,7 @@ struct HarvousEditor: NSViewRepresentable {
             isEditing = false
             guard let tv = notification.object as? NSTextView else { return }
             if tv.string.isEmpty {
-                showPlaceholder(in: tv, text: "What are you studying?")
+                showPlaceholder(in: tv, text: placeholderText)
             }
         }
 
@@ -140,9 +160,11 @@ struct HarvousEditor: NSViewRepresentable {
                 storage.replaceCharacters(in: match.range, with: pillStr)
             }
 
-            // Restore font for the whole storage (pills excluded)
+            // Restore font + warm ink for the whole storage (pills excluded)
             let bodyFont: NSFont = .systemFont(ofSize: 16)
-            storage.addAttribute(.font, value: bodyFont, range: NSRange(location: 0, length: storage.length))
+            let fullLen = NSRange(location: 0, length: storage.length)
+            storage.addAttribute(.font, value: bodyFont, range: fullLen)
+            storage.addAttribute(.foregroundColor, value: NSColor(Color.inkPrimary), range: fullLen)
         }
     }
 }

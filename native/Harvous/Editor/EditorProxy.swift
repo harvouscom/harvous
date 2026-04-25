@@ -8,6 +8,9 @@ import AppKit
 final class EditorProxy {
     weak var textView: NSTextView?
 
+    /// True when the text view has a non-empty selection — drives conditional toolbar visibility.
+    var hasSelection: Bool = false
+
     // MARK: - Inline formatting
 
     func bold()          { toggleTrait(rawValue: 2) }   // NSBoldFontMask

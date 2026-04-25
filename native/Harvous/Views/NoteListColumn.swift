@@ -28,11 +28,13 @@ struct NoteListColumn: View {
             listHeader
             if searchVisible {
                 searchBar
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            Divider()
+            // Warm separator instead of system Divider
+            Color.separatorWarm.frame(height: 0.5)
             noteList
         }
-        .background(.background)
+        .background(Color.surfacePaper)
         #if os(macOS)
         .navigationBarBackButtonHidden(true)
         #endif
@@ -45,9 +47,10 @@ struct NoteListColumn: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Notes")
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.inkPrimary)
                 Text("\(notes.count)")
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.inkTertiary)
             }
 
             Spacer()
@@ -61,7 +64,7 @@ struct NoteListColumn: View {
             } label: {
                 Image(systemName: searchVisible ? "xmark.circle.fill" : "magnifyingglass")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(searchVisible ? Color.secondary : Color.primary)
+                    .foregroundStyle(searchVisible ? Color.inkSecondary : Color.inkTertiary)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -74,6 +77,7 @@ struct NoteListColumn: View {
             } label: {
                 Image(systemName: "square.and.pencil")
                     .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.inkTertiary)
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
@@ -83,6 +87,9 @@ struct NoteListColumn: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        #if os(macOS)
+        .padding(.top, 28)   // clear traffic light buttons (~y=7, h=12, plus breathing room)
+        #endif
     }
 
     // MARK: - Search bar
@@ -91,14 +98,15 @@ struct NoteListColumn: View {
         HStack(spacing: 6) {
             Image(systemName: "magnifyingglass")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.inkTertiary)
             TextField("Search", text: $searchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13))
+                .foregroundStyle(Color.inkPrimary)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 7))
+        .padding(.vertical, 7)
+        .background(Color.surfaceInset, in: RoundedRectangle(cornerRadius: HarvousRadius.input))
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
     }
@@ -112,11 +120,17 @@ struct NoteListColumn: View {
             } else if filtered.isEmpty {
                 ContentUnavailableView.search(text: searchText)
             } else {
-                List(selection: $selectedNote) {
+                List {
                     ForEach(filtered) { note in
+                        let isSelected = selectedNote?.id == note.id
                         NoteRow(note: note)
-                            .tag(note)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .listRowInsets(EdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 6))
+                            .listRowBackground(
+                                RoundedRectangle(cornerRadius: HarvousRadius.rowHighlight)
+                                    .fill(isSelected ? Color.surfaceInset : Color.clear)
+                            )
+                            .listRowSeparator(.hidden)
+                            .onTapGesture { selectedNote = note }
                             .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                 Button(role: .destructive) {
                                     withAnimation {
@@ -130,6 +144,7 @@ struct NoteListColumn: View {
                     }
                 }
                 .listStyle(.plain)
+                .scrollContentBackground(.hidden)
             }
         }
     }
@@ -139,13 +154,13 @@ struct NoteListColumn: View {
             Spacer()
             Image(systemName: "note.text")
                 .font(.system(size: 36))
-                .foregroundStyle(.quaternary)
+                .foregroundStyle(Color.inkQuaternary)
             Text("No Notes")
                 .font(.headline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.inkSecondary)
             Text("Tap + to write your first note")
                 .font(.subheadline)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.inkTertiary)
             Spacer()
         }
         .frame(maxWidth: .infinity)
@@ -187,22 +202,22 @@ struct NoteRow: View {
                 Text(note.title.isEmpty ? "New Note" : note.title)
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.inkPrimary)
 
                 // Time · Preview
                 HStack(spacing: 4) {
                     Text(timeString)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.inkSecondary)
                         .monospacedDigit()
 
                     if !note.excerpt.isEmpty {
                         Text("·")
                             .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.inkTertiary)
                         Text(note.excerpt)
                             .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(Color.inkTertiary)
                             .lineLimit(1)
                     }
                 }
@@ -220,7 +235,7 @@ struct NoteRow: View {
             }
             .padding(.leading, 10)
             .padding(.trailing, 12)
-            .padding(.vertical, 10)
+            .padding(.vertical, 14)
 
             Spacer(minLength: 0)
         }

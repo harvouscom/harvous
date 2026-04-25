@@ -26,8 +26,6 @@ struct MacRootView: View {
             NoteEditorView(note: $selectedNote)
         }
         .navigationSplitViewStyle(.balanced)
-        // Remove default NavigationSplitView chrome — we draw our own headers
-        .toolbar(removing: .sidebarToggle)
         .sheet(isPresented: $showCompose) {
             ComposeView()
                 .frame(minWidth: 580, minHeight: 460)
