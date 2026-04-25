@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		00D118AAD2EB053B23E27351 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */; };
 		05A5A4F94605710C92CA410D /* HarvousCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1774DF51E262C76E2037DDE /* HarvousCommands.swift */; };
 		11E4CA639E3852FB2B83ED7C /* HarvousApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D3CDB28BB9BF31E5832F658 /* HarvousApp.swift */; };
 		11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */; };
@@ -18,6 +19,7 @@
 		2FCBC6156879C10416C7FCB1 /* EditorProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = A558DFE7A163CA6814087B53 /* EditorProxy.swift */; };
 		30643B6C28BBCF90AE8C6E7E /* NoteInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */; };
 		30773BC86840645FA9BAA89D /* FormatToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015EBAC7E62B7ABD652CC01F /* FormatToolbar.swift */; };
+		324639F45943496108869D5C /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */; };
 		3351A1BA164277C29E29001B /* HarvousTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */; };
 		3F878DF7B397137585885C3F /* FormatToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015EBAC7E62B7ABD652CC01F /* FormatToolbar.swift */; };
 		4516BEEC0FEA8BDCECCD6B4E /* NoteListColumn.swift in Sources */ = {isa = PBXBuildFile; fileRef = 498127C75F54638C23269FD1 /* NoteListColumn.swift */; };
@@ -74,6 +76,7 @@
 		B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteInspectorView.swift; sourceTree = "<group>"; };
 		B4AC0F9F8412356EDEC99471 /* ScripturePillAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScripturePillAttachment.swift; sourceTree = "<group>"; };
 		CD0F9C5430AFA2554D051317 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		D94D3C7B640BE394DACE5E71 /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		DC1067124A419BAF7002F22E /* Harvous.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Harvous.entitlements; sourceTree = "<group>"; };
 		E71DE04A6AE210B9D54FE8A0 /* HarvousTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HarvousTypography.swift; sourceTree = "<group>"; };
@@ -91,6 +94,7 @@
 				B01C0F956EDEE14AFA9CFCE4 /* NoteInspectorView.swift */,
 				498127C75F54638C23269FD1 /* NoteListColumn.swift */,
 				1E7587B49945E3F37FDB606B /* SearchView.swift */,
+				D2C6D1224F965D7DAF8B1A2E /* SidebarView.swift */,
 				8F3B8EAAC2F85848348AB8E7 /* StatefulNoteEditorView.swift */,
 			);
 			path = Views;
@@ -263,6 +267,7 @@
 				691AFE34426BBA935459B53C /* ScripturePillAttachment.swift in Sources */,
 				C06E43E4F5E8CFA1AD5F4487 /* ScriptureReference.swift in Sources */,
 				DB9B283B25937DC63F027FF1 /* SearchView.swift in Sources */,
+				324639F45943496108869D5C /* SidebarView.swift in Sources */,
 				2C480230041FBA380D8FA2EB /* StatefulNoteEditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -291,6 +296,7 @@
 				FED33FD47C6FC27C86F60E52 /* ScripturePillAttachment.swift in Sources */,
 				6EA9F1BA119843B7DF4A67E6 /* ScriptureReference.swift in Sources */,
 				7A040EC5951B3EFD172A8737 /* SearchView.swift in Sources */,
+				00D118AAD2EB053B23E27351 /* SidebarView.swift in Sources */,
 				11E76E611295AAE9DF380859 /* StatefulNoteEditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

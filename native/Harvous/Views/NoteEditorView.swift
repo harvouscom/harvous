@@ -27,6 +27,9 @@ struct NoteEditorView: View {
         }
         .onChange(of: note?.id) { _, _ in syncFromNote() }
         .onAppear { syncFromNote() }
+        #if os(macOS)
+        .toolbar { editorToolbar }
+        #endif
     }
 
     // MARK: - Empty state
@@ -35,7 +38,7 @@ struct NoteEditorView: View {
         ContentUnavailableView {
             Label("No Note Selected", systemImage: "note.text")
         } description: {
-            Text("Select a note from the list or create a new one.")
+            Text("Select a note from the list, or press ⌘N to compose a new one.")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.surfaceElevated)
@@ -45,78 +48,59 @@ struct NoteEditorView: View {
 
     @ViewBuilder
     private func editorCanvas(note: Note) -> some View {
-        VStack(spacing: 0) {
-            #if os(macOS)
-            editorHeader(note: note)
-            Color.separatorWarm.frame(height: 0.5)
-            #endif
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Title — Apple Notes style: large, bold, full-width
+                TextField("Title", text: $title, axis: .vertical)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color.inkPrimary)
+                    .textFieldStyle(.plain)
+                    .focused($titleFocused)
+                    .padding(.horizontal, 32)
+                    .padding(.top, 24)
+                    .padding(.bottom, 4)
+                    .onChange(of: title) { _, _ in scheduleAutosave(note) }
 
-            // Scrollable content: title + body
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Large warm title
-                    TextField("Title", text: $title, axis: .vertical)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundStyle(Color.inkPrimary)
-                        .textFieldStyle(.plain)
-                        .focused($titleFocused)
-                        .padding(.horizontal, 48)
-                        .padding(.top, 36)
+                // Date line — Apple Notes-style subtle date below title
+                Text(note.updatedAt.formatted(date: .long, time: .omitted))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.inkTertiary)
+                    .padding(.horizontal, 32)
+                    .padding(.bottom, 16)
+
+                // Scripture refs strip (Harvous addition — tasteful)
+                if !editorState.detectedRefs.isEmpty {
+                    refsBar
+                        .padding(.horizontal, 32)
                         .padding(.bottom, 12)
-                        .onChange(of: title) { _, _ in scheduleAutosave(note) }
-
-                    // Scripture refs (live, beneath title)
-                    if !editorState.detectedRefs.isEmpty {
-                        refsBar
-                            .padding(.horizontal, 48)
-                            .padding(.bottom, 12)
-                    }
-
-                    // Body editor — TextKit 2
-                    #if os(macOS)
-                    HarvousEditor(
-                        state: $editorState,
-                        proxy: proxy,
-                        placeholder: "Start writing…",
-                        font: .systemFont(ofSize: 16, weight: .regular)
-                    )
-                    .frame(minHeight: 400)
-                    .padding(.horizontal, 44)
-                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                    #else
-                    HarvousEditor(
-                        state: $editorState,
-                        placeholder: "Start writing…"
-                    )
-                    .frame(minHeight: 400)
-                    .padding(.horizontal, 44)
-                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                    #endif
-
-                    // Tags (read-only, now also visible in inspector)
-                    if !note.tags.isEmpty {
-                        tagsRow(note.tags)
-                            .padding(.horizontal, 48)
-                            .padding(.top, 20)
-                            .padding(.bottom, 40)
-                    } else {
-                        Spacer().frame(height: 60)
-                    }
                 }
-            }
-            .background(Color.surfaceElevated)
 
-            #if os(macOS)
-            // Conditional format toolbar — slides in when text is selected
-            if proxy.hasSelection {
-                FormatToolbar(proxy: proxy)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                // Body — TextKit 2
+                #if os(macOS)
+                HarvousEditor(
+                    state: $editorState,
+                    proxy: proxy,
+                    placeholder: "Start writing…",
+                    font: .systemFont(ofSize: 15, weight: .regular)
+                )
+                .frame(minHeight: 400)
+                .padding(.horizontal, 28)
+                .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                #else
+                HarvousEditor(
+                    state: $editorState,
+                    placeholder: "Start writing…"
+                )
+                .frame(minHeight: 400)
+                .padding(.horizontal, 28)
+                .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                #endif
+
+                Spacer().frame(height: 80)
             }
-            #endif
         }
         .background(Color.surfaceElevated)
         #if os(macOS)
-        .animation(HarvousAnimation.spring, value: proxy.hasSelection)
         .inspector(isPresented: $showInspector) {
             NoteInspectorView(note: note)
                 .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
@@ -125,93 +109,117 @@ struct NoteEditorView: View {
         .background { autosaveBackground(note: note) }
     }
 
-    // MARK: - Minimal editor header (macOS)
+    // MARK: - Native toolbar (macOS — Apple Notes style)
 
     #if os(macOS)
-    private func editorHeader(note: Note) -> some View {
-        HStack(spacing: 4) {
-            Spacer()
-
-            // Share
-            headerButton("square.and.arrow.up", help: "Share") { }
-
-            // Inspector toggle — reveals thread, tags, dates panel
-            headerButton(
-                showInspector ? "sidebar.right" : "sidebar.right",
-                help: showInspector ? "Hide Inspector" : "Show Inspector"
-            ) {
-                withAnimation(HarvousAnimation.spring) {
-                    showInspector.toggle()
+    @ToolbarContentBuilder
+    private var editorToolbar: some ToolbarContent {
+        // Format menu — "Aa" equivalent
+        ToolbarItem(placement: .automatic) {
+            Menu {
+                Section("Style") {
+                    Button { proxy.bold() }          label: { Label("Bold", systemImage: "bold") }
+                    Button { proxy.italic() }        label: { Label("Italic", systemImage: "italic") }
+                    Button { proxy.strikethrough() } label: { Label("Strikethrough", systemImage: "strikethrough") }
                 }
+                Section("Heading") {
+                    Button("Heading 1") { proxy.heading(1) }
+                    Button("Heading 2") { proxy.heading(2) }
+                    Button("Heading 3") { proxy.heading(3) }
+                    Button("Body Text")  { proxy.bodyText() }
+                }
+            } label: {
+                Label("Format", systemImage: "textformat")
             }
+            .help("Format Text (Aa)")
+            .disabled(note == nil)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color.surfaceElevated)
-    }
 
-    private func headerButton(_ symbol: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.inkTertiary)
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+        // List buttons
+        ToolbarItem(placement: .automatic) {
+            Button { proxy.insertBullet() } label: {
+                Image(systemName: "list.bullet")
+            }
+            .help("Bullet List")
+            .disabled(note == nil)
         }
-        .buttonStyle(.plain)
-        .help(help)
+
+        ToolbarItem(placement: .automatic) {
+            Button { proxy.insertNumbered() } label: {
+                Image(systemName: "list.number")
+            }
+            .help("Numbered List")
+            .disabled(note == nil)
+        }
+
+        // Code block
+        ToolbarItem(placement: .automatic) {
+            Button { proxy.insertCode() } label: {
+                Image(systemName: "chevron.left.forwardslash.chevron.right")
+            }
+            .help("Code Block")
+            .disabled(note == nil)
+        }
+
+        // Divider line
+        ToolbarItem(placement: .automatic) {
+            Button { proxy.insertDivider() } label: {
+                Image(systemName: "minus")
+            }
+            .help("Insert Divider")
+            .disabled(note == nil)
+        }
+
+        // Flexible space pushes share + inspector to trailing edge
+        ToolbarItem(placement: .automatic) {
+            Spacer()
+        }
+
+        // Share
+        ToolbarItem(placement: .automatic) {
+            Button { } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .help("Share")
+            .disabled(note == nil)
+        }
+
+        // Inspector toggle — Harvous addition (info panel for thread, tags, refs)
+        ToolbarItem(placement: .automatic) {
+            Button {
+                withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
+            } label: {
+                Image(systemName: showInspector ? "info.circle.fill" : "info.circle")
+                    .foregroundStyle(showInspector ? Color.harvousAccent : .primary)
+            }
+            .help(showInspector ? "Hide Info" : "Show Info")
+            .disabled(note == nil)
+        }
     }
     #endif
 
-    // MARK: - Refs bar
+    // MARK: - Refs bar (Harvous scripture strip)
 
     private var refsBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(editorState.detectedRefs, id: \.self) { ref in
-                    Menu {
-                        Section("Translation") {
-                            ForEach(ScriptureReference.availableTranslations, id: \.self) { t in
-                                Button(t) { }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "book.closed.fill")
-                                .font(.system(size: 9))
-                            Text(ref)
-                                .font(.system(size: 12, weight: .medium))
-                        }
-                        .foregroundStyle(.tint)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.tint.opacity(0.08), in: Capsule())
-                        .overlay(Capsule().strokeBorder(.tint.opacity(0.2), lineWidth: 0.5))
+                    HStack(spacing: 4) {
+                        Image(systemName: "book.closed.fill")
+                            .font(.system(size: 9))
+                        Text(ref)
+                            .font(.system(size: 12, weight: .medium))
                     }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.tint.opacity(0.08), in: Capsule())
+                    .overlay(Capsule().strokeBorder(.tint.opacity(0.2), lineWidth: 0.5))
                 }
             }
         }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(HarvousAnimation.spring, value: editorState.detectedRefs.count)
-    }
-
-    // MARK: - Tags
-
-    private func tagsRow(_ tags: [String]) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "tag")
-                .font(.system(size: 11))
-                .foregroundStyle(Color.inkQuaternary)
-            ForEach(tags, id: \.self) { tag in
-                Text(tag)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.inkSecondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.surfaceInset, in: Capsule())
-            }
-        }
     }
 
     // MARK: - Autosave

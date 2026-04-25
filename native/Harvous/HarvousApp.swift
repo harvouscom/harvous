@@ -14,8 +14,7 @@ struct HarvousApp: App {
             HarvousCommands(showCompose: $showCompose)
         }
         #if os(macOS)
-        .windowStyle(.hiddenTitleBar)
-        .defaultSize(width: 1100, height: 700)
+        .defaultSize(width: 1200, height: 740)
         .windowResizability(.contentMinSize)
         #endif
     }

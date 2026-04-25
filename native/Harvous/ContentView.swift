@@ -11,21 +11,34 @@ struct ContentView: View {
     }
 }
 
-// MARK: - macOS: Two-column (Bear / Apple Notes style)
+// MARK: - macOS: Three-column (Apple Notes style)
 
 #if os(macOS)
 struct MacRootView: View {
+    @State private var selectedFilter: NoteFilter = .all
     @State private var selectedNote: Note?
     @State private var showCompose = false
 
     var body: some View {
         NavigationSplitView {
-            NoteListColumn(selectedNote: $selectedNote, showCompose: $showCompose)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 340)
+            // Column 1: Sidebar — threads / folder list
+            SidebarView(selectedFilter: $selectedFilter)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
+        } content: {
+            // Column 2: Note list — filtered by sidebar selection
+            NoteListColumn(
+                filter: selectedFilter,
+                selectedNote: $selectedNote,
+                showCompose: $showCompose
+            )
+            .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
         } detail: {
+            // Column 3: Editor
             NoteEditorView(note: $selectedNote)
         }
         .navigationSplitViewStyle(.balanced)
+        // Reset selected note when the filter changes
+        .onChange(of: selectedFilter) { _, _ in selectedNote = nil }
         .sheet(isPresented: $showCompose) {
             ComposeView()
                 .frame(minWidth: 580, minHeight: 460)
