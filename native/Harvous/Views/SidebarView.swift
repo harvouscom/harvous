@@ -20,6 +20,7 @@ enum NoteFilter: Hashable, Sendable {
 #if os(macOS)
 struct SidebarView: View {
     @Binding var selectedFilter: NoteFilter
+    var onNewNote: () -> Void = {}
     @Query private var notes: [Note]
 
     private let threadOrder = ["blue", "yellow", "green", "pink", "orange", "purple"]
@@ -63,6 +64,16 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .navigationTitle("Harvous")
+        .toolbar {
+            // Compose button lives here — sidebar is always visible
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: onNewNote) {
+                    Image(systemName: "square.and.pencil")
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                .help("New Note (⌘N)")
+            }
+        }
     }
 }
 

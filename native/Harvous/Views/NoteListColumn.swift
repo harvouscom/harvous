@@ -56,17 +56,16 @@ struct NoteListColumn: View {
         .background(Color.surfacePaper)
         .navigationTitle(filter.displayName)
         .searchable(text: $searchText, prompt: "Search")
+        #if os(iOS)
         .toolbar {
-            #if os(macOS)
-            ToolbarItem(placement: .automatic) {
+            ToolbarItem(placement: .primaryAction) {
                 Button(action: onNewNote) {
                     Image(systemName: "square.and.pencil")
                 }
-                .keyboardShortcut("n", modifiers: .command)
-                .help("New Note (⌘N)")
+                .help("New Note")
             }
-            #endif
         }
+        #endif
     }
 
     // MARK: - Note list

@@ -11,37 +11,53 @@ struct ContentView: View {
     }
 }
 
-// MARK: - macOS: Three-column (Apple Notes style)
+// MARK: - macOS root view
 
 #if os(macOS)
 struct MacRootView: View {
     @State private var selectedFilter: NoteFilter = .all
     @State private var selectedNote: Note?
-    @State private var lastSelectedNote: Note?   // for empty-note cleanup
+    @State private var lastSelectedNote: Note?
+
+    /// Drives which columns are visible.
+    /// Default: editor-only (.detailOnly). Note list peeks in when browsing,
+    /// collapses back the moment a note is selected — like the format bar.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+
     @Environment(\.modelContext) private var context
 
     var body: some View {
-        NavigationSplitView {
-            // Column 1: Sidebar — threads / folder list
-            SidebarView(selectedFilter: $selectedFilter)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            // Column 1: Sidebar — always visible, very narrow
+            SidebarView(
+                selectedFilter: $selectedFilter,
+                onNewNote: createNewNote
+            )
+            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
         } content: {
-            // Column 2: Note list — filtered by sidebar selection
+            // Column 2: Note list — peeks in on browse, collapses on note-select
             NoteListColumn(
                 filter: selectedFilter,
                 selectedNote: $selectedNote,
                 onNewNote: createNewNote
             )
-            .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
+            .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
         } detail: {
-            // Column 3: Editor
+            // Column 3: Editor — the main canvas
             NoteEditorView(note: $selectedNote)
         }
         .navigationSplitViewStyle(.balanced)
-        // Reset selected note when the filter changes
-        .onChange(of: selectedFilter) { _, _ in selectedNote = nil }
-        // Discard empty notes when navigating away (Apple Notes behavior)
-        .onChange(of: selectedNote?.id) { _, _ in
+        // Sidebar filter tapped → show note list so user can browse
+        .onChange(of: selectedFilter) { _, _ in
+            selectedNote = nil
+            withAnimation(HarvousAnimation.spring) { columnVisibility = .all }
+        }
+        // Note selected → slide the note list back away
+        .onChange(of: selectedNote?.id) { _, newID in
+            if newID != nil {
+                withAnimation(HarvousAnimation.spring) { columnVisibility = .detailOnly }
+            }
+            // Discard empty notes when navigating away (Apple Notes behavior)
             if let prev = lastSelectedNote,
                prev.id != selectedNote?.id,
                prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -52,14 +68,14 @@ struct MacRootView: View {
         }
     }
 
-    // MARK: - Create new note inline (Apple Notes style — no sheet)
+    // MARK: - Create note inline (Apple Notes style — no sheet)
     private func createNewNote() {
+        // Show the list briefly so the user sees the new note appear, then collapse
+        withAnimation(HarvousAnimation.spring) { columnVisibility = .all }
         let note = Note()
-        // Pre-assign thread color if we're inside a specific thread
-        if case .thread(let key) = selectedFilter {
-            note.threadColor = key
-        }
+        if case .thread(let key) = selectedFilter { note.threadColor = key }
         context.insert(note)
+        // Selecting the note will auto-collapse the list via onChange above
         selectedNote = note
     }
 }
