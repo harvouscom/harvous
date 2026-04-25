@@ -48,59 +48,71 @@ struct NoteEditorView: View {
 
     @ViewBuilder
     private func editorCanvas(note: Note) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                // Title — Apple Notes style: large, bold, full-width
-                TextField("Title", text: $title, axis: .vertical)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Color.inkPrimary)
-                    .textFieldStyle(.plain)
-                    .focused($titleFocused)
-                    .padding(.horizontal, 32)
-                    .padding(.top, 24)
-                    .padding(.bottom, 4)
-                    .onChange(of: title) { _, _ in scheduleAutosave(note) }
-
-                // Date line — Apple Notes-style subtle date below title
-                Text(note.updatedAt.formatted(date: .long, time: .omitted))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.inkTertiary)
-                    .padding(.horizontal, 32)
-                    .padding(.bottom, 16)
-
-                // Scripture refs strip (Harvous addition — tasteful)
-                if !editorState.detectedRefs.isEmpty {
-                    refsBar
+        VStack(spacing: 0) {
+            // Scrollable writing surface
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Title — Apple Notes style: large, bold, full-width
+                    TextField("Title", text: $title, axis: .vertical)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color.inkPrimary)
+                        .textFieldStyle(.plain)
+                        .focused($titleFocused)
                         .padding(.horizontal, 32)
-                        .padding(.bottom, 12)
+                        .padding(.top, 24)
+                        .padding(.bottom, 4)
+                        .onChange(of: title) { _, _ in scheduleAutosave(note) }
+
+                    // Date line — Apple Notes-style subtle date below title
+                    Text(note.updatedAt.formatted(date: .long, time: .omitted))
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.inkTertiary)
+                        .padding(.horizontal, 32)
+                        .padding(.bottom, 16)
+
+                    // Scripture refs strip (Harvous addition — tasteful)
+                    if !editorState.detectedRefs.isEmpty {
+                        refsBar
+                            .padding(.horizontal, 32)
+                            .padding(.bottom, 12)
+                    }
+
+                    // Body — TextKit 2
+                    #if os(macOS)
+                    HarvousEditor(
+                        state: $editorState,
+                        proxy: proxy,
+                        placeholder: "Start writing…",
+                        font: .systemFont(ofSize: 15, weight: .regular)
+                    )
+                    .frame(minHeight: 400)
+                    .padding(.horizontal, 28)
+                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                    #else
+                    HarvousEditor(
+                        state: $editorState,
+                        placeholder: "Start writing…"
+                    )
+                    .frame(minHeight: 400)
+                    .padding(.horizontal, 28)
+                    .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
+                    #endif
+
+                    Spacer().frame(height: 80)
                 }
-
-                // Body — TextKit 2
-                #if os(macOS)
-                HarvousEditor(
-                    state: $editorState,
-                    proxy: proxy,
-                    placeholder: "Start writing…",
-                    font: .systemFont(ofSize: 15, weight: .regular)
-                )
-                .frame(minHeight: 400)
-                .padding(.horizontal, 28)
-                .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                #else
-                HarvousEditor(
-                    state: $editorState,
-                    placeholder: "Start writing…"
-                )
-                .frame(minHeight: 400)
-                .padding(.horizontal, 28)
-                .onChange(of: editorState.plainText) { _, _ in scheduleAutosave(note) }
-                #endif
-
-                Spacer().frame(height: 80)
             }
+            .background(Color.surfaceElevated)
+
+            #if os(macOS)
+            // Conditional format bar — peeks up from the bottom when text is selected
+            if proxy.hasSelection {
+                FormatToolbar(proxy: proxy)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            #endif
         }
-        .background(Color.surfaceElevated)
         #if os(macOS)
+        .animation(HarvousAnimation.spring, value: proxy.hasSelection)
         .inspector(isPresented: $showInspector) {
             NoteInspectorView(note: note)
                 .inspectorColumnWidth(min: 240, ideal: 280, max: 320)
@@ -109,74 +121,14 @@ struct NoteEditorView: View {
         .background { autosaveBackground(note: note) }
     }
 
-    // MARK: - Native toolbar (macOS — Apple Notes style)
+    // MARK: - Native toolbar (macOS)
+    // Formatting lives in the conditional bottom bar; toolbar carries note-level actions only.
 
     #if os(macOS)
     @ToolbarContentBuilder
     private var editorToolbar: some ToolbarContent {
-        // Format menu — "Aa" equivalent
-        ToolbarItem(placement: .automatic) {
-            Menu {
-                Section("Style") {
-                    Button { proxy.bold() }          label: { Label("Bold", systemImage: "bold") }
-                    Button { proxy.italic() }        label: { Label("Italic", systemImage: "italic") }
-                    Button { proxy.strikethrough() } label: { Label("Strikethrough", systemImage: "strikethrough") }
-                }
-                Section("Heading") {
-                    Button("Heading 1") { proxy.heading(1) }
-                    Button("Heading 2") { proxy.heading(2) }
-                    Button("Heading 3") { proxy.heading(3) }
-                    Button("Body Text")  { proxy.bodyText() }
-                }
-            } label: {
-                Label("Format", systemImage: "textformat")
-            }
-            .help("Format Text (Aa)")
-            .disabled(note == nil)
-        }
-
-        // List buttons
-        ToolbarItem(placement: .automatic) {
-            Button { proxy.insertBullet() } label: {
-                Image(systemName: "list.bullet")
-            }
-            .help("Bullet List")
-            .disabled(note == nil)
-        }
-
-        ToolbarItem(placement: .automatic) {
-            Button { proxy.insertNumbered() } label: {
-                Image(systemName: "list.number")
-            }
-            .help("Numbered List")
-            .disabled(note == nil)
-        }
-
-        // Code block
-        ToolbarItem(placement: .automatic) {
-            Button { proxy.insertCode() } label: {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-            }
-            .help("Code Block")
-            .disabled(note == nil)
-        }
-
-        // Divider line
-        ToolbarItem(placement: .automatic) {
-            Button { proxy.insertDivider() } label: {
-                Image(systemName: "minus")
-            }
-            .help("Insert Divider")
-            .disabled(note == nil)
-        }
-
-        // Flexible space pushes share + inspector to trailing edge
-        ToolbarItem(placement: .automatic) {
-            Spacer()
-        }
-
         // Share
-        ToolbarItem(placement: .automatic) {
+        ToolbarItem(placement: .primaryAction) {
             Button { } label: {
                 Image(systemName: "square.and.arrow.up")
             }
@@ -184,8 +136,8 @@ struct NoteEditorView: View {
             .disabled(note == nil)
         }
 
-        // Inspector toggle — Harvous addition (info panel for thread, tags, refs)
-        ToolbarItem(placement: .automatic) {
+        // Inspector toggle — thread, tags, refs, dates
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 withAnimation(HarvousAnimation.spring) { showInspector.toggle() }
             } label: {
