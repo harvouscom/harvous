@@ -10,7 +10,18 @@ Harvous should feel like a digital study Bible crossed with a personal journal �
 
 1. **Writing first.** Every interaction should start at the blank page, not a form.
 2. **Intelligence behind the scenes.** Organization happens automatically; the user names it later if they want to.
-3. **Native from day one.** The web version should feel indistinguishable from a SwiftUI app so the native port is an evolution, not a rewrite.
+3. **Native, not web-in-a-shell.** The app is built in SwiftUI and TextKit 2. No Capacitor wrapper, no WKWebView editor, no web tech masquerading as native. The platform commitment is total.
+
+---
+
+## Platform Commitment: Full Native
+
+This redesign is not a Capacitor wrapper or a React app running inside a WKWebView. It is a ground-up SwiftUI + TextKit 2 app. That means:
+
+- **No Capacitor** — drop `CAPACITOR_STRATEGIC_ANALYSIS.md` and `CAPACITOR_SETUP_GUIDE.md` as the path forward. They were the right bridge strategy; this is the real destination.
+- **No TipTap / ProseMirror in the native app** — TipTap is a web editor. Its entire value is ProseMirror's document model, which is JavaScript. In native, TextKit 2 does the same job better: real keyboard handling, real selection, real system text interactions, VoiceOver, Dynamic Type — all free.
+- **TipTap lives on if there's a web version** — if a desktop/browser experience is maintained (e.g. harvous.com), TipTap stays there. The two share the API layer but not the editor. This is the same pattern as Bear, Craft, and iA Writer: native app + web app, different editors, same data.
+- **The backend doesn't change** — Supabase, the note API, scripture processing, tag generation — all unchanged. The native app calls the same endpoints.
 
 ---
 
@@ -20,11 +31,12 @@ Harvous should feel like a digital study Bible crossed with a personal journal �
 |---|---|
 | Thread IDs, NoteThreads table, color assignments | Background intelligence still uses the same graph |
 | Space membership, sharing, access control | Modes are a UX reframe — the data model is identical |
-| Scripture pill system, translation override | Core magic — unchanged |
+| Scripture pill *concept* and translation override | Core magic — reimplemented in TextKit 2, not TipTap |
 | Tag generation, connection detection | Powers the intelligence layer |
 | Offline sync, Supabase real-time | Infrastructure stays |
+| All API endpoints | The native app is a new client, not a new backend |
 
-The redesign is **entirely presentation**. No backend schema changes required.
+The redesign replaces the **client** entirely. The backend is untouched.
 
 ---
 
@@ -38,6 +50,10 @@ The redesign is **entirely presentation**. No backend schema changes required.
 | Featured carousel at top of home | Recall swipe-up layer |
 | Tab filters (All / Threads / Notes / Scripture) | Search tab + filter chips inside Library |
 | Persistent space name in nav bar | Mode tint — ambient, not labeled |
+| **TipTap / ProseMirror** | **TextKit 2 native editor** |
+| **Capacitor bridge** | **SwiftUI native app** |
+| **React component tree** | **SwiftUI views** |
+| **CSS design tokens** | **SwiftUI design tokens (`Color`, `Font`, `ShapeStyle`)** |
 
 ---
 
@@ -164,6 +180,120 @@ The current flow is form-first: pick a thread, then type, then save.
 - Tags generate after a 1-second debounce
 - Thread suggestion is post-typing inference, not an upfront form field
 - Save is instant; a toast confirms: *"Added to Philippians Study"*
+
+---
+
+## Concept 5b — The Editor: TextKit 2, Not TipTap
+
+The Harvous editor is the core product surface. Getting it right means building it with the platform, not around it.
+
+### Why not TipTap in a WKWebView
+
+TipTap runs in a JavaScript runtime inside a web view. Every iOS-specific issue in the current codebase traces back to this seam:
+
+- `visualViewport` tracking to handle keyboard height (a hack for what UIKit gives you for free)
+- `user-select: none` breaking ProseMirror position detection, requiring capture-phase DOM workarounds
+- `appendTransaction` plugins to prevent mark bleeding — solving a problem TextKit 2 doesn't have
+- iOS double-space-to-period breaking because JavaScript intercepts keyboard events before UIKit
+
+Replacing the web view with a native `UITextView` / TextKit 2 editor eliminates this entire class of problem.
+
+### TextKit 2 as the foundation
+
+Apple Notes, Mail, and Messages all use TextKit 2. It's the most battle-tested text engine on the platform.
+
+```
+UITextView
+  └── NSTextContentStorage  (document model — equivalent to ProseMirror doc)
+        └── NSTextStorage    (NSAttributedString — equivalent to marks/nodes)
+  └── NSTextLayoutManager   (layout — equivalent to ProseMirror decorations)
+        └── NSTextContainer  (viewport)
+```
+
+**What this gives Harvous for free:**
+- Real keyboard handling (no hacks for autocorrect, autocapitalize, double-space-to-period)
+- System copy/paste with native pasteboard behavior
+- Selection handles, magnifying glass, cursor blinking
+- VoiceOver / accessibility out of the box
+- Dynamic Type: respects the user's system font size setting
+- Writing Tools on iOS 18+ (Summarize, Rewrite, Proofread) — zero additional work
+
+### Scripture pills as NSTextAttachment
+
+The scripture pill is reimplemented as a custom `NSTextAttachment` subclass — a native UIView embedded inline in the text:
+
+```swift
+class ScripturePillAttachment: NSTextAttachment {
+    let reference: String        // "Philippians 4:13"
+    let translation: String      // "ESV"
+
+    override func attachmentBounds(
+        for textContainer: NSTextContainer?,
+        proposedLineFragment: CGRect,
+        glyphPosition: CGPoint,
+        characterIndex charIndex: Int
+    ) -> CGRect {
+        // Size the pill to fit the reference text
+        let pillSize = PillRenderer.size(for: reference, translation: translation)
+        return CGRect(origin: .zero, size: pillSize)
+    }
+}
+
+// Rendered as a SwiftUI view via UIHostingController, or drawn directly in Core Graphics
+struct ScripturePillView: View {
+    let reference: String
+    let translation: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(reference)
+                .font(.system(size: 14, weight: .medium))
+            Text(translation)
+                .font(.system(size: 12, weight: .regular))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
+        .background(.tint.opacity(0.12), in: Capsule())
+        .overlay(Capsule().strokeBorder(.tint.opacity(0.25), lineWidth: 1))
+    }
+}
+```
+
+**What this preserves from the current system:**
+- Pill visual design (capsule shape, reference + translation badge)
+- Per-pill translation override — stored as a custom `NSAttributedString` attribute key (`HarvousScriptureTranslation`) on the attachment range
+- Atomic deletion — `NSTextAttachment` is a single character in the attributed string; backspace removes the whole pill, same as today
+- Tap to open translation picker — `UITapGestureRecognizer` on the text view, hit-test to find attachment bounds
+
+### Scripture detection in Swift
+
+`scripture-detector.ts` ports directly to Swift. The regex logic is language-agnostic:
+
+```swift
+// ScriptureDetector.swift
+struct DetectedReference {
+    let range: Range<String.Index>
+    let book: String
+    let chapter: Int
+    let verse: Int?
+    let endVerse: Int?
+}
+
+struct ScriptureDetector {
+    static func detect(in text: String) -> [DetectedReference] {
+        // Same regex patterns as scripture-detector.ts, ported to NSRegularExpression
+    }
+}
+```
+
+Detection runs on `textDidChange` with the same debounce pattern — 400ms after the user stops typing, scan the full string, insert pills for any new references found.
+
+### Writing Tools: free on iOS 18+
+
+Because the editor is a real `UITextView`, Writing Tools (Summarize, Rewrite, Proofread, Make Concise) appear in the system edit menu with zero additional code. There is no ProseMirror model to coordinate — TextKit 2 handles the document mutation directly.
+
+The only custom work: pause scripture detection during a Writing Tools edit so a Summarize operation doesn't try to pill-ify the AI's rewritten text mid-flight.
 
 ---
 
@@ -333,7 +463,7 @@ App Intents expose Harvous actions to Siri, Shortcuts, and Spotlight — without
 
 The `GetTodaysRecallCard` intent is the standout. A user can ask Siri for a recall card while driving, commuting, or before opening a Bible — friction is near zero.
 
-**Native requirement:** `AppIntents` framework (Swift). Capacitor bridge needed to pass intent results to the React layer.
+**Native requirement:** `AppIntents` framework (Swift). Results are passed directly to SwiftUI views — no bridge layer.
 
 ---
 
@@ -370,18 +500,18 @@ let item = CSSearchableItem(
 
 ### 9d. Writing Tools in the Editor
 
-Apple Intelligence Writing Tools appear automatically in any `UITextView` on iOS 18+. For the Harvous TipTap editor, opt-in via the `WritingToolsCoordinator` API to get:
+Apple Intelligence Writing Tools appear automatically in any `UITextView` on iOS 18+. Because the Harvous editor is built on TextKit 2 (not a WKWebView), this is genuinely zero additional work — the system edit menu gains Summarize, Rewrite, Proofread, and Make Concise automatically.
 
 - **Summarize** — compress a long study note into key points
 - **Rewrite** — clean up a rushed note written mid-sermon
 - **Proofread** — fix grammar/spelling without changing meaning
 - **Make Friendly/Professional/Concise** — restyle for sharing
 
-This is almost free — the TipTap editor already uses `UITextView` under the hood in the native layer. The main work is coordinating Writing Tools edits back into ProseMirror's document model (similar to how paste is currently handled).
+The only custom handling: pause scripture detection during a Writing Tools session (via `writingToolsWillBegin` / `writingToolsDidEnd`) so the AI's rewritten text isn't immediately scanned for new pill insertions.
 
 **Recall angle:** Summarize is directly useful before a review session — condense 5 scattered notes on a book into a one-paragraph summary before the quiz.
 
-**Native requirement:** `WritingToolsCoordinator` + handle `writingToolsWillBegin` / `writingToolsDidEnd` to pause ProseMirror's change tracking during AI edits.
+**Native requirement:** `UITextView` (already the editor foundation) + a `textViewWritingToolsWillBegin` delegate hook to pause detection. No additional frameworks.
 
 ---
 
@@ -447,13 +577,13 @@ Home screen and Lock Screen widgets bring recall into the user's passive environ
 
 ### Implementation Path
 
-Apple Intelligence features require a true native shell. The Capacitor strategy (see `CAPACITOR_STRATEGIC_ANALYSIS.md`) is the bridge:
+Apple Intelligence features are native-first by default in this architecture — no bridge, no compatibility shims.
 
-1. **Capacitor first** — get a native container shipping. Most Apple Intelligence features are native-side hooks that call into the existing React layer.
-2. **App Intents + Spotlight** — highest value, achievable in the Capacitor shell with a Swift plugin.
-3. **Writing Tools** — available automatically on `UITextView`; coordination with ProseMirror is the only custom work.
-4. **Live Activities + Widgets** — require pure SwiftUI, can ship independently alongside the Capacitor app.
-5. **Full SwiftUI rewrite** — the long-term destination where all of the above becomes native-first.
+1. **App Intents + Spotlight** — highest value, ship early in the SwiftUI build. `AppIntents` is pure Swift; CoreSpotlight indexing hooks into the existing note save flow.
+2. **Writing Tools** — free on iOS 18+ because the editor is `UITextView`. Only work: the detection-pause delegate hook.
+3. **Priority notifications** — no framework change; just well-written notification copy + spaced-repetition scheduling logic in a `BGProcessingTask`.
+4. **Live Activities + Widgets** — `ActivityKit` + `WidgetKit`, pure SwiftUI, ship as a standalone target alongside the main app.
+5. **Calendar integration** — `EventKit` read access + a background task that pre-prepares the context digest.
 
 ---
 
@@ -652,11 +782,12 @@ The malleability layer has concrete implications for the SwiftUI redesign:
 
 ## Rollout Sequence
 
-### Phase 1 — Foundation (low risk, high visual payoff)
+### Phase 1 — Foundation (SwiftUI + TextKit 2 core)
 
-1. Bottom tab bar on mobile replacing the drawer-based nav
-2. Card visual refresh: `16px` radius, drop shadow, spring animations
-3. Compose sheet: full-screen, writing-first, thread selection moves to footer
+1. SwiftUI app shell: tab bar, navigation, design tokens (`Color`, `Font`, `ShapeStyle`)
+2. TextKit 2 editor with scripture detection + `NSTextAttachment` pills (port of `scripture-detector.ts` to Swift)
+3. Compose sheet: full-screen, writing-first, thread suggestion in footer
+4. Card visual refresh: `16px` radius, drop shadow, spring animations
 
 ### Phase 2 — Core Concept Shifts
 
@@ -675,7 +806,7 @@ The malleability layer has concrete implications for the SwiftUI redesign:
 10. CoreSpotlight semantic indexing on every note save
 11. App Intents: `StartRecallSession`, `GetTodaysRecallCard`, `AddHarvousNote`
 12. Priority notifications with spaced-repetition cadence
-13. Writing Tools coordination in the TipTap editor
+13. Writing Tools pause hook in the TextKit 2 editor (detection pause during AI edits)
 14. Home screen widgets (small + medium) with interactive recall buttons
 15. Live Activities for active review sessions and streaks
 16. Calendar integration for pre-study context notifications
