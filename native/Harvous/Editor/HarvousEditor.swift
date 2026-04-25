@@ -132,12 +132,14 @@ struct HarvousEditor: NSViewRepresentable {
             for match in freshMatches.reversed() {
                 let pill = ScripturePillAttachment(reference: match.displayText)
                 let pillStr = NSMutableAttributedString(attachment: pill)
-                pillStr.addAttributes([.font: NSFont.systemFont(ofSize: 16)], range: NSRange(location: 0, length: pillStr.length))
+                let bodyFont: NSFont = .systemFont(ofSize: 16)
+                pillStr.addAttributes([.font: bodyFont], range: NSRange(location: 0, length: pillStr.length))
                 storage.replaceCharacters(in: match.range, with: pillStr)
             }
 
             // Restore font for the whole storage (pills excluded)
-            storage.addAttribute(.font, value: NSFont.systemFont(ofSize: 16), range: NSRange(location: 0, length: storage.length))
+            let bodyFont: NSFont = .systemFont(ofSize: 16)
+            storage.addAttribute(.font, value: bodyFont, range: NSRange(location: 0, length: storage.length))
         }
     }
 }
@@ -207,7 +209,7 @@ struct HarvousEditor: UIViewRepresentable {
             let matches = ScriptureDetector.detect(in: text)
             state.detectedRefs = matches.map(\.displayText)
 
-            guard let storage = textView.textStorage else { return }
+            let storage = textView.textStorage
             let fullRange = NSRange(location: 0, length: storage.length)
 
             var pillRanges: [NSRange] = []

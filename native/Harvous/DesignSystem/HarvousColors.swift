@@ -13,8 +13,13 @@ extension Color {
     static let threadPurple = Color(red: 0.91, green: 0.79, blue: 1.00)
 
     // Surface hierarchy
+    #if os(macOS)
     static var surfacePrimary: Color   { Color(nsColor: .windowBackgroundColor) }
     static var surfaceSecondary: Color { Color(nsColor: .controlBackgroundColor) }
+    #else
+    static var surfacePrimary: Color   { Color(uiColor: .systemBackground) }
+    static var surfaceSecondary: Color { Color(uiColor: .secondarySystemBackground) }
+    #endif
 
     static func thread(_ key: String) -> Color? {
         switch key {
