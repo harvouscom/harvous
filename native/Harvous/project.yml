@@ -1,0 +1,37 @@
+name: Harvous
+options:
+  deploymentTarget:
+    macOS: "14.0"
+    iOS: "17.0"
+  defaultConfig: Debug
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+targets:
+  Harvous:
+    type: application
+    platform: [macOS, iOS]
+    sources:
+      - path: .
+        excludes:
+          - "project.yml"
+          - "*.xcodeproj"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harvous.app
+        INFOPLIST_FILE: Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_PREVIEWS: YES
+        SWIFT_STRICT_CONCURRENCY: targeted
+      configs:
+        Debug:
+          DEBUG_INFORMATION_FORMAT: dwarf
+        Release:
+          DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+    entitlements:
+      path: Harvous.entitlements
