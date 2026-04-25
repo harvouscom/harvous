@@ -2,94 +2,71 @@ import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @State private var showCompose = false
-
     var body: some View {
         #if os(macOS)
-        MacRootView(showCompose: $showCompose)
+        MacRootView()
         #else
-        iOSRootView(showCompose: $showCompose)
+        iOSRootView()
         #endif
     }
 }
 
-// MARK: - macOS: NavigationSplitView (the Apple way)
+// MARK: - macOS: Two-column (Bear / Apple Notes style)
 
 #if os(macOS)
 struct MacRootView: View {
-    @Binding var showCompose: Bool
-    @State private var sidebarSelection: SidebarItem = .allNotes
     @State private var selectedNote: Note?
+    @State private var showCompose = false
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selection: $sidebarSelection)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 220)
-        } content: {
-            NoteListView(filter: sidebarSelection, selectedNote: $selectedNote)
-                .navigationSplitViewColumnWidth(min: 280, ideal: 320)
+            NoteListColumn(selectedNote: $selectedNote, showCompose: $showCompose)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 268, max: 340)
         } detail: {
-            NoteEditorView(note: selectedNote)
+            NoteEditorView(note: $selectedNote)
         }
-        .navigationTitle("")
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    showCompose = true
-                } label: {
-                    Label("New Note", systemImage: "square.and.pencil")
-                }
-                .keyboardShortcut("n", modifiers: .command)
-                .help("New Note (⌘N)")
-            }
-        }
+        .navigationSplitViewStyle(.balanced)
+        // Remove default NavigationSplitView chrome — we draw our own headers
+        .toolbar(removing: .sidebarToggle)
         .sheet(isPresented: $showCompose) {
             ComposeView()
-                .frame(minWidth: 580, minHeight: 440)
+                .frame(minWidth: 580, minHeight: 460)
         }
     }
 }
 #endif
 
-// MARK: - iOS: TabView with overlay compose button
+// MARK: - iOS: Tab bar with overlay FAB
 
 #if os(iOS)
 struct iOSRootView: View {
-    @Binding var showCompose: Bool
-    @State private var selectedTab: iOSTab = .home
-
-    enum iOSTab { case home, search, library }
+    @State private var showCompose = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            TabView(selection: $selectedTab) {
+            TabView {
                 NavigationStack {
-                    NoteListView(filter: .allNotes, selectedNote: .constant(nil))
+                    NoteListColumn(selectedNote: .constant(nil), showCompose: $showCompose)
                         .navigationTitle("Harvous")
                 }
                 .tabItem { Label("Notes", systemImage: "note.text") }
-                .tag(iOSTab.home)
 
                 NavigationStack {
                     SearchView()
                         .navigationTitle("Search")
                 }
                 .tabItem { Label("Search", systemImage: "magnifyingglass") }
-                .tag(iOSTab.search)
 
                 NavigationStack {
                     LibraryView()
                         .navigationTitle("Library")
                 }
                 .tabItem { Label("Library", systemImage: "books.vertical") }
-                .tag(iOSTab.library)
             }
             .tint(.harvousAccent)
 
-            // Compose FAB — always reachable
             Button {
-                let impact = UIImpactFeedbackGenerator(style: .medium)
-                impact.impactOccurred()
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 showCompose = true
             } label: {
                 Image(systemName: "square.and.pencil")
@@ -100,7 +77,7 @@ struct iOSRootView: View {
                     .shadow(color: Color.harvousAccent.opacity(0.4), radius: 12, y: 4)
             }
             .padding(.trailing, 20)
-            .padding(.bottom, 80) // clear tab bar
+            .padding(.bottom, 80)
         }
         .sheet(isPresented: $showCompose) {
             ComposeView()
@@ -110,15 +87,6 @@ struct iOSRootView: View {
     }
 }
 #endif
-
-// MARK: - Sidebar selection model
-
-enum SidebarItem: Hashable {
-    case allNotes
-    case recent
-    case scripture
-    case threadGroup(String) // color key
-}
 
 #Preview {
     ContentView()

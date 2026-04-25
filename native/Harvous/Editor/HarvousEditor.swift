@@ -14,7 +14,9 @@ import AppKit
 
 struct HarvousEditor: NSViewRepresentable {
     @Binding var state: EditorState
+    var proxy: EditorProxy? = nil
     var placeholder: String = "What are you studying?"
+    var font: NSFont = .systemFont(ofSize: 15, weight: .regular)
 
     func makeCoordinator() -> Coordinator { Coordinator(state: $state) }
 
@@ -22,8 +24,8 @@ struct HarvousEditor: NSViewRepresentable {
         let scrollView = NSTextView.scrollableTextView()
         let textView = scrollView.documentView as! NSTextView
 
-        textView.isRichText = false
-        textView.font = .systemFont(ofSize: 16)
+        textView.isRichText = true       // rich text so formatting attributes stick
+        textView.font = font
         textView.textColor = .labelColor
         textView.backgroundColor = .clear
         textView.isEditable = true
@@ -32,6 +34,7 @@ struct HarvousEditor: NSViewRepresentable {
         textView.textContainerInset = NSSize(width: 4, height: 8)
         textView.delegate = context.coordinator
         context.coordinator.textView = textView
+        proxy?.textView = textView   // wire proxy for toolbar actions
 
         // Placeholder
         if state.plainText.isEmpty {
