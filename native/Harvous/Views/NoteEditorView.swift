@@ -27,6 +27,12 @@ struct NoteEditorView: View {
         }
         .onChange(of: note?.id) { _, _ in syncFromNote() }
         .onAppear { syncFromNote() }
+        // Auto-focus title when a brand-new empty note is opened (Apple Notes UX)
+        .task(id: note?.id) {
+            guard let n = note, n.title.isEmpty, n.body.isEmpty else { return }
+            try? await Task.sleep(for: .milliseconds(80))
+            titleFocused = true
+        }
         #if os(macOS)
         .toolbar { editorToolbar }
         #endif

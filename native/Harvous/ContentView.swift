@@ -17,7 +17,8 @@ struct ContentView: View {
 struct MacRootView: View {
     @State private var selectedFilter: NoteFilter = .all
     @State private var selectedNote: Note?
-    @State private var showCompose = false
+    @State private var lastSelectedNote: Note?   // for empty-note cleanup
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         NavigationSplitView {
@@ -29,7 +30,7 @@ struct MacRootView: View {
             NoteListColumn(
                 filter: selectedFilter,
                 selectedNote: $selectedNote,
-                showCompose: $showCompose
+                onNewNote: createNewNote
             )
             .navigationSplitViewColumnWidth(min: 240, ideal: 300, max: 380)
         } detail: {
@@ -39,10 +40,27 @@ struct MacRootView: View {
         .navigationSplitViewStyle(.balanced)
         // Reset selected note when the filter changes
         .onChange(of: selectedFilter) { _, _ in selectedNote = nil }
-        .sheet(isPresented: $showCompose) {
-            ComposeView()
-                .frame(minWidth: 580, minHeight: 460)
+        // Discard empty notes when navigating away (Apple Notes behavior)
+        .onChange(of: selectedNote?.id) { _, _ in
+            if let prev = lastSelectedNote,
+               prev.id != selectedNote?.id,
+               prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               prev.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                context.delete(prev)
+            }
+            lastSelectedNote = selectedNote
         }
+    }
+
+    // MARK: - Create new note inline (Apple Notes style — no sheet)
+    private func createNewNote() {
+        let note = Note()
+        // Pre-assign thread color if we're inside a specific thread
+        if case .thread(let key) = selectedFilter {
+            note.threadColor = key
+        }
+        context.insert(note)
+        selectedNote = note
     }
 }
 #endif
@@ -57,8 +75,11 @@ struct iOSRootView: View {
         ZStack(alignment: .bottomTrailing) {
             TabView {
                 NavigationStack {
-                    NoteListColumn(selectedNote: .constant(nil), showCompose: $showCompose)
-                        .navigationTitle("Harvous")
+                    NoteListColumn(
+                        selectedNote: .constant(nil),
+                        onNewNote: { showCompose = true }
+                    )
+                    .navigationTitle("Harvous")
                 }
                 .tabItem { Label("Notes", systemImage: "note.text") }
 

@@ -5,7 +5,10 @@ import SwiftData
 struct NoteListColumn: View {
     var filter: NoteFilter = .all
     @Binding var selectedNote: Note?
-    @Binding var showCompose: Bool
+    /// Called when the user taps the compose button.
+    /// On macOS: immediately creates a note in-place (Apple Notes style).
+    /// On iOS: typically triggers a sheet.
+    var onNewNote: () -> Void = {}
 
     @Query(sort: \Note.updatedAt, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var context
@@ -56,9 +59,7 @@ struct NoteListColumn: View {
         .toolbar {
             #if os(macOS)
             ToolbarItem(placement: .automatic) {
-                Button {
-                    showCompose = true
-                } label: {
+                Button(action: onNewNote) {
                     Image(systemName: "square.and.pencil")
                 }
                 .keyboardShortcut("n", modifiers: .command)
@@ -193,7 +194,7 @@ struct NoteRow: View {
 }
 
 #Preview {
-    NoteListColumn(selectedNote: .constant(nil), showCompose: .constant(false))
+    NoteListColumn(selectedNote: .constant(nil))
         .modelContainer(for: [Note.self], inMemory: true)
         .frame(width: 300, height: 600)
 }
