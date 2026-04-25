@@ -15,12 +15,16 @@ enum NoteFilter: Hashable, Sendable {
     }
 }
 
-// MARK: - Sidebar view (macOS only — Apple Notes-style)
+// MARK: - Sidebar (macOS only)
+// Shows the thread/folder list. Tapping an item sets selectedFilter,
+// which causes MacRootView to swap the sidebar content to the note list.
 
 #if os(macOS)
 struct SidebarView: View {
-    @Binding var selectedFilter: NoteFilter
+    /// nil = this view is showing (root). Non-nil = note list is showing for that filter.
+    @Binding var selectedFilter: NoteFilter?
     var onNewNote: () -> Void = {}
+
     @Query private var notes: [Note]
 
     private let threadOrder = ["blue", "yellow", "green", "pink", "orange", "purple"]
@@ -29,7 +33,6 @@ struct SidebarView: View {
         notes.filter { $0.threadColor == key }.count
     }
 
-    /// Prefer a user-set threadName; fall back to the color key capitalized.
     private func displayName(for key: String) -> String {
         notes.first { $0.threadColor == key && $0.threadName != nil }?.threadName
             ?? key.capitalized
@@ -40,24 +43,33 @@ struct SidebarView: View {
     }
 
     var body: some View {
-        List(selection: $selectedFilter) {
-            // All Notes — top-level item like Apple Notes' "All iCloud"
-            Label("All Notes", systemImage: "note.text")
-                .badge(notes.count)
-                .tag(NoteFilter.all)
+        List {
+            // All Notes
+            SidebarRow(
+                label: "All Notes",
+                icon: "note.text",
+                iconColor: .secondary,
+                count: notes.count
+            )
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(HarvousAnimation.spring) { selectedFilter = .all }
+            }
 
-            // Threads — each thread is a "folder" with a colored icon
+            // Threads
             if !activeThreads.isEmpty {
                 Section("Threads") {
                     ForEach(activeThreads, id: \.self) { key in
-                        Label {
-                            Text(displayName(for: key))
-                        } icon: {
-                            Image(systemName: "folder.fill")
-                                .foregroundStyle(HarvousColors.thread(key) ?? .secondary)
+                        SidebarRow(
+                            label: displayName(for: key),
+                            icon: "folder.fill",
+                            iconColor: HarvousColors.thread(key) ?? .secondary,
+                            count: count(for: key)
+                        )
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(HarvousAnimation.spring) { selectedFilter = .thread(key) }
                         }
-                        .badge(count(for: key))
-                        .tag(NoteFilter.thread(key))
                     }
                 }
             }
@@ -65,7 +77,6 @@ struct SidebarView: View {
         .listStyle(.sidebar)
         .navigationTitle("Harvous")
         .toolbar {
-            // Compose button lives here — sidebar is always visible
             ToolbarItem(placement: .primaryAction) {
                 Button(action: onNewNote) {
                     Image(systemName: "square.and.pencil")
@@ -77,9 +88,35 @@ struct SidebarView: View {
     }
 }
 
+// MARK: - Sidebar row
+
+private struct SidebarRow: View {
+    let label: String
+    let icon: String
+    let iconColor: Color
+    let count: Int
+
+    var body: some View {
+        HStack {
+            Label {
+                Text(label)
+            } icon: {
+                Image(systemName: icon)
+                    .foregroundStyle(iconColor)
+            }
+            Spacer()
+            if count > 0 {
+                Text("\(count)")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 #Preview {
-    SidebarView(selectedFilter: .constant(.all))
+    SidebarView(selectedFilter: .constant(nil))
         .modelContainer(for: [Note.self], inMemory: true)
-        .frame(width: 220, height: 500)
+        .frame(width: 240, height: 500)
 }
 #endif

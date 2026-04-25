@@ -11,54 +11,28 @@ struct ContentView: View {
     }
 }
 
-// MARK: - macOS root view
+// MARK: - macOS: Two-column — sidebar navigates, editor is the canvas
 
 #if os(macOS)
 struct MacRootView: View {
-    @State private var selectedFilter: NoteFilter = .all
+    /// nil = sidebar showing thread list.
+    /// non-nil = sidebar showing note list for that filter.
+    @State private var selectedFilter: NoteFilter? = nil
     @State private var selectedNote: Note?
     @State private var lastSelectedNote: Note?
-
-    /// Drives which columns are visible.
-    /// .doubleColumn = sidebar + editor (note list hidden — the default).
-    /// .all           = sidebar + note list + editor (peeks in when browsing).
-    /// .detailOnly would also hide the sidebar, which we don't want.
-    @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
-
     @Environment(\.modelContext) private var context
 
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            // Column 1: Sidebar — always visible, very narrow
-            SidebarView(
-                selectedFilter: $selectedFilter,
-                onNewNote: createNewNote
-            )
-            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
-        } content: {
-            // Column 2: Note list — peeks in on browse, collapses on note-select
-            NoteListColumn(
-                filter: selectedFilter,
-                selectedNote: $selectedNote,
-                onNewNote: createNewNote
-            )
-            .navigationSplitViewColumnWidth(min: 260, ideal: 300, max: 380)
+        NavigationSplitView {
+            // Single sidebar column — swaps between thread list and note list
+            sidebarContent
+                .navigationSplitViewColumnWidth(min: 240, ideal: 280, max: 340)
         } detail: {
-            // Column 3: Editor — the main canvas
             NoteEditorView(note: $selectedNote)
         }
         .navigationSplitViewStyle(.balanced)
-        // Sidebar filter tapped → show note list so user can browse
-        .onChange(of: selectedFilter) { _, _ in
-            selectedNote = nil
-            withAnimation(HarvousAnimation.spring) { columnVisibility = .all }
-        }
-        // Note selected → slide the note list back away, keep sidebar
-        .onChange(of: selectedNote?.id) { _, newID in
-            if newID != nil {
-                withAnimation(HarvousAnimation.spring) { columnVisibility = .doubleColumn }
-            }
-            // Discard empty notes when navigating away (Apple Notes behavior)
+        // Empty note cleanup on navigate-away
+        .onChange(of: selectedNote?.id) { _, _ in
             if let prev = lastSelectedNote,
                prev.id != selectedNote?.id,
                prev.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -69,12 +43,51 @@ struct MacRootView: View {
         }
     }
 
-    // MARK: - Create note inline (Apple Notes style — no sheet)
+    // MARK: - Sidebar content (dynamic — thread list or note list)
+
+    @ViewBuilder
+    private var sidebarContent: some View {
+        if let filter = selectedFilter {
+            // Note list — fills the sidebar when user is browsing a thread/filter
+            NoteListColumn(
+                filter: filter,
+                selectedNote: $selectedNote,
+                onNewNote: createNewNote
+            )
+            .toolbar {
+                // Back button returns to thread list
+                ToolbarItem(placement: .navigation) {
+                    Button {
+                        withAnimation(HarvousAnimation.spring) { selectedFilter = nil }
+                    } label: {
+                        Label("Threads", systemImage: "chevron.backward")
+                    }
+                }
+                // Compose button stays accessible
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: createNewNote) {
+                        Image(systemName: "square.and.pencil")
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
+                    .help("New Note (⌘N)")
+                }
+            }
+        } else {
+            // Thread list — default sidebar view
+            SidebarView(selectedFilter: $selectedFilter, onNewNote: createNewNote)
+        }
+    }
+
+    // MARK: - Create note inline (Apple Notes style)
+
     private func createNewNote() {
+        // If we're at the root, drill into "All Notes" first so user sees the new note
+        if selectedFilter == nil {
+            withAnimation(HarvousAnimation.spring) { selectedFilter = .all }
+        }
         let note = Note()
         if case .thread(let key) = selectedFilter { note.threadColor = key }
         context.insert(note)
-        // Selecting triggers onChange which collapses back to .doubleColumn
         selectedNote = note
     }
 }
