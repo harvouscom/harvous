@@ -8,138 +8,169 @@ struct ComposeView: View {
 
     @State private var title = ""
     @State private var editorState = EditorState()
-    @State private var isSaving = false
+    @FocusState private var titleFocused: Bool
+    @FocusState private var editorFocused: Bool
 
-    // Stubbed tags — will be generated from content in the real build
+    // Derived tag suggestions from content keywords
     private var suggestedTags: [String] {
+        let text = editorState.plainText.lowercased()
         var tags: [String] = []
-        if editorState.plainText.lowercased().contains("faith") { tags.append("faith") }
-        if editorState.plainText.lowercased().contains("grace") { tags.append("grace") }
-        if editorState.plainText.lowercased().contains("love")  { tags.append("love") }
-        if !editorState.detectedRefs.isEmpty                    { tags.append("scripture") }
-        return tags
+        if text.contains("faith")   { tags.append("faith") }
+        if text.contains("grace")   { tags.append("grace") }
+        if text.contains("love")    { tags.append("love") }
+        if text.contains("hope")    { tags.append("hope") }
+        if text.contains("prayer")  { tags.append("prayer") }
+        if text.contains("worship") { tags.append("worship") }
+        if !editorState.detectedRefs.isEmpty { tags.append("scripture") }
+        return Array(tags.prefix(4))
+    }
+
+    private var canSave: Bool {
+        !editorState.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 0) {
-                // Title field
-                TextField("Title (optional)", text: $title)
-                    .font(HarvousTypography.title)
+            VStack(spacing: 0) {
+                // Title
+                TextField("Title", text: $title)
+                    .font(.system(size: 22, weight: .bold))
                     .textFieldStyle(.plain)
+                    .focused($titleFocused)
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
-                    .padding(.bottom, 8)
+                    .padding(.top, 20)
+                    .padding(.bottom, 4)
+                    #if os(iOS)
+                    .submitLabel(.next)
+                    .onSubmit { editorFocused = true }
+                    #endif
 
                 Divider().padding(.horizontal, 20)
 
-                // Editor — the core surface
+                // Editor — the primary surface
                 HarvousEditor(state: $editorState)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
 
-                // Detected scripture refs (live)
+                // Live scripture detection feedback
                 if !editorState.detectedRefs.isEmpty {
-                    detectedRefsBar
+                    refsStrip
                 }
 
-                Divider()
-
-                // Tag chips + thread suggestion
-                footerBar
+                // Footer: tags + thread indicator
+                composeFooter
             }
             .navigationTitle("New Note")
-            #if os(macOS)
-            .navigationSubtitle(editorState.detectedRefs.isEmpty ? "" : editorState.detectedRefs.joined(separator: " · "))
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") { save() }
-                        .disabled(editorState.plainText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .bold()
+                    Button("Save") {
+                        save()
+                    }
+                    .disabled(!canSave)
+                    .fontWeight(.semibold)
+                }
+            }
+            .onAppear {
+                // Focus title on open
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    titleFocused = true
                 }
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 560, minHeight: 420)
-        #endif
     }
 
-    // MARK: - Subviews
+    // MARK: - Detected refs strip
 
-    private var detectedRefsBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                Image(systemName: "book.closed")
-                    .font(.caption)
-                    .foregroundStyle(Color.harvousAccent)
-                ForEach(editorState.detectedRefs, id: \.self) { ref in
-                    Text(ref)
-                        .font(HarvousTypography.caption)
-                        .foregroundStyle(Color.harvousAccent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Color.harvousAccent.opacity(0.08), in: Capsule())
-                        .overlay(Capsule().strokeBorder(Color.harvousAccent.opacity(0.2), lineWidth: 0.5))
+    private var refsStrip: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Image(systemName: "book.closed.fill")
+                        .font(.caption)
+                        .foregroundStyle(.tint)
+
+                    ForEach(editorState.detectedRefs, id: \.self) { ref in
+                        Text(ref)
+                            .font(.subheadline)
+                            .foregroundStyle(.tint)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.tint.opacity(0.08), in: Capsule())
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
         }
+        .background(.bar)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(HarvousAnimation.spring, value: editorState.detectedRefs.count)
     }
 
-    private var footerBar: some View {
+    // MARK: - Compose footer
+
+    private var composeFooter: some View {
         HStack(spacing: 8) {
-            if !suggestedTags.isEmpty {
-                ForEach(suggestedTags, id: \.self) { tag in
-                    Text("#\(tag)")
-                        .font(HarvousTypography.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(.quaternary, in: Capsule())
-                }
-            } else {
-                Text("Tags will appear as you write…")
-                    .font(HarvousTypography.footnote)
+            // Tag chips
+            if suggestedTags.isEmpty {
+                Label("Tags appear as you write", systemImage: "tag")
+                    .font(.subheadline)
                     .foregroundStyle(.tertiary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(suggestedTags, id: \.self) { tag in
+                            Text("#\(tag)")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(.quaternary, in: Capsule())
+                        }
+                    }
+                }
             }
+
             Spacer()
-            // Thread suggestion — auto-assigned on save
+
+            // Auto-thread indicator
             HStack(spacing: 4) {
-                Circle()
-                    .fill(Color.threadBlue)
-                    .frame(width: 8, height: 8)
+                Image(systemName: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
                 Text("Auto-organized")
-                    .font(HarvousTypography.footnote)
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
+        .background(.bar)
     }
 
-    // MARK: - Actions
+    // MARK: - Save
 
     private func save() {
-        let bodyText = editorState.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !bodyText.isEmpty else { return }
+        let body = editorState.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return }
 
         let note = Note(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-            body: bodyText,
+            body: body,
             detectedRefs: editorState.detectedRefs,
             threadColor: Note.nextColor(existing: existingNotes),
             tags: suggestedTags
         )
-
-        withAnimation(HarvousAnimation.spring) {
-            context.insert(note)
-        }
+        context.insert(note)
         dismiss()
     }
 }

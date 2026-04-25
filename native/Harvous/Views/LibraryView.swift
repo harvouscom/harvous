@@ -48,7 +48,7 @@ struct LibraryView: View {
             ForEach(grouped, id: \.color) { group in
                 Section {
                     ForEach(group.notes) { note in
-                        NavigationLink { NoteDetailView(note: note) } label: {
+                        NavigationLink { NoteEditorView(note: note) } label: {
                             HStack(spacing: 12) {
                                 Circle()
                                     .fill(HarvousColors.thread(group.color) ?? .clear)

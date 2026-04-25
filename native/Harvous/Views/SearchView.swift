@@ -60,7 +60,7 @@ struct SearchView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(results) { note in
-                    NavigationLink { NoteDetailView(note: note) } label: { NoteCardView(note: note) }
+                    NavigationLink { NoteEditorView(note: note) } label: { NoteCardView(note: note) }
                         .buttonStyle(.plain)
                 }
             }
