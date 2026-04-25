@@ -20,9 +20,10 @@ struct MacRootView: View {
     @State private var lastSelectedNote: Note?
 
     /// Drives which columns are visible.
-    /// Default: editor-only (.detailOnly). Note list peeks in when browsing,
-    /// collapses back the moment a note is selected — like the format bar.
-    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    /// .doubleColumn = sidebar + editor (note list hidden — the default).
+    /// .all           = sidebar + note list + editor (peeks in when browsing).
+    /// .detailOnly would also hide the sidebar, which we don't want.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .doubleColumn
 
     @Environment(\.modelContext) private var context
 
@@ -52,10 +53,10 @@ struct MacRootView: View {
             selectedNote = nil
             withAnimation(HarvousAnimation.spring) { columnVisibility = .all }
         }
-        // Note selected → slide the note list back away
+        // Note selected → slide the note list back away, keep sidebar
         .onChange(of: selectedNote?.id) { _, newID in
             if newID != nil {
-                withAnimation(HarvousAnimation.spring) { columnVisibility = .detailOnly }
+                withAnimation(HarvousAnimation.spring) { columnVisibility = .doubleColumn }
             }
             // Discard empty notes when navigating away (Apple Notes behavior)
             if let prev = lastSelectedNote,
@@ -70,12 +71,10 @@ struct MacRootView: View {
 
     // MARK: - Create note inline (Apple Notes style — no sheet)
     private func createNewNote() {
-        // Show the list briefly so the user sees the new note appear, then collapse
-        withAnimation(HarvousAnimation.spring) { columnVisibility = .all }
         let note = Note()
         if case .thread(let key) = selectedFilter { note.threadColor = key }
         context.insert(note)
-        // Selecting the note will auto-collapse the list via onChange above
+        // Selecting triggers onChange which collapses back to .doubleColumn
         selectedNote = note
     }
 }
