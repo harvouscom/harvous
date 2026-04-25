@@ -457,6 +457,199 @@ Apple Intelligence features require a true native shell. The Capacitor strategy 
 
 ---
 
+## Concept 10 — Malleability & SDK: Harvous as the Study Hub
+
+The redesign should be built from the start as an *extensible platform*, not a closed app. The full SDK vision is in `HARVOUS_SDK_AND_FUTURE_ROADMAP.md` — this section covers how malleability shows up in the design and architecture of the native experience.
+
+The mission is already clear: **"Keep your Bible app. Just add Harvous."** Harvous is the notes and memory layer for the Bible study tool ecosystem. For that to work, the app and its design system need to be built with extension in mind at every layer.
+
+---
+
+### The four layers of malleability
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  4. Ecosystem (other apps, churches, developers)        │
+│     SDK · partner deep links · app registry             │
+├─────────────────────────────────────────────────────────┤
+│  3. Data portability (your study, your data)            │
+│     Export · import · open format · MCP server          │
+├─────────────────────────────────────────────────────────┤
+│  2. UI extension points (inside Harvous)                │
+│     Note card sources · context panel slots · actions   │
+├─────────────────────────────────────────────────────────┤
+│  1. Design system (tokens, not hardcoded values)        │
+│     Space tints · card anatomy · attribution patterns   │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Layer 1 — Design system: built for third-party content
+
+The visual design needs to accommodate notes that don't originate in Harvous. A note saved from YouVersion, a sermon note pushed from a church app, a highlight synced from Logos — all need to look coherent but carry attribution.
+
+**Attribution pattern on cards:**
+
+```
+┌──────────────────────────┐
+│ ▓▓▓ Philippians          │  ← thread color (Harvous-side)
+├──────────────────────────┤
+│ "I can do all things..." │
+│                          │
+│ Phil 4:13   2d ago       │
+│ [Y] From YouVersion      │  ← source badge: app icon + name
+└──────────────────────────┘
+```
+
+- Source badge appears only on notes with a registered `addedBy` source
+- Same card anatomy everywhere — the badge is an optional row, not a different card type
+- Registered sources get a branded accent (logo + name from the app registry)
+- Unknown/generic sources show a globe icon + domain
+
+This means the design system needs a first-class `source` slot in the card component — not bolted on later.
+
+**Space tints as a neutral host:**
+
+When a third-party note lands in Harvous, it should feel at home in the active space's visual environment. Space mode tints (Concept 2) are set by Harvous — partner content inherits the tint, keeping the UI coherent regardless of source.
+
+---
+
+### Layer 2 — UI extension points inside Harvous
+
+Some parts of the UI are natural plugin slots:
+
+**Context panel (from `GIVE_ME_MORE_CONTEXT.md`):**
+The "Give me more context" bottom sheet is already designed as a modular AI surface. The architecture should treat it as a slot where providers can register:
+- Built-in: Harvous AI (Claude) — historical/cultural/language context
+- Future: Blue Letter Bible, Bible Project, Logos — their own context response, branded
+- Church app: sermon notes for this passage from your church
+
+Each provider gets one card in the panel, collapsible. The user picks their preferred providers in settings.
+
+**Scripture pill action menu:**
+When a user long-presses a scripture pill, the action menu currently shows: Copy, Compare translations, View note. This is a natural extension point:
+- Registered apps can add actions: "Open in Logos," "Open in YouVersion," "Add to Reading Plan"
+- Actions are registered via the app registry; only appear if the app is installed / authenticated
+
+**Compose entry points:**
+The compose sheet should accept structured input from outside the app:
+- Share sheet: URL + title → resource note, pre-filled
+- Deep link: `harvous://note/create?ref=John+3:16&translation=ESV` → scripture note, pre-filled
+- SDK push: YouVersion highlight → scripture note, fully formed, no compose sheet needed
+
+---
+
+### Layer 3 — Data portability
+
+Your study data belongs to you. Export and open formats aren't just a nice-to-have — they're part of the design contract that makes Harvous trustworthy enough to be the hub.
+
+**Export formats:**
+| Format | Content | Use case |
+|---|---|---|
+| JSON | All notes, threads, spaces, scripture refs, tags | Full backup, migration, developer use |
+| Markdown | One `.md` per note, thread folders | Obsidian, Notion, any text tool |
+| CSV | Notes flat list with metadata | Spreadsheet analysis, mail merge |
+
+**Harvous as an MCP server:**
+
+Harvous should expose an MCP server so AI agents (Claude, custom GPTs, Shortcuts AI) can read and write study data:
+
+```
+harvous://mcp
+  resources:
+    - notes (list, read by ID, search)
+    - threads (list, read)
+    - spaces (list)
+  tools:
+    - create_note(title, content, thread_id?, scripture_refs?)
+    - search_notes(query)
+    - get_related_notes(note_id)
+```
+
+This makes Harvous a first-class data source for any AI assistant — a user could ask Claude "summarize everything I've written about the Sermon on the Mount" and get a real answer from their actual notes.
+
+---
+
+### Layer 4 — Ecosystem SDK
+
+The full SDK design is in `HARVOUS_SDK_AND_FUTURE_ROADMAP.md`. The key design decisions that affect the native redesign:
+
+**Typed note payloads, not generic:**
+Partners don't send `{ title, body }`. They send:
+```json
+{
+  "type": "scripture",
+  "reference": "John 3:16",
+  "translation": "ESV",
+  "text": "For God so loved the world...",
+  "source": { "app": "youversion", "highlightId": "abc123" }
+}
+```
+This means the note type system (default / scripture / resource) is the SDK's vocabulary. The data model already supports this — `ScriptureMetadata`, `ResourceMetadata`, `Notes.addedBy`. The SDK formalizes it.
+
+**App registry:**
+Apps that integrate with Harvous register once:
+```json
+{
+  "appId": "com.youversion.bible",
+  "name": "YouVersion",
+  "shortName": "YouVersion",
+  "icon": "https://...",
+  "accentColor": "#4CAF50",
+  "deepLinkScheme": "youversion://",
+  "capabilities": ["create_note", "create_scripture_note"]
+}
+```
+The registry drives: attribution badges on cards, action menu items on scripture pills, settings page ("Connected Apps"), and the context panel provider list.
+
+**Partner deep link protocol:**
+```
+# Create a scripture note from a partner app
+harvous://note/create?type=scripture&ref=Romans+8:28&translation=NIV&source=logos
+
+# Open a specific thread
+harvous://thread/thread_abc123
+
+# Start a recall session
+harvous://recall/start
+```
+
+**OAuth for partner auth:**
+Partners authenticate users once via Harvous OAuth. After that, the SDK handles token refresh and scoped access (`notes:write`, `threads:read`, etc.).
+
+**Webhooks for listening:**
+Partners can subscribe to Harvous events:
+```
+POST https://partner.app/harvous-webhook
+{
+  "event": "note.created",
+  "noteId": "note_xyz",
+  "type": "scripture",
+  "reference": "Romans 8:28",
+  "userId": "user_abc"
+}
+```
+This lets YouVersion show "You saved this to Harvous" in their UI, or lets a church app know when a member adds a sermon note.
+
+---
+
+### Design implications for the native app
+
+The malleability layer has concrete implications for the SwiftUI redesign:
+
+1. **Library tab** should have a "Connected Apps" section — see all sources contributing notes, manage connections
+2. **Settings** needs a first-class "Integrations" page — registered apps, scoped permissions, revoke access
+3. **Share sheet extension** (iOS Share Extension) is day-one native work — it's the simplest SDK entry point and the most user-visible
+4. **App Clips** — a partner app (e.g. a church app) can embed an App Clip that saves a note to Harvous without requiring the user to have Harvous installed first
+5. **Shortcuts / Automations** — first-party Shortcuts actions (`Create Harvous Note`, `Search Harvous Notes`) make the SDK accessible to non-developers
+
+---
+
+*See also: `HARVOUS_SDK_AND_FUTURE_ROADMAP.md`, `GROWTH_AND_MALLEABILITY.md`, `GIVE_ME_MORE_CONTEXT.md`*
+
+---
+
 ## Rollout Sequence
 
 ### Phase 1 — Foundation (low risk, high visual payoff)
@@ -486,6 +679,17 @@ Apple Intelligence features require a true native shell. The Capacitor strategy 
 14. Home screen widgets (small + medium) with interactive recall buttons
 15. Live Activities for active review sessions and streaks
 16. Calendar integration for pre-study context notifications
+
+### Phase 5 — Malleability & SDK (ecosystem layer)
+
+17. Share sheet extension (iOS) — simplest SDK entry point, day-one native
+18. App registry — `addedBy` source badges on cards, Connected Apps in settings
+19. Harvest deep link protocol (`harvous://note/create?...`)
+20. Shortcuts / Automations: first-party actions for non-developers
+21. MCP server — Harvous as a data source for AI agents
+22. OAuth + scoped SDK for partner apps (YouVersion, Logos, church apps)
+23. Webhooks — partners subscribe to note events
+24. App Clips — save to Harvous without having the app installed
 
 ---
 
