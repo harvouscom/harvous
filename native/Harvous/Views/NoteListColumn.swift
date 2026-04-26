@@ -53,7 +53,9 @@ struct NoteListColumn: View {
                 noteList
             }
         }
+        #if os(iOS)
         .background(Color.surfacePaper)
+        #endif
         .navigationTitle(filter.displayName)
         .searchable(text: $searchText, prompt: "Search")
         #if os(iOS)
@@ -94,8 +96,12 @@ struct NoteListColumn: View {
                     }
             }
         }
+        #if os(macOS)
+        .listStyle(.sidebar)   // matches the thread list sidebar style exactly
+        #else
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        #endif
     }
 
     // MARK: - Empty state
